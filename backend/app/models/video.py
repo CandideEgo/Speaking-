@@ -8,6 +8,7 @@ import enum
 
 class VideoStatus(str, enum.Enum):
     processing = "processing"
+    ready_subtitles = "ready_subtitles"  # subtitles + AI done, video not yet downloaded
     ready = "ready"
     error = "error"
 
@@ -24,7 +25,7 @@ class Video(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     source_url: Mapped[str] = mapped_column(String(2000), nullable=False)
     platform: Mapped[Platform] = mapped_column(SAEnum(Platform), nullable=False)
@@ -35,6 +36,10 @@ class Video(Base):
         SAEnum(VideoStatus), default=VideoStatus.processing, nullable=False
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # YouTube embed support
+    youtube_video_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    processing_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "lightweight" or "full"
 
     # CDN URLs
     video_url_480p: Mapped[str | None] = mapped_column(String(2000), nullable=True)

@@ -106,18 +106,21 @@ export default function DashboardPage() {
 
   const statusIcon = (status: string) => {
     if (status === 'ready') return <CheckCircle2 size={14} className="text-green-500" />;
+    if (status === 'ready_subtitles') return <CheckCircle2 size={14} className="text-blue-500" />;
     if (status === 'error') return <AlertCircle size={14} className="text-red-500" />;
     return <Loader2 size={14} className="animate-spin text-yellow-500" />;
   };
 
   const statusLabel = (status: string) => {
     if (status === 'ready') return '就绪';
+    if (status === 'ready_subtitles') return '可观看';
     if (status === 'error') return '失败';
     return '处理中';
   };
 
   const statusClass = (status: string) => {
     if (status === 'ready') return 'bg-green-50 text-green-700';
+    if (status === 'ready_subtitles') return 'bg-blue-50 text-blue-700';
     if (status === 'error') return 'bg-red-50 text-red-700';
     return 'bg-yellow-50 text-yellow-700';
   };
@@ -235,8 +238,8 @@ export default function DashboardPage() {
             {videos.map((v) => (
               <button
                 key={v.id}
-                onClick={() => v.status === 'ready' && router.push(`/watch/${v.id}`)}
-                disabled={v.status !== 'ready'}
+                onClick={() => (v.status === 'ready' || v.status === 'ready_subtitles') && router.push(`/watch/${v.id}`)}
+                disabled={v.status !== 'ready' && v.status !== 'ready_subtitles'}
                 className="group rounded-xl border border-slate-200 bg-white p-0 text-left overflow-hidden hover:border-brand-300 hover:shadow-md transition-all disabled:cursor-default disabled:hover:border-slate-200 disabled:hover:shadow-none"
               >
                 <div className="relative aspect-video bg-slate-100 flex items-center justify-center">
@@ -245,7 +248,7 @@ export default function DashboardPage() {
                   ) : (
                     <Play size={32} className="text-slate-300 group-hover:text-brand-400 transition-colors" />
                   )}
-                  {v.duration && v.status === 'ready' && (
+                  {v.duration && (v.status === 'ready' || v.status === 'ready_subtitles') && (
                     <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
                       {Math.floor(v.duration / 60)}:{String(Math.floor(v.duration % 60)).padStart(2, '0')}
                     </span>

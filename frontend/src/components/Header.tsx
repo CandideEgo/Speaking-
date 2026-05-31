@@ -13,16 +13,8 @@ export default function Header() {
     setLoggedIn(!!getToken());
   }, [pathname]);
 
-  const isLanding = pathname === '/';
-
   return (
-    <header
-      className={
-        isLanding
-          ? 'absolute top-0 z-50 w-full'
-          : 'sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md'
-      }
-    >
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
       <div className="container-page flex h-16 items-center justify-between">
         <Link href="/" className="text-xl font-bold tracking-tight text-slate-900">
           Speaking

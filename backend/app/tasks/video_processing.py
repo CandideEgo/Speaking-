@@ -1,4 +1,5 @@
 import logging
+import re
 import tempfile
 import os
 import subprocess
@@ -18,6 +19,29 @@ TRANSCODE_PROFILES = {
     '1080p': {'height': 1080, 'bitrate': '3000k'},
 }
 
+def _extract_youtube_video_id(url: str) -> str | None:
+    """Extract YouTube video ID from a URL."""
+    patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})',
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    return None
+
+
+async def _run_ai_pipeline(texts: list[str]) -> tuple[list[str], list[str], str, list[dict]]:
+    """Shared AI pipeline: translate, grammar analyze, difficulty, quiz generation."""
+    ai = AIService()
+    all_text = " ".join(texts)
+    return await asyncio.gather(
+        ai.translate_batch(texts),
+        ai.grammar_analyze_batch(texts),
+        ai.evaluate_difficulty(all_text),
+        ai.generate_quiz(all_text),
+    )
+
 
 @celery_app.task(bind=True, max_retries=3)
 def process_video(self, video_id: str):
@@ -36,17 +60,45 @@ def process_video(self, video_id: str):
                 return
 
             try:
-                # Step 0: Extract video metadata (title, thumbnail, duration)
-                info = await _extract_video_info(video.source_url)
-                if info:
-                    video.title = info.get('title', video.title)
-                    video.thumbnail_url = info.get('thumbnail')
-                    video.duration = info.get('duration')
+                skip_ai = video.status == VideoStatus.ready_subtitles and video.subtitles
 
-                # Step 1: Download video to local media storage
+                if not skip_ai:
+                    # Phase 1 / full pipeline: extract metadata + subtitles + AI
+                    info = await _extract_video_info(video.source_url)
+                    if info:
+                        video.title = info.get('title', video.title)
+                        video.thumbnail_url = info.get('thumbnail')
+                        video.duration = info.get('duration')
+                        video.youtube_video_id = video.youtube_video_id or info.get('youtube_video_id')
+
+                    subs = await _extract_subtitles(video.source_url)
+                    if not subs:
+                        video.status = VideoStatus.error
+                        video.error_message = "No subtitles found. Try a different video."
+                        await db.commit()
+                        return
+
+                    texts = [s["text"] for s in subs]
+                    translated, grammar_batch, difficulty, quiz_questions = await _run_ai_pipeline(texts)
+
+                    for i, sub in enumerate(subs):
+                        db.add(
+                            Subtitle(
+                                video_id=video.id,
+                                start_time=sub["start"],
+                                end_time=sub["end"],
+                                text_en=sub["text"],
+                                text_zh=translated[i] if i < len(translated) else None,
+                                sentence_index=i,
+                                grammar_note=grammar_batch[i] if i < len(grammar_batch) else None,
+                            )
+                        )
+
+                    video.difficulty_level = difficulty
+
+                # Phase 2: Download + transcode video
                 video_path = await _download_video(video.source_url, video.id)
 
-                # Step 2: Transcode to multiple resolutions
                 if video_path:
                     urls = await _transcode_video(video_path, video.id)
                     video.video_url_480p = urls.get('480p')
@@ -55,7 +107,44 @@ def process_video(self, video_id: str):
                 else:
                     logger.warning(f"No video file downloaded for {video_id}")
 
-                # Step 3: Download subtitles via yt-dlp
+                video.status = VideoStatus.ready
+                await db.commit()
+                logger.info(f"Video {video_id} processed")
+
+            except Exception as e:
+                logger.exception(f"Video {video_id} processing failed")
+                video.status = VideoStatus.error
+                video.error_message = str(e)
+                await db.commit()
+                raise self.retry(exc=e)
+
+    asyncio.run(_process())
+
+
+@celery_app.task(bind=True, max_retries=3)
+def process_video_lightweight(self, video_id: str):
+    """Phase 1: extract metadata + subtitles + AI processing (no video download)."""
+    from sqlalchemy import select
+    from app.core.database import async_session
+    from app.models.video import Video, VideoStatus
+    from app.models.subtitle import Subtitle
+
+    async def _process():
+        async with async_session() as db:
+            result = await db.execute(select(Video).where(Video.id == video_id))
+            video = result.scalar_one_or_none()
+            if not video:
+                logger.error(f"Video {video_id} not found")
+                return
+
+            try:
+                info = await _extract_video_info(video.source_url)
+                if info:
+                    video.title = info.get('title', video.title)
+                    video.thumbnail_url = info.get('thumbnail')
+                    video.duration = info.get('duration')
+                    video.youtube_video_id = info.get('youtube_video_id')
+
                 subs = await _extract_subtitles(video.source_url)
                 if not subs:
                     video.status = VideoStatus.error
@@ -63,19 +152,9 @@ def process_video(self, video_id: str):
                     await db.commit()
                     return
 
-                # Steps 4-7: LLM calls (parallel — independent of each other)
-                ai = AIService()
                 texts = [s["text"] for s in subs]
-                all_text = " ".join(texts)
+                translated, grammar_batch, difficulty, quiz_questions = await _run_ai_pipeline(texts)
 
-                translated, grammar_batch, difficulty, quiz_questions = await asyncio.gather(
-                    ai.translate_batch(texts),
-                    ai.grammar_analyze_batch(texts),
-                    ai.evaluate_difficulty(all_text),
-                    ai.generate_quiz(all_text),
-                )
-
-                # Store subtitles
                 for i, sub in enumerate(subs):
                     db.add(
                         Subtitle(
@@ -89,15 +168,17 @@ def process_video(self, video_id: str):
                         )
                     )
 
-                # Update video metadata
                 video.difficulty_level = difficulty
-                video.status = VideoStatus.ready
-
+                video.processing_mode = "lightweight"
+                video.status = VideoStatus.ready_subtitles
                 await db.commit()
-                logger.info(f"Video {video_id} processed: {len(subs)} subtitles, level {difficulty}")
+                logger.info(f"Video {video_id} lightweight: {len(subs)} subtitles, level {difficulty}")
+
+                # Dispatch Phase 2 for full download
+                process_video.delay(video_id)
 
             except Exception as e:
-                logger.exception(f"Video {video_id} processing failed")
+                logger.exception(f"Video {video_id} lightweight processing failed")
                 video.status = VideoStatus.error
                 video.error_message = str(e)
                 await db.commit()
@@ -125,6 +206,7 @@ async def _extract_video_info(url: str) -> dict | None:
                     "title": info.get("title"),
                     "thumbnail": info.get("thumbnail"),
                     "duration": info.get("duration"),
+                    "youtube_video_id": info.get("id"),
                 }
         except Exception:
             logger.exception("Failed to extract video info")

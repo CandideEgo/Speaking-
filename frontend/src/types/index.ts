@@ -15,13 +15,15 @@ export interface Video {
   thumbnail_url: string | null;
   duration: number | null;
   difficulty_level: string | null;
-  status: "processing" | "ready" | "error";
+  status: "processing" | "ready_subtitles" | "ready" | "error";
   error_message: string | null;
   topic_tags: string | null;
   is_official: boolean;
   video_url_480p: string | null;
   video_url_720p: string | null;
   video_url_1080p: string | null;
+  youtube_video_id: string | null;
+  processing_mode: string | null;
   created_at: string;
 }
 

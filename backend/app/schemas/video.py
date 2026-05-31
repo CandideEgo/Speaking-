@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, field_validator
 
 
 class VideoCreate(BaseModel):
@@ -19,9 +20,18 @@ class VideoResponse(BaseModel):
     video_url_480p: str | None = None
     video_url_720p: str | None = None
     video_url_1080p: str | None = None
+    youtube_video_id: str | None = None
+    processing_mode: str | None = None
     created_at: str
 
     model_config = {"from_attributes": True}
+
+    @field_validator('created_at', mode='before')
+    @classmethod
+    def serialize_created_at(cls, v: object) -> str:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
 
 
 class SubtitleResponse(BaseModel):
@@ -38,3 +48,8 @@ class SubtitleResponse(BaseModel):
 
 class VideoDetailResponse(VideoResponse):
     subtitles: list[SubtitleResponse]
+
+
+class VideoStatusResponse(BaseModel):
+    status: str
+    video_url_720p: str | None = None

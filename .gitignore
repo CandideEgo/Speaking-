@@ -9,3 +9,5 @@ build/
 .vercel/
 media/
 venv/
+logs/
+*.tsbuildinfo

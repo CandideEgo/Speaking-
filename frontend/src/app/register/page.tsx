@@ -92,7 +92,7 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {loading ? "注册中..." : "注册 · ¥1 试用 3 天"}
+            {loading ? "注册中..." : "注册"}
           </button>
         </form>
       </div>

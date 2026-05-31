@@ -1,3 +1,6 @@
+import re
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -5,8 +8,8 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.user import User
 from app.models.video import Video, VideoStatus, Platform
-from app.schemas.video import VideoCreate, VideoResponse, VideoDetailResponse, SubtitleResponse
-from app.api.dependencies import get_current_user
+from app.schemas.video import VideoCreate, VideoResponse, VideoDetailResponse, SubtitleResponse, VideoStatusResponse
+from app.api.dependencies import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
@@ -18,6 +21,17 @@ def detect_platform(url: str) -> Platform:
     if "bilibili.com" in url_lower or "b23.tv" in url_lower:
         return Platform.bilibili
     return Platform.other
+
+
+def extract_youtube_video_id(url: str) -> str | None:
+    patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})',
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    return None
 
 
 @router.post("", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
@@ -32,7 +46,7 @@ async def submit_video(
     result = await db.execute(
         select(Video).where(
             Video.source_url == data.source_url,
-            Video.status == VideoStatus.ready,
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         )
     )
     existing = result.scalar_one_or_none()
@@ -50,7 +64,9 @@ async def submit_video(
             video_url_480p=existing.video_url_480p,
             video_url_720p=existing.video_url_720p,
             video_url_1080p=existing.video_url_1080p,
-            status=VideoStatus.ready,
+            youtube_video_id=existing.youtube_video_id,
+            processing_mode=existing.processing_mode,
+            status=existing.status,
         )
         db.add(user_video)
         await db.commit()
@@ -58,40 +74,62 @@ async def submit_video(
         return VideoResponse.model_validate(user_video)
 
     # New video — queue for processing
+    youtube_video_id = extract_youtube_video_id(data.source_url) if platform == Platform.youtube else None
     video = Video(
         user_id=current_user.id,
         title="Processing...",
         source_url=data.source_url,
         platform=platform,
+        youtube_video_id=youtube_video_id,
         status=VideoStatus.processing,
     )
     db.add(video)
     await db.commit()
     await db.refresh(video)
 
-    # Dispatch to Celery for processing
-    from app.tasks.video_processing import process_video
-    process_video.delay(video.id)
+    # Dispatch to Celery — lightweight first for YouTube, full for others
+    from app.tasks.video_processing import process_video, process_video_lightweight
+    if platform == Platform.youtube:
+        process_video_lightweight.delay(video.id)
+    else:
+        process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)
+
+
+@router.get("/public", response_model=list[VideoResponse])
+async def list_public_videos(
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Video)
+        .where(Video.is_official == True, Video.status == VideoStatus.ready)
+        .order_by(Video.created_at.desc())
+        .limit(50)
+    )
+    videos = result.scalars().all()
+    return [VideoResponse.model_validate(v) for v in videos]
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)
 async def get_video(
     video_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Video)
         .options(selectinload(Video.subtitles))
-        .where(Video.id == video_id, Video.user_id == current_user.id)
+        .where(Video.id == video_id)
     )
     video = result.scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
-    # Eager load subtitles via the relationship
+    # Official videos are public; user-owned videos require auth
+    if not video.is_official and (current_user is None or video.user_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
     return VideoDetailResponse(
         id=video.id,
         title=video.title,
@@ -103,6 +141,11 @@ async def get_video(
         status=video.status.value,
         topic_tags=video.topic_tags,
         is_official=video.is_official,
+        video_url_480p=video.video_url_480p,
+        video_url_720p=video.video_url_720p,
+        video_url_1080p=video.video_url_1080p,
+        youtube_video_id=video.youtube_video_id,
+        processing_mode=video.processing_mode,
         created_at=video.created_at.isoformat(),
         subtitles=[
             SubtitleResponse(
@@ -119,6 +162,18 @@ async def get_video(
     )
 
 
+@router.get("/{video_id}/status", response_model=VideoStatusResponse)
+async def get_video_status(
+    video_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return VideoStatusResponse(status=video.status.value, video_url_720p=video.video_url_720p)
+
+
 @router.get("", response_model=list[VideoResponse])
 async def list_videos(
     current_user: User = Depends(get_current_user),
@@ -132,3 +187,33 @@ async def list_videos(
     )
     videos = result.scalars().all()
     return [VideoResponse.model_validate(v) for v in videos]
+
+
+@router.post("/seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+async def seed_video(
+    data: VideoCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Seed an official video for the public homepage. Internal use."""
+    platform = detect_platform(data.source_url)
+    youtube_video_id = extract_youtube_video_id(data.source_url) if platform == Platform.youtube else None
+
+    video = Video(
+        title="Processing...",
+        source_url=data.source_url,
+        platform=platform,
+        youtube_video_id=youtube_video_id,
+        status=VideoStatus.processing,
+        is_official=True,
+    )
+    db.add(video)
+    await db.commit()
+    await db.refresh(video)
+
+    from app.tasks.video_processing import process_video, process_video_lightweight
+    if platform == Platform.youtube:
+        process_video_lightweight.delay(video.id)
+    else:
+        process_video.delay(video.id)
+
+    return VideoResponse.model_validate(video)

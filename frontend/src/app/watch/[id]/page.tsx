@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api, getToken, mediaUrl } from '@/lib/api';
 import type { VideoWithSubtitles } from '@/types';
+import YouTubePlayer, { type YouTubePlayerHandle } from '@/components/YouTubePlayer';
+import SubtitleOverlay from '@/components/SubtitleOverlay';
 import { cn, formatTime } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -54,10 +56,12 @@ export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<YouTubePlayerHandle | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
+  const [playbackMode, setPlaybackMode] = useState<'local' | 'youtube' | 'loading'>('loading');
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [wordMeaning, setWordMeaning] = useState<string | null>(null);
@@ -72,11 +76,21 @@ export default function WatchPage() {
   const activeSubtitle = video?.subtitles.find((s) => s.id === activeSubtitleId);
 
   useEffect(() => {
-    if (!getToken()) { router.push('/login'); return; }
     api<VideoWithSubtitles>(`/api/v1/videos/${id}`)
-      .then((v) => setVideo(v))
-      .catch((err) => { if (err.message?.includes('401')) router.push('/login'); });
-  }, [id, router]);
+      .then((v) => {
+        setVideo(v);
+        if (v.status === 'ready' && v.video_url_720p) {
+          setPlaybackMode('local');
+        } else if ((v.status === 'ready_subtitles' || v.status === 'processing') && v.youtube_video_id) {
+          setPlaybackMode('youtube');
+        } else if (v.status === 'ready') {
+          setPlaybackMode('local');
+        } else {
+          setPlaybackMode('loading');
+        }
+      })
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
@@ -84,18 +98,55 @@ export default function WatchPage() {
   }, [currentSubtitleIndex]);
 
   useEffect(() => {
+    if (playbackMode !== 'youtube' || video?.status !== 'ready_subtitles') return;
+    const interval = setInterval(async () => {
+      try {
+        const status = await api<{ status: string; video_url_720p: string | null }>(
+          `/api/v1/videos/${id}/status`
+        );
+        if (status.status === 'ready' && status.video_url_720p) {
+          const currentTime = playerRef.current?.getCurrentTime?.() ?? 0;
+          const fullVideo = await api<VideoWithSubtitles>(`/api/v1/videos/${id}`);
+          setVideo(fullVideo);
+          setPlaybackMode('local');
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.currentTime = currentTime;
+              videoRef.current.play();
+            }
+          }, 500);
+          toast.success('High-quality ad-free video ready!');
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [playbackMode, video?.status, video?.id, id]);
+
+  useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.key) {
         case ' ':
           e.preventDefault();
-          videoRef.current?.paused ? videoRef.current?.play() : videoRef.current?.pause();
+          if (playbackMode === 'youtube') {
+            playerRef.current?.isPaused() ? playerRef.current?.play() : playerRef.current?.pause();
+          } else {
+            videoRef.current?.paused ? videoRef.current?.play() : videoRef.current?.pause();
+          }
           break;
         case 'ArrowLeft':
-          if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+          if (playbackMode === 'youtube') {
+            playerRef.current?.seekTo(Math.max(0, (playerRef.current?.getCurrentTime?.() ?? 0) - 5));
+          } else if (videoRef.current) {
+            videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+          }
           break;
         case 'ArrowRight':
-          if (videoRef.current) videoRef.current.currentTime += 5;
+          if (playbackMode === 'youtube') {
+            playerRef.current?.seekTo((playerRef.current?.getCurrentTime?.() ?? 0) + 5);
+          } else if (videoRef.current) {
+            videoRef.current.currentTime += 5;
+          }
           break;
         case 'ArrowUp':
           if (video?.subtitles) {
@@ -115,10 +166,13 @@ export default function WatchPage() {
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [video, currentSubtitleIndex]);
+  }, [video, currentSubtitleIndex, playbackMode]);
 
   function seekTo(time: number) {
-    if (videoRef.current) {
+    if (playbackMode === 'youtube') {
+      playerRef.current?.seekTo(time);
+      playerRef.current?.play();
+    } else if (videoRef.current) {
       videoRef.current.currentTime = time;
       videoRef.current.play();
     }
@@ -142,7 +196,16 @@ export default function WatchPage() {
     } catch {}
   }
 
+  function requireAuth(): boolean {
+    if (!getToken()) {
+      router.push('/login');
+      return false;
+    }
+    return true;
+  }
+
   function startSpeaking(subtitleId: string) {
+    if (!requireAuth()) return;
     setActiveSubtitleId(subtitleId);
     setSpeakingState('idle');
     setSpeakingResult(null);
@@ -223,12 +286,12 @@ export default function WatchPage() {
     );
   }
 
-  if (video.status === 'processing') {
+  if (video.status === 'processing' && video.subtitles.length === 0 && !video.youtube_video_id) {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
-          <p className="mt-4 text-slate-600">Processing video, about 1-2 minutes...</p>
+          <p className="mt-4 text-slate-600">Preparing subtitles, about 5-10 seconds...</p>
         </div>
       </main>
     );
@@ -240,8 +303,8 @@ export default function WatchPage() {
         <div className="text-center">
           <p className="text-slate-600">Processing failed</p>
           <p className="mt-1 text-sm text-red-500">{video.error_message || 'Unknown error'}</p>
-          <button onClick={() => router.push('/dashboard')} className="mt-4 text-sm text-brand-600 hover:underline">
-            Back to library
+          <button onClick={() => router.push('/')} className="mt-4 text-sm text-brand-600 hover:underline">
+            Back to home
           </button>
         </div>
       </main>
@@ -251,7 +314,7 @@ export default function WatchPage() {
   return (
     <main className="flex h-[calc(100vh-64px)] flex-col">
       <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
-        <button onClick={() => router.push('/dashboard')} className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+        <button onClick={() => router.push('/')} className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700">
           <ArrowLeft size={16} />
         </button>
         <h1 className="flex-1 truncate text-sm font-medium text-slate-900">{video.title}</h1>
@@ -287,7 +350,28 @@ export default function WatchPage() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-full flex-col bg-black lg:w-3/5">
           <div className="flex flex-1 items-center justify-center">
-            {video.video_url_720p ? (
+            {playbackMode === 'youtube' && video.youtube_video_id ? (
+              <div className="relative w-full max-w-4xl">
+                <YouTubePlayer
+                  ref={playerRef}
+                  videoId={video.youtube_video_id}
+                  onTimeUpdate={(t) => {
+                    if (!video?.subtitles) return;
+                    const idx = video.subtitles.findIndex(
+                      (s) => t >= s.start_time && t <= s.end_time
+                    );
+                    if (idx !== -1) setCurrentSubtitleIndex(idx);
+                  }}
+                />
+                <SubtitleOverlay
+                  subtitle={video.subtitles?.[currentSubtitleIndex] ?? null}
+                  showEnglishOnly={showEnglishOnly}
+                  onWordClick={handleWordClick}
+                  selectedWord={selectedWord}
+                  onStartSpeaking={startSpeaking}
+                />
+              </div>
+            ) : playbackMode === 'local' && video.video_url_720p ? (
               <video ref={videoRef} src={mediaUrl(video.video_url_720p)} controls className="max-h-full max-w-full"
                 onTimeUpdate={(e) => {
                   const t = e.currentTarget.currentTime;
