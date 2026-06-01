@@ -31,16 +31,27 @@ def _extract_youtube_video_id(url: str) -> str | None:
     return None
 
 
-async def _run_ai_pipeline(texts: list[str]) -> tuple[list[str], list[str], str, list[dict]]:
-    """Shared AI pipeline: translate, grammar analyze, difficulty, quiz generation."""
+async def _run_ai_pipeline(texts: list[str]) -> tuple[list[str], list[str], str, list[dict], list[list[str]]]:
+    """Shared AI pipeline: translate, grammar analyze, difficulty, quiz generation, difficulty words."""
     ai = AIService()
     all_text = " ".join(texts)
-    return await asyncio.gather(
+
+    # Extract difficulty words for each sentence (batched to 5 at a time)
+    difficulty_words_results: list[list[str]] = []
+    for i in range(0, len(texts), 5):
+        batch = texts[i : i + 5]
+        batch_results = await asyncio.gather(
+            *[ai.extract_difficulty_words(t) for t in batch]
+        )
+        difficulty_words_results.extend(batch_results)
+
+    translate_results, grammar_results, difficulty, quiz_results = await asyncio.gather(
         ai.translate_batch(texts),
         ai.grammar_analyze_batch(texts),
         ai.evaluate_difficulty(all_text),
         ai.generate_quiz(all_text),
     )
+    return translate_results, grammar_results, difficulty, quiz_results, difficulty_words_results
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -79,9 +90,10 @@ def process_video(self, video_id: str):
                         return
 
                     texts = [s["text"] for s in subs]
-                    translated, grammar_batch, difficulty, quiz_questions = await _run_ai_pipeline(texts)
+                    translated, grammar_batch, difficulty, quiz_questions, difficulty_words = await _run_ai_pipeline(texts)
 
                     for i, sub in enumerate(subs):
+                        dw = difficulty_words[i] if i < len(difficulty_words) else []
                         db.add(
                             Subtitle(
                                 video_id=video.id,
@@ -91,10 +103,12 @@ def process_video(self, video_id: str):
                                 text_zh=translated[i] if i < len(translated) else None,
                                 sentence_index=i,
                                 grammar_note=grammar_batch[i] if i < len(grammar_batch) else None,
+                                difficulty_words=json.dumps(dw) if dw else None,
                             )
                         )
 
                     video.difficulty_level = difficulty
+                    video.quiz_data = quiz_questions
 
                 # Phase 2: Download + transcode video
                 video_path = await _download_video(video.source_url, video.id)
@@ -153,9 +167,10 @@ def process_video_lightweight(self, video_id: str):
                     return
 
                 texts = [s["text"] for s in subs]
-                translated, grammar_batch, difficulty, quiz_questions = await _run_ai_pipeline(texts)
+                translated, grammar_batch, difficulty, quiz_questions, difficulty_words = await _run_ai_pipeline(texts)
 
                 for i, sub in enumerate(subs):
+                    dw = difficulty_words[i] if i < len(difficulty_words) else []
                     db.add(
                         Subtitle(
                             video_id=video.id,
@@ -165,10 +180,12 @@ def process_video_lightweight(self, video_id: str):
                             text_zh=translated[i] if i < len(translated) else None,
                             sentence_index=i,
                             grammar_note=grammar_batch[i] if i < len(grammar_batch) else None,
+                            difficulty_words=json.dumps(dw) if dw else None,
                         )
                     )
 
                 video.difficulty_level = difficulty
+                video.quiz_data = quiz_questions
                 video.processing_mode = "lightweight"
                 video.status = VideoStatus.ready_subtitles
                 await db.commit()

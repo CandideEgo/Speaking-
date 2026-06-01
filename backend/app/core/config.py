@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     oss_access_key: str = ""
     oss_secret_key: str = ""
 
+    # Payment configuration
+    alipay_app_id: str = ""
+    alipay_public_key: str = ""
+    alipay_private_key: str = ""
+    wechat_mch_id: str = ""
+    wechat_api_v3_key: str = ""
+    wechat_serial_no: str = ""
+    payment_verify_signature: bool = False  # Set True in production
+
+    # Observability
+    sentry_dsn: str = ""
+    log_level: str = "INFO"
+
     class Config:
         env_file = ".env"
 

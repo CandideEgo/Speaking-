@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.video import Video, VideoStatus, Platform
 from app.schemas.video import VideoCreate, VideoResponse, VideoDetailResponse, SubtitleResponse, VideoStatusResponse
-from app.api.dependencies import get_current_user, get_optional_user
+from app.api.dependencies import get_current_user, get_optional_user, get_admin_user
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
@@ -130,6 +130,19 @@ async def get_video(
     if not video.is_official and (current_user is None or video.user_id != current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
+    # Create LearningRecord on first view for authenticated users
+    if current_user:
+        from app.models.learning import LearningRecord
+        lr_result = await db.execute(
+            select(LearningRecord).where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.video_id == video_id,
+            )
+        )
+        if not lr_result.scalar_one_or_none():
+            db.add(LearningRecord(user_id=current_user.id, video_id=video_id))
+            await db.commit()
+
     return VideoDetailResponse(
         id=video.id,
         title=video.title,
@@ -174,6 +187,62 @@ async def get_video_status(
     return VideoStatusResponse(status=video.status.value, video_url_720p=video.video_url_720p)
 
 
+@router.get("/{video_id}/quiz")
+async def get_video_quiz(
+    video_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get quiz questions for a video. Returns empty list if quiz not yet generated."""
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return {
+        "video_id": video.id,
+        "quiz": video.quiz_data or [],
+    }
+
+
+@router.post("/{video_id}/quiz/submit")
+async def submit_quiz_result(
+    video_id: str,
+    score: float = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit quiz score and update learning record."""
+    # Verify video exists
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    # Upsert LearningRecord with quiz score
+    from app.models.learning import LearningRecord
+    lr_result = await db.execute(
+        select(LearningRecord).where(
+            LearningRecord.user_id == current_user.id,
+            LearningRecord.video_id == video_id,
+        )
+    )
+    record = lr_result.scalar_one_or_none()
+    if record:
+        record.quiz_score = score
+        if score >= 60:
+            record.completed = True
+    else:
+        record = LearningRecord(
+            user_id=current_user.id,
+            video_id=video_id,
+            quiz_score=score,
+            completed=score >= 60,
+        )
+        db.add(record)
+
+    await db.commit()
+    return {"success": True, "quiz_score": score}
+
+
 @router.get("", response_model=list[VideoResponse])
 async def list_videos(
     current_user: User = Depends(get_current_user),
@@ -193,8 +262,9 @@ async def list_videos(
 async def seed_video(
     data: VideoCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
 ):
-    """Seed an official video for the public homepage. Internal use."""
+    """Seed an official video for the public homepage. Admin only."""
     platform = detect_platform(data.source_url)
     youtube_video_id = extract_youtube_video_id(data.source_url) if platform == Platform.youtube else None
 

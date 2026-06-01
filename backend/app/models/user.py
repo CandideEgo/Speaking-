@@ -11,6 +11,11 @@ class PlanType(str, enum.Enum):
     pro = "pro"
 
 
+class RoleType(str, enum.Enum):
+    user = "user"
+    admin = "admin"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -22,7 +27,10 @@ class User(Base):
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     level: Mapped[str | None] = mapped_column(String(10), nullable=True)  # A1-C2
     plan: Mapped[PlanType] = mapped_column(
-        SAEnum(PlanType), default=PlanType.free, nullable=False
+        SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False
+    )
+    role: Mapped[RoleType] = mapped_column(
+        SAEnum(RoleType, name="roletype"), default=RoleType.user, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -33,3 +41,4 @@ class User(Base):
     speaking_attempts = relationship("SpeakingAttempt", back_populates="user")
     learning_records = relationship("LearningRecord", back_populates="user")
     vocabulary = relationship("Vocabulary", back_populates="user")
+    orders = relationship("Order", back_populates="user")

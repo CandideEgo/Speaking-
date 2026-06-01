@@ -7,11 +7,13 @@ from app.models.learning import SpeakingAttempt, Vocabulary, LearningRecord
 from app.services.ai_service import AIService
 from app.services.speaking_service import get_user_stats
 from app.api.dependencies import get_current_user
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 @router.post("/word-lookup")
+@limiter.limit("20/minute")
 async def word_lookup(
     word: str,
     sentence: str,
@@ -30,6 +32,7 @@ async def word_lookup(
 
 
 @router.get("/assistant/summary")
+@limiter.limit("10/minute")
 async def assistant_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -64,6 +67,7 @@ async def assistant_summary(
 
 
 @router.get("/assistant/recommend")
+@limiter.limit("10/minute")
 async def assistant_recommend(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

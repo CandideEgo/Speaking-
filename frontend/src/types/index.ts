@@ -4,6 +4,7 @@ export interface User {
   name: string | null;
   level: string | null;
   plan: "free" | "pro";
+  role?: "user" | "admin";
   created_at: string;
 }
 
@@ -65,4 +66,16 @@ export interface LearningRecord {
   quiz_score: number | null;
   completed: boolean;
   created_at: string;
+}
+
+export interface QuizQuestion {
+  type: "comprehension" | "fill_blank" | "dictation";
+  question: string;
+  options?: string[];
+  answer: string;
+}
+
+export interface QuizResponse {
+  video_id: string;
+  quiz: QuizQuestion[];
 }

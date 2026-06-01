@@ -49,6 +49,8 @@ services:
       OSS_SECRET_KEY: ${OSS_SECRET_KEY:-}
     expose:
       - "8000"
+    volumes:
+      - media:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -70,11 +72,25 @@ services:
       OSS_BUCKET: ${OSS_BUCKET:-}
       OSS_ACCESS_KEY: ${OSS_ACCESS_KEY:-}
       OSS_SECRET_KEY: ${OSS_SECRET_KEY:-}
+    volumes:
+      - media:/app/media
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
     restart: unless-stopped
 
   frontend:
@@ -91,3 +107,4 @@ services:
 
 volumes:
   pgdata:
+  media:

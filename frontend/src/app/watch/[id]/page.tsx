@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api, getToken, mediaUrl } from '@/lib/api';
-import type { VideoWithSubtitles } from '@/types';
+import type { VideoWithSubtitles, QuizQuestion } from '@/types';
 import YouTubePlayer, { type YouTubePlayerHandle } from '@/components/YouTubePlayer';
 import SubtitleOverlay from '@/components/SubtitleOverlay';
 import { cn, formatTime } from '@/lib/utils';
@@ -19,6 +19,9 @@ import {
   Zap,
   Play,
   Loader2,
+  BookOpen,
+  Check,
+  BookmarkPlus,
 } from 'lucide-react';
 
 type SpeakingState = 'idle' | 'listening' | 'reviewing' | 'submitting' | 'result';
@@ -72,6 +75,11 @@ export default function WatchPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [speakingResult, setSpeakingResult] = useState<SpeakingResult | null>(null);
   const [showMobileSubtitles, setShowMobileSubtitles] = useState(false);
+  const [panelTab, setPanelTab] = useState<'subtitles' | 'quiz'>('subtitles');
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState<number | null>(null);
 
   const activeSubtitle = video?.subtitles.find((s) => s.id === activeSubtitleId);
 
@@ -89,13 +97,45 @@ export default function WatchPage() {
           setPlaybackMode('loading');
         }
       })
-      .catch(() => {});
+      .catch(() => toast.error('Failed to load video'));
   }, [id]);
 
   useEffect(() => {
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [currentSubtitleIndex]);
+
+  // Fetch quiz data
+  useEffect(() => {
+    api<{ quiz: QuizQuestion[] }>(`/api/v1/videos/${id}/quiz`)
+      .then((data) => setQuizQuestions(data.quiz || []))
+      .catch(() => {});
+  }, [id]);
+
+  function handleQuizAnswer(questionIndex: number, answer: string) {
+    setQuizAnswers((prev) => ({ ...prev, [questionIndex]: answer }));
+  }
+
+  async function submitQuiz() {
+    const correct = quizQuestions.filter((q, i) => {
+      const userAnswer = (quizAnswers[i] || '').trim().toLowerCase();
+      const correctAnswer = q.answer.trim().toLowerCase();
+      return userAnswer === correctAnswer;
+    }).length;
+    const score = Math.round((correct / quizQuestions.length) * 100);
+    setQuizScore(score);
+    setQuizSubmitted(true);
+
+    try {
+      const form = new FormData();
+      form.append('score', String(score));
+      await api(`/api/v1/videos/${id}/quiz/submit`, {
+        method: 'POST',
+        body: form,
+        headers: {} as Record<string, string>,
+      });
+    } catch {}
+  }
 
   useEffect(() => {
     if (playbackMode !== 'youtube' || video?.status !== 'ready_subtitles') return;
@@ -193,7 +233,23 @@ export default function WatchPage() {
         const res = await api<{ meaning: string }>(`/api/v1/ai/word-lookup?word=${encodeURIComponent(clean)}&sentence=${encodeURIComponent(ctx.text_en)}`);
         setWordMeaning(res.meaning);
       }
-    } catch {}
+    } catch {
+      setWordMeaning('Word lookup requires Pro subscription.');
+    }
+  }
+
+  async function saveToVocabulary() {
+    if (!selectedWord || !requireAuth()) return;
+    const ctx = video?.subtitles.find((s) => s.text_en.includes(selectedWord));
+    try {
+      const params = new URLSearchParams({ word: selectedWord });
+      if (ctx?.text_en) params.set('context_sentence', ctx.text_en);
+      if (video?.id) params.set('video_id', video.id);
+      await api(`/api/v1/vocabulary?${params.toString()}`, { method: 'POST' });
+      toast.success(`"${selectedWord}" saved to vocabulary`);
+    } catch {
+      toast.error('Failed to save word — may already be in vocabulary');
+    }
   }
 
   function requireAuth(): boolean {
@@ -435,6 +491,146 @@ export default function WatchPage() {
           "lg:static lg:max-h-none lg:rounded-none lg:shadow-none",
           !showMobileSubtitles && "hidden lg:block"
         )}>
+          {/* Tab bar */}
+          <div className="sticky top-0 z-10 flex border-b border-slate-200 bg-white">
+            <button
+              onClick={() => setPanelTab('subtitles')}
+              className={cn(
+                'flex-1 py-2.5 text-xs font-medium',
+                panelTab === 'subtitles'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              <Languages size={14} className="inline mr-1" />
+              Subtitles
+            </button>
+            <button
+              onClick={() => setPanelTab('quiz')}
+              className={cn(
+                'flex-1 py-2.5 text-xs font-medium',
+                panelTab === 'quiz'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              <BookOpen size={14} className="inline mr-1" />
+              Quiz
+              {quizQuestions.length > 0 && !quizSubmitted && (
+                <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">
+                  {quizQuestions.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Quiz panel */}
+          {panelTab === 'quiz' && (
+            <div className="p-4">
+              {quizQuestions.length === 0 ? (
+                <div className="py-12 text-center">
+                  <BookOpen size={32} className="mx-auto text-slate-300" />
+                  <p className="mt-3 text-sm text-slate-500">
+                    {video.status === 'processing' || video.status === 'ready_subtitles'
+                      ? 'Quiz will be available when video processing completes.'
+                      : 'No quiz available for this video.'}
+                  </p>
+                </div>
+              ) : quizSubmitted && quizScore !== null ? (
+                <div className="text-center py-8">
+                  <div className={cn(
+                    'mx-auto flex h-16 w-16 items-center justify-center rounded-full',
+                    quizScore >= 60 ? 'bg-green-100' : 'bg-amber-100'
+                  )}>
+                    <span className={cn(
+                      'text-2xl font-bold',
+                      quizScore >= 60 ? 'text-green-600' : 'text-amber-600'
+                    )}>{quizScore}%</span>
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-900">
+                    {quizScore >= 60 ? 'Great job!' : 'Keep practicing!'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {quizQuestions.filter((q, i) => {
+                      const ua = (quizAnswers[i] || '').trim().toLowerCase();
+                      return ua === q.answer.trim().toLowerCase();
+                    }).length} of {quizQuestions.length} correct
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {quizQuestions.map((q, qi) => (
+                    <div key={qi} className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-medium text-slate-900">
+                        {qi + 1}. {q.question}
+                      </p>
+                      {q.type === 'comprehension' && q.options ? (
+                        <div className="mt-2 space-y-1.5">
+                          {q.options.map((opt, oi) => (
+                            <label
+                              key={oi}
+                              className={cn(
+                                'flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors',
+                                quizAnswers[qi] === opt
+                                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name={`q-${qi}`}
+                                value={opt}
+                                checked={quizAnswers[qi] === opt}
+                                onChange={(e) => handleQuizAnswer(qi, e.target.value)}
+                                className="sr-only"
+                              />
+                              <span className={cn(
+                                'flex h-4 w-4 items-center justify-center rounded-full border text-[10px]',
+                                quizAnswers[qi] === opt
+                                  ? 'border-brand-500 bg-brand-500 text-white'
+                                  : 'border-slate-300'
+                              )}>
+                                {quizAnswers[qi] === opt && <Check size={10} />}
+                              </span>
+                              {opt}
+                            </label>
+                          ))}
+                        </div>
+                      ) : q.type === 'fill_blank' ? (
+                        <input
+                          type="text"
+                          placeholder="Type your answer..."
+                          value={quizAnswers[qi] || ''}
+                          onChange={(e) => handleQuizAnswer(qi, e.target.value)}
+                          className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                      ) : (
+                        <div>
+                          <textarea
+                            placeholder="Write what you hear..."
+                            value={quizAnswers[qi] || ''}
+                            onChange={(e) => handleQuizAnswer(qi, e.target.value)}
+                            rows={2}
+                            className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    onClick={submitQuiz}
+                    disabled={Object.keys(quizAnswers).length < quizQuestions.length}
+                    className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Submit Quiz
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Subtitles panel */}
+          {panelTab === 'subtitles' && (
           <div className="divide-y divide-slate-100">
             {video.subtitles.map((sub, i) => {
               const isActive = i === currentSubtitleIndex;
@@ -462,6 +658,7 @@ export default function WatchPage() {
               );
             })}
           </div>
+          )}
         </div>
       </div>
       {selectedWord && (
@@ -470,8 +667,14 @@ export default function WatchPage() {
             <h3 className="text-lg font-bold text-slate-900">{selectedWord}</h3>
             <button onClick={() => { setSelectedWord(null); setWordMeaning(null); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
           </div>
-          <button onClick={() => { const u = new SpeechSynthesisUtterance(selectedWord); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); }}
-            className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">Speak</button>
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => { const u = new SpeechSynthesisUtterance(selectedWord); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); }}
+              className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">Speak</button>
+            <button onClick={saveToVocabulary}
+              className="inline-flex items-center gap-1 rounded bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-100">
+              <BookmarkPlus size={12} /> Save
+            </button>
+          </div>
           {wordMeaning ? <p className="mt-2 text-sm text-slate-700">{wordMeaning}</p> : <p className="mt-2 text-xs text-slate-400">Loading...</p>}
         </div>
       )}

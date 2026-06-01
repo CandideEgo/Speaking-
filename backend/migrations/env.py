@@ -10,6 +10,7 @@ from app.models.video import Video
 from app.models.subtitle import Subtitle
 from app.models.invite import InviteCode
 from app.models.learning import SpeakingAttempt, LearningRecord, Vocabulary
+from app.models.order import Order
 
 config = context.config
 if config.config_file_name is not None:

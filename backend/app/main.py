@@ -1,15 +1,65 @@
-from fastapi import FastAPI
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pathlib import Path
 from app.core.config import get_settings
-from app.api.v1 import auth, users, videos, speaking, ai, payments, invite
+from app.core.logging import configure_logging, get_logger
+from app.core.limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary
 
 settings = get_settings()
+configure_logging()
+logger = get_logger(__name__)
+
+# Initialize Sentry in production
+if settings.sentry_dsn:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.env,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+    )
+    logger.info("Sentry initialized", dsn=settings.sentry_dsn[:30] + "...")
+
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please try again later."},
+    )
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+
+    # Request ID middleware
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    # Request logging middleware
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        response = await call_next(request)
+        logger.info(
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            request_id=getattr(request.state, "request_id", "-"),
+        )
+        return response
 
     app.add_middleware(
         CORSMiddleware,
@@ -30,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(ai.router, prefix="/api/v1")
     app.include_router(invite.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
+    app.include_router(vocabulary.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health():

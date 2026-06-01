@@ -38,6 +38,12 @@ export default function Header() {
           ) : (
             <>
               <Link
+                href="/vocabulary"
+                className="text-sm font-medium text-slate-600 hover:text-slate-900"
+              >
+                词汇本
+              </Link>
+              <Link
                 href="/redeem"
                 className="text-sm font-medium text-slate-600 hover:text-slate-900"
               >

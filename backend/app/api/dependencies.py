@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import decode_token
-from app.models.user import User
+from app.models.user import User, RoleType
 
 security = HTTPBearer(auto_error=False)
 
@@ -40,3 +40,14 @@ async def get_optional_user(
         return None
     result = await db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
+
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role != RoleType.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user

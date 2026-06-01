@@ -118,6 +118,21 @@ class AIService:
         user = f"Word: {word}\nSentence: {sentence}"
         return await self._chat(system, user)
 
+    async def extract_difficulty_words(self, sentence: str) -> list[str]:
+        """Extract 0-3 challenging words from a sentence for Chinese learners."""
+        system = (
+            "You are an English teacher specializing in Chinese learners (B1 level). "
+            "From the given sentence, extract 0-3 words that are most challenging. "
+            "Consider vocabulary rarity, idioms, phrasal verbs. "
+            "Return a JSON array of strings. If no challenging words, return []."
+        )
+        result = await self._chat(system, sentence)
+        try:
+            parsed = json.loads(self._extract_json(result))
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
+
     async def assistant_daily_summary(self, stats: dict) -> str:
         system = (
             "You are a friendly, encouraging English learning coach for Chinese users. "

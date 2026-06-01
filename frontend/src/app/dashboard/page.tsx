@@ -67,7 +67,7 @@ export default function DashboardPage() {
         if (u.plan === 'pro') loadAIData();
       })
       .catch(() => router.push('/login'));
-    api<Video[]>('/api/v1/videos').then(setVideos).catch(() => {});
+    api<Video[]>('/api/v1/videos').then(setVideos).catch(() => toast.error('Failed to load videos'));
   }, [router]);
 
   const loadAIData = useCallback(async () => {
@@ -82,7 +82,9 @@ export default function DashboardPage() {
         setAiStats(summaryRes.value.stats);
       }
       if (recRes.status === 'fulfilled') setRecommendation(recRes.value.recommendation);
-    } catch {}
+    } catch {
+      // AI data is optional — silently skip if Pro check fails
+    }
     setLoadingAI(false);
   }, []);
 
@@ -143,6 +145,32 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-slate-500">
             {isPro ? 'Pro 会员，全部功能已解锁。' : '试用中。升级 Pro 解锁 AI 助手。'}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="level-select" className="text-xs text-slate-500">英语等级:</label>
+          <select
+            id="level-select"
+            value={user.level || ''}
+            onChange={async (e) => {
+              const newLevel = e.target.value;
+              try {
+                const updated = await api<User>('/api/v1/users/me', {
+                  method: 'PATCH',
+                  body: JSON.stringify({ level: newLevel || null }),
+                });
+                setUser(updated);
+                toast.success(`等级已设为 ${newLevel}`);
+              } catch {
+                toast.error('设置失败');
+              }
+            }}
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">未设置</option>
+            {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
         </div>
         {!isPro && (
           <button

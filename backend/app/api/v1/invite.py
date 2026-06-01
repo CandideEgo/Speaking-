@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,7 +11,7 @@ from app.schemas.invite import (
     InviteCodeRedeem,
     RedeemResponse,
 )
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_admin_user
 
 router = APIRouter(prefix="/invite-codes", tags=["invite-codes"])
 
@@ -20,10 +20,9 @@ router = APIRouter(prefix="/invite-codes", tags=["invite-codes"])
 async def generate_codes(
     data: InviteCodeGenerate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Admin: generate a batch of invite codes."""
-    # In production, restrict to admin role
     codes = []
     for _ in range(data.count):
         from app.models.invite import generate_code
@@ -53,7 +52,7 @@ async def generate_codes(
 async def export_codes(
     batch_label: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Admin: export unused codes as CSV text."""
     stmt = select(InviteCode).where(InviteCode.is_used == False)
@@ -78,7 +77,7 @@ async def list_codes(
     limit: int = Query(100, le=500),
     offset: int = Query(0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Admin: list invite codes."""
     stmt = select(InviteCode)

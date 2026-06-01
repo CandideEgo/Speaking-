@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, EmailStr, field_serializer
+from pydantic import BaseModel, EmailStr, field_serializer, field_validator
 from datetime import datetime
 
 
@@ -13,12 +13,25 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    level: str | None = None
+
+    @field_validator("level")
+    @classmethod
+    def validate_level(cls, v: str | None) -> str | None:
+        if v is not None and v.upper() not in ("A1", "A2", "B1", "B2", "C1", "C2"):
+            raise ValueError("Level must be one of: A1, A2, B1, B2, C1, C2")
+        return v.upper() if v else v
+
+
 class UserResponse(BaseModel):
     id: str
     email: str
     name: str | None
     level: str | None
     plan: str
+    role: str | None = None
     created_at: datetime
 
     @field_serializer("created_at")
