@@ -16,7 +16,7 @@ def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        model_path = "/mnt/c/Users/Administrator/local-model/faster-whisper"
+        model_path = os.getenv("WHISPER_MODEL_PATH", "/mnt/c/Users/Administrator/local-model/faster-whisper")
         _whisper_model = WhisperModel(model_path, device="cpu", compute_type="int8")
     return _whisper_model
 

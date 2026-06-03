@@ -6,10 +6,19 @@ from app.models.user import User
 from app.models.learning import SpeakingAttempt, Vocabulary, LearningRecord
 from app.services.ai_service import AIService
 from app.services.speaking_service import get_user_stats
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_pro_user
 from app.core.limiter import limiter, rate_limit
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+_ai_service: AIService | None = None
+
+
+def _get_ai_service() -> AIService:
+    global _ai_service
+    if _ai_service is None:
+        _ai_service = AIService()
+    return _ai_service
 
 
 @router.post("/word-lookup")
@@ -18,16 +27,10 @@ async def word_lookup(
     request: Request,
     word: str,
     sentence: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro_user),
     _db: AsyncSession = Depends(get_db),
 ):
-    if current_user.plan.value == "free":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Word lookup with AI requires Pro subscription.",
-        )
-
-    ai = AIService()
+    ai = _get_ai_service()
     meaning = await ai.word_context_meaning(word, sentence)
     return {"word": word, "meaning": meaning, "sentence": sentence}
 
@@ -36,19 +39,12 @@ async def word_lookup(
 @rate_limit("10/minute")
 async def assistant_summary(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro_user),
     db: AsyncSession = Depends(get_db),
 ):
     """AI-generated daily learning summary."""
-    if current_user.plan.value == "free":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="AI assistant requires Pro subscription.",
-        )
-
     stats = await get_user_stats(db, current_user.id)
 
-    # Additional stats
     vocab_count = await db.execute(
         select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id)
     )
@@ -59,7 +55,7 @@ async def assistant_summary(
     )
     stats["videos_watched"] = records_count.scalar() or 0
 
-    ai = AIService()
+    ai = _get_ai_service()
     summary = await ai.assistant_daily_summary(stats)
 
     return {
@@ -72,23 +68,16 @@ async def assistant_summary(
 @rate_limit("10/minute")
 async def assistant_recommend(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro_user),
     db: AsyncSession = Depends(get_db),
 ):
     """AI recommends what to learn next."""
-    if current_user.plan.value == "free":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="AI assistant requires Pro subscription.",
-        )
-
-    # Gather recent video titles
     records_result = await db.execute(
         select(LearningRecord).where(LearningRecord.user_id == current_user.id).limit(10)
     )
     records = records_result.scalars().all()
     history = ", ".join([f"video {r.video_id}" for r in records]) if records else "new user"
 
-    ai = AIService()
+    ai = _get_ai_service()
     recommendation = await ai.assistant_recommend(current_user.level or "B1", history)
     return {"recommendation": recommendation, "level": current_user.level}

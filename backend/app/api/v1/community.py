@@ -3,6 +3,8 @@ import time
 
 from fastapi import APIRouter, Query
 
+from app.services.youtube_service import search_youtube
+
 router = APIRouter(prefix="/community", tags=["community"])
 
 CATEGORIES: list[dict] = [
@@ -18,6 +20,14 @@ CATEGORIES: list[dict] = [
 
 _cache: dict[str, tuple[list[dict], float]] = {}
 _CACHE_TTL = 600
+_MAX_CACHE_ENTRIES = 100
+
+
+def _clean_expired_cache():
+    now = time.time()
+    expired = [k for k, (_, ts) in _cache.items() if now - ts >= _CACHE_TTL]
+    for k in expired:
+        del _cache[k]
 
 
 @router.get("/categories")
@@ -31,50 +41,24 @@ async def community_feed(
     page: int = Query(1, ge=1, le=10),
     page_size: int = Query(20, ge=4, le=50),
 ):
-    import yt_dlp
-
     cat = next((c for c in CATEGORIES if c["id"] == category), CATEGORIES[0])
     query = cat["query"]
 
+    _clean_expired_cache()
     cache_key = f"{category}:{page}"
     if cache_key in _cache:
         items, ts = _cache[cache_key]
         if time.time() - ts < _CACHE_TTL:
             return {"items": items, "category": cat, "page": page, "has_more": len(items) >= page_size}
 
-    loop = asyncio.get_event_loop()
-
-    def _sync_search():
-        search_query = f"ytsearch{page_size}:{query}"
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "extract_flat": False,
-        }
-        with yt_dlp.YoutubeDL(ytdlp_opts) as ydl:
-            return ydl.extract_info(search_query, download=False)
-
     try:
-        info = await loop.run_in_executor(None, _sync_search)
+        items = await search_youtube(query, page_size=page_size)
     except Exception as e:
         return {"items": [], "category": cat, "page": page, "has_more": False,
                 "error": f"Search failed: {e}"}
 
-    items = []
-    for entry in info.get("entries", []) or []:
-        if not entry:
-            continue
-        items.append({
-            "video_id": entry.get("id", ""),
-            "url": entry.get("webpage_url") or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
-            "title": entry.get("title", ""),
-            "description": entry.get("description") or "",
-            "channel_title": entry.get("channel") or entry.get("uploader") or "",
-            "thumbnail_url": entry.get("thumbnail") or "",
-            "duration": entry.get("duration"),
-            "view_count": entry.get("view_count"),
-        })
-
+    if len(_cache) >= _MAX_CACHE_ENTRIES:
+        oldest = min(_cache, key=lambda k: _cache[k][1])
+        del _cache[oldest]
     _cache[cache_key] = (items, time.time())
     return {"items": items, "category": cat, "page": page, "has_more": len(items) >= page_size}

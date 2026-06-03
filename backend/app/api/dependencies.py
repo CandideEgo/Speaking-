@@ -51,3 +51,15 @@ async def get_admin_user(
             detail="Admin access required",
         )
     return current_user
+
+
+async def require_pro_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Dependency that ensures the current user has a Pro subscription."""
+    if current_user.plan.value == "free":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pro subscription required.",
+        )
+    return current_user

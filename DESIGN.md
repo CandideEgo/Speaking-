@@ -337,6 +337,43 @@ cursor: pointer
 - 单选圆圈：`h-4 w-4 rounded-full border`
 - 填空输入：`w-full rounded-md border border-slate-200 px-3 py-2`
 
+### Subtitle Mode Tabs
+
+- 顶部标签栏：`flex gap-1 p-1 bg-slate-100 rounded-lg`
+- 标签按钮：`px-3 py-1.5 text-xs font-medium rounded-md`
+- 激活态：`bg-white text-brand-600 shadow-sm`
+- 非激活态：`text-slate-500 hover:text-slate-700`
+- 8 个模式：双语、英文、中文、阅读、听写、填空、闪卡、翻译
+
+### Dictation Mode
+
+- 播放按钮：`bg-brand-600 text-white rounded-full w-10 h-10`
+- 输入区域：`w-full rounded-lg border border-slate-200 p-3 text-base`
+- 校对反馈：正确 `text-green-600`，错误 `text-red-600 line-through` + 修正 `text-green-600`
+- 重试按钮：`text-sm text-brand-600 hover:underline`
+
+### Fill Blank Mode
+
+- 文本显示：`text-lg leading-relaxed`
+- 空白处：`inline-block min-w-[80px] border-b-2 border-brand-300 px-1`
+- 输入框（聚焦的空白）：`border-brand-500 bg-brand-50 rounded px-2 py-0.5`
+- 校对反馈：正确 `bg-green-50 border-green-500`，错误 `bg-red-50 border-red-500`
+
+### Flashcard Mode
+
+- 卡片容器：`w-full max-w-md mx-auto aspect-[3/2] perspective-1000`
+- 卡片正面/背面：`absolute inset-0 backface-hidden transition-transform duration-500`
+- 翻转：`rotate-y-180`（CSS 3D transform）
+- 导航按钮：`ghost button` 样式，左右箭头
+- 洗牌按钮：`text-sm text-slate-500 hover:text-slate-700`
+
+### Translate Mode
+
+- 方向切换：`flex items-center gap-2 text-sm text-slate-500`
+- 源文本：`p-4 bg-slate-50 rounded-lg text-lg`
+- 输入区域：`w-full rounded-lg border border-slate-200 p-3 text-base min-h-[100px]`
+- 校对反馈：与 Dictation Mode 一致
+
 ### Word Lookup Popup
 
 ```

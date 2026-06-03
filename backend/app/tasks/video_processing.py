@@ -31,9 +31,19 @@ def _extract_youtube_video_id(url: str) -> str | None:
     return None
 
 
+_ai_service: AIService | None = None
+
+
+def _get_ai_service() -> AIService:
+    global _ai_service
+    if _ai_service is None:
+        _ai_service = AIService()
+    return _ai_service
+
+
 async def _translate_subtitles(texts: list[str]) -> list[str | None]:
     """Translate subtitle texts in batches. Each batch is a separate LLM call for reliability."""
-    ai = AIService()
+    ai = _get_ai_service()
     results: list[str | None] = [None] * len(texts)
 
     batch_size = 20
@@ -130,12 +140,15 @@ def process_video(self, video_id: str):
                 await db.commit()
                 raise self.retry(exc=e)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(_process())
-    finally:
-        loop.close()
+        asyncio.get_event_loop().run_until_complete(_process())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_process())
+        finally:
+            loop.close()
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -215,12 +228,15 @@ def process_video_lightweight(self, video_id: str):
                 await db.commit()
                 raise self.retry(exc=e)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(_process())
-    finally:
-        loop.close()
+        asyncio.get_event_loop().run_until_complete(_process())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_process())
+        finally:
+            loop.close()
 
 
 async def _extract_video_info(url: str) -> dict | None:

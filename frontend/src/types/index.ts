@@ -75,6 +75,14 @@ export interface QuizQuestion {
   answer: string;
 }
 
+export interface SpeakingResult {
+  accuracy: number;
+  fluency: number;
+  completeness: number;
+  feedback: string;
+  transcript: string;
+}
+
 export interface QuizResponse {
   video_id: string;
   quiz: QuizQuestion[];

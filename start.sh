@@ -52,6 +52,10 @@ nohup bash -c "cd $PROJECT_DIR/backend && source .venv/bin/activate && celery -A
 echo "  pid=$!"
 
 # 5. Frontend
+# Clean stale .next cache to avoid "Cannot find module './xxx.js'" errors
+echo "[frontend] cleaning .next cache..."
+rm -rf "$PROJECT_DIR/frontend/.next"
+
 echo "[frontend] starting on :3000..."
 nohup bash -c "cd $PROJECT_DIR/frontend && npm run dev" \
   > logs/frontend.log 2>&1 &

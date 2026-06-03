@@ -43,15 +43,16 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, Props>(
   function YouTubePlayer({ videoId, onTimeUpdate, onReady, onError }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
+    const readyRef = useRef(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [loadError, setLoadError] = useState(false);
 
     useImperativeHandle(ref, () => ({
-      play: () => playerRef.current?.playVideo(),
-      pause: () => playerRef.current?.pauseVideo(),
-      seekTo: (seconds: number) => playerRef.current?.seekTo(seconds, true),
-      getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
-      isPaused: () => playerRef.current?.getPlayerState() !== 1,
+      play: () => readyRef.current && playerRef.current?.playVideo(),
+      pause: () => readyRef.current && playerRef.current?.pauseVideo(),
+      seekTo: (seconds: number) => readyRef.current && playerRef.current?.seekTo(seconds, true),
+      getCurrentTime: () => (readyRef.current ? playerRef.current?.getCurrentTime() : 0) ?? 0,
+      isPaused: () => !readyRef.current || playerRef.current?.getPlayerState() !== 1,
     }));
 
     useEffect(() => {
@@ -69,6 +70,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, Props>(
             events: {
               onReady: () => {
                 if (cancelled) return;
+                readyRef.current = true;
                 onReady?.();
                 intervalRef.current = setInterval(() => {
                   const t = playerRef.current?.getCurrentTime?.();
@@ -95,6 +97,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, Props>(
 
       return () => {
         cancelled = true;
+        readyRef.current = false;
         clearTimeout(timeout);
         if (intervalRef.current) clearInterval(intervalRef.current);
         if (playerRef.current) {
