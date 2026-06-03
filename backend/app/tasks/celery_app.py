@@ -18,3 +18,7 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
+
+# Ensure all models are loaded before importing task modules (SQLAlchemy relationship resolution)
+import app.models  # noqa: F401
+import app.tasks.video_processing  # noqa: F401

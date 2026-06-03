@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.core.database import get_db
@@ -7,14 +7,15 @@ from app.models.learning import SpeakingAttempt, Vocabulary, LearningRecord
 from app.services.ai_service import AIService
 from app.services.speaking_service import get_user_stats
 from app.api.dependencies import get_current_user
-from app.core.limiter import limiter
+from app.core.limiter import limiter, rate_limit
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 @router.post("/word-lookup")
-@limiter.limit("20/minute")
+@rate_limit("20/minute")
 async def word_lookup(
+    request: Request,
     word: str,
     sentence: str,
     current_user: User = Depends(get_current_user),
@@ -32,8 +33,9 @@ async def word_lookup(
 
 
 @router.get("/assistant/summary")
-@limiter.limit("10/minute")
+@rate_limit("10/minute")
 async def assistant_summary(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -67,8 +69,9 @@ async def assistant_summary(
 
 
 @router.get("/assistant/recommend")
-@limiter.limit("10/minute")
+@rate_limit("10/minute")
 async def assistant_recommend(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

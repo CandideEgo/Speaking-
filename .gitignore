@@ -11,3 +11,5 @@ media/
 venv/
 logs/
 *.tsbuildinfo
+venv/
+.venv/

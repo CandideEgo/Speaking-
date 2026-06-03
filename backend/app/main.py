@@ -8,7 +8,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.limiter import limiter
 from slowapi.errors import RateLimitExceeded
-from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary
+from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary, youtube, browse, community
 
 settings = get_settings()
 configure_logging()
@@ -81,6 +81,9 @@ def create_app() -> FastAPI:
     app.include_router(invite.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
+    app.include_router(youtube.router, prefix="/api/v1")
+    app.include_router(browse.router, prefix="/api/v1")
+    app.include_router(community.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health():

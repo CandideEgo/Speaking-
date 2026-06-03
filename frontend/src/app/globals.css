@@ -1,15 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 255 255 255;
-    --foreground: 15 23 42;
+    --background: 250 249 245;
+    --foreground: 20 20 19;
+    --muted: 245 240 232;
+    --muted-foreground: 108 106 100;
+    --border: 230 223 216;
+    --surface: 239 233 222;
+    --accent: 204 120 92;
+    --sidebar-bg: 250 249 245;
+    --topbar-bg: 250 249 245;
+    --scrollbar-thumb: 203 213 225;
+    --scrollbar-track: transparent;
+  }
+
+  .dark {
+    --background: 24 23 21;
+    --foreground: 250 249 245;
+    --muted: 31 30 27;
+    --muted-foreground: 160 157 150;
+    --border: 37 35 32;
+    --surface: 31 30 27;
+    --accent: 204 120 92;
+    --sidebar-bg: 24 23 21;
+    --topbar-bg: 24 23 21;
+    --scrollbar-thumb: 51 65 85;
+    --scrollbar-track: transparent;
+  }
+
+  html {
+    @apply bg-canvas text-ink;
   }
 
   body {
-    @apply bg-white text-slate-900 antialiased;
+    @apply antialiased font-sans;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display font-normal;
+  }
+
+  h1 {
+    @apply text-5xl tracking-display-xl leading-tight;
+  }
+
+  h2 {
+    @apply text-3xl tracking-display-lg leading-tight;
+  }
+
+  h3 {
+    @apply text-xl tracking-display-sm leading-tight;
+  }
+
+  /* Disable transitions on initial load to prevent flash */
+  html.no-transitions *,
+  html.no-transitions *::before,
+  html.no-transitions *::after {
+    transition: none !important;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--scrollbar-thumb)) rgb(var(--scrollbar-track));
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgb(var(--scrollbar-track));
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(var(--scrollbar-thumb));
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--scrollbar-thumb) / 0.8);
   }
 }
 
@@ -17,6 +98,98 @@
   .container-page {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
+           bg-coral text-white
+           hover:bg-coral-active
+           disabled:bg-coral-disabled disabled:text-muted-foreground
+           transition-colors duration-150;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
+           bg-canvas text-ink border border-hairline
+           hover:border-coral/30 hover:text-coral
+           disabled:opacity-50
+           transition-colors duration-150;
+  }
+
+  .btn-secondary-dark {
+    @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
+           bg-navy-elevated text-[#faf9f5]
+           hover:bg-navy-soft
+           disabled:opacity-50
+           transition-colors duration-150;
+  }
+
+  .btn-text {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium text-ink/70
+           hover:text-ink
+           transition-colors duration-150;
+  }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-full
+           bg-canvas text-ink border border-hairline
+           hover:border-coral/30 hover:text-coral
+           transition-colors duration-150;
+  }
+
+  /* Cards */
+  .card-cream {
+    @apply bg-cream-card rounded-lg p-8;
+  }
+
+  .card-dark {
+    @apply bg-navy rounded-lg p-8 text-[#faf9f5];
+  }
+
+  .card-code {
+    @apply bg-navy rounded-lg p-6;
+  }
+
+  .card-outline {
+    @apply bg-canvas rounded-lg p-8 border border-hairline;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full rounded-md border border-hairline bg-canvas px-3.5 py-2.5 text-sm text-ink
+           placeholder:text-muted-foreground
+           focus:border-coral focus:outline-none focus:ring-[3px] focus:ring-coral/15
+           transition-colors duration-150;
+  }
+
+  /* Badges */
+  .badge-pill {
+    @apply inline-flex items-center rounded-pill bg-cream-card px-3 py-1 text-[13px] font-medium text-ink/80;
+  }
+
+  .badge-coral {
+    @apply inline-flex items-center rounded-pill bg-coral px-3 py-1 text-xs font-medium tracking-caption-wide uppercase text-white;
+  }
+
+  /* Category tabs */
+  .tab-category {
+    @apply rounded-md px-3.5 py-2 text-sm font-medium text-muted-foreground
+           hover:text-ink
+           transition-colors duration-150;
+  }
+
+  .tab-category-active {
+    @apply bg-cream-card text-ink;
+  }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slide-in-left 200ms ease-out;
 }
 
 .youtube-player-container iframe {

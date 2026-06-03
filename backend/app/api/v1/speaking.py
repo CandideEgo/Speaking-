@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -8,7 +8,7 @@ from app.models.learning import SpeakingAttempt, LearningRecord
 from app.schemas.speaking import SpeakingAttemptResponse, SpeakingSubmitResponse
 from app.services.speaking_service import evaluate_speaking, get_user_stats
 from app.api.dependencies import get_current_user
-from app.core.limiter import limiter
+from app.core.limiter import limiter, rate_limit
 
 router = APIRouter(prefix="/speaking", tags=["speaking"])
 
@@ -19,8 +19,9 @@ ALLOWED_EXTENSIONS = {".webm", ".wav", ".mp3", ".ogg"}
 
 
 @router.post("/practice", response_model=SpeakingSubmitResponse)
-@limiter.limit("10/minute")
+@rate_limit("10/minute")
 async def submit_speaking(
+    request: Request,
     audio: UploadFile = File(...),
     subtitle_id: str = Form(...),
     current_user: User = Depends(get_current_user),

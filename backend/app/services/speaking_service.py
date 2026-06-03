@@ -15,8 +15,9 @@ _whisper_model = None
 def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
-        import whisper
-        _whisper_model = whisper.load_model("base")
+        from faster_whisper import WhisperModel
+        model_path = "/mnt/c/Users/Administrator/local-model/faster-whisper"
+        _whisper_model = WhisperModel(model_path, device="cpu", compute_type="int8")
     return _whisper_model
 
 
@@ -70,8 +71,8 @@ async def _whisper_transcribe(audio_path: str) -> str:
     def _sync():
         try:
             model = _get_whisper_model()
-            result = model.transcribe(audio_path, language="en")
-            return result["text"].strip()
+            segments, _ = model.transcribe(audio_path, language="en")
+            return " ".join([s.text for s in segments]).strip()
         except Exception:
             logger.exception("Whisper transcribe failed")
             return ""

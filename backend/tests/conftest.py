@@ -1,11 +1,15 @@
 """Shared test fixtures for Speaking backend tests."""
 import asyncio
+import os
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
+# Set env before any app imports so limiter/config pick up "testing"
+os.environ["ENV"] = "testing"
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password, create_token
@@ -82,9 +86,8 @@ def test_user_data() -> dict:
 async def auth_headers(client: AsyncClient, test_user_data: dict, test_password: str) -> dict:
     """Create a test user, return Authorization headers with JWT."""
     from app.models.user import User, PlanType, RoleType
-    from app.core.database import async_session
 
-    async with async_session() as db:
+    async with TestSessionLocal() as db:
         user = User(
             email=test_user_data["email"],
             hashed_password=hash_password(test_password),
@@ -103,9 +106,8 @@ async def auth_headers(client: AsyncClient, test_user_data: dict, test_password:
 async def admin_headers(client: AsyncClient) -> dict:
     """Create an admin user, return Authorization headers."""
     from app.models.user import User, PlanType, RoleType
-    from app.core.database import async_session
 
-    async with async_session() as db:
+    async with TestSessionLocal() as db:
         user = User(
             email="admin@example.com",
             hashed_password=hash_password("adminpass"),

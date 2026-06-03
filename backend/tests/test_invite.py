@@ -22,7 +22,7 @@ class TestGenerateCodes:
         codes = resp.json()
         assert len(codes) == 3
         for c in codes:
-            assert len(c["code"]) == 13  # XXXX-XXXX-XX
+            assert len(c["code"]) == 12  # XXXX-XXXX-XX
             assert c["is_used"] is False
 
     async def test_generate_without_auth(self, client: AsyncClient):

@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     wechat_serial_no: str = ""
     payment_verify_signature: bool = False  # Set True in production
 
+    # Proxy for external services (yt-dlp, AI)
+    http_proxy: str = ""  # e.g. http://172.25.176.1:7897
+    youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt
+
     # Observability
     sentry_dsn: str = ""
     log_level: str = "INFO"

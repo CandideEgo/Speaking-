@@ -31,32 +31,24 @@ def _extract_youtube_video_id(url: str) -> str | None:
     return None
 
 
-async def _run_ai_pipeline(texts: list[str]) -> tuple[list[str], list[str], str, list[dict], list[list[str]]]:
-    """Shared AI pipeline: translate, grammar analyze, difficulty, quiz generation, difficulty words."""
+async def _translate_subtitles(texts: list[str]) -> list[str | None]:
+    """Translate subtitle texts in batches. Each batch is a separate LLM call for reliability."""
     ai = AIService()
-    all_text = " ".join(texts)
+    results: list[str | None] = [None] * len(texts)
 
-    # Extract difficulty words for each sentence (batched to 5 at a time)
-    difficulty_words_results: list[list[str]] = []
-    for i in range(0, len(texts), 5):
-        batch = texts[i : i + 5]
-        batch_results = await asyncio.gather(
-            *[ai.extract_difficulty_words(t) for t in batch]
-        )
-        difficulty_words_results.extend(batch_results)
+    batch_size = 20
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        translations = await ai.translate_batch(batch)
+        for j, t in enumerate(translations):
+            results[i + j] = t
 
-    translate_results, grammar_results, difficulty, quiz_results = await asyncio.gather(
-        ai.translate_batch(texts),
-        ai.grammar_analyze_batch(texts),
-        ai.evaluate_difficulty(all_text),
-        ai.generate_quiz(all_text),
-    )
-    return translate_results, grammar_results, difficulty, quiz_results, difficulty_words_results
+    return results
 
 
 @celery_app.task(bind=True, max_retries=3)
 def process_video(self, video_id: str):
-    """Full video processing pipeline: download, transcode, extract subtitles, translate, analyze, quizify."""
+    """Full pipeline for non-YouTube: download, transcode, subtitles, translate."""
     from sqlalchemy import select
     from app.core.database import async_session
     from app.models.video import Video, VideoStatus
@@ -74,7 +66,6 @@ def process_video(self, video_id: str):
                 skip_ai = video.status == VideoStatus.ready_subtitles and video.subtitles
 
                 if not skip_ai:
-                    # Phase 1 / full pipeline: extract metadata + subtitles + AI
                     info = await _extract_video_info(video.source_url)
                     if info:
                         video.title = info.get('title', video.title)
@@ -90,27 +81,34 @@ def process_video(self, video_id: str):
                         return
 
                     texts = [s["text"] for s in subs]
-                    translated, grammar_batch, difficulty, quiz_questions, difficulty_words = await _run_ai_pipeline(texts)
 
+                    # Step 1: save English subtitles immediately
                     for i, sub in enumerate(subs):
-                        dw = difficulty_words[i] if i < len(difficulty_words) else []
-                        db.add(
-                            Subtitle(
-                                video_id=video.id,
-                                start_time=sub["start"],
-                                end_time=sub["end"],
-                                text_en=sub["text"],
-                                text_zh=translated[i] if i < len(translated) else None,
-                                sentence_index=i,
-                                grammar_note=grammar_batch[i] if i < len(grammar_batch) else None,
-                                difficulty_words=json.dumps(dw) if dw else None,
+                        db.add(Subtitle(
+                            video_id=video.id,
+                            start_time=sub["start"],
+                            end_time=sub["end"],
+                            text_en=sub["text"],
+                            sentence_index=i,
+                        ))
+                    video.status = VideoStatus.ready_subtitles
+                    await db.commit()
+
+                    # Step 2: translate
+                    translated = await _translate_subtitles(texts)
+                    for i, t in enumerate(translated):
+                        if t:
+                            result_sub = await db.execute(
+                                select(Subtitle).where(
+                                    Subtitle.video_id == video.id,
+                                    Subtitle.sentence_index == i,
+                                )
                             )
-                        )
+                            sub_row = result_sub.scalar_one_or_none()
+                            if sub_row:
+                                sub_row.text_zh = t
 
-                    video.difficulty_level = difficulty
-                    video.quiz_data = quiz_questions
-
-                # Phase 2: Download + transcode video
+                # Download + transcode for non-YouTube
                 video_path = await _download_video(video.source_url, video.id)
 
                 if video_path:
@@ -132,12 +130,22 @@ def process_video(self, video_id: str):
                 await db.commit()
                 raise self.retry(exc=e)
 
-    asyncio.run(_process())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_process())
+    finally:
+        loop.close()
 
 
 @celery_app.task(bind=True, max_retries=3)
 def process_video_lightweight(self, video_id: str):
-    """Phase 1: extract metadata + subtitles + AI processing (no video download)."""
+    """YouTube pipeline: extract metadata + subtitles + translate (no video download).
+
+    Two-step for fast UX:
+      1. Save English subtitles → status "ready_subtitles" (user sees English immediately)
+      2. AI translate → status "ready" (Chinese appears progressively)
+    """
     from sqlalchemy import select
     from app.core.database import async_session
     from app.models.video import Video, VideoStatus
@@ -167,32 +175,38 @@ def process_video_lightweight(self, video_id: str):
                     return
 
                 texts = [s["text"] for s in subs]
-                translated, grammar_batch, difficulty, quiz_questions, difficulty_words = await _run_ai_pipeline(texts)
 
+                # --- Step 1: save English subtitles, mark ready_subtitles ---
                 for i, sub in enumerate(subs):
-                    dw = difficulty_words[i] if i < len(difficulty_words) else []
-                    db.add(
-                        Subtitle(
-                            video_id=video.id,
-                            start_time=sub["start"],
-                            end_time=sub["end"],
-                            text_en=sub["text"],
-                            text_zh=translated[i] if i < len(translated) else None,
-                            sentence_index=i,
-                            grammar_note=grammar_batch[i] if i < len(grammar_batch) else None,
-                            difficulty_words=json.dumps(dw) if dw else None,
-                        )
-                    )
-
-                video.difficulty_level = difficulty
-                video.quiz_data = quiz_questions
+                    db.add(Subtitle(
+                        video_id=video.id,
+                        start_time=sub["start"],
+                        end_time=sub["end"],
+                        text_en=sub["text"],
+                        sentence_index=i,
+                    ))
                 video.processing_mode = "lightweight"
                 video.status = VideoStatus.ready_subtitles
                 await db.commit()
-                logger.info(f"Video {video_id} lightweight: {len(subs)} subtitles, level {difficulty}")
+                logger.info(f"Video {video_id} step 1: {len(subs)} English subtitles saved")
 
-                # Dispatch Phase 2 for full download
-                process_video.delay(video_id)
+                # --- Step 2: AI translate, update subtitles ---
+                translated = await _translate_subtitles(texts)
+                for i, t in enumerate(translated):
+                    if t:
+                        result_sub = await db.execute(
+                            select(Subtitle).where(
+                                Subtitle.video_id == video.id,
+                                Subtitle.sentence_index == i,
+                            )
+                        )
+                        sub_row = result_sub.scalar_one_or_none()
+                        if sub_row:
+                            sub_row.text_zh = t
+
+                video.status = VideoStatus.ready
+                await db.commit()
+                logger.info(f"Video {video_id} step 2: translations done, ready")
 
             except Exception as e:
                 logger.exception(f"Video {video_id} lightweight processing failed")
@@ -201,13 +215,20 @@ def process_video_lightweight(self, video_id: str):
                 await db.commit()
                 raise self.retry(exc=e)
 
-    asyncio.run(_process())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_process())
+    finally:
+        loop.close()
 
 
 async def _extract_video_info(url: str) -> dict | None:
     """Extract video metadata (title, thumbnail, duration) via yt-dlp without downloading."""
     import yt_dlp
+    from app.core.config import get_settings
 
+    settings = get_settings()
     loop = asyncio.get_event_loop()
 
     def _sync_extract():
@@ -216,6 +237,11 @@ async def _extract_video_info(url: str) -> dict | None:
             "no_warnings": True,
             "skip_download": True,
         }
+        if settings.http_proxy:
+            opts["proxy"] = settings.http_proxy
+        if settings.youtube_cookies_path:
+            opts["cookiefile"] = settings.youtube_cookies_path
+        opts["remote_components"] = "ejs:github"
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -255,6 +281,11 @@ async def _download_video(url: str, video_id: str) -> str | None:
             "outtmpl": output,
             "merge_output_format": "mp4",
         }
+        if settings.http_proxy:
+            opts["proxy"] = settings.http_proxy
+        if settings.youtube_cookies_path:
+            opts["cookiefile"] = settings.youtube_cookies_path
+        opts["remote_components"] = "ejs:github"
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
@@ -369,7 +400,9 @@ async def _extract_subtitles(url: str) -> list[dict]:
     and returns a list of {start, end, text} dicts.
     """
     import yt_dlp
+    from app.core.config import get_settings
 
+    settings = get_settings()
     loop = asyncio.get_event_loop()
 
     def _sync_extract():
@@ -381,12 +414,26 @@ async def _extract_subtitles(url: str) -> list[dict]:
                 "writesubtitles": True,
                 "writeautomaticsub": True,
                 "subtitleslangs": ["en"],
+                "subtitlesformat": "json3",
                 "skip_download": True,
                 "outtmpl": str(tmpdir / "%(id)s.%(ext)s"),
             }
+            if settings.http_proxy:
+                opts["proxy"] = settings.http_proxy
+            if settings.youtube_cookies_path:
+                opts["cookiefile"] = settings.youtube_cookies_path
+            opts["remote_components"] = "ejs:github"
 
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
+
+            # Prefer JSON3 (clean word-by-word without overlap), fall back to VTT/SRT
+            json3_files = sorted(
+                p for p in tmpdir.iterdir()
+                if p.suffix.lower() == ".json3"
+            )
+            if json3_files:
+                return _parse_json3(json3_files[0])
 
             sub_files = sorted(
                 p for p in tmpdir.iterdir()
@@ -403,6 +450,34 @@ async def _extract_subtitles(url: str) -> list[dict]:
     return await loop.run_in_executor(None, _sync_extract)
 
 
+def _parse_json3(path: Path) -> list[dict]:
+    """Parse YouTube JSON3 subtitle format into {start, end, text} dicts.
+
+    JSON3 has clean word-level timing — each event contains only NEW words,
+    not the accumulated text like VTT. This eliminates all overlap/dedup issues.
+    """
+    import json
+
+    content = path.read_text(encoding="utf-8")
+    data = json.loads(content)
+
+    results = []
+    for ev in data.get("events", []):
+        if "segs" not in ev or ev.get("aAppend"):
+            continue
+        words = [s["utf8"] for s in ev["segs"] if "utf8" in s]
+        if not words:
+            continue
+        text = " ".join(w.strip() for w in words).strip()
+        if text:
+            results.append({
+                "start": ev["tStartMs"] / 1000,
+                "end": (ev["tStartMs"] + ev["dDurationMs"]) / 1000,
+                "text": text,
+            })
+    return results
+
+
 def _parse_subtitle_file(path: Path) -> list[dict]:
     """Parse a VTT or SRT subtitle file into structured data."""
     content = path.read_text(encoding="utf-8")
@@ -413,10 +488,16 @@ def _parse_subtitle_file(path: Path) -> list[dict]:
 
 
 def _parse_webvtt(content: str) -> list[dict]:
-    """Parse WebVTT content into {start, end, text} dicts."""
+    """Parse WebVTT into {start, end, text} dicts, handling YouTube's rolling captions.
+
+    YouTube auto-captions build up text cumulatively:
+      "Hello, I'm" → "Hello, I'm here to" → "Hello, I'm here to talk about"
+    with tiny 0.01s "summary" flashes between building segments.
+    We group consecutive cumulative segments, take only the final complete one,
+    then strip any overlapping text from the previous group at sentence boundaries.
+    """
     import re
 
-    # Strip WEBVTT header and inline tags
     content = re.sub(r"^WEBVTT.*\n", "", content)
 
     pattern = re.compile(
@@ -425,15 +506,92 @@ def _parse_webvtt(content: str) -> list[dict]:
         re.MULTILINE,
     )
 
-    results = []
+    raw = []
     for m in pattern.finditer(content):
-        text = re.sub(r"<[^>]+>", "", m.group(3).strip())
-        if text:
+        start = _ts_to_seconds(m.group(1))
+        end = _ts_to_seconds(m.group(2))
+        text = m.group(3).strip()
+
+        # Strip word-level timing tags: <00:00:00.400><c>word</c>
+        text = re.sub(r"<\d{2}:\d{2}:\d{2}[.,]\d{3}>", "", text)
+        text = re.sub(r"</?c>", "", text)
+        text = re.sub(r"\s{2,}", " ", text)
+
+        if not text:
+            continue
+
+        # Skip sub-0.3s "summary" flashes
+        if end - start < 0.3:
+            continue
+
+        raw.append({"start": start, "end": end, "text": text})
+
+    if not raw:
+        return []
+
+    # Step 1: Group cumulative segments (each builds on the previous)
+    groups = []
+    current = [raw[0]]
+    for seg in raw[1:]:
+        # If this segment's text contains the previous segment's text, it's cumulative
+        if current[-1]["text"] in seg["text"]:
+            current.append(seg)
+        else:
+            groups.append(current)
+            current = [seg]
+    groups.append(current)
+
+    # Step 2: Extract final (most complete) segment from each group
+    complete = []
+    for group in groups:
+        final = group[-1]
+        complete.append({
+            "start": group[0]["start"],
+            "end": group[-1]["end"],
+            "text": final["text"],
+        })
+
+    # Step 3: Strip overlapping text between consecutive groups.
+    # YouTube captions roll forward: group N ends with "X Y Z", group N+1 starts with "Y Z A".
+    # We need to find the longest suffix of prev that matches a prefix of current text.
+    SENTENCE_BOUNDARY = re.compile(r'[.?!]["\']?\s|[.?!]["\']?$')
+    results = []
+    prev = ""
+    for seg in complete:
+        text = seg["text"]
+        if text == prev or text in prev:
+            continue
+
+        # Find longest suffix of prev matching prefix of text
+        max_overlap = 0
+        for i in range(1, min(len(prev), len(text)) + 1):
+            if prev[-i:] == text[:i]:
+                max_overlap = i
+
+        if max_overlap >= 3:
+            # Find last sentence boundary within the overlap area
+            prefix = text[:max_overlap]
+            m = list(SENTENCE_BOUNDARY.finditer(prefix))
+            if m:
+                cut = m[-1].end()
+            else:
+                # Fall back to last word boundary
+                cut = prefix.rfind(' ')
+                if cut < 0:
+                    cut = max_overlap
+                else:
+                    cut += 1
+            new_text = text[cut:].strip()
+        else:
+            new_text = text
+
+        if new_text:
             results.append({
-                "start": _ts_to_seconds(m.group(1)),
-                "end": _ts_to_seconds(m.group(2)),
-                "text": text,
+                "start": seg["start"],
+                "end": seg["end"],
+                "text": new_text,
             })
+        prev = text
 
     return results
 
@@ -473,11 +631,10 @@ def _ts_to_seconds(ts: str) -> float:
 def transcribe_audio(self, audio_path: str) -> str:
     """Transcribe user audio via Whisper for speaking practice."""
     try:
-        import whisper
-
-        model = whisper.load_model("base")
-        result = model.transcribe(audio_path, language="en")
-        return result["text"].strip()
+        from faster_whisper import WhisperModel
+        model = WhisperModel("/mnt/c/Users/Administrator/local-model/faster-whisper", device="cpu", compute_type="int8")
+        segments, _ = model.transcribe(audio_path, language="en")
+        return " ".join([s.text for s in segments]).strip()
     except Exception as e:
         logger.exception("Whisper transcription failed")
         raise self.retry(exc=e)

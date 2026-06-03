@@ -103,7 +103,7 @@ async def list_public_videos(
 ):
     result = await db.execute(
         select(Video)
-        .where(Video.is_official == True, Video.status == VideoStatus.ready)
+        .where(Video.is_official == True, Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]))
         .order_by(Video.created_at.desc())
         .limit(50)
     )

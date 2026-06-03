@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, setToken } from "@/lib/api";
+import { Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +17,6 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await api<{ token: string }>("/api/v1/auth/login", {
         method: "POST",
@@ -32,38 +32,43 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
+    <main className="flex min-h-screen items-center justify-center px-4 bg-canvas">
       <div className="w-full max-w-sm">
-        <h1 className="text-center text-2xl font-bold text-slate-900">
-          登录 Speaking
-        </h1>
-        <p className="mt-2 text-center text-sm text-slate-600">
-          还没有账号？{" "}
-          <Link href="/register" className="text-brand-600 hover:underline">
-            注册
-          </Link>
-        </p>
+        <div className="text-center">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-coral text-white">
+            <Sparkles size={22} />
+          </span>
+          <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
+            欢迎回来
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            还没有账号？{" "}
+            <Link href="/register" className="text-coral hover:underline font-medium">
+              注册
+            </Link>
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700">邮箱</label>
+            <label className="block text-sm font-medium text-ink">邮箱</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="input-field mt-1.5"
               placeholder="you@example.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">密码</label>
+            <label className="block text-sm font-medium text-ink">密码</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="input-field mt-1.5"
             />
           </div>
 
@@ -72,7 +77,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            className="btn-primary w-full justify-center mt-2"
           >
             {loading ? "登录中..." : "登录"}
           </button>

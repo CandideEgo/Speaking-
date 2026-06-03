@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Toaster } from "sonner";
 import "./globals.css";
-import Header from "@/components/Header";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { SidebarProvider } from "@/components/SidebarProvider";
+import { ThemedToaster } from "@/components/ThemedToaster";
 
 export const metadata: Metadata = {
   title: "Speaking — 用真实视频学开口说英语",
@@ -10,11 +11,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <Header />
-        {children}
-        <Toaster position="top-center" richColors />
+        <ThemeProvider>
+          <SidebarProvider>
+            {children}
+            <ThemedToaster />
+          </SidebarProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
