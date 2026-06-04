@@ -7,7 +7,7 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     echo=False,
-    echo_pool=True if settings.env == "development" else False,
+    echo_pool=settings.env == "development",
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

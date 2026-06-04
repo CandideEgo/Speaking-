@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -95,6 +95,21 @@ def _generate_order_number() -> str:
     return f"spk_{uuid.uuid4().hex[:16]}"
 
 
+def _plan_duration(plan: str) -> timedelta:
+    return timedelta(days=30) if plan == "pro_monthly" else timedelta(days=365)
+
+
+async def _fulfill_order(order: Order, db: AsyncSession) -> None:
+    user_result = await db.execute(select(User).where(User.id == order.user_id))
+    user = user_result.scalar_one_or_none()
+    if user and user.plan != PlanType.pro:
+        user.plan = PlanType.pro
+        user.plan_expires_at = datetime.now(timezone.utc) + _plan_duration(order.plan)
+    order.status = OrderStatus.paid
+    order.paid_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
 @router.post("/create-order")
 async def create_order(
     plan: str = "pro_monthly",
@@ -149,10 +164,7 @@ async def mock_payment(
     if order.status != OrderStatus.pending:
         raise HTTPException(status_code=400, detail="Order already processed")
 
-    current_user.plan = PlanType.pro
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
+    await _fulfill_order(order, db)
 
     return {"success": True, "message": "Payment successful — upgraded to Pro", "redirect": "/dashboard"}
 
@@ -191,14 +203,7 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"success": True, "message": "Already processed"}
 
-    user_result = await db.execute(select(User).where(User.id == order.user_id))
-    user = user_result.scalar_one_or_none()
-    if user and user.plan != PlanType.pro:
-        user.plan = PlanType.pro
-
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
+    await _fulfill_order(order, db)
 
     return {"success": True}
 
@@ -241,14 +246,7 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"code": "SUCCESS", "message": "Already processed"}
 
-    user_result = await db.execute(select(User).where(User.id == order.user_id))
-    user = user_result.scalar_one_or_none()
-    if user and user.plan != PlanType.pro:
-        user.plan = PlanType.pro
-
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
+    await _fulfill_order(order, db)
 
     return {"code": "SUCCESS", "message": "OK"}
 

@@ -64,21 +64,23 @@ def create_app() -> FastAPI:
     # Security headers middleware
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
+        if request.url.path.startswith("/media"):
+            return await call_next(request)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if settings.env == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+            connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: https:; "
                 "media-src 'self' https:; "
-                "connect-src 'self' https://*.aliyuncs.com; "
+                f"connect-src {connect_src}; "
                 "frame-src https://www.youtube.com; "
                 "object-src 'none'; "
                 "base-uri 'self'"
