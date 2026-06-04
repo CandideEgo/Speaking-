@@ -261,6 +261,27 @@
 
 ---
 
+## Phase 7 范围
+
+Phase 7 为进阶阶段，以下项目从 Phase 1-6 的部分完成项和技术债中汇入：
+
+| 项 | 来源 | 优先级 | 说明 |
+|---|---|---|---|
+| 支付回调签名验证 | 技术债 → SECURITY.md VULN-01 | P0 | 接入支付宝/微信 SDK 验证签名 |
+| 密码重置流程 | PRODUCTION.md S-07 | P0 | 基础用户功能 |
+| API 全局限流 | 技术债 → SECURITY.md VULN-03 | P1 | 补全 slowapi 限流配置 |
+| 难度词标注 | 缺失功能 | P1 | AI 管道填充 difficulty_words + 前端展示 |
+| 英语等级自动评估 | 缺失功能 | P2 | 调用 ai_service.evaluate_difficulty() 自动填充 |
+| 国际化 (i18n) | 技术债 | P2 | 引入 next-intl，提取硬编码中文 |
+| 监控仪表盘 | 技术债 | P2 | 配置 Grafana + Sentry 告警 |
+| 移动端录音优化 | 技术债 → W-10 | P2 | 移动端麦克风权限与 UI 适配 |
+| 性能压测 | N-04 | P2 | 验证 100+ 并发用户场景 |
+| 前端错误处理改进 | 技术债 | P2 | 消除静默 catch，添加用户友好提示 |
+| TypeScript 类型完善 | 技术债 | P2 | 替换 `as` 断言为严格类型 |
+| requirements.txt 清理 | 技术债 | P2 | 移除残留的 openai-whisper 依赖 |
+
+---
+
 ## 完成标准
 
 以下条件需全部满足方可标记项目为 **✅ 完成**：
