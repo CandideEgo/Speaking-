@@ -46,6 +46,16 @@ Secrets via shell env or `.env`.
 
 | File | Role |
 |------|------|
+| `REQUIREMENTS.md` | PRD — 92 项功能需求、数据模型、API 清单 |
+| `DESIGN.md` | 设计系统 — 颜色、排版、组件规范 |
+| `ARCHITECTURE.md` | 架构决策记录 (ADR) + 系统全景 |
+| `SECURITY.md` | 威胁模型 + 安全策略 + 已知漏洞 |
+| `PROGRESS.md` | 开发进度追踪 + Phase 7 范围 |
+| `PRODUCTION.md` | 生产上线指南 |
+| `RUNBOOK.md` | 运维手册 + 故障响应 |
+| `FRONTEND-ARCHITECTURE.md` | 前端架构 + Watch 页面拆分计划 |
+| `API-REFERENCE.md` | API 约定 + 端点一览 |
+| `CONTRIBUTING.md` | 贡献指南 + 代码规范 + 提交格式 |
 | `docker-compose.dev.yml` | Infra only (db, redis) |
 | `docker-compose.yml` | Full dev stack (all services) |
 | `docker-compose.prod.yml` | Prod stack (nginx, gunicorn) |

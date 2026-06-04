@@ -244,13 +244,15 @@ docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
 
 ## 六、运营支撑
 
-### 6.1 监控接入（上线前）
+### 6.1 监控接入
 
-| 工具 | 用途 | 接入方式 |
+| 工具 | 用途 | 状态 |
 |---|---|---|
-| **Sentry** | 前后端错误追踪 | `sentry-sdk` + `@sentry/nextjs` |
-| **健康检查端点** | /health 探活 | 已有，nginx 可定期检查 |
-| **Docker 重启策略** | 崩溃自动恢复 | 已设为 `unless-stopped` |
+| **Sentry** | 前后端错误追踪 | ✅ 已接入 (`main.py` sentry_sdk.init, 10% traces) |
+| **structlog** | 结构化日志 (JSON in production) | ✅ 已配置 |
+| **健康检查端点** | /health 探活 | ✅ 已有，nginx 可定期检查 |
+| **Docker 重启策略** | 崩溃自动恢复 | ✅ 已设为 `unless-stopped` |
+| **请求 ID 追踪** | X-Request-ID 中间件 | ✅ 已配置 |
 
 ### 6.2 运营工具（上线后）
 
