@@ -12,14 +12,6 @@ from app.models.user import User, RoleType, PlanType
 security = HTTPBearer(auto_error=False)
 
 
-async def _check_plan_expiry(user: User, db: AsyncSession) -> None:
-    if user.plan == PlanType.pro and user.plan_expires_at and user.plan_expires_at < datetime.now(timezone.utc):
-        user.plan = PlanType.free
-        user.plan_expires_at = None
-        await db.commit()
-        await db.refresh(user)
-
-
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db),
@@ -35,7 +27,11 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    await _check_plan_expiry(user, db)
+    # Check if Pro subscription has expired
+    if user.plan == PlanType.pro and user.plan_expires_at and user.plan_expires_at < datetime.now(timezone.utc):
+        user.plan = PlanType.free
+        user.plan_expires_at = None
+
     return user
 
 
@@ -49,10 +45,7 @@ async def get_optional_user(
     if user_id is None:
         return None
     result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user:
-        await _check_plan_expiry(user, db)
-    return user
+    return result.scalar_one_or_none()
 
 
 async def get_admin_user(
@@ -70,7 +63,7 @@ async def require_pro_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Dependency that ensures the current user has a Pro subscription."""
-    if current_user.plan == PlanType.free:
+    if current_user.plan.value == "free":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Pro subscription required.",

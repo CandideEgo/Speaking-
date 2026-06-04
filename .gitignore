@@ -13,3 +13,4 @@ logs/
 *.tsbuildinfo
 venv/
 .venv/
+wsl.localhost/

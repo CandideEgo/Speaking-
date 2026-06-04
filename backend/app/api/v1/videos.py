@@ -12,11 +12,6 @@ from app.schemas.video import VideoCreate, VideoResponse, VideoDetailResponse, S
 from app.api.dependencies import get_current_user, get_optional_user, get_admin_user
 from app.core.limiter import rate_limit
 
-def _require_video_access(video: Video, current_user: Optional[User]) -> None:
-    if not video.is_official and (current_user is None or video.user_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-
 router = APIRouter(prefix="/videos", tags=["videos"])
 
 
@@ -132,7 +127,9 @@ async def get_video(
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
-    _require_video_access(video, current_user)
+    # Official videos are public; user-owned videos require auth
+    if not video.is_official and (current_user is None or video.user_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
     # Create LearningRecord on first view for authenticated users
     if current_user:
@@ -189,7 +186,8 @@ async def get_video_status(
     video = result.scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    _require_video_access(video, current_user)
+    if not video.is_official and (current_user is None or video.user_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     return VideoStatusResponse(status=video.status.value, video_url_720p=video.video_url_720p)
 
 
@@ -204,7 +202,8 @@ async def get_video_quiz(
     video = result.scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    _require_video_access(video, current_user)
+    if not video.is_official and (current_user is None or video.user_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     return {
         "video_id": video.id,
         "quiz": video.quiz_data or [],

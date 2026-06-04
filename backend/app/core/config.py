@@ -45,9 +45,6 @@ class Settings(BaseSettings):
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
 
-    # CSP connect-src domains (comma-separated)
-    csp_connect_domains: str = "https://*.aliyuncs.com"
-
     class Config:
         env_file = ".env"
 
