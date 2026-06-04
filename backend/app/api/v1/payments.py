@@ -1,5 +1,7 @@
+import base64
 import hashlib
 import hmac
+import logging
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -11,71 +13,78 @@ from app.models.user import User, PlanType
 from app.models.order import Order, OrderStatus
 from app.api.dependencies import get_current_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 settings = get_settings()
 
 
 def _verify_alipay_signature(params: dict) -> bool:
-    """Verify Alipay RSA signature.
+    """Verify Alipay RSA2 signature.
 
-    In production, this should:
-    1. Extract the 'sign' and 'sign_type' from params
-    2. Sort remaining params alphabetically, concatenate with '&'
-    3. Verify against alipay_public_key using RSA
+    In development mode, signature verification can be explicitly disabled
+    with PAYMENT_VERIFY_SIGNATURE=False, but this is logged as a warning.
+    In production, verification is always enforced.
     """
-    if not settings.payment_verify_signature:
-        return True  # Dev mode: skip verification
+    if settings.env == "development" and not settings.payment_verify_signature:
+        logger.warning("PAYMENT SIGNATURE VERIFICATION DISABLED — dev mode only")
+        return True
 
     sign = params.get("sign")
+    sign_type = params.get("sign_type", "RSA2")
     if not sign:
         return False
 
     # Build the string to verify (sorted params excluding sign and sign_type)
     verify_params = {
         k: v for k, v in params.items()
-        if k not in ("sign", "sign_type")
+        if k not in ("sign", "sign_type") and v is not None and v != ""
     }
     sorted_params = sorted(verify_params.items())
     content = "&".join(f"{k}={v}" for k, v in sorted_params)
 
-    # In production, verify with actual RSA:
-    # from Crypto.PublicKey import RSA
-    # from Crypto.Signature import PKCS1_v1_5
-    # from Crypto.Hash import SHA256
-    # key = RSA.import_key(settings.alipay_public_key)
-    # h = SHA256.new(content.encode())
-    # verifier = PKCS1_v1_5.new(key)
-    # return verifier.verify(h, base64.b64decode(sign))
+    if not settings.alipay_public_key:
+        logger.error("ALIPAY_PUBLIC_KEY not configured — cannot verify signature")
+        return False
 
-    # Placeholder: HMAC-based dev verification
-    expected = hmac.new(
-        settings.jwt_secret.encode(),
-        content.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(sign, expected)
+    # RSA2 (SHA256withRSA) verification
+    try:
+        from Crypto.PublicKey import RSA
+        from Crypto.Signature import PKCS1_v1_5
+        from Crypto.Hash import SHA256
+
+        key = RSA.import_key(settings.alipay_public_key)
+        h = SHA256.new(content.encode("utf-8"))
+        verifier = PKCS1_v1_5.new(key)
+        return verifier.verify(h, base64.b64decode(sign))
+    except Exception:
+        logger.exception("Alipay signature verification failed")
+        return False
 
 
 def _verify_wechat_signature(body: bytes, signature: str, timestamp: str, nonce: str) -> bool:
     """Verify WeChat Pay v3 signature.
 
-    In production, this should:
-    1. Build the signing string: timestamp + nonce + body
-    2. Verify against wechat_api_v3_key using HMAC-SHA256
-    3. Optionally verify the certificate serial number
+    In development mode, signature verification can be explicitly disabled,
+    but this is logged as a warning. In production, verification is always enforced.
     """
-    if not settings.payment_verify_signature:
-        return True  # Dev mode: skip verification
+    if settings.env == "development" and not settings.payment_verify_signature:
+        logger.warning("PAYMENT SIGNATURE VERIFICATION DISABLED — dev mode only")
+        return True
 
     if not signature or not timestamp or not nonce:
         return False
 
+    if not settings.wechat_api_v3_key:
+        logger.error("WECHAT_API_V3_KEY not configured — cannot verify signature")
+        return False
+
     # WeChat Pay v3 signature: HMAC-SHA256(timestamp + nonce + body, api_v3_key)
-    message = f"{timestamp}\n{nonce}\n{body.decode() if isinstance(body, bytes) else body}\n"
+    message = f"{timestamp}\n{nonce}\n{body.decode('utf-8') if isinstance(body, bytes) else body}\n"
     expected = hmac.new(
-        settings.wechat_api_v3_key.encode() if settings.wechat_api_v3_key else settings.jwt_secret.encode(),
-        message.encode(),
+        settings.wechat_api_v3_key.encode("utf-8"),
+        message.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
 
@@ -126,9 +135,12 @@ async def mock_payment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Simulate payment for development. Replace with real callback in production."""
+    """Simulate payment for development. DISABLED in production."""
+    if settings.env != "development":
+        raise HTTPException(status_code=404, detail="Not found")
+
     result = await db.execute(
-        select(Order).where(Order.order_number == order_id)
+        select(Order).where(Order.order_number == order_id).with_for_update()
     )
     order = result.scalar_one_or_none()
 
@@ -149,14 +161,14 @@ async def mock_payment(
 async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Alipay payment callback handler.
 
-    Verifies RSA signature before processing the payment.
-    In development (payment_verify_signature=False), skips verification.
+    Verifies RSA2 signature before processing the payment.
+    In development only, signature verification can be skipped (with warning).
     """
     body = await request.form()
     params = dict(body)
 
-    # Verify signature
     if not _verify_alipay_signature(params):
+        logger.warning("Alipay callback: invalid signature")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid payment signature",
@@ -169,10 +181,11 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
         return {"success": False, "message": f"Trade status: {trade_status}"}
 
     result = await db.execute(
-        select(Order).where(Order.order_number == order_number)
+        select(Order).where(Order.order_number == order_number).with_for_update()
     )
     order = result.scalar_one_or_none()
     if not order:
+        logger.warning("Alipay callback: order not found for %s", order_number)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if order.status == OrderStatus.paid:
@@ -195,7 +208,7 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """WeChat Pay v3 callback handler.
 
     Verifies HMAC-SHA256 signature before processing the payment.
-    In development (payment_verify_signature=False), skips verification.
+    In development only, signature verification can be skipped (with warning).
     """
     signature = request.headers.get("Wechatpay-Signature", "")
     timestamp = request.headers.get("Wechatpay-Timestamp", "")
@@ -204,8 +217,8 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     body_bytes = await request.body()
     body = await request.json()
 
-    # Verify signature
     if not _verify_wechat_signature(body_bytes, signature, timestamp, nonce):
+        logger.warning("WeChat callback: invalid signature")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid payment signature",
@@ -218,10 +231,11 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
         return {"code": "FAIL", "message": f"Trade state: {trade_state}"}
 
     result = await db.execute(
-        select(Order).where(Order.order_number == order_number)
+        select(Order).where(Order.order_number == order_number).with_for_update()
     )
     order = result.scalar_one_or_none()
     if not order:
+        logger.warning("WeChat callback: order not found for %s", order_number)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if order.status == OrderStatus.paid:

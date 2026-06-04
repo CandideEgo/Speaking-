@@ -4,9 +4,9 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     app_name: str = "Speaking"
-    debug: bool = True
+    debug: bool = False
 
-    database_url: str = "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking"
+    database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_secret: str = ""
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     wechat_mch_id: str = ""
     wechat_api_v3_key: str = ""
     wechat_serial_no: str = ""
-    payment_verify_signature: bool = False  # Set True in production
+    payment_verify_signature: bool = False
 
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
@@ -42,13 +42,26 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     log_level: str = "INFO"
 
+    # Frontend URL for CORS
+    frontend_url: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
+
+    def model_post_init(self, __context) -> None:
+        """Apply development defaults only when env is development."""
+        if self.env == "development":
+            if not self.database_url:
+                object.__setattr__(self, "database_url", "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking")
+            if not self.jwt_secret:
+                object.__setattr__(self, "jwt_secret", "dev_secret_change_in_production")
+        if self.env == "production":
+            if not self.jwt_secret:
+                raise RuntimeError("JWT_SECRET must be set in production")
+            if not self.database_url:
+                raise RuntimeError("DATABASE_URL must be set in production")
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    s = Settings()
-    if s.env == "production" and not s.jwt_secret:
-        raise RuntimeError("JWT_SECRET must be set in production")
-    return s
+    return Settings()

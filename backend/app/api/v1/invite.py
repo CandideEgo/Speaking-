@@ -101,7 +101,7 @@ async def redeem_code(
     code_str = data.code.strip().upper()
 
     result = await db.execute(
-        select(InviteCode).where(InviteCode.code == code_str)
+        select(InviteCode).where(InviteCode.code == code_str).with_for_update()
     )
     code = result.scalar_one_or_none()
 
@@ -116,8 +116,8 @@ async def redeem_code(
     code.used_at = datetime.now(timezone.utc)
 
     current_user.plan = PlanType.pro
-    # Optionally set subscription expiry based on duration_days
-    # For now, just set plan to pro
+    if code.duration_days and code.duration_days > 0:
+        current_user.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=code.duration_days)
 
     await db.commit()
 

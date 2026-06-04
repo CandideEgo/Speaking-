@@ -8,7 +8,7 @@ _limits = [] if settings.env == "testing" else ["200/minute"]
 
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=settings.redis_url if settings.env == "production" else "memory://",
+    storage_uri=settings.redis_url if settings.env != "testing" else "memory://",
     default_limits=_limits,
 )
 

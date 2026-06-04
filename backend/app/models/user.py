@@ -29,6 +29,9 @@ class User(Base):
     plan: Mapped[PlanType] = mapped_column(
         SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False
     )
+    plan_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     role: Mapped[RoleType] = mapped_column(
         SAEnum(RoleType, name="roletype"), default=RoleType.user, nullable=False
     )
