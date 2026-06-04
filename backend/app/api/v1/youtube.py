@@ -1,6 +1,12 @@
 import asyncio
+import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.api.dependencies import get_current_user
+from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
@@ -9,8 +15,9 @@ router = APIRouter(prefix="/youtube", tags=["youtube"])
 async def search_youtube(
     q: str = Query(..., min_length=1, max_length=200),
     max_results: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
 ):
-    """Search YouTube via yt-dlp (no API key required)."""
+    """Search YouTube via yt-dlp (no API key required). Auth required."""
     import yt_dlp
 
     loop = asyncio.get_event_loop()
@@ -26,8 +33,9 @@ async def search_youtube(
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(search_query, download=False)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"YouTube search failed: {e}")
+        except Exception:
+            logger.exception("YouTube search failed")
+            raise HTTPException(status_code=500, detail="Search temporarily unavailable")
 
         items = []
         for entry in info.get("entries", []) or []:

@@ -1,11 +1,20 @@
-from pydantic import BaseModel, EmailStr, field_serializer, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from datetime import datetime
 
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 128:
+            raise ValueError("Password too long")
+        return v
 
 
 class UserLogin(BaseModel):

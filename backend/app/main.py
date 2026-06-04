@@ -23,7 +23,7 @@ if settings.sentry_dsn:
         traces_sample_rate=0.1,
         profiles_sample_rate=0.1,
     )
-    logger.info("Sentry initialized", dsn=settings.sentry_dsn[:30] + "...")
+    logger.info("Sentry initialized", environment=settings.env)
 
 
 async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -61,12 +61,42 @@ def create_app() -> FastAPI:
         )
         return response
 
+    # Security headers middleware
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if settings.env == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "media-src 'self' https:; "
+                "connect-src 'self' https://*.aliyuncs.com; "
+                "frame-src https://www.youtube.com; "
+                "object-src 'none'; "
+                "base-uri 'self'"
+            )
+        return response
+
+    allowed_origins = (
+        ["http://localhost:3000", "http://127.0.0.1:3000"]
+        if settings.env == "development"
+        else [settings.frontend_url]
+    )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
     media_path = Path(settings.local_media_path).resolve()

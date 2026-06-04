@@ -1,12 +1,12 @@
-﻿from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
 class InviteCodeGenerate(BaseModel):
-    count: int = 10
+    count: int = Field(default=10, ge=1, le=100)
     plan: str = "pro"
-    duration_days: int = 30
-    batch_label: str | None = None
+    duration_days: int = Field(default=30, ge=1, le=365)
+    batch_label: str | None = Field(default=None, max_length=100)
 
 
 class InviteCodeResponse(BaseModel):

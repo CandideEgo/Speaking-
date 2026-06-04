@@ -1,9 +1,24 @@
 from datetime import datetime
 from pydantic import BaseModel, field_validator
+from urllib.parse import urlparse
 
 
 class VideoCreate(BaseModel):
     source_url: str
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, v: str) -> str:
+        if len(v) > 500:
+            raise ValueError("URL too long (max 500 characters)")
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Only HTTP/HTTPS URLs are allowed")
+        allowed_domains = ("youtube.com", "youtu.be", "bilibili.com", "b23.tv")
+        hostname = (parsed.hostname or "").lower()
+        if not any(d in hostname for d in allowed_domains):
+            raise ValueError("Only YouTube and Bilibili URLs are supported")
+        return v
 
 
 class VideoResponse(BaseModel):

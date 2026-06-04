@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import time
 from typing import Optional
 
 from fastapi import APIRouter, Query
 
 from app.services.youtube_service import search_youtube
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/browse", tags=["browse"])
 
@@ -67,9 +70,10 @@ async def browse_feed(
 
     try:
         items = await search_youtube(query, page_size=page_size)
-    except Exception as e:
+    except Exception:
+        logger.exception("Browse feed search failed")
         return {"items": [], "category": cat, "page": page, "has_more": False,
-                "error": f"Search failed: {e}"}
+                "error": "Search temporarily unavailable"}
 
     if len(_cache) >= _MAX_CACHE_ENTRIES:
         oldest = min(_cache, key=lambda k: _cache[k][1])
