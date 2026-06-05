@@ -141,7 +141,7 @@ def process_video(self, video_id: str):
                 raise self.retry(exc=e)
 
     try:
-        asyncio.get_event_loop().run_until_complete(_process())
+        asyncio.run(_process())
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -229,7 +229,7 @@ def process_video_lightweight(self, video_id: str):
                 raise self.retry(exc=e)
 
     try:
-        asyncio.get_event_loop().run_until_complete(_process())
+        asyncio.run(_process())
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -648,7 +648,7 @@ def transcribe_audio(self, audio_path: str) -> str:
     """Transcribe user audio via Whisper for speaking practice."""
     try:
         from faster_whisper import WhisperModel
-        model = WhisperModel("/mnt/c/Users/Administrator/local-model/faster-whisper", device="cpu", compute_type="int8")
+        model = WhisperModel(os.getenv("WHISPER_MODEL_PATH", "C:/Users/Administrator/local-model/faster-whisper"), device="cpu", compute_type="int8")
         segments, _ = model.transcribe(audio_path, language="en")
         return " ".join([s.text for s in segments]).strip()
     except Exception as e:

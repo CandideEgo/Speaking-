@@ -11,8 +11,8 @@ COPY requirements.txt .
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
     pip install --no-cache-dir -r requirements.txt
 
-# Pre-download Whisper base model (~150 MB) to avoid download on every container restart
-RUN python -c "import whisper; whisper.load_model('base')"
+# Pre-download faster-whisper base model to avoid download on every container restart
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base')"
 
 COPY . .
 

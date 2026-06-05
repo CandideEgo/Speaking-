@@ -47,7 +47,7 @@ echo "  pid=$!"
 
 # 4. Celery
 echo "[celery] starting worker..."
-nohup bash -c "cd $PROJECT_DIR/backend && source .venv/bin/activate && celery -A app.tasks.celery_app worker --loglevel=info" \
+nohup bash -c "cd $PROJECT_DIR/backend && source .venv/bin/activate && celery -A app.tasks.celery_app worker --pool=solo --loglevel=info" \
   > logs/celery.log 2>&1 &
 echo "  pid=$!"
 
