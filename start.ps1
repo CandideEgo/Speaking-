@@ -7,8 +7,24 @@ $BackendDir = Join-Path $ProjectDir "backend"
 $FrontendDir = Join-Path $ProjectDir "frontend"
 $LogsDir = Join-Path $ProjectDir "logs"
 
+# Resolve venv Python
+$VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
+if (-not (Test-Path $VenvPython)) {
+    Write-Host "ERROR: venv not found at $VenvPython" -ForegroundColor Red
+    Write-Host "Run: cd backend && python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt" -ForegroundColor Yellow
+    exit 1
+}
+
 # Create logs directory
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
+
+function Kill-Port($port) {
+    $conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($pid in $conn) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    }
+    if ($conn) { Start-Sleep -Milliseconds 500 }
+}
 
 Write-Host "=== Speaking - starting all services ===" -ForegroundColor Cyan
 
@@ -41,16 +57,17 @@ Write-Host "[db] running migrations..." -ForegroundColor Yellow
 Push-Location $BackendDir
 try {
     $env:PYTHONPATH = $BackendDir
-    & alembic upgrade head
+    & $VenvPython -m alembic upgrade head
 } finally {
     Pop-Location
 }
 
 # 3. Backend (uvicorn)
 Write-Host "[backend] starting on :8000..." -ForegroundColor Yellow
+Kill-Port 8000
 $backendLog = Join-Path $LogsDir "backend.log"
 $backendErr = Join-Path $LogsDir "backend_err.log"
-Start-Process -FilePath "python" `
+Start-Process -FilePath $VenvPython `
     -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" `
     -WorkingDirectory $BackendDir `
     -RedirectStandardOutput $backendLog `
@@ -62,7 +79,7 @@ Write-Host "  logs -> $backendLog"
 Write-Host "[celery] starting worker (pool=solo)..." -ForegroundColor Yellow
 $celeryLog = Join-Path $LogsDir "celery.log"
 $celeryErr = Join-Path $LogsDir "celery_err.log"
-Start-Process -FilePath "python" `
+Start-Process -FilePath $VenvPython `
     -ArgumentList "-m", "celery", "-A", "app.tasks.celery_app", "worker", "--pool=solo", "--loglevel=info" `
     -WorkingDirectory $BackendDir `
     -RedirectStandardOutput $celeryLog `
@@ -77,11 +94,12 @@ if (Test-Path $nextCache) {
     Remove-Item -Recurse -Force $nextCache
 }
 
+Kill-Port 3000
 Write-Host "[frontend] starting on :3000..." -ForegroundColor Yellow
 $frontendLog = Join-Path $LogsDir "frontend.log"
 $frontendErr = Join-Path $LogsDir "frontend_err.log"
-Start-Process -FilePath "npm" `
-    -ArgumentList "run", "dev" `
+Start-Process -FilePath "cmd" `
+    -ArgumentList "/c", "npm", "run", "dev" `
     -WorkingDirectory $FrontendDir `
     -RedirectStandardOutput $frontendLog `
     -RedirectStandardError $frontendErr `

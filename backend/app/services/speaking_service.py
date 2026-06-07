@@ -1,7 +1,6 @@
 import logging
 import tempfile
 import os
-from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.learning import SpeakingAttempt
@@ -16,7 +15,8 @@ def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        model_path = os.getenv("WHISPER_MODEL_PATH", "C:/Users/Administrator/local-model/faster-whisper")
+        from app.core.config import get_settings
+        model_path = get_settings().whisper_model_path
         _whisper_model = WhisperModel(model_path, device="cpu", compute_type="int8")
     return _whisper_model
 

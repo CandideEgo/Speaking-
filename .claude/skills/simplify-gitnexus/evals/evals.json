@@ -1,0 +1,23 @@
+{
+  "skill_name": "simplify-gitnexus",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "review my current changes",
+      "expected_output": "Should run Phase 0 (index check + diff), Phase 1 (impact analysis on code symbols), Phase 2 (4-dimension cleanup review), Phase 3 (dedup, fix, verify). Should produce a summary table with Fixed/Skipped/Risk Assessment sections.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我审查一下最近的代码改动，看看有没有可以简化的地方",
+      "expected_output": "Same full pipeline but triggered by Chinese prompt. Should identify cleanup opportunities and apply fixes. Should include GitNexus risk assessment before applying changes.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I just added a new config field to Settings class and updated start.ps1 for Windows. Can you review the diff for any issues?",
+      "expected_output": "Should detect the specific changes (Settings.whisper_model_path, start.ps1 Kill-Port, etc.) and flag: (1) dead config field not consumed by services, (2) duplicate GitNexus section in AGENTS.md/CLAUDE.md, (3) altitude issues with Kill-Port as bandaid. Should apply fixes and verify with detect_changes.",
+      "files": []
+    }
+  ]
+}

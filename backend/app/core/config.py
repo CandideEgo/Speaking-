@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
@@ -42,11 +42,15 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     log_level: str = "INFO"
 
+    # Speech transcription (default: 'base' matches Dockerfile pre-cached model)
+    whisper_model_path: str = "base"
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
 
-    class Config:
-        env_file = ".env"
+    # Docker/Compose injects extra env vars (e.g. PGHOST, PGDATABASE);
+    # ignore them rather than raising validation errors.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     def model_post_init(self, __context) -> None:
         """Apply development defaults only when env is development."""

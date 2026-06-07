@@ -47,7 +47,6 @@ Secrets via shell env or `.env`.
 | File | Role |
 |------|------|
 | `REQUIREMENTS.md` | PRD — 92 项功能需求、数据模型、API 清单 |
-| `DESIGN.md` | 设计系统 — 颜色、排版、组件规范 |
 | `ARCHITECTURE.md` | 架构决策记录 (ADR) + 系统全景 |
 | `SECURITY.md` | 威胁模型 + 安全策略 + 已知漏洞 |
 | `PROGRESS.md` | 开发进度追踪 + Phase 7 范围 |
@@ -71,3 +70,54 @@ Secrets via shell env or `.env`.
 | `frontend/src/components/` | React components (learning modes, video, subtitle, speaking, layout) |
 
 ---
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **Speaking-** (2126 symbols, 3161 relationships, 58 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Rules
+
+- **Run `gitnexus_impact({target, direction: "upstream"})` before editing any symbol** — report blast radius (direct callers, affected processes, risk level). HIGH/CRITICAL warnings must be surfaced to the user before proceeding.
+- **Run `gitnexus_detect_changes()` before committing** to verify changes only affect expected symbols and execution flows.
+- **Use `gitnexus_rename` for renames** — it understands the call graph; never use find-and-replace.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping.
+- When you need full context on a symbol, use `gitnexus_context({name: "symbolName"})` for callers, callees, and process participation.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/Speaking-/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Speaking-/clusters` | All functional areas |
+| `gitnexus://repo/Speaking-/processes` | All execution flows |
+| `gitnexus://repo/Speaking-/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Work in the Components area (39 symbols) | `.claude/skills/generated/components/SKILL.md` |
+| Work in the V1 area (36 symbols) | `.claude/skills/generated/v1/SKILL.md` |
+| Work in the Video area (26 symbols) | `.claude/skills/generated/video/SKILL.md` |
+| Work in the Tasks area (17 symbols) | `.claude/skills/generated/tasks/SKILL.md` |
+| Work in the Services area (13 symbols) | `.claude/skills/generated/services/SKILL.md` |
+| Work in the Tests area (13 symbols) | `.claude/skills/generated/tests/SKILL.md` |
+| Work in the Models area (12 symbols) | `.claude/skills/generated/models/SKILL.md` |
+| Work in the [id] area (12 symbols) | `.claude/skills/generated/id/SKILL.md` |
+| Work in the Hooks area (7 symbols) | `.claude/skills/generated/hooks/SKILL.md` |
+| Work in the Browse area (6 symbols) | `.claude/skills/generated/browse/SKILL.md` |
+| Work in the Community area (6 symbols) | `.claude/skills/generated/community/SKILL.md` |
+| Work in the Subtitle area (5 symbols) | `.claude/skills/generated/subtitle/SKILL.md` |
+| Work in the Vocabulary area (4 symbols) | `.claude/skills/generated/vocabulary/SKILL.md` |
+| Work in the Api area (3 symbols) | `.claude/skills/generated/api/SKILL.md` |
+
+<!-- gitnexus:end -->

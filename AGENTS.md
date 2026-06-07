@@ -42,7 +42,7 @@
 ## Speech Recognition
 
 - Uses `faster-whisper` (not `openai-whisper`) with int8 quantization
-- Model path configured via `WHISPER_MODEL_PATH` env var
+- Model path configured via `WHISPER_MODEL_PATH` env var or `whisper_model_path` setting (defaults to `base`)
 - Used in both `speaking_service.py` (user recording) and `video_processing.py` (subtitle generation)
 
 ## Testing
@@ -52,3 +52,5 @@
 - CI: `.github/workflows/ci.yml` runs on push/PR
 
 ---
+
+> GitNexus code intelligence rules, resources, and CLI reference are in **CLAUDE.md** (the canonical project instruction file).

@@ -1,7 +1,6 @@
 import logging
 import re
 import tempfile
-import os
 import subprocess
 import json
 import asyncio
@@ -647,8 +646,8 @@ def _ts_to_seconds(ts: str) -> float:
 def transcribe_audio(self, audio_path: str) -> str:
     """Transcribe user audio via Whisper for speaking practice."""
     try:
-        from faster_whisper import WhisperModel
-        model = WhisperModel(os.getenv("WHISPER_MODEL_PATH", "C:/Users/Administrator/local-model/faster-whisper"), device="cpu", compute_type="int8")
+        from app.services.speaking_service import _get_whisper_model
+        model = _get_whisper_model()
         segments, _ = model.transcribe(audio_path, language="en")
         return " ".join([s.text for s in segments]).strip()
     except Exception as e:
