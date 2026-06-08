@@ -1,7 +1,4 @@
-import re
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Form, status
+from fastapi import APIRouter, Depends, HTTPException, Form, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -12,16 +9,10 @@ from app.schemas.video import VideoCreate, VideoResponse, VideoDetailResponse, S
 from app.api.dependencies import get_current_user, get_optional_user, get_admin_user
 from app.core.limiter import rate_limit
 
+from app.utils.platform_utils import detect_platform
+from app.services.upload_service import handle_video_upload
+
 router = APIRouter(prefix="/videos", tags=["videos"])
-
-
-def detect_platform(url: str) -> Platform:
-    url_lower = url.lower()
-    if "youtube.com" in url_lower or "youtu.be" in url_lower:
-        return Platform.youtube
-    if "bilibili.com" in url_lower or "b23.tv" in url_lower:
-        return Platform.bilibili
-    return Platform.other
 
 
 def extract_youtube_video_id(url: str) -> str | None:
@@ -88,12 +79,9 @@ async def submit_video(
     await db.commit()
     await db.refresh(video)
 
-    # Dispatch to Celery — lightweight first for YouTube, full for others
-    from app.tasks.video_processing import process_video, process_video_lightweight
-    if platform == Platform.youtube:
-        process_video_lightweight.delay(video.id)
-    else:
-        process_video.delay(video.id)
+    # Dispatch to Celery — all platforms use the unified Whisper-based processing
+    from app.tasks.video_processing import process_video
+    process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)
 
@@ -265,6 +253,17 @@ async def list_videos(
     return [VideoResponse.model_validate(v) for v in videos]
 
 
+@router.post("/upload", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+async def upload_video(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a local video file for processing."""
+    return await handle_video_upload(file=file, title=title, current_user=current_user, db=db)
+
+
 @router.post("/seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
 async def seed_video(
     data: VideoCreate,
@@ -287,10 +286,7 @@ async def seed_video(
     await db.commit()
     await db.refresh(video)
 
-    from app.tasks.video_processing import process_video, process_video_lightweight
-    if platform == Platform.youtube:
-        process_video_lightweight.delay(video.id)
-    else:
-        process_video.delay(video.id)
+    from app.tasks.video_processing import process_video
+    process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)

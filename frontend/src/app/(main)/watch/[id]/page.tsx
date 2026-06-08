@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api, getToken, mediaUrl } from '@/lib/api';
-import type { VideoWithSubtitles, QuizQuestion, SpeakingResult } from '@/types';
+import type { VideoWithSubtitles, QuizQuestion } from '@/types';
 import YouTubePlayer, { type YouTubePlayerHandle } from '@/components/YouTubePlayer';
 import SubtitleList from '@/components/subtitle/SubtitleList';
 import WordTooltip from '@/components/subtitle/WordTooltip';
@@ -18,6 +18,8 @@ import TranslateMode from '@/components/TranslateMode';
 import DictationMode from '@/components/DictationMode';
 import FillBlankMode from '@/components/FillBlankMode';
 import { useWatchStore } from '@/stores/watchStore';
+import { usePanelResize } from '@/hooks/usePanelResize';
+import { findSubtitleIndex } from '@/lib/subtitles';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Languages, Loader2, Zap, Play, BookOpen, X,
@@ -45,7 +47,17 @@ export default function WatchPage() {
   const [progress, setProgress] = useState(0);
 
   const activeSubtitle = video?.subtitles.find((s) => s.id === activeSubtitleId);
-  const { subtitleMode } = useWatchStore();
+  const { subtitleMode, leftPanelWidth, setLeftPanelWidth, videoAspectRatio, setVideoAspectRatio } = useWatchStore();
+  const [isResizing, setIsResizing] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const check = (e: MediaQueryListEvent | MediaQueryList) => setIsDesktop(e.matches);
+    check(mql);
+    mql.addEventListener('change', check);
+    return () => mql.removeEventListener('change', check);
+  }, []);
 
   useEffect(() => {
     api<VideoWithSubtitles>(`/api/v1/videos/${id}`).then((v) => {
@@ -190,6 +202,13 @@ export default function WatchPage() {
     return true;
   }
 
+  const { startResize } = usePanelResize({
+    leftPanelWidth,
+    setLeftPanelWidth,
+    onResizeStart: () => setIsResizing(true),
+    onResizeEnd: () => setIsResizing(false),
+  });
+
   function handleStartSpeaking(sid: string) {
     if (!requireAuth()) return;
     setActiveSubtitleId(sid);
@@ -227,18 +246,18 @@ export default function WatchPage() {
 
   if (!video) {
     return (
-      <main className='flex min-h-screen items-center justify-center bg-canvas'>
-        <Loader2 size={24} className='animate-spin text-coral' />
+      <main className='flex min-h-screen items-center justify-center bg-parchment'>
+        <Loader2 size={24} className='animate-spin text-terracotta' />
       </main>
     );
   }
 
   if (video.status === 'processing' && video.subtitles.length === 0 && !video.youtube_video_id) {
     return (
-      <main className='flex min-h-screen items-center justify-center bg-canvas'>
+      <main className='flex min-h-screen items-center justify-center bg-parchment'>
         <div className='text-center'>
-          <Loader2 size={32} className='mx-auto animate-spin text-coral' />
-          <p className='mt-4 text-muted-foreground'>正在准备字幕，约 5-10 秒...</p>
+          <Loader2 size={32} className='mx-auto animate-spin text-terracotta' />
+          <p className='mt-4 text-olive'>正在准备字幕，约 5-10 秒...</p>
         </div>
       </main>
     );
@@ -246,71 +265,88 @@ export default function WatchPage() {
 
   if (video.status === 'error') {
     return (
-      <main className='flex min-h-screen items-center justify-center bg-canvas'>
+      <main className='flex min-h-screen items-center justify-center bg-parchment'>
         <div className='text-center'>
-          <p className='text-muted-foreground'>处理失败</p>
-          <p className='mt-1 text-sm text-red-500'>{video.error_message || '未知错误'}</p>
-          <button onClick={() => router.push('/')} className='mt-4 text-sm text-coral hover:underline'>返回首页</button>
+          <p className='text-olive'>处理失败</p>
+          <p className='mt-1 text-sm text-error'>{video.error_message || '未知错误'}</p>
+          <button onClick={() => router.push('/')} className='mt-4 text-sm text-terracotta hover:underline'>返回首页</button>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="flex flex-col lg:flex-row h-screen bg-navy overflow-hidden">
+    <main className="flex flex-col lg:flex-row h-screen bg-dark overflow-hidden">
       {/* Left side: Video area */}
-      <div className="flex flex-col flex-1 lg:flex-[55] min-w-0 min-h-0">
+      <div className="flex flex-col min-w-0 min-h-0" style={isDesktop ? { width: `${leftPanelWidth}%` } : undefined}>
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-white/10 bg-navy px-4 py-2.5 shrink-0">
-          <button onClick={() => router.push('/')} className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-white/60 hover:bg-white/5 hover:text-white transition-colors">
+        <div className="flex items-center gap-3 border-b border-dark-surface bg-dark px-4 py-2.5 shrink-0">
+          <button onClick={() => router.push('/')} className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-ivory/60 hover:bg-dark-surface/50 hover:text-ivory transition-colors">
             <ArrowLeft size={16} />
           </button>
-          <h1 className="flex-1 truncate text-sm font-medium text-white">{video.title}</h1>
-          <button onClick={() => setShowEnglishOnly(!showEnglishOnly)} className={cn('flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium border transition-colors', showEnglishOnly ? 'bg-coral/20 text-coral border-coral/30' : 'border-white/10 text-white/60 hover:text-white hover:border-white/20')}>
+          <h1 className="flex-1 truncate text-sm font-medium text-ivory">{video.title}</h1>
+          <button onClick={() => setShowEnglishOnly(!showEnglishOnly)} className={cn('flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium border transition-colors', showEnglishOnly ? 'bg-terracotta/20 text-terracotta border-terracotta/30' : 'border-dark-surface text-ivory/60 hover:text-ivory hover:border-dark-surface/40')}>
             <Languages size={14} /> {showEnglishOnly ? 'English' : '双语'}
           </button>
-          <button onClick={() => setShowShortcuts(!showShortcuts)} className="rounded-md px-2 py-1 text-xs text-white/40 hover:text-white">
+          <button onClick={() => setShowShortcuts(!showShortcuts)} className="rounded-md px-2 py-1 text-xs text-ivory/40 hover:text-ivory">
             <Zap size={14} />
           </button>
         </div>
 
         {/* Shortcuts popup */}
         {showShortcuts && (
-          <div className="absolute right-4 top-16 z-20 w-56 rounded-lg border border-white/10 bg-navy-elevated p-4 shadow-xl">
+          <div className="absolute right-4 top-16 z-20 w-56 rounded-lg border border-dark-surface bg-dark-elevated p-4 shadow-xl">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-white">快捷键</p>
-              <button onClick={() => setShowShortcuts(false)} className="text-white/40 hover:text-white">
+              <p className="text-xs font-semibold text-ivory">快捷键</p>
+              <button onClick={() => setShowShortcuts(false)} className="text-ivory/40 hover:text-ivory">
                 <X size={14} />
               </button>
             </div>
-            <div className="space-y-1.5 text-xs text-white/50">
-              <p><kbd className="rounded bg-white/10 px-1 py-0.5 font-mono text-white/70">Space</kbd> 播放/暂停</p>
-              <p><kbd className="rounded bg-white/10 px-1 py-0.5 font-mono text-white/70">&larr;&rarr;</kbd> 快进/快退 5 秒</p>
-              <p><kbd className="rounded bg-white/10 px-1 py-0.5 font-mono text-white/70">&uarr;&darr;</kbd> 上一句/下一句</p>
+            <div className="space-y-1.5 text-xs text-ivory/50">
+              <p><kbd className="rounded bg-dark-surface/60 px-1 py-0.5 font-mono text-ivory/70">Space</kbd> 播放/暂停</p>
+              <p><kbd className="rounded bg-dark-surface/60 px-1 py-0.5 font-mono text-ivory/70">&larr;&rarr;</kbd> 快进/快退 5 秒</p>
+              <p><kbd className="rounded bg-dark-surface/60 px-1 py-0.5 font-mono text-ivory/70">&uarr;&darr;</kbd> 上一句/下一句</p>
             </div>
           </div>
         )}
 
         {/* Video player */}
-        <div className="flex-1 flex items-center justify-center bg-black min-h-0">
-          <div className="w-full max-w-4xl">
+        <div className="flex-1 flex items-center justify-center bg-black min-h-0 overflow-hidden">
+          <div className="w-full h-full flex items-center justify-center">
             {playbackMode === 'youtube' && video.youtube_video_id ? (
-              <YouTubePlayer ref={playerRef} videoId={video.youtube_video_id} onTimeUpdate={(t) => {
-                if (!video?.subtitles) return;
-                const idx = video.subtitles.findIndex((s) => t >= s.start_time && t <= s.end_time);
-                if (idx !== -1) setCurrentSubtitleIndex(idx);
-              }} />
+              <YouTubePlayer
+                ref={playerRef}
+                videoId={video.youtube_video_id}
+                onDimensionsChange={(w, h) => setVideoAspectRatio({ w, h })}
+                onTimeUpdate={(t) => {
+                  if (!video?.subtitles) return;
+                  const idx = findSubtitleIndex(video.subtitles, t);
+                  if (idx !== -1) setCurrentSubtitleIndex(idx);
+                }}
+              />
             ) : playbackMode === 'local' && video.video_url_720p ? (
-              <video ref={videoRef} src={mediaUrl(video.video_url_720p)} controls className="w-full" onTimeUpdate={(e) => {
-                const t = e.currentTarget.currentTime;
-                const idx = video.subtitles.findIndex((s) => t >= s.start_time && t <= s.end_time);
-                if (idx !== -1) setCurrentSubtitleIndex(idx);
-              }} />
+              <video
+                ref={videoRef}
+                src={mediaUrl(video.video_url_720p)}
+                controls
+                className="w-full h-full object-contain"
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth > 0 && v.videoHeight > 0) {
+                    setVideoAspectRatio({ w: v.videoWidth, h: v.videoHeight });
+                  }
+                }}
+                onTimeUpdate={(e) => {
+                  const t = e.currentTarget.currentTime;
+                  const idx = findSubtitleIndex(video.subtitles, t);
+                  if (idx !== -1) setCurrentSubtitleIndex(idx);
+                }}
+              />
             ) : (
               <div className="flex items-center justify-center py-32">
                 <div className="text-center">
-                  <Play size={40} className="mx-auto text-white/30" />
-                  <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                  <Play size={40} className="mx-auto text-ivory/30" />
+                  <p className="mt-3 text-sm text-ivory/40">视频未就绪</p>
                 </div>
               </div>
             )}
@@ -318,20 +354,20 @@ export default function WatchPage() {
         </div>
 
         {/* Current subtitle display */}
-        <div className="border-t border-white/10 bg-navy-soft px-6 py-3 shrink-0">
+        <div className="border-t border-dark-surface bg-dark-soft px-6 py-3 shrink-0">
           {video.subtitles?.[currentSubtitleIndex] && (
             <div className="text-center">
-              <p className="text-base leading-relaxed text-white font-medium">
+              <p className="text-base leading-relaxed text-ivory font-medium">
                 {video.subtitles[currentSubtitleIndex].text_en.split(' ').map((word, wi) => {
                   const clean = word.replace(/[.,!?;:'"]/g, '');
                   return (
-                    <span key={wi} onClick={() => handleWordClick(word)} className={cn('cursor-pointer rounded hover:bg-coral/20', selectedWord === clean && 'bg-coral/30')}>
+                    <span key={wi} onClick={() => handleWordClick(word)} className={cn('cursor-pointer rounded hover:bg-terracotta/20', selectedWord === clean && 'bg-terracotta/30')}>
                       {word}{' '}
                     </span>
                   );
                 })}
               </p>
-              {!showEnglishOnly && video.subtitles[currentSubtitleIndex].text_zh && <p className="mt-0.5 text-sm text-white/50">{video.subtitles[currentSubtitleIndex].text_zh}</p>}
+              {!showEnglishOnly && video.subtitles[currentSubtitleIndex].text_zh && <p className="mt-0.5 text-sm text-ivory/50">{video.subtitles[currentSubtitleIndex].text_zh}</p>}
             </div>
           )}
         </div>
@@ -353,20 +389,35 @@ export default function WatchPage() {
         )}
       </div>
 
+      {/* Resize handle — desktop only */}
+      <div
+        className="hidden lg:flex w-1.5 cursor-col-resize hover:bg-terracotta/30 active:bg-terracotta/50 transition-colors relative shrink-0 z-10"
+        onMouseDown={startResize}
+      >
+        {/* Invisible wider hit area for easier grabbing */}
+        <div className="absolute inset-y-0 -left-2 -right-2" />
+        {/* Visible grip dots */}
+        <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
+          <div className="w-0.5 h-0.5 rounded-full bg-white/40" />
+          <div className="w-0.5 h-0.5 rounded-full bg-white/40" />
+          <div className="w-0.5 h-0.5 rounded-full bg-white/40" />
+        </div>
+      </div>
+
       {/* Right side: Subtitle panel */}
-      <div className="flex flex-col flex-1 lg:flex-[45] border-t lg:border-t-0 lg:border-l border-white/10 bg-navy min-w-0 min-h-0">
+      <div className="flex flex-col min-w-0 min-h-0 border-t lg:border-t-0 lg:border-l border-dark-surface bg-dark" style={isDesktop ? { width: `${100 - leftPanelWidth}%` } : undefined}>
         {/* Mode tabs */}
         <SubtitleModeTabs />
 
         {/* Panel content */}
         <div className="flex-1 overflow-hidden">
-          <div className="flex border-b border-white/10 bg-navy">
-            <button onClick={() => setPanelTab('subtitles')} className={cn('flex-1 py-2.5 text-xs font-medium transition-colors', panelTab === 'subtitles' ? 'text-coral border-b-2 border-coral' : 'text-white/40 hover:text-white/70')}>
+          <div className="flex border-b border-dark-surface bg-dark">
+            <button onClick={() => setPanelTab('subtitles')} className={cn('flex-1 py-2.5 text-xs font-medium transition-colors', panelTab === 'subtitles' ? 'text-terracotta border-b-2 border-terracotta' : 'text-ivory/40 hover:text-ivory/70')}>
               <Languages size={14} className="inline mr-1" />字幕
             </button>
-            <button onClick={() => setPanelTab('quiz')} className={cn('flex-1 py-2.5 text-xs font-medium transition-colors', panelTab === 'quiz' ? 'text-coral border-b-2 border-coral' : 'text-white/40 hover:text-white/70')}>
+            <button onClick={() => setPanelTab('quiz')} className={cn('flex-1 py-2.5 text-xs font-medium transition-colors', panelTab === 'quiz' ? 'text-terracotta border-b-2 border-terracotta' : 'text-ivory/40 hover:text-ivory/70')}>
               <BookOpen size={14} className="inline mr-1" />测验
-              {quizQuestions.length > 0 && !quizSubmitted && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">{quizQuestions.length}</span>}
+              {quizQuestions.length > 0 && !quizSubmitted && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-learn-phrase/100 text-[10px] text-ivory">{quizQuestions.length}</span>}
             </button>
           </div>
 
@@ -419,18 +470,18 @@ export default function WatchPage() {
       </div>
 
       {/* Bottom progress bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-navy-elevated border-t border-white/10 px-4 py-2">
-        <div className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-dark-elevated border-t border-dark-surface px-4 py-2">
+        <div className="h-1 bg-dark-surface/60 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const percent = ((e.clientX - rect.left) / rect.width) * 100;
           const duration = video?.subtitles[video.subtitles.length - 1]?.end_time || 1;
           seekTo((percent / 100) * duration);
         }}>
-          <div className="h-full bg-coral rounded-full transition-all duration-150" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-terracotta rounded-full transition-all duration-150" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-xs text-white/40 font-mono">{currentSubtitleIndex + 1} / {video.subtitles.length}</span>
-          <span className="text-xs text-white/40 font-mono">{Math.round(progress)}%</span>
+          <span className="text-xs text-ivory/40 font-mono">{currentSubtitleIndex + 1} / {video.subtitles.length}</span>
+          <span className="text-xs text-ivory/40 font-mono">{Math.round(progress)}%</span>
         </div>
       </div>
 

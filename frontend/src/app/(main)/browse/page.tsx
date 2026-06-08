@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Loader2, Play, Plus, Youtube } from 'lucide-react';
+import { formatDuration, formatViews } from '@/lib/format';
+import { Loader2, Plus, Youtube } from 'lucide-react';
+import { VideoThumbnail } from '@/components/VideoThumbnail';
+import { PageTransition } from '@/components/PageTransition';
+import { SkeletonCardGrid } from '@/components/SkeletonCard';
+import { EmptyState } from '@/components/EmptyState';
+import { StaggerContainer } from '@/components/StaggerContainer';
 
 interface Category {
   id: string;
@@ -87,24 +93,22 @@ export default function BrowsePage() {
     } catch (err) { toast.error(err instanceof Error ? err.message : '添加失败'); setAddingId(null); }
   }
 
-  function formatDuration(sec: number | null): string { if (!sec) return ''; const m = Math.floor(sec / 60); const s = Math.floor(sec % 60); return `${m}:${String(s).padStart(2, '0')}`; }
-  function formatViews(n: number | null): string { if (!n) return ''; if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M` ; if (n >= 1_000) return `${(n / 1000)}K`; return String(n); }
-
   return (
+    <PageTransition>
     <main>
-      <section className="border-b border-hairline bg-canvas">
+      <section className="border-b border-hairline-cream bg-parchment">
         <div className="container-page py-8 sm:py-12">
-          <div className="flex items-center gap-2 text-coral mb-3">
+          <div className="flex items-center gap-2 text-terracotta mb-3">
             <Youtube size={20} />
             <span className="text-xs font-semibold tracking-caption-wide uppercase">Youtube 频道</span>
           </div>
-          <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">发现内容</h1>
-          <p className="mt-2 text-sm text-muted-foreground max-w-lg">浏览 YouTube 英语视频，按主题筛选</p>
+          <h1 className="font-display text-4xl sm:text-5xl font-medium text-ink tracking-display-xl leading-tight">发现内容</h1>
+          <p className="mt-2 text-sm text-olive max-w-lg">浏览 YouTube 英语视频，按主题筛选</p>
         </div>
       </section>
 
       {/* Category tabs */}
-      <div className="bg-canvas border-b border-hairline">
+      <div className="bg-parchment border-b border-hairline-cream">
         <div className="container-page">
           <div className="flex items-center gap-2 overflow-x-auto py-3 scrollbar-hide">
             {categories.map((cat) => (
@@ -115,7 +119,7 @@ export default function BrowsePage() {
                   'shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors',
                   activeCategory === cat.id
                     ? 'bg-cream-card text-ink'
-                    : 'text-muted-foreground hover:text-ink hover:bg-cream-soft'
+                    : 'text-olive hover:text-ink hover:bg-cream-soft'
                 )}
               >
                 {categoryLabel(cat)}
@@ -127,41 +131,43 @@ export default function BrowsePage() {
 
       {/* Video grid */}
       <section className="container-page pb-16 pt-6">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <StaggerContainer className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {videos.map((item) => (
             <div
               key={item.video_id}
-              className="group cursor-pointer rounded-lg border border-hairline bg-canvas overflow-hidden hover:border-coral/30 hover:shadow-sm transition-all"
+              className="stagger-item group cursor-pointer rounded-lg border border-hairline-cream bg-canvas overflow-hidden hover:border-terracotta/30 hover:shadow-whisper transition-all"
               onClick={() => startLearning(item)}
             >
-              <div className="relative aspect-video bg-cream-soft">
-                {item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                ) : (
-                  <div className="flex h-full items-center justify-center"><Play size={32} className="text-muted-foreground" /></div>
-                )}
-                {item.duration && <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 text-[11px] font-medium text-white">{formatDuration(item.duration)}</span>}
-                <div className="absolute inset-0 flex items-center justify-center bg-ink/0 group-hover:bg-ink/20 transition-colors">
-                  <Plus size={36} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
+              <VideoThumbnail
+                url={item.thumbnail_url}
+                title={item.title}
+                platform="youtube"
+                duration={item.duration}
+                hoverOverlay={<Plus size={36} className="text-ivory opacity-0 group-hover:opacity-100 transition-opacity" />}
+              />
               <div className="p-3.5">
                 <p className="text-sm font-medium text-ink line-clamp-2 leading-snug">{item.title}</p>
-                <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-olive">
                   <span className="line-clamp-1">{item.channel_title}</span>
                   {item.view_count && <><span>·</span><span className="shrink-0">{formatViews(item.view_count)} views</span></>}
                 </div>
               </div>
             </div>
           ))}
-        </div>
+        </StaggerContainer>
+
+        {page === 1 && loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
+
+        {!loading && videos.length === 0 && (
+          <EmptyState icon={Youtube} title="暂无内容" description="该分类下暂无视频，请尝试其他分类" />
+        )}
 
         <div ref={loaderRef} className="flex justify-center py-8">
-          {loading && <Loader2 size={24} className="animate-spin text-coral" />}
-          {!hasMore && videos.length > 0 && <p className="text-sm text-muted-foreground">已加载全部内容</p>}
-          {!loading && !hasMore && videos.length === 0 && <p className="text-sm text-muted-foreground">暂无内容，请尝试其他分类</p>}
+          {page > 1 && loading && <Loader2 size={24} className="animate-spin text-terracotta" />}
+          {!hasMore && videos.length > 0 && <p className="text-sm text-olive">已加载全部内容</p>}
         </div>
       </section>
     </main>
+    </PageTransition>
   );
 }
