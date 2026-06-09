@@ -225,3 +225,35 @@
   width: 100%;
   height: 100%;
 }
+
+/* === Channel-specific styles === */
+
+/* Douyin dark scrollbar */
+.douyin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.douyin-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+/* YouTube pill tabs */
+.youtube-pill-active {
+  background-color: #0f0f0f;
+  color: white;
+}
+.youtube-pill-inactive {
+  background-color: #f2f2f2;
+  color: #0f0f0f;
+}
+.youtube-pill-inactive:hover {
+  background-color: #e5e5e5;
+}
+
+/* Bilibili blue accent */
+.bili-blue {
+  color: #00aeec;
+}
+.bili-blue-bg {
+  background-color: #00aeec;
+}

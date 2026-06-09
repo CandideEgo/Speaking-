@@ -317,7 +317,7 @@ export default function WatchPage() {
               <YouTubePlayer
                 ref={playerRef}
                 videoId={video.youtube_video_id}
-                onDimensionsChange={(w, h) => setVideoAspectRatio({ w, h })}
+                onDimensionsChange={(w, h) => setVideoAspectRatio(w / h)}
                 onTimeUpdate={(t) => {
                   if (!video?.subtitles) return;
                   const idx = findSubtitleIndex(video.subtitles, t);
@@ -333,7 +333,7 @@ export default function WatchPage() {
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
                   if (v.videoWidth > 0 && v.videoHeight > 0) {
-                    setVideoAspectRatio({ w: v.videoWidth, h: v.videoHeight });
+                    setVideoAspectRatio(v.videoWidth / v.videoHeight);
                   }
                 }}
                 onTimeUpdate={(e) => {

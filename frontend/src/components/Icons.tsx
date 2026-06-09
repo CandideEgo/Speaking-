@@ -181,3 +181,23 @@ export function SparklesIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export function BilibiliIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="3"/>
+      <line x1="8" y1="2" x2="10" y2="5"/>
+      <line x1="14" y1="2" x2="16" y2="5"/>
+      <line x1="9" y1="10" x2="9" y2="14"/>
+      <line x1="15" y1="10" x2="15" y2="14"/>
+    </svg>
+  );
+}
+
+export function DouyinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>
+    </svg>
+  );
+}
