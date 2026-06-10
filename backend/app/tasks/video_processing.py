@@ -82,10 +82,10 @@ def process_video(self, video_id: str):
                         video.duration = info.get('duration')
                         video.youtube_video_id = video.youtube_video_id or info.get('youtube_video_id')
 
-                    subs = await _extract_subtitles(video.source_url)
+                    subs = await _extract_subtitles(video.source_url, video.platform)
                     if not subs:
                         video.status = VideoStatus.error
-                        video.error_message = "No subtitles found. Try a different video."
+                        video.error_message = "Transcription failed. Could not extract audio or recognize speech."
                         await db.commit()
                         return
 
@@ -117,16 +117,18 @@ def process_video(self, video_id: str):
                             if sub_row:
                                 sub_row.text_zh = t
 
-                # Download + transcode for non-YouTube
-                video_path = await _download_video(video.source_url, video.id)
-
-                if video_path:
-                    urls = await _transcode_video(video_path, video.id)
-                    video.video_url_480p = urls.get('480p')
-                    video.video_url_720p = urls.get('720p', f"/media/{video.id}.mp4")
-                    video.video_url_1080p = urls.get('1080p')
+                # Download + transcode only for non-YouTube (Bilibili, etc.)
+                from app.models.video import Platform
+                if video.platform != Platform.youtube:
+                    video_path = await _download_video(video.source_url, video.id)
+                    if video_path:
+                        urls = await _transcode_video(video_path, video.id)
+                        video.video_url_480p = urls.get('480p')
+                        video.video_url_720p = urls.get('720p', f"/media/{video.id}.mp4")
+                        video.video_url_1080p = urls.get('1080p')
                 else:
-                    logger.warning(f"No video file downloaded for {video_id}")
+                    video.processing_mode = "lightweight"
+                    logger.info(f"YouTube video {video_id}: skipping download, using embed playback")
 
                 video.status = VideoStatus.ready
                 await db.commit()
@@ -179,10 +181,10 @@ def process_video_lightweight(self, video_id: str):
                     video.duration = info.get('duration')
                     video.youtube_video_id = info.get('youtube_video_id')
 
-                subs = await _extract_subtitles(video.source_url)
+                subs = await _extract_subtitles(video.source_url, video.platform)
                 if not subs:
                     video.status = VideoStatus.error
-                    video.error_message = "No subtitles found. Try a different video."
+                    video.error_message = "Transcription failed. Could not extract audio or recognize speech."
                     await db.commit()
                     return
 
@@ -408,61 +410,33 @@ async def _get_video_height(path: str) -> int | None:
         return None
 
 
-async def _extract_subtitles(url: str) -> list[dict]:
-    """Extract subtitles from YouTube/Bilibili using yt-dlp.
+async def _extract_subtitles(url: str, platform=None) -> list[dict]:
+    """Extract subtitles from video using audio transcription via Whisper.
 
-    Downloads English subtitles (manual or auto-generated), parses the VTT/SRT file,
-    and returns a list of {start, end, text} dicts.
+    Unified transcription pipeline: downloads/extracts audio from the video,
+    then transcribes it with faster-whisper. Supports YouTube, Bilibili,
+    Douyin, and local files.
+
+    Args:
+        url: Video URL or local file path.
+        platform: Platform enum to determine extraction strategy.
+
+    Returns:
+        list[dict]: [{start, end, text}] subtitle segments.
     """
-    import yt_dlp
-    from app.core.config import get_settings
+    from app.services.transcription import TranscriptionService
+    from app.models.video import Platform
 
-    settings = get_settings()
-    loop = asyncio.get_event_loop()
+    if platform is None:
+        platform = Platform.other
 
-    def _sync_extract():
-        tmpdir = Path(tempfile.mkdtemp(prefix="speaking_subs_"))
-        try:
-            opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "writesubtitles": True,
-                "writeautomaticsub": True,
-                "subtitleslangs": ["en"],
-                "subtitlesformat": "json3",
-                "skip_download": True,
-                "outtmpl": str(tmpdir / "%(id)s.%(ext)s"),
-            }
-            if settings.http_proxy:
-                opts["proxy"] = settings.http_proxy
-            if settings.youtube_cookies_path:
-                opts["cookiefile"] = settings.youtube_cookies_path
-            opts["remote_components"] = "ejs:github"
-
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
-
-            # Prefer JSON3 (clean word-by-word without overlap), fall back to VTT/SRT
-            json3_files = sorted(
-                p for p in tmpdir.iterdir()
-                if p.suffix.lower() == ".json3"
-            )
-            if json3_files:
-                return _parse_json3(json3_files[0])
-
-            sub_files = sorted(
-                p for p in tmpdir.iterdir()
-                if p.suffix.lower() in (".vtt", ".srt")
-            )
-            if not sub_files:
-                return None
-
-            return _parse_subtitle_file(sub_files[0])
-        finally:
-            import shutil
-            shutil.rmtree(tmpdir, ignore_errors=True)
-
-    return await loop.run_in_executor(None, _sync_extract)
+    service = TranscriptionService()
+    try:
+        subs = await service.transcribe(url, platform)
+        return subs
+    except Exception as e:
+        logger.exception(f"Transcription failed for {url}")
+        return []
 
 
 def _parse_json3(path: Path) -> list[dict]:

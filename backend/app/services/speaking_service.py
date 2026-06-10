@@ -5,20 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.learning import SpeakingAttempt
 from app.services.ai_service import AIService
+from app.services.transcription.whisper_model import get_whisper_model
 
 logger = logging.getLogger(__name__)
-
-_whisper_model = None
-
-
-def _get_whisper_model():
-    global _whisper_model
-    if _whisper_model is None:
-        from faster_whisper import WhisperModel
-        from app.core.config import get_settings
-        model_path = get_settings().whisper_model_path
-        _whisper_model = WhisperModel(model_path, device="cpu", compute_type="int8")
-    return _whisper_model
 
 
 async def evaluate_speaking(
@@ -70,7 +59,7 @@ async def _whisper_transcribe(audio_path: str) -> str:
 
     def _sync():
         try:
-            model = _get_whisper_model()
+            model = get_whisper_model()
             segments, _ = model.transcribe(audio_path, language="en")
             return " ".join([s.text for s in segments]).strip()
         except Exception:

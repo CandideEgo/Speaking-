@@ -16,7 +16,12 @@ class VideoStatus(str, enum.Enum):
 class Platform(str, enum.Enum):
     youtube = "youtube"
     bilibili = "bilibili"
+    douyin = "douyin"
+    tiktok = "tiktok"
+    twitter = "twitter"
+    instagram = "instagram"
     other = "other"
+    local = "local"
 
 
 class Video(Base):

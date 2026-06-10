@@ -38,12 +38,24 @@ class Settings(BaseSettings):
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt
 
+    # Upload settings
+    upload_temp_dir: str = "./uploads"
+    max_upload_file_size: int = 500 * 1024 * 1024  # 500MB
+
     # Observability
     sentry_dsn: str = ""
     log_level: str = "INFO"
 
     # Speech transcription (default: 'base' matches Dockerfile pre-cached model)
     whisper_model_path: str = "base"
+    whisper_model_size: str = "base"  # tiny/base/small/medium/large-v3
+    whisper_device: str = "auto"  # auto/cpu/cuda
+    whisper_compute_type: str = "int8"  # int8/float16/float32
+    whisper_chunk_duration: int = 600  # 10 minutes per chunk
+    whisper_max_concurrent_chunks: int = 2
+
+    # Transcription temp directory
+    transcription_temp_dir: str = "./tmp/transcription"
 
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
