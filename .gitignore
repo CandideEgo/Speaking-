@@ -14,3 +14,30 @@ logs/
 venv/
 .venv/
 wsl.localhost/
+
+# Temporary files
+backend/temp/
+backend/tmp/
+backend/transcripts/
+*.log
+
+# Cookie backups
+backend/youtube_cookies_*.txt
+backend/youtube_state.json
+
+# Screenshots
+*_test.png
+homepage*.png
+watch_page.png
+
+# Experimental scripts (kept in git history, ignored for future)
+backend/batch_transcribe.py
+backend/retranscribe*.py
+backend/translate_subtitles.py
+backend/seed_test_video.py
+backend/seed_whisper_video.py
+export_cookies.js
+
+# Large media files
+test_audio.wav
+*.wav

@@ -7,7 +7,7 @@ AI-powered English speaking practice app.
 - **Frontend**: Next.js 14 + React 18 + Tailwind CSS + Zustand (state)
 - **Media**: yt-dlp + ffmpeg for video processing (local filesystem, OSS for CDN)
 - **Auth**: JWT (python-jose), role-based (user/admin)
-- **AI**: OpenAI-compatible API (currently Kimi)
+- **AI**: OpenAI-compatible API (Agnes AI via Agnes Gateway)
 - **Speech**: faster-whisper (local, int8 quantized) for transcription
 
 ## Dev
@@ -64,10 +64,65 @@ Secrets via shell env or `.env`.
 | `backend/app/` | FastAPI application |
 | `backend/app/models/` | SQLAlchemy models (User, Video, Subtitle, SpeakingAttempt, LearningRecord, Vocabulary, InviteCode, Order, SpeakingRubric) |
 | `backend/app/api/v1/` | API route modules (auth, users, videos, speaking, vocabulary, ai, payments, invite-codes, browse, community, rubrics, youtube) |
+| `backend/app/tasks/` | Celery tasks (video_processing, audio_transcription) |
+| `backend/seed_official_videos.py` | Seed script for official homepage videos |
 | `backend/tests/` | pytest test suite |
 | `frontend/src/` | Next.js application |
 | `frontend/src/stores/` | Zustand stores (watchStore) |
 | `frontend/src/components/` | React components (learning modes, video, subtitle, speaking, layout) |
+
+## Video Seeding
+
+### Selection Criteria
+
+Official videos for the homepage are curated by engagement metrics:
+1. **Content quality**: Real, natural English conversation/speech; avoid memes/music-only
+2. **Engagement**: High `like_count` and `comment_count` (proxy for quality and interest)
+3. **Topic diversity**: Cover TED, interviews, news, educational, daily life, tech, etc.
+4. **Stability**: Well-known videos less likely to be removed
+5. **Duration**: 2-20 minutes (optimal for learning sessions)
+6. **Difficulty spread**: From slow/clear (A2) to fast/complex (C1)
+
+### Seed Script Usage
+
+```bash
+cd backend
+
+# First run — create all videos
+python seed_official_videos.py
+
+# Preview what would be seeded (no DB changes)
+python seed_official_videos.py --dry-run
+
+# Add only a specific category
+python seed_official_videos.py --category ted
+
+# Force re-seed existing videos (re-fetch metadata + subtitles)
+python seed_official_videos.py --force
+```
+
+**Key features:**
+- **Idempotent**: Skips videos already in DB by `source_url`
+- **Incremental**: Add new videos to `OFFICIAL_VIDEOS` list; re-run script
+- **No DB deletion needed**: Only new videos are inserted
+
+### Adding New Videos
+
+1. Edit `backend/seed_official_videos.py`
+2. Append to `OFFICIAL_VIDEOS` list:
+```python
+{"id": "VIDEO_ID", "category": "ted",
+ "title": "Video Title",
+ "likes": 100000, "comments": 5000, "duration_min": 12}
+```
+3. Run `python seed_official_videos.py`
+
+### Subtitle Pipeline
+
+- **YouTube videos**: yt-dlp extracts auto-captions (JSON3/VTT/SRT)
+- **Local files**: faster-whisper (local, int8 quantized) transcribes audio
+- **Translation**: OpenAI-compatible API (Kimi) translates English → Chinese in batches of 20
+- **Storage**: Subtitles saved to DB (`subtitles` table) with `text_en` and `text_zh`
 
 ---
 
