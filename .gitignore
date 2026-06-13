@@ -41,3 +41,11 @@ export_cookies.js
 # Large media files
 test_audio.wav
 *.wav
+
+# Playwright CLI artifacts
+.playwright-cli/
+
+# Temporary test/debug files
+tmp_audio*
+test_whisperx_llm.py
+whisper-sentence-segmentation-*.md
