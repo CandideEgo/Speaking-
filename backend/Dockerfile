@@ -29,6 +29,8 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# Install pytorch-lightning first (workaround for lightning package quarantine on PyPI)
+RUN pip install pytorch-lightning>=2.0.1
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -37,6 +39,10 @@ RUN playwright install chromium
 
 # Pre-download faster-whisper base model to avoid download on every container restart
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base')"
+
+# Pre-download WhisperX alignment model for English (~360MB)
+RUN python -c "import whisperx; whisperx.load_align_model(language_code='en', device='cpu')" || \
+    echo "Warning: alignment model pre-download failed, will download on first use"
 
 COPY . .
 

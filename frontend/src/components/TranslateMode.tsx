@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { ArrowRightLeft, Check, X } from 'lucide-react';
+import { ArrowRightLeft, Check, X, Shuffle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Subtitle {
   id: string;
@@ -15,31 +15,40 @@ interface TranslateModeProps {
 }
 
 export default function TranslateMode({ subtitles }: TranslateModeProps) {
-  const [index, setIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [input, setInput] = useState('');
   const [checked, setChecked] = useState(false);
   const [direction, setDirection] = useState<'en-zh' | 'zh-en'>('en-zh');
 
-  const current = subtitles[index];
-  if (!current || !current.text_zh) return <div className="p-4 text-center text-white/40">此视频没有中文翻译</div>;
+  const current = subtitles[selectedIndex];
+  if (!current || !current.text_zh) return <div className="p-4 text-center text-muted-foreground">此视频没有中文翻译</div>;
+
+  function handleSelectSentence(index: number) {
+    setSelectedIndex(index);
+    setInput('');
+    setChecked(false);
+  }
+
+  function randomSentence() {
+    const randomIndex = Math.floor(Math.random() * subtitles.length);
+    handleSelectSentence(randomIndex);
+  }
+
+  function prevSentence() {
+    if (selectedIndex > 0) handleSelectSentence(selectedIndex - 1);
+  }
+
+  function nextSentence() {
+    if (selectedIndex < subtitles.length - 1) handleSelectSentence(selectedIndex + 1);
+  }
 
   function check() {
     setChecked(true);
   }
 
   function next() {
-    if (index < subtitles.length - 1) {
-      setIndex(index + 1);
-      setInput('');
-      setChecked(false);
-    }
-  }
-
-  function prev() {
-    if (index > 0) {
-      setIndex(index - 1);
-      setInput('');
-      setChecked(false);
+    if (selectedIndex < subtitles.length - 1) {
+      handleSelectSentence(selectedIndex + 1);
     }
   }
 
@@ -58,8 +67,32 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
 
   return (
     <div className="flex flex-col h-full p-4">
+      {/* Sentence selector */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronLeft size={20} />
+        </button>
+        <select
+          value={selectedIndex}
+          onChange={(e) => handleSelectSentence(Number(e.target.value))}
+          className="flex-1 min-w-0 text-sm bg-cream-card border border-hairline rounded-lg px-3 py-2 text-ink focus:border-coral focus:outline-none"
+        >
+          {subtitles.map((sub, i) => (
+            <option key={sub.id} value={i}>
+              {i + 1}. {sub.text_en.slice(0, 50)}{sub.text_en.length > 50 ? '...' : ''}
+            </option>
+          ))}
+        </select>
+        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronRight size={20} />
+        </button>
+        <button onClick={randomSentence} className="btn-secondary !py-1.5 !px-2 text-xs" title="随机选择">
+          <Shuffle size={14} />
+        </button>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs text-white/40">{index + 1} / {subtitles.length}</span>
+        <span className="text-xs text-muted-foreground">{selectedIndex + 1} / {subtitles.length}</span>
         <button
           onClick={toggleDirection}
           className="flex items-center gap-1 text-xs text-coral hover:text-coral-active"
@@ -71,8 +104,8 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="text-center max-w-lg mb-6">
-          <p className="text-xs text-white/40 mb-2">翻译以下内容：</p>
-          <p className="text-lg leading-relaxed text-white font-medium">{source}</p>
+          <p className="text-xs text-muted-foreground mb-2">翻译以下内容：</p>
+          <p className="text-lg leading-relaxed text-ink font-medium">{source}</p>
         </div>
 
         <textarea
@@ -81,19 +114,19 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
           placeholder={direction === 'en-zh' ? '输入中文翻译...' : '输入英文翻译...'}
           disabled={checked}
           className={cn(
-            'w-full max-w-lg h-24 rounded-lg border bg-navy-soft px-4 py-3 text-white text-sm resize-none focus:outline-none transition-colors',
+            'w-full max-w-lg h-24 rounded-lg border bg-cream-card px-4 py-3 text-ink text-sm resize-none focus:outline-none transition-colors',
             checked
               ? isCorrect
-                ? 'border-green-500/50 bg-green-500/5'
-                : 'border-red-500/50 bg-red-500/5'
-              : 'border-white/10 focus:border-coral'
+                ? 'border-learn-correct/50 bg-learn-correct/5'
+                : 'border-learn-wrong/50 bg-learn-wrong/5'
+              : 'border-hairline focus:border-coral'
           )}
         />
 
         {checked && (
           <div className="mt-4 text-center max-w-lg">
-            <p className="text-xs text-white/40 mb-1">参考翻译：</p>
-            <p className="text-sm text-white/80">{target}</p>
+            <p className="text-xs text-muted-foreground mb-1">参考翻译：</p>
+            <p className="text-sm text-ink/75">{target}</p>
           </div>
         )}
       </div>
@@ -105,7 +138,7 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
           </button>
         ) : (
           <>
-            <div className={cn('flex items-center gap-1 text-sm', isCorrect ? 'text-green-400' : 'text-amber-400')}>
+            <div className={cn('flex items-center gap-1 text-sm', isCorrect ? 'text-learn-correct' : 'text-coral')}>
               {isCorrect ? <Check size={16} /> : <X size={16} />}
               {isCorrect ? '很好！' : '继续加油'}
             </div>
@@ -117,10 +150,10 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-2">
-        <button onClick={prev} disabled={index === 0} className="text-xs text-white/40 hover:text-white disabled:opacity-30">
+        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
           上一句
         </button>
-        <button onClick={next} disabled={index === subtitles.length - 1} className="text-xs text-white/40 hover:text-white disabled:opacity-30">
+        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
           跳过
         </button>
       </div>

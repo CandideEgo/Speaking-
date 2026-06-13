@@ -59,7 +59,7 @@ export default function StatusBar({
           style={{ width: `${progress}%` }}
         >
           {/* Progress thumb */}
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-coral rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-coral rounded-full shadow-md transition-opacity" />
         </div>
       </div>
 
@@ -67,10 +67,10 @@ export default function StatusBar({
       <div className="flex items-center justify-between px-4 py-1.5">
         {/* Left: Time and progress info */}
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-ink/40 font-mono">
+          <span className="text-[11px] text-ink/60 font-mono">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
-          <span className="text-[11px] text-ink/30 font-mono">
+          <span className="text-[11px] text-ink/50 font-mono">
             {currentIndex + 1} / {totalSubtitles}
           </span>
         </div>
@@ -79,21 +79,21 @@ export default function StatusBar({
         <div className="flex items-center gap-1">
           <button
             onClick={onPrevSubtitle}
-            className="p-1.5 rounded-lg text-ink/40 hover:text-ink hover:bg-cream-soft transition-colors"
+            className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="上一句"
           >
             <SkipBack size={14} />
           </button>
           <button
             onClick={onTogglePlay}
-            className="p-1.5 rounded-lg text-ink/40 hover:text-ink hover:bg-cream-soft transition-colors"
+            className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title={isPlaying ? '暂停' : '播放'}
           >
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
           <button
             onClick={onNextSubtitle}
-            className="p-1.5 rounded-lg text-ink/40 hover:text-ink hover:bg-cream-soft transition-colors"
+            className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="下一句"
           >
             <SkipForward size={14} />
@@ -109,7 +109,7 @@ export default function StatusBar({
               'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
               isLoopEnabled
                 ? 'bg-coral/10 text-coral'
-                : 'text-ink/40 hover:text-ink hover:bg-cream-soft'
+                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="连播"
           >
@@ -124,7 +124,7 @@ export default function StatusBar({
               'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
               isCleanScreen
                 ? 'bg-coral/10 text-coral'
-                : 'text-ink/40 hover:text-ink hover:bg-cream-soft'
+                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="清屏"
           >
@@ -139,7 +139,7 @@ export default function StatusBar({
               'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
               isSmartMode
                 ? 'bg-coral/10 text-coral'
-                : 'text-ink/40 hover:text-ink hover:bg-cream-soft'
+                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="智能"
           >
@@ -155,7 +155,7 @@ export default function StatusBar({
                 'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
                 showSpeedMenu
                   ? 'bg-coral/10 text-coral'
-                  : 'text-ink/40 hover:text-ink hover:bg-cream-soft'
+                  : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
               )}
               title="倍速"
             >
@@ -187,7 +187,7 @@ export default function StatusBar({
 
           {/* Fullscreen */}
           <button
-            className="p-1.5 rounded-lg text-ink/40 hover:text-ink hover:bg-cream-soft transition-colors"
+            className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="全屏"
           >
             <Maximize size={14} />

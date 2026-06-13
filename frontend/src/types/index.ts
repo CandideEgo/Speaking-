@@ -38,6 +38,7 @@ export interface Subtitle {
   sentence_index: number;
   grammar_note: string | null;
   difficulty_words: string | null;
+  speaker: string | null;
 }
 
 export interface VideoWithSubtitles extends Video {

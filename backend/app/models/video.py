@@ -64,3 +64,5 @@ class Video(Base):
     user = relationship("User", back_populates="videos")
     subtitles = relationship("Subtitle", back_populates="video", order_by="Subtitle.sentence_index")
     learning_records = relationship("LearningRecord", back_populates="video")
+    comments = relationship("VideoComment", back_populates="video", order_by="VideoComment.published_at.desc()")
+    comment_stats = relationship("VideoCommentStats", back_populates="video", uselist=False)

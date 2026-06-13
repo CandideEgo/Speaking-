@@ -7,6 +7,7 @@ Create Date: 2026-05-31 10:00:00.000000
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers
@@ -16,10 +17,20 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _column_nullable(table: str, column: str) -> bool:
+    """Check if a column is currently nullable."""
+    inspector = inspect(op.get_bind())
+    for col in inspector.get_columns(table):
+        if col['name'] == column:
+            return col.get('nullable', False)
+    return False
+
+
 def upgrade() -> None:
-    op.alter_column('videos', 'user_id',
-                    existing_type=sa.String(36),
-                    nullable=True)
+    if not _column_nullable('videos', 'user_id'):
+        op.alter_column('videos', 'user_id',
+                        existing_type=sa.String(36),
+                        nullable=True)
 
 
 def downgrade() -> None:

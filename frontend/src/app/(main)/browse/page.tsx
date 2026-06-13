@@ -1,98 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import { formatDuration, formatViews } from '@/lib/format';
-import { Loader2, Play, Youtube } from 'lucide-react';
+import { Loader2, Youtube } from 'lucide-react';
+import { usePlatformFeed } from '@/hooks/usePlatformFeed';
 import { SkeletonCardGrid } from '@/components/SkeletonCard';
 import { EmptyState } from '@/components/EmptyState';
 import { PageTransition } from '@/components/PageTransition';
 import { CategoryTabs } from '@/components/channel/CategoryTabs';
 import { ShortsRow } from '@/components/channel/ShortsRow';
-
-interface Category {
-  id: string;
-  label: string;
-}
-
-interface VideoItem {
-  video_id: string;
-  url: string;
-  title: string;
-  channel_title: string;
-  thumbnail_url: string;
-  duration: number | null;
-  view_count: number | null;
-}
-
-const CATEGORY_ZH: Record<string, string> = {
-  all: '全部',
-  ted: 'TED 演讲',
-  interview: '名人访谈',
-  news: '新闻',
-  vlog: '生活 Vlog',
-  educational: '教育学习',
-  movie: '电影片段',
-  tech: '科技',
-};
-
-function categoryLabel(cat: Category): string {
-  return CATEGORY_ZH[cat.id] || cat.label;
-}
+import { VideoCard } from '@/components/channel/VideoCard';
 
 export default function BrowsePage() {
-  const router = useRouter();
-  const loaderRef = useRef<HTMLDivElement>(null);
+  const {
+    categories,
+    activeCategory,
+    setActiveCategory,
+    videos,
+    loading,
+    hasMore,
+    error,
+    retry,
+    loaderRef,
+    addingId,
+    startLearning,
+  } = usePlatformFeed({ platform: 'browse' });
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [addingId, setAddingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<{ categories: Category[] }>('/api/v1/browse/categories')
-      .then((d) => setCategories(d.categories))
-      .catch(() => {});
-  }, []);
-
-  const fetchFeed = useCallback(async (cat: string, pg: number) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ category: cat, page: String(pg) });
-      const data = await api<{ items: VideoItem[]; has_more: boolean }>(`/api/v1/browse/feed?${params.toString()}`);
-      if (pg === 1) setVideos(data.items);
-      else setVideos((prev) => [...prev, ...data.items]);
-      setHasMore(data.has_more);
-    } catch { toast.error('加载失败'); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { setPage(1); setVideos([]); setHasMore(true); fetchFeed(activeCategory, 1); }, [activeCategory, fetchFeed]);
-
-  useEffect(() => {
-    const el = loaderRef.current; if (!el) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        const nextPage = page + 1; setPage(nextPage); fetchFeed(activeCategory, nextPage);
-      }
-    }, { threshold: 0.1 });
-    observer.observe(el); return () => observer.disconnect();
-  }, [hasMore, loading, page, activeCategory, fetchFeed]);
-
-  async function startLearning(item: VideoItem) {
-    setAddingId(item.video_id);
-    try {
-      const video = await api<{ id: string }>('/api/v1/videos', { method: 'POST', body: JSON.stringify({ source_url: item.url }) });
-      router.push(`/watch/${video.id}`);
-    } catch (err) { toast.error(err instanceof Error ? err.message : '添加失败'); setAddingId(null); }
-  }
-
-  // Mock shorts data from first few videos
+  // Shorts data from first few videos
   const shortsItems = videos.slice(0, 8).map(v => ({
     id: v.video_id,
     thumbnail_url: v.thumbnail_url,
@@ -107,7 +39,7 @@ export default function BrowsePage() {
         <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-100">
           <div className="px-4 py-2">
             <CategoryTabs
-              categories={categories.map(c => ({ ...c, label: categoryLabel(c) }))}
+              categories={categories}
               activeId={activeCategory}
               onSelect={setActiveCategory}
               variant="pill"
@@ -116,53 +48,22 @@ export default function BrowsePage() {
           </div>
         </div>
 
-        {/* Video Grid */}
-        <div className="px-4 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {videos.map((item) => (
-              <div
-                key={item.video_id}
-                onClick={() => startLearning(item)}
-                className="group cursor-pointer flex flex-col gap-2"
-              >
-                <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100">
-                  {item.thumbnail_url ? (
-                    <img
-                      src={item.thumbnail_url}
-                      alt={item.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-gray-400">{item.title.charAt(0)}</span>
-                    </div>
-                  )}
-                  {item.duration && item.duration > 0 && (
-                    <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-black/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
-                      {formatDuration(item.duration)}
-                    </span>
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-                    <Play size={36} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-xs font-bold text-gray-600">{item.channel_title?.charAt(0) || 'U'}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#0f0f0f] line-clamp-2 leading-snug">{item.title}</p>
-                    <p className="text-xs text-[#606060] mt-0.5">{item.channel_title}</p>
-                    <p className="text-xs text-[#606060]">{formatViews(item.view_count)} views</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+        {/* Error State */}
+        {error && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-red-500 mb-2">{error}</p>
+            <button
+              onClick={retry}
+              className="text-sm text-[#00aeec] hover:underline"
+            >
+              重试
+            </button>
           </div>
+        )}
 
-          {/* Shorts Section */}
-          {shortsItems.length > 0 && (
+        {/* Shorts Section — above main grid like YouTube */}
+        {shortsItems.length > 0 && (
+          <div className="px-4 pt-4">
             <ShortsRow
               items={shortsItems}
               onClick={(short) => {
@@ -170,16 +71,31 @@ export default function BrowsePage() {
                 if (video) startLearning(video);
               }}
             />
-          )}
+          </div>
+        )}
 
-          {page === 1 && loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
+        {/* Video Grid */}
+        <div className="px-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {videos.map((item) => (
+              <VideoCard
+                key={item.video_id}
+                variant="youtube"
+                video={item}
+                onClick={() => startLearning(item)}
+                isLoading={addingId === item.video_id}
+              />
+            ))}
+          </div>
 
-          {!loading && videos.length === 0 && (
+          {loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
+
+          {!loading && videos.length === 0 && !error && (
             <EmptyState icon={Youtube} title="暂无内容" description="该分类下暂无视频，请尝试其他分类" />
           )}
 
           <div ref={loaderRef} className="flex justify-center py-8">
-            {page > 1 && loading && <Loader2 size={24} className="animate-spin text-gray-400" />}
+            {loading && videos.length > 0 && <Loader2 size={24} className="animate-spin text-gray-400" />}
             {!hasMore && videos.length > 0 && <p className="text-sm text-gray-500">已加载全部内容</p>}
           </div>
         </div>

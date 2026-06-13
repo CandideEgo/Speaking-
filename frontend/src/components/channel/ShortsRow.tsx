@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatViews } from '@/lib/format';
 
 interface ShortItem {
   id: string;
@@ -14,13 +15,6 @@ interface ShortItem {
 interface ShortsRowProps {
   items: ShortItem[];
   onClick?: (item: ShortItem) => void;
-}
-
-function formatViews(n: number | null): string {
-  if (!n) return '';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1000).toFixed(0)}K`;
-  return String(n);
 }
 
 export function ShortsRow({ items, onClick }: ShortsRowProps) {

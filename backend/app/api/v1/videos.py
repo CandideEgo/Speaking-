@@ -1,3 +1,5 @@
+import re
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Form, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -79,9 +81,12 @@ async def submit_video(
     await db.commit()
     await db.refresh(video)
 
-    # Dispatch to Celery — all platforms use the unified Whisper-based processing
-    from app.tasks.video_processing import process_video
-    process_video.delay(video.id)
+    # Dispatch to Celery — YouTube uses lightweight (no download), others use full pipeline
+    from app.tasks.video_processing import process_video, process_video_lightweight
+    if platform == Platform.youtube:
+        process_video_lightweight.delay(video.id)
+    else:
+        process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)
 
@@ -158,6 +163,7 @@ async def get_video(
                 text_zh=s.text_zh,
                 sentence_index=s.sentence_index,
                 grammar_note=s.grammar_note,
+                speaker=s.speaker,
             )
             for s in (video.subtitles or [])
         ],
@@ -286,7 +292,10 @@ async def seed_video(
     await db.commit()
     await db.refresh(video)
 
-    from app.tasks.video_processing import process_video
-    process_video.delay(video.id)
+    from app.tasks.video_processing import process_video, process_video_lightweight
+    if platform == Platform.youtube:
+        process_video_lightweight.delay(video.id)
+    else:
+        process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)

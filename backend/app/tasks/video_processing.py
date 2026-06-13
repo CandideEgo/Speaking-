@@ -55,6 +55,31 @@ async def _translate_subtitles(texts: list[str]) -> list[str | None]:
     return results
 
 
+async def _identify_speakers(video_id: str, subs: list[dict]) -> None:
+    """Identify speakers for each subtitle segment and update database."""
+    from sqlalchemy import select
+    from app.core.database import async_session
+    from app.models.subtitle import Subtitle
+
+    ai = _get_ai_service()
+    speakers = await ai.identify_speakers(subs)
+
+    async with async_session() as db:
+        for i, speaker in enumerate(speakers):
+            result = await db.execute(
+                select(Subtitle).where(
+                    Subtitle.video_id == video_id,
+                    Subtitle.sentence_index == i,
+                )
+            )
+            sub_row = result.scalar_one_or_none()
+            if sub_row:
+                sub_row.speaker = speaker
+        await db.commit()
+
+    logger.info(f"Identified speakers for video {video_id}: {len([s for s in speakers if s])}/{len(speakers)}")
+
+
 @celery_app.task(bind=True, max_retries=3)
 def process_video(self, video_id: str):
     """Full pipeline for non-YouTube: download, transcode, subtitles, translate."""
@@ -75,7 +100,7 @@ def process_video(self, video_id: str):
                 skip_ai = video.status == VideoStatus.ready_subtitles and video.subtitles
 
                 if not skip_ai:
-                    info = await _extract_video_info(video.source_url)
+                    info = await _extract_video_info(video.source_url, video.platform)
                     if info:
                         video.title = info.get('title', video.title)
                         video.thumbnail_url = info.get('thumbnail')
@@ -116,6 +141,9 @@ def process_video(self, video_id: str):
                             sub_row = result_sub.scalar_one_or_none()
                             if sub_row:
                                 sub_row.text_zh = t
+
+                    # Step 3: identify speakers
+                    await _identify_speakers(video.id, subs)
 
                 # Download + transcode only for non-YouTube (Bilibili, etc.)
                 from app.models.video import Platform
@@ -174,7 +202,7 @@ def process_video_lightweight(self, video_id: str):
                 return
 
             try:
-                info = await _extract_video_info(video.source_url)
+                info = await _extract_video_info(video.source_url, video.platform)
                 if info:
                     video.title = info.get('title', video.title)
                     video.thumbnail_url = info.get('thumbnail')
@@ -204,7 +232,33 @@ def process_video_lightweight(self, video_id: str):
                 await db.commit()
                 logger.info(f"Video {video_id} step 1: {len(subs)} English subtitles saved")
 
-                # --- Step 2: AI translate, update subtitles ---
+                # --- Step 2: AI re-split by speakers ---
+                logger.info(f"Video {video_id}: re-splitting subtitles by speakers...")
+                ai = _get_ai_service()
+                split_subs = await ai.split_by_speakers(subs)
+                if len(split_subs) != len(subs):
+                    logger.info(f"Video {video_id}: re-split from {len(subs)} to {len(split_subs)} segments")
+                    # Delete old subtitles and re-insert
+                    from sqlalchemy import delete
+                    await db.execute(delete(Subtitle).where(Subtitle.video_id == video.id))
+                    await db.commit()
+                    for i, sub in enumerate(split_subs):
+                        db.add(Subtitle(
+                            video_id=video.id,
+                            start_time=sub["start"],
+                            end_time=sub["end"],
+                            text_en=sub["text"],
+                            sentence_index=i,
+                            speaker=sub.get("speaker"),
+                        ))
+                    await db.commit()
+                    # Update subs reference for translation
+                    subs = split_subs
+                else:
+                    logger.info(f"Video {video_id}: no re-split needed")
+
+                # --- Step 3: AI translate, update subtitles ---
+                texts = [s["text"] for s in subs]
                 translated = await _translate_subtitles(texts)
                 for i, t in enumerate(translated):
                     if t:
@@ -240,8 +294,25 @@ def process_video_lightweight(self, video_id: str):
             loop.close()
 
 
-async def _extract_video_info(url: str) -> dict | None:
-    """Extract video metadata (title, thumbnail, duration) via yt-dlp without downloading."""
+async def _extract_video_info(url: str, platform=None) -> dict | None:
+    """Extract video metadata (title, thumbnail, duration) via yt-dlp or Playwright."""
+    from app.models.video import Platform
+
+    # For Douyin, use the advanced Playwright extractor for richer metadata
+    if platform == Platform.douyin:
+        try:
+            from app.services.transcription.douyin_extractor import fetch_douyin_video_data
+            data = fetch_douyin_video_data(url)
+            return {
+                "title": data.get("title", ""),
+                "thumbnail": data.get("thumbnail", ""),
+                "duration": data.get("duration", 0),
+                "youtube_video_id": None,
+            }
+        except Exception:
+            logger.exception("Douyin metadata extraction failed, falling back to yt-dlp")
+            # Fall through to yt-dlp
+
     import yt_dlp
     from app.core.config import get_settings
 
@@ -620,8 +691,8 @@ def _ts_to_seconds(ts: str) -> float:
 def transcribe_audio(self, audio_path: str) -> str:
     """Transcribe user audio via Whisper for speaking practice."""
     try:
-        from app.services.speaking_service import _get_whisper_model
-        model = _get_whisper_model()
+        from app.services.transcription.whisper_model import get_whisper_model
+        model = get_whisper_model()
         segments, _ = model.transcribe(audio_path, language="en")
         return " ".join([s.text for s in segments]).strip()
     except Exception as e:

@@ -18,6 +18,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
     const mm = gsap.matchMedia();
     mm.add(MEDIA.reduceMotion, (context) => {
       const reduceMotion = context.conditions?.reduceMotion as boolean;
+      // Start from invisible, animate to visible
       gsap.fromTo(ref.current,
         { autoAlpha: 0, y: 8 },
         {
@@ -31,8 +32,10 @@ export function PageTransition({ children, className }: PageTransitionProps) {
     return () => mm.revert();
   }, { scope: ref });
 
+  // CSS fallback: if GSAP fails to run, the page still becomes visible
+  // via the CSS animation below. GSAP overrides this once it initializes.
   return (
-    <div ref={ref} className={cn('', className)}>
+    <div ref={ref} className={cn('animate-fade-in', className)}>
       {children}
     </div>
   );

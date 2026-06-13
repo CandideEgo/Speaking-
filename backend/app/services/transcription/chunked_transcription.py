@@ -1,7 +1,7 @@
 """Chunked transcription for long videos (> 10 minutes).
 
-Splits long audio into chunks, transcribes each chunk with Whisper,
-and merges results with corrected timestamps.
+Splits long audio into chunks, transcribes each chunk with WhisperX
+(ASR + forced alignment), and merges results with corrected timestamps.
 """
 
 import asyncio
@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Callable
 
 from app.core.config import get_settings
-from .whisper_model import get_whisper_model
-from .formatters import whisper_segments_to_subtitles
+from .whisper_model import get_whisperx_model, get_align_model, _detect_device
+from .formatters import whisperx_segments_to_subtitles
 from .exceptions import AudioExtractionError
 
 logger = logging.getLogger(__name__)
@@ -93,17 +93,15 @@ async def transcribe_in_chunks(
                 None, extract_audio, offset, current_chunk_duration, chunk_path
             )
 
-            # Transcribe with concurrency limit
+            # Transcribe with WhisperX (ASR + alignment) with concurrency limit
             async with semaphore:
                 segments = await loop.run_in_executor(
-                    None, _transcribe_single, chunk_path
+                    None, _transcribe_single_chunk, chunk_path
                 )
 
-            # Convert to subtitles with offset correction
-            subs = whisper_segments_to_subtitles(segments)
-            for sub in subs:
-                sub["start"] += offset
-                sub["end"] += offset
+            # Convert to subtitles with offset — offset is passed directly
+            # into the formatter so word-level timestamps are correctly shifted
+            subs = whisperx_segments_to_subtitles(segments, offset=offset)
             all_segments.extend(subs)
 
             logger.info(f"Chunk {chunk_num}/{total_chunks}: done ({len(subs)} segments)")
@@ -118,15 +116,37 @@ async def transcribe_in_chunks(
     return all_segments
 
 
-def _transcribe_single(audio_path: str) -> list:
-    """Transcribe a single audio file with Whisper.
+def _transcribe_single_chunk(audio_path: str) -> list[dict]:
+    """Transcribe + align a single audio chunk with WhisperX.
+
+    Pipeline: ASR → punctuation restoration → forced alignment.
 
     Returns:
-        List of faster-whisper Segment objects.
+        list[dict]: Aligned segments from whisperx.align()["segments"].
+            Each: {"start": float, "end": float, "text": str, "words": [...]}
     """
-    model = get_whisper_model()
-    segments, _ = model.transcribe(audio_path, language="en", beam_size=5)
-    return list(segments)
+    import whisperx
+    from .punctuation import restore_punctuation
+
+    settings = get_settings()
+    device, _ = _detect_device()
+
+    # Load audio as numpy array
+    audio = whisperx.load_audio(audio_path)
+
+    # Step 1: ASR
+    model = get_whisperx_model()
+    result = model.transcribe(audio, batch_size=settings.whisperx_batch_size)
+    language = result.get("language", "en")
+
+    # Step 2: Restore punctuation before alignment
+    result["segments"] = restore_punctuation(result["segments"])
+
+    # Step 3: Forced alignment
+    model_a, metadata = get_align_model(language)
+    result = whisperx.align(result["segments"], model_a, metadata, audio, device)
+
+    return result["segments"]
 
 
 async def transcribe_local_chunks(audio_path: str, total_duration: float) -> list[dict]:
@@ -189,13 +209,11 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
         try:
             async with semaphore:
                 segments = await loop.run_in_executor(
-                    None, _transcribe_single, chunk_path
+                    None, _transcribe_single_chunk, chunk_path
                 )
 
-            subs = whisper_segments_to_subtitles(segments)
-            for sub in subs:
-                sub["start"] += offset
-                sub["end"] += offset
+            # Pass offset directly to formatter — word timestamps are correctly shifted
+            subs = whisperx_segments_to_subtitles(segments, offset=offset)
             all_segments.extend(subs)
 
             logger.info(f"Chunk {chunk_num}/{total_chunks}: done ({len(subs)} segments)")

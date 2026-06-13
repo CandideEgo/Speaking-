@@ -1,7 +1,10 @@
 """Unified transcription service for Speaking app.
 
-Replaces the existing yt-dlp-only subtitle extraction with a full
-audio-transcription pipeline using faster-whisper.
+Uses WhisperX for high-quality transcription with:
+- VAD preprocessing (pyannote/silero) to reduce hallucination
+- Batched inference for faster transcription
+- wav2vec2 forced alignment for precise word-level timestamps
+- NLTK Punkt sentence segmentation
 
 Supports:
 - YouTube (streaming audio extraction)
@@ -22,7 +25,7 @@ from app.core.config import get_settings
 from app.models.video import Platform
 
 from .exceptions import TranscriptionError, AudioExtractionError, UnsupportedPlatformError
-from .whisper_model import get_whisper_model
+from .whisper_model import get_whisperx_model, get_align_model, _detect_device
 from .audio_extractor import (
     extract_streaming_audio,
     extract_local_audio,
@@ -31,7 +34,7 @@ from .audio_extractor import (
     _is_streaming_url,
 )
 from .chunked_transcription import transcribe_in_chunks, transcribe_local_chunks
-from .formatters import whisper_segments_to_subtitles
+from .formatters import whisperx_segments_to_subtitles
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,15 @@ class TranscriptionService:
 
     def __init__(self):
         self.settings = get_settings()
+        self._last_douyin_metadata: dict | None = None
+
+    def get_last_douyin_metadata(self) -> dict | None:
+        """Return metadata from the last Douyin extraction, if any."""
+        return self._last_douyin_metadata
+
+    def clear_douyin_metadata(self) -> None:
+        """Clear cached Douyin metadata."""
+        self._last_douyin_metadata = None
 
     async def transcribe(self, source: str, platform: Platform) -> list[dict]:
         """Transcribe a video into subtitles.
@@ -64,7 +76,7 @@ class TranscriptionService:
         )
 
     def _sync_transcribe(self, source: str, platform: Platform) -> list[dict]:
-        """Synchronous transcription core logic."""
+        """Synchronous transcription core logic using WhisperX."""
         # Create temp directory for audio files
         temp_dir = Path(self.settings.transcription_temp_dir)
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -80,17 +92,16 @@ class TranscriptionService:
             duration = get_video_duration(audio_path)
             logger.info(f"Audio duration: {duration:.1f}s")
 
-            # Step 3: Transcribe
+            # Step 3: Transcribe + align with WhisperX
             if duration > self.settings.whisper_chunk_duration:
-                logger.info(f"Video exceeds {self.settings.whisper_chunk_duration}s, using chunked transcription")
-                # For chunked transcription we need async, but we're in sync context
-                # Run chunked transcription via asyncio.run
-                segments = self._transcribe_chunked_sync(audio_path, duration)
+                logger.info(
+                    f"Video exceeds {self.settings.whisper_chunk_duration}s, "
+                    "using chunked transcription"
+                )
+                subs = self._transcribe_chunked_sync(audio_path, duration)
             else:
-                segments = self._transcribe_single(audio_path)
+                subs = self._transcribe_single(audio_path)
 
-            # Step 4: Convert to subtitle format
-            subs = whisper_segments_to_subtitles(segments)
             logger.info(f"Transcription complete: {len(subs)} subtitles")
             return subs
 
@@ -114,8 +125,9 @@ class TranscriptionService:
         audio_path = str(temp_dir / f"audio_{abs(hash(source))}.wav")
 
         if platform == Platform.douyin:
-            logger.info("Extracting Douyin audio via Playwright")
-            extract_douyin_audio(source, audio_path)
+            logger.info("Extracting Douyin audio via advanced Playwright")
+            metadata = extract_douyin_audio(source, audio_path)
+            self._last_douyin_metadata = metadata
             return audio_path
 
         if platform == Platform.local:
@@ -138,14 +150,49 @@ class TranscriptionService:
 
         raise UnsupportedPlatformError(f"Cannot extract audio from: {source}")
 
-    def _transcribe_single(self, audio_path: str) -> list:
-        """Transcribe a single audio file."""
-        logger.info(f"Transcribing audio: {audio_path}")
-        model = get_whisper_model()
-        segments, _ = model.transcribe(audio_path, language="en", beam_size=5)
-        return list(segments)
+    def _transcribe_single(self, audio_path: str) -> list[dict]:
+        """Transcribe a single audio file with WhisperX (ASR + alignment).
 
-    def _transcribe_chunked_sync(self, audio_path: str, duration: float) -> list:
+        Pipeline: ASR → punctuation restoration → forced alignment → format.
+        Punctuation restoration ensures NLTK Punkt inside align() can
+        correctly split segments into sentences.
+
+        Returns:
+            list[dict]: Subtitle dicts with sentence-level segmentation.
+        """
+        import whisperx
+
+        logger.info(f"Transcribing audio with WhisperX: {audio_path}")
+
+        # Load audio as numpy array (required by WhisperX)
+        audio = whisperx.load_audio(audio_path)
+
+        # Step 1: ASR with VAD + batched inference
+        model = get_whisperx_model()
+        result = model.transcribe(
+            audio,
+            batch_size=self.settings.whisperx_batch_size,
+        )
+        language = result.get("language", "en")
+        logger.info(f"WhisperX ASR: language={language}, {len(result['segments'])} segments")
+
+        # Step 2: Restore punctuation (so align()'s NLTK Punkt can split sentences)
+        from .punctuation import restore_punctuation
+        result["segments"] = restore_punctuation(result["segments"])
+        logger.info(f"Punctuation restored for {len(result['segments'])} segments")
+
+        # Step 3: Forced alignment for word-level timestamps + sentence segmentation
+        model_a, metadata = get_align_model(language)
+        device, _ = _detect_device()
+        result = whisperx.align(
+            result["segments"], model_a, metadata, audio, device
+        )
+        logger.info(f"WhisperX aligned: {len(result['segments'])} sentence segments")
+
+        # Step 4: Convert to subtitle format
+        return whisperx_segments_to_subtitles(result["segments"])
+
+    def _transcribe_chunked_sync(self, audio_path: str, duration: float) -> list[dict]:
         """Run chunked transcription synchronously.
 
         Since chunked transcription is async, we need to run it in a new event loop.

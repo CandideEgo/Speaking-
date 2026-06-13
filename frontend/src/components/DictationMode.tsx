@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Volume2, RotateCcw, Check, X } from 'lucide-react';
+import { Volume2, RotateCcw, Check, X, Shuffle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Subtitle {
   id: string;
@@ -11,28 +11,54 @@ interface Subtitle {
 }
 
 interface DictationModeProps {
-  subtitle: Subtitle;
+  subtitles: Subtitle[];
 }
 
-export default function DictationMode({ subtitle }: DictationModeProps) {
+export default function DictationMode({ subtitles }: DictationModeProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [input, setInput] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const current = subtitles[selectedIndex];
 
   useEffect(() => {
     setInput('');
     setShowAnswer(false);
     setChecked(false);
+    setIsPlaying(false);
     inputRef.current?.focus();
-  }, [subtitle.id]);
+  }, [selectedIndex]);
 
-  function speak() {
-    const u = new SpeechSynthesisUtterance(subtitle.text_en);
+  function speak(text?: string) {
+    const textToSpeak = text || current?.text_en;
+    if (!textToSpeak) return;
+
+    speechSynthesis.cancel();
+    setIsPlaying(true);
+
+    const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = 'en-US';
     u.rate = 0.9;
-    speechSynthesis.cancel();
+
+    u.onend = () => {
+      setIsPlaying(false);
+    };
+
+    u.onerror = () => {
+      setIsPlaying(false);
+    };
+
+    utteranceRef.current = u;
     speechSynthesis.speak(u);
+  }
+
+  function stopSpeaking() {
+    speechSynthesis.cancel();
+    setIsPlaying(false);
   }
 
   function check() {
@@ -47,19 +73,92 @@ export default function DictationMode({ subtitle }: DictationModeProps) {
     inputRef.current?.focus();
   }
 
+  function handleSelectSentence(index: number) {
+    setSelectedIndex(index);
+    setInput('');
+    setShowAnswer(false);
+    setChecked(false);
+  }
+
+  function randomSentence() {
+    const randomIndex = Math.floor(Math.random() * subtitles.length);
+    handleSelectSentence(randomIndex);
+  }
+
+  function prevSentence() {
+    if (selectedIndex > 0) {
+      handleSelectSentence(selectedIndex - 1);
+    }
+  }
+
+  function nextSentence() {
+    if (selectedIndex < subtitles.length - 1) {
+      handleSelectSentence(selectedIndex + 1);
+    }
+  }
+
   const normalizedInput = input.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
-  const normalizedAnswer = subtitle.text_en.trim().toLowerCase().replace(/[.,!?;:'"]/g, '');
-  const isCorrect = normalizedInput === normalizedAnswer;
+  const normalizedAnswer = current?.text_en.trim().toLowerCase().replace(/[.,!?;:'"]/g, '') || '';
+  const isCorrect = normalizedInput === normalizedAnswer && normalizedInput.length > 0;
+
+  // Generate diff for error highlighting
+  function getDiff() {
+    if (!checked || isCorrect) return null;
+    const inputWords = input.trim().split(/\s+/);
+    const answerWords = current?.text_en.trim().split(/\s+/) || [];
+    return { inputWords, answerWords };
+  }
+
+  const diff = getDiff();
+
+  if (!current) return null;
 
   return (
     <div className="flex flex-col h-full p-4">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-xs text-white/40">听写模式</span>
-        <button onClick={speak} className="flex items-center gap-1 text-coral hover:text-coral-active text-xs">
-          <Volume2 size={14} /> 播放
+      {/* Sentence selector */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronLeft size={20} />
+        </button>
+        <select
+          value={selectedIndex}
+          onChange={(e) => handleSelectSentence(Number(e.target.value))}
+          className="flex-1 min-w-0 text-sm bg-cream-card border border-hairline rounded-lg px-3 py-2 text-ink focus:border-coral focus:outline-none"
+        >
+          {subtitles.map((sub, i) => (
+            <option key={sub.id} value={i}>
+              {i + 1}. {sub.text_en.slice(0, 50)}{sub.text_en.length > 50 ? '...' : ''}
+            </option>
+          ))}
+        </select>
+        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronRight size={20} />
+        </button>
+        <button onClick={randomSentence} className="btn-secondary !py-1.5 !px-2 text-xs" title="随机选择">
+          <Shuffle size={14} />
         </button>
       </div>
 
+      {/* Controls */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs text-muted-foreground">听写模式</span>
+        <div className="flex items-center gap-2">
+          {isPlaying ? (
+            <button onClick={stopSpeaking} className="flex items-center gap-1 text-coral hover:text-coral-active text-xs">
+              <Volume2 size={14} /> 停止
+            </button>
+          ) : (
+            <button onClick={() => speak()} className="flex items-center gap-1 text-coral hover:text-coral-active text-xs">
+              <Volume2 size={14} /> 播放
+            </button>
+          )}
+          <button onClick={() => speak()} disabled={isPlaying} className="flex items-center gap-1 text-muted-foreground hover:text-ink text-xs disabled:opacity-30">
+            <RotateCcw size={14} /> 重播
+          </button>
+        </div>
+      </div>
+
+      {/* Input area */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <textarea
           ref={inputRef}
@@ -68,38 +167,51 @@ export default function DictationMode({ subtitle }: DictationModeProps) {
           placeholder="写下你听到的内容..."
           disabled={checked}
           className={cn(
-            'w-full max-w-lg h-32 rounded-lg border bg-navy-soft px-4 py-3 text-white text-sm resize-none focus:outline-none transition-colors',
+            'w-full max-w-lg h-32 rounded-lg border bg-cream-card px-4 py-3 text-ink text-sm resize-none focus:outline-none transition-colors',
             checked
               ? isCorrect
-                ? 'border-green-500/50 bg-green-500/5'
-                : 'border-red-500/50 bg-red-500/5'
-              : 'border-white/10 focus:border-coral'
+                ? 'border-learn-correct/50 bg-learn-correct/5'
+                : 'border-learn-wrong/50 bg-learn-wrong/5'
+              : 'border-hairline focus:border-coral'
           )}
         />
 
+        {/* Answer display */}
         {showAnswer && (
-          <div className="mt-4 text-center max-w-lg">
-            <p className="text-xs text-white/40 mb-1">正确答案：</p>
-            <p className="text-sm text-white/80">{subtitle.text_en}</p>
-            {subtitle.text_zh && (
-              <p className="mt-2 text-xs text-white/50">{subtitle.text_zh}</p>
+          <div className="mt-4 text-center max-w-lg w-full">
+            <p className="text-xs text-muted-foreground mb-1">正确答案：</p>
+            <p className="text-sm text-ink/75">{current.text_en}</p>
+            {current.text_zh && (
+              <p className="mt-2 text-xs text-muted-foreground">{current.text_zh}</p>
+            )}
+
+            {/* Error diff */}
+            {diff && (
+              <div className="mt-3 text-left">
+                <p className="text-xs text-muted-foreground mb-1">差异对比：</p>
+                <div className="text-sm">
+                  <p className="text-learn-wrong line-through">{input.trim()}</p>
+                  <p className="text-learn-correct">{current.text_en}</p>
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
 
+      {/* Action buttons */}
       <div className="flex items-center justify-center gap-3 mt-4">
         {!checked ? (
           <button onClick={check} disabled={!input.trim()} className="btn-primary !py-2 !px-6 text-xs disabled:opacity-30">
-            检查
+            提交并验错
           </button>
         ) : (
           <>
-            <div className={cn('flex items-center gap-1 text-sm', isCorrect ? 'text-green-400' : 'text-red-400')}>
+            <div className={cn('flex items-center gap-1 text-sm', isCorrect ? 'text-learn-correct' : 'text-learn-wrong')}>
               {isCorrect ? <Check size={16} /> : <X size={16} />}
               {isCorrect ? '正确！' : '再试一次'}
             </div>
-            <button onClick={reset} className="btn-secondary-dark !py-2 !px-4 text-xs">
+            <button onClick={reset} className="btn-secondary !py-2 !px-4 text-xs">
               <RotateCcw size={14} /> 重试
             </button>
           </>

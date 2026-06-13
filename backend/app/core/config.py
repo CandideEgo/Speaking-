@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt
 
+    # YouTube Data API v3 for comment extraction
+    youtube_api_key: str = ""  # e.g. AIzaSy...
+
     # Upload settings
     upload_temp_dir: str = "./uploads"
     max_upload_file_size: int = 500 * 1024 * 1024  # 500MB
@@ -51,8 +54,13 @@ class Settings(BaseSettings):
     whisper_model_size: str = "base"  # tiny/base/small/medium/large-v3
     whisper_device: str = "auto"  # auto/cpu/cuda
     whisper_compute_type: str = "int8"  # int8/float16/float32
-    whisper_chunk_duration: int = 600  # 10 minutes per chunk
-    whisper_max_concurrent_chunks: int = 2
+    whisper_chunk_duration: int = 600  # 10 minutes per chunk (legacy, used by chunked fallback)
+    whisper_max_concurrent_chunks: int = 2  # legacy, used by chunked fallback
+
+    # WhisperX alignment & VAD
+    whisperx_align_model: str = ""  # Override alignment model name; empty = auto by language
+    whisperx_vad_method: str = "pyannote"  # "pyannote" or "silero"
+    whisperx_batch_size: int = 8  # Batch size for inference (1 for CPU, 8-16 for GPU)
 
     # Transcription temp directory
     transcription_temp_dir: str = "./tmp/transcription"

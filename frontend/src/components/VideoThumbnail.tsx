@@ -10,6 +10,7 @@ interface VideoThumbnailProps {
   platform?: string;
   duration?: number | null;
   className?: string;
+  aspectClass?: string; // override aspect ratio, e.g. 'aspect-[9/16]'
   hoverOverlay?: React.ReactNode;
 }
 
@@ -41,6 +42,7 @@ export function VideoThumbnail({
   platform = 'youtube',
   duration,
   className,
+  aspectClass,
   hoverOverlay,
 }: VideoThumbnailProps) {
   const [status, setStatus] = useState<'loading' | 'error' | 'loaded'>('loading');
@@ -71,8 +73,10 @@ export function VideoThumbnail({
     return () => clearTimeout(timer);
   }, [url, status]);
 
+  const aspect = aspectClass || (platform === 'douyin' ? 'aspect-[9/16]' : 'aspect-video');
+
   return (
-    <div className={cn('relative aspect-video overflow-hidden bg-cream-soft', className)}>
+    <div className={cn('relative overflow-hidden bg-cream-soft', aspect, className)}>
       {url && status !== 'error' && (
         <img
           ref={imgRef}

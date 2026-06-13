@@ -16,6 +16,7 @@ class Subtitle(Base):
     text_en: Mapped[str] = mapped_column(Text, nullable=False)
     text_zh: Mapped[str | None] = mapped_column(Text, nullable=True)
     sentence_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    speaker: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # AI annotations
     grammar_note: Mapped[str | None] = mapped_column(Text, nullable=True)

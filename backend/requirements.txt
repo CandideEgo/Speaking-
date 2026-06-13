@@ -14,11 +14,13 @@ redis==5.0.0
 httpx==0.27.0
 openai==1.30.0
 faster-whisper
+whisperx>=3.8.0
 slowapi==0.1.9
 yt-dlp==2024.5.27
 
 # Transcription support
 playwright==1.44.0
+playwright-stealth>=1.0.0
 
 # Testing
 pytest==8.2.0

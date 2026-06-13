@@ -41,12 +41,12 @@ export default function ReadingMode({ subtitles, selectedWord, onWordClick }: Re
   return (
     <div className="flex flex-col h-full p-4">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs text-white/40">{readingIndex + 1} / {subtitles.length}</span>
+        <span className="text-xs text-muted-foreground">{readingIndex + 1} / {subtitles.length}</span>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowTranslation(!showTranslation)} className="text-white/40 hover:text-white">
+          <button onClick={() => setShowTranslation(!showTranslation)} className="text-muted-foreground hover:text-ink">
             {showTranslation ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button onClick={speak} className="text-white/40 hover:text-coral">
+          <button onClick={speak} className="text-muted-foreground hover:text-coral">
             <Volume2 size={16} />
           </button>
         </div>
@@ -54,7 +54,7 @@ export default function ReadingMode({ subtitles, selectedWord, onWordClick }: Re
 
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-lg">
-          <p className="text-lg leading-relaxed text-white font-medium">
+          <p className="text-lg leading-relaxed text-ink font-medium">
             {current.text_en.split(' ').map((word, wi) => {
               const clean = word.replace(/[.,!?;:'"]/g, '');
               return (
@@ -72,13 +72,13 @@ export default function ReadingMode({ subtitles, selectedWord, onWordClick }: Re
             })}
           </p>
           {showTranslation && current.text_zh && (
-            <p className="mt-4 text-sm text-white/50">{current.text_zh}</p>
+            <p className="mt-4 text-sm text-muted-foreground">{current.text_zh}</p>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-4">
-        <button onClick={prev} disabled={readingIndex === 0} className="btn-secondary-dark !py-2 !px-4 text-xs disabled:opacity-30">
+        <button onClick={prev} disabled={readingIndex === 0} className="btn-secondary !py-2 !px-4 text-xs disabled:opacity-30">
           上一句
         </button>
         <button onClick={next} disabled={readingIndex === subtitles.length - 1} className="btn-primary !py-2 !px-4 text-xs disabled:opacity-30">

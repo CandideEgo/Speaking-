@@ -235,111 +235,24 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         raise
 
 
-def extract_douyin_audio(url: str, output_path: str) -> None:
-    """Extract audio from a Douyin video URL using Playwright.
+def extract_douyin_audio(url: str, output_path: str) -> dict:
+    """Extract audio from a Douyin video URL using advanced Playwright extraction.
+
+    Uses the advanced Douyin extractor with stealth mode, API interception,
+    and embedded JSON parsing for reliable metadata and audio extraction.
 
     Args:
         url: Douyin video URL
         output_path: Path to save the output WAV file
 
+    Returns:
+        dict: Rich metadata from Douyin (id, title, duration, thumbnail, etc.)
+
     Raises:
         AudioExtractionError: If extraction fails
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        raise AudioExtractionError(
-            "playwright is not installed. Install it with: pip install playwright"
-        )
-
-    url = _normalize_streaming_url(url)
-    logger.info(f"Extracting Douyin audio via Playwright: {url[:80]}...")
-
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/131.0.0.0 Safari/537.36"
-                ),
-            )
-            page = context.new_page()
-
-            try:
-                page.goto(url, wait_until="networkidle")
-                page.wait_for_selector("video", timeout=10000)
-
-                # Extract video URL
-                video_url = page.eval_on_selector("video", "el => el.src")
-                if not video_url:
-                    # Try to extract from page scripts
-                    video_url = page.evaluate(r"""
-                        () => {
-                            const scripts = document.querySelectorAll('script');
-                            for (const s of scripts) {
-                                const text = s.textContent || '';
-                                const match = text.match(/"playUrl":\s*"([^"]+)"/);
-                                if (match) return match[1];
-                            }
-                            return null;
-                        }
-                    """)
-
-                if not video_url:
-                    raise AudioExtractionError("Could not extract Douyin video URL")
-
-                logger.info(f"Douyin video URL extracted: {video_url[:80]}...")
-
-                # Get cookies for ffmpeg
-                cookies = context.cookies()
-                cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
-
-                browser.close()
-
-                # Download audio via ffmpeg with cookies
-                headers = (
-                    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-                )
-                if cookie_str:
-                    headers += f"\r\nCookie: {cookie_str}"
-
-                ffmpeg_cmd = [
-                    _get_ffmpeg_path(), "-y",
-                    "-headers", headers,
-                    "-i", video_url,
-                    *_FFMPEG_WAV_ARGS,
-                    output_path,
-                ]
-
-                result = subprocess.run(
-                    ffmpeg_cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=1800,
-                    creationflags=_NO_WINDOW,
-                )
-
-                if result.returncode != 0:
-                    raise AudioExtractionError(f"ffmpeg failed: {result.stderr[:500]}")
-
-                if not Path(output_path).exists():
-                    raise AudioExtractionError("Audio extraction succeeded but output file not found")
-
-                logger.info(f"Douyin audio extracted: {output_path} ({os.path.getsize(output_path)} bytes)")
-
-            finally:
-                try:
-                    browser.close()
-                except Exception:
-                    pass
-
-    except AudioExtractionError:
-        raise
-    except Exception as e:
-        raise AudioExtractionError(f"Douyin audio extraction failed: {e}") from e
+    from .douyin_extractor import extract_douyin_audio_advanced
+    return extract_douyin_audio_advanced(url, output_path)
 
 
 def get_video_duration(video_path: str) -> float:

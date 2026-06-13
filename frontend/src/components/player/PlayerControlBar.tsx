@@ -29,6 +29,7 @@ interface PlayerControlBarProps {
   onSeekTo: (time: number) => void;
   isVideoHidden?: boolean;
   onToggleVideoVisibility?: () => void;
+  variant?: 'light' | 'dark';
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -43,7 +44,27 @@ export default function PlayerControlBar({
   onSeekTo,
   isVideoHidden = false,
   onToggleVideoVisibility,
+  variant = 'light',
 }: PlayerControlBarProps) {
+  const isDark = variant === 'dark';
+
+  // Theme-aware class helpers
+  const t = {
+    bg: isDark ? 'bg-dark-elevated' : 'bg-canvas',
+    border: isDark ? 'border-dark-surface' : 'border-hairline',
+    textPrimary: isDark ? 'text-ivory/80' : 'text-ink/80',
+    textSecondary: isDark ? 'text-ivory/80' : 'text-ink/80',
+    textMuted: isDark ? 'text-ivory/60' : 'text-ink/60',
+    hoverBg: isDark ? 'hover:bg-dark-surface/50' : 'hover:bg-cream-soft',
+    activeBg: isDark ? 'bg-terracotta/20' : 'bg-coral/10',
+    activeText: isDark ? 'text-terracotta' : 'text-coral',
+    iconColor: isDark ? 'text-ivory/90' : 'text-ink/85',
+    progressBg: isDark ? 'bg-dark-surface/60' : 'bg-hairline',
+    progressFill: isDark ? 'bg-terracotta' : 'bg-coral',
+    controlBg: isDark ? 'bg-terracotta hover:bg-terracotta/80' : 'bg-coral hover:bg-coral-active',
+    white: isDark ? 'text-ivory' : 'text-white',
+  };
+
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -127,21 +148,21 @@ export default function PlayerControlBar({
   const progress = Math.min((currentTime / duration) * 100, 100);
 
   return (
-    <div className="flex flex-col bg-canvas border-t border-hairline shrink-0">
+    <div className={cn('flex flex-col border-t shrink-0', t.bg, t.border)}>
       {/* Main control bar */}
-      <div className="flex items-center gap-1 px-3 py-2">
+      <div className="flex items-center justify-center gap-2 px-3 py-2">
         {/* Speed selector */}
         <div className="relative" ref={speedMenuRef}>
           <button
             onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+            className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
             title="倍速"
           >
-            <Gauge size={16} className="text-ink/50" />
-            <span className="text-[10px] text-ink/40 font-mono">{playbackRate}x</span>
+            <Gauge size={20} className={t.iconColor} />
+            <span className={cn('text-xs font-mono', t.textSecondary)}>{playbackRate}x</span>
           </button>
           {showSpeedMenu && (
-            <div className="absolute bottom-full left-0 mb-1 bg-white rounded-lg shadow-lg border border-hairline py-1 z-50 min-w-[80px]">
+            <div className={cn('absolute bottom-full left-0 mb-1 rounded-lg shadow-lg border py-1 z-50 min-w-[80px]', isDark ? 'bg-dark-elevated border-dark-surface' : 'bg-white border-hairline')}>
               {SPEEDS.map((s) => (
                 <button
                   key={s}
@@ -149,8 +170,8 @@ export default function PlayerControlBar({
                   className={cn(
                     'w-full px-3 py-1.5 text-xs text-left transition-colors',
                     playbackRate === s
-                      ? 'bg-coral/10 text-coral font-medium'
-                      : 'text-ink/70 hover:bg-cream-soft'
+                      ? cn(isDark ? 'bg-terracotta/20 text-terracotta' : 'bg-coral/10 text-coral', 'font-medium')
+                      : cn(isDark ? 'text-ivory/70 hover:bg-dark-surface/50' : 'text-ink/70 hover:bg-cream-soft')
                   )}
                 >
                   {s}x
@@ -164,26 +185,26 @@ export default function PlayerControlBar({
         {onToggleVideoVisibility && (
           <button
             onClick={onToggleVideoVisibility}
-            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+            className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
             title={isVideoHidden ? '显示视频' : '隐藏视频'}
           >
             {isVideoHidden ? (
-              <EyeOff size={16} className="text-ink/50" />
+              <EyeOff size={20} className={t.iconColor} />
             ) : (
-              <Eye size={16} className="text-ink/50" />
+              <Eye size={20} className={t.iconColor} />
             )}
-            <span className="text-[10px] text-ink/40">隐藏视频</span>
+            <span className={cn('text-xs', t.textSecondary)}>隐藏视频</span>
           </button>
         )}
 
         {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="全屏"
         >
-          {isFullscreen ? <Minimize size={16} className="text-ink/50" /> : <Maximize size={16} className="text-ink/50" />}
-          <span className="text-[10px] text-ink/40">全屏</span>
+          {isFullscreen ? <Minimize size={20} className={t.iconColor} /> : <Maximize size={20} className={t.iconColor} />}
+          <span className={cn('text-xs', t.textSecondary)}>全屏</span>
         </button>
 
         {/* Phonetic toggle */}
@@ -191,47 +212,47 @@ export default function PlayerControlBar({
           onClick={() => setShowPhonetic(!showPhonetic)}
           className={cn(
             'flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors',
-            showPhonetic ? 'bg-coral/10' : 'hover:bg-cream-soft'
+            showPhonetic ? t.activeBg : t.hoverBg
           )}
           title="音标"
         >
-          <Music size={16} className={showPhonetic ? 'text-coral' : 'text-ink/50'} />
-          <span className="text-[10px] text-ink/40">音标</span>
+          <Music size={20} className={showPhonetic ? t.activeText : t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>音标</span>
         </button>
 
         {/* Separator */}
-        <div className="w-px h-8 bg-hairline mx-1" />
+        <div className={cn('w-px h-10 mx-1', isDark ? 'bg-dark-surface' : 'bg-hairline')} />
 
         {/* Previous subtitle */}
         <button
           onClick={onPrevSubtitle}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="上一句"
         >
-          <ChevronLeft size={16} className="text-ink/50" />
-          <span className="text-[10px] text-ink/40">上一句</span>
+          <ChevronLeft size={20} className={t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>上一句</span>
         </button>
 
         {/* Play/Pause */}
         <button
           onClick={togglePlay}
-          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors', t.hoverBg)}
           title={playing ? '暂停' : '播放'}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral text-white hover:bg-coral-active transition-colors">
-            {playing ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+          <div className={cn('flex h-10 w-10 items-center justify-center rounded-full transition-colors', t.controlBg, t.white)}>
+            {playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
           </div>
-          <span className="text-[10px] text-ink/40">{playing ? '暂停' : '播放'}</span>
+          <span className={cn('text-xs', t.textSecondary)}>{playing ? '暂停' : '播放'}</span>
         </button>
 
         {/* Next subtitle */}
         <button
           onClick={onNextSubtitle}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="下一句"
         >
-          <ChevronRight size={16} className="text-ink/50" />
-          <span className="text-[10px] text-ink/40">下一句</span>
+          <ChevronRight size={20} className={t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>下一句</span>
         </button>
 
         {/* A-B Loop */}
@@ -239,50 +260,50 @@ export default function PlayerControlBar({
           onClick={() => setIsLoopEnabled(!isLoopEnabled)}
           className={cn(
             'flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors',
-            isLoopEnabled ? 'bg-coral/10' : 'hover:bg-cream-soft'
+            isLoopEnabled ? t.activeBg : t.hoverBg
           )}
           title="A-B循环"
         >
-          <Repeat size={16} className={isLoopEnabled ? 'text-coral' : 'text-ink/50'} />
-          <span className="text-[10px] text-ink/40">A-B循环</span>
+          <Repeat size={20} className={isLoopEnabled ? t.activeText : t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>A-B循环</span>
         </button>
 
         {/* Interval */}
         <button
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="间隔"
         >
-          <Timer size={16} className="text-ink/50" />
-          <span className="text-[10px] text-ink/40">间隔</span>
+          <Timer size={20} className={t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>间隔</span>
         </button>
 
         {/* Sentence pause */}
         <button
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+          className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="单句暂停"
         >
-          <AArrowDown size={16} className="text-ink/50" />
-          <span className="text-[10px] text-ink/40">单句暂停</span>
+          <AArrowDown size={20} className={t.iconColor} />
+          <span className={cn('text-xs', t.textSecondary)}>单句暂停</span>
         </button>
 
         {/* Volume (local only) */}
         {playbackMode === 'local' && (
           <button
             onClick={toggleMute}
-            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-cream-soft transition-colors"
+            className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
             title={muted ? '取消静音' : '静音'}
           >
-            {muted ? <VolumeX size={16} className="text-ink/50" /> : <Volume2 size={16} className="text-ink/50" />}
-            <span className="text-[10px] text-ink/40">音量</span>
+            {muted ? <VolumeX size={20} className={t.iconColor} /> : <Volume2 size={20} className={t.iconColor} />}
+            <span className={cn('text-xs', t.textSecondary)}>音量</span>
           </button>
         )}
       </div>
 
       {/* Progress bar */}
       <div className="flex items-center gap-2 px-3 pb-2">
-        <span className="text-[11px] text-ink/40 font-mono min-w-[40px]">{formatTime(currentTime)}</span>
+        <span className={cn('text-[11px] font-mono min-w-[40px]', t.textSecondary)}>{formatTime(currentTime)}</span>
         <div
-          className="flex-1 h-1 bg-hairline rounded-full overflow-hidden cursor-pointer"
+          className={cn('flex-1 h-1 rounded-full overflow-hidden cursor-pointer', t.progressBg)}
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = ((e.clientX - rect.left) / rect.width) * 100;
@@ -290,11 +311,11 @@ export default function PlayerControlBar({
           }}
         >
           <div
-            className="h-full bg-coral rounded-full transition-all duration-300"
+            className={cn('h-full rounded-full transition-all duration-300', t.progressFill)}
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-[11px] text-ink/40 font-mono min-w-[40px]">{formatTime(duration)}</span>
+        <span className={cn('text-[11px] font-mono min-w-[40px]', t.textSecondary)}>{formatTime(duration)}</span>
       </div>
     </div>
   );

@@ -37,6 +37,12 @@ echo "[db] running migrations..."
 cd "$PROJECT_DIR/backend"
 source .venv/bin/activate
 PYTHONPATH="$PROJECT_DIR/backend" alembic upgrade head
+if [ $? -ne 0 ]; then
+  echo "[db] migration failed, attempting stamp..."
+  # If upgrade fails because DB already has the schema but alembic_version is missing,
+  # stamp to the head revision so future runs succeed
+  PYTHONPATH="$PROJECT_DIR/backend" alembic stamp head
+fi
 cd "$PROJECT_DIR"
 
 # 3. Backend

@@ -37,7 +37,7 @@ export function EmptyState({ icon: Icon, title, description, action, className }
   }, { scope: ref });
 
   return (
-    <div ref={ref} className={cn('flex flex-col items-center justify-center py-16 text-center', className)}>
+    <div ref={ref} className={cn('flex flex-col items-center justify-center py-16 text-center animate-fade-in', className)}>
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cream-soft text-olive">
         <Icon size={24} strokeWidth={1.5} />
       </div>

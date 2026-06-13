@@ -53,7 +53,6 @@ async def handle_video_upload(
         title=title or file.filename or "Uploaded Video",
         source_url=str(temp_path),
         platform=Platform.local,
-        original_filename=file.filename,
         status=VideoStatus.processing,
     )
     db.add(video)

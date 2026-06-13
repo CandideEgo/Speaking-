@@ -1,0 +1,21 @@
+- generic [ref=e2]:
+  - link "Coursera-logo" [ref=e4] [cursor=pointer]:
+    - /url: /
+    - img "Coursera-logo" [ref=e5]
+  - img "Page Not Found" [ref=e6]
+  - generic [ref=e22]:
+    - paragraph [ref=e23]:
+      - text: We were not able to find the page you're looking for. Try
+      - link "browsing our course catalog" [ref=e24] [cursor=pointer]:
+        - /url: /browse
+      - text: or
+      - link "searching our course catalog" [ref=e25] [cursor=pointer]:
+        - /url: /courses
+      - text: instead.
+    - paragraph [ref=e26]: "You might also find these links helpful:"
+    - link "Online Degrees" [ref=e27] [cursor=pointer]:
+      - /url: /degrees
+    - link "Coursera for Business" [ref=e28] [cursor=pointer]:
+      - /url: /enterprise
+    - link "Coursera Blog" [ref=e29] [cursor=pointer]:
+      - /url: https://blog.coursera.org/

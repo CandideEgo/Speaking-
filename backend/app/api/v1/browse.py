@@ -4,6 +4,7 @@ import time
 from typing import Optional
 
 from fastapi import APIRouter, Query
+from sqlalchemy import select
 
 from app.services.youtube_service import search_youtube
 
@@ -72,6 +73,13 @@ async def browse_feed(
         items = await search_youtube(query, page_size=page_size)
     except Exception:
         logger.exception("Browse feed search failed")
+        items = []
+
+    # Fallback: if search failed or returned no results, use official videos from DB
+    if not items:
+        fallback = await _fallback_official_videos(category=category, limit=page_size)
+        if fallback:
+            return {"items": fallback, "category": cat, "page": page, "has_more": False}
         return {"items": [], "category": cat, "page": page, "has_more": False,
                 "error": "Search temporarily unavailable"}
 
@@ -80,3 +88,52 @@ async def browse_feed(
         del _cache[oldest]
     _cache[cache_key] = (items, time.time())
     return {"items": items, "category": cat, "page": page, "has_more": len(items) >= page_size}
+
+
+async def _fallback_official_videos(category: str = "all", limit: int = 20) -> list[dict]:
+    """Return official videos from DB when YouTube search is unavailable.
+
+    Converts Video records to the VideoItem format expected by the frontend.
+    """
+    from app.core.database import async_session
+    from app.models.video import Video, VideoStatus
+
+    async with async_session() as db:
+        stmt = (
+            select(Video)
+            .where(
+                Video.is_official == True,
+                Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+            )
+            .order_by(Video.created_at.desc())
+            .limit(limit)
+        )
+        # Filter by topic_tags if a specific category is requested
+        if category and category != "all":
+            stmt = (
+                select(Video)
+                .where(
+                    Video.is_official == True,
+                    Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+                    Video.topic_tags == category,
+                )
+                .order_by(Video.created_at.desc())
+                .limit(limit)
+            )
+
+        result = await db.execute(stmt)
+        videos = result.scalars().all()
+
+        items = []
+        for v in videos:
+            video_id = v.youtube_video_id or v.id
+            items.append({
+                "video_id": video_id,
+                "url": v.source_url,
+                "title": v.title,
+                "channel_title": "",  # Not stored in Video model
+                "thumbnail_url": v.thumbnail_url or f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+                "duration": v.duration,
+                "view_count": None,
+            })
+        return items

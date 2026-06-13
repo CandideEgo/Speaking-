@@ -11,6 +11,7 @@ from app.models.subtitle import Subtitle
 from app.models.invite import InviteCode
 from app.models.learning import SpeakingAttempt, LearningRecord, Vocabulary
 from app.models.order import Order
+from app.models.comment import VideoComment, VideoCommentStats
 
 config = context.config
 if config.config_file_name is not None:

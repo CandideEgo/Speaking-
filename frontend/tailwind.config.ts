@@ -44,8 +44,20 @@ const config: Config = {
         },
         hairline: {
           DEFAULT: "#e6dfd8",
+          cream: "#ebe6df",
           soft: "#ebe6df",
         },
+        // Dark theme palette (watch page)
+        dark: {
+          DEFAULT: "#141413",
+          surface: "#1c1c1a",
+          elevated: "#242422",
+          soft: "#1f1e1b",
+        },
+        ivory: "#faf9f5",
+        terracotta: "#cc785c",
+        parchment: "#f5f0e8",
+        olive: "#6c6a5e",
         learn: {
           highlight: "#4ade80",
           highlightHover: "#22c55e",

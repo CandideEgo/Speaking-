@@ -22,7 +22,7 @@ backend/transcripts/
 *.log
 
 # Cookie backups
-backend/youtube_cookies_*.txt
+backend/youtube_cookies*.txt
 backend/youtube_state.json
 
 # Screenshots

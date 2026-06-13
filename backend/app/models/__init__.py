@@ -5,3 +5,4 @@ from app.models.subtitle import Subtitle
 from app.models.learning import SpeakingAttempt, LearningRecord, Vocabulary
 from app.models.invite import InviteCode
 from app.models.order import Order
+from app.models.comment import VideoComment, VideoCommentStats

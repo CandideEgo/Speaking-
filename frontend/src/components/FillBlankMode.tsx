@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Volume2, RotateCcw, Check, X } from 'lucide-react';
+import { Volume2, RotateCcw, Check, X, Shuffle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Subtitle {
   id: string;
@@ -11,7 +11,7 @@ interface Subtitle {
 }
 
 interface FillBlankModeProps {
-  subtitle: Subtitle;
+  subtitles: Subtitle[];
 }
 
 function generateBlanks(text: string): { display: string; blanks: string[] } {
@@ -39,24 +39,47 @@ function generateBlanks(text: string): { display: string; blanks: string[] } {
   return { display, blanks };
 }
 
-export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
+export default function FillBlankMode({ subtitles }: FillBlankModeProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [blanks, setBlanks] = useState<string[]>([]);
   const [display, setDisplay] = useState('');
   const [answers, setAnswers] = useState<string[]>([]);
   const [checked, setChecked] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
 
+  const current = subtitles[selectedIndex];
+
   useEffect(() => {
-    const { display: d, blanks: b } = generateBlanks(subtitle.text_en);
-    setDisplay(d);
-    setBlanks(b);
-    setAnswers(new Array(b.length).fill(''));
-    setChecked(false);
-    setShowAnswer(false);
-  }, [subtitle.id]);
+    if (current) {
+      const { display: d, blanks: b } = generateBlanks(current.text_en);
+      setDisplay(d);
+      setBlanks(b);
+      setAnswers(new Array(b.length).fill(''));
+      setChecked(false);
+      setShowAnswer(false);
+    }
+  }, [selectedIndex, current?.id]);
+
+  function handleSelectSentence(index: number) {
+    setSelectedIndex(index);
+  }
+
+  function randomSentence() {
+    const randomIndex = Math.floor(Math.random() * subtitles.length);
+    handleSelectSentence(randomIndex);
+  }
+
+  function prevSentence() {
+    if (selectedIndex > 0) handleSelectSentence(selectedIndex - 1);
+  }
+
+  function nextSentence() {
+    if (selectedIndex < subtitles.length - 1) handleSelectSentence(selectedIndex + 1);
+  }
 
   function speak() {
-    const u = new SpeechSynthesisUtterance(subtitle.text_en);
+    if (!current) return;
+    const u = new SpeechSynthesisUtterance(current.text_en);
     u.lang = 'en-US';
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
@@ -68,7 +91,8 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
   }
 
   function reset() {
-    const { display: d, blanks: b } = generateBlanks(subtitle.text_en);
+    if (!current) return;
+    const { display: d, blanks: b } = generateBlanks(current.text_en);
     setDisplay(d);
     setBlanks(b);
     setAnswers(new Array(b.length).fill(''));
@@ -81,10 +105,36 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
   ).length;
   const allCorrect = correctCount === blanks.length;
 
+  if (!current) return null;
+
   return (
     <div className="flex flex-col h-full p-4">
+      {/* Sentence selector */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronLeft size={20} />
+        </button>
+        <select
+          value={selectedIndex}
+          onChange={(e) => handleSelectSentence(Number(e.target.value))}
+          className="flex-1 min-w-0 text-sm bg-cream-card border border-hairline rounded-lg px-3 py-2 text-ink focus:border-coral focus:outline-none"
+        >
+          {subtitles.map((sub, i) => (
+            <option key={sub.id} value={i}>
+              {i + 1}. {sub.text_en.slice(0, 50)}{sub.text_en.length > 50 ? '...' : ''}
+            </option>
+          ))}
+        </select>
+        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+          <ChevronRight size={20} />
+        </button>
+        <button onClick={randomSentence} className="btn-secondary !py-1.5 !px-2 text-xs" title="随机选择">
+          <Shuffle size={14} />
+        </button>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs text-white/40">填空模式</span>
+        <span className="text-xs text-muted-foreground">填空模式</span>
         <button onClick={speak} className="flex items-center gap-1 text-coral hover:text-coral-active text-xs">
           <Volume2 size={14} /> 播放原句
         </button>
@@ -92,7 +142,7 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="text-center max-w-lg">
-          <p className="text-lg leading-relaxed text-white font-medium">
+          <p className="text-lg leading-relaxed text-ink font-medium">
             {display.split(' ').map((word, wi) => {
               if (word.startsWith('____')) {
                 const blankIndex = display.split(' ').slice(0, wi).filter(w => w.startsWith('____')).length;
@@ -108,12 +158,12 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
                       }}
                       disabled={checked}
                       className={cn(
-                        'w-24 px-2 py-1 rounded text-center text-sm bg-navy-soft border focus:outline-none transition-colors',
+                        'w-24 px-2 py-1 rounded text-center text-sm bg-cream-card border focus:outline-none transition-colors',
                         checked
                           ? answers[blankIndex]?.trim().toLowerCase() === blanks[blankIndex]?.toLowerCase()
-                            ? 'border-green-500/50 text-green-400'
-                            : 'border-red-500/50 text-red-400'
-                          : 'border-white/20 focus:border-coral text-white'
+                            ? 'border-learn-correct/50 text-learn-correct'
+                            : 'border-learn-wrong/50 text-learn-wrong'
+                          : 'border-hairline focus:border-coral text-ink'
                       )}
                     />
                   </span>
@@ -122,15 +172,15 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
               return <span key={wi}>{word} </span>;
             })}
           </p>
-          {subtitle.text_zh && (
-            <p className="mt-4 text-sm text-white/50">{subtitle.text_zh}</p>
+          {current.text_zh && (
+            <p className="mt-4 text-sm text-muted-foreground">{current.text_zh}</p>
           )}
         </div>
 
         {showAnswer && (
           <div className="mt-6 text-center">
-            <p className="text-xs text-white/40 mb-1">正确答案：</p>
-            <p className="text-sm text-white/80">{blanks.join(', ')}</p>
+            <p className="text-xs text-muted-foreground mb-1">正确答案：</p>
+            <p className="text-sm text-ink/75">{blanks.join(', ')}</p>
           </div>
         )}
       </div>
@@ -142,11 +192,11 @@ export default function FillBlankMode({ subtitle }: FillBlankModeProps) {
           </button>
         ) : (
           <>
-            <div className={cn('flex items-center gap-1 text-sm', allCorrect ? 'text-green-400' : 'text-amber-400')}>
+            <div className={cn('flex items-center gap-1 text-sm', allCorrect ? 'text-learn-correct' : 'text-coral')}>
               {allCorrect ? <Check size={16} /> : <X size={16} />}
               {correctCount} / {blanks.length} 正确
             </div>
-            <button onClick={reset} className="btn-secondary-dark !py-2 !px-4 text-xs">
+            <button onClick={reset} className="btn-secondary !py-2 !px-4 text-xs">
               <RotateCcw size={14} /> 新题目
             </button>
           </>

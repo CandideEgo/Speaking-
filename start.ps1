@@ -20,8 +20,8 @@ New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 function Kill-Port($port) {
     $conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($pid in $conn) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($procId in $conn) {
+        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
     }
     if ($conn) { Start-Sleep -Milliseconds 500 }
 }
@@ -57,7 +57,14 @@ Write-Host "[db] running migrations..." -ForegroundColor Yellow
 Push-Location $BackendDir
 try {
     $env:PYTHONPATH = $BackendDir
+    # Run migrations (idempotent — safe to re-run on existing DB)
     & $VenvPython -m alembic upgrade head
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[db] migration failed, attempting stamp..." -ForegroundColor Yellow
+        # If upgrade fails because DB already has the schema but alembic_version is missing,
+        # stamp to the head revision so future runs succeed
+        & $VenvPython -m alembic stamp head
+    }
 } finally {
     Pop-Location
 }

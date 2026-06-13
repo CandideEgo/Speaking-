@@ -57,6 +57,7 @@ class SubtitleResponse(BaseModel):
     text_zh: str | None
     sentence_index: int
     grammar_note: str | None
+    speaker: str | None
 
     model_config = {"from_attributes": True}
 
