@@ -25,6 +25,7 @@ export interface Video {
   video_url_1080p: string | null;
   youtube_video_id: string | null;
   processing_mode: string | null;
+  processing_step: string | null;
   created_at: string;
 }
 
@@ -39,6 +40,7 @@ export interface Subtitle {
   grammar_note: string | null;
   difficulty_words: string | null;
   speaker: string | null;
+  index?: number;
 }
 
 export interface VideoWithSubtitles extends Video {
@@ -82,6 +84,22 @@ export interface SpeakingResult {
   completeness: number;
   feedback: string;
   transcript: string;
+}
+
+export interface YouTubeSearchResult {
+  video_id: string;
+  url: string;
+  title: string;
+  description: string;
+  channel_title: string;
+  thumbnail_url: string;
+  duration: number | null;
+  published_at: string;
+}
+
+export interface YouTubeSearchResponse {
+  items: YouTubeSearchResult[];
+  total: number;
 }
 
 export interface QuizResponse {

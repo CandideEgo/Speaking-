@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type SubtitleMode = 'bilingual' | 'english' | 'dictation' | 'translate' | 'fillblank' | 'flashcard';
+export type SubtitleMode = 'bilingual' | 'english' | 'reading' | 'dictation' | 'translate' | 'fillblank' | 'flashcard';
 
 interface WatchStore {
   subtitleMode: SubtitleMode;

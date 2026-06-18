@@ -4,21 +4,12 @@ from sqlalchemy import select, func
 from app.core.database import get_db
 from app.models.user import User
 from app.models.learning import SpeakingAttempt, Vocabulary, LearningRecord
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_service
 from app.services.speaking_service import get_user_stats
 from app.api.dependencies import get_current_user, require_pro_user
 from app.core.limiter import limiter, rate_limit
 
 router = APIRouter(prefix="/ai", tags=["ai"])
-
-_ai_service: AIService | None = None
-
-
-def _get_ai_service() -> AIService:
-    global _ai_service
-    if _ai_service is None:
-        _ai_service = AIService()
-    return _ai_service
 
 
 @router.post("/word-lookup")
@@ -30,7 +21,7 @@ async def word_lookup(
     current_user: User = Depends(require_pro_user),
     _db: AsyncSession = Depends(get_db),
 ):
-    ai = _get_ai_service()
+    ai = get_ai_service()
     meaning = await ai.word_context_meaning(word, sentence)
     return {"word": word, "meaning": meaning, "sentence": sentence}
 
@@ -55,7 +46,7 @@ async def assistant_summary(
     )
     stats["videos_watched"] = records_count.scalar() or 0
 
-    ai = _get_ai_service()
+    ai = get_ai_service()
     summary = await ai.assistant_daily_summary(stats)
 
     return {
@@ -78,6 +69,6 @@ async def assistant_recommend(
     records = records_result.scalars().all()
     history = ", ".join([f"video {r.video_id}" for r in records]) if records else "new user"
 
-    ai = _get_ai_service()
+    ai = get_ai_service()
     recommendation = await ai.assistant_recommend(current_user.level or "B1", history)
     return {"recommendation": recommendation, "level": current_user.level}

@@ -19,20 +19,6 @@
     --scrollbar-track: transparent;
   }
 
-  .dark {
-    --background: 24 23 21;
-    --foreground: 250 249 245;
-    --muted: 31 30 27;
-    --muted-foreground: 160 157 150;
-    --border: 37 35 32;
-    --surface: 31 30 27;
-    --accent: 204 120 92;
-    --sidebar-bg: 24 23 21;
-    --topbar-bg: 24 23 21;
-    --scrollbar-thumb: 51 65 85;
-    --scrollbar-track: transparent;
-  }
-
   html {
     @apply bg-canvas text-ink;
   }
@@ -57,11 +43,22 @@
     @apply text-xl tracking-display-sm leading-tight;
   }
 
+  /* Focus-visible ring for keyboard navigation */
+  *:focus-visible {
+    outline: 2px solid #cc785c; /* primary */
+    outline-offset: 2px;
+  }
+
+  /* Remove default outline when focus is from mouse/touch, not keyboard */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
   /* Disable transitions on initial load to prevent flash */
   html.no-transitions *,
   html.no-transitions *::before,
   html.no-transitions *::after {
-    transition: none !important;
+    transition: none;
   }
 }
 
@@ -102,24 +99,24 @@
   /* Buttons */
   .btn-primary {
     @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
-           bg-coral text-white
-           hover:bg-coral-active
-           disabled:bg-coral-disabled disabled:text-muted-foreground
+           bg-primary text-on-primary
+           hover:bg-primary-active
+           disabled:bg-primary-disabled disabled:text-muted-foreground
            transition-colors duration-150;
   }
 
   .btn-secondary {
     @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
            bg-canvas text-ink border border-hairline
-           hover:border-coral/30 hover:text-coral
+           hover:border-primary/30 hover:text-primary
            disabled:opacity-50
            transition-colors duration-150;
   }
 
   .btn-secondary-dark {
     @apply inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-medium leading-none
-           bg-navy-elevated text-[#faf9f5]
-           hover:bg-navy-soft
+           bg-surface-dark-elevated text-on-dark
+           hover:bg-surface-dark-soft
            disabled:opacity-50
            transition-colors duration-150;
   }
@@ -139,15 +136,15 @@
 
   /* Cards */
   .card-cream {
-    @apply bg-cream-card rounded-lg p-8;
+    @apply bg-surface-card rounded-lg p-8;
   }
 
   .card-dark {
-    @apply bg-navy rounded-lg p-8 text-[#faf9f5];
+    @apply bg-surface-dark rounded-lg p-8 text-on-dark;
   }
 
   .card-code {
-    @apply bg-navy rounded-lg p-6;
+    @apply bg-surface-dark rounded-lg p-6;
   }
 
   .card-outline {
@@ -158,17 +155,17 @@
   .input-field {
     @apply w-full rounded-md border border-hairline bg-canvas px-3.5 py-2.5 text-sm text-ink
            placeholder:text-muted-foreground
-           focus:border-coral focus:outline-none focus:ring-[3px] focus:ring-coral/15
+           focus:border-primary focus:outline-none focus:ring-[3px] focus:ring-primary/15
            transition-colors duration-150;
   }
 
   /* Badges */
   .badge-pill {
-    @apply inline-flex items-center rounded-pill bg-cream-card px-3 py-1 text-[13px] font-medium text-ink/80;
+    @apply inline-flex items-center rounded-pill bg-surface-card px-3 py-1 text-[13px] font-medium text-ink/80;
   }
 
   .badge-coral {
-    @apply inline-flex items-center rounded-pill bg-coral px-3 py-1 text-xs font-medium tracking-caption-wide uppercase text-white;
+    @apply inline-flex items-center rounded-pill bg-primary px-3 py-1 text-xs font-medium tracking-caption-wide uppercase text-on-primary;
   }
 
   /* Category tabs */
@@ -196,14 +193,6 @@
 }
 .subtitle-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(20, 20, 19, 0.2);
-}
-
-/* Dark mode subtitle scrollbar */
-.dark .subtitle-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-}
-.dark .subtitle-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Word highlight animation */
@@ -324,21 +313,16 @@
 
 /* YouTube pill tabs */
 .youtube-pill-active {
-  background-color: #0f0f0f;
-  color: white;
+  @apply bg-ink text-on-primary;
 }
 .youtube-pill-inactive {
-  background-color: #f2f2f2;
-  color: #0f0f0f;
-}
-.youtube-pill-inactive:hover {
-  background-color: #e5e5e5;
+  @apply bg-surface-soft text-ink hover:bg-surface-cream-strong;
 }
 
 /* Bilibili blue accent */
 .bili-blue {
-  color: #00aeec;
+  @apply text-platform-bilibili;
 }
 .bili-blue-bg {
-  background-color: #00aeec;
+  @apply bg-platform-bilibili;
 }

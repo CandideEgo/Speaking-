@@ -31,6 +31,9 @@ export default function SubtitleOverlay({
               <span
                 key={wi}
                 onClick={() => onWordClick(word)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onWordClick(word); } }}
                 className={cn(
                   'cursor-pointer rounded hover:bg-white/20',
                   selectedWord === clean && 'bg-brand-500/40'
@@ -50,6 +53,7 @@ export default function SubtitleOverlay({
         <button
           onClick={() => onStartSpeaking(subtitle.id)}
           className="mt-2 inline-flex items-center gap-1 text-xs text-brand-400 hover:underline"
+          aria-label="练习这句"
         >
           <Mic size={12} /> Practice this line
         </button>

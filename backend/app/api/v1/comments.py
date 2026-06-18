@@ -1,60 +1,18 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.core.database import get_db
-from app.api.dependencies import get_current_user, get_optional_user, get_admin_user
+from app.api.dependencies import get_current_user, get_optional_user, get_admin_user, require_video_access
 from app.models.user import User
-from app.models.comment import VideoComment, VideoCommentStats
 from app.models.video import Video
-from app.services.comment_service import CommentService
+from app.models.comment import VideoComment, VideoCommentStats
+from app.schemas.comment import CommentResponse, CommentStatsResponse, VideoWithCommentScoreResponse
+from app.core.limiter import rate_limit
 
 router = APIRouter(prefix="/comments", tags=["comments"])
-
-
-# ---------------------------------------------------------------------------
-# Schemas (inline for simplicity; can be moved to schemas/comment.py)
-# ---------------------------------------------------------------------------
-
-class CommentResponse:
-    def __init__(self, comment: VideoComment):
-        self.id = comment.id
-        self.video_id = comment.video_id
-        self.external_id = comment.external_id
-        self.author_name = comment.author_name
-        self.text = comment.text
-        self.like_count = comment.like_count
-        self.reply_count = comment.reply_count
-        self.published_at = comment.published_at.isoformat() if comment.published_at else None
-
-
-class CommentStatsResponse:
-    def __init__(self, stats: VideoCommentStats):
-        self.video_id = stats.video_id
-        self.total_comments = stats.total_comments
-        self.total_likes = stats.total_likes
-        self.avg_comment_length = stats.avg_comment_length
-        self.learning_relevance_score = stats.learning_relevance_score
-        self.depth_score = stats.depth_score
-        self.engagement_score = stats.engagement_score
-        self.overall_quality_score = stats.overall_quality_score
-        self.keyword_stats = stats.keyword_stats
-        self.analyzed_at = stats.analyzed_at.isoformat() if stats.analyzed_at else None
-
-
-class VideoWithCommentScoreResponse:
-    def __init__(self, video: Video):
-        self.id = video.id
-        self.title = video.title
-        self.thumbnail_url = video.thumbnail_url
-        self.duration = video.duration
-        self.difficulty_level = video.difficulty_level
-        self.topic_tags = video.topic_tags
-        self.comment_quality_score = video.comment_quality_score
-        self.comment_count = video.comment_count
-        self.youtube_video_id = video.youtube_video_id
 
 
 # ---------------------------------------------------------------------------
@@ -62,16 +20,15 @@ class VideoWithCommentScoreResponse:
 # ---------------------------------------------------------------------------
 
 @router.post("/analyze")
+@rate_limit("5/minute")
 async def trigger_comment_analysis(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger async comment analysis for a video. Admin only."""
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    video = result.scalar_one_or_none()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video = await require_video_access(video_id, current_user, db)
     if not video.youtube_video_id:
         raise HTTPException(status_code=400, detail="Video has no YouTube ID")
 
@@ -86,7 +43,9 @@ async def trigger_comment_analysis(
 
 
 @router.get("/{video_id}")
+@rate_limit("30/minute")
 async def get_video_comments(
+    request: Request,
     video_id: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -94,15 +53,7 @@ async def get_video_comments(
     db: AsyncSession = Depends(get_db),
 ):
     """Get paginated comments for a video."""
-    # Verify video exists
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    video = result.scalar_one_or_none()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-
-    # Access control: official videos public, user videos require auth
-    if not video.is_official and (current_user is None or video.user_id != current_user.id):
-        raise HTTPException(status_code=404, detail="Video not found")
+    await require_video_access(video_id, current_user, db)
 
     # Fetch comments
     offset = (page - 1) * page_size
@@ -115,14 +66,14 @@ async def get_video_comments(
     )
     comments = result.scalars().all()
 
-    # Total count
+    # Total count via COUNT(*) — avoids loading all records into memory
     count_result = await db.execute(
-        select(VideoComment).where(VideoComment.video_id == video_id)
+        select(func.count()).select_from(VideoComment).where(VideoComment.video_id == video_id)
     )
-    total = len(count_result.scalars().all())
+    total = count_result.scalar_one()
 
     return {
-        "items": [CommentResponse(c).__dict__ for c in comments],
+        "items": [CommentResponse.model_validate(c).model_dump() for c in comments],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -131,21 +82,15 @@ async def get_video_comments(
 
 
 @router.get("/{video_id}/stats")
+@rate_limit("30/minute")
 async def get_comment_stats(
+    request: Request,
     video_id: str,
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get comment quality statistics for a video."""
-    # Verify video exists
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    video = result.scalar_one_or_none()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-
-    # Access control
-    if not video.is_official and (current_user is None or video.user_id != current_user.id):
-        raise HTTPException(status_code=404, detail="Video not found")
+    await require_video_access(video_id, current_user, db)
 
     result = await db.execute(
         select(VideoCommentStats).where(VideoCommentStats.video_id == video_id)
@@ -160,19 +105,23 @@ async def get_comment_stats(
 
     return {
         "analyzed": True,
-        **CommentStatsResponse(stats).__dict__,
+        **CommentStatsResponse.model_validate(stats).model_dump(),
     }
 
 
 @router.get("/top-videos")
+@rate_limit("30/minute")
 async def get_top_videos_by_comment_quality(
+    request: Request,
     category: Optional[str] = Query(None),
-    limit: int = Query(20, ge=1, le=50),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get videos sorted by comment quality score."""
+    """Get videos sorted by comment quality score (paginated)."""
     from app.models.video import VideoStatus
 
+    offset = (page - 1) * page_size
     stmt = (
         select(Video)
         .where(
@@ -181,7 +130,8 @@ async def get_top_videos_by_comment_quality(
             Video.comment_quality_score.isnot(None),
         )
         .order_by(Video.comment_quality_score.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(page_size)
     )
 
     if category:
@@ -190,7 +140,23 @@ async def get_top_videos_by_comment_quality(
     result = await db.execute(stmt)
     videos = result.scalars().all()
 
+    # Count total for has_more
+    count_stmt = (
+        select(func.count(Video.id))
+        .where(
+            Video.is_official == True,
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+            Video.comment_quality_score.isnot(None),
+        )
+    )
+    if category:
+        count_stmt = count_stmt.where(Video.topic_tags == category)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar_one()
+
     return {
-        "items": [VideoWithCommentScoreResponse(v).__dict__ for v in videos],
-        "total": len(videos),
+        "items": [VideoWithCommentScoreResponse.model_validate(v).model_dump() for v in videos],
+        "page": page,
+        "page_size": page_size,
+        "has_more": total > page * page_size,
     }

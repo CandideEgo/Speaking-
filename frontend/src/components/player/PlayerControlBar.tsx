@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { formatTime } from '@/lib/utils';
-import type { YouTubePlayerHandle } from '@/components/YouTubePlayer';
+import { formatTime } from '@/lib/format';
+import type { Subtitle } from '@/types';
 import {
   SkipBack, SkipForward, Play, Pause,
   Volume2, VolumeX, Maximize, Minimize,
@@ -11,18 +11,9 @@ import {
   Timer, AArrowDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
-interface Subtitle {
-  id: string;
-  start_time: number;
-  end_time: number;
-  text_en: string;
-  text_zh: string | null;
-}
-
 interface PlayerControlBarProps {
-  playerRef: React.RefObject<YouTubePlayerHandle | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  playbackMode: 'local' | 'youtube' | 'loading';
+  playbackMode: 'ready' | 'processing' | 'loading';
   subtitles: Subtitle[];
   onPrevSubtitle: () => void;
   onNextSubtitle: () => void;
@@ -35,7 +26,6 @@ interface PlayerControlBarProps {
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function PlayerControlBar({
-  playerRef,
   videoRef,
   playbackMode,
   subtitles,
@@ -78,9 +68,7 @@ export default function PlayerControlBar({
 
   useEffect(() => {
     tickRef.current = setInterval(() => {
-      if (playbackMode === 'youtube') {
-        setCurrentTime(playerRef.current?.getCurrentTime?.() ?? 0);
-      } else if (playbackMode === 'local' && videoRef.current) {
+      if (videoRef.current) {
         setCurrentTime(videoRef.current.currentTime);
       }
     }, 500);
@@ -99,15 +87,7 @@ export default function PlayerControlBar({
   }, []);
 
   function togglePlay() {
-    if (playbackMode === 'youtube') {
-      if (playerRef.current?.isPaused()) {
-        playerRef.current.play();
-        setPlaying(true);
-      } else {
-        playerRef.current?.pause();
-        setPlaying(false);
-      }
-    } else if (videoRef.current) {
+    if (videoRef.current) {
       if (videoRef.current.paused) {
         videoRef.current.play();
         setPlaying(true);
@@ -127,10 +107,9 @@ export default function PlayerControlBar({
 
   function changeSpeed(speed: number) {
     setPlaybackRate(speed);
-    if (playbackMode === 'local' && videoRef.current) {
+    if (videoRef.current) {
       videoRef.current.playbackRate = speed;
     }
-    // YouTube player doesn't support playbackRate via our wrapper, but we track it
     setShowSpeedMenu(false);
   }
 
@@ -157,6 +136,7 @@ export default function PlayerControlBar({
             onClick={() => setShowSpeedMenu(!showSpeedMenu)}
             className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
             title="倍速"
+            aria-label="倍速选择"
           >
             <Gauge size={20} className={t.iconColor} />
             <span className={cn('text-xs font-mono', t.textSecondary)}>{playbackRate}x</span>
@@ -202,6 +182,7 @@ export default function PlayerControlBar({
           onClick={toggleFullscreen}
           className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="全屏"
+          aria-label={isFullscreen ? '退出全屏' : '全屏'}
         >
           {isFullscreen ? <Minimize size={20} className={t.iconColor} /> : <Maximize size={20} className={t.iconColor} />}
           <span className={cn('text-xs', t.textSecondary)}>全屏</span>
@@ -215,6 +196,7 @@ export default function PlayerControlBar({
             showPhonetic ? t.activeBg : t.hoverBg
           )}
           title="音标"
+          aria-label={showPhonetic ? '隐藏音标' : '显示音标'}
         >
           <Music size={20} className={showPhonetic ? t.activeText : t.iconColor} />
           <span className={cn('text-xs', t.textSecondary)}>音标</span>
@@ -228,6 +210,7 @@ export default function PlayerControlBar({
           onClick={onPrevSubtitle}
           className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="上一句"
+          aria-label="上一句"
         >
           <ChevronLeft size={20} className={t.iconColor} />
           <span className={cn('text-xs', t.textSecondary)}>上一句</span>
@@ -238,6 +221,7 @@ export default function PlayerControlBar({
           onClick={togglePlay}
           className={cn('flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors', t.hoverBg)}
           title={playing ? '暂停' : '播放'}
+          aria-label={playing ? '暂停' : '播放'}
         >
           <div className={cn('flex h-10 w-10 items-center justify-center rounded-full transition-colors', t.controlBg, t.white)}>
             {playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
@@ -250,6 +234,7 @@ export default function PlayerControlBar({
           onClick={onNextSubtitle}
           className={cn('flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
           title="下一句"
+          aria-label="下一句"
         >
           <ChevronRight size={20} className={t.iconColor} />
           <span className={cn('text-xs', t.textSecondary)}>下一句</span>
@@ -263,6 +248,7 @@ export default function PlayerControlBar({
             isLoopEnabled ? t.activeBg : t.hoverBg
           )}
           title="A-B循环"
+          aria-label={isLoopEnabled ? '关闭循环' : '开启循环'}
         >
           <Repeat size={20} className={isLoopEnabled ? t.activeText : t.iconColor} />
           <span className={cn('text-xs', t.textSecondary)}>A-B循环</span>
@@ -286,17 +272,16 @@ export default function PlayerControlBar({
           <span className={cn('text-xs', t.textSecondary)}>单句暂停</span>
         </button>
 
-        {/* Volume (local only) */}
-        {playbackMode === 'local' && (
-          <button
-            onClick={toggleMute}
-            className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
-            title={muted ? '取消静音' : '静音'}
-          >
-            {muted ? <VolumeX size={20} className={t.iconColor} /> : <Volume2 size={20} className={t.iconColor} />}
-            <span className={cn('text-xs', t.textSecondary)}>音量</span>
-          </button>
-        )}
+        {/* Volume */}
+        <button
+          onClick={toggleMute}
+          className={cn('flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors', t.hoverBg)}
+          title={muted ? '取消静音' : '静音'}
+          aria-label={muted ? '取消静音' : '静音'}
+        >
+          {muted ? <VolumeX size={20} className={t.iconColor} /> : <Volume2 size={20} className={t.iconColor} />}
+          <span className={cn('text-xs', t.textSecondary)}>音量</span>
+        </button>
       </div>
 
       {/* Progress bar */}
@@ -304,10 +289,21 @@ export default function PlayerControlBar({
         <span className={cn('text-[11px] font-mono min-w-[40px]', t.textSecondary)}>{formatTime(currentTime)}</span>
         <div
           className={cn('flex-1 h-1 rounded-full overflow-hidden cursor-pointer', t.progressBg)}
+          role="slider"
+          tabIndex={0}
+          aria-label="播放进度"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${formatTime(currentTime)} / ${formatTime(duration)}`}
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = ((e.clientX - rect.left) / rect.width) * 100;
             onSeekTo((percent / 100) * duration);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') { onSeekTo(Math.min(currentTime + 5, duration)); }
+            else if (e.key === 'ArrowLeft') { onSeekTo(Math.max(currentTime - 5, 0)); }
           }}
         >
           <div

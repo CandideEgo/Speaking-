@@ -1,32 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { usePlatformFeed } from '@/hooks/usePlatformFeed';
 import { cn } from '@/lib/utils';
-import { formatDuration, formatViews } from '@/lib/format';
-import { Loader2, Play, Plus, Users } from 'lucide-react';
+import { formatViews } from '@/lib/format';
+import { Loader2, Plus, Users } from 'lucide-react';
 import { SkeletonCardGrid } from '@/components/SkeletonCard';
 import { EmptyState } from '@/components/EmptyState';
 import { PageTransition } from '@/components/PageTransition';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { StaggerContainer } from '@/components/StaggerContainer';
-
-interface Category {
-  id: string;
-  label: string;
-}
-
-interface VideoItem {
-  video_id: string;
-  url: string;
-  title: string;
-  channel_title: string;
-  thumbnail_url: string;
-  duration: number | null;
-  view_count: number | null;
-}
 
 const CATEGORY_ZH: Record<string, string> = {
   all: '全部',
@@ -39,59 +21,18 @@ const CATEGORY_ZH: Record<string, string> = {
   tech: '科技',
 };
 
-function categoryLabel(cat: Category): string {
-  return CATEGORY_ZH[cat.id] || cat.label;
-}
-
 export default function CommunityPage() {
-  const router = useRouter();
-  const loaderRef = useRef<HTMLDivElement>(null);
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [addingId, setAddingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<{ categories: Category[] }>('/api/v1/community/categories')
-      .then((d) => setCategories(d.categories))
-      .catch(() => {});
-  }, []);
-
-  const fetchFeed = useCallback(async (cat: string, pg: number) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ category: cat, page: String(pg) });
-      const data = await api<{ items: VideoItem[]; has_more: boolean }>(`/api/v1/community/feed?${params.toString()}`);
-      if (pg === 1) setVideos(data.items);
-      else setVideos((prev) => [...prev, ...data.items]);
-      setHasMore(data.has_more);
-    } catch { toast.error('加载失败'); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { setPage(1); setVideos([]); setHasMore(true); fetchFeed(activeCategory, 1); }, [activeCategory, fetchFeed]);
-
-  useEffect(() => {
-    const el = loaderRef.current; if (!el) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        const nextPage = page + 1; setPage(nextPage); fetchFeed(activeCategory, nextPage);
-      }
-    }, { threshold: 0.1 });
-    observer.observe(el); return () => observer.disconnect();
-  }, [hasMore, loading, page, activeCategory, fetchFeed]);
-
-  async function startLearning(item: VideoItem) {
-    setAddingId(item.video_id);
-    try {
-      const video = await api<{ id: string }>('/api/v1/videos', { method: 'POST', body: JSON.stringify({ source_url: item.url }) });
-      router.push(`/watch/${video.id}`);
-    } catch (err) { toast.error(err instanceof Error ? err.message : '添加失败'); setAddingId(null); }
-  }
+  const {
+    categories,
+    activeCategory,
+    setActiveCategory,
+    videos,
+    loading,
+    hasMore,
+    loaderRef,
+    addingId,
+    startLearning,
+  } = usePlatformFeed({ platform: 'browse' });
 
   return (
     <PageTransition>
@@ -122,7 +63,7 @@ export default function CommunityPage() {
                     : 'text-olive hover:text-ink hover:bg-cream-soft'
                 )}
               >
-                {categoryLabel(cat)}
+                {CATEGORY_ZH[cat.id] || cat.label}
               </button>
             ))}
           </div>
@@ -158,14 +99,14 @@ export default function CommunityPage() {
           ))}
         </StaggerContainer>
 
-        {page === 1 && loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
+        {loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
 
         {!loading && videos.length === 0 && (
           <EmptyState icon={Users} title="暂无内容" description="社区还没有视频，来上传第一个吧" />
         )}
 
         <div ref={loaderRef} className="flex justify-center py-8">
-          {page > 1 && loading && <Loader2 size={24} className="animate-spin text-terracotta" />}
+          {loading && videos.length > 0 && <Loader2 size={24} className="animate-spin text-terracotta" />}
           {!hasMore && videos.length > 0 && <p className="text-sm text-olive">已加载全部内容</p>}
         </div>
       </section>

@@ -42,9 +42,10 @@ class Video(Base):
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # YouTube embed support
+    # YouTube metadata (still useful for thumbnails, comment analysis)
     youtube_video_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    processing_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "lightweight" or "full"
+    processing_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # deprecated — all videos use full processing now
+    processing_step: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "downloading" | "transcribing" | "translating" | "transcoding"
 
     # CDN URLs
     video_url_480p: Mapped[str | None] = mapped_column(String(2000), nullable=True)
@@ -55,6 +56,8 @@ class Video(Base):
     is_official: Mapped[bool] = mapped_column(Boolean, default=False)
     topic_tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quiz_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    comment_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    comment_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

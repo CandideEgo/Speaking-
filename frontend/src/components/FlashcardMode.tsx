@@ -3,12 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Volume2, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
-
-interface Subtitle {
-  id: string;
-  text_en: string;
-  text_zh: string | null;
-}
+import type { Subtitle } from '@/types';
+import { useSpeech } from '@/hooks/useSpeech';
 
 interface WordCard {
   word: string;
@@ -212,11 +208,10 @@ export default function FlashcardMode({ subtitles }: FlashcardModeProps) {
 
   const current = shuffled[index];
 
-  function speak(word: string) {
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = 'en-US';
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+  const { speak } = useSpeech();
+
+  function handleSpeak(word: string) {
+    speak(word, { rate: 1 });
   }
 
   function next() {
@@ -267,6 +262,9 @@ export default function FlashcardMode({ subtitles }: FlashcardModeProps) {
 
       <div
         onClick={() => setFlipped(!flipped)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped(!flipped); } }}
         className="flex-1 flex items-center justify-center cursor-pointer"
       >
         <div className={cn(
@@ -284,8 +282,9 @@ export default function FlashcardMode({ subtitles }: FlashcardModeProps) {
                 </p>
               )}
               <button
-                onClick={(e) => { e.stopPropagation(); speak(current.word); }}
+                onClick={(e) => { e.stopPropagation(); handleSpeak(current.word); }}
                 className="mt-4 text-coral hover:text-coral-active"
+                aria-label={`朗读 ${current.word}`}
               >
                 <Volume2 size={20} />
               </button>
@@ -319,10 +318,10 @@ export default function FlashcardMode({ subtitles }: FlashcardModeProps) {
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-4">
-        <button onClick={prev} disabled={index === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={prev} disabled={index === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30" aria-label="上一个单词">
           <ChevronLeft size={24} />
         </button>
-        <button onClick={next} disabled={index === shuffled.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={next} disabled={index === shuffled.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30" aria-label="下一个单词">
           <ChevronRight size={24} />
         </button>
       </div>

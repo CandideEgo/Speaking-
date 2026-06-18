@@ -34,6 +34,17 @@ class TestCreateOrder:
         assert resp.status_code == 400
         assert "already" in resp.json()["detail"].lower()
 
+    async def test_create_order_invalid_plan(
+        self, client: AsyncClient, auth_headers: dict
+    ):
+        resp = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "nonexistent_plan"},
+        )
+        assert resp.status_code == 400
+        assert "invalid plan" in resp.json()["detail"].lower()
+
 
 class TestMockPay:
     async def test_mock_pay_upgrades_user(
@@ -111,8 +122,11 @@ class TestVocabulary:
         resp = await client.get("/api/v1/vocabulary", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
+        # The vocabulary list endpoint returns a paginated dict with stats
+        assert isinstance(data, dict)
         assert data["stats"]["total"] >= 1
-        assert len(data["words"]) >= 1
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
 
     async def test_review_word(self, client: AsyncClient, auth_headers: dict):
         # Add word

@@ -120,7 +120,11 @@ class TestListAndExport:
     async def test_list_as_admin(self, client: AsyncClient, admin_headers: dict):
         resp = await client.get("/api/v1/invite-codes", headers=admin_headers)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        data = resp.json()
+        # The list endpoint returns a paginated dict, not a bare list
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert isinstance(data["items"], list)
 
     async def test_export_as_admin(
         self, client: AsyncClient, admin_headers: dict

@@ -1,10 +1,10 @@
-import logging
+import structlog
 from typing import Optional
 
 import httpx
 from app.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
@@ -69,10 +69,10 @@ class YouTubeCommentService:
                             "consider using yt-dlp fallback"
                         )
                     else:
-                        logger.error(f"YouTube API error: {e}")
+                        logger.error("YouTube API error", error=str(e))
                     break
                 except Exception as e:
-                    logger.error(f"Failed to fetch comments: {e}")
+                    logger.error("Failed to fetch comments", error=str(e))
                     break
 
                 for item in data.get("items", []):
@@ -92,6 +92,8 @@ class YouTubeCommentService:
                 remaining -= len(data.get("items", []))
 
         logger.info(
-            "Fetched %d comments for video %s", len(comments), youtube_video_id
+            "Fetched comments for video",
+            comment_count=len(comments),
+            video_id=youtube_video_id,
         )
         return comments

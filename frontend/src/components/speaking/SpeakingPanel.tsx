@@ -121,7 +121,7 @@ export default function SpeakingPanel({
   return (
     <div className="border-t border-white/10 bg-navy-elevated px-4 py-4">
       <div className="flex items-center gap-3">
-        <button onClick={stopSpeaking} className="text-white/40 hover:text-white">
+        <button onClick={stopSpeaking} className="text-white/40 hover:text-white" aria-label="关闭口语练习">
           <X size={18} />
         </button>
         <p className="flex-1 text-sm text-white/70 truncate">{activeSubtitleText}</p>

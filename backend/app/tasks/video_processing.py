@@ -1,15 +1,17 @@
-import logging
-import re
 import tempfile
 import subprocess
 import json
 import asyncio
 from pathlib import Path
 
-from app.tasks.celery_app import celery_app
-from app.services.ai_service import AIService
+import structlog
 
-logger = logging.getLogger(__name__)
+from app.tasks.celery_app import celery_app
+from app.tasks.async_helpers import run_async
+from app.services.ai_service import get_ai_service
+from app.utils.platform_utils import extract_youtube_video_id
+
+logger = structlog.get_logger()
 
 # Resolutions to transcode
 TRANSCODE_PROFILES = {
@@ -18,37 +20,17 @@ TRANSCODE_PROFILES = {
     '1080p': {'height': 1080, 'bitrate': '3000k'},
 }
 
-def _extract_youtube_video_id(url: str) -> str | None:
-    """Extract YouTube video ID from a URL."""
-    patterns = [
-        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})',
-    ]
-    for p in patterns:
-        m = re.search(p, url)
-        if m:
-            return m.group(1)
-    return None
-
-
-_ai_service: AIService | None = None
-
-
-def _get_ai_service() -> AIService:
-    global _ai_service
-    if _ai_service is None:
-        _ai_service = AIService()
-    return _ai_service
-
 
 async def _translate_subtitles(texts: list[str]) -> list[str | None]:
     """Translate subtitle texts in batches. Each batch is a separate LLM call for reliability."""
-    ai = _get_ai_service()
+    from app.services.translation import get_translation_service
+    service = get_translation_service()
     results: list[str | None] = [None] * len(texts)
 
-    batch_size = 20
+    batch_size = service.batch_size
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        translations = await ai.translate_batch(batch)
+        translations = await service.translate_batch(batch)
         for j, t in enumerate(translations):
             results[i + j] = t
 
@@ -61,31 +43,37 @@ async def _identify_speakers(video_id: str, subs: list[dict]) -> None:
     from app.core.database import async_session
     from app.models.subtitle import Subtitle
 
-    ai = _get_ai_service()
+    ai = get_ai_service()
     speakers = await ai.identify_speakers(subs)
 
     async with async_session() as db:
+        # Batch-fetch all subtitles for this video in one query
+        result = await db.execute(
+            select(Subtitle)
+            .where(Subtitle.video_id == video_id)
+            .order_by(Subtitle.sentence_index)
+        )
+        sub_rows = {sub.sentence_index: sub for sub in result.scalars().all()}
+
         for i, speaker in enumerate(speakers):
-            result = await db.execute(
-                select(Subtitle).where(
-                    Subtitle.video_id == video_id,
-                    Subtitle.sentence_index == i,
-                )
-            )
-            sub_row = result.scalar_one_or_none()
+            sub_row = sub_rows.get(i)
             if sub_row:
                 sub_row.speaker = speaker
         await db.commit()
 
-    logger.info(f"Identified speakers for video {video_id}: {len([s for s in speakers if s])}/{len(speakers)}")
+    logger.info("Identified speakers for video", video_id=video_id, identified=len([s for s in speakers if s]), total=len(speakers))
 
 
-@celery_app.task(bind=True, max_retries=3)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=120, max_retries=3, time_limit=3600, soft_time_limit=3300)
 def process_video(self, video_id: str):
-    """Full pipeline for non-YouTube: download, transcode, subtitles, translate."""
-    from sqlalchemy import select
+    """Unified pipeline for ALL platforms: download, transcode, subtitles, translate.
+
+    YouTube videos are now downloaded and transcoded locally just like
+    Bilibili/Douyin/etc. — no more IFrame embed playback.
+    """
+    from sqlalchemy import select, delete
     from app.core.database import async_session
-    from app.models.video import Video, VideoStatus
+    from app.models.video import Video, VideoStatus, Platform
     from app.models.subtitle import Subtitle
 
     async def _process():
@@ -93,13 +81,17 @@ def process_video(self, video_id: str):
             result = await db.execute(select(Video).where(Video.id == video_id))
             video = result.scalar_one_or_none()
             if not video:
-                logger.error(f"Video {video_id} not found")
+                logger.error("Video not found", video_id=video_id)
                 return
 
             try:
                 skip_ai = video.status == VideoStatus.ready_subtitles and video.subtitles
 
                 if not skip_ai:
+                    # --- Step: Extracting metadata ---
+                    video.processing_step = "extracting"
+                    await db.commit()
+
                     info = await _extract_video_info(video.source_url, video.platform)
                     if info:
                         video.title = info.get('title', video.title)
@@ -107,16 +99,21 @@ def process_video(self, video_id: str):
                         video.duration = info.get('duration')
                         video.youtube_video_id = video.youtube_video_id or info.get('youtube_video_id')
 
+                    # --- Step: Transcribing audio ---
+                    video.processing_step = "transcribing"
+                    await db.commit()
+
                     subs = await _extract_subtitles(video.source_url, video.platform)
                     if not subs:
                         video.status = VideoStatus.error
                         video.error_message = "Transcription failed. Could not extract audio or recognize speech."
+                        video.processing_step = None
                         await db.commit()
                         return
 
                     texts = [s["text"] for s in subs]
 
-                    # Step 1: save English subtitles immediately
+                    # Step: save English subtitles immediately → ready_subtitles
                     for i, sub in enumerate(subs):
                         db.add(Subtitle(
                             video_id=video.id,
@@ -128,170 +125,119 @@ def process_video(self, video_id: str):
                     video.status = VideoStatus.ready_subtitles
                     await db.commit()
 
-                    # Step 2: translate
+                    # --- Step: Re-split by speakers (superior to plain identification) ---
+                    video.processing_step = "splitting"
+                    await db.commit()
+
+                    logger.info("Re-splitting subtitles by speakers", video_id=video_id)
+                    ai = get_ai_service()
+                    split_subs = await ai.split_by_speakers(subs)
+                    if len(split_subs) != len(subs):
+                        logger.info("Re-split subtitles", video_id=video_id, original_count=len(subs), new_count=len(split_subs))
+                        await db.execute(delete(Subtitle).where(Subtitle.video_id == video.id))
+                        await db.commit()
+                        for i, sub in enumerate(split_subs):
+                            db.add(Subtitle(
+                                video_id=video.id,
+                                start_time=sub["start"],
+                                end_time=sub["end"],
+                                text_en=sub["text"],
+                                sentence_index=i,
+                                speaker=sub.get("speaker"),
+                            ))
+                        await db.commit()
+                        subs = split_subs
+                    else:
+                        logger.info("No re-split needed", video_id=video_id)
+
+                    # --- Step: Translating subtitles ---
+                    video.processing_step = "translating"
+                    await db.commit()
+
+                    texts = [s["text"] for s in subs]
                     translated = await _translate_subtitles(texts)
+                    # Batch-fetch all subtitles for this video in one query
+                    result_all = await db.execute(
+                        select(Subtitle)
+                        .where(Subtitle.video_id == video.id)
+                        .order_by(Subtitle.sentence_index)
+                    )
+                    sub_map = {sub.sentence_index: sub for sub in result_all.scalars().all()}
                     for i, t in enumerate(translated):
                         if t:
-                            result_sub = await db.execute(
-                                select(Subtitle).where(
-                                    Subtitle.video_id == video.id,
-                                    Subtitle.sentence_index == i,
-                                )
-                            )
-                            sub_row = result_sub.scalar_one_or_none()
+                            sub_row = sub_map.get(i)
                             if sub_row:
                                 sub_row.text_zh = t
 
-                    # Step 3: identify speakers
-                    await _identify_speakers(video.id, subs)
-
-                # Download + transcode only for non-YouTube (Bilibili, etc.)
-                from app.models.video import Platform
-                if video.platform != Platform.youtube:
+                # --- Step: Download + transcode (ALL platforms except local uploads) ---
+                if video.platform == Platform.local:
+                    # File already exists at source_url
+                    video_path = video.source_url
+                else:
+                    video.processing_step = "downloading"
+                    await db.commit()
                     video_path = await _download_video(video.source_url, video.id)
-                    if video_path:
-                        urls = await _transcode_video(video_path, video.id)
-                        video.video_url_480p = urls.get('480p')
-                        video.video_url_720p = urls.get('720p', f"/media/{video.id}.mp4")
-                        video.video_url_1080p = urls.get('1080p')
-                else:
-                    video.processing_mode = "lightweight"
-                    logger.info(f"YouTube video {video_id}: skipping download, using embed playback")
 
+                if video_path:
+                    video.processing_step = "transcoding"
+                    await db.commit()
+                    urls = await _transcode_video(video_path, video.id)
+                    video.video_url_480p = urls.get('480p')
+                    video.video_url_720p = urls.get('720p', f"/media/{video.id}.mp4")
+                    video.video_url_1080p = urls.get('1080p')
+
+                    # --- Step: Upload to OSS CDN (if configured) ---
+                    from app.core.config import get_settings as _get_settings
+                    _oss_settings = _get_settings()
+                    if _oss_settings.oss_upload_enabled:
+                        video.processing_step = "uploading"
+                        await db.commit()
+                        urls = await _upload_transcoded_to_oss(urls, video.id)
+                        video.video_url_480p = urls.get('480p', video.video_url_480p)
+                        video.video_url_720p = urls.get('720p', video.video_url_720p)
+                        video.video_url_1080p = urls.get('1080p', video.video_url_1080p)
+
+                        # Optionally clean up local transcoded files
+                        if _oss_settings.oss_cleanup_local:
+                            _cleanup_local_transcoded(video.id, urls)
+
+                    # Clean up raw file to save disk space
+                    raw_path = Path(video_path)
+                    if raw_path.exists() and "_raw" in raw_path.name:
+                        raw_path.unlink()
+                        logger.info("Cleaned up raw video file", path=str(raw_path))
+
+                video.processing_step = None
                 video.status = VideoStatus.ready
                 await db.commit()
-                logger.info(f"Video {video_id} processed")
+                logger.info("Video processed", video_id=video_id)
 
-            except Exception as e:
-                logger.exception(f"Video {video_id} processing failed")
-                video.status = VideoStatus.error
-                video.error_message = str(e)
-                await db.commit()
-                raise self.retry(exc=e)
-
-    try:
-        asyncio.run(_process())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_process())
-        finally:
-            loop.close()
-
-
-@celery_app.task(bind=True, max_retries=3)
-def process_video_lightweight(self, video_id: str):
-    """YouTube pipeline: extract metadata + subtitles + translate (no video download).
-
-    Two-step for fast UX:
-      1. Save English subtitles → status "ready_subtitles" (user sees English immediately)
-      2. AI translate → status "ready" (Chinese appears progressively)
-    """
-    from sqlalchemy import select
-    from app.core.database import async_session
-    from app.models.video import Video, VideoStatus
-    from app.models.subtitle import Subtitle
-
-    async def _process():
-        async with async_session() as db:
-            result = await db.execute(select(Video).where(Video.id == video_id))
-            video = result.scalar_one_or_none()
-            if not video:
-                logger.error(f"Video {video_id} not found")
-                return
-
-            try:
-                info = await _extract_video_info(video.source_url, video.platform)
-                if info:
-                    video.title = info.get('title', video.title)
-                    video.thumbnail_url = info.get('thumbnail')
-                    video.duration = info.get('duration')
-                    video.youtube_video_id = info.get('youtube_video_id')
-
-                subs = await _extract_subtitles(video.source_url, video.platform)
-                if not subs:
-                    video.status = VideoStatus.error
-                    video.error_message = "Transcription failed. Could not extract audio or recognize speech."
-                    await db.commit()
-                    return
-
-                texts = [s["text"] for s in subs]
-
-                # --- Step 1: save English subtitles, mark ready_subtitles ---
-                for i, sub in enumerate(subs):
-                    db.add(Subtitle(
-                        video_id=video.id,
-                        start_time=sub["start"],
-                        end_time=sub["end"],
-                        text_en=sub["text"],
-                        sentence_index=i,
-                    ))
-                video.processing_mode = "lightweight"
-                video.status = VideoStatus.ready_subtitles
-                await db.commit()
-                logger.info(f"Video {video_id} step 1: {len(subs)} English subtitles saved")
-
-                # --- Step 2: AI re-split by speakers ---
-                logger.info(f"Video {video_id}: re-splitting subtitles by speakers...")
-                ai = _get_ai_service()
-                split_subs = await ai.split_by_speakers(subs)
-                if len(split_subs) != len(subs):
-                    logger.info(f"Video {video_id}: re-split from {len(subs)} to {len(split_subs)} segments")
-                    # Delete old subtitles and re-insert
-                    from sqlalchemy import delete
-                    await db.execute(delete(Subtitle).where(Subtitle.video_id == video.id))
-                    await db.commit()
-                    for i, sub in enumerate(split_subs):
-                        db.add(Subtitle(
-                            video_id=video.id,
-                            start_time=sub["start"],
-                            end_time=sub["end"],
-                            text_en=sub["text"],
-                            sentence_index=i,
-                            speaker=sub.get("speaker"),
-                        ))
-                    await db.commit()
-                    # Update subs reference for translation
-                    subs = split_subs
-                else:
-                    logger.info(f"Video {video_id}: no re-split needed")
-
-                # --- Step 3: AI translate, update subtitles ---
-                texts = [s["text"] for s in subs]
-                translated = await _translate_subtitles(texts)
-                for i, t in enumerate(translated):
-                    if t:
-                        result_sub = await db.execute(
-                            select(Subtitle).where(
-                                Subtitle.video_id == video.id,
-                                Subtitle.sentence_index == i,
-                            )
+                # Create notification for the video owner
+                if video.user_id:
+                    try:
+                        from app.services.notification_service import create_notification
+                        await create_notification(
+                            user_id=video.user_id,
+                            type="video_ready",
+                            title="视频处理完成",
+                            message=f'"{video.title}" 已准备好，开始学习吧！',
+                            db=db,
+                            related_url=f"/watch/{video.id}",
                         )
-                        sub_row = result_sub.scalar_one_or_none()
-                        if sub_row:
-                            sub_row.text_zh = t
-
-                video.status = VideoStatus.ready
-                await db.commit()
-                logger.info(f"Video {video_id} step 2: translations done, ready")
+                        await db.commit()
+                        logger.info("Created video_ready notification", video_id=video_id, user_id=video.user_id)
+                    except Exception:
+                        logger.exception("Failed to create video_ready notification", video_id=video_id)
 
             except Exception as e:
-                logger.exception(f"Video {video_id} lightweight processing failed")
+                logger.exception("Video processing failed", video_id=video_id)
                 video.status = VideoStatus.error
                 video.error_message = str(e)
+                video.processing_step = None
                 await db.commit()
                 raise self.retry(exc=e)
 
-    try:
-        asyncio.run(_process())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_process())
-        finally:
-            loop.close()
+    run_async(_process())
 
 
 async def _extract_video_info(url: str, platform=None) -> dict | None:
@@ -317,7 +263,7 @@ async def _extract_video_info(url: str, platform=None) -> dict | None:
     from app.core.config import get_settings
 
     settings = get_settings()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def _sync_extract():
         opts = {
@@ -359,7 +305,7 @@ async def _download_video(url: str, video_id: str) -> str | None:
     media_dir.mkdir(parents=True, exist_ok=True)
     output = str(media_dir / f"{video_id}_raw.%(ext)s")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def _sync_download():
         opts = {
@@ -408,7 +354,7 @@ async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
     source = Path(source_path)
 
     if not source.exists():
-        logger.error(f"Source video not found for transcoding: {source_path}")
+        logger.error("Source video not found for transcoding", source_path=source_path)
         return {}
 
     urls: dict[str, str] = {}
@@ -417,7 +363,7 @@ async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
     for label, profile in TRANSCODE_PROFILES.items():
         # Skip if source is already lower res than target
         if source_res and source_res < profile['height']:
-            logger.info(f"Skipping {label} �� source is only {source_res}p")
+            logger.info("Skipping transcoding, source resolution too low", label=label, source_res=source_res)
             continue
 
         out_name = f"{video_id}_{label}.mp4"
@@ -447,16 +393,87 @@ async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
 
             if proc.returncode == 0 and out_path.exists():
                 urls[label] = f"/media/{out_name}"
-                logger.info(f"Transcoded {label}: {out_name}")
+                logger.info("Transcoded video", label=label, output=out_name)
             else:
-                logger.error(f"FFmpeg {label} failed: {stderr.decode()[:200]}")
+                logger.error("FFmpeg transcoding failed", label=label, stderr=stderr.decode()[:200])
         except FileNotFoundError:
-            logger.warning("FFmpeg not installed �� skipping video transcoding")
+            logger.warning("FFmpeg not installed, skipping video transcoding")
             return {}
         except Exception:
-            logger.exception(f"Transcoding {label} failed")
+            logger.exception("Transcoding failed", label=label)
 
     return urls
+
+
+async def _upload_transcoded_to_oss(
+    local_urls: dict[str, str], video_id: str
+) -> dict[str, str]:
+    """Upload transcoded video files to Alibaba Cloud OSS.
+
+    Takes the dict of {label: local_path} returned by _transcode_video,
+    uploads each file to OSS, and returns a new dict with CDN URLs for
+    successful uploads. Failed uploads are omitted from the returned dict
+    so the caller can fall back to the original local path.
+    """
+    from app.services.oss_service import upload_file
+
+    cdn_urls: dict[str, str] = {}
+    for label, local_path in local_urls.items():
+        if not local_path or local_path.startswith("http"):
+            # Already a URL or empty — skip
+            cdn_urls[label] = local_path
+            continue
+
+        # local_path is like "/media/{video_id}_{label}.mp4"
+        # Derive the actual filesystem path and the OSS object key
+        from app.core.config import get_settings
+        settings = get_settings()
+        media_dir = Path(settings.local_media_path).resolve()
+        filename = local_path.lstrip("/").replace("media/", "", 1)
+        fs_path = media_dir / filename
+
+        if not fs_path.exists():
+            logger.warning(
+                "OSS upload: transcoded file not found, skipping",
+                label=label,
+                fs_path=str(fs_path),
+            )
+            continue
+
+        remote_key = filename  # e.g. "{video_id}_720p.mp4"
+        cdn_url = await upload_file(str(fs_path), remote_key)
+
+        if cdn_url:
+            cdn_urls[label] = cdn_url
+        else:
+            logger.warning(
+                "OSS upload failed, keeping local path",
+                label=label,
+                local_path=local_path,
+            )
+
+    return cdn_urls
+
+
+def _cleanup_local_transcoded(video_id: str, cdn_urls: dict[str, str]) -> None:
+    """Delete local transcoded files that were successfully uploaded to OSS.
+
+    Only removes files whose CDN URL is present (i.e. upload succeeded).
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    media_dir = Path(settings.local_media_path).resolve()
+
+    for label in TRANSCODE_PROFILES:
+        filename = f"{video_id}_{label}.mp4"
+        local_file = media_dir / filename
+        if local_file.exists() and label in cdn_urls and cdn_urls[label].startswith("http"):
+            try:
+                local_file.unlink()
+                logger.info("Cleaned up local transcoded file after OSS upload", path=str(local_file))
+            except Exception:
+                logger.exception("Failed to clean up local transcoded file", path=str(local_file))
 
 
 async def _get_video_height(path: str) -> int | None:
@@ -506,7 +523,7 @@ async def _extract_subtitles(url: str, platform=None) -> list[dict]:
         subs = await service.transcribe(url, platform)
         return subs
     except Exception as e:
-        logger.exception(f"Transcription failed for {url}")
+        logger.exception("Transcription failed", url=url)
         return []
 
 
@@ -687,7 +704,7 @@ def _ts_to_seconds(ts: str) -> float:
     return float(h) * 3600 + float(m) * 60 + float(s)
 
 
-@celery_app.task(bind=True, max_retries=2)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=60, max_retries=3)
 def transcribe_audio(self, audio_path: str) -> str:
     """Transcribe user audio via Whisper for speaking practice."""
     try:

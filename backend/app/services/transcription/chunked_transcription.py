@@ -5,7 +5,7 @@ Splits long audio into chunks, transcribes each chunk with WhisperX
 """
 
 import asyncio
-import logging
+import structlog
 import os
 import subprocess
 from pathlib import Path
@@ -16,7 +16,7 @@ from .whisper_model import get_whisperx_model, get_align_model, _detect_device
 from .formatters import whisperx_segments_to_subtitles
 from .exceptions import AudioExtractionError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Shared ffmpeg audio encoding flags
 _FFMPEG_WAV_ARGS = ["-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1"]
@@ -74,7 +74,7 @@ async def transcribe_in_chunks(
     semaphore = asyncio.Semaphore(max_concurrent)
     loop = asyncio.get_running_loop()
 
-    logger.info(f"Chunked transcription: {total_chunks} chunks, {total_duration:.0f}s total")
+    logger.info("Chunked transcription starting", total_chunks=total_chunks, total_duration=f"{total_duration:.0f}s")
 
     while offset < total_duration:
         chunk_num += 1
@@ -83,8 +83,11 @@ async def transcribe_in_chunks(
         chunk_path = str(chunk_dir / f"chunk_{abs(hash(cache_key))}_{offset:.0f}.wav")
 
         logger.info(
-            f"Chunk {chunk_num}/{total_chunks}: "
-            f"{_format_time(offset)} - {_format_time(offset + current_chunk_duration)}"
+            "Processing chunk",
+            chunk=chunk_num,
+            total_chunks=total_chunks,
+            start=_format_time(offset),
+            end=_format_time(offset + current_chunk_duration),
         )
 
         try:
@@ -104,7 +107,7 @@ async def transcribe_in_chunks(
             subs = whisperx_segments_to_subtitles(segments, offset=offset)
             all_segments.extend(subs)
 
-            logger.info(f"Chunk {chunk_num}/{total_chunks}: done ({len(subs)} segments)")
+            logger.info("Chunk complete", chunk=chunk_num, total_chunks=total_chunks, segment_count=len(subs))
 
         finally:
             if os.path.exists(chunk_path):
@@ -112,7 +115,7 @@ async def transcribe_in_chunks(
 
         offset += current_chunk_duration
 
-    logger.info(f"Chunked transcription complete: {len(all_segments)} segments total")
+    logger.info("Chunked transcription complete", total_segments=len(all_segments))
     return all_segments
 
 
@@ -172,7 +175,7 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
     loop = asyncio.get_running_loop()
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    logger.info(f"Local chunked: {total_chunks} chunks, {total_duration:.0f}s")
+    logger.info("Local chunked starting", total_chunks=total_chunks, total_duration=f"{total_duration:.0f}s")
 
     for chunk_num in range(1, total_chunks + 1):
         remaining = total_duration - offset
@@ -180,8 +183,11 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
         chunk_path = str(chunk_dir / f"localchunk_{abs(hash(audio_path))}_{offset:.0f}.wav")
 
         logger.info(
-            f"Chunk {chunk_num}/{total_chunks}: "
-            f"{_format_time(offset)} - {_format_time(offset + current_chunk_duration)}"
+            "Processing chunk",
+            chunk=chunk_num,
+            total_chunks=total_chunks,
+            start=_format_time(offset),
+            end=_format_time(offset + current_chunk_duration),
         )
 
         # Extract segment from local file
@@ -216,7 +222,7 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
             subs = whisperx_segments_to_subtitles(segments, offset=offset)
             all_segments.extend(subs)
 
-            logger.info(f"Chunk {chunk_num}/{total_chunks}: done ({len(subs)} segments)")
+            logger.info("Chunk complete", chunk=chunk_num, total_chunks=total_chunks, segment_count=len(subs))
 
         finally:
             if os.path.exists(chunk_path):
@@ -224,5 +230,5 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
 
         offset += current_chunk_duration
 
-    logger.info(f"Local chunked complete: {len(all_segments)} segments total")
+    logger.info("Local chunked complete", total_segments=len(all_segments))
     return all_segments

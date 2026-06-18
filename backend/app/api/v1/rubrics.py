@@ -1,9 +1,10 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.rubric import SpeakingRubric, RubricCriterion
+from app.core.limiter import rate_limit
 
 router = APIRouter(prefix='/rubrics', tags=['rubrics'])
 
@@ -22,7 +23,8 @@ def _serialize_criteria(criteria: list[RubricCriterion]) -> list[dict]:
 
 
 @router.get('')
-async def list_rubrics(db: AsyncSession = Depends(get_db)):
+@rate_limit("30/minute")
+async def list_rubrics(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SpeakingRubric)
         .options(selectinload(SpeakingRubric.criteria))
@@ -42,7 +44,8 @@ async def list_rubrics(db: AsyncSession = Depends(get_db)):
 
 
 @router.get('/default')
-async def get_default_rubric(db: AsyncSession = Depends(get_db)):
+@rate_limit("30/minute")
+async def get_default_rubric(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SpeakingRubric)
         .options(selectinload(SpeakingRubric.criteria))

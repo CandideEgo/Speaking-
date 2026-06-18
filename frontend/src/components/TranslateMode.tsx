@@ -3,52 +3,44 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowRightLeft, Check, X, Shuffle, ChevronLeft, ChevronRight } from 'lucide-react';
-
-interface Subtitle {
-  id: string;
-  text_en: string;
-  text_zh: string | null;
-}
+import type { Subtitle } from '@/types';
+import { useSentenceNavigation } from '@/hooks/useSentenceNavigation';
 
 interface TranslateModeProps {
   subtitles: Subtitle[];
 }
 
 export default function TranslateMode({ subtitles }: TranslateModeProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [input, setInput] = useState('');
   const [checked, setChecked] = useState(false);
   const [direction, setDirection] = useState<'en-zh' | 'zh-en'>('en-zh');
 
+  const {
+    selectedIndex,
+    goToSentence,
+    nextSentence,
+    prevSentence,
+    randomSentence,
+    isFirst,
+    isLast,
+  } = useSentenceNavigation({
+    totalSentences: subtitles.length,
+    onChange: () => {
+      setInput('');
+      setChecked(false);
+    },
+  });
+
   const current = subtitles[selectedIndex];
   if (!current || !current.text_zh) return <div className="p-4 text-center text-muted-foreground">此视频没有中文翻译</div>;
-
-  function handleSelectSentence(index: number) {
-    setSelectedIndex(index);
-    setInput('');
-    setChecked(false);
-  }
-
-  function randomSentence() {
-    const randomIndex = Math.floor(Math.random() * subtitles.length);
-    handleSelectSentence(randomIndex);
-  }
-
-  function prevSentence() {
-    if (selectedIndex > 0) handleSelectSentence(selectedIndex - 1);
-  }
-
-  function nextSentence() {
-    if (selectedIndex < subtitles.length - 1) handleSelectSentence(selectedIndex + 1);
-  }
 
   function check() {
     setChecked(true);
   }
 
   function next() {
-    if (selectedIndex < subtitles.length - 1) {
-      handleSelectSentence(selectedIndex + 1);
+    if (!isLast) {
+      goToSentence(selectedIndex + 1);
     }
   }
 
@@ -69,12 +61,12 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
     <div className="flex flex-col h-full p-4">
       {/* Sentence selector */}
       <div className="flex items-center gap-2 mb-4">
-        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={prevSentence} disabled={isFirst} className="text-muted-foreground hover:text-ink disabled:opacity-30" aria-label="上一句">
           <ChevronLeft size={20} />
         </button>
         <select
           value={selectedIndex}
-          onChange={(e) => handleSelectSentence(Number(e.target.value))}
+          onChange={(e) => goToSentence(Number(e.target.value))}
           className="flex-1 min-w-0 text-sm bg-cream-card border border-hairline rounded-lg px-3 py-2 text-ink focus:border-coral focus:outline-none"
         >
           {subtitles.map((sub, i) => (
@@ -83,10 +75,10 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
             </option>
           ))}
         </select>
-        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={nextSentence} disabled={isLast} className="text-muted-foreground hover:text-ink disabled:opacity-30" aria-label="下一句">
           <ChevronRight size={20} />
         </button>
-        <button onClick={randomSentence} className="btn-secondary !py-1.5 !px-2 text-xs" title="随机选择">
+        <button onClick={randomSentence} className="btn-secondary !py-1.5 !px-2 text-xs" title="随机选择" aria-label="随机选择">
           <Shuffle size={14} />
         </button>
       </div>
@@ -150,10 +142,10 @@ export default function TranslateMode({ subtitles }: TranslateModeProps) {
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-2">
-        <button onClick={prevSentence} disabled={selectedIndex === 0} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={prevSentence} disabled={isFirst} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
           上一句
         </button>
-        <button onClick={nextSentence} disabled={selectedIndex === subtitles.length - 1} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
+        <button onClick={nextSentence} disabled={isLast} className="text-xs text-muted-foreground hover:text-ink disabled:opacity-30">
           跳过
         </button>
       </div>

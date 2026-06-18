@@ -10,7 +10,7 @@ Speaking's Celery-based architecture.
 
 import asyncio
 import json
-import logging
+import structlog
 import os
 import re
 import subprocess
@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 from app.core.config import get_settings
 from .exceptions import AudioExtractionError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ── Shared ffmpeg audio encoding flags for PCM 16kHz mono WAV ──
 _FFMPEG_WAV_ARGS = ["-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1"]
@@ -312,7 +312,7 @@ async def _fetch_douyin_video_data_async(url: str) -> dict:
 
     html = ""
     try:
-        logger.info(f"Navigating to Douyin video: {url}")
+        logger.info("Navigating to Douyin video", url=url)
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
         # Wait for the video player or RENDER_DATA to appear
@@ -331,7 +331,7 @@ async def _fetch_douyin_video_data_async(url: str) -> dict:
         # Get cookies regardless (for yt-dlp fallback)
         cookies = await context.cookies()
         cookie_names = {c["name"] for c in cookies}
-        logger.info(f"Page cookies: {cookie_names}")
+        logger.info("Page cookies collected", cookie_names=cookie_names)
 
         # Get page HTML for embedded data fallback
         html = await page.content()
@@ -365,7 +365,7 @@ async def _fetch_douyin_video_data_async(url: str) -> dict:
     if not result:
         # Check what went wrong
         error_detail = api_error or "No data found in API or page"
-        logger.error(f"Failed to extract Douyin video data: {error_detail}")
+        logger.error("Failed to extract Douyin video data", detail=error_detail)
         raise AudioExtractionError(
             f"Could not extract video data from Douyin page. "
             f"The video may be private, deleted, or geo-restricted.\n"
@@ -376,9 +376,10 @@ async def _fetch_douyin_video_data_async(url: str) -> dict:
     result["cookies"] = _cookies_to_netscape(cookies)
 
     logger.info(
-        f"Douyin video extracted: id={result['id']}, "
-        f"title={result['title'][:50]}, "
-        f"duration={result['duration']}s"
+        "Douyin video extracted",
+        video_id=result['id'],
+        title=result['title'][:50],
+        duration=result['duration'],
     )
     return result
 
@@ -433,7 +434,7 @@ def get_ytdlp_cookie_file(url: str) -> str:
         page = await context.new_page()
 
         try:
-            logger.info(f"Fetching cookies from: {url}")
+            logger.info("Fetching cookies from", url=url)
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(_COOKIE_WAIT_SECONDS)
 
@@ -466,7 +467,7 @@ def get_ytdlp_cookie_file(url: str) -> str:
             cookie_dir.mkdir(parents=True, exist_ok=True)
             cookie_path = cookie_dir / f"{domain}_playwright.txt"
             cookie_path.write_text(cookie_text, encoding="utf-8")
-            logger.info(f"Cookie file: {cookie_path} ({len(cookies)} cookies)")
+            logger.info("Cookie file created", path=str(cookie_path), cookie_count=len(cookies))
 
             return str(cookie_path)
         finally:
@@ -543,7 +544,7 @@ def extract_douyin_audio_advanced(url: str, output_path: str) -> dict:
     Raises:
         AudioExtractionError: If extraction fails
     """
-    logger.info(f"Extracting Douyin audio via advanced Playwright: {url[:80]}...")
+    logger.info("Extracting Douyin audio via advanced Playwright", url=url[:80])
 
     # Step 1: Fetch metadata
     video_data = fetch_douyin_video_data(url)
@@ -558,8 +559,10 @@ def extract_douyin_audio_advanced(url: str, output_path: str) -> dict:
     cookie_header = _netscape_to_cookie_header(netscape_cookies)
 
     logger.info(
-        f"Playwright direct: title={title!r}, "
-        f"duration={duration:.0f}s, video_url={video_url[:80]}..."
+        "Playwright direct extraction",
+        title=title,
+        duration=f"{duration:.0f}s",
+        video_url=video_url[:80],
     )
 
     if not video_url:
@@ -576,7 +579,7 @@ def extract_douyin_audio_advanced(url: str, output_path: str) -> dict:
     if not Path(output_path).exists():
         raise AudioExtractionError("Audio extraction succeeded but output file not found")
 
-    logger.info(f"Douyin audio extracted: {output_path} ({os.path.getsize(output_path)} bytes)")
+    logger.info("Douyin audio extracted", path=output_path, size=os.path.getsize(output_path))
 
     # Return metadata (excluding raw cookies for cleanliness)
     metadata = {k: v for k, v in video_data.items() if k != "cookies"}

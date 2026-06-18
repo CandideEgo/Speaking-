@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -12,12 +12,16 @@ from app.schemas.invite import (
     RedeemResponse,
 )
 from app.api.dependencies import get_current_user, get_admin_user
+from app.schemas.pagination import has_more
+from app.core.limiter import rate_limit
 
 router = APIRouter(prefix="/invite-codes", tags=["invite-codes"])
 
 
 @router.post("/generate", response_model=list[InviteCodeResponse])
+@rate_limit("5/minute")
 async def generate_codes(
+    request: Request,
     data: InviteCodeGenerate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
@@ -49,7 +53,9 @@ async def generate_codes(
 
 
 @router.get("/export")
+@rate_limit("10/minute")
 async def export_codes(
+    request: Request,
     batch_label: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
@@ -70,29 +76,51 @@ async def export_codes(
     return {"csv": "\n".join(lines), "total": len(codes)}
 
 
-@router.get("", response_model=list[InviteCodeResponse])
+@router.get("")
+@rate_limit("30/minute")
 async def list_codes(
+    request: Request,
     used: bool | None = Query(None),
     batch_label: str | None = Query(None),
-    limit: int = Query(100, le=500),
-    offset: int = Query(0),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
-    """Admin: list invite codes."""
+    """Admin: list invite codes (paginated)."""
+    offset = (page - 1) * page_size
     stmt = select(InviteCode)
     if used is not None:
         stmt = stmt.where(InviteCode.is_used == used)
     if batch_label:
         stmt = stmt.where(InviteCode.batch_label == batch_label)
-    stmt = stmt.order_by(InviteCode.created_at.desc()).offset(offset).limit(limit)
+    stmt = stmt.order_by(InviteCode.created_at.desc()).offset(offset).limit(page_size)
 
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+
+    # Count total for has_more
+    from sqlalchemy import func
+    count_stmt = select(func.count(InviteCode.id))
+    if used is not None:
+        count_stmt = count_stmt.where(InviteCode.is_used == used)
+    if batch_label:
+        count_stmt = count_stmt.where(InviteCode.batch_label == batch_label)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar_one()
+
+    return {
+        "items": [InviteCodeResponse.model_validate(c) for c in items],
+        "page": page,
+        "page_size": page_size,
+        "has_more": has_more(total, page, page_size),
+    }
 
 
 @router.post("/redeem", response_model=RedeemResponse)
+@rate_limit("5/minute")
 async def redeem_code(
+    request: Request,
     data: InviteCodeRedeem,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

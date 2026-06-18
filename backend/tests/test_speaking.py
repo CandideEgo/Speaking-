@@ -28,8 +28,11 @@ class TestSpeakingAttempts:
     ):
         resp = await client.get("/api/v1/speaking/attempts", headers=auth_headers)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
-        assert len(resp.json()) == 0
+        data = resp.json()
+        # The attempts endpoint returns a paginated dict, not a bare list
+        assert isinstance(data, dict)
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) == 0
 
 
 class TestSubmitPractice:

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { Loader2, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatViews } from '@/lib/format';
@@ -14,12 +14,12 @@ interface VideoCardProps {
   isLoading?: boolean;
 }
 
-export function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps) {
+export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
 
   if (variant === 'youtube') {
     return (
-      <div onClick={onClick} className="group cursor-pointer flex flex-col gap-2">
+      <button onClick={onClick} className="group cursor-pointer flex flex-col gap-2 text-left w-full" aria-label={`播放 ${video.title}`}>
         <div className="relative aspect-video overflow-hidden rounded-lg">
           <VideoThumbnail
             url={video.thumbnail_url}
@@ -42,18 +42,18 @@ export function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps
             <span className="text-xs font-bold text-gray-600">{video.channel_title?.charAt(0) || 'U'}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[#0f0f0f] line-clamp-2 leading-snug">{video.title}</p>
-            <p className="text-xs text-[#606060] mt-0.5">{video.channel_title}</p>
-            <p className="text-xs text-[#606060]">{formatViews(video.view_count)} views</p>
+            <p className="text-sm font-medium text-ink line-clamp-2 leading-snug">{video.title}</p>
+            <p className="text-xs text-muted mt-0.5">{video.channel_title}</p>
+            <p className="text-xs text-muted">{formatViews(video.view_count)} views</p>
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
   if (variant === 'bilibili') {
     return (
-      <div onClick={onClick} className="group cursor-pointer flex flex-col gap-2">
+      <button onClick={onClick} className="group cursor-pointer flex flex-col gap-2 text-left w-full" aria-label={`播放 ${video.title}`}>
         <div className="relative aspect-video overflow-hidden rounded-xl">
           <VideoThumbnail
             url={video.thumbnail_url}
@@ -72,23 +72,23 @@ export function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-[#18191c] line-clamp-2 leading-snug">{video.title}</p>
+          <p className="text-sm font-medium text-ink line-clamp-2 leading-snug">{video.title}</p>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-[#9499a0]">{video.channel_title}</span>
+            <span className="text-xs text-muted-soft">{video.channel_title}</span>
           </div>
-          <div className="flex items-center gap-3 mt-0.5 text-xs text-[#9499a0]">
+          <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-soft">
             <span className="flex items-center gap-1">
               {formatViews(video.view_count)} views
             </span>
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
   // Douyin — vertical card with 9:16 thumbnail
   return (
-    <div onClick={onClick} className="group cursor-pointer flex flex-col gap-2">
+    <button onClick={onClick} className="group cursor-pointer flex flex-col gap-2 text-left w-full">
       <div className="relative aspect-[9/16] overflow-hidden rounded-2xl">
         <VideoThumbnail
           url={video.thumbnail_url}
@@ -107,8 +107,8 @@ export function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps
         )}
       </div>
       <div className="px-1">
-        <p className="text-sm font-medium text-[#18191c] line-clamp-2 leading-snug">{video.title}</p>
-        <div className="flex items-center gap-2 mt-1 text-xs text-[#9499a0]">
+        <p className="text-sm font-medium text-ink line-clamp-2 leading-snug">{video.title}</p>
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-soft">
           <span className="line-clamp-1">{video.channel_title}</span>
           {video.view_count && (
             <>
@@ -118,6 +118,6 @@ export function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
-}
+});

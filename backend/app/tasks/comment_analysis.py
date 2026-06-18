@@ -1,12 +1,13 @@
-import logging
+import structlog
 
 from app.tasks.celery_app import celery_app
+from app.tasks.async_helpers import run_async
 from app.services.comment_service import CommentService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
-@celery_app.task(bind=True, max_retries=2)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=60, max_retries=3)
 def analyze_video_comments(self, video_id: str, youtube_video_id: str):
     """Asynchronously fetch and analyze comments for a video.
 
@@ -16,7 +17,6 @@ def analyze_video_comments(self, video_id: str, youtube_video_id: str):
         3. Run quality analysis
         4. Store results in video_comment_stats
     """
-    import asyncio
     from app.core.database import async_session
 
     async def _process():
@@ -29,7 +29,7 @@ def analyze_video_comments(self, video_id: str, youtube_video_id: str):
                 )
                 if not comments:
                     logger.warning(
-                        "No comments fetched for video %s", video_id
+                        "No comments fetched for video", video_id=video_id
                     )
                     return
 
@@ -37,27 +37,19 @@ def analyze_video_comments(self, video_id: str, youtube_video_id: str):
                 stats = await service.analyze_video_comments(db, video_id)
                 if stats:
                     logger.info(
-                        "Comment analysis complete for video %s: score=%d",
-                        video_id,
-                        stats.overall_quality_score,
+                        "Comment analysis complete for video",
+                        video_id=video_id,
+                        overall_quality_score=stats.overall_quality_score,
                     )
                 else:
                     logger.warning(
-                        "Comment analysis produced no stats for video %s",
-                        video_id,
+                        "Comment analysis produced no stats for video",
+                        video_id=video_id,
                     )
             except Exception as e:
                 logger.exception(
-                    "Comment analysis failed for video %s", video_id
+                    "Comment analysis failed for video", video_id=video_id
                 )
                 raise self.retry(exc=e)
 
-    try:
-        asyncio.run(_process())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_process())
-        finally:
-            loop.close()
+    run_async(_process())

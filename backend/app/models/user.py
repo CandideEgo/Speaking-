@@ -45,3 +45,4 @@ class User(Base):
     learning_records = relationship("LearningRecord", back_populates="user")
     vocabulary = relationship("Vocabulary", back_populates="user")
     orders = relationship("Order", back_populates="user")
+    notifications = relationship("Notification", back_populates="user", order_by="Notification.created_at.desc()")

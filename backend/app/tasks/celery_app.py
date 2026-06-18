@@ -21,4 +21,10 @@ celery_app.conf.update(
 
 # Ensure all models are loaded before importing task modules (SQLAlchemy relationship resolution)
 import app.models  # noqa: F401
+
+# Register the task_prerun signal that binds request_id (task_id) into
+# structlog context vars so every log line emitted during a Celery task
+# automatically includes request_id for traceability.
+import app.core.logging as _logging  # noqa: F401
+
 import app.tasks.video_processing  # noqa: F401

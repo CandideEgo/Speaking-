@@ -32,6 +32,7 @@ export default function VideoLibrary({ videos }: VideoLibraryProps) {
                 router.push(`/watch/${v.id}`)
               }
               disabled={v.status !== 'ready' && v.status !== 'ready_subtitles'}
+              aria-label={`观看 ${v.title}`}
               className={cn(
                 'group rounded-lg border border-hairline bg-canvas p-0 text-left overflow-hidden hover:border-coral/30 hover:shadow-sm transition-all',
                 'disabled:cursor-default disabled:hover:border-hairline disabled:hover:shadow-none'

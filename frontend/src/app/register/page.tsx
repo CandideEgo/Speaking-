@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, setToken } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -26,7 +28,7 @@ export default function RegisterPage() {
           body: JSON.stringify({ email, password, name: name || null }),
         }
       );
-      setToken(res.token);
+      login(res.token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "注册失败，请重试");

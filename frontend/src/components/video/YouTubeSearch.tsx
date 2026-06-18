@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Search, Loader2, Plus } from 'lucide-react';
-import type { Video } from '@/types';
+import type { Video, YouTubeSearchResponse, YouTubeSearchResult } from '@/types';
 
 interface YouTubeSearchProps {
   onVideoAdded: (video: Video) => void;
@@ -12,7 +12,7 @@ interface YouTubeSearchProps {
 
 export default function YouTubeSearch({ onVideoAdded }: YouTubeSearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<YouTubeSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
@@ -22,7 +22,7 @@ export default function YouTubeSearch({ onVideoAdded }: YouTubeSearchProps) {
     setSearching(true);
     setSearchResults([]);
     try {
-      const data = await api<{ items: any[]; total: number }>(
+      const data = await api<YouTubeSearchResponse>(
         `/api/v1/youtube/search?q=${encodeURIComponent(searchQuery)}`
       );
       setSearchResults(data.items);

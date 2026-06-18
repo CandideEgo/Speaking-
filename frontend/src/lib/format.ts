@@ -1,11 +1,18 @@
 /**
- * Format a duration in seconds to MM:SS string
+ * Format a time in seconds to M:SS string (e.g. 90 → "1:30")
+ */
+export function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Format a duration in seconds to M:SS string, returning empty for null/0
  */
 export function formatDuration(sec: number | null): string {
   if (!sec) return '';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return formatTime(sec);
 }
 
 /**

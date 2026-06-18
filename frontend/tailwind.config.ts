@@ -2,7 +2,6 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
-  darkMode: "class",
   theme: {
     extend: {
       fontFamily: {
@@ -11,6 +10,7 @@ const config: Config = {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
+        // Brand primary (coral)
         brand: {
           50: "#faf5f0",
           100: "#f5ebe0",
@@ -24,40 +24,58 @@ const config: Config = {
           900: "#5a2e22",
           950: "#331a14",
         },
-        // Claude-inspired warm palette
-        ink: "#141413",
+
+        // === Warm cream design system tokens ===
+
+        // Surfaces
         canvas: "#faf9f5",
-        coral: {
+        "surface-soft": "#f5f0e8",
+        "surface-card": "#efe9de",
+        "surface-cream-strong": "#e8e0d2",
+        "surface-dark": "#181715",
+        "surface-dark-elevated": "#252320",
+        "surface-dark-soft": "#1f1e1b",
+
+        // Text
+        ink: "#141413",
+        body: "#3d3d3a",
+        "body-strong": "#252523",
+        muted: "#6c6a64",
+        "muted-soft": "#8e8b82",
+
+        // Primary (coral)
+        primary: {
           DEFAULT: "#cc785c",
           active: "#a9583e",
           disabled: "#e6dfd8",
         },
-        cream: {
-          soft: "#f5f0e8",
-          card: "#efe9de",
-          strong: "#e8e0d2",
-        },
-        navy: {
-          DEFAULT: "#181715",
-          elevated: "#252320",
-          soft: "#1f1e1b",
-        },
+
+        // On-colors
+        "on-primary": "#ffffff",
+        "on-dark": "#faf9f5",
+        "on-dark-soft": "#a09d96",
+
+        // Accents
+        "accent-teal": "#5db8a6",
+        "accent-amber": "#e8a55a",
+
+        // Borders
         hairline: {
           DEFAULT: "#e6dfd8",
-          cream: "#ebe6df",
           soft: "#ebe6df",
         },
-        // Dark theme palette (watch page)
-        dark: {
-          DEFAULT: "#141413",
-          surface: "#1c1c1a",
-          elevated: "#242422",
-          soft: "#1f1e1b",
-        },
-        ivory: "#faf9f5",
-        terracotta: "#cc785c",
-        parchment: "#f5f0e8",
-        olive: "#6c6a5e",
+
+        // Semantic
+        success: "#5db872",
+        warning: "#d4a017",
+        error: "#c64545",
+
+        // Platform identity colors
+        "platform-bilibili": "#00aeec",
+        "platform-bilibili-pink": "#fb7299",
+        "platform-douyin": "#fe2c55",
+
+        // Learning mode highlights (product-specific, not brand tokens)
         learn: {
           highlight: "#4ade80",
           highlightHover: "#22c55e",
@@ -66,9 +84,10 @@ const config: Config = {
           correct: "#22c55e",
           wrong: "#ef4444",
         },
+
+        // CSS variable-backed colors (for runtime theming if needed)
         background: "rgb(var(--background) / <alpha-value>)",
         foreground: "rgb(var(--foreground) / <alpha-value>)",
-        muted: "rgb(var(--muted) / <alpha-value>)",
         "muted-foreground": "rgb(var(--muted-foreground) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",

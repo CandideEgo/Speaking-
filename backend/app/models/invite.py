@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 import secrets
 from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Integer, DateTime, ForeignKey

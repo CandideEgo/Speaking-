@@ -8,10 +8,10 @@ Also keeps the legacy get_whisper_model() for speaking_service.py, which
 needs fast, lightweight transcription of short audio clips without alignment.
 """
 
-import logging
+import structlog
 from threading import Lock
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # --- WhisperX ASR model singleton ---
 _whisperx_model = None
@@ -44,15 +44,15 @@ def _detect_device() -> tuple[str, str]:
             if torch.cuda.is_available():
                 device = "cuda"
                 compute_type = "float16"
-                logger.info(f"[CUDA] Using {torch.cuda.get_device_name(0)}")
+                logger.info("CUDA device detected", device_name=torch.cuda.get_device_name(0))
             else:
                 device = "cpu"
                 compute_type = "int8"
-                logger.info("[CPU] CUDA not available, using CPU (int8)")
+                logger.info("CUDA not available, using CPU (int8)")
         except ImportError:
             device = "cpu"
             compute_type = "int8"
-            logger.info("[CPU] torch not installed, using CPU (int8)")
+            logger.info("torch not installed, using CPU (int8)")
 
     return device, compute_type
 
@@ -89,9 +89,11 @@ def get_whisperx_model():
         device, compute_type = _detect_device()
 
         logger.info(
-            f"Loading WhisperX ASR model: path={model_path}, "
-            f"device={device}, compute={compute_type}, "
-            f"vad={settings.whisperx_vad_method}"
+            "Loading WhisperX ASR model",
+            path=model_path,
+            device=device,
+            compute=compute_type,
+            vad=settings.whisperx_vad_method,
         )
 
         try:
@@ -108,7 +110,7 @@ def get_whisperx_model():
             )
             logger.info("WhisperX ASR model loaded successfully")
         except Exception as e:
-            logger.error(f"Failed to load WhisperX ASR model on {device}: {e}")
+            logger.error("Failed to load WhisperX ASR model", device=device, exc_info=True)
             # Fallback to CPU
             if device == "cuda":
                 logger.info("Falling back to CPU (int8)")
@@ -157,8 +159,10 @@ def get_align_model(language_code: str = "en"):
         model_name = settings.whisperx_align_model or None
 
         logger.info(
-            f"Loading alignment model: language={language_code}, "
-            f"device={device}, model={model_name or 'auto'}"
+            "Loading alignment model",
+            language=language_code,
+            device=device,
+            model=model_name or "auto",
         )
 
         model_a, metadata = whisperx.load_align_model(
@@ -167,7 +171,7 @@ def get_align_model(language_code: str = "en"):
             model_name=model_name,
         )
         _align_models[language_code] = (model_a, metadata)
-        logger.info(f"Alignment model loaded for {language_code}")
+        logger.info("Alignment model loaded", language=language_code)
         return model_a, metadata
 
 
@@ -230,8 +234,10 @@ def get_whisper_model():
         device, compute_type = _detect_device()
 
         logger.info(
-            f"Loading legacy Whisper model: path={model_path}, "
-            f"device={device}, compute={compute_type}"
+            "Loading legacy Whisper model",
+            path=model_path,
+            device=device,
+            compute=compute_type,
         )
 
         try:
@@ -242,7 +248,7 @@ def get_whisper_model():
             )
             logger.info("Legacy Whisper model loaded successfully")
         except Exception as e:
-            logger.error(f"Failed to load Whisper model on {device}: {e}")
+            logger.error("Failed to load Whisper model", device=device, exc_info=True)
             if device == "cuda":
                 logger.info("Falling back to CPU (int8)")
                 _whisper_model = WhisperModel(

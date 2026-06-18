@@ -15,7 +15,7 @@ Supports:
 """
 
 import asyncio
-import logging
+import structlog
 import os
 import tempfile
 from pathlib import Path
@@ -36,7 +36,7 @@ from .audio_extractor import (
 from .chunked_transcription import transcribe_in_chunks, transcribe_local_chunks
 from .formatters import whisperx_segments_to_subtitles
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class TranscriptionService:
@@ -90,19 +90,19 @@ class TranscriptionService:
 
             # Step 2: Get duration
             duration = get_video_duration(audio_path)
-            logger.info(f"Audio duration: {duration:.1f}s")
+            logger.info("Audio duration", duration=f"{duration:.1f}s")
 
             # Step 3: Transcribe + align with WhisperX
             if duration > self.settings.whisper_chunk_duration:
                 logger.info(
-                    f"Video exceeds {self.settings.whisper_chunk_duration}s, "
-                    "using chunked transcription"
+                    "Video exceeds chunk duration, using chunked transcription",
+                    chunk_duration=self.settings.whisper_chunk_duration,
                 )
                 subs = self._transcribe_chunked_sync(audio_path, duration)
             else:
                 subs = self._transcribe_single(audio_path)
 
-            logger.info(f"Transcription complete: {len(subs)} subtitles")
+            logger.info("Transcription complete", subtitle_count=len(subs))
             return subs
 
         except TranscriptionError:
@@ -131,20 +131,20 @@ class TranscriptionService:
             return audio_path
 
         if platform == Platform.local:
-            logger.info(f"Extracting local audio: {source}")
+            logger.info("Extracting local audio", source=source)
             extract_local_audio(source, audio_path)
             return audio_path
 
         # YouTube, Bilibili, and other streaming URLs
         parsed = urlparse(source)
         if parsed.scheme in ("http", "https") and _is_streaming_url(source):
-            logger.info(f"Extracting streaming audio: {source[:80]}...")
+            logger.info("Extracting streaming audio", source=source[:80])
             extract_streaming_audio(source, audio_path)
             return audio_path
 
         # Fallback: try as local file
         if Path(source).exists():
-            logger.info(f"Treating as local file: {source}")
+            logger.info("Treating as local file", source=source)
             extract_local_audio(source, audio_path)
             return audio_path
 
@@ -162,7 +162,7 @@ class TranscriptionService:
         """
         import whisperx
 
-        logger.info(f"Transcribing audio with WhisperX: {audio_path}")
+        logger.info("Transcribing audio with WhisperX", audio_path=audio_path)
 
         # Load audio as numpy array (required by WhisperX)
         audio = whisperx.load_audio(audio_path)
@@ -174,12 +174,12 @@ class TranscriptionService:
             batch_size=self.settings.whisperx_batch_size,
         )
         language = result.get("language", "en")
-        logger.info(f"WhisperX ASR: language={language}, {len(result['segments'])} segments")
+        logger.info("WhisperX ASR complete", language=language, segment_count=len(result['segments']))
 
         # Step 2: Restore punctuation (so align()'s NLTK Punkt can split sentences)
         from .punctuation import restore_punctuation
         result["segments"] = restore_punctuation(result["segments"])
-        logger.info(f"Punctuation restored for {len(result['segments'])} segments")
+        logger.info("Punctuation restored", segment_count=len(result['segments']))
 
         # Step 3: Forced alignment for word-level timestamps + sentence segmentation
         model_a, metadata = get_align_model(language)
@@ -187,7 +187,7 @@ class TranscriptionService:
         result = whisperx.align(
             result["segments"], model_a, metadata, audio, device
         )
-        logger.info(f"WhisperX aligned: {len(result['segments'])} sentence segments")
+        logger.info("WhisperX aligned", segment_count=len(result['segments']))
 
         # Step 4: Convert to subtitle format
         return whisperx_segments_to_subtitles(result["segments"])

@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 # Set env before any app imports so limiter/config pick up "testing"
 os.environ["ENV"] = "testing"
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking")
+os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password, create_token

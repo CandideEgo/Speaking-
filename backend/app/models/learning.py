@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Integer, Float, Text, ForeignKey, Boolean
+from sqlalchemy import String, DateTime, Integer, Float, Text, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -29,6 +29,9 @@ class SpeakingAttempt(Base):
 
 class LearningRecord(Base):
     __tablename__ = "learning_records"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'video_id', name='uq_learning_record_user_video'),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())

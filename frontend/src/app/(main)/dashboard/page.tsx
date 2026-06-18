@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import type { User, Video } from '@/types';
 import AIStatsPanel from '@/components/video/AIStatsPanel';
 import VideoSubmitForm from '@/components/video/VideoSubmitForm';
@@ -12,11 +13,12 @@ import VideoLibrary from '@/components/video/VideoLibrary';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [user, setUser] = useState<User | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAuthenticated) {
       router.push('/login');
       return;
     }

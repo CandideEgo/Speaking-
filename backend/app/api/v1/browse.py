@@ -1,14 +1,15 @@
 import asyncio
-import logging
+import structlog
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from sqlalchemy import select
 
 from app.services.youtube_service import search_youtube
+from app.core.limiter import rate_limit
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/browse", tags=["browse"])
 
@@ -45,12 +46,15 @@ def _clean_expired_cache():
 
 
 @router.get("/categories")
-async def list_categories():
+@rate_limit("30/minute")
+async def list_categories(request: Request):
     return {"categories": CATEGORIES}
 
 
 @router.get("/feed")
+@rate_limit("30/minute")
 async def browse_feed(
+    request: Request,
     category: str = Query("all"),
     level: Optional[str] = Query(None, max_length=2),
     page: int = Query(1, ge=1, le=10),
@@ -67,7 +71,7 @@ async def browse_feed(
     if cache_key in _cache:
         items, ts = _cache[cache_key]
         if time.time() - ts < _CACHE_TTL:
-            return {"items": items, "category": cat, "page": page, "has_more": len(items) >= page_size}
+            return {"items": items, "category": cat, "page": page, "page_size": page_size, "has_more": len(items) >= page_size}
 
     try:
         items = await search_youtube(query, page_size=page_size)
@@ -79,15 +83,15 @@ async def browse_feed(
     if not items:
         fallback = await _fallback_official_videos(category=category, limit=page_size)
         if fallback:
-            return {"items": fallback, "category": cat, "page": page, "has_more": False}
-        return {"items": [], "category": cat, "page": page, "has_more": False,
+            return {"items": fallback, "category": cat, "page": page, "page_size": page_size, "has_more": False}
+        return {"items": [], "category": cat, "page": page, "page_size": page_size, "has_more": False,
                 "error": "Search temporarily unavailable"}
 
     if len(_cache) >= _MAX_CACHE_ENTRIES:
         oldest = min(_cache, key=lambda k: _cache[k][1])
         del _cache[oldest]
     _cache[cache_key] = (items, time.time())
-    return {"items": items, "category": cat, "page": page, "has_more": len(items) >= page_size}
+    return {"items": items, "category": cat, "page": page, "page_size": page_size, "has_more": len(items) >= page_size}
 
 
 async def _fallback_official_videos(category: str = "all", limit: int = 20) -> list[dict]:

@@ -1,21 +1,98 @@
 import json
-import logging
+import threading
+import structlog
 from openai import AsyncOpenAI
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception,
+    retry_if_exception_type,
+)
 from app.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 settings = get_settings()
 
+# --- Transient exceptions worth retrying ---
+
+import httpx
+
+_TRANSIENT_ERRORS = (
+    ConnectionError,
+    TimeoutError,
+    httpx.ConnectError,
+    httpx.ReadTimeout,
+    httpx.WriteTimeout,
+    httpx.PoolTimeout,
+    httpx.ConnectTimeout,
+)
+
+
+def _is_retryable_status(exc: BaseException) -> bool:
+    """Return True for 5xx or 429 status from the OpenAI SDK."""
+    # openai >= 1.x wraps HTTP errors in openai.APIStatusError
+    try:
+        from openai import APIStatusError, RateLimitError, APIConnectionError
+        if isinstance(exc, (RateLimitError, APIConnectionError)):
+            return True
+        if isinstance(exc, APIStatusError) and exc.status_code >= 500:
+            return True
+        if isinstance(exc, APIStatusError) and exc.status_code == 429:
+            return True
+    except ImportError:
+        pass
+    return False
+
+
+def _should_retry(exc: BaseException) -> bool:
+    """Decide whether to retry based on exception type or status code."""
+    if isinstance(exc, _TRANSIENT_ERRORS):
+        return True
+    return _is_retryable_status(exc)
+
+
+# Retry decorator shared by all external AI calls
+_retry_decorator = retry(
+    retry=(
+        retry_if_exception_type(_TRANSIENT_ERRORS)
+        | retry_if_exception(_is_retryable_status)
+    ),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=4),  # 1s, 2s, 4s
+    reraise=True,
+    before_sleep=lambda rs: logger.warning(
+        "AI call retry",
+        attempt=rs.attempt_number,
+        sleep=rs.next_action.sleep,
+        error=str(rs.outcome.exception()),
+    ),
+)
+
 
 class AIService:
-    def __init__(self):
-        client_kwargs = {"api_key": settings.openai_api_key or "sk-placeholder"}
+    """Singleton-managed AI service wrapping the OpenAI-compatible API.
+
+    Always obtain the instance via ``get_ai_service()`` — never instantiate
+    directly, so a single ``AsyncOpenAI`` client is reused across the process.
+    """
+
+    def __init__(self) -> None:
+        client_kwargs: dict = {
+            "api_key": settings.openai_api_key or "sk-placeholder",
+            "timeout": 30.0,  # 30-second per-call timeout
+        }
         if settings.openai_base_url:
             client_kwargs["base_url"] = settings.openai_base_url
         self.client = AsyncOpenAI(**client_kwargs)
         self.model = settings.openai_model
 
+    # ------------------------------------------------------------------
+    # Core LLM call (with retry + timeout)
+    # ------------------------------------------------------------------
+
+    @_retry_decorator
     async def _chat(self, system: str, user: str, temperature: float = 0.3) -> str:
         try:
             resp = await self.client.chat.completions.create(
@@ -31,23 +108,14 @@ class AIService:
             logger.exception("LLM call failed")
             return ""
 
+    # ------------------------------------------------------------------
+    # Public API methods (all external calls go through _chat → retry)
+    # ------------------------------------------------------------------
+
     async def translate_batch(self, texts: list[str]) -> list[str | None]:
-        if not texts:
-            return []
-
-        payload = json.dumps(texts, ensure_ascii=False)
-        system = (
-            "You are a translator. Translate each English sentence into natural Chinese. "
-            "Return a JSON array of strings. Keep the same order. If a sentence doesn't need "
-            "translation (e.g., it's just a sound), return empty string."
-        )
-        user = f"Translate:\n{payload}\nReturn JSON array only."
-
-        result = await self._chat(system, user)
-        try:
-            return json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            return [None] * len(texts)
+        """Delegate to the pluggable TranslationService."""
+        from app.services.translation import get_translation_service
+        return await get_translation_service().translate_batch(texts)
 
     async def grammar_analyze_batch(self, texts: list[str]) -> list[str | None]:
         if not texts:
@@ -276,3 +344,25 @@ class AIService:
                 lines = lines[:-1]
             text = "\n".join(lines)
         return text.strip()
+
+
+# --- Thread-safe singleton ---
+
+_ai_service: AIService | None = None
+_singleton_lock = threading.Lock()
+
+
+def get_ai_service() -> AIService:
+    """Return the shared AIService singleton.
+
+    Use this everywhere instead of creating ``AIService()`` instances,
+    so a single ``AsyncOpenAI`` client is reused across the process.
+    Thread-safe for Celery workers that may call from multiple threads.
+    """
+    global _ai_service
+    if _ai_service is None:
+        with _singleton_lock:
+            # Double-checked locking
+            if _ai_service is None:
+                _ai_service = AIService()
+    return _ai_service

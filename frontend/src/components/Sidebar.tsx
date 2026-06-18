@@ -77,6 +77,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium',
         'transition-colors duration-150',
@@ -267,9 +268,11 @@ export function Sidebar() {
         className="fixed inset-0 z-50 md:hidden"
         style={{ display: 'none', opacity: 0, visibility: 'hidden' as const }}
       >
-        <div
+        <button
+          type="button"
           className="absolute inset-0 bg-black/50"
           onClick={() => setMobileOpen(false)}
+          aria-label="关闭侧边栏"
         />
         <div
           ref={mobilePanelRef}

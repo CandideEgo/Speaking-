@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import { BookOpen, Trash2, Check, RotateCcw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +14,7 @@ interface VocabWord {
 }
 
 interface VocabListResponse {
-  words: VocabWord[]; stats: { total: number; due: number };
+  items: VocabWord[]; page: number; page_size: number; has_more: boolean; stats: { total: number; due: number };
 }
 
 const QUALITY_LABELS = [
@@ -27,6 +28,7 @@ const QUALITY_LABELS = [
 
 export default function VocabularyPage() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [words, setWords] = useState<VocabWord[]>([]);
   const [stats, setStats] = useState({ total: 0, due: 0 });
   const [loading, setLoading] = useState(true);
@@ -34,15 +36,15 @@ export default function VocabularyPage() {
   const [reviewingWord, setReviewingWord] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getToken()) { router.push('/login'); return; }
+    if (!isAuthenticated) { router.push('/login'); return; }
     loadWords();
   }, [dueOnly]);
 
   async function loadWords() {
     setLoading(true);
     try {
-      const data = await api<VocabListResponse>(`/api/v1/vocabulary?due_only=${dueOnly}&limit=50`);
-      setWords(data.words); setStats(data.stats);
+      const data = await api<VocabListResponse>(`/api/v1/vocabulary?due_only=${dueOnly}&page=1&page_size=100`);
+      setWords(data.items); setStats(data.stats);
     } catch { toast.error('加载词汇失败'); }
     finally { setLoading(false); }
   }
@@ -95,7 +97,7 @@ export default function VocabularyPage() {
               <div key={w.id} className="card-outline !p-5">
                 <div className="flex items-start justify-between">
                   <h3 className="font-display text-xl text-ink">{w.word}</h3>
-                  <button onClick={() => handleDelete(w.id)} className="text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                  <button onClick={() => handleDelete(w.id)} className="text-muted-foreground hover:text-red-500 transition-colors" aria-label={`删除 ${w.word}`}><Trash2 size={14} /></button>
                 </div>
                 {w.context_sentence && <p className="mt-1.5 text-sm italic text-muted-foreground leading-relaxed">&ldquo;{w.context_sentence}&rdquo;</p>}
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><RotateCcw size={12} /><span>已复习 {w.review_count} 次</span></div>

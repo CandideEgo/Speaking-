@@ -1,14 +1,17 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.limiter import limiter
 from slowapi.errors import RateLimitExceeded
-from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary, youtube, browse, community, bilibili, douyin, comments
+from prometheus_fastapi_instrumentator import Instrumentator
+from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary, youtube, browse, community, bilibili, douyin, comments, rubrics, notifications
 
 settings = get_settings()
 configure_logging()
@@ -35,6 +38,7 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, debug=settings.debug)
+    Instrumentator().instrument(app).expose(app)
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
@@ -81,7 +85,6 @@ def create_app() -> FastAPI:
                 "img-src 'self' data: https:; "
                 "media-src 'self' https:; "
                 f"connect-src {connect_src}; "
-                "frame-src https://www.youtube.com; "
                 "object-src 'none'; "
                 "base-uri 'self'"
             )
@@ -112,6 +115,9 @@ def create_app() -> FastAPI:
     app.include_router(ai.router, prefix="/api/v1")
     app.include_router(invite.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
+    if settings.env in ("development", "testing"):
+        from app.api.v1 import mock_payments
+        app.include_router(mock_payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
     app.include_router(youtube.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
@@ -119,10 +125,44 @@ def create_app() -> FastAPI:
     app.include_router(bilibili.router, prefix="/api/v1")
     app.include_router(douyin.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
+    app.include_router(rubrics.router, prefix="/api/v1")
+    app.include_router(notifications.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        checks = {}
+        all_healthy = True
+
+        # --- Database connectivity check ---
+        try:
+            from app.core.database import engine as db_engine
+            async with db_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            checks["database"] = {"status": "ok"}
+        except Exception as exc:
+            all_healthy = False
+            checks["database"] = {"status": "error", "detail": str(exc)}
+
+        # --- Redis connectivity check ---
+        try:
+            import redis.asyncio as aioredis
+            redis_client = aioredis.from_url(settings.redis_url)
+            await redis_client.ping()
+            await redis_client.close()
+            checks["redis"] = {"status": "ok"}
+        except Exception as exc:
+            all_healthy = False
+            checks["redis"] = {"status": "error", "detail": str(exc)}
+
+        payload = {
+            "status": "ok" if all_healthy else "degraded",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "environment": settings.env,
+            "components": checks,
+        }
+
+        status_code = 200 if all_healthy else 503
+        return JSONResponse(content=payload, status_code=status_code)
 
     return app
 

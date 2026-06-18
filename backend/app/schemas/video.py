@@ -14,10 +14,17 @@ class VideoCreate(BaseModel):
         parsed = urlparse(v)
         if parsed.scheme not in ("http", "https"):
             raise ValueError("Only HTTP/HTTPS URLs are allowed")
-        allowed_domains = ("youtube.com", "youtu.be", "bilibili.com", "b23.tv")
+        allowed_domains = (
+            "youtube.com", "youtu.be",
+            "bilibili.com", "b23.tv",
+            "douyin.com", "v.douyin.com",
+            "tiktok.com",
+            "twitter.com", "x.com",
+            "instagram.com",
+        )
         hostname = (parsed.hostname or "").lower()
         if not any(d in hostname for d in allowed_domains):
-            raise ValueError("Only YouTube and Bilibili URLs are supported")
+            raise ValueError("Unsupported platform URL")
         return v
 
 
@@ -37,6 +44,7 @@ class VideoResponse(BaseModel):
     video_url_1080p: str | None = None
     youtube_video_id: str | None = None
     processing_mode: str | None = None
+    processing_step: str | None = None
     created_at: str
 
     model_config = {"from_attributes": True}
@@ -69,3 +77,4 @@ class VideoDetailResponse(VideoResponse):
 class VideoStatusResponse(BaseModel):
     status: str
     video_url_720p: str | None = None
+    processing_step: str | None = None

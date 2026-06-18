@@ -1,20 +1,24 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.api.dependencies import get_current_user
+from app.core.limiter import rate_limit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+@rate_limit("30/minute")
+async def get_me(request: Request, current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 
 
 @router.patch("/me", response_model=UserResponse)
+@rate_limit("10/minute")
 async def update_me(
+    request: Request,
     data: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

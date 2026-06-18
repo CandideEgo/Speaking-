@@ -7,9 +7,9 @@ Two formatters are provided:
   (used when WhisperX is unavailable, e.g. in speaking_service).
 """
 
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def whisperx_segments_to_subtitles(

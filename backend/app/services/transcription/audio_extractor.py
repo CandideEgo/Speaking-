@@ -7,7 +7,7 @@ Supports:
 """
 
 import asyncio
-import logging
+import structlog
 import os
 import re
 import shutil
@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 from app.core.config import get_settings
 from .exceptions import AudioExtractionError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Shared ffmpeg audio encoding flags for PCM 16kHz mono WAV
 _FFMPEG_WAV_ARGS = ["-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1"]
@@ -96,7 +96,7 @@ def _normalize_streaming_url(url: str) -> str:
             continue
         new_url = pattern.sub(replacement, url)
         if new_url != url:
-            logger.info(f"Normalized streaming URL: {url} -> {new_url}")
+            logger.info("Normalized streaming URL", original=url, normalized=new_url)
             return new_url
     return url
 
@@ -153,7 +153,7 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
         output_path,
     ]
 
-    logger.info(f"Extracting streaming audio: {url[:80]}...")
+    logger.info("Extracting streaming audio", url=url[:80])
 
     try:
         proc = subprocess.Popen(
@@ -183,7 +183,7 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
         if not Path(output_path).exists():
             raise AudioExtractionError("Audio extraction succeeded but output file not found")
 
-        logger.info(f"Audio extracted: {output_path} ({os.path.getsize(output_path)} bytes)")
+        logger.info("Audio extracted", path=output_path, size=os.path.getsize(output_path))
 
     except subprocess.TimeoutExpired:
         raise AudioExtractionError("Audio extraction timed out (1800s)")
@@ -209,7 +209,7 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         output_path,
     ]
 
-    logger.info(f"Extracting local audio: {video_path}")
+    logger.info("Extracting local audio", path=video_path)
 
     try:
         result = subprocess.run(
@@ -225,7 +225,7 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         if not Path(output_path).exists():
             raise AudioExtractionError("Audio extraction succeeded but output file not found")
 
-        logger.info(f"Audio extracted: {output_path} ({os.path.getsize(output_path)} bytes)")
+        logger.info("Audio extracted", path=output_path, size=os.path.getsize(output_path))
 
     except subprocess.TimeoutExpired:
         raise AudioExtractionError("Audio extraction timed out (300s)")

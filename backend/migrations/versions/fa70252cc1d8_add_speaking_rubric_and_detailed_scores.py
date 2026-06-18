@@ -57,29 +57,45 @@ def upgrade() -> None:
     # Seed default rubric — only if not already present
     conn = op.get_bind()
     existing = conn.execute(
-        sa.text("SELECT id FROM speaking_rubrics WHERE id = 'default-rubric-001'")
+        sa.text("SELECT id FROM speaking_rubrics WHERE id = :rubric_id"),
+        {"rubric_id": "default-rubric-001"},
     ).fetchone()
     if not existing:
-        op.execute("""
-            INSERT INTO speaking_rubrics (id, name, description, is_default, created_at)
-            VALUES (
-                'default-rubric-001',
-                '口语评分标准',
-                '评估发音、流利度、完整度、语调、语法准确性',
-                true,
-                NOW()
-            )
-        """)
+        conn.execute(
+            sa.text("""
+                INSERT INTO speaking_rubrics (id, name, description, is_default, created_at)
+                VALUES (:id, :name, :description, :is_default, NOW())
+            """),
+            {
+                "id": "default-rubric-001",
+                "name": "口语评分标准",
+                "description": "评估发音、流利度、完整度、语调、语法准确性",
+                "is_default": True,
+            },
+        )
 
         criteria = [
-            ('criterion-pronunciation', 'default-rubric-001', '发音', '单词发音是否清晰、准确，包括重音和语调', 1.0, 0),
-            ('criterion-fluency', 'default-rubric-001', '流利度', '说话节奏是否自然，停顿是否恰当', 1.0, 1),
-            ('criterion-completeness', 'default-rubric-001', '完整度', '是否完整覆盖了参考答案的关键内容', 1.0, 2),
-            ('criterion-intonation', 'default-rubric-001', '语调', '语调起伏是否自然，升降调是否恰当', 0.8, 3),
-            ('criterion-grammar', 'default-rubric-001', '语法', '语法是否正确，时态和词序是否恰当', 0.8, 4),
+            ("criterion-pronunciation", "default-rubric-001", "发音", "单词发音是否清晰、准确，包括重音和语调", 1.0, 0),
+            ("criterion-fluency", "default-rubric-001", "流利度", "说话节奏是否自然，停顿是否恰当", 1.0, 1),
+            ("criterion-completeness", "default-rubric-001", "完整度", "是否完整覆盖了参考答案的关键内容", 1.0, 2),
+            ("criterion-intonation", "default-rubric-001", "语调", "语调起伏是否自然，升降调是否恰当", 0.8, 3),
+            ("criterion-grammar", "default-rubric-001", "语法", "语法是否正确，时态和词序是否恰当", 0.8, 4),
         ]
         for cid, rid, name, desc, weight, sort_order in criteria:
-            op.execute(f"""INSERT INTO rubric_criteria (id, rubric_id, name, description, weight, sort_order) VALUES ('{cid}', '{rid}', '{name}', '{desc}', {weight}, {sort_order})""")
+            conn.execute(
+                sa.text("""
+                    INSERT INTO rubric_criteria (id, rubric_id, name, description, weight, sort_order)
+                    VALUES (:id, :rubric_id, :name, :description, :weight, :sort_order)
+                """),
+                {
+                    "id": cid,
+                    "rubric_id": rid,
+                    "name": name,
+                    "description": desc,
+                    "weight": weight,
+                    "sort_order": sort_order,
+                },
+            )
 
 
 def downgrade() -> None:

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { Youtube, Tv, Music, MessageCircle, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDuration } from '@/lib/format';
 
 interface VideoThumbnailProps {
   url: string | null;
@@ -12,12 +13,6 @@ interface VideoThumbnailProps {
   className?: string;
   aspectClass?: string; // override aspect ratio, e.g. 'aspect-[9/16]'
   hoverOverlay?: React.ReactNode;
-}
-
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function gradientFromString(str: string): string {
@@ -36,7 +31,7 @@ function initialFromTitle(title: string): string {
   return /[A-Z]/.test(char) ? char : 'V';
 }
 
-export function VideoThumbnail({
+export const VideoThumbnail = memo(function VideoThumbnail({
   url,
   title,
   platform = 'youtube',
@@ -121,4 +116,4 @@ export function VideoThumbnail({
       )}
     </div>
   );
-}
+});

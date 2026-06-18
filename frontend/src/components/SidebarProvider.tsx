@@ -32,7 +32,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
   return (
     <SidebarContext.Provider value={{ collapsed, toggle, setCollapsed, mobileOpen, setMobileOpen }}>
-      {children}
+      <div suppressHydrationWarning>{children}</div>
     </SidebarContext.Provider>
   );
 }

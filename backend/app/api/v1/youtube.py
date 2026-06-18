@@ -1,18 +1,21 @@
 import asyncio
-import logging
+import structlog
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import get_current_user
 from app.models.user import User
+from app.core.limiter import rate_limit
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
 
 @router.get("/search")
+@rate_limit("10/minute")
 async def search_youtube(
+    request: Request,
     q: str = Query(..., min_length=1, max_length=200),
     max_results: int = Query(20, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -34,7 +37,7 @@ async def search_youtube(
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(search_query, download=False)
         except Exception:
-            logger.exception("YouTube search failed")
+            logger.exception("youtube search failed")
             raise HTTPException(status_code=500, detail="Search temporarily unavailable")
 
         items = []

@@ -13,10 +13,21 @@ class Settings(BaseSettings):
     env: str = "development"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    jwt_blacklist_enabled: bool = True  # Set False to skip Redis blacklist checks
 
     openai_api_key: str = ""
     openai_base_url: str = ""
     openai_model: str = "gpt-4o"
+
+    # Translation engine (pluggable) — hy_mt2 | qwen | agnes | custom
+    translation_engine: str = "agnes"           # active translation engine
+    translation_fallback_engine: str = ""       # optional fallback on primary failure
+    translation_batch_size: int = 20            # subtitles per LLM call
+    translation_hymt2_api_key: str = ""         # Hy-MT2-7B (iFLYTEK)
+    translation_qwen_api_key: str = ""          # Qwen3.6-35B (iFLYTEK)
+    translation_custom_base_url: str = ""       # Custom OpenAI-compatible endpoint
+    translation_custom_api_key: str = ""        # Custom endpoint API key
+    translation_custom_model: str = ""          # Custom endpoint model name
 
     local_media_path: str = "./media"
 
@@ -24,6 +35,10 @@ class Settings(BaseSettings):
     oss_bucket: str = ""
     oss_access_key: str = ""
     oss_secret_key: str = ""
+    oss_cdn_domain: str = ""  # e.g. "cdn.speaking-app.com"
+    oss_upload_enabled: bool = False  # Set True to upload transcoded videos to OSS
+    oss_prefix: str = "videos/"  # Path prefix in bucket
+    oss_cleanup_local: bool = False  # Delete local transcoded files after successful OSS upload
 
     # Payment configuration
     alipay_app_id: str = ""
@@ -65,8 +80,24 @@ class Settings(BaseSettings):
     # Transcription temp directory
     transcription_temp_dir: str = "./tmp/transcription"
 
+    # Video download settings (for yt-dlp)
+    video_download_timeout: int = 1800  # 30 minutes — large YouTube videos can take a while
+    video_preferred_height: int = 720  # Maximum download resolution
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
+
+    # CSP connect-src domains (space-separated, e.g. "https://api.openai.com https://gateway.agnes.ai")
+    csp_connect_domains: str = ""
+
+    # SMTP / email
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
+    password_reset_expire_minutes: int = 30
 
     # Docker/Compose injects extra env vars (e.g. PGHOST, PGDATABASE);
     # ignore them rather than raising validation errors.

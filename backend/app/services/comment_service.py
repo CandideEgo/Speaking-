@@ -1,4 +1,4 @@
-import logging
+import structlog
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -10,7 +10,7 @@ from app.models.comment import VideoComment, VideoCommentStats
 from app.models.video import Video
 from app.services.youtube_comment_service import YouTubeCommentService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ---------------------------------------------------------------------------
 # Keyword dictionaries for quality scoring
@@ -180,9 +180,9 @@ class CommentService:
 
         if not raw_comments:
             logger.warning(
-                "No comments fetched for video %s (video_id=%s)",
-                youtube_video_id,
-                video_id,
+                "no comments fetched for video",
+                youtube_video_id=youtube_video_id,
+                video_id=video_id,
             )
             return []
 
@@ -206,7 +206,9 @@ class CommentService:
             await db.refresh(c)
 
         logger.info(
-            "Stored %d comments for video %s", len(stored), video_id
+            "stored comments for video",
+            count=len(stored),
+            video_id=video_id,
         )
         return stored
 
@@ -226,7 +228,7 @@ class CommentService:
         comments = result.scalars().all()
 
         if not comments:
-            logger.info("No comments to analyze for video %s", video_id)
+            logger.info("no comments to analyze for video", video_id=video_id)
             return None
 
         # Calculate scores
@@ -277,13 +279,12 @@ class CommentService:
         await db.refresh(stats)
 
         logger.info(
-            "Analyzed comments for video %s: overall=%d "
-            "(learning=%d, depth=%d, engagement=%d)",
-            video_id,
-            overall_score,
-            learning_score,
-            depth_score,
-            engagement_score,
+            "analyzed comments for video",
+            video_id=video_id,
+            overall_score=overall_score,
+            learning_score=learning_score,
+            depth_score=depth_score,
+            engagement_score=engagement_score,
         )
         return stats
 

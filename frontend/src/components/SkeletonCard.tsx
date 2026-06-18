@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SkeletonCardProps {
@@ -7,7 +8,7 @@ interface SkeletonCardProps {
   variant?: 'default' | 'douyin';
 }
 
-export function SkeletonCard({ className, variant = 'default' }: SkeletonCardProps) {
+export const SkeletonCard = memo(function SkeletonCard({ className, variant = 'default' }: SkeletonCardProps) {
   const isDouyin = variant === 'douyin';
 
   return (
@@ -44,7 +45,7 @@ export function SkeletonCard({ className, variant = 'default' }: SkeletonCardPro
       </div>
     </div>
   );
-}
+});
 
 interface SkeletonCardGridProps {
   count?: number;

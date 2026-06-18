@@ -28,6 +28,11 @@ export default defineConfig({
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
     },
+    {
+      name: 'mobile-iphone',
+      use: { ...devices['iPhone X'] },
+      testMatch: /mobile\.spec\.ts/,
+    },
   ],
 
   webServer: process.env.CI

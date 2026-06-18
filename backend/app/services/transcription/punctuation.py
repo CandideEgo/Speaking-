@@ -12,11 +12,11 @@ The punctuation model is a lightweight singleton (~500MB on first download,
 cached locally after that). Prediction adds <1s per segment.
 """
 
-import logging
+import structlog
 import re
 from threading import Lock
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # --- Punctuation model singleton ---
 _punctuation_model = None
@@ -44,8 +44,9 @@ def _load_punctuation_model():
             logger.info("Punctuation restoration model loaded successfully")
         except Exception as exc:
             logger.warning(
-                f"Punctuation restoration model unavailable: {exc}. "
-                "Segments will be aligned without punctuation restoration."
+                "Punctuation restoration model unavailable",
+                exc=str(exc),
+                note="Segments will be aligned without punctuation restoration.",
             )
             _punctuation_model = False
 
@@ -102,12 +103,13 @@ def _predict_punctuation_labels(texts: list[str]) -> list[list[str]]:
                 results.append([p[1] for p in predicted])
             else:
                 logger.warning(
-                    f"Punctuation label count mismatch: "
-                    f"{len(predicted)} vs {len(clean_words)}"
+                    "Punctuation label count mismatch",
+                    predicted=len(predicted),
+                    expected=len(clean_words),
                 )
                 results.append(["0"] * len(clean_words))
         except Exception as exc:
-            logger.warning(f"Punctuation prediction failed: {exc}")
+            logger.warning("Punctuation prediction failed", exc=str(exc))
             results.append(["0"] * len(text.split()))
 
     return results

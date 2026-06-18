@@ -3,6 +3,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 import asyncio
+import os
 
 from app.core.database import Base
 from app.models.user import User
@@ -14,6 +15,19 @@ from app.models.order import Order
 from app.models.comment import VideoComment, VideoCommentStats
 
 config = context.config
+
+# Resolve DATABASE_URL from environment — always overrides alembic.ini placeholder.
+database_url = os.environ.get("DATABASE_URL")
+if not database_url:
+    # Fall back to app config if DATABASE_URL env var is not set directly
+    try:
+        from app.core.config import get_settings
+        database_url = get_settings().database_url
+    except Exception:
+        pass
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

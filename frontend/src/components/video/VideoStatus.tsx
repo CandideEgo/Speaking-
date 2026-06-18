@@ -10,9 +10,9 @@ const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; clas
     className: 'bg-green-50 text-green-700',
   },
   ready_subtitles: {
-    icon: <CheckCircle2 size={14} className="text-coral" />,
-    label: '可观看',
-    className: 'bg-coral/10 text-coral',
+    icon: <Loader2 size={14} className="animate-spin text-amber-500" />,
+    label: '视频处理中',
+    className: 'bg-amber-50 text-amber-700',
   },
   error: {
     icon: <AlertCircle size={14} className="text-red-500" />,

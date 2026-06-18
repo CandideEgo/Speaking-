@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import type { User, Video } from '@/types';
 import { cn } from '@/lib/utils';
 import {
@@ -19,6 +20,7 @@ type AdminTab = 'videos' | 'invites';
 
 export default function AdminPage() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [user, setUser] = useState<User | null>(null);
   const [tab, setTab] = useState<AdminTab>('videos');
   const [loading, setLoading] = useState(true);
@@ -32,7 +34,7 @@ export default function AdminPage() {
   const [loadingCodes, setLoadingCodes] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) { router.push('/login'); return; }
+    if (!isAuthenticated) { router.push('/login'); return; }
     api<User>('/api/v1/users/me')
       .then((u) => {
         setUser(u);
@@ -72,8 +74,10 @@ export default function AdminPage() {
 
   async function loadCodes() {
     setLoadingCodes(true);
-    try { setCodes(await api<InviteCode[]>('/api/v1/invite-codes?limit=100')); }
-    catch { toast.error('加载兑换码失败'); }
+    try {
+      const data = await api<{ items: InviteCode[]; page: number; page_size: number; has_more: boolean }>('/api/v1/invite-codes?page=1&page_size=100');
+      setCodes(data.items);
+    } catch { toast.error('加载兑换码失败'); }
     finally { setLoadingCodes(false); }
   }
 

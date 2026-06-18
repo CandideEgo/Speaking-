@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, setToken } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +24,7 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setToken(res.token);
+      login(res.token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败，请重试");
@@ -70,6 +72,11 @@ export default function LoginPage() {
               required
               className="input-field mt-1.5"
             />
+            <div className="mt-1.5 text-right">
+              <Link href="/forgot-password" className="text-xs text-coral hover:underline font-medium">
+                忘记密码?
+              </Link>
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

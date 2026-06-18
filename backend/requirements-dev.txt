@@ -1,0 +1,7 @@
+# Test and development dependencies
+# Install with: pip install -r requirements-dev.txt
+
+pytest>=8.2.0
+pytest-asyncio>=0.23.7
+pytest-cov>=5.0.0
+aiosqlite>=0.20.0

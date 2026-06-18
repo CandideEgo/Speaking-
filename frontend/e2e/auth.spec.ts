@@ -3,61 +3,124 @@ import { test, expect } from '@playwright/test';
 const TEST_EMAIL = `e2e-${Date.now()}@test.com`;
 const TEST_PASSWORD = 'e2epass123';
 
-test.describe('Authentication', () => {
-  test('landing page loads and shows public videos', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('h1, a').filter({ hasText: /Speaking/i }).first()).toBeVisible();
-  });
-
-  test('register flow creates account and redirects to dashboard', async ({ page }) => {
+test.describe('Authentication — Registration', () => {
+  test('full registration flow: fill form, submit, redirect to dashboard', async ({ page }) => {
     await page.goto('/register');
 
-    await page.fill('input[type="email"]', TEST_EMAIL);
-    await page.fill('input[type="password"]', TEST_PASSWORD);
-    // Fill name input if present
-    const nameInput = page.locator('input[type="text"], input[name="name"]').first();
-    if (await nameInput.isVisible()) {
-      await nameInput.fill('E2E Test User');
-    }
+    // Fill the registration form
+    await page.locator('input[type="text"]').fill('E2E Test User');
+    await page.locator('input[type="email"]').fill(TEST_EMAIL);
+    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
 
-    await page.click('button[type="submit"]');
+    // Submit
+    await page.locator('button[type="submit"]').click();
 
-    // Should redirect to dashboard or show success
-    await page.waitForURL(/dashboard|\//, { timeout: 10000 });
+    // Should redirect to dashboard
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    expect(page.url()).toContain('/dashboard');
+
+    // Verify the page loaded — dashboard should have visible content
+    await expect(page.locator('main')).toBeVisible();
   });
 
-  test('login with valid credentials shows dashboard', async ({ page }) => {
+  test('registration with missing required fields shows validation', async ({ page }) => {
+    await page.goto('/register');
+
+    // Submit without filling anything
+    await page.locator('button[type="submit"]').click();
+
+    // Browser HTML5 validation should prevent submission; stay on register page
+    expect(page.url()).toContain('/register');
+  });
+});
+
+test.describe('Authentication — Login', () => {
+  test('full login flow: fill form, submit, dashboard loads', async ({ page }) => {
     await page.goto('/login');
 
-    await page.fill('input[type="email"]', TEST_EMAIL);
-    await page.fill('input[type="password"]', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
+    await page.locator('input[type="email"]').fill(TEST_EMAIL);
+    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
+    await page.locator('button[type="submit"]').click();
 
     // Should navigate to dashboard
-    await page.waitForURL(/dashboard/, { timeout: 10000 });
-    await expect(page.locator('h1')).toBeVisible();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    expect(page.url()).toContain('/dashboard');
+    await expect(page.locator('main')).toBeVisible();
   });
 
-  test('login with invalid credentials shows error', async ({ page }) => {
+  test('failed login: wrong credentials shows error message', async ({ page }) => {
     await page.goto('/login');
 
-    await page.fill('input[type="email"]', 'nobody@example.com');
-    await page.fill('input[type="password"]', 'wrongpassword');
-    await page.click('button[type="submit"]');
+    await page.locator('input[type="email"]').fill('nobody@example.com');
+    await page.locator('input[type="password"]').fill('wrongpassword');
+    await page.locator('button[type="submit"]').click();
 
-    // Should show error toast or stay on login page
-    await expect(page.locator('[data-sonner-toast], .text-red-500, .text-red-600').first()).toBeVisible({ timeout: 5000 }).catch(() => {
-      // Fallback: should still be on login page
-      expect(page.url()).toContain('/login');
-    });
+    // Should display an error message (red text from the component)
+    const errorText = page.locator('p.text-red-600');
+    await expect(errorText).toBeVisible({ timeout: 5000 });
+
+    // Should remain on the login page
+    expect(page.url()).toContain('/login');
   });
+});
 
-  test('dashboard redirects to login when unauthenticated', async ({ page }) => {
+test.describe('Authentication — Guards and Logout', () => {
+  test('auth guard: unauthenticated visit to /dashboard redirects to /login', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.waitForURL(/login/, { timeout: 5000 });
+
+    // Should redirect to login
+    await page.waitForURL(/\/login/, { timeout: 10000 });
     expect(page.url()).toContain('/login');
   });
 
+  test('logout flow: login, click logout, verify redirect, verify dashboard blocked', async ({ page }) => {
+    // Login first
+    await page.goto('/login');
+    await page.locator('input[type="email"]').fill(TEST_EMAIL);
+    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+
+    // Click the logout button (aria-label on TopBar)
+    await page.locator('button[aria-label="退出登录"]').click();
+
+    // Should redirect to /login
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(page.url()).toContain('/login');
+
+    // Verify dashboard is now blocked
+    await page.goto('/dashboard');
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(page.url()).toContain('/login');
+  });
+});
+
+test.describe('Authentication — Password Reset', () => {
+  test('forgot password link is visible on login page', async ({ page }) => {
+    await page.goto('/login');
+
+    const forgotLink = page.locator('a[href="/forgot-password"]');
+    await expect(forgotLink).toBeVisible();
+    await expect(forgotLink).toHaveText(/忘记密码/);
+  });
+
+  test('forgot password page loads with form visible', async ({ page }) => {
+    await page.goto('/forgot-password');
+
+    // Verify the page heading
+    await expect(page.locator('h1')).toHaveText(/重置密码/);
+
+    // Verify the email input and submit button are present
+    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expect(page.locator('button[type="submit"]')).toBeVisible();
+    await expect(page.locator('button[type="submit"]')).toHaveText(/发送重置链接/);
+
+    // Verify the back-to-login link
+    await expect(page.locator('a[href="/login"]')).toBeVisible();
+  });
+});
+
+test.describe('Authentication — Cross-Page Links', () => {
   test('register page has link to login', async ({ page }) => {
     await page.goto('/register');
     const loginLink = page.locator('a[href*="login"]');

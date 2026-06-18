@@ -37,10 +37,14 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
   if (!items.length) return null;
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl">
+    <div className="relative w-full overflow-hidden rounded-xl" aria-roledescription="轮播" aria-label="推荐横幅" onKeyDown={(e) => {
+      if (e.key === 'ArrowLeft') { prev(); }
+      else if (e.key === 'ArrowRight') { next(); }
+    }}>
       <div
         className="flex transition-transform duration-500 ease-out"
         style={{ transform: `translateX(-${current * 100}%)` }}
+        aria-live="polite"
       >
         {items.map((item) => (
           <div key={item.id} className="w-full flex-shrink-0">
@@ -52,8 +56,8 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="h-full w-full bg-gradient-to-r from-[#00aeec]/20 to-[#fb7299]/20 flex items-center justify-center">
-                  <span className="text-xl font-bold text-[#18191c]">{item.title}</span>
+                <div className="h-full w-full bg-gradient-to-r from-platform-bilibili/20 to-platform-bilibili-pink/20 flex items-center justify-center">
+                  <span className="text-xl font-bold text-ink">{item.title}</span>
                 </div>
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
@@ -71,12 +75,14 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
           <button
             onClick={prev}
             className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/80 hover:bg-white flex items-center justify-center shadow-sm transition-colors"
+            aria-label="上一张"
           >
             <ChevronLeft size={16} />
           </button>
           <button
             onClick={next}
             className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/80 hover:bg-white flex items-center justify-center shadow-sm transition-colors"
+            aria-label="下一张"
           >
             <ChevronRight size={16} />
           </button>
@@ -94,6 +100,7 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
                 'h-1.5 rounded-full transition-all',
                 index === current ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
               )}
+              aria-label={`跳转到第 ${index + 1} 张`}
             />
           ))}
         </div>

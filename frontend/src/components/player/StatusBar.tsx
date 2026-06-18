@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatTime } from '@/lib/utils';
+import { formatTime } from '@/lib/format';
 import {
   Repeat, Eraser, Sparkles, Gauge, Maximize,
   Play, Pause, SkipBack, SkipForward,
@@ -48,10 +48,21 @@ export default function StatusBar({
       {/* Progress bar */}
       <div
         className="h-1 bg-hairline cursor-pointer group"
+        role="slider"
+        tabIndex={0}
+        aria-label="播放进度"
+        aria-valuenow={Math.round(progress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`${formatTime(currentTime)} / ${formatTime(duration)}`}
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const percent = (e.clientX - rect.left) / rect.width;
           onSeekTo(percent * duration);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') { onSeekTo(Math.min(currentTime + 5, duration)); }
+          else if (e.key === 'ArrowLeft') { onSeekTo(Math.max(currentTime - 5, 0)); }
         }}
       >
         <div
@@ -81,6 +92,7 @@ export default function StatusBar({
             onClick={onPrevSubtitle}
             className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="上一句"
+            aria-label="上一句"
           >
             <SkipBack size={14} />
           </button>
@@ -88,6 +100,7 @@ export default function StatusBar({
             onClick={onTogglePlay}
             className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title={isPlaying ? '暂停' : '播放'}
+            aria-label={isPlaying ? '暂停' : '播放'}
           >
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
@@ -95,6 +108,7 @@ export default function StatusBar({
             onClick={onNextSubtitle}
             className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="下一句"
+            aria-label="下一句"
           >
             <SkipForward size={14} />
           </button>
@@ -112,6 +126,7 @@ export default function StatusBar({
                 : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="连播"
+            aria-label={isLoopEnabled ? '关闭连播' : '开启连播'}
           >
             <Repeat size={12} />
             <span className="hidden sm:inline">连播</span>
@@ -127,6 +142,7 @@ export default function StatusBar({
                 : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="清屏"
+            aria-label={isCleanScreen ? '退出清屏' : '清屏'}
           >
             <Eraser size={12} />
             <span className="hidden sm:inline">清屏</span>
@@ -142,6 +158,7 @@ export default function StatusBar({
                 : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
             )}
             title="智能"
+            aria-label={isSmartMode ? '关闭智能模式' : '开启智能模式'}
           >
             <Sparkles size={12} />
             <span className="hidden sm:inline">智能</span>
@@ -158,6 +175,7 @@ export default function StatusBar({
                   : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
               )}
               title="倍速"
+              aria-label={showSpeedMenu ? '关闭倍速选择' : '打开倍速选择'}
             >
               <Gauge size={12} />
               <span className="font-mono">{playbackRate}x</span>
@@ -189,6 +207,7 @@ export default function StatusBar({
           <button
             className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
             title="全屏"
+            aria-label="全屏"
           >
             <Maximize size={14} />
           </button>

@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import { Sparkles, Loader2, CheckCircle2, Gift } from 'lucide-react';
 
 export default function RedeemPage() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const loggedIn = typeof window !== 'undefined' && !!getToken();
 
   async function handleRedeem(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +43,7 @@ export default function RedeemPage() {
           <p className="mt-2 text-sm text-muted-foreground">输入购买获得的兑换码，立即升级</p>
         </div>
 
-        {!loggedIn ? (
+        {!isAuthenticated ? (
           <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
             <p className="text-sm text-amber-800">
               请先<a href="/login" className="font-semibold underline">登录</a>或<a href="/register" className="font-semibold underline">注册</a>账号

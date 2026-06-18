@@ -1,18 +1,30 @@
-from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+"""Vocabulary route handlers — thin HTTP layer only.
+
+All business logic lives in app.services.vocabulary_service.
+These handlers parse requests, call the service, and return responses.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from app.core.database import get_db
 from app.models.user import User
-from app.models.learning import Vocabulary
-from app.services.sr_service import calculate_next_review
 from app.api.dependencies import get_current_user
+from app.core.limiter import rate_limit
+from app.services.vocabulary_service import (
+    add_word as _add_word,
+    list_vocabulary as _list_vocabulary,
+    review_word as _review_word,
+    remove_word as _remove_word,
+)
 
 router = APIRouter(prefix="/vocabulary", tags=["vocabulary"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@rate_limit("10/minute")
 async def add_word(
+    request: Request,
     word: str,
     context_sentence: str | None = None,
     video_id: str | None = None,
@@ -20,158 +32,53 @@ async def add_word(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a word to personal vocabulary."""
-    # Check for duplicates
-    existing = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.user_id == current_user.id,
-            Vocabulary.word == word.strip().lower(),
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Word already in vocabulary")
-
-    vocab = Vocabulary(
-        user_id=current_user.id,
-        word=word.strip().lower(),
-        context_sentence=context_sentence,
-        video_id=video_id,
-    )
-    db.add(vocab)
-    await db.commit()
-    await db.refresh(vocab)
-
-    return {
-        "id": vocab.id,
-        "word": vocab.word,
-        "context_sentence": vocab.context_sentence,
-        "created_at": vocab.created_at.isoformat(),
-    }
+    try:
+        return await _add_word(db, current_user.id, word, context_sentence, video_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("")
+@rate_limit("30/minute")
 async def list_vocabulary(
+    request: Request,
     due_only: bool = Query(False, description="Only show words due for review"),
-    limit: int = Query(50, le=200),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List vocabulary words. Optionally filter to only due words."""
-    now = datetime.now(timezone.utc)
-    stmt = select(Vocabulary).where(Vocabulary.user_id == current_user.id)
-
-    if due_only:
-        stmt = stmt.where(
-            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now)
-        )
-
-    stmt = stmt.order_by(Vocabulary.created_at.desc()).limit(limit)
-    result = await db.execute(stmt)
-    words = result.scalars().all()
-
-    # Count stats
-    total_result = await db.execute(
-        select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id)
-    )
-    total = total_result.scalar() or 0
-
-    due_count_result = await db.execute(
-        select(func.count(Vocabulary.id)).where(
-            Vocabulary.user_id == current_user.id,
-            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
-        )
-    )
-    due_count = due_count_result.scalar() or 0
-
-    return {
-        "words": [
-            {
-                "id": w.id,
-                "word": w.word,
-                "context_sentence": w.context_sentence,
-                "review_count": w.review_count,
-                "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
-                "created_at": w.created_at.isoformat(),
-            }
-            for w in words
-        ],
-        "stats": {
-            "total": total,
-            "due": due_count,
-        },
-    }
+    return await _list_vocabulary(db, current_user.id, due_only, page, page_size)
 
 
 @router.post("/{word_id}/review")
+@rate_limit("10/minute")
 async def review_word(
+    request: Request,
     word_id: str,
     quality: int = Query(..., ge=0, le=5, description="Self-assessment 0-5"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Record a review of a word with SM-2 spaced repetition."""
-    result = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.id == word_id,
-            Vocabulary.user_id == current_user.id,
-        )
-    )
-    vocab = result.scalar_one_or_none()
-    if not vocab:
-        raise HTTPException(status_code=404, detail="Word not found")
-
-    # SM-2 calculation
-    current_interval = (vocab.next_review_at - vocab.created_at).days if vocab.next_review_at else 0
-    if current_interval < 0:
-        current_interval = 0
-
-    # Use default ease factor and interval for new words
-    ef = 2.5
-    if vocab.review_count > 0 and vocab.last_reviewed_at and vocab.next_review_at:
-        interval_days = (vocab.next_review_at - vocab.last_reviewed_at).days
-        if interval_days < 1:
-            interval_days = 1
-        # Approximate EF (we don't store it, so use default)
-        ef = 2.5
-    else:
-        interval_days = 0
-
-    next_interval, new_ef, new_review_count = calculate_next_review(
-        quality, vocab.review_count, ef, interval_days
-    )
-
-    now = datetime.now(timezone.utc)
-    vocab.review_count = new_review_count
-    vocab.last_reviewed_at = now
-    vocab.next_review_at = now + timedelta(days=next_interval)
-
-    await db.commit()
-
-    return {
-        "id": vocab.id,
-        "word": vocab.word,
-        "next_review_at": vocab.next_review_at.isoformat(),
-        "interval_days": next_interval,
-        "review_count": vocab.review_count,
-    }
+    try:
+        return await _review_word(db, word_id, current_user.id, quality)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/{word_id}")
+@rate_limit("10/minute")
 async def remove_word(
+    request: Request,
     word_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a word from vocabulary."""
-    result = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.id == word_id,
-            Vocabulary.user_id == current_user.id,
-        )
-    )
-    vocab = result.scalar_one_or_none()
-    if not vocab:
-        raise HTTPException(status_code=404, detail="Word not found")
-
-    await db.delete(vocab)
-    await db.commit()
+    try:
+        await _remove_word(db, word_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return {"success": True}

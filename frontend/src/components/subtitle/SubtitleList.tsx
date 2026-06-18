@@ -1,22 +1,12 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
-import { formatTime } from '@/lib/utils';
+import { formatTime } from '@/lib/format';
 import { Mic, Play, Copy, Heart, Edit3, Check } from 'lucide-react';
 
 import { useWatchStore } from '@/stores/watchStore';
-
-interface Subtitle {
-  id: string;
-  start_time: number;
-  end_time: number;
-  text_en: string;
-  text_zh: string | null;
-  grammar_note?: string | null;
-  difficulty_words?: string | null;
-  speaker?: string | null;
-}
+import type { Subtitle } from '@/types';
 
 interface SubtitleListProps {
   subtitles: Subtitle[];
@@ -88,7 +78,8 @@ function groupSubtitlesBySpeaker(subtitles: Subtitle[]): { speaker: string | nul
 
   return groups;
 }
-function HighlightedText({
+
+const HighlightedText = memo(function HighlightedText({
   text,
   highlightWords,
   selectedWord,
@@ -118,6 +109,9 @@ function HighlightedText({
               e.stopPropagation();
               onWordClick(word);
             }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onWordClick(word); } }}
             className={cn(
               'cursor-pointer rounded transition-colors duration-150',
               isHighlighted && 'bg-red-100 text-red-700 px-0.5',
@@ -131,7 +125,172 @@ function HighlightedText({
       })}
     </span>
   );
+});
+
+interface SubtitleItemProps {
+  sub: Subtitle;
+  index: number;
+  isActive: boolean;
+  selectedWord: string | null;
+  showEnglishOnly: boolean;
+  copiedId: string | null;
+  favorited: boolean;
+  onSubtitleClick: (index: number, startTime: number) => void;
+  onWordClick: (word: string) => void;
+  onCopy: (subtitleId: string, text: string) => void;
+  onFavorite: (subtitleId: string) => void;
+  onStartSpeaking: (subtitleId: string) => void;
 }
+
+const SubtitleItem = memo(function SubtitleItem({
+  sub,
+  index,
+  isActive,
+  selectedWord,
+  showEnglishOnly,
+  copiedId,
+  favorited,
+  onSubtitleClick,
+  onWordClick,
+  onCopy,
+  onFavorite,
+  onStartSpeaking,
+}: SubtitleItemProps) {
+  const highlightWords = useMemo(() => parseDifficultyWords(sub.difficulty_words), [sub.difficulty_words]);
+
+  return (
+    <div
+      id={`subtitle-${index}`}
+      className={cn(
+        'group relative rounded-xl transition-all duration-200',
+        isActive
+          ? 'bg-cream-card shadow-sm border border-coral/30'
+          : 'hover:bg-cream-soft/50'
+      )}
+    >
+      {/* Main content area */}
+      <button
+        onClick={() => onSubtitleClick(index, sub.start_time)}
+        className="w-full text-left px-4 py-3"
+      >
+        {/* Phonetic / IPA line */}
+        <p className="text-[13px] text-muted-foreground font-mono italic mb-1.5">
+          {generatePhonetic(sub.text_en)}
+        </p>
+
+        {/* English text with highlighted words */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <HighlightedText
+              text={sub.text_en}
+              highlightWords={highlightWords}
+              selectedWord={selectedWord}
+              onWordClick={onWordClick}
+            />
+          </div>
+        </div>
+
+        {/* Chinese translation */}
+        {!showEnglishOnly && sub.text_zh && (
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {sub.text_zh}
+          </p>
+        )}
+
+        {/* Grammar note */}
+        {sub.grammar_note && (
+          <p className="mt-1.5 text-xs text-amber-600/80">
+            提示：{sub.grammar_note}
+          </p>
+        )}
+      </button>
+
+      {/* Bottom action bar: timestamp + action buttons */}
+      <div className="flex items-center justify-between px-4 pb-3">
+        {/* Timestamp and index */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {index + 1}
+          </span>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
+          </span>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSubtitleClick(index, sub.start_time);
+            }}
+            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            title="播放"
+            aria-label="播放此句"
+          >
+            <Play size={14} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy(sub.id, sub.text_en);
+            }}
+            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            title="复制"
+            aria-label="复制字幕"
+          >
+            {copiedId === sub.id ? (
+              <Check size={14} className="text-green-500" />
+            ) : (
+              <Copy size={14} />
+            )}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onFavorite(sub.id);
+            }}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors',
+              favorited
+                ? 'text-coral bg-coral/10'
+                : 'text-ink/70 hover:text-coral hover:bg-coral/10'
+            )}
+            title="收藏"
+            aria-label="收藏字幕"
+          >
+            <Heart
+              size={14}
+              className={favorited ? 'fill-current' : ''}
+            />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // TODO: Implement edit functionality
+            }}
+            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            title="编辑"
+            aria-label="编辑字幕"
+          >
+            <Edit3 size={14} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartSpeaking(sub.id);
+            }}
+            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            title="练习这句"
+            aria-label="练习口语"
+          >
+            <Mic size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function SubtitleList({
   subtitles,
@@ -145,6 +304,13 @@ export default function SubtitleList({
   const [favorited, setFavorited] = useState<Set<string>>(new Set());
   const { subtitleMode } = useWatchStore();
   const showEnglishOnly = subtitleMode === 'english';
+
+  // Pre-compute subtitle id -> index map for O(1) lookups
+  const subtitleIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    subtitles.forEach((sub, i) => map.set(sub.id, i));
+    return map;
+  }, [subtitles]);
 
   const handleCopy = useCallback(async (subtitleId: string, text: string) => {
     try {
@@ -168,9 +334,21 @@ export default function SubtitleList({
     });
   }, []);
 
+  // Pre-compute grouped subtitles with indices from the map
+  const groups = useMemo(() => {
+    const grouped = groupSubtitlesBySpeaker(subtitles);
+    return grouped.map(group => ({
+      speaker: group.speaker,
+      items: group.subtitles.map(sub => ({
+        sub,
+        index: subtitleIndexMap.get(sub.id)!,
+      })),
+    }));
+  }, [subtitles, subtitleIndexMap]);
+
   return (
     <div className="flex flex-col gap-2 p-3">
-      {groupSubtitlesBySpeaker(subtitles).map((group, groupIdx) => {
+      {groups.map((group, groupIdx) => {
         const speaker = group.speaker;
         const speakerColor = speaker ? getSpeakerColor(speaker) : '';
 
@@ -192,140 +370,23 @@ export default function SubtitleList({
             )}
 
             {/* Subtitles in this group */}
-            {group.subtitles.map((sub) => {
-              const i = subtitles.indexOf(sub);
-              const isActive = i === currentIndex;
-              const highlightWords = useMemo(() => parseDifficultyWords(sub.difficulty_words), [sub.difficulty_words]);
-
-              return (
-                <div
-                  key={sub.id}
-                  id={`subtitle-${i}`}
-                  className={cn(
-                    'group relative rounded-xl transition-all duration-200',
-                    isActive
-                      ? 'bg-cream-card shadow-sm border border-coral/30'
-                      : 'hover:bg-cream-soft/50'
-                  )}
-                >
-                  {/* Main content area */}
-                  <button
-                    onClick={() => onSubtitleClick(i, sub.start_time)}
-                    className="w-full text-left px-4 py-3"
-                  >
-                    {/* Phonetic / IPA line */}
-                    <p className="text-[13px] text-muted-foreground font-mono italic mb-1.5">
-                      {generatePhonetic(sub.text_en)}
-                    </p>
-
-                    {/* English text with highlighted words */}
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <HighlightedText
-                          text={sub.text_en}
-                          highlightWords={highlightWords}
-                          selectedWord={selectedWord}
-                          onWordClick={onWordClick}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Chinese translation */}
-                    {!showEnglishOnly && sub.text_zh && (
-                      <p className="mt-1.5 text-sm text-muted-foreground">
-                        {sub.text_zh}
-                      </p>
-                    )}
-
-                    {/* Grammar note */}
-                    {sub.grammar_note && (
-                      <p className="mt-1.5 text-xs text-amber-600/80">
-                        提示：{sub.grammar_note}
-                      </p>
-                    )}
-                  </button>
-
-                  {/* Bottom action bar: timestamp + action buttons */}
-                  <div className="flex items-center justify-between px-4 pb-3">
-                    {/* Timestamp and index */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        {i + 1}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
-                      </span>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSubtitleClick(i, sub.start_time);
-                        }}
-                        className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
-                        title="播放"
-                      >
-                        <Play size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopy(sub.id, sub.text_en);
-                        }}
-                        className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
-                        title="复制"
-                      >
-                        {copiedId === sub.id ? (
-                          <Check size={14} className="text-green-500" />
-                        ) : (
-                          <Copy size={14} />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFavorite(sub.id);
-                        }}
-                        className={cn(
-                          'p-1.5 rounded-lg transition-colors',
-                          favorited.has(sub.id)
-                            ? 'text-coral bg-coral/10'
-                            : 'text-ink/70 hover:text-coral hover:bg-coral/10'
-                        )}
-                        title="收藏"
-                      >
-                        <Heart
-                          size={14}
-                          className={favorited.has(sub.id) ? 'fill-current' : ''}
-                        />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Implement edit functionality
-                        }}
-                        className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
-                        title="编辑"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStartSpeaking(sub.id);
-                        }}
-                        className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
-                        title="练习这句"
-                      >
-                        <Mic size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {group.items.map(({ sub, index }) => (
+              <SubtitleItem
+                key={sub.id}
+                sub={sub}
+                index={index}
+                isActive={index === currentIndex}
+                selectedWord={selectedWord}
+                showEnglishOnly={showEnglishOnly}
+                copiedId={copiedId}
+                favorited={favorited.has(sub.id)}
+                onSubtitleClick={onSubtitleClick}
+                onWordClick={onWordClick}
+                onCopy={handleCopy}
+                onFavorite={handleFavorite}
+                onStartSpeaking={onStartSpeaking}
+              />
+            ))}
           </div>
         );
       })}
