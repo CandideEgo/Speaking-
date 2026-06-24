@@ -1,5 +1,5 @@
 """Tests for invite code endpoints."""
-import pytest
+
 from httpx import AsyncClient
 
 
@@ -42,9 +42,7 @@ class TestRedeemCode:
         )
         return resp.json()[0]["code"]
 
-    async def test_redeem_upgrades_user(
-        self, client: AsyncClient, auth_headers: dict, admin_headers: dict
-    ):
+    async def test_redeem_upgrades_user(self, client: AsyncClient, auth_headers: dict, admin_headers: dict):
         code = await self._generate_code(client, admin_headers)
 
         resp = await client.post(
@@ -69,9 +67,7 @@ class TestRedeemCode:
         )
         assert resp.status_code == 404
 
-    async def test_redeem_already_used_code(
-        self, client: AsyncClient, auth_headers: dict, admin_headers: dict
-    ):
+    async def test_redeem_already_used_code(self, client: AsyncClient, auth_headers: dict, admin_headers: dict):
         code = await self._generate_code(client, admin_headers)
 
         # First redeem — success
@@ -82,14 +78,20 @@ class TestRedeemCode:
         )
 
         # Create another user and try to use same code
-        await client.post("/api/v1/auth/register", json={
-            "email": "another@example.com",
-            "password": "pass123456",
-        })
-        login_resp = await client.post("/api/v1/auth/login", json={
-            "email": "another@example.com",
-            "password": "pass123456",
-        })
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "another@example.com",
+                "password": "Anotherpass1!",
+            },
+        )
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "another@example.com",
+                "password": "Anotherpass1!",
+            },
+        )
         token = login_resp.json()["token"]
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -126,9 +128,7 @@ class TestListAndExport:
         assert "items" in data
         assert isinstance(data["items"], list)
 
-    async def test_export_as_admin(
-        self, client: AsyncClient, admin_headers: dict
-    ):
+    async def test_export_as_admin(self, client: AsyncClient, admin_headers: dict):
         # Generate some codes first
         await client.post(
             "/api/v1/invite-codes/generate",

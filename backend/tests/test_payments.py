@@ -1,5 +1,5 @@
 """Tests for payment endpoints."""
-import pytest
+
 from httpx import AsyncClient
 
 
@@ -8,9 +8,7 @@ class TestCreateOrder:
         resp = await client.post("/api/v1/payments/create-order")
         assert resp.status_code == 401
 
-    async def test_create_order_for_free_user(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_create_order_for_free_user(self, client: AsyncClient, auth_headers: dict):
         resp = await client.post(
             "/api/v1/payments/create-order",
             headers=auth_headers,
@@ -22,9 +20,7 @@ class TestCreateOrder:
         assert data["amount"] == 3900
         assert data["currency"] == "CNY"
 
-    async def test_create_order_pro_user_blocked(
-        self, client: AsyncClient, admin_headers: dict
-    ):
+    async def test_create_order_pro_user_blocked(self, client: AsyncClient, admin_headers: dict):
         # Admin is already Pro
         resp = await client.post(
             "/api/v1/payments/create-order",
@@ -34,9 +30,7 @@ class TestCreateOrder:
         assert resp.status_code == 400
         assert "already" in resp.json()["detail"].lower()
 
-    async def test_create_order_invalid_plan(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_create_order_invalid_plan(self, client: AsyncClient, auth_headers: dict):
         resp = await client.post(
             "/api/v1/payments/create-order",
             headers=auth_headers,
@@ -47,9 +41,7 @@ class TestCreateOrder:
 
 
 class TestMockPay:
-    async def test_mock_pay_upgrades_user(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_mock_pay_upgrades_user(self, client: AsyncClient, auth_headers: dict):
         # Create order
         order = await client.post(
             "/api/v1/payments/create-order",
@@ -98,9 +90,7 @@ class TestVocabulary:
         assert resp.status_code == 201
         assert resp.json()["word"] == "serendipity"
 
-    async def test_add_duplicate_word(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_add_duplicate_word(self, client: AsyncClient, auth_headers: dict):
         await client.post(
             "/api/v1/vocabulary",
             headers=auth_headers,
@@ -125,8 +115,8 @@ class TestVocabulary:
         # The vocabulary list endpoint returns a paginated dict with stats
         assert isinstance(data, dict)
         assert data["stats"]["total"] >= 1
-        assert isinstance(data["items"], list)
-        assert len(data["items"]) >= 1
+        assert isinstance(data["words"], list)
+        assert len(data["words"]) >= 1
 
     async def test_review_word(self, client: AsyncClient, auth_headers: dict):
         # Add word

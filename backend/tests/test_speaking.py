@@ -1,5 +1,5 @@
 """Tests for speaking practice endpoints."""
-import pytest
+
 from httpx import AsyncClient
 
 
@@ -8,9 +8,7 @@ class TestSpeakingStats:
         resp = await client.get("/api/v1/speaking/stats")
         assert resp.status_code == 401
 
-    async def test_stats_returns_zero_for_new_user(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_stats_returns_zero_for_new_user(self, client: AsyncClient, auth_headers: dict):
         resp = await client.get("/api/v1/speaking/stats", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
@@ -23,9 +21,7 @@ class TestSpeakingAttempts:
         resp = await client.get("/api/v1/speaking/attempts")
         assert resp.status_code == 401
 
-    async def test_attempts_returns_empty_for_new_user(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_attempts_returns_empty_for_new_user(self, client: AsyncClient, auth_headers: dict):
         resp = await client.get("/api/v1/speaking/attempts", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
@@ -40,11 +36,10 @@ class TestSubmitPractice:
         resp = await client.post("/api/v1/speaking/practice")
         assert resp.status_code == 401  # or 422 for missing form data
 
-    async def test_practice_invalid_subtitle_id(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_practice_invalid_subtitle_id(self, client: AsyncClient, auth_headers: dict):
         # Create a fake audio file
         from io import BytesIO
+
         audio_content = BytesIO(b"fake audio data")
         resp = await client.post(
             "/api/v1/speaking/practice",

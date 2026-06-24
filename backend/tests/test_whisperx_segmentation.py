@@ -3,10 +3,9 @@
 import pytest
 
 from app.services.transcription.formatters import (
-    whisperx_segments_to_subtitles,
     whisper_segments_to_subtitles,
+    whisperx_segments_to_subtitles,
 )
-
 
 # ---------------------------------------------------------------------------
 # whisperx_segments_to_subtitles tests
