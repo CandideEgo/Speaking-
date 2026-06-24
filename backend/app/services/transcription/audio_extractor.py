@@ -1,23 +1,22 @@
 """Audio extraction from various video sources.
 
 Supports:
-- Streaming URLs (YouTube, Bilibili, etc.) via yt-dlp pipe → ffmpeg
-- Douyin via Playwright direct extraction
+- Streaming URLs (YouTube, etc.) via yt-dlp pipe → ffmpeg (admin imports)
 - Local video files via ffmpeg
 """
 
-import asyncio
-import structlog
 import os
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
+import structlog
+
 from app.core.config import get_settings
+
 from .exceptions import AudioExtractionError
 
 logger = structlog.get_logger()
@@ -33,14 +32,22 @@ if hasattr(subprocess, "CREATE_NO_WINDOW"):
 
 # Known video streaming hostnames that yt-dlp can handle
 _VIDEO_HOSTS = {
-    "youtube.com", "youtu.be", "youtube-nocookie.com",
-    "twitter.com", "x.com", "fxwitter.com",
-    "bilibili.com", "b23.tv",
-    "douyin.com", "tiktok.com",
+    "youtube.com",
+    "youtu.be",
+    "youtube-nocookie.com",
+    "twitter.com",
+    "x.com",
+    "fxwitter.com",
+    "bilibili.com",
+    "b23.tv",
+    "douyin.com",
+    "tiktok.com",
     "vimeo.com",
-    "facebook.com", "fb.watch",
+    "facebook.com",
+    "fb.watch",
     "instagram.com",
-    "reddit.com", "redd.it",
+    "reddit.com",
+    "redd.it",
     "dailymotion.com",
     "twitch.tv",
     "soundcloud.com",
@@ -56,12 +63,6 @@ _VIDEO_HOSTS = {
 
 # URL patterns for normalizing search/share/modal URLs to direct video URLs
 _URL_NORMALIZERS = [
-    # Douyin search page with modal_id -> direct video URL
-    (re.compile(r"https?://(?:www\.)?douyin\.com/.*[?&]modal_id=(\d+).*"), r"https://www.douyin.com/video/\1"),
-    # Douyin short share links
-    (re.compile(r"https?://v\.douyin\.com/(\w+)"), None),
-    # TikTok share links
-    (re.compile(r"https?://(?:vm|vt|www)\.tiktok\.com/(\w+)"), None),
     # Bilibili: strip tracking params & normalize mobile/b23 to desktop
     (re.compile(r"https?://(?:m\.)?bilibili\.com/video/(BV\w+).*"), r"https://www.bilibili.com/video/\1/"),
     (re.compile(r"https?://b23\.tv/(\w+).*"), None),
@@ -141,14 +142,20 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
     ytdlp_cmd = [
         _get_ytdlp_path(),
         *extra,
-        "-o", "-",
+        "-o",
+        "-",
         "--no-playlist",
-        "-f", "bestaudio/best",
-        "--", url,
+        "-f",
+        "bestaudio/best",
+        "--",
+        url,
     ]
 
     ffmpeg_cmd = [
-        _get_ffmpeg_path(), "-y", "-i", "pipe:0",
+        _get_ffmpeg_path(),
+        "-y",
+        "-i",
+        "pipe:0",
         *_FFMPEG_WAV_ARGS,
         output_path,
     ]
@@ -186,7 +193,7 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
         logger.info("Audio extracted", path=output_path, size=os.path.getsize(output_path))
 
     except subprocess.TimeoutExpired:
-        raise AudioExtractionError("Audio extraction timed out (1800s)")
+        raise AudioExtractionError("Audio extraction timed out (1800s)") from None
     except Exception as e:
         if not isinstance(e, AudioExtractionError):
             raise AudioExtractionError(f"Audio extraction failed: {e}") from e
@@ -204,7 +211,10 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         AudioExtractionError: If extraction fails
     """
     cmd = [
-        _get_ffmpeg_path(), "-y", "-i", video_path,
+        _get_ffmpeg_path(),
+        "-y",
+        "-i",
+        video_path,
         *_FFMPEG_WAV_ARGS,
         output_path,
     ]
@@ -228,31 +238,11 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         logger.info("Audio extracted", path=output_path, size=os.path.getsize(output_path))
 
     except subprocess.TimeoutExpired:
-        raise AudioExtractionError("Audio extraction timed out (300s)")
+        raise AudioExtractionError("Audio extraction timed out (300s)") from None
     except Exception as e:
         if not isinstance(e, AudioExtractionError):
             raise AudioExtractionError(f"Audio extraction failed: {e}") from e
         raise
-
-
-def extract_douyin_audio(url: str, output_path: str) -> dict:
-    """Extract audio from a Douyin video URL using advanced Playwright extraction.
-
-    Uses the advanced Douyin extractor with stealth mode, API interception,
-    and embedded JSON parsing for reliable metadata and audio extraction.
-
-    Args:
-        url: Douyin video URL
-        output_path: Path to save the output WAV file
-
-    Returns:
-        dict: Rich metadata from Douyin (id, title, duration, thumbnail, etc.)
-
-    Raises:
-        AudioExtractionError: If extraction fails
-    """
-    from .douyin_extractor import extract_douyin_audio_advanced
-    return extract_douyin_audio_advanced(url, output_path)
 
 
 def get_video_duration(video_path: str) -> float:
@@ -266,9 +256,13 @@ def get_video_duration(video_path: str) -> float:
     """
     ffprobe_path = shutil.which("ffprobe") or "ffprobe"
     cmd = [
-        ffprobe_path, "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
+        ffprobe_path,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
         video_path,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)

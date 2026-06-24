@@ -12,9 +12,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-def whisperx_segments_to_subtitles(
-    segments: list[dict], offset: float = 0.0
-) -> list[dict]:
+def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) -> list[dict]:
     """Convert WhisperX aligned segments to Speaking subtitle format.
 
     Segments should already be sentence-segmented (via punctuation restoration
@@ -44,11 +42,13 @@ def whisperx_segments_to_subtitles(
             start = seg.get("start", 0.0) + offset
             end = seg.get("end", 0.0) + offset
 
-        results.append({
-            "start": float(start),
-            "end": float(end),
-            "text": text,
-        })
+        results.append(
+            {
+                "start": float(start),
+                "end": float(end),
+                "text": text,
+            }
+        )
     return results
 
 
@@ -77,9 +77,11 @@ def whisper_segments_to_subtitles(segments, offset: float = 0.0) -> list[dict]:
             start = seg.start
             end = seg.end
         if text:
-            results.append({
-                "start": float(start + offset),
-                "end": float(end + offset),
-                "text": text,
-            })
+            results.append(
+                {
+                    "start": float(start + offset),
+                    "end": float(end + offset),
+                    "text": text,
+                }
+            )
     return results

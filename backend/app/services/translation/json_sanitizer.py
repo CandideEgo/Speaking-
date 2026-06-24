@@ -9,7 +9,6 @@ This module provides a pure ``sanitize_json()`` function that normalises all
 known quirks so ``json.loads()`` can reliably parse the result.
 """
 
-import json
 import re
 
 

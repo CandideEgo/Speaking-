@@ -5,16 +5,18 @@ Splits long audio into chunks, transcribes each chunk with WhisperX
 """
 
 import asyncio
-import structlog
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
+import structlog
 
 from app.core.config import get_settings
-from .whisper_model import get_whisperx_model, get_align_model, _detect_device
-from .formatters import whisperx_segments_to_subtitles
+
 from .exceptions import AudioExtractionError
+from .formatters import whisperx_segments_to_subtitles
+from .whisper_model import _detect_device, get_align_model, get_whisperx_model
 
 logger = structlog.get_logger()
 
@@ -29,6 +31,7 @@ if hasattr(subprocess, "CREATE_NO_WINDOW"):
 
 def _get_ffmpeg_path() -> str:
     import shutil
+
     found = shutil.which("ffmpeg")
     return found or "ffmpeg"
 
@@ -92,15 +95,11 @@ async def transcribe_in_chunks(
 
         try:
             # Extract audio chunk
-            await loop.run_in_executor(
-                None, extract_audio, offset, current_chunk_duration, chunk_path
-            )
+            await loop.run_in_executor(None, extract_audio, offset, current_chunk_duration, chunk_path)
 
             # Transcribe with WhisperX (ASR + alignment) with concurrency limit
             async with semaphore:
-                segments = await loop.run_in_executor(
-                    None, _transcribe_single_chunk, chunk_path
-                )
+                segments = await loop.run_in_executor(None, _transcribe_single_chunk, chunk_path)
 
             # Convert to subtitles with offset — offset is passed directly
             # into the formatter so word-level timestamps are correctly shifted
@@ -129,6 +128,7 @@ def _transcribe_single_chunk(audio_path: str) -> list[dict]:
             Each: {"start": float, "end": float, "text": str, "words": [...]}
     """
     import whisperx
+
     from .punctuation import restore_punctuation
 
     settings = get_settings()
@@ -192,10 +192,14 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
 
         # Extract segment from local file
         ffmpeg_cmd = [
-            _get_ffmpeg_path(), "-y",
-            "-ss", str(offset),
-            "-i", audio_path,
-            "-t", str(current_chunk_duration),
+            _get_ffmpeg_path(),
+            "-y",
+            "-ss",
+            str(offset),
+            "-i",
+            audio_path,
+            "-t",
+            str(current_chunk_duration),
             *_FFMPEG_WAV_ARGS,
             chunk_path,
         ]
@@ -208,15 +212,12 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
         )
         if result.returncode != 0:
             raise AudioExtractionError(
-                f"Local chunk extraction failed at offset {offset:.0f}s\n"
-                f"stderr: {result.stderr[:300]}"
+                f"Local chunk extraction failed at offset {offset:.0f}s\nstderr: {result.stderr[:300]}"
             )
 
         try:
             async with semaphore:
-                segments = await loop.run_in_executor(
-                    None, _transcribe_single_chunk, chunk_path
-                )
+                segments = await loop.run_in_executor(None, _transcribe_single_chunk, chunk_path)
 
             # Pass offset directly to formatter — word timestamps are correctly shifted
             subs = whisperx_segments_to_subtitles(segments, offset=offset)

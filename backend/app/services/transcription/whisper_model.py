@@ -8,8 +8,9 @@ Also keeps the legacy get_whisper_model() for speaking_service.py, which
 needs fast, lightweight transcription of short audio clips without alignment.
 """
 
-import structlog
 from threading import Lock
+
+import structlog
 
 logger = structlog.get_logger()
 
@@ -41,6 +42,7 @@ def _detect_device() -> tuple[str, str]:
     if device == "auto":
         try:
             import torch
+
             if torch.cuda.is_available():
                 device = "cuda"
                 compute_type = "float16"
@@ -77,10 +79,7 @@ def get_whisperx_model():
         try:
             import whisperx
         except ImportError as exc:
-            raise RuntimeError(
-                "whisperx is not installed. "
-                "Install it with: pip install whisperx"
-            ) from exc
+            raise RuntimeError("whisperx is not installed. Install it with: pip install whisperx") from exc
 
         from app.core.config import get_settings
 
@@ -109,7 +108,7 @@ def get_whisperx_model():
                 vad_method=settings.whisperx_vad_method,
             )
             logger.info("WhisperX ASR model loaded successfully")
-        except Exception as e:
+        except Exception:
             logger.error("Failed to load WhisperX ASR model", device=device, exc_info=True)
             # Fallback to CPU
             if device == "cuda":
@@ -152,6 +151,7 @@ def get_align_model(language_code: str = "en"):
             return _align_models[language_code]
 
         import whisperx
+
         from app.core.config import get_settings
 
         settings = get_settings()
@@ -190,6 +190,7 @@ def release_whisperx_models():
 
     try:
         import torch
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             logger.info("GPU memory cleared")
@@ -202,6 +203,7 @@ def release_whisperx_models():
 # ---------------------------------------------------------------------------
 # Legacy faster-whisper model (for speaking_service.py)
 # ---------------------------------------------------------------------------
+
 
 def get_whisper_model():
     """Lazy-load the raw faster-whisper model (legacy, for speaking practice).
@@ -222,10 +224,7 @@ def get_whisper_model():
         try:
             from faster_whisper import WhisperModel
         except ImportError as exc:
-            raise RuntimeError(
-                "faster-whisper is not installed. "
-                "Install it with: pip install faster-whisper"
-            ) from exc
+            raise RuntimeError("faster-whisper is not installed. Install it with: pip install faster-whisper") from exc
 
         from app.core.config import get_settings
 
@@ -247,7 +246,7 @@ def get_whisper_model():
                 compute_type=compute_type,
             )
             logger.info("Legacy Whisper model loaded successfully")
-        except Exception as e:
+        except Exception:
             logger.error("Failed to load Whisper model", device=device, exc_info=True)
             if device == "cuda":
                 logger.info("Falling back to CPU (int8)")
@@ -270,6 +269,7 @@ def release_whisper_model():
         _whisper_model = None
         try:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 logger.info("GPU memory cleared (legacy model)")

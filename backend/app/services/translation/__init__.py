@@ -19,7 +19,8 @@ import structlog
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
-from .engines import EngineConfig, BUILTIN_ENGINES, DEFAULT_TRANSLATION_PROMPT
+
+from .engines import BUILTIN_ENGINES, DEFAULT_TRANSLATION_PROMPT, EngineConfig
 from .json_sanitizer import sanitize_json
 
 logger = structlog.get_logger()
@@ -38,17 +39,11 @@ class TranslationService:
         self._batch_size = settings.translation_batch_size or 20
 
         self._engine = self._resolve_engine(self._engine_name, settings)
-        self._fallback = (
-            self._resolve_engine(self._fallback_name, settings)
-            if self._fallback_name
-            else None
-        )
+        self._fallback = self._resolve_engine(self._fallback_name, settings) if self._fallback_name else None
 
         # Create AsyncOpenAI client for each engine
         self._client = self._make_client(self._engine)
-        self._fallback_client = (
-            self._make_client(self._fallback) if self._fallback else None
-        )
+        self._fallback_client = self._make_client(self._fallback) if self._fallback else None
 
         logger.info(
             "TranslationService initialized",
@@ -81,9 +76,7 @@ class TranslationService:
                 primary=self._engine.name,
                 fallback=self._fallback.name,
             )
-            result = await self._call_engine(
-                self._fallback_client, self._fallback, texts
-            )
+            result = await self._call_engine(self._fallback_client, self._fallback, texts)
             if result is not None:
                 return result
 
@@ -164,10 +157,7 @@ class TranslationService:
         Returns a **copy** so the original ``BUILTIN_ENGINES`` entry stays pristine.
         """
         if name not in BUILTIN_ENGINES:
-            raise ValueError(
-                f"Unknown translation engine: {name!r}. "
-                f"Available: {list(BUILTIN_ENGINES.keys())}"
-            )
+            raise ValueError(f"Unknown translation engine: {name!r}. Available: {list(BUILTIN_ENGINES.keys())}")
 
         cfg = copy.deepcopy(BUILTIN_ENGINES[name])
 
@@ -199,8 +189,7 @@ class TranslationService:
             )
         if not cfg.model:
             raise ValueError(
-                f"Translation engine {name!r} has no model configured. "
-                f"Set the appropriate TRANSLATION_*_MODEL in .env."
+                f"Translation engine {name!r} has no model configured. Set the appropriate TRANSLATION_*_MODEL in .env."
             )
 
         return cfg

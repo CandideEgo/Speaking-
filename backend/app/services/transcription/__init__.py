@@ -7,59 +7,47 @@ Uses WhisperX for high-quality transcription with:
 - NLTK Punkt sentence segmentation
 
 Supports:
-- YouTube (streaming audio extraction)
-- Bilibili (streaming audio extraction)
-- Douyin (Playwright direct extraction)
 - Local video files (ffmpeg audio extraction)
-- Any other URL yt-dlp can handle
+- Streaming URLs (yt-dlp pipe → ffmpeg) for admin imports
 """
 
 import asyncio
-import structlog
 import os
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from app.core.config import get_settings
-from app.models.video import Platform
+import structlog
 
-from .exceptions import TranscriptionError, AudioExtractionError, UnsupportedPlatformError
-from .whisper_model import get_whisperx_model, get_align_model, _detect_device
+from app.core.config import get_settings
+from app.models.video import VideoSource
+
 from .audio_extractor import (
-    extract_streaming_audio,
-    extract_local_audio,
-    extract_douyin_audio,
-    get_video_duration,
     _is_streaming_url,
+    extract_local_audio,
+    extract_streaming_audio,
+    get_video_duration,
 )
 from .chunked_transcription import transcribe_in_chunks, transcribe_local_chunks
+from .exceptions import AudioExtractionError, TranscriptionError, UnsupportedPlatformError
 from .formatters import whisperx_segments_to_subtitles
+from .whisper_model import _detect_device, get_align_model, get_whisperx_model
 
 logger = structlog.get_logger()
 
 
 class TranscriptionService:
-    """Unified transcription service for all video platforms."""
+    """Unified transcription service for all video sources."""
 
     def __init__(self):
         self.settings = get_settings()
-        self._last_douyin_metadata: dict | None = None
 
-    def get_last_douyin_metadata(self) -> dict | None:
-        """Return metadata from the last Douyin extraction, if any."""
-        return self._last_douyin_metadata
-
-    def clear_douyin_metadata(self) -> None:
-        """Clear cached Douyin metadata."""
-        self._last_douyin_metadata = None
-
-    async def transcribe(self, source: str, platform: Platform) -> list[dict]:
+    async def transcribe(self, source: str, platform: VideoSource) -> list[dict]:
         """Transcribe a video into subtitles.
 
         Args:
             source: Video URL or local file path.
-            platform: Platform enum value.
+            platform: VideoSource enum value.
 
         Returns:
             list[dict]: [{"start": float, "end": float, "text": str}, ...]
@@ -75,7 +63,7 @@ class TranscriptionService:
             platform,
         )
 
-    def _sync_transcribe(self, source: str, platform: Platform) -> list[dict]:
+    def _sync_transcribe(self, source: str, platform: VideoSource) -> list[dict]:
         """Synchronous transcription core logic using WhisperX."""
         # Create temp directory for audio files
         temp_dir = Path(self.settings.transcription_temp_dir)
@@ -116,26 +104,20 @@ class TranscriptionService:
                 except OSError:
                     pass
 
-    def _extract_audio(self, source: str, platform: Platform, temp_dir: Path) -> str | None:
-        """Extract audio based on platform type.
+    def _extract_audio(self, source: str, platform: VideoSource, temp_dir: Path) -> str | None:
+        """Extract audio based on source type.
 
         Returns:
             Path to the extracted WAV file, or None on failure.
         """
         audio_path = str(temp_dir / f"audio_{abs(hash(source))}.wav")
 
-        if platform == Platform.douyin:
-            logger.info("Extracting Douyin audio via advanced Playwright")
-            metadata = extract_douyin_audio(source, audio_path)
-            self._last_douyin_metadata = metadata
-            return audio_path
-
-        if platform == Platform.local:
+        if platform == VideoSource.local:
             logger.info("Extracting local audio", source=source)
             extract_local_audio(source, audio_path)
             return audio_path
 
-        # YouTube, Bilibili, and other streaming URLs
+        # Streaming URLs (YouTube, etc.) for admin imports
         parsed = urlparse(source)
         if parsed.scheme in ("http", "https") and _is_streaming_url(source):
             logger.info("Extracting streaming audio", source=source[:80])
@@ -174,20 +156,19 @@ class TranscriptionService:
             batch_size=self.settings.whisperx_batch_size,
         )
         language = result.get("language", "en")
-        logger.info("WhisperX ASR complete", language=language, segment_count=len(result['segments']))
+        logger.info("WhisperX ASR complete", language=language, segment_count=len(result["segments"]))
 
         # Step 2: Restore punctuation (so align()'s NLTK Punkt can split sentences)
         from .punctuation import restore_punctuation
+
         result["segments"] = restore_punctuation(result["segments"])
-        logger.info("Punctuation restored", segment_count=len(result['segments']))
+        logger.info("Punctuation restored", segment_count=len(result["segments"]))
 
         # Step 3: Forced alignment for word-level timestamps + sentence segmentation
         model_a, metadata = get_align_model(language)
         device, _ = _detect_device()
-        result = whisperx.align(
-            result["segments"], model_a, metadata, audio, device
-        )
-        logger.info("WhisperX aligned", segment_count=len(result['segments']))
+        result = whisperx.align(result["segments"], model_a, metadata, audio, device)
+        logger.info("WhisperX aligned", segment_count=len(result["segments"]))
 
         # Step 4: Convert to subtitle format
         return whisperx_segments_to_subtitles(result["segments"])
@@ -215,12 +196,12 @@ class TranscriptionService:
 
 
 # Backwards-compatible alias for direct import
-async def transcribe_video(source: str, platform: Platform) -> list[dict]:
+async def transcribe_video(source: str, platform: VideoSource) -> list[dict]:
     """Convenience function to transcribe a video.
 
     Args:
         source: Video URL or local file path.
-        platform: Platform enum value.
+        platform: VideoSource enum value.
 
     Returns:
         list[dict]: Subtitle dicts.

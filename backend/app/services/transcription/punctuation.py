@@ -10,24 +10,54 @@ Pipeline:
 
 The punctuation model is a lightweight singleton (~500MB on first download,
 cached locally after that). Prediction adds <1s per segment.
+
+If ``PUNCTUATION_MODEL_DISABLED`` is set (e.g. ``1``/``true``) the model is
+never loaded — useful in tests and lightweight CI environments where importing
+``transformers`` is slow or blocks. Loading is also guarded by a timeout so a
+hung import (observed with transformers 5.x on some platforms) degrades
+gracefully to "no punctuation" instead of hanging the worker.
 """
 
-import structlog
+import os
 import re
-from threading import Lock
+from threading import Lock, Thread
+
+import structlog
 
 logger = structlog.get_logger()
 
 # --- Punctuation model singleton ---
+# States: None = not yet attempted, False = unavailable, <object> = loaded.
 _punctuation_model = None
 _punctuation_lock = Lock()
+
+# How long to wait for the (potentially slow/hung) transformers import +
+# model construction before giving up and falling back.
+_MODEL_LOAD_TIMEOUT = float(os.environ.get("PUNCTUATION_MODEL_TIMEOUT", "60"))
+
+
+def _is_disabled() -> bool:
+    """True if the punctuation model should never be loaded."""
+    return os.environ.get("PUNCTUATION_MODEL_DISABLED", "").lower() in ("1", "true", "yes")
+
+
+def _construct_model():
+    """Actually import + construct the model.
+
+    Runs inside a worker thread so the caller can bound the wait time.
+    Returns the model instance or raises on failure.
+    """
+    _patch_deepmultilingualpunctuation()
+    from deepmultilingualpunctuation import PunctuationModel
+
+    return PunctuationModel()
 
 
 def _load_punctuation_model():
     """Lazy-load the punctuation restoration model (singleton with failure sentinel).
 
-    Uses double-checked locking for thread safety. On load failure, sets
-    the sentinel to False so subsequent calls skip retrying.
+    Uses double-checked locking for thread safety. On load failure (or timeout),
+    sets the sentinel to False so subsequent calls skip retrying.
     """
     global _punctuation_model
     if _punctuation_model is not None:
@@ -37,20 +67,52 @@ def _load_punctuation_model():
         if _punctuation_model is not None:
             return _punctuation_model if _punctuation_model is not False else None
 
-        try:
-            _patch_deepmultilingualpunctuation()
-            from deepmultilingualpunctuation import PunctuationModel
-            _punctuation_model = PunctuationModel()
-            logger.info("Punctuation restoration model loaded successfully")
-        except Exception as exc:
+        if _is_disabled():
+            logger.info("Punctuation restoration model disabled by env")
+            _punctuation_model = False
+            return None
+
+        result: list = []  # [model_or_None, exc_or_None]
+        worker = Thread(target=_safe_construct, args=(result,), daemon=True)
+        worker.start()
+        worker.join(timeout=_MODEL_LOAD_TIMEOUT)
+
+        if worker.is_alive():
+            # Import/construction is still running (likely a hung transformers
+            # import). Abandon it — the daemon thread will be cleaned up on
+            # process exit. Fall back to no-punctuation mode.
+            logger.warning(
+                "Punctuation restoration model load timed out",
+                timeout=_MODEL_LOAD_TIMEOUT,
+                note="Segments will be aligned without punctuation restoration.",
+            )
+            _punctuation_model = False
+            return None
+
+        model, exc = result
+        if exc is not None:
             logger.warning(
                 "Punctuation restoration model unavailable",
                 exc=str(exc),
                 note="Segments will be aligned without punctuation restoration.",
             )
             _punctuation_model = False
+            return None
+
+        _punctuation_model = model
+        logger.info("Punctuation restoration model loaded successfully")
 
     return _punctuation_model if _punctuation_model is not False else None
+
+
+def _safe_construct(out: list) -> None:
+    """Run ``_construct_model`` and capture result/exception into ``out``."""
+    try:
+        out.append(_construct_model())
+        out.append(None)
+    except Exception as exc:
+        out.append(None)
+        out.append(exc)
 
 
 def _patch_deepmultilingualpunctuation():
@@ -60,8 +122,9 @@ def _patch_deepmultilingualpunctuation():
     which was removed in transformers 5.x. Replace with 'aggregation_strategy="none"'.
     """
     try:
-        import deepmultilingualpunctuation.punctuationmodel as pm
         import inspect
+
+        import deepmultilingualpunctuation.punctuationmodel as pm
 
         source = inspect.getsource(pm.PunctuationModel.__init__)
         if "grouped_entities" in source:
@@ -150,10 +213,10 @@ def restore_punctuation(segments: list[dict]) -> list[dict]:
     # Predict punctuation labels
     all_labels = _predict_punctuation_labels(segment_word_texts)
 
-    sentence_end_labels = {".", "?", "!", "。", "？", "！"}
-
-    # Apply predicted punctuation back to words and rebuild segment texts
-    for seg, labels in zip(segments, all_labels):
+    # Apply predicted punctuation back to words and rebuild segment texts.
+    # zip(strict=False) is intentional: all_labels is built per-text and may
+    # differ in length from segments on degenerate input.
+    for seg, labels in zip(segments, all_labels, strict=False):
         words = seg.get("words", [])
         if not words or not labels:
             continue

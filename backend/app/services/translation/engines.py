@@ -18,13 +18,13 @@ from dataclasses import dataclass
 class EngineConfig:
     """Configuration for a single translation engine."""
 
-    name: str                     # Unique key, e.g. "hy_mt2"
-    base_url: str                 # OpenAI-compatible base URL
-    model: str                    # Model name sent in API request
-    api_key: str = ""             # API key (populated from settings at runtime)
-    temperature: float = 0.3      # LLM temperature for translation
-    system_prompt: str = ""       # Override default prompt if non-empty
-    label: str = ""               # Human-readable label for logging
+    name: str  # Unique key, e.g. "hy_mt2"
+    base_url: str  # OpenAI-compatible base URL
+    model: str  # Model name sent in API request
+    api_key: str = ""  # API key (populated from settings at runtime)
+    temperature: float = 0.3  # LLM temperature for translation
+    system_prompt: str = ""  # Override default prompt if non-empty
+    label: str = ""  # Human-readable label for logging
 
 
 # Default system prompt — same as the original AIService.translate_batch prompt

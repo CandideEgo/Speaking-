@@ -11,10 +11,12 @@ via ``asyncio.run_coroutine_threadsafe`` and block until the result is ready.
 """
 
 import asyncio
-import structlog
 import threading
+from collections.abc import Coroutine
 from concurrent.futures import Future
-from typing import Coroutine, TypeVar
+from typing import TypeVar
+
+import structlog
 
 logger = structlog.get_logger()
 
