@@ -9,17 +9,30 @@ build/
 .vercel/
 media/
 venv/
-logs/
 *.tsbuildinfo
-venv/
 .venv/
 wsl.localhost/
+.ruff_cache/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/*.log
+*.log
 
 # Temporary files
 backend/temp/
 backend/tmp/
 backend/transcripts/
-*.log
 
 # Cookie backups
 backend/youtube_cookies*.txt
@@ -49,3 +62,11 @@ test_audio.wav
 tmp_audio*
 test_whisperx_llm.py
 whisper-sentence-segmentation-*.md
+
+# Local agent / workflow artifacts
+.gsd/
+.claude/worktrees/
+.claude/model_audit_output.json
+
+# Orphaned cookie-acquisition script (youtube platform module removed)
+frontend/yt_cookies.mjs

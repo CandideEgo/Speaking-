@@ -37,7 +37,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import async_session
-from app.models.video import Video, VideoStatus, Platform
+from app.models.video import Video, VideoStatus, VideoSource
 from app.models.subtitle import Subtitle
 
 
@@ -331,8 +331,7 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
                 id=str(uuid.uuid4()),
                 title=entry.get("title") or meta.get("title", "Untitled"),
                 source_url=source_url,
-                platform=Platform.youtube,
-                youtube_video_id=video_id_yt,
+                video_source=VideoSource.imported,
                 thumbnail_url=meta.get("thumbnail", f"https://i.ytimg.com/vi/{video_id_yt}/maxresdefault.jpg"),
                 duration=meta.get("duration"),
                 is_official=True,
@@ -374,7 +373,7 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
 
         # Trigger async comment analysis
         from app.tasks.comment_analysis import analyze_video_comments
-        analyze_video_comments.delay(video.id, video_id_yt)
+        analyze_video_comments.delay(video.id)
         print(f"  [ANALYSIS] Queued comment analysis for {video_id_yt}")
 
         print(f"  [DONE] Seeded: {video.title} (id={video.id}, category={category})")

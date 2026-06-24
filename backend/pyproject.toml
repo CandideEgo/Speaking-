@@ -1,0 +1,52 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line length handled by formatter
+    "B008",   # function call in default argument (FastAPI Depends pattern)
+    "E711",   # none comparison (SQLAlchemy filter pattern)
+    "E712",   # true/false comparison (SQLAlchemy filter pattern)
+    "E402",   # module import not at top (FastAPI app setup pattern)
+    "F401",   # unused import (some are __init__.py re-exports)
+    "RUF001", # ambiguous unicode character (Chinese comments)
+    "SIM",    # simplify suggestions (opinionated, low value)
+    "UP042",  # replace-str-enum (intentional pattern)
+    "UP046",  # non-pep695-generic-class (Python 3.12 feature)
+    "UP047",  # non-pep695-generic-function (Python 3.12 feature)
+    "N806",   # non-lowercase variable (DB model patterns)
+    "TC003",  # typing-only standard library import
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"

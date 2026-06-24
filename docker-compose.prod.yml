@@ -104,7 +104,7 @@ services:
 
   flower:
     image: mher/flower:2.0
-    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    command: celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower --port=5555
     expose:
       - "5555"
     depends_on:

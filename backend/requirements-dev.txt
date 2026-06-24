@@ -1,7 +1,21 @@
 # Test and development dependencies
 # Install with: pip install -r requirements-dev.txt
 
+# Testing
 pytest>=8.2.0
 pytest-asyncio>=0.23.7
 pytest-cov>=5.0.0
 aiosqlite>=0.20.0
+
+# Linting & formatting
+ruff>=0.5.0
+
+# Type checking
+mypy>=1.10
+
+# Security scanning
+pip-audit>=0.8
+bandit>=1.7
+
+# Pre-commit hooks
+pre-commit>=3.7
