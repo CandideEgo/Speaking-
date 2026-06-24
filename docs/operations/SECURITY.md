@@ -2,7 +2,7 @@
 
 > 本文档定义 Speaking 应用的安全态势、威胁模型和响应流程。
 >
-> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](ARCHITECTURE.md)
+> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
 
 ---
 

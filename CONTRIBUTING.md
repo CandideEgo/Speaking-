@@ -123,7 +123,7 @@ docker compose up -d
 
 ### 3.2 需求 ID 引用
 
-提交信息应引用 `REQUIREMENTS.md` 中的需求 ID，以便追踪：
+提交信息应引用 `docs/api/REQUIREMENTS.md` 中的需求 ID，以便追踪：
 
 ```
 feat(speaking): add auto-switch to next subtitle after scoring (W-09)
@@ -312,10 +312,26 @@ Speaking/
 ├── docker-compose.dev.yml    # 开发基础设施
 ├── docker-compose.yml        # 全栈开发环境
 ├── docker-compose.prod.yml   # 生产环境
-├── REQUIREMENTS.md           # 需求文档（含需求 ID）
-└── PROGRESS.md               # 开发进度追踪
+├── docs/                     # 项目文档
+│   ├── api/                  # API 约定 + 需求文档
+│   ├── architecture/         # 架构决策 + 前端架构
+│   ├── operations/           # 运维手册 + 生产指南 + 安全策略
+│   ├── progress/             # 开发进度 + 变更日志
+│   ├── design/               # 设计系统 + 未来设计
+│   ├── reports/              # 技术研究报告
+│   └── plans/                # 改进计划 + 管线文档 + 开发工作流
+├── .pre-commit-config.yaml   # Pre-commit hooks (ruff + prettier + 通用检查)
+├── docker-compose.dev.yml    # 开发基础设施
+├── docker-compose.yml        # 全栈开发环境
+├── docker-compose.prod.yml   # 生产环境
+├── REQUIREMENTS.md → docs/api/REQUIREMENTS.md
+└── PROGRESS.md → docs/progress/PROGRESS.md
 ```
 
 ---
 
-*最后更新：2026-06-04*
+*最后更新：2026-06-19*
+
+---
+
+> 📋 完整开发工作流见 [WORKFLOW.md](docs/plans/WORKFLOW.md) — 包含功能开发流程、代码质量门禁、AI 辅助开发等

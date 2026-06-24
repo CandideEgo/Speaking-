@@ -20,9 +20,9 @@
 | 样式 | Tailwind CSS | 3.4 | 无组件库，手写组件 |
 | 状态管理 | Zustand | 4.x | 单 store（watch 页） |
 | 语音识别 | faster-whisper | 1.x | 本地 CPU 推理，int8 量化 |
-| AI 能力 | OpenAI 兼容 API | — | 当前使用 Kimi |
+| AI 能力 | OpenAI 兼容 API | — | 当前使用 Agnes AI (via Agnes Gateway) |
 | 媒体处理 | yt-dlp + ffmpeg | — | 视频下载 + 转码 |
-| 认证 | JWT | — | python-jose，7 天有效期 |
+| 认证 | JWT | — | PyJWT，7 天有效期 |
 
 ### 1.2 部署架构
 
@@ -137,7 +137,7 @@
                                    POST /payments/callback/{platform}
                                           │
                                           ▼
-                                   验证签名 (当前为 HMAC 占位)
+                                   验证签名 (RSA2/HMAC-SHA256)
                                           │
                                           ▼
                                    更新 Order (status: paid)
@@ -291,10 +291,10 @@
 
 采用 **OpenAI 兼容 API 抽象层**，通过配置切换提供商：
 - `openai_api_key`: API 密钥
-- `openai_base_url`: API 端点（如 Kimi 的 `https://api.moonshot.cn/v1`）
+- `openai_base_url`: API 端点（如 Agnes Gateway 的 `https://apihub.agnes-ai.com/v1`）
 - `openai_model`: 模型名称
 
-当前配置: **Kimi** (moonshot-v1-8k)
+当前配置: **Agnes AI** (agnes-2.0-flash via Agnes Gateway)
 
 **理由**
 
@@ -310,7 +310,7 @@
 - 可 A/B 测试不同模型效果
 
 **负面**:
-- 不同模型能力差异（Kimi 在某些任务可能不如 GPT-4）
+- 不同模型能力差异（Agnes AI 在某些任务可能不如 GPT-4）
 - 需处理不同模型的响应格式差异（如 JSON 提取）
 
 ---
@@ -353,7 +353,7 @@ Watch 页面是应用核心交互界面，包含：
 
 **负面**:
 - 当前 store 仅 1 个状态，部分过度设计
-- Watch 页面仍有 16 个 useState，状态分散
+- Watch 页面已重构为 <150 行编排器，状态提取至自定义 hooks
 
 **改进方向**:
 - 考虑将 `currentSubtitleIndex`、`isPlaying` 等移入 store
@@ -437,16 +437,12 @@ Watch 页面是应用核心交互界面，包含：
 - 敏感操作要求重新验证
 - 未来可引入 Redis 黑名单
 
-### 3.4 支付回调签名验证未完成
+### 3.4 支付回调签名验证已实现
 
-**约束**: 支付宝/微信支付回调签名验证为占位实现（HMAC 开发验证）。
+支付宝回调使用 RSA2 签名验证，微信支付回调使用 HMAC-SHA256 签名验证，均已实现。
 
-**影响**:
-- 生产环境存在支付欺诈风险
-
-**缓解**:
-- 生产上线前必须实现真实签名验证
-- 当前 `payment_verify_signature: False` 仅用于开发
+- `PAYMENT_VERIFY_SIGNATURE`: 控制是否启用签名验证（生产环境必须为 `True`）
+- 开发模式可关闭但会输出警告日志
 
 ---
 

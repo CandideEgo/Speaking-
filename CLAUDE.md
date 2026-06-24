@@ -6,7 +6,7 @@ AI-powered English speaking practice app.
 - **Backend**: Python FastAPI + SQLAlchemy async + Celery + PostgreSQL + Redis
 - **Frontend**: Next.js 14 + React 18 + Tailwind CSS + Zustand (state)
 - **Media**: yt-dlp + ffmpeg for video processing (local filesystem, OSS for CDN)
-- **Auth**: JWT (python-jose), role-based (user/admin)
+- **Auth**: JWT (PyJWT), role-based (user/admin)
 - **AI**: OpenAI-compatible API (Agnes AI via Agnes Gateway)
 - **Speech**: faster-whisper (local, int8 quantized) for transcription
 
@@ -46,14 +46,15 @@ Secrets via shell env or `.env`.
 
 | File | Role |
 |------|------|
-| `REQUIREMENTS.md` | PRD — 92 项功能需求、数据模型、API 清单 |
-| `ARCHITECTURE.md` | 架构决策记录 (ADR) + 系统全景 |
-| `SECURITY.md` | 威胁模型 + 安全策略 + 已知漏洞 |
-| `PROGRESS.md` | 开发进度追踪 + Phase 7 范围 |
-| `PRODUCTION.md` | 生产上线指南 |
-| `RUNBOOK.md` | 运维手册 + 故障响应 |
-| `FRONTEND-ARCHITECTURE.md` | 前端架构 + Watch 页面拆分计划 |
-| `API-REFERENCE.md` | API 约定 + 端点一览 |
+| `docs/api/REQUIREMENTS.md` | PRD — 92 项功能需求、数据模型、API 清单 |
+| `docs/architecture/ARCHITECTURE.md` | 架构决策记录 (ADR) + 系统全景 |
+| `docs/operations/SECURITY.md` | 威胁模型 + 安全策略 + 已知漏洞 |
+| `docs/progress/PROGRESS.md` | 开发进度追踪 (Phase 1-10 全部完成) |
+| `docs/operations/PRODUCTION.md` | 生产上线指南 |
+| `docs/operations/RUNBOOK.md` | 运维手册 + 故障响应 |
+| `docs/architecture/FRONTEND-ARCHITECTURE.md` | 前端架构 + Watch 页面拆分计划 |
+| `docs/api/API-REFERENCE.md` | API 约定 + 端点一览 |
+| `docs/plans/WORKFLOW.md` | 开发工作流 — 功能开发流程、质量门禁、AI 辅助开发 |
 | `CONTRIBUTING.md` | 贡献指南 + 代码规范 + 提交格式 |
 | `docker-compose.dev.yml` | Infra only (db, redis) |
 | `docker-compose.yml` | Full dev stack (all services) |
@@ -121,7 +122,7 @@ python seed_official_videos.py --force
 
 - **YouTube videos**: yt-dlp extracts auto-captions (JSON3/VTT/SRT)
 - **Local files**: faster-whisper (local, int8 quantized) transcribes audio
-- **Translation**: OpenAI-compatible API (Kimi) translates English → Chinese in batches of 20
+- **Translation**: OpenAI-compatible API (Agnes AI via Agnes Gateway) translates English → Chinese in batches of 20
 - **Storage**: Subtitles saved to DB (`subtitles` table) with `text_en` and `text_zh`
 
 ---
@@ -129,17 +130,40 @@ python seed_official_videos.py --force
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Speaking-** (2126 symbols, 3161 relationships, 58 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Speaking-** (5525 symbols, 9048 relationships, 261 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
-## Rules
+## Always Do
 
-- **Run `gitnexus_impact({target, direction: "upstream"})` before editing any symbol** — report blast radius (direct callers, affected processes, risk level). HIGH/CRITICAL warnings must be surfaced to the user before proceeding.
-- **Run `gitnexus_detect_changes()` before committing** to verify changes only affect expected symbols and execution flows.
-- **Use `gitnexus_rename` for renames** — it understands the call graph; never use find-and-replace.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping.
-- When you need full context on a symbol, use `gitnexus_context({name: "symbolName"})` for callers, callees, and process participation.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Development Workflow (GitNexus-First)
+
+When receiving a new feature request or bug fix, follow this sequence to minimize exploration time:
+
+1. **Locate** → `query({query: "需求关键词", goal: "找到相关执行流"})` — 1 call replaces 5-10 grep/file reads
+2. **Understand** → `context({name: "核心符号"})` — 1 call gives callers + callees + process participation (no need to read multiple files)
+3. **Assess risk** → `impact({target: "要改的符号", direction: "upstream"})` — know blast radius before writing any code
+4. **Implement** → make changes, using `context()` on any unfamiliar symbol encountered mid-edit
+5. **Verify scope** → `detect_changes()` — confirm changes only touch expected symbols/flows before committing
+
+**Shortcut patterns:**
+- "改 X 功能" → skip step 1-2 if you already know the symbol, go straight to `impact()` then implement
+- "加新功能" → `query()` to find similar existing flows, then model after them
+- "修 bug" → `query()` to trace the failing flow, `context()` on the suspect symbol
+- "重构/重命名" → `impact()` first, then `rename()` for the actual rename
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
 ## Resources
 
@@ -160,19 +184,5 @@ This project is indexed by GitNexus as **Speaking-** (2126 symbols, 3161 relatio
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Components area (39 symbols) | `.claude/skills/generated/components/SKILL.md` |
-| Work in the V1 area (36 symbols) | `.claude/skills/generated/v1/SKILL.md` |
-| Work in the Video area (26 symbols) | `.claude/skills/generated/video/SKILL.md` |
-| Work in the Tasks area (17 symbols) | `.claude/skills/generated/tasks/SKILL.md` |
-| Work in the Services area (13 symbols) | `.claude/skills/generated/services/SKILL.md` |
-| Work in the Tests area (13 symbols) | `.claude/skills/generated/tests/SKILL.md` |
-| Work in the Models area (12 symbols) | `.claude/skills/generated/models/SKILL.md` |
-| Work in the [id] area (12 symbols) | `.claude/skills/generated/id/SKILL.md` |
-| Work in the Hooks area (7 symbols) | `.claude/skills/generated/hooks/SKILL.md` |
-| Work in the Browse area (6 symbols) | `.claude/skills/generated/browse/SKILL.md` |
-| Work in the Community area (6 symbols) | `.claude/skills/generated/community/SKILL.md` |
-| Work in the Subtitle area (5 symbols) | `.claude/skills/generated/subtitle/SKILL.md` |
-| Work in the Vocabulary area (4 symbols) | `.claude/skills/generated/vocabulary/SKILL.md` |
-| Work in the Api area (3 symbols) | `.claude/skills/generated/api/SKILL.md` |
 
 <!-- gitnexus:end -->

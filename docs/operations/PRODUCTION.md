@@ -2,7 +2,7 @@
 
 > 从当前开发状态到正式上线所需的完整准备清单和操作步骤。
 >
-> 关联文档：[REQUIREMENTS.md](REQUIREMENTS.md) · [PROGRESS.md](PROGRESS.md) · [SECURITY.md](SECURITY.md)
+> 关联文档：[REQUIREMENTS.md](../api/REQUIREMENTS.md) · [PROGRESS.md](../progress/PROGRESS.md) · [SECURITY.md](SECURITY.md)
 
 ---
 

@@ -1,56 +1,43 @@
-# AGENTS.md — Speaking
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
 
-## Project Architecture
+This project is indexed by GitNexus as **Speaking-** (5525 symbols, 9048 relationships, 261 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-- **backend/**: Python FastAPI (`app/main.py` entry), async SQLAlchemy, Celery tasks, Alembic migrations
-- **frontend/**: Next.js 14 App Router (`src/`), Tailwind, lucide-react icons, Zustand state management
-- **Infra**: PostgreSQL 16, Redis 7, Celery workers, Nginx (prod)
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
-## Task Conventions
+## Always Do
 
-- Backend changes: run `uvicorn app.main:app --reload` to verify. FastAPI auto-docs at `/docs`.
-- Frontend changes: `npm run dev` with HMR on port 3000.
-- DB changes go through Alembic (`alembic revision --autogenerate`, then `alembic upgrade head`).
-- Celery tasks in `backend/app/tasks/`. Restart worker after task changes.
-- Media files stored under `backend/media/` locally (gitignored). OSS used in prod for CDN.
-- Never commit `.env`. Use `.env.example` as reference.
-- Open files in both backend and frontend when a change spans layers.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
-## Key Modules
+## Never Do
 
-| Module | Backend | Frontend |
-|--------|---------|----------|
-| Auth | `api/v1/auth.py` | `app/login/`, `app/register/` |
-| Users | `api/v1/users.py` (GET/PATCH /me) | Dashboard profile section |
-| Videos | `api/v1/videos.py` | `components/video/`, `app/watch/[id]/` |
-| Speaking | `api/v1/speaking.py` | `components/speaking/` |
-| Vocabulary | `api/v1/vocabulary.py` (CRUD + SM-2 review) | `app/vocabulary/` |
-| AI | `api/v1/ai.py` (word-lookup, summary, recommend) | WordTooltip, AIStatsPanel |
-| Browse | `api/v1/browse.py` | `app/browse/` |
-| Community | `api/v1/community.py` | `app/community/` |
-| Rubrics | `api/v1/rubrics.py` | SpeakingPanel scoring |
-| YouTube | `api/v1/youtube.py` (yt-dlp search) | YouTubeSearch component |
-| Payments | `api/v1/payments.py` (Order model) | Dashboard upgrade section |
-| Invite | `api/v1/invite.py` (admin-only generate) | `app/redeem/` |
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
-## Frontend State
+## Resources
 
-- Zustand store in `frontend/src/stores/watchStore.ts` — manages subtitle mode state
-- 8 subtitle modes: bilingual, english, chinese, reading, dictation, fillblank, flashcard, translate
-- Each mode has its own component in `frontend/src/components/`
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/Speaking-/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Speaking-/clusters` | All functional areas |
+| `gitnexus://repo/Speaking-/processes` | All execution flows |
+| `gitnexus://repo/Speaking-/process/{name}` | Step-by-step execution trace |
 
-## Speech Recognition
+## CLI
 
-- Uses `faster-whisper` (not `openai-whisper`) with int8 quantization
-- Model path configured via `WHISPER_MODEL_PATH` env var or `whisper_model_path` setting (defaults to `base`)
-- Used in both `speaking_service.py` (user recording) and `video_processing.py` (subtitle generation)
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
-## Testing
-
-- Backend: `pytest tests/ -v` (auth, speaking, payments, invite, videos, SR service)
-- Frontend: `npx tsc --noEmit && npm run lint && npm run build`
-- CI: `.github/workflows/ci.yml` runs on push/PR
-
----
-
-> GitNexus code intelligence rules, resources, and CLI reference are in **CLAUDE.md** (the canonical project instruction file).
+<!-- gitnexus:end -->

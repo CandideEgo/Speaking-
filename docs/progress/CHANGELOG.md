@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-19
+
+### Added
+
+- Payment callback signature verification: RSA2 (Alipay) + HMAC-SHA256 (WeChat)
+- API rate limiting: slowapi on critical endpoints + nginx three-zone limiting
+- Structured logging: structlog (JSON in production, ConsoleRenderer in dev)
+- Prometheus metrics: prometheus-fastapi-instrumentator, /metrics endpoint
+- Security headers middleware: CSP, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy
+- CORS environment awareness: production allows FRONTEND_URL only
+- Zustand authStore: single-point token/user/isAuthenticated management
+- Safe JWT decode: jwt.ts pure function, base64url handling, exception-safe
+- JWT expiry check: isTokenExpired() + api.ts pre-check, expired auto-logout
+- 401 auto-logout: api.ts clears state and redirects on 401
+- ApiError class: structured API errors (status, code, response)
+- AbortController: request cancellation support
+- Retry logic: 5xx auto-retry 2x (1s, 2s backoff), 401 not retried
+- Custom hooks: useVideoPlayer, useQuiz, useWordLookup, useSpeech, useSentenceNavigation
+- Watch page refactoring: slim orchestrator <150 lines, hooks-driven
+- SEO: generateMetadata, loading.tsx, not-found.tsx
+- Video access control: require_video_access + check_video_access dependencies
+- Service layer extraction: video_service, vocabulary_service, speaking_service, comment_service
+- Plan validation: PLAN_DEFINITIONS registry + create_order validation
+- mock_payment isolation: independent module, dev/testing environment only
+- PyJWT migration: replaces python-jose, eliminates RSA CVE risk
+- Multi-stage Dockerfile: builder + runtime separation, pre-cache Whisper + WhisperX models
+- Multi-stage Frontend Dockerfile: builder + runner, non-root user, standalone output
+- Log rotation: all services json-file driver, max-size 10m, max-file 3
+- Health endpoint enhancement: checks DB + Redis, 503 on failure, timestamp + environment
+- Flower monitoring: Celery task monitoring (docker-compose.prod.yml)
+- .env.example completion: all variables with comments, no real secrets
+- requirements.txt cleanup: removed residual openai-whisper, versions pinned
+- .dockerignore: reduces build context size
+- Comment quality assessment system: YouTube comment extraction + 3-dimension scoring algorithm
+- Transcription service integration: TranscriptionService replacing yt-dlp subtitle-only extraction
+- Bilibili and Douyin video search API endpoints
+- WhisperX + deepMultilingualPunctuation sentence segmentation pipeline
+
+### Changed
+
+- Migrated from python-jose to PyJWT for JWT signing/verification
+- AI provider switched from Kimi to Agnes AI (via Agnes Gateway)
+- Payment callbacks now use real signature verification (RSA2/HMAC-SHA256)
+- Watch page refactored from 454-line monolith to <150-line orchestrator with custom hooks
+- All 17 backend files migrated from raw logging to structlog
+
 ## [0.6.0] - 2025-06-04
 
 ### Added

@@ -168,7 +168,7 @@ subtitle_id:  <string>      (必填，字幕 ID)
 
 ## 7. API 端点一览
 
-共 11 个路由模块，38 个端点。认证列标注：**Public** = 无需认证，**Auth** = 需要 Bearer Token，**Admin** = 需要管理员，**Pro** = 需要 Pro 订阅。
+共 15 个路由模块，42 个端点。认证列标注：**Public** = 无需认证，**Auth** = 需要 Bearer Token，**Admin** = 需要管理员，**Pro** = 需要 Pro 订阅。
 
 ### auth（`/api/v1/auth`）
 
@@ -268,7 +268,26 @@ subtitle_id:  <string>      (必填，字幕 ID)
 | GET | `` | Public | 获取所有口语评分标准 |
 | GET | `/default` | Public | 获取默认评分标准 |
 
-> **注意：** rubrics 路由文件存在但尚未在 `app/main.py` 中注册，需添加 `app.include_router(rubrics.router, prefix="/api/v1")` 后方可访问。
+### bilibili（`/api/v1/bilibili`）
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | `/search` | Public | 搜索 Bilibili 视频 |
+
+### douyin（`/api/v1/douyin`）
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | `/search` | Public | 搜索抖音视频 |
+
+### comments（`/api/v1/comments`）
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | `/{video_id}` | Public | 获取视频评论列表 |
+| GET | `/{video_id}/stats` | Public | 获取评论质量统计 |
+| GET | `/top-videos` | Public | 按评论质量排序的视频 |
+| POST | `/analyze` | Admin | 触发视频评论分析 |
 
 ### 健康检查
 

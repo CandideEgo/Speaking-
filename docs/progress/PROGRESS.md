@@ -1,6 +1,6 @@
 # 开发进度 — Speaking
 
-> 对应需求文档： [REQUIREMENTS.md](REQUIREMENTS.md)
+> 对应需求文档： [REQUIREMENTS.md](../api/REQUIREMENTS.md)
 
 ---
 

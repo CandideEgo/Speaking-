@@ -2,7 +2,7 @@
 
 > 本文档面向运维人员，覆盖日常操作、健康检查、故障响应、扩容指引和数据备份。
 >
-> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [SECURITY.md](SECURITY.md)
+> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) · [SECURITY.md](SECURITY.md)
 
 ---
 
@@ -304,7 +304,7 @@ docker compose -f docker-compose.prod.yml logs backend --tail 500 | grep -i "pay
 **处理步骤**:
 
 1. 确认回调 URL 可从支付平台访问（检查 Nginx 配置、防火墙规则）
-2. 验证签名配置（当前为 HMAC 占位，生产环境需接入真实 SDK 验签）
+2. 验证签名配置（RSA2 + HMAC-SHA256 已实现；生产环境确认 `PAYMENT_VERIFY_SIGNATURE=true`，开发模式可禁用但日志警告）
 3. 手动更新订单状态（紧急处理）：
 
 ```bash
@@ -317,7 +317,7 @@ docker exec -it $(docker ps -qf "name=db") \
   "UPDATE users SET plan='pro' WHERE id='<user-id>';"
 ```
 
-4. 事后复盘：确认支付回调签名验证已正确实现
+4. 事后复盘：确认支付回调签名验证配置正确（RSA2/HMAC-SHA256 已实现，确认 `PAYMENT_VERIFY_SIGNATURE=true`）
 
 ---
 
@@ -492,4 +492,4 @@ docker rm -f pg-verify
 
 ---
 
-*最后更新：2026-06-04*
+*最后更新：2026-06-19*
