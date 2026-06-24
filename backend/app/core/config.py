@@ -67,6 +67,21 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"  # float16 on GPU, int8 on CPU
     whisperx_vad_method: str = "silero"  # "silero" or "pyannote"
     whisperx_align_model: str = ""  # override default align model per language
+    # ASR language. Empty = auto-detect per audio (needed for non-English content);
+    # set e.g. "en" to force a language and skip detection (faster for English-only).
+    whisper_language: str = ""
+
+    # Transcription engine (aligned with translate-tool). "whisperx" = VAD +
+    # forced alignment (best quality); "faster_whisper" = raw faster-whisper
+    # (lightweight fallback). WhisperX load failure auto-falls back to it.
+    whisper_engine: str = "whisperx"
+    # WhisperX model ref. Empty = reuse whisper_model_path (a CTranslate2 dir
+    # usable by both engines); else a size name (large-v3) or local path.
+    whisperx_model: str = ""
+    # Explicit WhisperX compute type override. Empty = derive from whisper_device
+    # (float16 on cuda, int8 on cpu) — mirrors _detect_device().
+    whisperx_compute_type: str = ""
+
     transcription_temp_dir: str = "./media/transcription_temp"
 
     # Translation engine (pluggable)

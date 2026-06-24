@@ -16,7 +16,6 @@ from app.core.config import get_settings
 
 from .exceptions import AudioExtractionError
 from .formatters import whisperx_segments_to_subtitles
-from .whisper_model import _detect_device, get_align_model, get_whisperx_model
 
 logger = structlog.get_logger()
 
@@ -119,37 +118,18 @@ async def transcribe_in_chunks(
 
 
 def _transcribe_single_chunk(audio_path: str) -> list[dict]:
-    """Transcribe + align a single audio chunk with WhisperX.
+    """Transcribe + align a single audio chunk.
 
-    Pipeline: ASR → punctuation restoration → forced alignment.
+    Dispatches to the configured engine (WhisperX by default, with automatic
+    faster-whisper fallback on WhisperX failure).
 
     Returns:
-        list[dict]: Aligned segments from whisperx.align()["segments"].
+        list[dict]: Aligned/segmented dicts.
             Each: {"start": float, "end": float, "text": str, "words": [...]}
     """
-    import whisperx
+    from .whisper_model import transcribe_audio
 
-    from .punctuation import restore_punctuation
-
-    settings = get_settings()
-    device, _ = _detect_device()
-
-    # Load audio as numpy array
-    audio = whisperx.load_audio(audio_path)
-
-    # Step 1: ASR
-    model = get_whisperx_model()
-    result = model.transcribe(audio, batch_size=settings.whisperx_batch_size)
-    language = result.get("language", "en")
-
-    # Step 2: Restore punctuation before alignment
-    result["segments"] = restore_punctuation(result["segments"])
-
-    # Step 3: Forced alignment
-    model_a, metadata = get_align_model(language)
-    result = whisperx.align(result["segments"], model_a, metadata, audio, device)
-
-    return result["segments"]
+    return transcribe_audio(audio_path)
 
 
 async def transcribe_local_chunks(audio_path: str, total_duration: float) -> list[dict]:

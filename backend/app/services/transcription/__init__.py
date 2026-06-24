@@ -31,7 +31,6 @@ from .audio_extractor import (
 from .chunked_transcription import transcribe_in_chunks, transcribe_local_chunks
 from .exceptions import AudioExtractionError, TranscriptionError, UnsupportedPlatformError
 from .formatters import whisperx_segments_to_subtitles
-from .whisper_model import _detect_device, get_align_model, get_whisperx_model
 
 logger = structlog.get_logger()
 
@@ -133,45 +132,20 @@ class TranscriptionService:
         raise UnsupportedPlatformError(f"Cannot extract audio from: {source}")
 
     def _transcribe_single(self, audio_path: str) -> list[dict]:
-        """Transcribe a single audio file with WhisperX (ASR + alignment).
+        """Transcribe a single audio file and format as subtitles.
 
-        Pipeline: ASR → punctuation restoration → forced alignment → format.
-        Punctuation restoration ensures NLTK Punkt inside align() can
-        correctly split segments into sentences.
+        Dispatches to the configured engine (WhisperX by default, with
+        automatic faster-whisper fallback on WhisperX failure).
 
         Returns:
             list[dict]: Subtitle dicts with sentence-level segmentation.
         """
-        import whisperx
+        from .whisper_model import transcribe_audio
 
-        logger.info("Transcribing audio with WhisperX", audio_path=audio_path)
-
-        # Load audio as numpy array (required by WhisperX)
-        audio = whisperx.load_audio(audio_path)
-
-        # Step 1: ASR with VAD + batched inference
-        model = get_whisperx_model()
-        result = model.transcribe(
-            audio,
-            batch_size=self.settings.whisperx_batch_size,
-        )
-        language = result.get("language", "en")
-        logger.info("WhisperX ASR complete", language=language, segment_count=len(result["segments"]))
-
-        # Step 2: Restore punctuation (so align()'s NLTK Punkt can split sentences)
-        from .punctuation import restore_punctuation
-
-        result["segments"] = restore_punctuation(result["segments"])
-        logger.info("Punctuation restored", segment_count=len(result["segments"]))
-
-        # Step 3: Forced alignment for word-level timestamps + sentence segmentation
-        model_a, metadata = get_align_model(language)
-        device, _ = _detect_device()
-        result = whisperx.align(result["segments"], model_a, metadata, audio, device)
-        logger.info("WhisperX aligned", segment_count=len(result["segments"]))
-
-        # Step 4: Convert to subtitle format
-        return whisperx_segments_to_subtitles(result["segments"])
+        logger.info("Transcribing audio", audio_path=audio_path, engine=self.settings.whisper_engine)
+        segments = transcribe_audio(audio_path)
+        logger.info("Transcription complete", segment_count=len(segments))
+        return whisperx_segments_to_subtitles(segments)
 
     def _transcribe_chunked_sync(self, audio_path: str, duration: float) -> list[dict]:
         """Run chunked transcription synchronously.

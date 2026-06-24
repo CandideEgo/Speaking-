@@ -84,8 +84,16 @@ def get_whisperx_model():
         from app.core.config import get_settings
 
         settings = get_settings()
-        model_path = settings.whisper_model_path
+        # whisperx_model (empty) reuses whisper_model_path — a CTranslate2 dir
+        # usable by both WhisperX and faster-whisper.
+        model_path = settings.whisperx_model or settings.whisper_model_path
         device, compute_type = _detect_device()
+        # Explicit whisperx_compute_type overrides the auto-derived value.
+        if settings.whisperx_compute_type:
+            compute_type = settings.whisperx_compute_type
+        # Empty language = auto-detect per audio (handles non-English content);
+        # a set value (e.g. "en") forces it and skips detection.
+        language = settings.whisper_language or None
 
         logger.info(
             "Loading WhisperX ASR model",
@@ -93,6 +101,7 @@ def get_whisperx_model():
             device=device,
             compute=compute_type,
             vad=settings.whisperx_vad_method,
+            language=language or "auto",
         )
 
         try:
@@ -100,7 +109,7 @@ def get_whisperx_model():
                 model_path,
                 device=device,
                 compute_type=compute_type,
-                language="en",
+                language=language,
                 asr_options={
                     "beam_size": 5,
                     "condition_on_previous_text": False,
@@ -117,7 +126,7 @@ def get_whisperx_model():
                     model_path,
                     device="cpu",
                     compute_type="int8",
-                    language="en",
+                    language=language,
                     asr_options={
                         "beam_size": 5,
                         "condition_on_previous_text": False,
@@ -198,6 +207,109 @@ def release_whisperx_models():
         pass
 
     logger.info("WhisperX models released")
+
+
+# ---------------------------------------------------------------------------
+# Engine dispatch: WhisperX (VAD + forced alignment) with faster-whisper fallback
+# ---------------------------------------------------------------------------
+
+
+def transcribe_with_whisperx(audio_path: str) -> list[dict]:
+    """Transcribe + align with WhisperX. Returns aligned segment dicts.
+
+    Pipeline: ASR (VAD + batched) → punctuation restoration → wav2vec2 align.
+    Raises on failure so the caller can fall back to faster-whisper.
+    """
+    import whisperx
+
+    from .punctuation import restore_punctuation
+
+    audio = whisperx.load_audio(audio_path)
+
+    # Step 1: ASR with VAD + batched inference
+    model = get_whisperx_model()
+    result = model.transcribe(audio, batch_size=_whisperx_batch_size())
+    language = result.get("language", "en")
+    logger.info("WhisperX ASR complete", language=language, segment_count=len(result["segments"]))
+
+    # Step 2: Restore punctuation (no-op on turbo models; kept for small/Chinese models)
+    result["segments"] = restore_punctuation(result["segments"])
+
+    # Step 3: Forced alignment for word-level timestamps + sentence segmentation
+    model_a, metadata = get_align_model(language)
+    device, _ = _detect_device()
+    result = whisperx.align(result["segments"], model_a, metadata, audio, device)
+    logger.info("WhisperX aligned", segment_count=len(result["segments"]))
+
+    return result["segments"]
+
+
+def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
+    """Transcribe with raw faster-whisper (no VAD, no alignment).
+
+    Lightweight fallback used when WhisperX is unavailable or disabled.
+    Returns dict-shaped segments compatible with whisperx_segments_to_subtitles
+    (no word-level timestamps; formatter falls back to segment start/end).
+    """
+    model = get_whisper_model()
+    language = _whisper_language()
+    segments, _ = model.transcribe(
+        audio_path,
+        beam_size=5,
+        word_timestamps=True,
+        condition_on_previous_text=False,
+        language=language or None,
+    )
+    out = []
+    for seg in segments:
+        words = [
+            {"word": w.word.strip(), "start": float(w.start), "end": float(w.end), "score": float(getattr(w, "probability", 0.0))}
+            for w in (getattr(seg, "words", None) or [])
+        ]
+        out.append({
+            "start": float(seg.start),
+            "end": float(seg.end),
+            "text": (seg.text or "").strip(),
+            "words": words,
+        })
+    logger.info("faster-whisper transcription complete", segment_count=len(out))
+    return out
+
+
+def transcribe_audio(audio_path: str) -> list[dict]:
+    """Dispatch transcription by configured engine, with WhisperX → faster-whisper fallback.
+
+    Returns aligned/segmented dicts. When ``whisper_engine == "whisperx"`` and
+    WhisperX fails (model load, alignment, etc.), automatically retries with
+    faster-whisper so transcription never hard-fails on engine issues.
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    engine = settings.whisper_engine
+
+    if engine == "faster_whisper":
+        return transcribe_with_faster_whisper(audio_path)
+
+    # Default: whisperx, with fallback on failure.
+    try:
+        return transcribe_with_whisperx(audio_path)
+    except Exception as exc:
+        logger.warning(
+            "WhisperX transcription failed, falling back to faster-whisper",
+            error=str(exc),
+        )
+        return transcribe_with_faster_whisper(audio_path)
+
+
+def _whisperx_batch_size() -> int:
+    from app.core.config import get_settings
+    return get_settings().whisperx_batch_size
+
+
+def _whisper_language():
+    from app.core.config import get_settings
+    return get_settings().whisper_language or None
 
 
 # ---------------------------------------------------------------------------
