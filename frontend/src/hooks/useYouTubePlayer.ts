@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback } from 'react';
-import type { YTPlayer, YTPlayerStateValue, YTPlayerEvent } from '@/types/youtube';
+import { useState, useRef, useCallback } from "react";
+import type { YTPlayer, YTPlayerStateValue, YTPlayerEvent } from "@/types/youtube";
 
 /** Hook for YouTube IFrame Player API — used as fallback when local video is not ready. */
 export function useYouTubePlayer() {
@@ -26,8 +26,8 @@ export function useYouTubePlayer() {
         resolve();
       };
 
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
       script.async = true;
       document.head.appendChild(script);
     });
@@ -41,20 +41,24 @@ export function useYouTubePlayer() {
       containerId: string,
       videoId: string,
       onReady?: (player: YTPlayer) => void,
-      onStateChange?: (event: YTPlayerEvent) => void,
+      onStateChange?: (event: YTPlayerEvent) => void
     ) => {
       await loadAPI();
 
       // Destroy previous instance if any
       if (playerRef.current) {
-        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        try {
+          playerRef.current.destroy();
+        } catch {
+          /* ignore */
+        }
         playerRef.current = null;
       }
 
       playerRef.current = new window.YT.Player(containerId, {
         videoId,
-        width: '100%',
-        height: '100%',
+        width: "100%",
+        height: "100%",
         playerVars: {
           autoplay: 0,
           controls: 1,
@@ -72,7 +76,7 @@ export function useYouTubePlayer() {
         },
       });
     },
-    [loadAPI],
+    [loadAPI]
   );
 
   const playVideo = useCallback(() => {
@@ -97,7 +101,11 @@ export function useYouTubePlayer() {
 
   const destroy = useCallback(() => {
     if (playerRef.current) {
-      try { playerRef.current.destroy(); } catch { /* ignore */ }
+      try {
+        playerRef.current.destroy();
+      } catch {
+        /* ignore */
+      }
       playerRef.current = null;
     }
     setIsReady(false);

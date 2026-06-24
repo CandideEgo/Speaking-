@@ -1,12 +1,19 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { formatTime } from '@/lib/format';
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { formatTime } from "@/lib/format";
 import {
-  Repeat, Eraser, Sparkles, Gauge, Maximize,
-  Play, Pause, SkipBack, SkipForward,
-} from 'lucide-react';
+  Repeat,
+  Eraser,
+  Sparkles,
+  Gauge,
+  Maximize,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+} from "lucide-react";
 
 interface StatusBarProps {
   currentTime: number;
@@ -61,8 +68,11 @@ export default function StatusBar({
           onSeekTo(percent * duration);
         }}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowRight') { onSeekTo(Math.min(currentTime + 5, duration)); }
-          else if (e.key === 'ArrowLeft') { onSeekTo(Math.max(currentTime - 5, 0)); }
+          if (e.key === "ArrowRight") {
+            onSeekTo(Math.min(currentTime + 5, duration));
+          } else if (e.key === "ArrowLeft") {
+            onSeekTo(Math.max(currentTime - 5, 0));
+          }
         }}
       >
         <div
@@ -99,8 +109,8 @@ export default function StatusBar({
           <button
             onClick={onTogglePlay}
             className="p-1.5 rounded-lg text-ink/60 hover:text-ink hover:bg-cream-soft transition-colors"
-            title={isPlaying ? '暂停' : '播放'}
-            aria-label={isPlaying ? '暂停' : '播放'}
+            title={isPlaying ? "暂停" : "播放"}
+            aria-label={isPlaying ? "暂停" : "播放"}
           >
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
@@ -120,13 +130,13 @@ export default function StatusBar({
           <button
             onClick={() => setIsLoopEnabled(!isLoopEnabled)}
             className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
+              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isLoopEnabled
-                ? 'bg-coral/10 text-coral'
-                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
+                ? "bg-coral/10 text-coral"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
             )}
             title="连播"
-            aria-label={isLoopEnabled ? '关闭连播' : '开启连播'}
+            aria-label={isLoopEnabled ? "关闭连播" : "开启连播"}
           >
             <Repeat size={12} />
             <span className="hidden sm:inline">连播</span>
@@ -136,13 +146,13 @@ export default function StatusBar({
           <button
             onClick={() => setIsCleanScreen(!isCleanScreen)}
             className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
+              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isCleanScreen
-                ? 'bg-coral/10 text-coral'
-                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
+                ? "bg-coral/10 text-coral"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
             )}
             title="清屏"
-            aria-label={isCleanScreen ? '退出清屏' : '清屏'}
+            aria-label={isCleanScreen ? "退出清屏" : "清屏"}
           >
             <Eraser size={12} />
             <span className="hidden sm:inline">清屏</span>
@@ -152,13 +162,13 @@ export default function StatusBar({
           <button
             onClick={() => setIsSmartMode(!isSmartMode)}
             className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
+              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isSmartMode
-                ? 'bg-coral/10 text-coral'
-                : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
+                ? "bg-coral/10 text-coral"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
             )}
             title="智能"
-            aria-label={isSmartMode ? '关闭智能模式' : '开启智能模式'}
+            aria-label={isSmartMode ? "关闭智能模式" : "开启智能模式"}
           >
             <Sparkles size={12} />
             <span className="hidden sm:inline">智能</span>
@@ -169,13 +179,13 @@ export default function StatusBar({
             <button
               onClick={() => setShowSpeedMenu(!showSpeedMenu)}
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
+                "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
                 showSpeedMenu
-                  ? 'bg-coral/10 text-coral'
-                  : 'text-ink/60 hover:text-ink hover:bg-cream-soft'
+                  ? "bg-coral/10 text-coral"
+                  : "text-ink/60 hover:text-ink hover:bg-cream-soft"
               )}
               title="倍速"
-              aria-label={showSpeedMenu ? '关闭倍速选择' : '打开倍速选择'}
+              aria-label={showSpeedMenu ? "关闭倍速选择" : "打开倍速选择"}
             >
               <Gauge size={12} />
               <span className="font-mono">{playbackRate}x</span>
@@ -190,10 +200,10 @@ export default function StatusBar({
                       setShowSpeedMenu(false);
                     }}
                     className={cn(
-                      'w-full px-3 py-1.5 text-xs text-left transition-colors',
+                      "w-full px-3 py-1.5 text-xs text-left transition-colors",
                       playbackRate === s
-                        ? 'bg-coral/10 text-coral font-medium'
-                        : 'text-ink/70 hover:bg-cream-soft'
+                        ? "bg-coral/10 text-coral font-medium"
+                        : "text-ink/70 hover:bg-cream-soft"
                     )}
                   >
                     {s}x

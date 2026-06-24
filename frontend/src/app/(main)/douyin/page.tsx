@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { Loader2, Play } from 'lucide-react';
-import { usePlatformFeed } from '@/hooks/usePlatformFeed';
-import { SkeletonCardGrid } from '@/components/SkeletonCard';
-import { EmptyState } from '@/components/EmptyState';
-import { PageTransition } from '@/components/PageTransition';
-import { CategoryTabs } from '@/components/channel/CategoryTabs';
-import { VideoCard } from '@/components/channel/VideoCard';
+import { Loader2, Play } from "lucide-react";
+import { usePlatformFeed } from "@/hooks/usePlatformFeed";
+import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
+import { EmptyState } from "@/components/common/EmptyState";
+import { PageTransition } from "@/components/common/PageTransition";
+import { CategoryTabs } from "@/components/channel/CategoryTabs";
+import { VideoCard } from "@/components/channel/VideoCard";
 
 export default function DouyinPage() {
   const {
@@ -21,7 +21,7 @@ export default function DouyinPage() {
     loaderRef,
     addingId,
     startLearning,
-  } = usePlatformFeed({ platform: 'douyin' });
+  } = usePlatformFeed({ platform: "douyin" });
 
   return (
     <PageTransition>
@@ -32,7 +32,7 @@ export default function DouyinPage() {
             <div className="flex items-center gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <svg viewBox="0 0 24 24" className="h-6 w-6 text-[#18191c]" fill="currentColor">
-                  <path d="M12.53.02C13.62 6.15 17.87 10.4 24 11.5c-6.13 1.1-10.38 5.35-11.5 11.5C11.38 16.35 7.13 12.1.99 11c6.14-1.1 10.39-5.35 11.5-11.5z"/>
+                  <path d="M12.53.02C13.62 6.15 17.87 10.4 24 11.5c-6.13 1.1-10.38 5.35-11.5 11.5C11.38 16.35 7.13 12.1.99 11c6.14-1.1 10.39-5.35 11.5-11.5z" />
                 </svg>
                 <span className="text-lg font-bold text-[#18191c]">抖音</span>
               </div>
@@ -51,10 +51,7 @@ export default function DouyinPage() {
         {error && (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-red-500 mb-2">{error}</p>
-            <button
-              onClick={retry}
-              className="text-sm text-[#00aeec] hover:underline"
-            >
+            <button onClick={retry} className="text-sm text-[#00aeec] hover:underline">
               重试
             </button>
           </div>
@@ -83,12 +80,20 @@ export default function DouyinPage() {
           )}
 
           {!loading && videos.length === 0 && !error && (
-            <EmptyState icon={Play} title="暂无内容" description="该分类下暂无视频，请尝试其他分类" />
+            <EmptyState
+              icon={Play}
+              title="暂无内容"
+              description="该分类下暂无视频，请尝试其他分类"
+            />
           )}
 
           <div ref={loaderRef} className="flex justify-center py-8">
-            {loading && videos.length > 0 && <Loader2 size={24} className="animate-spin text-gray-400" />}
-            {!hasMore && videos.length > 0 && <p className="text-sm text-gray-500">已加载全部内容</p>}
+            {loading && videos.length > 0 && (
+              <Loader2 size={24} className="animate-spin text-gray-400" />
+            )}
+            {!hasMore && videos.length > 0 && (
+              <p className="text-sm text-gray-500">已加载全部内容</p>
+            )}
           </div>
         </div>
       </main>

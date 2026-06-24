@@ -17,8 +17,7 @@ export const YTPlayerState = {
   CUED: 5,
 } as const;
 
-export type YTPlayerStateValue =
-  (typeof YTPlayerState)[keyof typeof YTPlayerState];
+export type YTPlayerStateValue = (typeof YTPlayerState)[keyof typeof YTPlayerState];
 
 // ---------------------------------------------------------------------------
 // Player events
@@ -102,10 +101,7 @@ export interface YTPlayer {
 // ---------------------------------------------------------------------------
 
 export interface YTGlobal {
-  Player: new (
-    container: HTMLElement | string,
-    options: YTPlayerOptions,
-  ) => YTPlayer;
+  Player: new (container: HTMLElement | string, options: YTPlayerOptions) => YTPlayer;
 }
 
 declare global {

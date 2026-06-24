@@ -5,77 +5,117 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Cormorant Garamond"', '"EB Garamond"', 'Garamond', '"Times New Roman"', 'serif'],
+        display: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
-        // Brand primary (coral)
+        // Brand primary (vivid orange)
         brand: {
-          50: "#faf5f0",
-          100: "#f5ebe0",
-          200: "#edd6c5",
-          300: "#e2b89e",
-          400: "#d99a79",
-          500: "#cc785c",
-          600: "#a9583e",
-          700: "#8a4530",
-          800: "#6e3828",
-          900: "#5a2e22",
-          950: "#331a14",
+          50: "#fff1eb",
+          100: "#ffe0d3",
+          200: "#ffc1a8",
+          300: "#ff9b76",
+          400: "#ff7a45",
+          500: "#ff5a1f",
+          600: "#e84a10",
+          700: "#c33c0c",
+          800: "#9a3210",
+          900: "#7d2c12",
+          950: "#441405",
         },
 
-        // === Warm cream design system tokens ===
+        // Indigo (secondary accent)
+        indigo: {
+          50: "#eef2ff",
+          100: "#e0e7ff",
+          200: "#c7d2fe",
+          300: "#a5b4fc",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",
+          800: "#3730a3",
+          900: "#312e81",
+          950: "#272362",
+          DEFAULT: "#6366f1",
+          soft: "#eef2ff",
+        },
 
-        // Surfaces
-        canvas: "#faf9f5",
-        "surface-soft": "#f5f0e8",
-        "surface-card": "#efe9de",
-        "surface-cream-strong": "#e8e0d2",
-        "surface-dark": "#181715",
-        "surface-dark-elevated": "#252320",
-        "surface-dark-soft": "#1f1e1b",
+        // Surfaces — pure white + subtle gray layers
+        canvas: "#ffffff",
+        "surface-soft": "#fafafa",
+        "surface-card": "#f4f4f5",
+        "surface-cream-strong": "#ededed",
+        "surface-dark": "#0a0a0a",
+        "surface-dark-elevated": "#161616",
+        "surface-dark-soft": "#1c1c1c",
 
-        // Text
-        ink: "#141413",
-        body: "#3d3d3a",
-        "body-strong": "#252523",
-        muted: "#6c6a64",
-        "muted-soft": "#8e8b82",
+        // Backward-compatible aliases
+        "cream-soft": "#fafafa",
+        "cream-card": "#f4f4f5",
+        "cream-strong": "#ededed",
+        "cream": "#f4f4f5",
+        parchment: "#fafafa",
+        navy: "#0a0a0a",
+        "navy-elevated": "#161616",
 
-        // Primary (coral)
+        // Text — near-black + neutral grays
+        ink: "#0a0a0a",
+        body: "#27272a",
+        "body-strong": "#18181b",
+        muted: "#71717a",
+        "muted-soft": "#a1a1aa",
+        "muted-foreground": "#71717a",
+
+        // Text aliases
+        olive: "#71717a",
+        "olive-soft": "#a1a1aa",
+        ivory: "#fafafa",
+        terracotta: "#ff5a1f",
+
+        // Primary (vivid orange)
         primary: {
-          DEFAULT: "#cc785c",
-          active: "#a9583e",
-          disabled: "#e6dfd8",
+          DEFAULT: "#ff5a1f",
+          active: "#e84a10",
+          disabled: "#f4f4f5",
         },
+
+        // coral = primary alias
+        coral: "#ff5a1f",
+        "coral-active": "#e84a10",
+        "coral-soft": "#fff1eb",
+
+        // Semantic colors
+        success: {
+          DEFAULT: "#16a34a",
+          soft: "#ecfdf5",
+        },
+        warning: {
+          DEFAULT: "#d97706",
+          soft: "#fffbeb",
+        },
+        error: "#dc2626",
+        danger: "#dc2626",
+
+        // Teal / amber (legacy)
+        teal: "#10b981",
+        "accent-teal": "#10b981",
+        "accent-amber": "#f59e0b",
 
         // On-colors
         "on-primary": "#ffffff",
-        "on-dark": "#faf9f5",
-        "on-dark-soft": "#a09d96",
-
-        // Accents
-        "accent-teal": "#5db8a6",
-        "accent-amber": "#e8a55a",
+        "on-dark": "#fafafa",
+        "on-dark-soft": "#a1a1aa",
 
         // Borders
         hairline: {
-          DEFAULT: "#e6dfd8",
-          soft: "#ebe6df",
+          DEFAULT: "#ededed",
+          soft: "#f4f4f5",
+          cream: "#ededed",
         },
 
-        // Semantic
-        success: "#5db872",
-        warning: "#d4a017",
-        error: "#c64545",
-
-        // Platform identity colors
-        "platform-bilibili": "#00aeec",
-        "platform-bilibili-pink": "#fb7299",
-        "platform-douyin": "#fe2c55",
-
-        // Learning mode highlights (product-specific, not brand tokens)
+        // Learning mode highlights
         learn: {
           highlight: "#4ade80",
           highlightHover: "#22c55e",
@@ -85,10 +125,10 @@ const config: Config = {
           wrong: "#ef4444",
         },
 
-        // CSS variable-backed colors (for runtime theming if needed)
+        // CSS variable-backed colors (runtime theme)
         background: "rgb(var(--background) / <alpha-value>)",
         foreground: "rgb(var(--foreground) / <alpha-value>)",
-        "muted-foreground": "rgb(var(--muted-foreground) / <alpha-value>)",
+        "muted-foreground-var": "rgb(var(--muted-foreground) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",
         "sidebar-bg": "rgb(var(--sidebar-bg) / <alpha-value>)",
@@ -96,21 +136,45 @@ const config: Config = {
       },
       borderRadius: {
         xs: "4px",
-        sm: "6px",
-        md: "8px",
-        lg: "12px",
-        xl: "16px",
+        sm: "8px",
+        DEFAULT: "12px",
+        md: "10px",
+        lg: "16px",
+        xl: "22px",
+        "2xl": "24px",
         pill: "9999px",
       },
       spacing: {
         section: "96px",
+        18: "4.5rem",
+        88: "22rem",
+        128: "32rem",
+      },
+      maxWidth: {
+        page: "1320px",
       },
       letterSpacing: {
-        "display-xl": "-1.5px",
-        "display-lg": "-1px",
-        "display-md": "-0.5px",
-        "display-sm": "-0.3px",
-        "caption-wide": "1.5px",
+        "display-xl": "-0.035em",
+        "display-lg": "-0.03em",
+        "display-md": "-0.025em",
+        "display-sm": "-0.02em",
+        "caption-wide": "0.08em",
+      },
+      boxShadow: {
+        soft: "0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04)",
+        card: "0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04)",
+        lift: "0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04)",
+        brand: "0 8px 24px rgba(255,90,31,.28)",
+        coral: "0 8px 24px rgba(255,90,31,.28)",
+      },
+      keyframes: {
+        "wave-bar": {
+          "0%, 100%": { transform: "scaleY(0.5)" },
+          "50%": { transform: "scaleY(1)" },
+        },
+      },
+      animation: {
+        "wave-bar": "wave-bar 1s ease-in-out infinite",
       },
     },
   },

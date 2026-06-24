@@ -16,7 +16,7 @@ export class ApiError extends Error {
     message: string,
     status: number = 0,
     code: string | null = null,
-    response: Response | null = null,
+    response: Response | null = null
   ) {
     super(message);
     this.name = "ApiError";
@@ -51,26 +51,6 @@ export function getToken(): string | null {
   // widely and we don't want to force authStore to load before it's needed)
   const { useAuthStore } = require("@/stores/authStore");
   return useAuthStore.getState().token;
-}
-
-/**
- * Set the auth token via the Zustand auth store.
- *
- * Prefer calling useAuthStore.getState().login(token) directly in React
- * components. This export exists for backward compatibility with non-React
- * call sites.
- */
-export function setToken(token: string | null) {
-  const { useAuthStore } = require("@/stores/authStore");
-  if (token) {
-    useAuthStore.getState().login(token);
-  } else {
-    // Clear state without redirect (logout() redirects)
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("speaking_token");
-    }
-    useAuthStore.setState({ token: null, user: null, isAuthenticated: false });
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -111,10 +91,7 @@ export interface ApiOptions extends Omit<RequestInit, "signal"> {
   signal?: AbortSignal;
 }
 
-export async function api<T = unknown>(
-  path: string,
-  options: ApiOptions = {},
-): Promise<T> {
+export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
   const { signal, ...restOptions } = options;
   const token = getToken();
   const headers: Record<string, string> = {
@@ -129,12 +106,22 @@ export async function api<T = unknown>(
     // Validate token expiry before making the request
     const { isTokenExpired } = await import("./jwt");
     if (isTokenExpired(token)) {
-      // Use the store's logout which clears state + localStorage + redirects
+      // Try refreshing the token before giving up
       const { useAuthStore } = require("@/stores/authStore");
-      useAuthStore.getState().logout();
-      throw new ApiError("登录已过期，请重新登录", 401);
+      const refreshed = await useAuthStore.getState().refreshAccessToken();
+      if (refreshed) {
+        // Update the Authorization header with the new token
+        const newToken = useAuthStore.getState().token;
+        if (newToken) {
+          headers["Authorization"] = `Bearer ${newToken}`;
+        }
+      } else {
+        // Refresh failed — logout already called inside refreshAccessToken
+        throw new ApiError("登录已过期，请重新登录", 401);
+      }
+    } else {
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    headers["Authorization"] = `Bearer ${token}`;
   }
 
   let lastError: ApiError | null = null;
@@ -158,12 +145,7 @@ export async function api<T = unknown>(
         throw err; // Don't retry aborts
       }
 
-      lastError = new ApiError(
-        "网络连接失败，请检查网络或稍后重试",
-        0,
-        null,
-        null,
-      );
+      lastError = new ApiError("网络连接失败，请检查网络或稍后重试", 0, null, null);
 
       // Retry for network errors (unless it's the last attempt)
       if (attempt < MAX_RETRIES) {
@@ -173,11 +155,46 @@ export async function api<T = unknown>(
       throw lastError;
     }
 
-    // Handle 401 Unauthorized — token was rejected by the server
-    // Never retry 401s; always trigger logout
+    // Handle 401 Unauthorized — try refreshing the token before logging out
     if (res.status === 401) {
       const { useAuthStore } = require("@/stores/authStore");
-      useAuthStore.getState().logout();
+      const refreshed = await useAuthStore.getState().refreshAccessToken();
+      if (refreshed) {
+        // Retry the original request with the new token
+        const newToken = useAuthStore.getState().token;
+        if (newToken) {
+          headers["Authorization"] = `Bearer ${newToken}`;
+        }
+        try {
+          const retryRes = await fetch(`${API_URL}${path}`, {
+            ...restOptions,
+            headers,
+            signal,
+          });
+          if (retryRes.ok) {
+            return retryRes.json();
+          }
+          if (retryRes.status === 401) {
+            // Refresh succeeded but server still rejects — truly unauthorized
+            useAuthStore.getState().logout();
+            throw new ApiError("登录已过期，请重新登录", 401, null, retryRes);
+          }
+          // Handle other errors from the retry
+          let detail = "请求失败";
+          let code: string | null = null;
+          try {
+            const err = await retryRes.json();
+            detail = err.detail || detail;
+            code = err.code ?? null;
+          } catch {}
+          throw new ApiError(detail, retryRes.status, code, retryRes);
+        } catch (err) {
+          if (err instanceof ApiError) throw err;
+          // Network error on retry
+          throw new ApiError("网络连接失败，请检查网络或稍后重试", 0);
+        }
+      }
+      // Refresh failed — logout already called inside refreshAccessToken
       throw new ApiError("登录已过期，请重新登录", 401, null, res);
     }
 

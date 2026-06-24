@@ -1,25 +1,34 @@
-'use client';
+"use client";
 
-import { useState, useMemo, memo } from 'react';
-import { Loader2, Play } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatDuration, formatViews } from '@/lib/format';
-import { VideoThumbnail } from '@/components/VideoThumbnail';
-import type { VideoItem } from '@/types/platform';
+import { useState, useMemo, memo } from "react";
+import { Loader2, Play } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatDuration, formatViews } from "@/lib/format";
+import { VideoThumbnail } from "@/components/video/VideoThumbnail";
+import type { VideoItem } from "@/types/platform";
 
 interface VideoCardProps {
   video: VideoItem;
-  variant: 'youtube' | 'bilibili' | 'douyin';
+  variant: "youtube" | "bilibili" | "douyin";
   onClick: () => void;
   isLoading?: boolean;
 }
 
-export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLoading }: VideoCardProps) {
+export const VideoCard = memo(function VideoCard({
+  video,
+  variant,
+  onClick,
+  isLoading,
+}: VideoCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  if (variant === 'youtube') {
+  if (variant === "youtube") {
     return (
-      <button onClick={onClick} className="group cursor-pointer flex flex-col gap-2 text-left w-full" aria-label={`播放 ${video.title}`}>
+      <button
+        onClick={onClick}
+        className="group cursor-pointer flex flex-col gap-2 text-left w-full"
+        aria-label={`播放 ${video.title}`}
+      >
         <div className="relative aspect-video overflow-hidden rounded-lg">
           <VideoThumbnail
             url={video.thumbnail_url}
@@ -29,7 +38,10 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
             className="h-full w-full"
           />
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-            <Play size={36} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Play
+              size={36}
+              className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            />
           </div>
           {isLoading && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
@@ -39,7 +51,9 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
         </div>
         <div className="flex gap-3">
           <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
-            <span className="text-xs font-bold text-gray-600">{video.channel_title?.charAt(0) || 'U'}</span>
+            <span className="text-xs font-bold text-gray-600">
+              {video.channel_title?.charAt(0) || "U"}
+            </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-ink line-clamp-2 leading-snug">{video.title}</p>
@@ -51,9 +65,13 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
     );
   }
 
-  if (variant === 'bilibili') {
+  if (variant === "bilibili") {
     return (
-      <button onClick={onClick} className="group cursor-pointer flex flex-col gap-2 text-left w-full" aria-label={`播放 ${video.title}`}>
+      <button
+        onClick={onClick}
+        className="group cursor-pointer flex flex-col gap-2 text-left w-full"
+        aria-label={`播放 ${video.title}`}
+      >
         <div className="relative aspect-video overflow-hidden rounded-xl">
           <VideoThumbnail
             url={video.thumbnail_url}
@@ -63,7 +81,10 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
             className="h-full w-full"
           />
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-            <Play size={36} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Play
+              size={36}
+              className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            />
           </div>
           {isLoading && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
@@ -77,9 +98,7 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
             <span className="text-xs text-muted-soft">{video.channel_title}</span>
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-soft">
-            <span className="flex items-center gap-1">
-              {formatViews(video.view_count)} views
-            </span>
+            <span className="flex items-center gap-1">{formatViews(video.view_count)} views</span>
           </div>
         </div>
       </button>
@@ -98,7 +117,10 @@ export const VideoCard = memo(function VideoCard({ video, variant, onClick, isLo
           className="h-full w-full"
         />
         <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-          <Play size={40} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+          <Play
+            size={40}
+            className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          />
         </div>
         {isLoading && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-2xl">

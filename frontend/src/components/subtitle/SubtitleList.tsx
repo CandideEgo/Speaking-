@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useMemo, memo } from 'react';
-import { cn } from '@/lib/utils';
-import { formatTime } from '@/lib/format';
-import { Mic, Play, Copy, Heart, Edit3, Check } from 'lucide-react';
+import { useState, useCallback, useMemo, memo } from "react";
+import { cn } from "@/lib/utils";
+import { formatTime } from "@/lib/format";
+import { Mic, Play, Copy, Heart, Edit3, Check } from "lucide-react";
 
-import { useWatchStore } from '@/stores/watchStore';
-import type { Subtitle } from '@/types';
+import { useWatchStore } from "@/stores/watchStore";
+import type { Subtitle } from "@/types";
 
 interface SubtitleListProps {
   subtitles: Subtitle[];
@@ -33,21 +33,21 @@ function parseDifficultyWords(difficultyWords: string | null | undefined): strin
 function generatePhonetic(text: string): string {
   // Simple mock: just show the text with phonetic-like formatting
   // In production, this would come from the backend
-  const words = text.split(' ').slice(0, 6);
-  return words.map(() => '·').join(' ');
+  const words = text.split(" ").slice(0, 6);
+  return words.map(() => "·").join(" ");
 }
 
 /** Generate color for speaker avatar based on name */
 function getSpeakerColor(name: string): string {
   const colors = [
-    'bg-blue-100 text-blue-700 border-blue-200',
-    'bg-green-100 text-green-700 border-green-200',
-    'bg-purple-100 text-purple-700 border-purple-200',
-    'bg-orange-100 text-orange-700 border-orange-200',
-    'bg-pink-100 text-pink-700 border-pink-200',
-    'bg-teal-100 text-teal-700 border-teal-200',
-    'bg-indigo-100 text-indigo-700 border-indigo-200',
-    'bg-rose-100 text-rose-700 border-rose-200',
+    "bg-blue-100 text-blue-700 border-blue-200",
+    "bg-green-100 text-green-700 border-green-200",
+    "bg-purple-100 text-purple-700 border-purple-200",
+    "bg-orange-100 text-orange-700 border-orange-200",
+    "bg-pink-100 text-pink-700 border-pink-200",
+    "bg-teal-100 text-teal-700 border-teal-200",
+    "bg-indigo-100 text-indigo-700 border-indigo-200",
+    "bg-rose-100 text-rose-700 border-rose-200",
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -58,11 +58,18 @@ function getSpeakerColor(name: string): string {
 
 /** Get initials from speaker name */
 function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 /** Group subtitles by speaker */
-function groupSubtitlesBySpeaker(subtitles: Subtitle[]): { speaker: string | null; subtitles: Subtitle[]; startIndex: number }[] {
+function groupSubtitlesBySpeaker(
+  subtitles: Subtitle[]
+): { speaker: string | null; subtitles: Subtitle[]; startIndex: number }[] {
   const groups: { speaker: string | null; subtitles: Subtitle[]; startIndex: number }[] = [];
 
   for (let i = 0; i < subtitles.length; i++) {
@@ -98,7 +105,7 @@ const HighlightedText = memo(function HighlightedText({
         if (/^\s+$/.test(word)) {
           return <span key={wi}>{word}</span>;
         }
-        const cleanWord = word.replace(/[.,!?;:'"()\[\]]/g, '').toLowerCase();
+        const cleanWord = word.replace(/[.,!?;:'"()\[\]]/g, "").toLowerCase();
         const isHighlighted = highlightWords.includes(cleanWord);
         const isSelected = selectedWord === cleanWord;
 
@@ -111,12 +118,17 @@ const HighlightedText = memo(function HighlightedText({
             }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onWordClick(word); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onWordClick(word);
+              }
+            }}
             className={cn(
-              'cursor-pointer rounded transition-colors duration-150',
-              isHighlighted && 'bg-red-100 text-red-700 px-0.5',
-              isSelected && 'bg-coral/20 text-coral',
-              !isHighlighted && !isSelected && 'hover:bg-coral/10'
+              "cursor-pointer rounded transition-colors duration-150",
+              isHighlighted && "bg-red-100 text-red-700 px-0.5",
+              isSelected && "bg-coral/20 text-coral",
+              !isHighlighted && !isSelected && "hover:bg-coral/10"
             )}
           >
             {word}
@@ -156,16 +168,17 @@ const SubtitleItem = memo(function SubtitleItem({
   onFavorite,
   onStartSpeaking,
 }: SubtitleItemProps) {
-  const highlightWords = useMemo(() => parseDifficultyWords(sub.difficulty_words), [sub.difficulty_words]);
+  const highlightWords = useMemo(
+    () => parseDifficultyWords(sub.difficulty_words),
+    [sub.difficulty_words]
+  );
 
   return (
     <div
       id={`subtitle-${index}`}
       className={cn(
-        'group relative rounded-xl transition-all duration-200',
-        isActive
-          ? 'bg-cream-card shadow-sm border border-coral/30'
-          : 'hover:bg-cream-soft/50'
+        "group relative rounded-xl transition-all duration-200",
+        isActive ? "bg-cream-card shadow-sm border border-coral/30" : "hover:bg-cream-soft/50"
       )}
     >
       {/* Main content area */}
@@ -192,16 +205,12 @@ const SubtitleItem = memo(function SubtitleItem({
 
         {/* Chinese translation */}
         {!showEnglishOnly && sub.text_zh && (
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {sub.text_zh}
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{sub.text_zh}</p>
         )}
 
         {/* Grammar note */}
         {sub.grammar_note && (
-          <p className="mt-1.5 text-xs text-amber-600/80">
-            提示：{sub.grammar_note}
-          </p>
+          <p className="mt-1.5 text-xs text-amber-600/80">提示：{sub.grammar_note}</p>
         )}
       </button>
 
@@ -209,9 +218,7 @@ const SubtitleItem = memo(function SubtitleItem({
       <div className="flex items-center justify-between px-4 pb-3">
         {/* Timestamp and index */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-mono">
-            {index + 1}
-          </span>
+          <span className="text-[11px] text-muted-foreground font-mono">{index + 1}</span>
           <span className="text-[11px] text-muted-foreground font-mono">
             {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
           </span>
@@ -251,18 +258,15 @@ const SubtitleItem = memo(function SubtitleItem({
               onFavorite(sub.id);
             }}
             className={cn(
-              'p-1.5 rounded-lg transition-colors',
+              "p-1.5 rounded-lg transition-colors",
               favorited
-                ? 'text-coral bg-coral/10'
-                : 'text-ink/70 hover:text-coral hover:bg-coral/10'
+                ? "text-coral bg-coral/10"
+                : "text-ink/70 hover:text-coral hover:bg-coral/10"
             )}
             title="收藏"
             aria-label="收藏字幕"
           >
-            <Heart
-              size={14}
-              className={favorited ? 'fill-current' : ''}
-            />
+            <Heart size={14} className={favorited ? "fill-current" : ""} />
           </button>
           <button
             onClick={(e) => {
@@ -303,7 +307,7 @@ export default function SubtitleList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [favorited, setFavorited] = useState<Set<string>>(new Set());
   const { subtitleMode } = useWatchStore();
-  const showEnglishOnly = subtitleMode === 'english';
+  const showEnglishOnly = subtitleMode === "english";
 
   // Pre-compute subtitle id -> index map for O(1) lookups
   const subtitleIndexMap = useMemo(() => {
@@ -337,9 +341,9 @@ export default function SubtitleList({
   // Pre-compute grouped subtitles with indices from the map
   const groups = useMemo(() => {
     const grouped = groupSubtitlesBySpeaker(subtitles);
-    return grouped.map(group => ({
+    return grouped.map((group) => ({
       speaker: group.speaker,
-      items: group.subtitles.map(sub => ({
+      items: group.subtitles.map((sub) => ({
         sub,
         index: subtitleIndexMap.get(sub.id)!,
       })),
@@ -350,22 +354,22 @@ export default function SubtitleList({
     <div className="flex flex-col gap-2 p-3">
       {groups.map((group, groupIdx) => {
         const speaker = group.speaker;
-        const speakerColor = speaker ? getSpeakerColor(speaker) : '';
+        const speakerColor = speaker ? getSpeakerColor(speaker) : "";
 
         return (
           <div key={groupIdx} className="flex flex-col gap-1">
             {/* Speaker header */}
             {speaker && (
               <div className="flex items-center gap-2 px-2 py-1">
-                <div className={cn(
-                  'flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold border',
-                  speakerColor
-                )}>
+                <div
+                  className={cn(
+                    "flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold border",
+                    speakerColor
+                  )}
+                >
                   {getInitials(speaker)}
                 </div>
-                <span className="text-sm font-medium text-ink/80">
-                  {speaker}
-                </span>
+                <span className="text-sm font-medium text-ink/80">{speaker}</span>
               </div>
             )}
 

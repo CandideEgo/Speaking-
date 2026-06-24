@@ -31,20 +31,16 @@ export default function ForgotPasswordPage() {
     <main className="flex min-h-screen items-center justify-center px-4 bg-canvas">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-coral text-white">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white">
             <Sparkles size={22} />
           </span>
           <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
             重置密码
           </h1>
           {sent ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              重置链接已发送到您的邮箱
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">重置链接已发送到您的邮箱</p>
           ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              输入您的邮箱，我们将发送重置链接
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">输入您的邮箱，我们将发送重置链接</p>
           )}
         </div>
 
@@ -57,7 +53,7 @@ export default function ForgotPasswordPage() {
             </div>
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 text-sm text-coral hover:underline font-medium"
+              className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
             >
               <ArrowLeft size={14} />
               返回登录
@@ -88,7 +84,7 @@ export default function ForgotPasswordPage() {
             <div className="text-center">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 text-sm text-coral hover:underline font-medium"
+                className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
               >
                 <ArrowLeft size={14} />
                 返回登录

@@ -24,12 +24,12 @@ interface JwtPayload {
  */
 function base64UrlDecode(str: string): string {
   // Pad with '=' to make length a multiple of 4
-  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  let base64 = str.replace(/-/g, "+").replace(/_/g, "/");
   const pad = base64.length % 4;
   if (pad === 2) {
-    base64 += '==';
+    base64 += "==";
   } else if (pad === 3) {
-    base64 += '=';
+    base64 += "=";
   }
   return atob(base64);
 }
@@ -47,12 +47,12 @@ function base64UrlDecode(str: string): string {
  * authStore for side-effect handling.
  */
 export function decodeJwt(token: string): JwtPayload | null {
-  if (!token || typeof token !== 'string') {
+  if (!token || typeof token !== "string") {
     return null;
   }
 
   // Split token into header.payload.signature
-  const parts = token.split('.');
+  const parts = token.split(".");
   if (parts.length !== 3) {
     return null;
   }
@@ -73,7 +73,7 @@ export function decodeJwt(token: string): JwtPayload | null {
     return null;
   }
 
-  if (typeof payload !== 'object' || payload === null) {
+  if (typeof payload !== "object" || payload === null) {
     return null;
   }
 
@@ -96,7 +96,7 @@ export function isTokenExpired(token: string): boolean {
     return true;
   }
 
-  if (typeof payload.exp === 'number') {
+  if (typeof payload.exp === "number") {
     // exp is seconds since epoch; compare with current time
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) {

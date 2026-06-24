@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { memo } from 'react';
-import { BookmarkPlus, X } from 'lucide-react';
+import { memo } from "react";
+import { BookmarkPlus, X } from "lucide-react";
 
 interface WordTooltipProps {
   word: string;
@@ -11,7 +11,13 @@ interface WordTooltipProps {
   onSave: () => void;
 }
 
-export default memo(function WordTooltip({ word, meaning, onClose, onPronounce, onSave }: WordTooltipProps) {
+export default memo(function WordTooltip({
+  word,
+  meaning,
+  onClose,
+  onPronounce,
+  onSave,
+}: WordTooltipProps) {
   return (
     <div className="fixed bottom-4 right-4 w-80 rounded-lg border border-white/10 bg-navy-elevated p-4 shadow-xl z-30">
       <div className="flex items-center justify-between">
@@ -21,7 +27,11 @@ export default memo(function WordTooltip({ word, meaning, onClose, onPronounce, 
         </button>
       </div>
       <div className="mt-2 flex gap-2">
-        <button onClick={onPronounce} className="inline-flex items-center gap-1 text-xs text-coral hover:underline" aria-label="发音">
+        <button
+          onClick={onPronounce}
+          className="inline-flex items-center gap-1 text-xs text-coral hover:underline"
+          aria-label="发音"
+        >
           发音
         </button>
         <button

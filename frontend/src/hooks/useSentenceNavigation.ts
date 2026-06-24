@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 interface UseSentenceNavigationOptions {
   totalSentences: number;
@@ -29,11 +29,14 @@ export function useSentenceNavigation({
 }: UseSentenceNavigationOptions): UseSentenceNavigationReturn {
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
 
-  const goToSentence = useCallback((index: number) => {
-    if (index < 0 || index >= totalSentences) return;
-    setSelectedIndex(index);
-    onChange?.(index);
-  }, [totalSentences, onChange]);
+  const goToSentence = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= totalSentences) return;
+      setSelectedIndex(index);
+      onChange?.(index);
+    },
+    [totalSentences, onChange]
+  );
 
   const nextSentence = useCallback(() => {
     goToSentence(selectedIndex + 1);

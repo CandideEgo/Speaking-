@@ -1,103 +1,173 @@
-'use client';
+"use client";
 
-import { Loader2, Youtube } from 'lucide-react';
-import { usePlatformFeed } from '@/hooks/usePlatformFeed';
-import { SkeletonCardGrid } from '@/components/SkeletonCard';
-import { EmptyState } from '@/components/EmptyState';
-import { PageTransition } from '@/components/PageTransition';
-import { CategoryTabs } from '@/components/channel/CategoryTabs';
-import { ShortsRow } from '@/components/channel/ShortsRow';
-import { VideoCard } from '@/components/channel/VideoCard';
+import Link from "next/link";
+import { usePlatformFeed } from "@/hooks/usePlatformFeed";
+import { formatDuration } from "@/lib/format";
+import { PageTransition } from "@/components/common/PageTransition";
+
+const DIFFICULTY_LEVELS = [
+  { id: "all", label: "全部" },
+  { id: "A1", label: "A1" },
+  { id: "A2", label: "A2" },
+  { id: "B1", label: "B1" },
+  { id: "B2", label: "B2" },
+  { id: "C1", label: "C1" },
+  { id: "C2", label: "C2" },
+];
 
 export default function BrowsePage() {
   const {
     categories,
     activeCategory,
     setActiveCategory,
+    activeLevel,
+    setActiveLevel,
     videos,
     loading,
     hasMore,
+    total,
     error,
     retry,
     loaderRef,
-    addingId,
-    startLearning,
-  } = usePlatformFeed({ platform: 'browse' });
-
-  // Shorts data from first few videos
-  const shortsItems = videos.slice(0, 8).map(v => ({
-    id: v.video_id,
-    thumbnail_url: v.thumbnail_url,
-    title: v.title,
-    view_count: v.view_count,
-  }));
+  } = usePlatformFeed({ platform: "browse" });
 
   return (
     <PageTransition>
-      <main className="min-h-screen bg-white">
-        {/* Sticky category tabs - YouTube style */}
-        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-          <div className="px-4 py-2">
-            <CategoryTabs
-              categories={categories}
-              activeId={activeCategory}
-              onSelect={setActiveCategory}
-              variant="pill"
-              bgClass="bg-white"
-            />
+      <main className="container-page py-16 sm:py-24">
+        {/* Page header */}
+        <div className="page-head">
+          <div className="page-crumb">发现</div>
+          <h1 className="page-title">浏览视频</h1>
+          <p className="page-desc">探索精选英语学习内容,按分类和难度筛选。点击任意视频开始学习。</p>
+        </div>
+
+        {/* Sticky filter bar */}
+        <div className="filter-bar">
+          {/* Category row */}
+          <div className="filter-row">
+            <span className="filter-label">分类</span>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`fchip ${activeCategory === cat.id ? "fchip-on" : ""}`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          {/* Difficulty row */}
+          <div className="filter-row">
+            <span className="filter-label">难度</span>
+            {DIFFICULTY_LEVELS.map((lv) => (
+              <button
+                key={lv.id}
+                onClick={() => setActiveLevel(lv.id)}
+                className={`fchip ${activeLevel === lv.id ? "fchip-brand-on" : ""}`}
+              >
+                {lv.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Error State */}
+        {/* Error state */}
         {error && (
-          <div className="px-4 py-8 text-center">
+          <div className="text-center py-8">
             <p className="text-sm text-red-500 mb-2">{error}</p>
-            <button
-              onClick={retry}
-              className="text-sm text-[#00aeec] hover:underline"
-            >
+            <button onClick={retry} className="btn-outline">
               重试
             </button>
           </div>
         )}
 
-        {/* Shorts Section — above main grid like YouTube */}
-        {shortsItems.length > 0 && (
-          <div className="px-4 pt-4">
-            <ShortsRow
-              items={shortsItems}
-              onClick={(short) => {
-                const video = videos.find(v => v.video_id === short.id);
-                if (video) startLearning(video);
-              }}
-            />
+        {/* Results meta */}
+        {!error && videos.length > 0 && (
+          <p className="text-[13px] text-muted mb-4">
+            显示 <b className="text-ink">{videos.length}</b> / {total} 个视频
+          </p>
+        )}
+
+        {/* Video grid */}
+        {!error && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {videos.map((video) => (
+              <Link
+                key={video.id || video.video_id}
+                href={`/watch/${video.id || video.video_id}`}
+                className="vcard group"
+              >
+                <div className="thumb">
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <span className="thumb-lv">{video.difficulty_level || "B1"}</span>
+                  <span className="thumb-dur">{formatDuration(video.duration)}</span>
+                  <div className="thumb-play">
+                    <div className="thumb-play-btn">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none">
+                        <path d="M6 4l14 8-14 8V4Z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="vmeta">
+                  <p className="vtitle">{video.title}</p>
+                  <div className="vfoot">
+                    <span>{video.channel_title || "Speaking"}</span>
+                    <span className="vdot" />
+                    <span className="chip">{video.topic_tags?.split(",")[0] || "综合"}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
 
-        {/* Video Grid */}
-        <div className="px-4 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {videos.map((item) => (
-              <VideoCard
-                key={item.video_id}
-                variant="youtube"
-                video={item}
-                onClick={() => startLearning(item)}
-                isLoading={addingId === item.video_id}
-              />
+        {/* Loading skeleton */}
+        {loading && videos.length === 0 && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="vcard animate-pulse">
+                <div className="thumb bg-surface-card" />
+                <div className="vmeta">
+                  <div className="h-4 bg-surface-card rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-surface-card rounded w-1/2" />
+                </div>
+              </div>
             ))}
           </div>
+        )}
 
-          {loading && videos.length === 0 && <SkeletonCardGrid count={8} className="mt-0" />}
-
-          {!loading && videos.length === 0 && !error && (
-            <EmptyState icon={Youtube} title="暂无内容" description="该分类下暂无视频，请尝试其他分类" />
-          )}
-
-          <div ref={loaderRef} className="flex justify-center py-8">
-            {loading && videos.length > 0 && <Loader2 size={24} className="animate-spin text-gray-400" />}
-            {!hasMore && videos.length > 0 && <p className="text-sm text-gray-500">已加载全部内容</p>}
+        {/* Empty state */}
+        {!loading && videos.length === 0 && !error && (
+          <div className="text-center py-16">
+            <p className="text-sm text-muted">该分类下暂无视频,请尝试其他筛选条件</p>
           </div>
+        )}
+
+        {/* Load more / infinite scroll trigger */}
+        <div ref={loaderRef} className="flex justify-center mt-8">
+          {loading && videos.length > 0 && (
+            <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
+          )}
+          {!loading && hasMore && videos.length > 0 && (
+            <button
+              className="btn-outline mx-auto block"
+              onClick={() => {
+                const el = loaderRef.current;
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              }}
+            >
+              加载更多
+            </button>
+          )}
+          {!hasMore && videos.length > 0 && <p className="text-sm text-muted">已加载全部内容</p>}
         </div>
       </main>
     </PageTransition>

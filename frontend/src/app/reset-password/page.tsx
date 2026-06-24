@@ -20,18 +20,16 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="w-full max-w-sm text-center">
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-coral text-white">
+        <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white">
           <Sparkles size={22} />
         </span>
         <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
           链接无效
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          该重置链接无效或已过期，请重新申请。
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">该重置链接无效或已过期，请重新申请。</p>
         <Link
           href="/forgot-password"
-          className="mt-6 inline-flex items-center gap-1.5 text-sm text-coral hover:underline font-medium"
+          className="mt-6 inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
         >
           重新发送重置链接
         </Link>
@@ -73,15 +71,13 @@ function ResetPasswordForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="text-center">
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-coral text-white">
+        <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white">
           <Sparkles size={22} />
         </span>
         <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
           设置新密码
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          请输入您的新密码
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">请输入您的新密码</p>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -112,18 +108,14 @@ function ResetPasswordForm() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary w-full justify-center mt-2"
-        >
+        <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-2">
           {loading ? "重置中..." : "重置密码"}
         </button>
 
         <div className="text-center">
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-sm text-coral hover:underline font-medium"
+            className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
           >
             <ArrowLeft size={14} />
             返回登录
@@ -139,9 +131,7 @@ export default function ResetPasswordPage() {
     <main className="flex min-h-screen items-center justify-center px-4 bg-canvas">
       <Suspense
         fallback={
-          <div className="w-full max-w-sm text-center text-sm text-muted-foreground">
-            加载中...
-          </div>
+          <div className="w-full max-w-sm text-center text-sm text-muted-foreground">加载中...</div>
         }
       >
         <ResetPasswordForm />

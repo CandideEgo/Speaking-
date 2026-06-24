@@ -1,6 +1,14 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
-export type SubtitleMode = 'bilingual' | 'english' | 'reading' | 'dictation' | 'translate' | 'fillblank' | 'flashcard';
+export type SubtitleMode =
+  | "bilingual"
+  | "english"
+  | "chinese"
+  | "reading"
+  | "dictation"
+  | "translate"
+  | "fillblank"
+  | "flashcard";
 
 interface WatchStore {
   subtitleMode: SubtitleMode;
@@ -12,7 +20,7 @@ interface WatchStore {
 }
 
 export const useWatchStore = create<WatchStore>((set) => ({
-  subtitleMode: 'bilingual',
+  subtitleMode: "bilingual",
   setSubtitleMode: (mode) => set({ subtitleMode: mode }),
   leftPanelWidth: 58,
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),

@@ -1,4 +1,4 @@
-import { SkeletonCardGrid } from '@/components/SkeletonCard';
+import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 
 export default function MainLoading() {
   return (

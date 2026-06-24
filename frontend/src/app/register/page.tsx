@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -10,25 +10,49 @@ import { Sparkles } from "lucide-react";
 export default function RegisterPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Show spinner while auth state is initializing
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-canvas">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
+      </main>
+    );
+  }
+
+  // Don't show register form if already authenticated
+  if (isAuthenticated) {
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const res = await api<{ token: string; user: { id: string; email: string } }>(
-        "/api/v1/auth/register",
-        {
-          method: "POST",
-          body: JSON.stringify({ email, password, name: name || null }),
-        }
-      );
-      login(res.token);
+      const res = await api<{
+        token: string;
+        refresh_token: string;
+        user: { id: string; email: string };
+      }>("/api/v1/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, password, name: name || null }),
+      });
+      login(res.token, res.refresh_token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "注册失败，请重试");
@@ -41,7 +65,7 @@ export default function RegisterPage() {
     <main className="flex min-h-screen items-center justify-center px-4 bg-canvas">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-coral text-white">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white">
             <Sparkles size={22} />
           </span>
           <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
@@ -49,7 +73,7 @@ export default function RegisterPage() {
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             已有账号？{" "}
-            <Link href="/login" className="text-coral hover:underline font-medium">
+            <Link href="/login" className="text-brand-500 hover:underline font-medium">
               登录
             </Link>
           </p>

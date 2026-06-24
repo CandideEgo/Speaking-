@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
-import type { QuizQuestion } from '@/types';
+import { useState, useEffect, useCallback } from "react";
+import { api } from "@/lib/api";
+import type { QuizQuestion } from "@/types";
 
 interface UseQuizOptions {
   videoId: string;
@@ -31,7 +31,9 @@ export function useQuiz({ videoId }: UseQuizOptions): UseQuizReturn {
   useEffect(() => {
     api<{ quiz: QuizQuestion[] }>(`/api/v1/videos/${videoId}/quiz`)
       .then((data) => setQuizQuestions(data.quiz || []))
-      .catch(() => { /* quiz not available */ });
+      .catch(() => {
+        /* quiz not available */
+      });
   }, [videoId]);
 
   const handleQuizAnswer = useCallback((questionIndex: number, answer: string) => {
@@ -40,7 +42,7 @@ export function useQuiz({ videoId }: UseQuizOptions): UseQuizReturn {
 
   const submitQuiz = useCallback(async () => {
     const correct = quizQuestions.filter((q, i) => {
-      const ua = (quizAnswers[i] || '').trim().toLowerCase();
+      const ua = (quizAnswers[i] || "").trim().toLowerCase();
       return ua === q.answer.trim().toLowerCase();
     }).length;
     const score = Math.round((correct / quizQuestions.length) * 100);
@@ -48,13 +50,15 @@ export function useQuiz({ videoId }: UseQuizOptions): UseQuizReturn {
     setQuizSubmitted(true);
     try {
       const form = new FormData();
-      form.append('score', String(score));
+      form.append("score", String(score));
       await api(`/api/v1/videos/${videoId}/quiz/submit`, {
-        method: 'POST',
+        method: "POST",
         body: form,
         headers: {} as Record<string, string>,
       });
-    } catch { /* ignore submission errors */ }
+    } catch {
+      /* ignore submission errors */
+    }
   }, [quizQuestions, quizAnswers, videoId]);
 
   return {

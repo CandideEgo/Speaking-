@@ -1,4 +1,4 @@
-import type { Subtitle } from '@/types';
+import type { Subtitle } from "@/types";
 
 /**
  * Find the subtitle index for a given time using binary search.

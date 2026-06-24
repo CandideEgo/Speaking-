@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from "react";
 
 interface UseSpeechOptions {
   lang?: string;
@@ -19,32 +19,35 @@ interface UseSpeechReturn {
  * Handles creating utterance, speaking, stopping, and isPlaying state.
  */
 export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechReturn {
-  const { lang = 'en-US', rate = 0.9, onEnd } = defaultOptions;
+  const { lang = "en-US", rate = 0.9, onEnd } = defaultOptions;
   const [isPlaying, setIsPlaying] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  const speak = useCallback((text: string, options?: { rate?: number }) => {
-    if (!text) return;
+  const speak = useCallback(
+    (text: string, options?: { rate?: number }) => {
+      if (!text) return;
 
-    speechSynthesis.cancel();
-    setIsPlaying(true);
+      speechSynthesis.cancel();
+      setIsPlaying(true);
 
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
-    u.rate = options?.rate ?? rate;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = options?.rate ?? rate;
 
-    u.onend = () => {
-      setIsPlaying(false);
-      onEnd?.();
-    };
+      u.onend = () => {
+        setIsPlaying(false);
+        onEnd?.();
+      };
 
-    u.onerror = () => {
-      setIsPlaying(false);
-    };
+      u.onerror = () => {
+        setIsPlaying(false);
+      };
 
-    utteranceRef.current = u;
-    speechSynthesis.speak(u);
-  }, [lang, rate, onEnd]);
+      utteranceRef.current = u;
+      speechSynthesis.speak(u);
+    },
+    [lang, rate, onEnd]
+  );
 
   const stop = useCallback(() => {
     speechSynthesis.cancel();

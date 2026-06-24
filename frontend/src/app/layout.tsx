@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { SidebarProvider } from "@/components/SidebarProvider";
-import { ThemedToaster } from "@/components/ThemedToaster";
-import { AuthInitializer } from "@/components/AuthInitializer";
+import { ThemeProvider } from "@/components/common/ThemeProvider";
+import { SidebarProvider } from "@/components/layout/SidebarProvider";
+import { ThemedToaster } from "@/components/common/ThemedToaster";
+import { AuthInitializer } from "@/components/common/AuthInitializer";
 
 export const metadata: Metadata = {
   title: "Speaking — 用真实视频学开口说英语",

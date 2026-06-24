@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface BannerItem {
   id: string;
@@ -37,10 +37,18 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
   if (!items.length) return null;
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl" aria-roledescription="轮播" aria-label="推荐横幅" onKeyDown={(e) => {
-      if (e.key === 'ArrowLeft') { prev(); }
-      else if (e.key === 'ArrowRight') { next(); }
-    }}>
+    <div
+      className="relative w-full overflow-hidden rounded-xl"
+      aria-roledescription="轮播"
+      aria-label="推荐横幅"
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") {
+          prev();
+        } else if (e.key === "ArrowRight") {
+          next();
+        }
+      }}
+    >
       <div
         className="flex transition-transform duration-500 ease-out"
         style={{ transform: `translateX(-${current * 100}%)` }}
@@ -50,11 +58,7 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
           <div key={item.id} className="w-full flex-shrink-0">
             <div className="relative aspect-[21/9] overflow-hidden bg-gray-100">
               {item.image_url ? (
-                <img
-                  src={item.image_url}
-                  alt={item.title}
-                  className="h-full w-full object-cover"
-                />
+                <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
               ) : (
                 <div className="h-full w-full bg-gradient-to-r from-platform-bilibili/20 to-platform-bilibili-pink/20 flex items-center justify-center">
                   <span className="text-xl font-bold text-ink">{item.title}</span>
@@ -97,8 +101,8 @@ export function BannerCarousel({ items, autoPlay = true, interval = 5000 }: Bann
               key={index}
               onClick={() => setCurrent(index)}
               className={cn(
-                'h-1.5 rounded-full transition-all',
-                index === current ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                "h-1.5 rounded-full transition-all",
+                index === current ? "w-4 bg-white" : "w-1.5 bg-white/50"
               )}
               aria-label={`跳转到第 ${index + 1} 张`}
             />
