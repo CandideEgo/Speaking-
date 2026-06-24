@@ -263,15 +263,22 @@ def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
     out = []
     for seg in segments:
         words = [
-            {"word": w.word.strip(), "start": float(w.start), "end": float(w.end), "score": float(getattr(w, "probability", 0.0))}
+            {
+                "word": w.word.strip(),
+                "start": float(w.start),
+                "end": float(w.end),
+                "score": float(getattr(w, "probability", 0.0)),
+            }
             for w in (getattr(seg, "words", None) or [])
         ]
-        out.append({
-            "start": float(seg.start),
-            "end": float(seg.end),
-            "text": (seg.text or "").strip(),
-            "words": words,
-        })
+        out.append(
+            {
+                "start": float(seg.start),
+                "end": float(seg.end),
+                "text": (seg.text or "").strip(),
+                "words": words,
+            }
+        )
     logger.info("faster-whisper transcription complete", segment_count=len(out))
     return out
 
@@ -304,11 +311,13 @@ def transcribe_audio(audio_path: str) -> list[dict]:
 
 def _whisperx_batch_size() -> int:
     from app.core.config import get_settings
+
     return get_settings().whisperx_batch_size
 
 
 def _whisper_language():
     from app.core.config import get_settings
+
     return get_settings().whisper_language or None
 
 
