@@ -35,7 +35,7 @@ PLAYWRIGHT_CLI = shutil.which("playwright-cli") or "playwright-cli"
 
 def _run_cmd(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """Run playwright-cli command with proper executable resolution."""
-    cmd = [PLAYWRIGHT_CLI] + args
+    cmd = [PLAYWRIGHT_CLI, *args]
     return subprocess.run(cmd, capture_output=True, text=True, check=check)
 
 
