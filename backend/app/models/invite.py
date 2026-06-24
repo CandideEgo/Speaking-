@@ -1,8 +1,10 @@
-import uuid
 import secrets
-from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, ForeignKey
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.core.database import Base
 
 
@@ -16,18 +18,12 @@ def generate_code() -> str:
 class InviteCode(Base):
     __tablename__ = "invite_codes"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    code: Mapped[str] = mapped_column(
-        String(20), unique=True, nullable=False, index=True, default=generate_code
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True, default=generate_code)
     plan: Mapped[str] = mapped_column(String(20), nullable=False, default="pro")
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     batch_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     used_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

@@ -4,20 +4,18 @@ This module is intentionally excluded from the production router.
 It is included conditionally in main.py only when settings.env == "development".
 """
 
-from datetime import datetime, timezone
-
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.api.v1.payments import _process_successful_payment
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
-from app.models.user import User, PlanType
-
-import structlog
+from app.models.user import User
 
 logger = structlog.get_logger()
 
@@ -38,9 +36,7 @@ async def mock_payment(
     if settings.env not in ("development", "testing"):
         raise HTTPException(status_code=404, detail="Not found")
 
-    result = await db.execute(
-        select(Order).where(Order.order_number == order_id).with_for_update()
-    )
+    result = await db.execute(select(Order).where(Order.order_number == order_id).with_for_update())
     order = result.scalar_one_or_none()
 
     if not order or order.user_id != current_user.id:
@@ -48,9 +44,6 @@ async def mock_payment(
     if order.status != OrderStatus.pending:
         raise HTTPException(status_code=400, detail="Order already processed")
 
-    current_user.plan = PlanType.pro
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
+    await _process_successful_payment(db, order)
 
     return {"success": True, "message": "Payment successful — upgraded to Pro", "redirect": "/dashboard"}

@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, field_validator
 
 
@@ -78,6 +79,5 @@ class VideoWithCommentScoreResponse(BaseModel):
     topic_tags: str | None
     comment_quality_score: float | None
     comment_count: int | None
-    youtube_video_id: str | None
 
     model_config = {"from_attributes": True}

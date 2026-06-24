@@ -13,7 +13,8 @@ Usage in route handlers:
                                   page_size=pagination.page_size, has_more=has_more)
 """
 
-from typing import Generic, TypeVar, List
+from typing import Generic, TypeVar
+
 from fastapi import Query
 from pydantic import BaseModel, ConfigDict
 
@@ -53,7 +54,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    items: List[T]
+    items: list[T]
     page: int
     page_size: int
     has_more: bool

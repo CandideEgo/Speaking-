@@ -1,68 +1,56 @@
-"""Email service for password reset and other transactional emails.
+import logging
+from datetime import UTC, datetime, timedelta, timezone
 
-In production, sends email via aiosmtplib.
-In development (SMTP_HOST empty), logs the reset URL to stdout as a fallback.
-"""
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
-import structlog
+from jose import jwt
 
 from app.core.config import get_settings
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-async def send_password_reset_email(email: str, reset_url: str) -> None:
-    """Send a password reset email with the given reset URL.
+def _create_verification_token(user_id: str) -> str:
+    """Generate a JWT token for email verification (24h expiry)."""
+    expire = datetime.now(UTC) + timedelta(hours=24)
+    payload = {"sub": user_id, "exp": expire, "type": "email_verification"}
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
-    If SMTP_HOST is not configured, logs the URL to stdout instead.
+
+async def send_verification_email(user_id: str, email: str, name: str | None = None) -> None:
+    """Send a verification email to the user.
+
+    In development mode, logs the verification URL instead of sending an email.
     """
-    if not settings.smtp_host:
+    token = _create_verification_token(user_id)
+    verification_url = f"{settings.frontend_url}/verify-email?token={token}"
+
+    if settings.env == "development":
         logger.info(
-            "password_reset_email_skipped_smtp_not_configured",
-            email=email,
-            reset_url=reset_url,
+            "DEV MODE — Email verification for %s: %s",
+            email,
+            verification_url,
         )
-        print(f"[DEV] Password reset for {email}: {reset_url}")
         return
 
-    subject = "Speaking — Password Reset"
-    text_body = (
-        f"You requested a password reset for your Speaking account.\n\n"
-        f"Click the link below to set a new password (valid for {settings.password_reset_expire_minutes} minutes):\n\n"
-        f"{reset_url}\n\n"
-        f"If you did not request this, ignore this email — your password will remain unchanged."
-    )
-    html_body = (
-        f"<p>You requested a password reset for your Speaking account.</p>"
-        f"<p>Click the link below to set a new password "
-        f"(valid for {settings.password_reset_expire_minutes} minutes):</p>"
-        f'<p><a href="{reset_url}">{reset_url}</a></p>'
-        f"<p>If you did not request this, ignore this email — your password will remain unchanged.</p>"
+    # Production: send actual email
+    # TODO: integrate with an email provider (e.g. SendGrid, SES, SMTP)
+    # For now, log as a placeholder
+    logger.info(
+        "Verification email would be sent to %s: %s",
+        email,
+        verification_url,
     )
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = settings.smtp_from_email
-    msg["To"] = email
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
 
-    try:
-        import aiosmtplib
+async def send_password_reset_email(email: str, reset_url: str) -> None:
+    """Send a password reset email.
 
-        await aiosmtplib.send(
-            msg,
-            hostname=settings.smtp_host,
-            port=settings.smtp_port,
-            username=settings.smtp_user or None,
-            password=settings.smtp_password or None,
-            start_tls=settings.smtp_use_tls,
-        )
-        logger.info("password_reset_email_sent", email=email)
-    except Exception:
-        logger.exception("password_reset_email_failed", email=email)
-        # Do not raise — we don't want email failures to leak information
-        # about whether an account exists. The endpoint always returns 200.
+    In development mode, logs the reset URL instead of sending an email.
+    """
+    if settings.env == "development":
+        logger.info("DEV MODE — Password reset for %s: %s", email, reset_url)
+        return
+
+    # Production: send actual email
+    # TODO: integrate with an email provider (e.g. SendGrid, SES, SMTP)
+    logger.info("Password reset email would be sent to %s: %s", email, reset_url)

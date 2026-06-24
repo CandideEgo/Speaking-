@@ -1,19 +1,27 @@
-from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.dependencies import get_admin_user, get_current_user
 from app.core.database import get_db
-from app.models.user import User, PlanType
+from app.core.limiter import rate_limit
 from app.models.invite import InviteCode
+from app.models.user import PlanType, User
 from app.schemas.invite import (
     InviteCodeGenerate,
-    InviteCodeResponse,
     InviteCodeRedeem,
+    InviteCodeResponse,
     RedeemResponse,
 )
-from app.api.dependencies import get_current_user, get_admin_user
 from app.schemas.pagination import has_more
-from app.core.limiter import rate_limit
+
+
+def _utcnow() -> datetime:
+    """Return current UTC time as a naive datetime for DB compatibility."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
 
 router = APIRouter(prefix="/invite-codes", tags=["invite-codes"])
 
@@ -30,6 +38,7 @@ async def generate_codes(
     codes = []
     for _ in range(data.count):
         from app.models.invite import generate_code
+
         code = InviteCode(
             plan=data.plan,
             duration_days=data.duration_days,
@@ -37,9 +46,7 @@ async def generate_codes(
         )
         # ensure uniqueness
         while True:
-            existing = await db.execute(
-                select(InviteCode).where(InviteCode.code == code.code)
-            )
+            existing = await db.execute(select(InviteCode).where(InviteCode.code == code.code))
             if not existing.scalar_one_or_none():
                 break
             code.code = generate_code()
@@ -101,6 +108,7 @@ async def list_codes(
 
     # Count total for has_more
     from sqlalchemy import func
+
     count_stmt = select(func.count(InviteCode.id))
     if used is not None:
         count_stmt = count_stmt.where(InviteCode.is_used == used)
@@ -128,9 +136,7 @@ async def redeem_code(
     """Redeem an invite code to upgrade account to Pro."""
     code_str = data.code.strip().upper()
 
-    result = await db.execute(
-        select(InviteCode).where(InviteCode.code == code_str).with_for_update()
-    )
+    result = await db.execute(select(InviteCode).where(InviteCode.code == code_str).with_for_update())
     code = result.scalar_one_or_none()
 
     if not code:
@@ -141,11 +147,17 @@ async def redeem_code(
     # Apply the code
     code.is_used = True
     code.used_by = current_user.id
-    code.used_at = datetime.now(timezone.utc)
+    code.used_at = _utcnow()
+
+    # Lock the User row before modifying to prevent race conditions
+    user_result = await db.execute(select(User).where(User.id == current_user.id).with_for_update())
+    current_user = user_result.scalar_one()
 
     current_user.plan = PlanType.pro
     if code.duration_days and code.duration_days > 0:
-        current_user.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=code.duration_days)
+        current_user.plan_expires_at = max(current_user.plan_expires_at or _utcnow(), _utcnow()) + timedelta(
+            days=code.duration_days
+        )
 
     await db.commit()
 

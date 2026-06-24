@@ -18,21 +18,6 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-async def _get_redis():
-    """Create a short-lived async Redis client.
-
-    Follows the same pattern as ``app.api.v1.feed_base._redis_get`` —
-    open a connection per call and close it immediately.  This avoids
-    lifecycle coupling with the FastAPI app and works correctly in
-    both dev (single-process) and prod (gunicorn multi-worker) setups.
-    """
-    import redis.asyncio as aioredis
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    return aioredis.from_url(settings.redis_url)
-
-
 async def blacklist_token(jti: str, ttl_seconds: int) -> None:
     """Add a token JTI to the blacklist.
 
@@ -46,9 +31,10 @@ async def blacklist_token(jti: str, ttl_seconds: int) -> None:
         return
 
     try:
-        client = await _get_redis()
-        await client.set(f"token_blacklist:{jti}", "1", ex=ttl_seconds)
-        await client.close()
+        from app.core.redis import get_redis
+
+        r = get_redis()
+        await r.set(f"token_blacklist:{jti}", "1", ex=ttl_seconds)
         logger.debug("token_blacklisted", jti=jti, ttl=ttl_seconds)
     except Exception:
         # Fail open — log but don't raise.
@@ -67,10 +53,10 @@ async def is_token_blacklisted(jti: str | None) -> bool:
         return False
 
     try:
-        client = await _get_redis()
-        result = await client.exists(f"token_blacklist:{jti}")
-        await client.close()
-        return bool(result)
+        from app.core.redis import get_redis
+
+        r = get_redis()
+        return bool(await r.exists(f"token_blacklist:{jti}"))
     except Exception:
         # Fail open — if Redis is down, allow the request through.
         logger.warning("token_blacklist_check_redis_error", jti=jti, exc_info=True)

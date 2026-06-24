@@ -1,23 +1,46 @@
-import bcrypt
-import jwt
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
+
+import bcrypt
+from jose import JWTError, jwt
+
 from app.core.config import get_settings
 
 settings = get_settings()
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=settings.bcrypt_rounds)).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_token(user_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": user_id, "exp": expire, "jti": uuid.uuid4().hex}
+def create_token(user_id: str, token_type: str = "access") -> str:
+    """Create a JWT token.
+
+    Args:
+        user_id: The user's ID to encode as the subject.
+        token_type: "access" for short-lived access tokens, "refresh" for
+            longer-lived refresh tokens.
+
+    Returns:
+        Encoded JWT string.
+    """
+    if token_type == "refresh":
+        expire_minutes = settings.jwt_expire_minutes * 4  # Refresh token lasts 4x longer
+    else:
+        expire_minutes = settings.jwt_expire_minutes
+
+    expire = datetime.now(UTC) + timedelta(minutes=expire_minutes)
+    payload = {
+        "sub": user_id,
+        "exp": expire,
+        "iat": datetime.now(UTC),
+        "type": token_type,
+        "jti": uuid.uuid4().hex,
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -26,7 +49,34 @@ def decode_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         return payload
-    except jwt.ExpiredSignatureError:
+    except JWTError:
         return None
-    except jwt.InvalidTokenError:
-        return None
+
+
+def create_token_pair(user_id: str) -> dict[str, str]:
+    """Create an access token + refresh token pair.
+
+    Returns:
+        Dict with 'access_token' and 'refresh_token' keys.
+    """
+    return {
+        "access_token": create_token(user_id, token_type="access"),
+        "refresh_token": create_token(user_id, token_type="refresh"),
+    }
+
+
+def validate_password_strength(password: str) -> None:
+    """Validate password meets complexity requirements.
+
+    Raises ValueError with a specific message if any requirement is not met.
+    """
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if not any(c.isupper() for c in password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password):
+        raise ValueError("Password must contain at least one digit")
+    if not any(c in "!@#$%^&*()_+-=[]{}|;:',.<>?/`~" for c in password):
+        raise ValueError("Password must contain at least one special character")

@@ -1,14 +1,12 @@
-import structlog
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from sqlalchemy import select, delete
+import structlog
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.video import Video
-from app.services.youtube_comment_service import YouTubeCommentService
 
 logger = structlog.get_logger()
 
@@ -19,25 +17,75 @@ logger = structlog.get_logger()
 LEARNING_KEYWORDS = {
     "high": [
         # English learning direct
-        "english", "learn", "learning", "study", "pronunciation",
-        "accent", "vocabulary", "grammar", "speaking", "listening",
-        "fluency", "comprehension", "practice", "improve",
+        "english",
+        "learn",
+        "learning",
+        "study",
+        "pronunciation",
+        "accent",
+        "vocabulary",
+        "grammar",
+        "speaking",
+        "listening",
+        "fluency",
+        "comprehension",
+        "practice",
+        "improve",
         # Chinese equivalents
-        "英语", "学习", "发音", "口语", "听力", "单词", "语法",
-        "词汇", "练习", "提高", "流利", "理解",
+        "英语",
+        "学习",
+        "发音",
+        "口语",
+        "听力",
+        "单词",
+        "语法",
+        "词汇",
+        "练习",
+        "提高",
+        "流利",
+        "理解",
     ],
     "medium": [
         # Content appreciation / inspiration
-        "inspiring", "motivational", "insightful", "thought-provoking",
-        "useful", "helpful", "informative", "educational",
-        "启发", "感动", "受益", "深刻", "有用", "有帮助",
-        "感谢", "谢谢", "appreciate", "thanks",
+        "inspiring",
+        "motivational",
+        "insightful",
+        "thought-provoking",
+        "useful",
+        "helpful",
+        "informative",
+        "educational",
+        "启发",
+        "感动",
+        "受益",
+        "深刻",
+        "有用",
+        "有帮助",
+        "感谢",
+        "谢谢",
+        "appreciate",
+        "thanks",
     ],
     "low": [
         # Low-value / spam indicators
-        "first", "early", "here", "lol", "haha", "lmao", "omg",
-        "来了", "第一", "沙发", "哈哈哈", "呵呵", "666",
-        "who's watching", "anyone", "2024", "2025", "2026",
+        "first",
+        "early",
+        "here",
+        "lol",
+        "haha",
+        "lmao",
+        "omg",
+        "来了",
+        "第一",
+        "沙发",
+        "哈哈哈",
+        "呵呵",
+        "666",
+        "who's watching",
+        "anyone",
+        "2024",
+        "2025",
+        "2026",
     ],
 }
 
@@ -48,10 +96,7 @@ URL_PATTERN = re.compile(r"https?://\S+|www\.\S+")
 def _count_keywords(text: str) -> dict[str, int]:
     """Count keyword occurrences in comment text (case-insensitive)."""
     text_lower = text.lower()
-    return {
-        tier: sum(1 for kw in keywords if kw in text_lower)
-        for tier, keywords in LEARNING_KEYWORDS.items()
-    }
+    return {tier: sum(1 for kw in keywords if kw in text_lower) for tier, keywords in LEARNING_KEYWORDS.items()}
 
 
 def _calculate_learning_relevance_score(
@@ -145,50 +190,43 @@ def calculate_overall_quality_score(
 
     Weights: learning 40%, depth 30%, engagement 30%.
     """
-    return int(
-        learning_score * 0.4 + depth_score * 0.3 + engagement_score * 0.3
-    )
+    return int(learning_score * 0.4 + depth_score * 0.3 + engagement_score * 0.3)
 
 
 class CommentService:
-    """Extract and analyze YouTube comments for video quality assessment."""
+    """Analyze and manage video comments for quality assessment."""
 
     def __init__(self):
-        self.yt_service = YouTubeCommentService()
+        pass
 
     async def fetch_and_store_comments(
         self,
         db: AsyncSession,
         video_id: str,
-        youtube_video_id: str,
-        max_results: int = 100,
+        comments_data: list[dict],
     ) -> list[VideoComment]:
-        """Fetch comments from YouTube and store in DB.
+        """Store pre-fetched comments in DB.
 
-        Returns the stored VideoComment objects.
+        Args:
+            db: Database session.
+            video_id: Internal video ID.
+            comments_data: List of comment dicts with keys: external_id, text,
+                           author_name, like_count, reply_count, published_at.
+
+        Returns:
+            The stored VideoComment objects.
         """
         # Delete existing comments for this video (refresh)
-        await db.execute(
-            delete(VideoComment).where(VideoComment.video_id == video_id)
-        )
+        await db.execute(delete(VideoComment).where(VideoComment.video_id == video_id))
         await db.commit()
 
-        # Fetch from YouTube Data API
-        raw_comments = await self.yt_service.fetch_comments(
-            youtube_video_id, max_results=max_results
-        )
-
-        if not raw_comments:
-            logger.warning(
-                "no comments fetched for video",
-                youtube_video_id=youtube_video_id,
-                video_id=video_id,
-            )
+        if not comments_data:
+            logger.warning("no comments provided for video", video_id=video_id)
             return []
 
         # Store in DB
         stored: list[VideoComment] = []
-        for raw in raw_comments:
+        for raw in comments_data:
             comment = VideoComment(
                 video_id=video_id,
                 external_id=raw["external_id"],
@@ -216,15 +254,13 @@ class CommentService:
         self,
         db: AsyncSession,
         video_id: str,
-    ) -> Optional[VideoCommentStats]:
+    ) -> VideoCommentStats | None:
         """Run quality analysis on stored comments and save results.
 
         Returns the VideoCommentStats record or None if no comments.
         """
         # Load comments
-        result = await db.execute(
-            select(VideoComment).where(VideoComment.video_id == video_id)
-        )
+        result = await db.execute(select(VideoComment).where(VideoComment.video_id == video_id))
         comments = result.scalars().all()
 
         if not comments:
@@ -232,24 +268,16 @@ class CommentService:
             return None
 
         # Calculate scores
-        learning_score, keyword_stats = _calculate_learning_relevance_score(
-            comments
-        )
+        learning_score, keyword_stats = _calculate_learning_relevance_score(comments)
         depth_score = _calculate_depth_score(comments)
         engagement_score = _calculate_engagement_score(comments)
-        overall_score = calculate_overall_quality_score(
-            learning_score, depth_score, engagement_score
-        )
+        overall_score = calculate_overall_quality_score(learning_score, depth_score, engagement_score)
 
         total_likes = sum(c.like_count for c in comments)
         avg_length = sum(len(c.text) for c in comments) / len(comments)
 
         # Upsert stats
-        result = await db.execute(
-            select(VideoCommentStats).where(
-                VideoCommentStats.video_id == video_id
-            )
-        )
+        result = await db.execute(select(VideoCommentStats).where(VideoCommentStats.video_id == video_id))
         stats = result.scalar_one_or_none()
 
         if stats is None:
@@ -264,12 +292,10 @@ class CommentService:
         stats.engagement_score = engagement_score
         stats.overall_quality_score = overall_score
         stats.keyword_stats = keyword_stats
-        stats.analyzed_at = datetime.now(timezone.utc)
+        stats.analyzed_at = datetime.now(UTC)
 
         # Update video table for quick querying
-        video_result = await db.execute(
-            select(Video).where(Video.id == video_id)
-        )
+        video_result = await db.execute(select(Video).where(Video.id == video_id))
         video = video_result.scalar_one_or_none()
         if video:
             video.comment_quality_score = overall_score
@@ -288,17 +314,15 @@ class CommentService:
         )
         return stats
 
-    async def get_quality_score(self, db: AsyncSession, video_id: str) -> Optional[int]:
+    async def get_quality_score(self, db: AsyncSession, video_id: str) -> int | None:
         """Get cached quality score for a video."""
         result = await db.execute(
-            select(VideoCommentStats.overall_quality_score).where(
-                VideoCommentStats.video_id == video_id
-            )
+            select(VideoCommentStats.overall_quality_score).where(VideoCommentStats.video_id == video_id)
         )
         return result.scalar_one_or_none()
 
 
-def _parse_iso_datetime(value: str) -> Optional[datetime]:
+def _parse_iso_datetime(value: str) -> datetime | None:
     """Parse ISO 8601 datetime string."""
     if not value:
         return None

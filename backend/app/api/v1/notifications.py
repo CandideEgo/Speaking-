@@ -1,16 +1,112 @@
-"""Notification route handlers."""
+"""Notification route handlers — REST API + WebSocket for real-time push."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func, update
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.models.user import User
-from app.models.notification import Notification
-from app.schemas.notification import NotificationResponse, UnreadCountResponse
 from app.api.dependencies import get_current_user
+from app.core.database import get_db
+from app.core.security import decode_token
+from app.models.notification import Notification
+from app.models.preferences import UserPreferences
+from app.models.user import User
+from app.schemas.notification import (
+    NotificationPreferencesResponse,
+    NotificationPreferencesUpdate,
+    NotificationResponse,
+    UnreadCountResponse,
+)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+# ── WebSocket connection manager ──────────────────────────────────────
+
+
+class ConnectionManager:
+    """Manages active WebSocket connections per user."""
+
+    def __init__(self):
+        # user_id -> list of WebSocket connections (a user may have multiple tabs)
+        self._connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, user_id: str, websocket: WebSocket):
+        await websocket.accept()
+        if user_id not in self._connections:
+            self._connections[user_id] = []
+        self._connections[user_id].append(websocket)
+
+    def disconnect(self, user_id: str, websocket: WebSocket):
+        if user_id in self._connections:
+            self._connections[user_id].remove(websocket)
+            if not self._connections[user_id]:
+                del self._connections[user_id]
+
+    async def send_to_user(self, user_id: str, message: dict):
+        """Send a JSON message to all of a user's active connections."""
+        connections = self._connections.get(user_id, [])
+        disconnected = []
+        for ws in connections:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        # Clean up disconnected sockets
+        for ws in disconnected:
+            self.disconnect(user_id, ws)
+
+
+# Singleton instance
+ws_manager = ConnectionManager()
+
+
+# ── WebSocket endpoint ────────────────────────────────────────────────
+
+
+@router.websocket("/ws")
+async def notification_websocket(
+    websocket: WebSocket,
+    token: str = Query(...),
+):
+    """WebSocket endpoint for real-time notifications.
+
+    Accepts a JWT token as a query parameter for authentication.
+    Sends notification events as JSON messages when they are created.
+    """
+    # Authenticate via token query param
+    payload = decode_token(token)
+    if not payload:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    user_id = payload.get("sub")
+    if not user_id:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Verify token type is access (not refresh)
+    if payload.get("type") == "refresh":
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await ws_manager.connect(user_id, websocket)
+    try:
+        # Send initial unread count
+        # (We can't easily get a db session here in WebSocket,
+        #  so we just keep the connection alive and push events)
+        while True:
+            # Keep connection alive — wait for any client message (ping/pong)
+            data = await websocket.receive_text()
+            # Client can send "ping" for keepalive
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(user_id, websocket)
+
+
+# ── REST API endpoints ────────────────────────────────────────────────
 
 
 @router.get("", response_model=list[NotificationResponse])
@@ -38,8 +134,7 @@ async def unread_count(
 ):
     """Return the number of unread notifications for the current user."""
     result = await db.execute(
-        select(func.count())
-        .where(Notification.user_id == current_user.id, Notification.is_read == False)
+        select(func.count()).where(Notification.user_id == current_user.id, Notification.is_read == False)
     )
     count = result.scalar() or 0
     return UnreadCountResponse(count=count)
@@ -52,9 +147,7 @@ async def mark_as_read(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a single notification as read. Only the owner can do this."""
-    result = await db.execute(
-        select(Notification).where(Notification.id == notification_id)
-    )
+    result = await db.execute(select(Notification).where(Notification.id == notification_id))
     notification = result.scalar_one_or_none()
     if not notification:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
@@ -79,3 +172,64 @@ async def mark_all_as_read(
     )
     await db.commit()
     return UnreadCountResponse(count=0)
+
+
+# ── Notification preferences ──────────────────────────────────────────
+
+# Default notification preferences
+DEFAULT_PREFS = {
+    "email_notifications": True,
+    "push_notifications": True,
+    "streak_reminder": True,
+    "weekly_report": True,
+    "community_updates": True,
+    "new_follower": True,
+    "comment_reply": True,
+}
+
+
+@router.get("/preferences")
+async def get_notification_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the current user's notification preferences."""
+    result = await db.execute(select(UserPreferences).where(UserPreferences.user_id == current_user.id))
+    pref = result.scalar_one_or_none()
+
+    if not pref or not pref.notification_preferences:
+        return DEFAULT_PREFS.copy()
+
+    # Merge with defaults (in case new keys were added)
+    merged = DEFAULT_PREFS.copy()
+    if isinstance(pref.notification_preferences, dict):
+        merged.update(pref.notification_preferences)
+    return merged
+
+
+@router.put("/preferences")
+async def update_notification_preferences(
+    data: NotificationPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the current user's notification preferences (upsert)."""
+    result = await db.execute(select(UserPreferences).where(UserPreferences.user_id == current_user.id))
+    pref = result.scalar_one_or_none()
+
+    if not pref:
+        pref = UserPreferences(user_id=current_user.id, notification_preferences=DEFAULT_PREFS.copy())
+        db.add(pref)
+
+    # Merge updates into existing preferences
+    current = pref.notification_preferences or DEFAULT_PREFS.copy()
+    if not isinstance(current, dict):
+        current = DEFAULT_PREFS.copy()
+    update_data = data.model_dump(exclude_none=True)
+    current.update(update_data)
+    pref.notification_preferences = current
+
+    await db.commit()
+    await db.refresh(pref)
+
+    return current

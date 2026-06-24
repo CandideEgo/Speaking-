@@ -6,6 +6,7 @@ Provides:
 - request_id binding for Celery tasks via task_prerun signal
 - get_logger() helper for consistent logger creation
 """
+
 import logging
 import uuid
 
@@ -41,7 +42,7 @@ def configure_logging() -> None:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
 
     structlog.configure(
-        processors=shared_processors + [renderer],
+        processors=[*shared_processors, renderer],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -66,6 +67,7 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
 # ---------------------------------------------------------------------------
 # Celery request_id binding
 # ---------------------------------------------------------------------------
+
 
 @task_prerun.connect
 def _bind_celery_request_id(sender=None, task_id=None, task=None, **kwargs):

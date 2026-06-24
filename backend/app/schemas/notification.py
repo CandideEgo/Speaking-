@@ -1,25 +1,44 @@
 from datetime import datetime
-from pydantic import BaseModel, field_validator
+
+from pydantic import BaseModel, Field
 
 
 class NotificationResponse(BaseModel):
     id: str
+    user_id: str
     type: str
     title: str
-    message: str
-    is_read: bool
-    related_url: str | None
-    created_at: str
+    message: str | None = None
+    is_read: bool = False
+    related_url: str | None = None
+    data: str | None = None
+    read_at: datetime | None = None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
-
-    @field_validator('created_at', mode='before')
-    @classmethod
-    def serialize_created_at(cls, v: object) -> str:
-        if isinstance(v, datetime):
-            return v.isoformat()
-        return str(v)
 
 
 class UnreadCountResponse(BaseModel):
     count: int
+
+
+class NotificationPreferencesResponse(BaseModel):
+    email_notifications: bool = True
+    push_notifications: bool = True
+    streak_reminder: bool = True
+    weekly_report: bool = True
+    community_updates: bool = True
+    new_follower: bool = True
+    comment_reply: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    email_notifications: bool | None = None
+    push_notifications: bool | None = None
+    streak_reminder: bool | None = None
+    weekly_report: bool | None = None
+    community_updates: bool | None = None
+    new_follower: bool | None = None
+    comment_reply: bool | None = None

@@ -1,17 +1,35 @@
 import uuid
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
-from pathlib import Path
-from sqlalchemy import text
-from app.core.config import get_settings
-from app.core.logging import configure_logging, get_logger
-from app.core.limiter import limiter
-from slowapi.errors import RateLimitExceeded
+from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
-from app.api.v1 import auth, users, videos, speaking, ai, payments, invite, vocabulary, youtube, browse, community, bilibili, douyin, comments, rubrics, notifications
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
+
+from app.api.v1 import (
+    ai,
+    auth,
+    browse,
+    comments,
+    community,
+    invite,
+    learning,
+    notifications,
+    payments,
+    rubrics,
+    speaking,
+    users,
+    videos,
+    vocabulary,
+)
+from app.core.config import get_settings
+from app.core.limiter import limiter
+from app.core.logging import configure_logging, get_logger
 
 settings = get_settings()
 configure_logging()
@@ -20,6 +38,7 @@ logger = get_logger(__name__)
 # Initialize Sentry in production
 if settings.sentry_dsn:
     import sentry_sdk
+
     sentry_sdk.init(
         dsn=settings.sentry_dsn,
         environment=settings.env,
@@ -36,8 +55,27 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage startup/shutdown lifecycle.
+
+    - Startup: services initialise lazily (Redis singleton, DB engine pool).
+    - Shutdown: dispose DB engine pool and close Redis connection.
+    """
+    yield
+    # --- Shutdown ---
+    from app.core.database import engine as db_engine
+
+    await db_engine.dispose()
+    logger.info("database_engine_disposed")
+
+    from app.core.redis import close_redis
+
+    await close_redis()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, debug=settings.debug)
+    app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
     Instrumentator().instrument(app).expose(app)
 
     app.state.limiter = limiter
@@ -91,9 +129,7 @@ def create_app() -> FastAPI:
         return response
 
     allowed_origins = (
-        ["http://localhost:3000", "http://127.0.0.1:3000"]
-        if settings.env == "development"
-        else [settings.frontend_url]
+        ["http://localhost:3000", "http://127.0.0.1:3000"] if settings.env == "development" else [settings.frontend_url]
     )
 
     app.add_middleware(
@@ -117,16 +153,15 @@ def create_app() -> FastAPI:
     app.include_router(payments.router, prefix="/api/v1")
     if settings.env in ("development", "testing"):
         from app.api.v1 import mock_payments
+
         app.include_router(mock_payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
-    app.include_router(youtube.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(community.router, prefix="/api/v1")
-    app.include_router(bilibili.router, prefix="/api/v1")
-    app.include_router(douyin.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
     app.include_router(rubrics.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
+    app.include_router(learning.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health():
@@ -136,6 +171,7 @@ def create_app() -> FastAPI:
         # --- Database connectivity check ---
         try:
             from app.core.database import engine as db_engine
+
             async with db_engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             checks["database"] = {"status": "ok"}
@@ -143,12 +179,12 @@ def create_app() -> FastAPI:
             all_healthy = False
             checks["database"] = {"status": "error", "detail": str(exc)}
 
-        # --- Redis connectivity check ---
+        # --- Redis connectivity check (using shared client) ---
         try:
-            import redis.asyncio as aioredis
-            redis_client = aioredis.from_url(settings.redis_url)
+            from app.core.redis import get_redis
+
+            redis_client = get_redis()
             await redis_client.ping()
-            await redis_client.close()
             checks["redis"] = {"status": "ok"}
         except Exception as exc:
             all_healthy = False
@@ -156,7 +192,7 @@ def create_app() -> FastAPI:
 
         payload = {
             "status": "ok" if all_healthy else "degraded",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "environment": settings.env,
             "components": checks,
         }
@@ -168,4 +204,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

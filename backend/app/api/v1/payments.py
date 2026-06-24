@@ -1,126 +1,99 @@
-import base64
-import hashlib
-import hmac
-import structlog
+"""Payment router — create orders, handle callbacks, check status.
+
+Uses the abstract PaymentProvider interface so the same router works
+with Mock, Alipay, or WeChat Pay backends.  The provider is selected
+via the ``default_payment_provider`` setting.
+"""
+
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta
+
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.database import get_db
-from app.core.config import get_settings
-from app.models.user import User, PlanType
-from app.models.order import Order, OrderStatus
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.dependencies import get_current_user
+from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.models.order import Order, OrderStatus
+from app.models.user import PlanType, User
+from app.schemas.payment import (
+    CreateOrderRequest,
+    CreateOrderResponse,
+    OrderStatusResponse,
+    PaymentStatusResponse,
+)
+from app.services.payment_provider import PLAN_DEFINITIONS, PLAN_DURATIONS, get_payment_provider
 
 logger = structlog.get_logger()
 
+
+def _utcnow() -> datetime:
+    """Return current UTC time as a naive datetime for DB compatibility.
+
+    PostgreSQL stores timezone-aware datetimes, but SQLite (used in tests)
+    stores naive datetimes. Using naive UTC consistently avoids comparison
+    errors across backends.
+    """
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 router = APIRouter(prefix="/payments", tags=["payments"])
-
-settings = get_settings()
-
-# ---------------------------------------------------------------------------
-# Plan definitions registry
-# ---------------------------------------------------------------------------
-# Amounts are in cents/fen (smallest currency unit).
-# To add a new plan, append an entry here — create_order validates against this.
-PLAN_DEFINITIONS: dict[str, dict] = {
-    "pro_monthly": {
-        "price": 3900,       # ¥39.00 in fen
-        "name": "Monthly Pro",
-    },
-    "pro_yearly": {
-        "price": 29900,      # ¥299.00 in fen
-        "name": "Yearly Pro",
-    },
-}
-
-
-def _verify_alipay_signature(params: dict) -> bool:
-    """Verify Alipay RSA2 signature.
-
-    In development mode, signature verification can be explicitly disabled
-    with PAYMENT_VERIFY_SIGNATURE=False, but this is logged as a warning.
-    In production, verification is always enforced.
-    """
-    if settings.env == "development" and not settings.payment_verify_signature:
-        logger.warning("PAYMENT SIGNATURE VERIFICATION DISABLED — dev mode only")
-        return True
-
-    sign = params.get("sign")
-    sign_type = params.get("sign_type", "RSA2")
-    if not sign:
-        return False
-
-    # Build the string to verify (sorted params excluding sign and sign_type)
-    verify_params = {
-        k: v for k, v in params.items()
-        if k not in ("sign", "sign_type") and v is not None and v != ""
-    }
-    sorted_params = sorted(verify_params.items())
-    content = "&".join(f"{k}={v}" for k, v in sorted_params)
-
-    if not settings.alipay_public_key:
-        logger.error("alipay_public_key not configured, cannot verify signature")
-        return False
-
-    # RSA2 (SHA256withRSA) verification
-    try:
-        from Crypto.PublicKey import RSA
-        from Crypto.Signature import PKCS1_v1_5
-        from Crypto.Hash import SHA256
-
-        key = RSA.import_key(settings.alipay_public_key)
-        h = SHA256.new(content.encode("utf-8"))
-        verifier = PKCS1_v1_5.new(key)
-        return verifier.verify(h, base64.b64decode(sign))
-    except Exception:
-        logger.exception("alipay signature verification failed")
-        return False
-
-
-def _verify_wechat_signature(body: bytes, signature: str, timestamp: str, nonce: str) -> bool:
-    """Verify WeChat Pay v3 signature.
-
-    In development mode, signature verification can be explicitly disabled,
-    but this is logged as a warning. In production, verification is always enforced.
-    """
-    if settings.env == "development" and not settings.payment_verify_signature:
-        logger.warning("PAYMENT SIGNATURE VERIFICATION DISABLED — dev mode only")
-        return True
-
-    if not signature or not timestamp or not nonce:
-        return False
-
-    if not settings.wechat_api_v3_key:
-        logger.error("wechat_api_v3_key not configured, cannot verify signature")
-        return False
-
-    # WeChat Pay v3 signature: HMAC-SHA256(timestamp + nonce + body, api_v3_key)
-    message = f"{timestamp}\n{nonce}\n{body.decode('utf-8') if isinstance(body, bytes) else body}\n"
-    expected = hmac.new(
-        settings.wechat_api_v3_key.encode("utf-8"),
-        message.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    return hmac.compare_digest(signature, expected)
 
 
 def _generate_order_number() -> str:
     return f"spk_{uuid.uuid4().hex[:16]}"
 
 
+async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
+    """Shared logic for processing a successful payment.
+
+    - Upgrades the user to Pro
+    - Sets plan_expires_at based on the plan's duration
+    - Marks the order as paid
+
+    Must be called within a transaction where the order row is locked
+    (with_for_update).
+    """
+    user_result = await db.execute(select(User).where(User.id == order.user_id).with_for_update())
+    user = user_result.scalar_one_or_none()
+    if user and (user.plan != PlanType.pro or user.plan_expires_at is None or user.plan_expires_at < _utcnow()):
+        user.plan = PlanType.pro
+        # Critical fix: set plan_expires_at based on plan duration
+        duration_days = PLAN_DURATIONS.get(order.plan, 30)
+        user.plan_expires_at = max(user.plan_expires_at or _utcnow(), _utcnow()) + timedelta(days=duration_days)
+        logger.info(
+            "user_upgraded_to_pro",
+            user_id=user.id,
+            plan=order.plan,
+            duration_days=duration_days,
+            expires_at=user.plan_expires_at.isoformat(),
+        )
+
+    order.status = OrderStatus.paid
+    order.paid_at = _utcnow()
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
 @router.post("/create-order")
 @rate_limit("5/minute")
 async def create_order(
     request: Request,
-    plan: str = "pro_monthly",
+    body: CreateOrderRequest = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.plan == PlanType.pro:
+    """Create a payment order for the selected plan."""
+    # Accept both JSON body and query param for backward compat
+    plan = body.plan if body else request.query_params.get("plan", "pro_monthly")
+
+    if current_user.plan == PlanType.pro and current_user.plan_expires_at and current_user.plan_expires_at > _utcnow():
         raise HTTPException(status_code=400, detail="Already a Pro member")
 
     # Validate plan against registry
@@ -133,7 +106,6 @@ async def create_order(
         )
 
     amount = plan_def["price"]
-
     order_number = _generate_order_number()
 
     order = Order(
@@ -147,41 +119,40 @@ async def create_order(
     await db.commit()
     await db.refresh(order)
 
-    # In production: call Alipay/WeChat Pay API to get payment URL
-    payment_url = f"/api/v1/payments/mock-pay?order_id={order_number}"
+    # Get payment URL from the configured provider
+    provider = get_payment_provider()
+    try:
+        payment_url = await provider.create_order(
+            order_number=order_number,
+            amount=amount,
+            plan=plan,
+        )
+    except NotImplementedError as exc:
+        logger.error("payment_provider_not_implemented", error=str(exc))
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
 
-    return {
-        "order_id": order_number,
-        "amount": amount,
-        "currency": "CNY",
-        "payment_url": payment_url,
-    }
+    return CreateOrderResponse(
+        order_id=order_number,
+        amount=amount,
+        currency="CNY",
+        payment_url=payment_url,
+    )
 
 
 @router.post("/callback/alipay")
 @rate_limit("30/minute")
 async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    """Alipay payment callback handler.
+    """Alipay payment callback handler."""
+    from app.services.alipay_payment import AlipayPaymentProvider
 
-    Verifies RSA2 signature before processing the payment.
-    In development only, signature verification can be skipped (with warning).
-    """
-    body = await request.form()
-    params = dict(body)
+    provider = AlipayPaymentProvider()
+    is_valid, order_number = await provider.verify_callback(request)
 
-    if not _verify_alipay_signature(params):
-        logger.warning("alipay callback: invalid signature")
+    if not is_valid or not order_number:
+        logger.warning("alipay callback: invalid signature or missing order number")
         return {"status": "error", "message": "Invalid signature"}
 
-    order_number = params.get("out_trade_no")
-    trade_status = params.get("trade_status", "")
-
-    if trade_status != "TRADE_SUCCESS":
-        return {"status": "error", "message": f"Trade status: {trade_status}"}
-
-    result = await db.execute(
-        select(Order).where(Order.order_number == order_number).with_for_update()
-    )
+    result = await db.execute(select(Order).where(Order.order_number == order_number).with_for_update())
     order = result.scalar_one_or_none()
     if not order:
         logger.warning("alipay callback: order not found", order_number=order_number)
@@ -190,46 +161,24 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"status": "success", "message": "Already processed"}
 
-    user_result = await db.execute(select(User).where(User.id == order.user_id))
-    user = user_result.scalar_one_or_none()
-    if user and user.plan != PlanType.pro:
-        user.plan = PlanType.pro
-
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
-
+    await _process_successful_payment(db, order)
     return {"status": "success", "message": "OK"}
 
 
 @router.post("/callback/wechat")
 @rate_limit("30/minute")
 async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    """WeChat Pay v3 callback handler.
+    """WeChat Pay v3 callback handler."""
+    from app.services.wechat_payment import WechatPaymentProvider
 
-    Verifies HMAC-SHA256 signature before processing the payment.
-    In development only, signature verification can be skipped (with warning).
-    """
-    signature = request.headers.get("Wechatpay-Signature", "")
-    timestamp = request.headers.get("Wechatpay-Timestamp", "")
-    nonce = request.headers.get("Wechatpay-Nonce", "")
+    provider = WechatPaymentProvider()
+    is_valid, order_number = await provider.verify_callback(request)
 
-    body_bytes = await request.body()
-    body = await request.json()
-
-    if not _verify_wechat_signature(body_bytes, signature, timestamp, nonce):
-        logger.warning("wechat callback: invalid signature")
+    if not is_valid or not order_number:
+        logger.warning("wechat callback: invalid signature or missing order number")
         return {"code": "FAIL", "message": "Invalid signature"}
 
-    order_number = body.get("out_trade_no")
-    trade_state = body.get("trade_state", "")
-
-    if trade_state != "SUCCESS":
-        return {"code": "FAIL", "message": f"Trade state: {trade_state}"}
-
-    result = await db.execute(
-        select(Order).where(Order.order_number == order_number).with_for_update()
-    )
+    result = await db.execute(select(Order).where(Order.order_number == order_number).with_for_update())
     order = result.scalar_one_or_none()
     if not order:
         logger.warning("wechat callback: order not found", order_number=order_number)
@@ -238,22 +187,40 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"code": "SUCCESS", "message": "Already processed"}
 
-    user_result = await db.execute(select(User).where(User.id == order.user_id))
-    user = user_result.scalar_one_or_none()
-    if user and user.plan != PlanType.pro:
-        user.plan = PlanType.pro
-
-    order.status = OrderStatus.paid
-    order.paid_at = datetime.now(timezone.utc)
-    await db.commit()
-
+    await _process_successful_payment(db, order)
     return {"code": "SUCCESS", "message": "OK"}
 
 
 @router.get("/status")
 @rate_limit("30/minute")
 async def payment_status(request: Request, current_user: User = Depends(get_current_user)):
-    return {
-        "plan": current_user.plan.value,
-        "is_pro": current_user.plan == PlanType.pro,
-    }
+    """Return the current user's plan/payment status."""
+    return PaymentStatusResponse(
+        plan=current_user.plan.value,
+        is_pro=current_user.plan == PlanType.pro,
+        plan_expires_at=current_user.plan_expires_at,
+    )
+
+
+@router.get("/order/{order_id}")
+@rate_limit("30/minute")
+async def get_order_status(
+    request: Request,
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the status of a specific order (for frontend polling)."""
+    result = await db.execute(select(Order).where(Order.order_number == order_id, Order.user_id == current_user.id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return OrderStatusResponse(
+        order_id=order.order_number,
+        status=order.status.value,
+        amount=order.amount,
+        plan=order.plan,
+        paid_at=order.paid_at,
+        created_at=order.created_at,
+    )

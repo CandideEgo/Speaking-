@@ -1,191 +1,270 @@
-"""Business logic for vocabulary operations.
+"""Vocabulary enrichment, quiz, and stats service."""
 
-Route handlers in api/v1/vocabulary.py delegate to these functions
-so HTTP concerns stay separate from domain logic.
-"""
+import json
+import logging
+from datetime import UTC, datetime, timedelta, timezone
 
-from datetime import datetime, timezone, timedelta
-
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from app.models.learning import Vocabulary
+from app.services.ai_service import get_ai_service
 from app.services.sr_service import calculate_next_review
 
+logger = logging.getLogger(__name__)
 
-async def add_word(
-    db: AsyncSession,
-    user_id: str,
-    word: str,
-    context_sentence: str | None = None,
-    video_id: str | None = None,
-) -> dict:
-    """Add a word to personal vocabulary.
+ai = get_ai_service()
 
-    Raises ValueError if the word already exists for this user.
-    """
-    normalized = word.strip().lower()
-
-    # Check for duplicates
-    existing = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.user_id == user_id,
-            Vocabulary.word == normalized,
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise ValueError("Word already in vocabulary")
-
-    vocab = Vocabulary(
-        user_id=user_id,
-        word=normalized,
-        context_sentence=context_sentence,
-        video_id=video_id,
-    )
-    db.add(vocab)
-    await db.commit()
-    await db.refresh(vocab)
-
-    return {
-        "id": vocab.id,
-        "word": vocab.word,
-        "context_sentence": vocab.context_sentence,
-        "created_at": vocab.created_at.isoformat(),
-    }
+# Mastery level thresholds
+MASTERY_NEW = "new"
+MASTERY_LEARNING = "learning"
+MASTERY_REVIEWING = "reviewing"
+MASTERY_MASTERED = "mastered"
 
 
-async def list_vocabulary(
-    db: AsyncSession,
-    user_id: str,
-    due_only: bool = False,
-    page: int = 1,
-    page_size: int = 20,
-) -> dict:
-    """List vocabulary words with stats. Optionally filter to only due words."""
-    now = datetime.now(timezone.utc)
-    offset = (page - 1) * page_size
-
-    stmt = select(Vocabulary).where(Vocabulary.user_id == user_id)
-
-    if due_only:
-        stmt = stmt.where(
-            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now)
-        )
-
-    stmt = stmt.order_by(Vocabulary.created_at.desc()).offset(offset).limit(page_size)
-    result = await db.execute(stmt)
-    words = result.scalars().all()
-
-    # Count stats
-    total_result = await db.execute(
-        select(func.count(Vocabulary.id)).where(Vocabulary.user_id == user_id)
-    )
-    total = total_result.scalar() or 0
-
-    due_count_result = await db.execute(
-        select(func.count(Vocabulary.id)).where(
-            Vocabulary.user_id == user_id,
-            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
-        )
-    )
-    due_count = due_count_result.scalar() or 0
-
-    return {
-        "items": [
-            {
-                "id": w.id,
-                "word": w.word,
-                "context_sentence": w.context_sentence,
-                "review_count": w.review_count,
-                "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
-                "created_at": w.created_at.isoformat(),
-            }
-            for w in words
-        ],
-        "page": page,
-        "page_size": page_size,
-        "has_more": total > page * page_size,
-        "stats": {
-            "total": total,
-            "due": due_count,
-        },
-    }
+def _mastery_from_review_count(review_count: int) -> str:
+    """Determine mastery level from review count."""
+    if review_count == 0:
+        return MASTERY_NEW
+    elif review_count <= 2:
+        return MASTERY_LEARNING
+    elif review_count <= 5:
+        return MASTERY_REVIEWING
+    else:
+        return MASTERY_MASTERED
 
 
-async def review_word(
-    db: AsyncSession,
-    word_id: str,
-    user_id: str,
-    quality: int,
-) -> dict:
-    """Record a review of a word with SM-2 spaced repetition.
-
-    Raises ValueError if the word is not found.
-    """
+async def enrich_word(db: AsyncSession, vocabulary_id: str, user_id: str) -> Vocabulary:
+    """Fetch a word from DB, call AI enrichment, persist results, return enriched word."""
     result = await db.execute(
         select(Vocabulary).where(
-            Vocabulary.id == word_id,
+            Vocabulary.id == vocabulary_id,
             Vocabulary.user_id == user_id,
         )
     )
     vocab = result.scalar_one_or_none()
     if not vocab:
-        raise ValueError("Word not found")
+        return None
 
-    # SM-2 calculation
-    current_interval = (vocab.next_review_at - vocab.created_at).days if vocab.next_review_at else 0
-    if current_interval < 0:
-        current_interval = 0
+    # Call AI enrichment
+    enriched = await ai.enrich_vocabulary_word(vocab.word, vocab.context_sentence)
 
-    # Use default ease factor and interval for new words
-    ef = 2.5
+    # Persist enrichment results
+    vocab.definition = enriched.get("definition", "")
+    vocab.translation = enriched.get("translation", "")
+    vocab.part_of_speech = enriched.get("part_of_speech", "")
+    vocab.ipa = enriched.get("ipa", "")
+    vocab.example_sentences = enriched.get("example_sentences", [])
+    vocab.collocations = enriched.get("collocations", [])
+    vocab.difficulty_level = enriched.get("difficulty_level", "B1")
+
+    await db.commit()
+    await db.refresh(vocab)
+    return vocab
+
+
+async def generate_quiz(
+    db: AsyncSession,
+    user_id: str,
+    quiz_type: str,
+    count: int = 10,
+    due_only: bool = False,
+) -> list[dict]:
+    """Generate a vocabulary quiz for the user.
+
+    Args:
+        db: database session
+        user_id: current user id
+        quiz_type: one of multiple_choice, spelling, context_fill, translation
+        count: number of questions (1-30)
+        due_only: if True, only include words due for review
+
+    Returns:
+        list of quiz question dicts (includes correct_answer_index for scoring)
+    """
+    now = datetime.now(UTC)
+    stmt = select(Vocabulary).where(Vocabulary.user_id == user_id)
+
+    if due_only:
+        stmt = stmt.where((Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now))
+
+    # Prefer words that have been enriched (have definition/translation)
+    stmt = stmt.order_by(Vocabulary.created_at.desc()).limit(count * 3)
+    result = await db.execute(stmt)
+    words = result.scalars().all()
+
+    if not words:
+        return []
+
+    # Take up to `count` words, preferring enriched ones
+    enriched_words = [w for w in words if w.definition and w.translation]
+    if len(enriched_words) >= count:
+        selected = enriched_words[:count]
+    else:
+        # Fill with unenriched words
+        unenriched = [w for w in words if not (w.definition and w.translation)]
+        selected = (enriched_words + unenriched)[:count]
+
+    # Build word dicts for AI quiz generation
+    word_dicts = [
+        {
+            "word": w.word,
+            "definition": w.definition or "",
+            "translation": w.translation or "",
+        }
+        for w in selected
+    ]
+
+    questions = await ai.generate_vocab_quiz(word_dicts, quiz_type)
+    return questions
+
+
+async def submit_quiz(
+    db: AsyncSession,
+    user_id: str,
+    answers: list[dict],
+    questions: list[dict],
+) -> dict:
+    """Score quiz answers and update SM-2 review for each word.
+
+    Args:
+        db: database session
+        user_id: current user id
+        answers: list of {question_id, answer}
+        questions: original questions with correct_answer_index (stored temporarily)
+
+    Returns:
+        QuizSubmitResponse dict: {score, total, results}
+    """
+    # Build lookup: question_id -> question data
+    question_map = {q["id"]: q for q in questions}
+
+    score = 0
+    results = []
+    now = datetime.now(UTC)
+
+    for ans in answers:
+        qid = ans["question_id"]
+        user_answer = ans["answer"]
+        q = question_map.get(qid)
+
+        if not q:
+            results.append(
+                {
+                    "question_id": qid,
+                    "correct": False,
+                    "correct_answer": "unknown",
+                    "user_answer": user_answer,
+                }
+            )
+            continue
+
+        quiz_type = q["quiz_type"]
+        word = q["word"]
+
+        # Determine correct answer based on quiz type
+        if quiz_type == "multiple_choice" or quiz_type == "translation" or quiz_type == "context_fill":
+            correct_index = q.get("correct_answer_index", 0)
+            options = q.get("options", [])
+            correct_answer = options[correct_index] if options and correct_index < len(options) else ""
+            # For multiple choice, user_answer is the selected option text
+            is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
+        elif quiz_type == "spelling":
+            correct_answer = word
+            is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
+        else:
+            correct_answer = ""
+            is_correct = False
+
+        if is_correct:
+            score += 1
+
+        results.append(
+            {
+                "question_id": qid,
+                "correct": is_correct,
+                "correct_answer": correct_answer,
+                "user_answer": user_answer,
+            }
+        )
+
+        # Update SM-2 review for this word
+        quality = 5 if is_correct else 2
+        await _update_word_review(db, user_id, word, quality, now)
+
+    await db.commit()
+
+    return {
+        "score": score,
+        "total": len(answers),
+        "results": results,
+    }
+
+
+async def _update_word_review(db: AsyncSession, user_id: str, word: str, quality: int, now: datetime) -> None:
+    """Update SM-2 review data for a single word."""
+    result = await db.execute(
+        select(Vocabulary).where(
+            Vocabulary.user_id == user_id,
+            Vocabulary.word == word,
+        )
+    )
+    vocab = result.scalar_one_or_none()
+    if not vocab:
+        return
+
+    # Use persisted ease_factor (default 2.5 for new words)
+    current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
+
+    # Calculate current interval from persisted value
     if vocab.review_count > 0 and vocab.last_reviewed_at and vocab.next_review_at:
-        interval_days = (vocab.next_review_at - vocab.last_reviewed_at).days
-        if interval_days < 1:
-            interval_days = 1
-        # Approximate EF (we don't store it, so use default)
-        ef = 2.5
+        interval_days = max((vocab.next_review_at - vocab.last_reviewed_at).days, 1)
     else:
         interval_days = 0
 
     next_interval, new_ef, new_review_count = calculate_next_review(
-        quality, vocab.review_count, ef, interval_days
+        quality, vocab.review_count, current_ef, interval_days
     )
 
-    now = datetime.now(timezone.utc)
     vocab.review_count = new_review_count
     vocab.last_reviewed_at = now
     vocab.next_review_at = now + timedelta(days=next_interval)
+    vocab.ease_factor = new_ef
+    vocab.interval_days = next_interval
+    vocab.mastery_level = _mastery_from_review_count(new_review_count)
 
-    await db.commit()
+
+async def get_stats(db: AsyncSession, user_id: str) -> dict:
+    """Aggregate vocabulary statistics by mastery level."""
+    now = datetime.now(UTC)
+
+    # Count by mastery_level
+    stmt = (
+        select(
+            Vocabulary.mastery_level,
+            func.count(Vocabulary.id),
+        )
+        .where(Vocabulary.user_id == user_id)
+        .group_by(Vocabulary.mastery_level)
+    )
+    result = await db.execute(stmt)
+    level_counts = dict(result.all())
+
+    # Count due words
+    due_stmt = select(func.count(Vocabulary.id)).where(
+        Vocabulary.user_id == user_id,
+        (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
+    )
+    due_result = await db.execute(due_stmt)
+    due_count = due_result.scalar() or 0
+
+    total = sum(level_counts.values())
 
     return {
-        "id": vocab.id,
-        "word": vocab.word,
-        "next_review_at": vocab.next_review_at.isoformat(),
-        "interval_days": next_interval,
-        "review_count": vocab.review_count,
+        "total": total,
+        "new_count": level_counts.get(MASTERY_NEW, 0),
+        "learning_count": level_counts.get(MASTERY_LEARNING, 0),
+        "reviewing_count": level_counts.get(MASTERY_REVIEWING, 0),
+        "mastered_count": level_counts.get(MASTERY_MASTERED, 0),
+        "due_count": due_count,
     }
-
-
-async def remove_word(
-    db: AsyncSession,
-    word_id: str,
-    user_id: str,
-) -> None:
-    """Remove a word from vocabulary.
-
-    Raises ValueError if the word is not found.
-    """
-    result = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.id == word_id,
-            Vocabulary.user_id == user_id,
-        )
-    )
-    vocab = result.scalar_one_or_none()
-    if not vocab:
-        raise ValueError("Word not found")
-
-    await db.delete(vocab)
-    await db.commit()

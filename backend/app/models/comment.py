@@ -1,7 +1,9 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Integer, Float, Text, JSON, ForeignKey, UniqueConstraint
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.database import Base
 
 
@@ -10,9 +12,7 @@ class VideoComment(Base):
 
     __tablename__ = "video_comments"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     video_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -34,14 +34,10 @@ class VideoComment(Base):
     # Timestamp from source
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # Unique constraint: one video cannot have duplicate external comments
-    __table_args__ = (
-        UniqueConstraint("video_id", "external_id", name="uq_video_comment_external"),
-    )
+    __table_args__ = (UniqueConstraint("video_id", "external_id", name="uq_video_comment_external"),)
 
     # relationships
     video = relationship("Video", back_populates="comments")
@@ -52,9 +48,7 @@ class VideoCommentStats(Base):
 
     __tablename__ = "video_comment_stats"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     video_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, unique=True
     )
@@ -77,9 +71,7 @@ class VideoCommentStats(Base):
 
     # Metadata
     analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships
     video = relationship("Video", back_populates="comment_stats")

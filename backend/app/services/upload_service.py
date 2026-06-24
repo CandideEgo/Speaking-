@@ -1,14 +1,12 @@
 import uuid
-import shutil
 from pathlib import Path
-from typing import Optional
 
-from fastapi import UploadFile, HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.user import User
-from app.models.video import Video, VideoStatus, Platform
+from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.video import VideoResponse
 
 
@@ -26,7 +24,7 @@ async def handle_video_upload(
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: mp4, webm, mov, avi, mkv"
+            detail=f"Unsupported file type: {file.content_type}. Allowed: mp4, webm, mov, avi, mkv",
         )
 
     # Validate file size
@@ -35,7 +33,7 @@ async def handle_video_upload(
     if file_size > settings.max_upload_file_size:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large: {file_size / 1024 / 1024:.1f}MB. Max: {settings.max_upload_file_size / 1024 / 1024:.0f}MB"
+            detail=f"File too large: {file_size / 1024 / 1024:.1f}MB. Max: {settings.max_upload_file_size / 1024 / 1024:.0f}MB",
         )
 
     # Save to temp storage
@@ -52,7 +50,7 @@ async def handle_video_upload(
         user_id=current_user.id,
         title=title or file.filename or "Uploaded Video",
         source_url=str(temp_path),
-        platform=Platform.local,
+        video_source=VideoSource.local,
         status=VideoStatus.processing,
     )
     db.add(video)
@@ -61,6 +59,7 @@ async def handle_video_upload(
 
     # Dispatch to Celery
     from app.tasks.video_processing import process_video
+
     process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)

@@ -37,13 +37,7 @@ _CONTENT_TYPES = {
 def _is_configured() -> bool:
     """Return True if all required OSS settings are present and upload is enabled."""
     s = get_settings()
-    return bool(
-        s.oss_upload_enabled
-        and s.oss_endpoint
-        and s.oss_bucket
-        and s.oss_access_key
-        and s.oss_secret_key
-    )
+    return bool(s.oss_upload_enabled and s.oss_endpoint and s.oss_bucket and s.oss_access_key and s.oss_secret_key)
 
 
 def _get_bucket():
@@ -101,6 +95,8 @@ async def upload_file(local_path: str, remote_key: str) -> str:
     file_size = source.stat().st_size
 
     def _sync_upload():
+        import oss2  # imported lazily so the app runs without the SDK installed
+
         bucket = _get_bucket()
         if file_size > _RESUMABLE_THRESHOLD:
             # Resumable (multipart) upload for large files
