@@ -8,6 +8,7 @@ Also keeps the legacy get_whisper_model() for speaking_service.py, which
 needs fast, lightweight transcription of short audio clips without alignment.
 """
 
+from functools import lru_cache
 from threading import Lock
 
 import structlog
@@ -26,9 +27,25 @@ _align_lock = Lock()
 _whisper_model = None
 _whisper_lock = Lock()
 
+# --- ASR faster-whisper model singleton (for the faster-whisper fallback) ---
+_asr_whisper_model = None
+_asr_whisper_lock = Lock()
 
+# --- WhisperX availability: None=unprobed, True=loaded ok, False=unavailable ---
+# Cached so a failing WhisperX load isn't re-attempted on every chunk, and a
+# runtime transcription failure sticks (all subsequent chunks fall back too, so
+# one video never mixes WhisperX sentence-segmented and faster-whisper
+# segment-level subtitles).
+_whisperx_available: bool | None = None
+_whisperx_avail_lock = Lock()
+
+
+@lru_cache(maxsize=1)
 def _detect_device() -> tuple[str, str]:
     """Auto-detect compute device and type.
+
+    Memoized: device/compute depend only on settings + hardware, both constant
+    for the process lifetime, so the torch CUDA probe runs once.
 
     Returns:
         (device, compute_type) tuple, e.g. ("cuda", "float16") or ("cpu", "int8").
@@ -88,7 +105,10 @@ def get_whisperx_model():
         # usable by both WhisperX and faster-whisper.
         model_path = settings.whisperx_model or settings.whisper_model_path
         device, compute_type = _detect_device()
-        # Explicit whisperx_compute_type overrides the auto-derived value.
+        # Compute resolution: _detect_device() derives from whisper_device
+        # (float16 on cuda, int8 on cpu) using whisper_compute_type as the base
+        # when device is explicit. whisperx_compute_type (if set) overrides that
+        # for WhisperX only — useful when the two engines need different types.
         if settings.whisperx_compute_type:
             compute_type = settings.whisperx_compute_type
         # Empty language = auto-detect per audio (handles non-English content);
@@ -222,18 +242,27 @@ def transcribe_with_whisperx(audio_path: str) -> list[dict]:
     """
     import whisperx
 
-    from .punctuation import restore_punctuation
+    from app.core.config import get_settings
+
+    settings = get_settings()
 
     audio = whisperx.load_audio(audio_path)
 
     # Step 1: ASR with VAD + batched inference
     model = get_whisperx_model()
-    result = model.transcribe(audio, batch_size=_whisperx_batch_size())
+    result = model.transcribe(audio, batch_size=settings.whisperx_batch_size)
     language = result.get("language", "en")
     logger.info("WhisperX ASR complete", language=language, segment_count=len(result["segments"]))
 
-    # Step 2: Restore punctuation (no-op on turbo models; kept for small/Chinese models)
-    result["segments"] = restore_punctuation(result["segments"])
+    # Step 2: Restore punctuation before alignment. A no-op on turbo models
+    # (which emit punctuation natively) but required for small/base models whose
+    # raw output lacks punctuation (NLTK Punkt in align() can't split sentences
+    # without it). Disable via whisper_punctuation_restore=False on turbo to
+    # skip the model load + ~2s/chunk prediction. Default on (safe for base).
+    if settings.whisper_punctuation_restore:
+        from .punctuation import restore_punctuation
+
+        result["segments"] = restore_punctuation(result["segments"])
 
     # Step 3: Forced alignment for word-level timestamps + sentence segmentation
     model_a, metadata = get_align_model(language)
@@ -247,40 +276,67 @@ def transcribe_with_whisperx(audio_path: str) -> list[dict]:
 def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
     """Transcribe with raw faster-whisper (no VAD, no alignment).
 
-    Lightweight fallback used when WhisperX is unavailable or disabled.
-    Returns dict-shaped segments compatible with whisperx_segments_to_subtitles
-    (no word-level timestamps; formatter falls back to segment start/end).
+    Lightweight fallback used when WhisperX is unavailable or disabled. Loads
+    the faster-whisper model at the same path the primary WhisperX engine uses
+    (``whisperx_model or whisper_model_path``) so the fallback doesn't silently
+    drop to a different (e.g. ``base``) model.
+
+    Returns dict-shaped segments compatible with whisperx_segments_to_subtitles;
+    word-level timestamps are extracted so the formatter can tighten subtitle
+    boundaries (it falls back to segment start/end when words are absent).
     """
-    model = get_whisper_model()
-    language = _whisper_language()
+    from app.core.config import get_settings
+
+    from .formatters import faster_whisper_segments_to_dicts
+
+    model = get_asr_whisper_model()
+    language = get_settings().whisper_language or None
     segments, _ = model.transcribe(
         audio_path,
         beam_size=5,
         word_timestamps=True,
         condition_on_previous_text=False,
-        language=language or None,
+        language=language,
     )
-    out = []
-    for seg in segments:
-        words = [
-            {
-                "word": w.word.strip(),
-                "start": float(w.start),
-                "end": float(w.end),
-                "score": float(getattr(w, "probability", 0.0)),
-            }
-            for w in (getattr(seg, "words", None) or [])
-        ]
-        out.append(
-            {
-                "start": float(seg.start),
-                "end": float(seg.end),
-                "text": (seg.text or "").strip(),
-                "words": words,
-            }
-        )
+    out = faster_whisper_segments_to_dicts(segments)
     logger.info("faster-whisper transcription complete", segment_count=len(out))
     return out
+
+
+def _whisperx_usable() -> bool:
+    """True if the WhisperX engine should be used for this process.
+
+    Resolved once and cached: probes ``get_whisperx_model()`` (the expensive
+    load) so a failing load isn't re-attempted per chunk, and a later runtime
+    transcription failure flips the cache to False (sticky) so the rest of a
+    chunked job stays on faster-whisper instead of mixing granularities.
+    Respects ``whisper_engine`` so tests/config changes that select
+    ``faster_whisper`` skip the probe entirely.
+    """
+    global _whisperx_available
+    if _whisperx_available is not None:
+        return _whisperx_available
+    with _whisperx_avail_lock:
+        if _whisperx_available is not None:
+            return _whisperx_available
+        try:
+            get_whisperx_model()
+            _whisperx_available = True
+        except Exception as exc:
+            logger.warning(
+                "WhisperX unavailable, using faster-whisper for this process",
+                error=str(exc),
+            )
+            _whisperx_available = False
+        return _whisperx_available
+
+
+def _disable_whisperx_runtime(reason: str) -> None:
+    """Mark WhisperX unusable for the rest of the process (sticky fallback)."""
+    global _whisperx_available
+    if _whisperx_available is not False:
+        logger.warning("Switching process to faster-whisper (sticky): %s", reason)
+    _whisperx_available = False
 
 
 def transcribe_audio(audio_path: str) -> list[dict]:
@@ -288,17 +344,18 @@ def transcribe_audio(audio_path: str) -> list[dict]:
 
     Returns aligned/segmented dicts. When ``whisper_engine == "whisperx"`` and
     WhisperX fails (model load, alignment, etc.), automatically retries with
-    faster-whisper so transcription never hard-fails on engine issues.
+    faster-whisper so transcription never hard-fails on engine issues. The
+    fallback is sticky: once WhisperX fails, the rest of a chunked job uses
+    faster-whisper so one video never mixes sentence-segmented (WhisperX) and
+    segment-level (faster-whisper) subtitles.
     """
     from app.core.config import get_settings
 
     settings = get_settings()
-    engine = settings.whisper_engine
 
-    if engine == "faster_whisper":
+    if settings.whisper_engine == "faster_whisper" or not _whisperx_usable():
         return transcribe_with_faster_whisper(audio_path)
 
-    # Default: whisperx, with fallback on failure.
     try:
         return transcribe_with_whisperx(audio_path)
     except Exception as exc:
@@ -306,19 +363,8 @@ def transcribe_audio(audio_path: str) -> list[dict]:
             "WhisperX transcription failed, falling back to faster-whisper",
             error=str(exc),
         )
+        _disable_whisperx_runtime(str(exc))
         return transcribe_with_faster_whisper(audio_path)
-
-
-def _whisperx_batch_size() -> int:
-    from app.core.config import get_settings
-
-    return get_settings().whisperx_batch_size
-
-
-def _whisper_language():
-    from app.core.config import get_settings
-
-    return get_settings().whisper_language or None
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +426,63 @@ def get_whisper_model():
                 raise
 
     return _whisper_model
+
+
+def _asr_model_path() -> str:
+    """Resolve the ASR model path shared by both engines.
+
+    ``whisperx_model`` (if set) wins; otherwise fall back to
+    ``whisper_model_path``. WhisperX and the faster-whisper fallback must load
+    the same model so the fallback doesn't silently transcribe with a
+    different (e.g. ``base``) model than the primary engine.
+    """
+    from app.core.config import get_settings
+
+    s = get_settings()
+    return s.whisperx_model or s.whisper_model_path
+
+
+def get_asr_whisper_model():
+    """Lazy-load faster-whisper at the resolved ASR path (for the fallback engine).
+
+    When the resolved path equals ``whisper_model_path`` (the common case where
+    ``whisperx_model`` is empty), reuses the legacy speaking-practice singleton
+    so we don't hold two copies of the same model in memory. Only when
+    ``whisperx_model`` points elsewhere do we load a separate instance.
+    """
+    global _asr_whisper_model
+    from app.core.config import get_settings
+
+    path = _asr_model_path()
+    if path == get_settings().whisper_model_path:
+        return get_whisper_model()
+
+    if _asr_whisper_model is not None:
+        return _asr_whisper_model
+
+    with _asr_whisper_lock:
+        if _asr_whisper_model is not None:
+            return _asr_whisper_model
+
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError as exc:
+            raise RuntimeError("faster-whisper is not installed. Install it with: pip install faster-whisper") from exc
+
+        device, compute_type = _detect_device()
+        logger.info("Loading ASR faster-whisper model (fallback)", path=path, device=device, compute=compute_type)
+        try:
+            _asr_whisper_model = WhisperModel(path, device=device, compute_type=compute_type)
+            logger.info("ASR faster-whisper model loaded successfully")
+        except Exception:
+            logger.error("Failed to load ASR faster-whisper model", device=device, exc_info=True)
+            if device == "cuda":
+                logger.info("Falling back to CPU (int8)")
+                _asr_whisper_model = WhisperModel(path, device="cpu", compute_type="int8")
+            else:
+                raise
+
+    return _asr_whisper_model
 
 
 def release_whisper_model():

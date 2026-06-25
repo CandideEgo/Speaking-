@@ -1,10 +1,13 @@
 """Format Whisper segments into Speaking-compatible subtitle dicts.
 
-Two formatters are provided:
-- whisperx_segments_to_subtitles(): For WhisperX aligned output (sentence-segmented
-  via punctuation restoration + NLTK Punkt, with word-level timestamps).
-- whisper_segments_to_subtitles(): Legacy fallback for raw faster-whisper segments
-  (used when WhisperX is unavailable, e.g. in speaking_service).
+Formatters provided:
+- whisperx_segments_to_subtitles(): Subtitle dicts from segment dicts (works for
+  both WhisperX aligned output and faster-whisper fallback output). Uses
+  word-level timestamps when present, else segment start/end.
+- faster_whisper_segments_to_dicts(): Raw faster-whisper Segment objects →
+  segment dicts (shared by the fallback transcriber and speaking_service).
+- whisper_segments_to_subtitles(): Legacy, raw faster-whisper Segment objects
+  → subtitle dicts without word-level timestamps (used by speaking_service).
 """
 
 import structlog
@@ -12,16 +15,54 @@ import structlog
 logger = structlog.get_logger()
 
 
-def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) -> list[dict]:
-    """Convert WhisperX aligned segments to Speaking subtitle format.
+def faster_whisper_segments_to_dicts(segments) -> list[dict]:
+    """Convert raw faster-whisper ``Segment`` objects to segment dicts.
 
-    Segments should already be sentence-segmented (via punctuation restoration
-    + NLTK Punkt inside whisperx.align()). Each segment has precise word-level
-    timestamps from wav2vec2 forced alignment.
+    Shared by the faster-whisper fallback transcriber and the speaking-practice
+    path so both emit one shape. Each segment:
+    ``{"start": float, "end": float, "text": str, "words": [...]}`` where each
+    word is ``{"word": str, "start": float, "end": float, "score": float}``.
+    ``score`` is the word probability (0.0-1.0), matching the ``whisperx.align()``
+    convention so downstream consumers (e.g. speaking_alignment) see one key.
+    ``words`` is empty when word timestamps are unavailable.
+    """
+    out = []
+    for seg in segments:
+        words = [
+            {
+                "word": w.word.strip(),
+                "start": float(w.start),
+                "end": float(w.end),
+                "score": float(getattr(w, "probability", 0.0)),
+            }
+            for w in (getattr(seg, "words", None) or [])
+        ]
+        out.append(
+            {
+                "start": float(seg.start),
+                "end": float(seg.end),
+                "text": (seg.text or "").strip(),
+                "words": words,
+            }
+        )
+    return out
+
+
+def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) -> list[dict]:
+    """Convert segment dicts to Speaking subtitle format.
+
+    Accepts segment dicts from either engine:
+    - WhisperX aligned output (sentence-segmented via punctuation restoration +
+      NLTK Punkt inside ``whisperx.align()``, with precise word-level timestamps).
+    - faster-whisper fallback output (segment-level; words optional).
+
+    Word-level timestamps are used to tighten subtitle boundaries when present;
+    otherwise the segment's own start/end are used.
 
     Args:
-        segments: List of dicts from whisperx.align()["segments"].
+        segments: List of segment dicts.
             Each: {"start": float, "end": float, "text": str, "words": [...]}
+            (``words`` optional; sentence-splitting only guaranteed for aligned input.)
         offset: Time offset in seconds (for chunked transcription).
 
     Returns:

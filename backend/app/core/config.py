@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # Explicit WhisperX compute type override. Empty = derive from whisper_device
     # (float16 on cuda, int8 on cpu) — mirrors _detect_device().
     whisperx_compute_type: str = ""
+    # Restore punctuation between ASR and alignment. A no-op on turbo models
+    # (which emit punctuation natively) but required for small/base models whose
+    # raw output lacks punctuation. Set False on turbo to skip the model load
+    # + ~2s/chunk prediction (output is identical on/off for turbo).
+    whisper_punctuation_restore: bool = True
 
     transcription_temp_dir: str = "./media/transcription_temp"
 

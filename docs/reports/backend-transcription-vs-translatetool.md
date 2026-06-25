@@ -3,9 +3,9 @@
 > 背景：translate-tool（`C:/Users/Administrator/translate-tool/`）的 `run_transcribe.py`
 > 已跑通一套效果最优的转录方案（WhisperX + 本地 large-v3-turbo + 标点模型 `auto`=WhisperX 关）。
 > 本报告对比它与 Speaking 后端（`backend/app/services/transcription/`）转录功能的差异，
-> 指出后端需要更新之处。**本报告只做分析与建议，未改任何代码。**
+> 以及后端据此对齐所做的改动。**P0–P3 均已实施（见第 3 节）。**
 
-> **2026-06-24 实测修正（重要）**：P0 原假设"标点恢复在后端造成污染"**经实测证伪**。
+> **实测修正**：P0 原假设"标点恢复在后端造成污染"**经实测证伪**。
 > 用后端代码路径对 15 分钟音频跑 on/off 对比：**输出 100% 逐字一致（diff 为空），污染标记均为 0**。
 > 原因：后端用 turbo 自带标点模型，`restore_punctuation` 的去重逻辑（`not word_text.endswith(label)`）
 > 在词已带标点时不追加，故为 no-op；且后端 `whisperx.align` 的 NLTK Punkt 兜底了分句，
@@ -108,21 +108,22 @@ NLTK Punkt 无法断句 → 26s 整段保留为一条字幕 → 需在 align 前
 
 ### 2.6 torch 环境
 
-- 后端 venv 此前为 `torch 2.8.0+cpu`（`cuda False`），WhisperX 全程跑 CPU，极慢。
-- 本次已重装为 `cu128` CUDA 版（与 translate-tool 对齐），启用 RTX 3060 Ti。
+- 若 venv 为 `torch ...+cpu`（`cuda False`），WhisperX 全程跑 CPU，极慢。
+- 需安装与 GPU 匹配的 CUDA 版 torch（如 `cu128`）以启用 GPU 加速。
 
-## 3. 更新建议（待你确认后实施）
+## 3. 更新建议
 
 > **实测后重排**：P0 动机由"修复污染"降为"清理死步骤"，收益以整洁性为主、性能边际。
 > 语言自动检测（原 P1）实际质量影响更直接，建议提升优先级。
 
-### P0 — 标点恢复开关（清理死步骤，零质量风险）
-1. `config.py` 加 `whisper_punctuation_restore: str = "auto"`（auto=WhisperX 关 / faster_whisper 开）。
-2. `_transcribe_single` / `_transcribe_single_chunk`：按开关决定是否调 `restore_punctuation()`，
-   auto + WhisperX 时跳过。
-3. 实测已证明 on/off 输出一致，故跳过=零质量损失 + 省 ~2s/次预测 + 首载 9s。
-4. `punctuation.py` 不删除，保留给将来无标点小模型/中文场景。
-5. **价值定位**：代码整洁 + 与 translate-tool 一致，非质量/性能优化。可选实施。
+### P0 — 标点恢复开关 ✅ 已实施（2026-06-25）
+1. `config.py` 加 `whisper_punctuation_restore: bool = True`。
+2. `transcribe_with_whisperx`（`whisper_model.py`）：按开关决定是否调 `restore_punctuation()`。
+3. **默认 `True` 保持现状**：默认模型 `base` 的原始输出无标点，需补标点才能让 `align()` 的
+   NLTK Punkt 正确分句；turbo 模型自带标点时为 no-op（实测 on/off 输出一致）。
+4. turbo 用户设 `False` 可省 ~2s/次预测 + 首载 9s 模型加载，零质量损失。
+5. `punctuation.py` 不删除，保留给无标点小模型/中文场景。
+6. **价值定位**：代码整洁 + 与 translate-tool 一致 + turbo 下的可选性能优化。
 
 ### P1 — 语言自动检测 ✅ 已实施（2026-06-24）
 `get_whisperx_model` 去掉 `language="en"` 硬编码，改读 `settings.whisper_language`
@@ -150,18 +151,18 @@ NLTK Punkt 无法断句 → 26s 整段保留为一条字幕 → 需在 align 前
 - 口语练习路径（`get_whisper_model` raw faster-whisper）——短音频、无标点恢复需求，保持现状。
 - silero VAD、分块逻辑、formatter 输出格式、subtitles 表结构。
 
-## 5. 验证方式（实施后）
+## 5. 验证方式
 
 ```bash
 cd backend
-# P0 实测：同音频跑标点恢复 on/off
-WHISPER_PUNCTUATION_RESTORE=off  .venv/Scripts/python.exe -m pytest tests/test_whisperx_segmentation.py -v
-WHISPER_PUNCTUATION_RESTORE=on   .venv/Scripts/python.exe -m pytest tests/test_whisperx_segmentation.py -v
-# 端到端：用 backend/media/videos/eHJnEHyyN1Y.mp4 跑 TranscriptionService 对比 on/off 输出
-# 回归：全套转录测试
-.venv/Scripts/python.exe -m pytest tests/ -v -k transcri
+# 回归：转录相关测试
+pytest tests/ -v -k transcri
+# 标点恢复 on/off 对比（P0 实测：同音频跑下两行，输出应逐字一致）
+WHISPER_PUNCTUATION_RESTORE=false pytest tests/test_whisperx_segmentation.py -v
+WHISPER_PUNCTUATION_RESTORE=true  pytest tests/test_whisperx_segmentation.py -v
+# 端到端：用一段本地音频跑 TranscriptionService 对比 on/off 输出
 ```
 
 ---
 
-*报告生成：2026-06-24。translate-tool 实测结论见 `translate-tool/docs` 无；本会话内验证。*
+*报告生成：2026-06-24；P0 于 2026-06-25 实施。translate-tool 实测结论见 `translate-tool/docs` 无；本会话内验证。*

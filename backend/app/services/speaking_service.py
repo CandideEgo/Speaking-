@@ -318,6 +318,8 @@ async def _whisper_transcribe(audio_path: str, original_text: str = "") -> dict:
 
     def _sync():
         try:
+            from app.services.transcription.formatters import faster_whisper_segments_to_dicts
+
             model = get_whisper_model()
             # Use initial_prompt to help Whisper recognize accented speech
             # by biasing it toward the expected vocabulary.
@@ -328,25 +330,7 @@ async def _whisper_transcribe(audio_path: str, original_text: str = "") -> dict:
                 initial_prompt=prompt,
             )
             # Collect segments into a list (generator needs to be consumed)
-            seg_list = []
-            for s in segments:
-                seg_dict = {
-                    "text": s.text,
-                    "start": s.start,
-                    "end": s.end,
-                }
-                # Include word-level detail if available
-                if hasattr(s, "words") and s.words:
-                    seg_dict["words"] = [
-                        {
-                            "word": w.word,
-                            "start": w.start,
-                            "end": w.end,
-                            "probability": getattr(w, "probability", 0.0),
-                        }
-                        for w in s.words
-                    ]
-                seg_list.append(seg_dict)
+            seg_list = faster_whisper_segments_to_dicts(segments)
 
             full_text = " ".join(s["text"] for s in seg_list).strip()
             return {
