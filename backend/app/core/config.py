@@ -40,6 +40,26 @@ class Settings(BaseSettings):
     oss_prefix: str = ""
     oss_cdn_domain: str = ""
 
+    # Remote-GPU transcription pipeline. The cloud enqueues a transcription task
+    # onto the ``transcription_gpu`` queue (consumed by a GPU worker on a separate
+    # machine); the GPU worker transcribes and POSTs the subtitles back to this
+    # callback URL. The shared secret authenticates the inbound callback.
+    transcription_callback_url: str = ""
+    transcription_callback_secret: str = ""
+    transcription_gpu_queue_name: str = "transcription_gpu"
+    transcription_callback_timeout: int = 30  # seconds per HTTP attempt
+    transcription_callback_max_retries: int = 5  # 5xx / connection retries
+    # Watchdog: a video stuck in "transcribing" longer than this (seconds) is
+    # assumed to have lost its GPU worker and is marked failed.
+    video_transcribe_timeout: int = 7200  # 2 hours
+
+    # OSS raw-media transfer for locally-uploaded videos. The cloud uploads the
+    # raw upload to OSS and hands the GPU worker a (signed) URL — the GPU worker
+    # needs no OSS credentials of its own.
+    oss_raw_prefix: str = "video/raw"
+    oss_raw_bucket_public: bool = False  # False → use signed URLs (private bucket)
+    oss_signed_url_expiry: int = 7200  # seconds; must exceed max queue wait + transcribe
+
     # Payment configuration
     default_payment_provider: str = "mock"  # mock | alipay | wechat
     alipay_app_id: str = ""

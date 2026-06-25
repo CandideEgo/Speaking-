@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, field_validator
@@ -102,6 +103,30 @@ class VideoStatusResponse(BaseModel):
     status: str
     video_url_720p: str | None = None
     processing_step: str | None = None
+    processing_progress: int | None = None
+
+
+class TranscriptionSegment(BaseModel):
+    """A single subtitle segment returned by the remote GPU transcription worker."""
+
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionCallbackRequest(BaseModel):
+    """Inbound callback from the GPU worker delivering transcription results.
+
+    The worker POSTs this to ``/api/v1/internal/transcription/callback``. On
+    ``status == "ok"`` the cloud writes the segments as subtitle rows and
+    enqueues the tail pipeline; on ``status == "error"`` it marks the video
+    failed. Authenticated by a shared ``X-Callback-Secret`` header.
+    """
+
+    video_id: str
+    status: Literal["ok", "error"]
+    segments: list[TranscriptionSegment] | None = None
+    error: str | None = None
 
 
 class SubtitleSnippet(BaseModel):

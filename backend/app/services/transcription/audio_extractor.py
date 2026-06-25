@@ -245,6 +245,43 @@ def extract_local_audio(video_path: str, output_path: str) -> None:
         raise
 
 
+def download_http_to_temp(url: str, temp_dir: Path) -> str:
+    """Download a generic HTTP(S) URL (OSS / CDN / direct media) to a temp file.
+
+    Used for non-streaming-host URLs where yt-dlp is not applicable — e.g. an
+    OSS signed URL handed to a remote transcription worker. The caller is
+    responsible for cleaning up the returned path.
+
+    Args:
+        url: HTTP(S) URL to download.
+        temp_dir: Directory to write the temp file into.
+
+    Returns:
+        Path to the downloaded file.
+
+    Raises:
+        AudioExtractionError: If the download fails.
+    """
+    import httpx
+
+    settings = get_settings()
+    ext = Path(urlparse(url).path).suffix or ".mp4"
+    out = temp_dir / f"dl_{abs(hash(url))}{ext}"
+    proxy = settings.http_proxy or None
+
+    logger.info("Downloading media URL", url=url[:80], dest=str(out))
+    try:
+        with httpx.Client(timeout=600.0, proxies=proxy) as client:
+            with client.stream("GET", url) as resp:
+                resp.raise_for_status()
+                with open(out, "wb") as f:
+                    for chunk in resp.iter_bytes():
+                        f.write(chunk)
+        return str(out)
+    except Exception as e:
+        raise AudioExtractionError(f"Failed to download {url[:80]}: {e}") from e
+
+
 def get_video_duration(video_path: str) -> float:
     """Get video/audio duration in seconds using ffprobe.
 

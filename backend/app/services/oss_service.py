@@ -155,6 +155,22 @@ async def delete_file(remote_key: str) -> bool:
         return False
 
 
+def get_signed_url(remote_key: str, expires: int = 3600) -> str:
+    """Return a pre-signed GET URL for a (private-bucket) object.
+
+    Lets a remote consumer (e.g. the GPU transcription worker) download an
+    object without holding OSS credentials. Returns "" if OSS is not configured.
+    """
+    if not _is_configured():
+        return ""
+
+    import oss2
+
+    key = _object_key(remote_key)
+    bucket = _get_bucket()
+    return bucket.sign_url("GET", key, expires, slash_safe=True)
+
+
 def _get_cdn_url(key: str) -> str:
     """Construct a CDN URL from an object key.
 

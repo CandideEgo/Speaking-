@@ -27,6 +27,12 @@ services:
     image: redis:7-alpine
     command: redis-server --requirepass ${REDIS_PASSWORD}
     restart: unless-stopped
+    # Publish to the host loopback only so a remote GPU worker can reach the
+    # broker over an SSH tunnel / WireGuard without exposing Redis to the
+    # public internet. GPU worker REDIS_URL: redis://:<pw>@127.0.0.1:6379/0
+    # (via `ssh -L 6379:127.0.0.1:6379 ...` from the GPU machine).
+    ports:
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -58,6 +64,12 @@ services:
       OSS_BUCKET: ${OSS_BUCKET:-}
       OSS_ACCESS_KEY: ${OSS_ACCESS_KEY:-}
       OSS_SECRET_KEY: ${OSS_SECRET_KEY:-}
+      OSS_UPLOAD_ENABLED: ${OSS_UPLOAD_ENABLED:-false}
+      OSS_CDN_DOMAIN: ${OSS_CDN_DOMAIN:-}
+      OSS_PREFIX: ${OSS_PREFIX:-}
+      # Remote-GPU transcription callback (inbound) auth + watchdog timeout.
+      TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
+      VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
     expose:
       - "8000"
     volumes:
@@ -77,7 +89,9 @@ services:
   celery:
     build:
       context: ./backend
-    command: celery -A app.tasks.celery_app worker --loglevel=warning
+    # Cloud worker consumes only the default queue; the transcription_gpu queue
+    # is drained by the remote GPU worker (not this service).
+    command: celery -A app.tasks.celery_app worker -Q celery --loglevel=warning
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -88,11 +102,35 @@ services:
       OSS_BUCKET: ${OSS_BUCKET:-}
       OSS_ACCESS_KEY: ${OSS_ACCESS_KEY:-}
       OSS_SECRET_KEY: ${OSS_SECRET_KEY:-}
+      OSS_UPLOAD_ENABLED: ${OSS_UPLOAD_ENABLED:-false}
+      OSS_CDN_DOMAIN: ${OSS_CDN_DOMAIN:-}
+      OSS_PREFIX: ${OSS_PREFIX:-}
+      TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
+      VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
     volumes:
       - media:/app/media
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery-beat:
+    build:
+      context: ./backend
+    # Periodic tasks: order-expiry + stale-transcription watchdog.
+    command: celery -A app.tasks.celery_app beat --loglevel=warning
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
+    depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped

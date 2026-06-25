@@ -17,6 +17,7 @@ from app.api.v1 import (
     browse,
     comments,
     community,
+    internal,
     invite,
     learning,
     notifications,
@@ -162,6 +163,7 @@ def create_app() -> FastAPI:
     app.include_router(rubrics.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")
+    app.include_router(internal.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health():

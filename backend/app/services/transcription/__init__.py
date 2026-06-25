@@ -24,6 +24,7 @@ from app.models.video import VideoSource
 
 from .audio_extractor import (
     _is_streaming_url,
+    download_http_to_temp,
     extract_local_audio,
     extract_streaming_audio,
     get_video_duration,
@@ -69,9 +70,10 @@ class TranscriptionService:
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         audio_path = None
+        extra_cleanups: list[str] = []
         try:
             # Step 1: Extract audio
-            audio_path = self._extract_audio(source, platform, temp_dir)
+            audio_path, extra_cleanups = self._extract_audio(source, platform, temp_dir)
             if not audio_path or not Path(audio_path).exists():
                 raise TranscriptionError("Failed to extract audio from video")
 
@@ -102,32 +104,50 @@ class TranscriptionService:
                     os.remove(audio_path)
                 except OSError:
                     pass
+            # Clean up any downloaded source files (OSS/CDN URLs).
+            for path in extra_cleanups:
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
 
-    def _extract_audio(self, source: str, platform: VideoSource, temp_dir: Path) -> str | None:
+    def _extract_audio(self, source: str, platform: VideoSource, temp_dir: Path) -> tuple[str | None, list[str]]:
         """Extract audio based on source type.
 
         Returns:
-            Path to the extracted WAV file, or None on failure.
+            ``(audio_path, extra_cleanups)`` where ``extra_cleanups`` is a list
+            of additional temp file paths (e.g. downloaded source media) the
+            caller should remove when done.
         """
         audio_path = str(temp_dir / f"audio_{abs(hash(source))}.wav")
+        extra_cleanups: list[str] = []
 
         if platform == VideoSource.local:
             logger.info("Extracting local audio", source=source)
             extract_local_audio(source, audio_path)
-            return audio_path
+            return audio_path, extra_cleanups
 
-        # Streaming URLs (YouTube, etc.) for admin imports
         parsed = urlparse(source)
-        if parsed.scheme in ("http", "https") and _is_streaming_url(source):
-            logger.info("Extracting streaming audio", source=source[:80])
-            extract_streaming_audio(source, audio_path)
-            return audio_path
+        if parsed.scheme in ("http", "https"):
+            # Streaming video hosts (YouTube, Bilibili, ...) → yt-dlp pipe → ffmpeg.
+            if _is_streaming_url(source):
+                logger.info("Extracting streaming audio", source=source[:80])
+                extract_streaming_audio(source, audio_path)
+                return audio_path, extra_cleanups
+            # Generic HTTP(S) download (OSS signed URL / CDN / direct media)
+            # → local temp file → ffmpeg. Used by the remote GPU worker for
+            # locally-uploaded videos whose raw file is staged on OSS.
+            downloaded = download_http_to_temp(source, temp_dir)
+            extra_cleanups.append(downloaded)
+            extract_local_audio(downloaded, audio_path)
+            return audio_path, extra_cleanups
 
         # Fallback: try as local file
         if Path(source).exists():
             logger.info("Treating as local file", source=source)
             extract_local_audio(source, audio_path)
-            return audio_path
+            return audio_path, extra_cleanups
 
         raise UnsupportedPlatformError(f"Cannot extract audio from: {source}")
 

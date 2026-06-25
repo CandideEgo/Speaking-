@@ -1,4 +1,5 @@
 from celery import Celery
+from kombu import Queue
 
 from app.core.config import get_settings
 
@@ -18,10 +19,26 @@ celery_app.conf.update(
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # Queue topology: the cloud worker consumes the default ``celery`` queue;
+    # the remote GPU worker consumes ``transcription_gpu`` exclusively. Only
+    # the transcription task is routed off the default queue — everything else
+    # (video pipeline head/tail, localize, comment analysis, order expiry) runs
+    # on the cloud.
+    task_default_queue="celery",
+    task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name)),
+    task_routes={
+        "app.tasks.video_processing.transcribe_video_gpu": {"queue": settings.transcription_gpu_queue_name},
+    },
     beat_schedule={
         "expire-pending-orders": {
             "task": "app.tasks.order_tasks.expire_pending_orders",
             "schedule": 300,  # every 5 minutes
+        },
+        # Mark videos stuck in "transcribing" as failed when the GPU worker is
+        # offline for longer than ``video_transcribe_timeout``.
+        "watchdog-stale-transcriptions": {
+            "task": "app.tasks.video_processing.watchdog_stale_transcriptions",
+            "schedule": 600,  # every 10 minutes
         },
     },
 )

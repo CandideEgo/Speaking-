@@ -233,7 +233,10 @@ async def get_video_status(
     if not check_video_access(video, current_user):
         return None
     return VideoStatusResponse(
-        status=video.status.value, video_url_720p=video.video_url_720p, processing_step=video.processing_step
+        status=video.status.value,
+        video_url_720p=video.video_url_720p,
+        processing_step=video.processing_step,
+        processing_progress=video.processing_progress,
     )
 
 
@@ -414,6 +417,7 @@ async def search_subtitles(
 # ---------------------------------------------------------------------------
 # Admin video content management
 # ---------------------------------------------------------------------------
+
 
 async def list_all_videos(
     db: AsyncSession,
