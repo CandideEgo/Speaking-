@@ -73,3 +73,11 @@ whisper-sentence-segmentation-*.md
 
 # Orphaned cookie-acquisition script (youtube platform module removed)
 frontend/yt_cookies.mjs
+
+# Debug screenshots (generated during dev)
+.debug-shots/
+frontend/.debug-shots/
+backend/watch-current.png
+
+# Project planning notes (not code)
+后续开发项目.txt
