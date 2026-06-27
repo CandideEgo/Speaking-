@@ -34,6 +34,9 @@ backend/temp/
 backend/tmp/
 backend/transcripts/
 
+# ECDICT word database (downloaded via scripts/download_ecdict.py, ~30MB)
+backend/data/
+
 # Cookie backups
 backend/youtube_cookies*.txt
 backend/youtube_state.json

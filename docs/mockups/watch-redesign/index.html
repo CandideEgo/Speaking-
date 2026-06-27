@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch 播放页重设计 — 原型对比</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Inter','-apple-system','BlinkMacSystemFont','"Segoe UI"','sans-serif'] },
+    colors: { brand:{50:'#fff1eb',400:'#ff7a45',500:'#ff5a1f',600:'#e84a10'}, canvas:'#fff','surface-soft':'#fafafa','surface-card':'#f4f4f5',ink:'#0a0a0a',body:'#27272a',muted:'#71717a',hairline:'#ededed' },
+    borderRadius: { DEFAULT:'12px', lg:'16px' },
+  }}}
+</script>
+<style>body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fafafa;color:#0a0a0a;}</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-[920px] mx-auto px-6 py-16">
+
+  <p class="text-[13px] font-semibold tracking-wider uppercase text-brand-500">Watch 播放页重设计</p>
+  <h1 class="text-[34px] font-bold tracking-tight mt-2 leading-tight">三种布局原型 + skill 对比</h1>
+  <p class="text-[15px] text-muted mt-3 leading-relaxed max-w-[60ch]">
+    所有原型都套用同一套"做减法"规则：只留 <b class="text-ink">双语 / 英文 / 中文</b> 三个字幕模式（听写/填空/翻译/词卡/阅读已砍掉）、字幕紧贴视频下方、跟读降为次要操作按需展开。横向对比的是<b class="text-ink">布局</b>而非功能。点击卡片打开对应原型。
+  </p>
+
+  <div class="mt-10 grid gap-4">
+
+    <a href="A-fullwidth-tabs.html" class="block bg-canvas border border-hairline rounded-lg p-5 hover:border-brand-500 hover:shadow-card transition-all cursor-pointer">
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-lg bg-brand-50 text-brand-500 flex items-center justify-center font-bold text-sm">A</span>
+        <div class="flex-1">
+          <h2 class="text-[17px] font-bold text-ink">视频全宽 + 下方标签页</h2>
+          <p class="text-[13px] text-muted mt-0.5">视频几乎占满宽度，字幕紧贴下方，学习模式做成底部 Tab。视频最大化，结构最直观。</p>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </a>
+
+    <a href="B-collapsible-panel.html" class="block bg-canvas border border-hairline rounded-lg p-5 hover:border-brand-500 hover:shadow-card transition-all cursor-pointer">
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-lg bg-brand-50 text-brand-500 flex items-center justify-center font-bold text-sm">B</span>
+        <div class="flex-1">
+          <h2 class="text-[17px] font-bold text-ink">右栏可折叠（双列）</h2>
+          <p class="text-[13px] text-muted mt-0.5">保留双列但视频列加宽，右栏字幕面板可一键收起、视频自动占满。兼顾常驻字幕与沉浸。</p>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </a>
+
+    <a href="C-immersive-centered.html" class="block bg-canvas border border-hairline rounded-lg p-5 hover:border-brand-500 hover:shadow-card transition-all cursor-pointer">
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-lg bg-brand-50 text-brand-500 flex items-center justify-center font-bold text-sm">C</span>
+        <div class="flex-1">
+          <h2 class="text-[17px] font-bold text-ink">沉浸式居中</h2>
+          <p class="text-[13px] text-muted mt-0.5">视频居中大尺寸，字幕叠加画面底部，字幕列表做成右侧滑入抽屉。最沉浸，但长字幕会遮画面。</p>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </a>
+
+    <div class="mt-4 pt-6 border-t border-hairline">
+      <p class="text-[12px] font-semibold tracking-wider uppercase text-muted">skill 对比</p>
+      <div class="mt-3 grid sm:grid-cols-2 gap-4">
+        <a href="A-fullwidth-tabs.html" class="block bg-surface-soft border border-hairline rounded-lg p-4 hover:border-brand-400 transition-all cursor-pointer">
+          <h3 class="text-[14px] font-bold text-ink">A · 不用 skill</h3>
+          <p class="text-[12px] text-muted mt-1 leading-relaxed">纯项目配色 token + 我的设计判断手写。GSAP 等动画 skill 对静态原型无用，未用。</p>
+        </a>
+        <a href="A-skill.html" class="block bg-surface-soft border border-hairline rounded-lg p-4 hover:border-brand-400 transition-all cursor-pointer">
+          <h3 class="text-[14px] font-bold text-ink">A · 用 ui-ux-pro-max</h3>
+          <p class="text-[12px] text-muted mt-1 leading-relaxed">同布局 A，叠加 skill 原则：focus-visible 键盘焦点、44px 触达、响应式 padding 分级、prefers-reduced-motion、color-shift hover。配色仍用项目橙（skill 自动推荐的 indigo+儿童字体不适配本应用，已弃用）。</p>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="mt-10 text-[13px] text-muted leading-relaxed">
+    选定一种布局（或提出合并/调整意见）后，我再进入真实代码重设计 —— 改 <code class="text-brand-500">page.tsx / SubtitleModeTabs.tsx / globals.css / watchStore.ts</code>，按项目规范先跑 <code class="text-brand-500">gitnexus_impact</code> 评估影响面。
+  </p>
+</div>
+</body>
+</html>

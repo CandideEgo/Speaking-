@@ -95,26 +95,21 @@ WatchPage
 │   ├── 双语/英文切换
 │   └── 快捷键按钮 + 弹窗
 ├── Video Player Area
-│   ├── YouTubePlayer (playbackMode === 'youtube')
-│   ├── <video> (playbackMode === 'local')
+│   ├── <video> (本地播放，HTML5)
 │   └── 占位符 (loading)
 ├── Current Subtitle Display (内联)
 │   └── 逐词可点击 + 中文翻译
 ├── PlaybackControls
-├── SpeakingPanel (条件渲染：activeSubtitleId 存在时)
-├── Right Panel
-│   ├── SubtitleModeTabs (Zustand 驱动)
+├── Speaking 流程 (内联：activeSubtitle 时录音/评分)
+├── Right Panel (可折叠)
+│   ├── SubtitleModeTabs (Zustand 驱动：双语/英文/中文 三模式)
 │   ├── Panel Tabs (字幕 / 测验)
-│   └── Mode Content (根据 subtitleMode 切换)
-│       ├── DictationMode (subtitleMode === 'dictation')
-│       ├── FillBlankMode (subtitleMode === 'fillblank')
-│       ├── ReadingMode (subtitleMode === 'reading')
-│       ├── TranslateMode (subtitleMode === 'translate')
-│       ├── FlashcardMode (subtitleMode === 'flashcard')
-│       └── SubtitleList + QuizPanel (bilingual/english/chinese)
+│   └── SubtitleList + QuizPanel
 ├── Bottom Progress Bar (fixed)
 └── WordTooltip (条件渲染：selectedWord 存在时)
 ```
+
+> **架构变更 (2026-06)：** Watch 页已精简。`YouTubePlayer` 与 YouTube IFrame 嵌入已移除（统一本地 `<video>` 播放）；`SpeakingPanel` 拆为内联 speaking 流程；5 个练习模式组件（DictationMode/FillBlankMode/ReadingMode/TranslateMode/FlashcardMode）已下线，`subtitleMode` 收窄为 `bilingual | english | chinese` 三种字幕显示模式。收藏与笔记从 `localStorage` 迁至服务端（`/videos/{id}/favorite`、`/videos/{id}/note`）。
 
 ### 关键副作用 (useEffect)
 
@@ -132,24 +127,21 @@ WatchPage
 
 ### 模式总览
 
+> 仅保留三种字幕显示模式（M-01~M-03）。阅读/听写/填空/闪卡/翻译模式（M-04~M-08）已于 2026-06 下线，组件移除。
+
 | 模式 | 组件 | 接收数据 | 自管理状态 | 交互方式 |
 |------|------|---------|-----------|---------|
 | 双语 | SubtitleList | `subtitles[]` + 回调 | copiedId, favorited | 点击字幕跳转、单词查询、口语练习 |
 | 英文 | SubtitleList | 同上（showEnglishOnly=true） | 同上 | 同上 |
 | 中文 | SubtitleList | 同上 | 同上 | 同上 |
-| 阅读 | ReadingMode | `subtitles[]`, selectedWord, onWordClick | readingIndex, showTranslation | 逐句浏览、单词点击、TTS |
-| 听写 | DictationMode | `subtitle`（单条） | input, showAnswer, checked | 听音输入、检查对错 |
-| 填空 | FillBlankMode | `subtitle`（单条） | display, blanks, answers, checked | 填空输入、检查对错 |
-| 闪卡 | FlashcardMode | `subtitles[]` | index, showAnswer, flipped, shuffled | 翻卡、打乱、导航 |
-| 翻译 | TranslateMode | `subtitles[]` | index, input, checked, direction | 双向翻译、检查对错 |
 
 ### 组件契约规则
 
-1. **数据来源**：所有模式组件从 WatchPage 接收 `subtitles` 数据（或单条 `subtitle`），不自行请求 API
-2. **状态自治**：每个模式组件管理自己的交互状态（输入值、检查状态、导航索引），不向父组件回传
-3. **单词查询**：需要单词点击功能的模式（ReadingMode、SubtitleList）接收 `selectedWord` + `onWordClick` 回调，由 WatchPage 统一处理查词和 TTS
-4. **TTS 播放**：各模式组件自行调用 `SpeechSynthesisUtterance`，不依赖全局状态
-5. **样式约束**：所有模式组件使用深色主题（`bg-navy-*`、`text-white/*`），与 Watch 页面沉浸式风格一致
+1. **数据来源**：SubtitleList 从 WatchPage 接收 `subtitles` 数据，不自行请求 API
+2. **状态自治**：组件管理自己的交互状态，不向父组件回传
+3. **单词查询**：SubtitleList 接收 `selectedWord` + `onWordClick` 回调，由 WatchPage 统一处理查词和 TTS
+4. **TTS 播放**：组件自行调用 `SpeechSynthesisUtterance`，不依赖全局状态
+5. **样式约束**：与 Watch 页面沉浸式风格一致
 
 ### 如何添加新学习模式
 

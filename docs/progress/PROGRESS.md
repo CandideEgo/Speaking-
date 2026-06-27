@@ -65,7 +65,7 @@
 | V-06 | 重复链接检测 | P0 | ✅ | `videos.py` — 检测已处理视频，复用结果 |
 | V-07 | 视频库管理 | P0 | ✅ | `videos.py` GET /videos + 前端仪表盘展示 |
 | V-08 | 官方视频种子 | P1 | ✅ | `seed_official_videos.py` — 幂等种子脚本 + `is_official` 标记 |
-| V-09 | YouTube 搜索 | P1 | ✅ | `youtube.py` GET /search — 基于 yt-dlp，无需 API Key |
+| V-09 | YouTube 搜索 | P1 | ❌ 未实现 | `youtube.py` 路由从未存在（phantom）；前端 YouTubeSearch 组件已删除。本地搜索走 `/videos/search` |
 | V-10 | 视频测验 | P1 | ✅ | `videos.py` GET /{id}/quiz + POST /{id}/quiz/submit |
 
 ### 3.3 字幕系统
@@ -117,11 +117,11 @@
 | M-01 | 双语字幕模式 | P0 | ✅ | SubtitleModeTabs + SubtitleList，默认模式 |
 | M-02 | 纯英文字幕模式 | P0 | ✅ | 切换显示仅英文 |
 | M-03 | 纯中文字幕模式 | P1 | ✅ | 切换显示仅中文 |
-| M-04 | 阅读模式 | P1 | ✅ | ReadingMode.tsx — 隐藏字幕，专注听力 |
-| M-05 | 听写模式 | P1 | ✅ | DictationMode.tsx — SpeechSynthesis 播放 + 用户输入校对 |
-| M-06 | 填空模式 | P1 | ✅ | FillBlankMode.tsx — 随机挖空关键词 |
-| M-07 | 闪卡模式 | P1 | ✅ | FlashcardMode.tsx — 卡片翻转，中英互译 |
-| M-08 | 翻译模式 | P1 | ✅ | TranslateMode.tsx — 英译中/中译英双向 |
+| M-04 | 阅读模式 | P1 | ❌ 已下线 | 组件已移除；Watch 页精简为 3 字幕模式 |
+| M-05 | 听写模式 | P1 | ❌ 已下线 | 组件已移除 |
+| M-06 | 填空模式 | P1 | ❌ 已下线 | 组件已移除 |
+| M-07 | 闪卡模式 | P1 | ❌ 已下线 | 组件已移除 |
+| M-08 | 翻译模式 | P1 | ❌ 已下线 | 组件已移除 |
 
 ### 3.8 内容发现
 
@@ -212,11 +212,11 @@
 | 浏览 (browse) | 2 | 2 | — |
 | 社区 (community) | 2 | 2 | — |
 | 量规 (rubrics) | 2 | 2 | — |
-| YouTube (youtube) | 1 | 1 | — |
+| YouTube (youtube) | 0 | 0 | — | 路由从未实现（phantom），已从文档移除 |
 | 支付 (payments) | 5 | 5 | — |
 | 兑换码 (invite) | 4 | 4 | — |
-| Bilibili (bilibili) | 1 | 1 | — |
-| Douyin (douyin) | 1 | 1 | — |
+| Bilibili (bilibili) | 0 | 0 | — | 路由从未实现，前端页已删除 |
+| Douyin (douyin) | 0 | 0 | — | 路由从未实现，前端页已删除 |
 | 评论 (comments) | 2 | 2 | — |
 | **合计** | **42** | **42** | **0** |
 

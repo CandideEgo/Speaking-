@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>布局 A — 视频全宽 + 下方标签页</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'] },
+        colors: {
+          brand: { 50:'#fff1eb',100:'#ffe0d3',200:'#ffc1a8',300:'#ff9b76',400:'#ff7a45',500:'#ff5a1f',600:'#e84a10',700:'#c33c0c' },
+          canvas:'#ffffff', 'surface-soft':'#fafafa', 'surface-card':'#f4f4f5',
+          ink:'#0a0a0a', body:'#27272a', muted:'#71717a', 'muted-soft':'#a1a1aa',
+          hairline:'#ededed', 'surface-dark':'#0a0a0a',
+        },
+        borderRadius: { sm:'8px', DEFAULT:'12px', lg:'16px', pill:'9999px' },
+        boxShadow: { soft:'0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04)', card:'0 2px 8px rgba(10,10,10,.05)', lift:'0 12px 32px rgba(10,10,10,.08)', brand:'0 8px 24px rgba(255,90,31,.28)' },
+      }
+    }
+  }
+</script>
+<style>
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fafafa;color:#0a0a0a;}
+  .scroll-thin::-webkit-scrollbar{width:8px} .scroll-thin::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:4px}
+  .word:hover{background:#fff1eb;color:#ff5a1f;border-radius:4px}
+  .word-hl{background:#fff1eb;color:#ff5a1f;border-radius:4px}
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- 顶部细行：返回 + 标题 + 操作图标（不喧宾夺主） -->
+<header class="max-w-[1400px] mx-auto px-6 pt-5 pb-3 flex items-center gap-4">
+  <a href="index.html" class="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink transition-colors shrink-0">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    返回浏览
+  </a>
+  <div class="h-4 w-px bg-hairline"></div>
+  <h1 class="text-[15px] font-semibold text-ink truncate flex-1">How to Speak So That People Want to Listen — Julian Treasure</h1>
+  <div class="flex items-center gap-1 shrink-0">
+    <button class="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors" title="收藏">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button class="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors" title="分享">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-6 pb-20">
+
+  <!-- 视频画面（放大，几乎全宽） -->
+  <div class="relative w-full rounded-xl overflow-hidden bg-surface-dark aspect-video shadow-lift">
+    <img src="https://picsum.photos/seed/speaking-watch-a/1280/720" class="absolute inset-0 w-full h-full object-cover opacity-90" alt=""/>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+    <button class="absolute inset-0 flex items-center justify-center group">
+      <span class="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="#ff5a1f" class="ml-1"><path d="M8 5v14l11-7z"/></svg>
+      </span>
+    </button>
+    <!-- 进度条 -->
+    <div class="absolute left-0 right-0 bottom-0 px-4 pb-3">
+      <div class="h-1 rounded-full bg-white/25 overflow-hidden">
+        <div class="h-full bg-brand-500" style="width:38%"></div>
+      </div>
+    </div>
+    <span class="absolute top-3 right-3 text-xs font-medium text-white/90 bg-black/40 rounded px-2 py-0.5">TED · B2 · 09:58</span>
+  </div>
+
+  <!-- 字幕卡：紧贴视频正下方（标题/按钮不再夹中间） -->
+  <div class="mt-3 bg-canvas border border-hairline rounded-xl p-5">
+    <div class="flex items-start gap-4">
+      <div class="flex-1 min-w-0">
+        <p class="text-[19px] font-semibold leading-relaxed text-ink">
+          <span class="word-hl">I think</span>
+          <span class="word"> the most important thing </span>
+          <span class="word">is to be honest</span>
+          <span class="word"> and authentic.</span>
+        </p>
+        <p class="text-[14px] text-muted mt-1.5 leading-relaxed">我认为最重要的是保持诚实与真实。</p>
+      </div>
+
+      <!-- 跟读：次要操作，小按钮，点击展开 -->
+      <button id="speakToggle" class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-brand-500 bg-brand-50 hover:bg-brand-100 transition-colors">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+        跟读
+      </button>
+    </div>
+
+    <!-- 跟读展开态（默认隐藏） -->
+    <div id="speakPanel" class="hidden mt-4 pt-4 border-t border-hairline">
+      <div class="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
+        <button class="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand animate-pulse shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="4" height="12" rx="1"/><rect x="14" y="6" width="4" height="12" rx="1"/></svg>
+        </button>
+        <div class="flex-1">
+          <p class="text-[13px] font-semibold text-ink">正在录音…</p>
+          <div class="flex items-end gap-0.5 h-5 mt-1">
+            <span class="w-1 bg-brand-400 rounded" style="height:40%"></span>
+            <span class="w-1 bg-brand-400 rounded" style="height:75%"></span>
+            <span class="w-1 bg-brand-400 rounded" style="height:55%"></span>
+            <span class="w-1 bg-brand-400 rounded" style="height:90%"></span>
+            <span class="w-1 bg-brand-400 rounded" style="height:65%"></span>
+            <span class="w-1 bg-brand-400 rounded" style="height:30%"></span>
+          </div>
+        </div>
+        <span class="text-[13px] text-muted">00:03</span>
+        <button class="text-[13px] font-semibold text-muted hover:text-ink px-2">取消</button>
+      </div>
+      <!-- 已完成态示例（静态展示用，默认注释效果，这里直接显示一版分数） -->
+      <div class="hidden mt-3 flex items-center gap-3">
+        <div class="w-11 h-11 rounded-full bg-success/10 text-success flex items-center justify-center font-bold text-sm">87</div>
+        <p class="text-[13px] text-body">发音清晰，注意 "authentic" 的重音。</p>
+        <button class="ml-auto text-[13px] font-semibold text-brand-500">再练一次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 字幕模式 Tab（只留 3 个核心） -->
+  <div class="mt-5 flex items-center gap-1.5 border-b border-hairline">
+    <button class="px-4 py-2.5 text-[14px] font-semibold text-ink border-b-2 border-brand-500 -mb-px">双语</button>
+    <button class="px-4 py-2.5 text-[14px] font-medium text-muted hover:text-ink transition-colors">英文</button>
+    <button class="px-4 py-2.5 text-[14px] font-medium text-muted hover:text-ink transition-colors">中文</button>
+  </div>
+
+  <!-- 字幕列表（滚动） -->
+  <div class="scroll-thin overflow-y-auto" style="max-height:420px">
+    <div class="py-2">
+      <!-- 当前句高亮 -->
+      <button class="w-full text-left px-4 py-3 rounded-lg bg-brand-50 border-l-2 border-brand-500">
+        <p class="text-[15px] font-semibold text-ink">I think the most important thing is to be honest and authentic.</p>
+        <p class="text-[13px] text-muted mt-0.5">我认为最重要的是保持诚实与真实。</p>
+      </button>
+      <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-surface-soft transition-colors">
+        <p class="text-[15px] text-body">The human voice is the most powerful sound in the world.</p>
+        <p class="text-[13px] text-muted mt-0.5">人类的声音是世界上最有力量的声音。</p>
+      </button>
+      <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-surface-soft transition-colors">
+        <p class="text-[15px] text-body">It's the only one that can start a war or say "I love you."</p>
+        <p class="text-[13px] text-muted mt-0.5">它是唯一能发动战争、也能说出"我爱你"的声音。</p>
+      </button>
+      <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-surface-soft transition-colors">
+        <p class="text-[15px] text-body">And yet many people have lost the habit of listening.</p>
+        <p class="text-[13px] text-muted mt-0.5">然而许多人已经失去了倾听的习惯。</p>
+      </button>
+      <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-surface-soft transition-colors">
+        <p class="text-[15px] text-body">We speak too much, and we listen too little.</p>
+        <p class="text-[13px] text-muted mt-0.5">我们说得太多，听得太少。</p>
+      </button>
+      <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-surface-soft transition-colors">
+        <p class="text-[15px] text-body">Here are seven deadly sins of speaking, in no particular order.</p>
+        <p class="text-[13px] text-muted mt-0.5">以下是七种说话的"死罪"，排名不分先后。</p>
+      </button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const t = document.getElementById('speakToggle');
+  const p = document.getElementById('speakPanel');
+  t.addEventListener('click', () => {
+    p.classList.toggle('hidden');
+    t.classList.toggle('bg-brand-50');
+  });
+</script>
+</body>
+</html>
