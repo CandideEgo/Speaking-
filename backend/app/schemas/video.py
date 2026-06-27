@@ -56,6 +56,8 @@ class SubtitleResponse(BaseModel):
     sentence_index: int
     grammar_note: str | None
     speaker: str | None
+    # Exam-level word annotations: {surface_token: [level keys]} or null.
+    word_levels: dict | None = None
 
     model_config = {"from_attributes": True}
 

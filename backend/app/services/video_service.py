@@ -208,6 +208,7 @@ async def get_video_detail(
                 sentence_index=s.sentence_index,
                 grammar_note=s.grammar_note,
                 speaker=s.speaker,
+                word_levels=s.word_levels,
             )
             for s in (video.subtitles or [])
         ],

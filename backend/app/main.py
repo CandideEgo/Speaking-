@@ -6,31 +6,36 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
 from app.api.v1 import (
+    admin,
     ai,
     auth,
     browse,
     comments,
     community,
+    favorites,
     internal,
     invite,
     learning,
+    media,
     notifications,
     payments,
+    practice,
     rubrics,
     speaking,
     users,
     videos,
     vocabulary,
+    words,
 )
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging, get_logger
+from app.services.ai_service import AIServiceError
 
 settings = get_settings()
 configure_logging()
@@ -56,6 +61,16 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
+async def _ai_service_error_handler(request: Request, exc: AIServiceError) -> JSONResponse:
+    """Surface AI/LLM failures as 502 instead of letting them become 500s or,
+    worse, silent fake-zero scores. Keeps the message safe to return to clients."""
+    logger.warning("ai_service_error path=%s detail=%s", request.url.path, exc)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "AI 服务暂不可用，请稍后重试"},
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage startup/shutdown lifecycle.
@@ -76,11 +91,16 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    # Import all models so SQLAlchemy registers them on Base.metadata before
+    # any create_all (e.g. conftest in tests) or Alembic autogenerate runs.
+    from app import models
+
     app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
     Instrumentator().instrument(app).expose(app)
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+    app.add_exception_handler(AIServiceError, _ai_service_error_handler)
 
     # Request ID middleware
     @app.middleware("http")
@@ -143,11 +163,14 @@ def create_app() -> FastAPI:
 
     media_path = Path(settings.local_media_path).resolve()
     media_path.mkdir(parents=True, exist_ok=True)
-    app.mount("/media", StaticFiles(directory=str(media_path)), name="media")
+    # Range-aware media serving (Starlette StaticFiles ignores Range headers,
+    # which breaks <video> seeking). See app/api/v1/media.py.
+    app.include_router(media.router)
 
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(videos.router, prefix="/api/v1")
+    app.include_router(favorites.router, prefix="/api/v1")
     app.include_router(speaking.router, prefix="/api/v1")
     app.include_router(ai.router, prefix="/api/v1")
     app.include_router(invite.router, prefix="/api/v1")
@@ -157,10 +180,13 @@ def create_app() -> FastAPI:
 
         app.include_router(mock_payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
+    app.include_router(words.router, prefix="/api/v1")
+    app.include_router(practice.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(community.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
     app.include_router(rubrics.router, prefix="/api/v1")
+    app.include_router(admin.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/api/v1")

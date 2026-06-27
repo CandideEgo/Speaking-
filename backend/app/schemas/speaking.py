@@ -12,7 +12,7 @@ class WordScore(BaseModel):
 class CriterionScore(BaseModel):
     """Per-criterion score from rubric-based evaluation."""
 
-    id: str
+    id: str | None = None
     name: str
     score: float  # 0-100
     weight: float

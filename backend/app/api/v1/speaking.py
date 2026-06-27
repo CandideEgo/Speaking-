@@ -8,7 +8,13 @@ from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord, SpeakingAttempt
 from app.models.subtitle import Subtitle
 from app.models.user import User
-from app.schemas.speaking import FreePracticeResponse, SpeakingAttemptResponse, SpeakingSubmitResponse
+from app.schemas.speaking import (
+    CriterionScore,
+    FreePracticeResponse,
+    SpeakingAttemptResponse,
+    SpeakingSubmitResponse,
+)
+from app.services.ai_service import AIServiceError
 from app.services.speaking_service import (
     check_daily_limit,
     evaluate_free_speaking,
@@ -24,7 +30,9 @@ router = APIRouter(prefix="/speaking", tags=["speaking"])
 MAX_AUDIO_SIZE = 5 * 1024 * 1024  # 5 MB
 ALLOWED_AUDIO_TYPES = {"audio/webm", "audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg"}
 ALLOWED_EXTENSIONS = {".webm", ".wav", ".mp3", ".ogg"}
-VALID_MODES = {"read_aloud", "shadowing", "free_speaking"}
+# shadowing was removed (dead mode); only read_aloud (subtitle practice) and
+# free_speaking (free-practice endpoint) remain.
+VALID_MODES = {"read_aloud", "free_speaking"}
 
 
 @router.post("/practice", response_model=SpeakingSubmitResponse)
@@ -82,9 +90,16 @@ async def submit_speaking(
 
     # Evaluate speaking attempt
     try:
-        attempt = await evaluate_speaking(db, current_user.id, subtitle_id, audio_data, text_en)
+        eval_result = await evaluate_speaking(db, current_user.id, subtitle_id, audio_data, text_en)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except AIServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="评分服务暂时不可用，请稍后重试",
+        ) from e
+
+    attempt = eval_result.attempt
 
     # Set mode and rubric_id on the attempt
     attempt.mode = mode
@@ -93,28 +108,25 @@ async def submit_speaking(
     await db.commit()
     await db.refresh(attempt)
 
-    # Build criteria_scores if the attempt has rubric scores
+    # Build criteria_scores from the per-attempt evaluation result. (Not persisted
+    # to SpeakingAttemptScore in this pass — criteria_scores are returned only for
+    # the current attempt; historical attempts rely on the flat accuracy/fluency/
+    # completeness columns.)
     criteria_scores = None
     overall_score = None
-    if attempt.scores:
-        from app.schemas.speaking import CriterionScore
-
+    if eval_result.criteria_scores:
         criteria_scores = [
             CriterionScore(
-                id=s.criterion.id,
-                name=s.criterion.name,
-                score=s.score,
-                weight=s.criterion.weight,
-                feedback=s.feedback,
+                name=c["name"],
+                score=c["score"],
+                weight=c["weight"],
+                feedback=c.get("feedback"),
             )
-            for s in attempt.scores
-            if s.criterion
+            for c in eval_result.criteria_scores
         ]
-        # Calculate weighted overall score
-        if criteria_scores:
-            total_weight = sum(c.weight for c in criteria_scores)
-            if total_weight > 0:
-                overall_score = round(sum(c.score * c.weight for c in criteria_scores) / total_weight, 1)
+        total_weight = sum(c.weight for c in criteria_scores)
+        if total_weight > 0:
+            overall_score = round(sum(c.score * c.weight for c in criteria_scores) / total_weight, 1)
 
     # Update learning record
     await update_learning_record(db, current_user.id, video_id)

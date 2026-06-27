@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 
+from app.core.exam_levels import EXAM_LEVEL_KEYS
 from app.core.security import validate_password_strength
 
 
@@ -177,6 +178,7 @@ class UserPreferencesResponse(BaseModel):
     auto_play_next_subtitle: bool = True
     subtitle_mode_default: str = "bilingual"
     preferred_difficulty: str | None = None
+    target_exam: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -190,6 +192,14 @@ class UserPreferencesUpdate(BaseModel):
     auto_play_next_subtitle: bool | None = None
     subtitle_mode_default: Literal["bilingual", "english", "chinese"] | None = None
     preferred_difficulty: str | None = None
+    target_exam: str | None = None
+
+    @field_validator("target_exam")
+    @classmethod
+    def validate_target_exam(cls, v: str | None) -> str | None:
+        if v is not None and v not in EXAM_LEVEL_KEYS:
+            raise ValueError(f"target_exam must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
+        return v
 
 
 class OnboardingRequest(BaseModel):

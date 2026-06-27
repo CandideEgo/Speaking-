@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -12,6 +12,8 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.services.activity_service import get_activity_calendar, get_streak_info
+from app.services.speaking_service import get_user_stats
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -80,6 +82,7 @@ async def get_preferences(
             else True,
             subtitle_mode_default=pref_row.subtitle_mode_default or "bilingual",
             preferred_difficulty=pref_row.preferred_difficulty,
+            target_exam=pref_row.target_exam,
         )
 
     # Return defaults
@@ -124,4 +127,48 @@ async def update_preferences(
         auto_play_next_subtitle=pref.auto_play_next_subtitle if pref.auto_play_next_subtitle is not None else True,
         subtitle_mode_default=pref.subtitle_mode_default or "bilingual",
         preferred_difficulty=pref.preferred_difficulty,
+        target_exam=pref.target_exam,
     )
+
+
+@router.get("/me/activity")
+async def get_my_activity(
+    year: int = Query(..., ge=1900, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's daily-activity calendar for a given month.
+
+    Powers the /history page heatmap and the dashboard heatmap. Reads from the
+    pre-computed ``daily_activities`` snapshots (one row per user per day).
+    """
+    activities = await get_activity_calendar(db, current_user.id, year, month)
+    return {"activities": activities}
+
+
+@router.get("/me/streak")
+async def get_my_streak(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's streak info and today's progress.
+
+    Streak is maintained on ``User.streak_count`` (O(1) read) by the activity
+    service; this endpoint also returns today's goal progress.
+    """
+    return await get_streak_info(db, current_user.id)
+
+
+@router.get("/me/stats")
+async def get_my_stats(
+    period: str = Query("all", pattern="^(today|week|month|all)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregate learning stats for a time period.
+
+    Thin user-scoped alias over the speaking-service aggregator (also exposed at
+    ``/speaking/stats``); the dashboard fetches it under ``/users/me/stats``.
+    """
+    return await get_user_stats(db, current_user.id, period)
