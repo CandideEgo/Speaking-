@@ -1,16 +1,17 @@
 import asyncio
 import json
-import logging
 import time
 from pathlib import Path
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
+from app.services import ecdict
 from app.services.ai_service import AIService
 from app.services.transcription.audio_extractor import get_video_duration
 from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Resolutions to transcode
 TRANSCODE_PROFILES = {
@@ -25,6 +26,8 @@ STEP_PROGRESS = {
     "extracting": 10,
     "transcribing": 30,
     "translating": 70,
+    "annotating": 72,
+    "prewarm_notes": 74,
     "downloading": 75,
     "transcoding": 90,
     "done": 100,
@@ -156,10 +159,11 @@ async def _translate_subtitles(texts: list[str]) -> list[str | None]:
 async def _stage_local_upload(video) -> tuple[str, str]:
     """Rename a local upload to the canonical raw path and stage it on OSS.
 
-    Returns ``(gpu_source_url, remote_key)`` where ``gpu_source_url`` is a
-    signed URL (private bucket) or CDN URL (public bucket) the GPU worker can
-    fetch without OSS credentials. Raises if OSS is not configured — local
-    uploads cannot reach the GPU worker any other way.
+    Returns ``(gpu_source, remote_key)`` where ``gpu_source`` is a signed URL
+    (private bucket) or CDN URL (public bucket) the GPU worker can fetch
+    without OSS credentials. When OSS is not configured (dev, GPU worker on the
+    same host), falls back to the local raw file path so the worker reads it
+    directly — ``remote_key`` is empty in that case.
     """
     from app.services import oss_service
 
@@ -180,15 +184,20 @@ async def _stage_local_upload(video) -> tuple[str, str]:
 
     remote_key = f"{settings.oss_raw_prefix}/{video.id}{ext}"
     cdn_url = await oss_service.upload_file(str(raw_path), remote_key)
-    if not cdn_url:
-        raise Exception("OSS upload failed (not configured?) — cannot transfer local upload to GPU worker")
-    if settings.oss_raw_bucket_public:
-        gpu_source = cdn_url
-    else:
-        gpu_source = oss_service.get_signed_url(remote_key, expires=settings.oss_signed_url_expiry)
-        if not gpu_source:
-            raise Exception("OSS signed URL generation failed")
-    return gpu_source, remote_key
+    if cdn_url:
+        if settings.oss_raw_bucket_public:
+            gpu_source = cdn_url
+        else:
+            gpu_source = oss_service.get_signed_url(remote_key, expires=settings.oss_signed_url_expiry)
+            if not gpu_source:
+                raise Exception("OSS signed URL generation failed")
+        return gpu_source, remote_key
+
+    # OSS not configured (dev): when the GPU worker runs on the same host as
+    # the cloud backend, it can read the local raw file directly — skip the
+    # OSS round-trip. Production has OSS enabled and never hits this branch.
+    logger.info("OSS not configured; GPU worker will read local raw file", video_id=video.id)
+    return str(raw_path), ""
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -421,6 +430,109 @@ def finalize_video(self, video_id: str):
                     await _update_progress(video_id, "translating")
                 else:
                     logger.info("Video %s: skipping translating (already done)", video_id)
+
+                # --- Step: annotating (CET/高考/考研 exam-level word tags) ---
+                # Pure local ECDICT lookup — no AI. Populates Subtitle.word_levels
+                # (lemma -> exam level keys) once, level-agnostic, so the watch
+                # page can filter by the user's target exam at display time.
+                # Skipped gracefully when the ECDICT db is absent (word_levels null).
+                if not await _is_step_done(video_id, "annotating"):
+                    if ecdict.is_available():
+                        ann_result = await db.execute(
+                            select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
+                        )
+                        for s in ann_result.scalars().all():
+                            levels = ecdict.annotate_text(s.text_en)
+                            s.word_levels = levels or None
+                        video.processing_step = "annotating"
+                        video.processing_progress = 72
+                        await db.commit()
+                        await _update_progress(video_id, "annotating")
+                    else:
+                        logger.warning(
+                            "Video %s: skipping annotating (ECDICT db missing at %s)",
+                            video_id,
+                            ecdict.DB_PATH,
+                        )
+                        await _update_progress(video_id, "annotating")
+                else:
+                    logger.info("Video %s: skipping annotating (already done)", video_id)
+
+                # --- Step: prewarm_notes (per-video AI learning notes) ---
+                # Batch-generate contextual_note / pitfalls / knowledge for the
+                # video's exam-tagged words, stored as video:{id} rows so the
+                # gloss endpoint can return <10ms responses. Resume-safe.
+                if not await _is_step_done(video_id, "prewarm_notes"):
+                    if not ecdict.is_available():
+                        logger.info(
+                            "Video %s: skipping prewarm_notes (no ECDICT — no words to annotate)",
+                            video_id,
+                        )
+                        await _update_progress(video_id, "prewarm_notes")
+                    else:
+                        try:
+                            from app.services import word_notes as _word_notes
+
+                            ann_sub_result = await db.execute(
+                                select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
+                            )
+                            ann_subs = list(ann_sub_result.scalars().all())
+                            # Build the (word, translation, context_sentence)
+                            # batch from word_levels; one representative
+                            # sentence per word, per its highest ECDICT level.
+                            seen: dict[tuple[str, str], dict] = {}
+                            for s in ann_subs:
+                                if not s.word_levels:
+                                    continue
+                                for surface, levels in s.word_levels.items():
+                                    top = (
+                                        max(
+                                            levels,
+                                            key=lambda lv: {
+                                                "zhongkao": 1,
+                                                "gaoKao": 2,
+                                                "cet4": 3,
+                                                "cet6": 4,
+                                                "ky": 5,
+                                                "ielts": 6,
+                                                "toefl": 6,
+                                                "gre": 7,
+                                            }.get(lv, 0),
+                                        )
+                                        if levels
+                                        else "global"
+                                    )
+                                    key = (surface, top)
+                                    if key not in seen:
+                                        # Use the first subtitle sentence
+                                        # containing this surface as the
+                                        # context cue.
+                                        seen[key] = {
+                                            "word": surface,
+                                            "level": top,
+                                            "context_sentence": s.text_en or "",
+                                        }
+                            items = list(seen.values())
+                            if items:
+                                ai = _get_ai_service()
+                                source = f"video:{video.id}"
+                                notes = await ai.generate_word_notes_bulk(items, source=source)
+                                await _word_notes.upsert_notes(db, notes)
+                                logger.info("Video %s: prewarmed %d video-specific notes", video_id, len(notes))
+                            else:
+                                logger.info("Video %s: no exam words to prewarm", video_id)
+                            video.processing_step = "prewarm_notes"
+                            video.processing_progress = 74
+                            await db.commit()
+                            await _update_progress(video_id, "prewarm_notes")
+                        except Exception as exc:
+                            # Prewarm is an enhancement; don't fail the
+                            # pipeline if the LLM is down. The gloss endpoint
+                            # will fall back to live AI / global notes.
+                            logger.warning("Video %s: prewarm_notes skipped (%s)", video_id, exc)
+                            await _update_progress(video_id, "prewarm_notes")
+                else:
+                    logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
                 # --- Step: downloading ---
                 video_path = None

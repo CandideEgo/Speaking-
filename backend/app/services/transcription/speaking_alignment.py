@@ -50,7 +50,7 @@ def evaluate_speaking_alignment(
     try:
         aligned_words = _run_forced_alignment(audio_path, transcript_segments)
     except Exception:
-        logger.warning("Forced alignment failed, falling back to text-only scoring")
+        logger.warning("Forced alignment failed, falling back to text-only scoring", exc_info=True)
         return None
 
     original_words = _normalize_words(original_text)

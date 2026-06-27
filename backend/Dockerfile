@@ -3,41 +3,17 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies and runtime system libraries
+# ffmpeg is the only runtime system dependency (audio decode for transcription).
+# Playwright/Chromium were removed when the Douyin/Bilibili platform modules were
+# dropped — the image no longer ships a headless browser.
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
     apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    # Playwright dependencies for Chromium
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
-    # Chinese fonts for Douyin rendering
-    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# Install pytorch-lightning first (workaround for lightning package quarantine on PyPI)
-RUN pip install "pytorch-lightning>=2.0.1"
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
     pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright browsers
-RUN playwright install chromium
 
 # Pre-download faster-whisper base model to avoid download on every container restart
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base')"
@@ -53,39 +29,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install only runtime system libraries (no build tools)
+# Runtime system libraries: ffmpeg only (audio decode on the GPU worker).
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
     apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    # Playwright runtime dependencies
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
-    # Chinese fonts for Douyin rendering
-    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy Playwright browsers from builder
-COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Copy faster-whisper model cache from builder
 COPY --from=builder /root/.cache/huggingface /root/.cache/huggingface

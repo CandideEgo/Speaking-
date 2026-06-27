@@ -194,6 +194,7 @@ def get_align_model(language_code: str = "en"):
             model=model_name or "auto",
         )
 
+        # [Phase3 诊断] load_align_model 首次会从 HuggingFace 下载 wav2vec2 (~360MB),
         model_a, metadata = whisperx.load_align_model(
             language_code=language_code,
             device=device,
@@ -412,7 +413,6 @@ def get_whisper_model():
                 device=device,
                 compute_type=compute_type,
             )
-            logger.info("Legacy Whisper model loaded successfully")
         except Exception:
             logger.error("Failed to load Whisper model", device=device, exc_info=True)
             if device == "cuda":

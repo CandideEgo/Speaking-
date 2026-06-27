@@ -18,11 +18,8 @@ faster-whisper>=1.0.0
 whisperx>=3.8.0
 slowapi==0.1.9
 aiosmtplib>=3.0.0
-yt-dlp==2024.5.27
-
-# Transcription support
-playwright==1.44.0
-playwright-stealth>=1.0.0
+# yt-dlp site extractors rot fast — track latest instead of pinning to a date.
+yt-dlp>=2025.0.0
 
 # Observability
 structlog==24.2.0
