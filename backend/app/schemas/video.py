@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class VideoCreate(BaseModel):
@@ -101,6 +101,51 @@ class VideoAdminUpdate(BaseModel):
         if v.upper() not in allowed:
             raise ValueError("difficulty_level must be one of A1, A2, B1, B2, C1, C2")
         return v.upper()
+
+
+class SubtitleUpdate(BaseModel):
+    """Partial update payload for a single subtitle (admin review/edit).
+
+    All fields optional — only supplied fields are written. Editing ``text_en``
+    resets ``word_levels`` to the ECDICT baseline (the inflection index is
+    derived from the English text), so manual word-level overrides on that line
+    must be redone after an English edit.
+    """
+
+    text_en: str | None = None
+    text_zh: str | None = None
+    start_time: float | None = None
+    end_time: float | None = None
+    grammar_note: str | None = None
+    speaker: str | None = None
+
+    @field_validator("text_en", "text_zh", "grammar_note", "speaker")
+    @classmethod
+    def strip_and_require_nonempty(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be empty/whitespace")
+        return v
+
+    @model_validator(mode="after")
+    def validate_timing(self) -> "SubtitleUpdate":
+        if self.start_time is not None and self.end_time is not None and self.start_time >= self.end_time:
+            raise ValueError("start_time must be less than end_time")
+        return self
+
+
+class SubtitleBatchItem(SubtitleUpdate):
+    """One subtitle update within a batch — carries the target subtitle id."""
+
+    id: str
+
+
+class SubtitleBatchUpdate(BaseModel):
+    """Batch subtitle update payload — applies many edits in one transaction."""
+
+    updates: list[SubtitleBatchItem]
 
 
 class VideoStatusResponse(BaseModel):

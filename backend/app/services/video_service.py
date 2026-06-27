@@ -18,7 +18,9 @@ from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
+    SubtitleBatchUpdate,
     SubtitleResponse,
+    SubtitleUpdate,
     VideoAdminResponse,
     VideoAdminUpdate,
     VideoDetailResponse,
@@ -532,6 +534,112 @@ async def update_video(
         await invalidate_browse_cache()
 
     return VideoAdminResponse.model_validate(video)
+
+
+async def _invalidate_video_detail_cache(video_id: str) -> None:
+    """Best-effort drop of the cached video detail (subtitles included).
+
+    Reused by subtitle/word_levels edits so the next read reflects the change.
+    Fail-open: a Redis outage just means a stale read for up to the TTL.
+    """
+    try:
+        from app.core.redis import get_redis
+
+        redis = await get_redis()
+        await redis.delete(f"video:detail:{video_id}")
+    except Exception:
+        pass
+
+
+async def update_subtitle(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_id: str,
+    payload: SubtitleUpdate,
+) -> SubtitleResponse:
+    """Apply a partial admin edit to one subtitle.
+
+    Editing ``text_en`` resets ``word_levels`` to the ECDICT baseline (the
+    inflection index is derived from the English text), mirroring the ingest
+    pipeline's annotating step. Raises ValueError for not-found or
+    cross-video edits (route maps these to 404 / 400).
+    """
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text
+
+    result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
+    subtitle = result.scalar_one_or_none()
+    if subtitle is None:
+        raise ValueError("Subtitle not found")
+    if subtitle.video_id != video_id:
+        raise ValueError("Subtitle does not belong to this video")
+
+    text_en_changed = payload.text_en is not None and payload.text_en != subtitle.text_en
+
+    for field in ("text_en", "text_zh", "start_time", "end_time", "grammar_note", "speaker"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(subtitle, field, value)
+
+    if text_en_changed:
+        # Re-derive word_levels from the new English text — same primitive the
+        # finalize pipeline and backfill script use. This overwrites any manual
+        # overrides on this line; UI should warn before editing text_en.
+        levels = annotate_text(subtitle.text_en)
+        subtitle.word_levels = levels or None
+
+    await db.commit()
+    await db.refresh(subtitle)
+    await _invalidate_video_detail_cache(video_id)
+    return SubtitleResponse.model_validate(subtitle)
+
+
+async def update_subtitles_batch(
+    db: AsyncSession,
+    video_id: str,
+    payload: SubtitleBatchUpdate,
+) -> list[SubtitleResponse]:
+    """Apply many subtitle edits in one transaction. All ids must belong to video_id."""
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text
+
+    if not payload.updates:
+        return []
+
+    ids = [item.id for item in payload.updates]
+    result = await db.execute(select(Subtitle).where(Subtitle.id.in_(ids)))
+    subtitles_by_id = {s.id: s for s in result.scalars().all()}
+
+    # Validate every target up front so we don't partially apply.
+    for item in payload.updates:
+        sub = subtitles_by_id.get(item.id)
+        if sub is None:
+            raise ValueError(f"Subtitle {item.id} not found")
+        if sub.video_id != video_id:
+            raise ValueError(f"Subtitle {item.id} does not belong to this video")
+
+    updated: list[SubtitleResponse] = []
+    for item in payload.updates:
+        sub = subtitles_by_id[item.id]
+        text_en_changed = item.text_en is not None and item.text_en != sub.text_en
+        for field in ("text_en", "text_zh", "start_time", "end_time", "grammar_note", "speaker"):
+            value = getattr(item, field)
+            if value is not None:
+                setattr(sub, field, value)
+        if text_en_changed:
+            levels = annotate_text(sub.text_en)
+            sub.word_levels = levels or None
+        updated.append(SubtitleResponse.model_validate(sub))
+
+    await db.commit()
+    for sub in subtitles_by_id.values():
+        if sub.id in ids:
+            await db.refresh(sub)
+    await _invalidate_video_detail_cache(video_id)
+
+    # Return in the order requested, refreshed.
+    refreshed = {s.id: s for s in subtitles_by_id.values()}
+    return [SubtitleResponse.model_validate(refreshed[item.id]) for item in payload.updates]
 
 
 async def delete_video(db: AsyncSession, video_id: str) -> bool:

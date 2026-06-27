@@ -13,6 +13,9 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
+    SubtitleBatchUpdate,
+    SubtitleResponse,
+    SubtitleUpdate,
     VideoAdminResponse,
     VideoAdminUpdate,
     VideoCreate,
@@ -59,6 +62,12 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     submit_video as _submit_video,
+)
+from app.services.video_service import (
+    update_subtitle as _update_subtitle,
+)
+from app.services.video_service import (
+    update_subtitles_batch as _update_subtitles_batch,
 )
 from app.services.video_service import (
     update_video as _update_video,
@@ -203,6 +212,47 @@ async def localize_admin_video(
         if "already processing" in msg:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from e
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+
+
+@router.patch("/admin/{video_id}/subtitles/{subtitle_id}", response_model=SubtitleResponse)
+@rate_limit("60/minute")
+async def update_admin_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    payload: SubtitleUpdate,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit one subtitle's text/timing/grammar note. Editing text_en resets that
+    line's word_levels to the ECDICT baseline. Admin only."""
+    try:
+        return await _update_subtitle(db, video_id, subtitle_id, payload)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        # Cross-video edit attempt.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.patch("/admin/{video_id}/subtitles", response_model=list[SubtitleResponse])
+@rate_limit("60/minute")
+async def update_admin_subtitles_batch(
+    request: Request,
+    video_id: str,
+    payload: SubtitleBatchUpdate,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply many subtitle edits in one transaction. All ids must belong to video_id. Admin only."""
+    try:
+        return await _update_subtitles_batch(db, video_id, payload)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)
