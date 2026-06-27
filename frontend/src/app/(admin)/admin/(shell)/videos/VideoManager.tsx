@@ -13,13 +13,21 @@ import {
   X,
 } from "lucide-react";
 
-import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
-import type { Paginated, Video, VideoAdmin } from "@/types";
+import { FilterPills } from "@/components/admin/FilterPills";
+import type { VideoAdmin } from "@/types";
+import {
+  deleteVideo,
+  getVideoStatus,
+  listVideos,
+  localizeVideo,
+  seedVideo,
+  updateVideo,
+} from "@/lib/adminData";
 
-const STATUS_FILTERS: { key: string; label: string }[] = [
+const STATUS_FILTERS = [
   { key: "", label: "全部" },
   { key: "processing", label: "处理中" },
   { key: "ready_subtitles", label: "字幕就绪" },
@@ -51,12 +59,12 @@ export default function VideoManager() {
   const loadVideos = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: "1", page_size: "50" });
-      if (statusFilter) params.set("status", statusFilter);
-      if (keyword.trim()) params.set("keyword", keyword.trim());
-      const data = await api<Paginated<VideoAdmin>>(
-        `/api/v1/videos/admin?${params}`,
-      );
+      const data = await listVideos({
+        page: 1,
+        page_size: 50,
+        status: statusFilter,
+        keyword,
+      });
       setVideos(data.items);
     } catch {
       toast.error("加载视频列表失败");
@@ -74,10 +82,7 @@ export default function VideoManager() {
     if (!seedUrl.trim()) return;
     setSeeding(true);
     try {
-      await api<Video>("/api/v1/videos/seed", {
-        method: "POST",
-        body: JSON.stringify({ source_url: seedUrl }),
-      });
+      await seedVideo(seedUrl);
       toast.success("视频已加入处理队列");
       setSeedUrl("");
       await loadVideos();
@@ -96,7 +101,7 @@ export default function VideoManager() {
     )
       return;
     try {
-      await api(`/api/v1/videos/admin/${video.id}`, { method: "DELETE" });
+      await deleteVideo(video.id);
       toast.success("视频已删除");
       setVideos((prev) => prev.filter((v) => v.id !== video.id));
       if (editingId === video.id) setEditingId(null);
@@ -107,12 +112,7 @@ export default function VideoManager() {
 
   async function handleLocalize(video: VideoAdmin) {
     try {
-      const updated = await api<VideoAdmin>(
-        `/api/v1/videos/admin/${video.id}/localize`,
-        {
-          method: "POST",
-        },
-      );
+      const updated = await localizeVideo(video.id);
       setVideos((prev) => prev.map((v) => (v.id === video.id ? updated : v)));
       toast.success("已开始搬运到本地，进度将自动更新");
     } catch (err) {
@@ -170,21 +170,12 @@ export default function VideoManager() {
         </div>
 
         {/* Filters */}
-        <div className="mt-4 flex items-center gap-2 flex-wrap">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(f.key)}
-              className={cn(
-                "inline-flex items-center rounded-sm px-3 py-1.5 text-xs font-medium transition-colors border",
-                statusFilter === f.key
-                  ? "bg-coral text-white border-coral"
-                  : "bg-canvas text-muted-foreground border-hairline hover:text-ink",
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <FilterPills
+            options={STATUS_FILTERS}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
           <input
             type="text"
             value={keyword}
@@ -367,7 +358,7 @@ function VideoDetailRow({
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
 
-  // Poll GET /videos/{id}/status while processing, update the row in place.
+  // Poll getVideoStatus while processing, update the row in place.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!isProcessing) {
@@ -376,11 +367,7 @@ function VideoDetailRow({
     }
     pollRef.current = setInterval(async () => {
       try {
-        const st = await api<{
-          status: string;
-          video_url_720p: string | null;
-          processing_step: string | null;
-        }>(`/api/v1/videos/${video.id}/status`);
+        const st = await getVideoStatus(video.id);
         patchVideo(video.id, {
           status: st.status as VideoAdmin["status"],
           processing_step: st.processing_step,
@@ -408,20 +395,14 @@ function VideoDetailRow({
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await api<VideoAdmin>(
-        `/api/v1/videos/admin/${video.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            title,
-            difficulty_level: difficulty || null,
-            topic_tags: topicTags || null,
-            is_official: isOfficial,
-            is_featured: isFeatured,
-            admin_notes: adminNotes || null,
-          }),
-        },
-      );
+      const updated = await updateVideo(video.id, {
+        title,
+        difficulty_level: difficulty || null,
+        topic_tags: topicTags || null,
+        is_official: isOfficial,
+        is_featured: isFeatured,
+        admin_notes: adminNotes || null,
+      });
       patchVideo(video.id, updated);
       toast.success("已保存");
     } catch (err) {
