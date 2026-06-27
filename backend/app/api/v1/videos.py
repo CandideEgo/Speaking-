@@ -13,6 +13,7 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
+    RecomputeWordLevelsRequest,
     SubtitleBatchUpdate,
     SubtitleResponse,
     SubtitleUpdate,
@@ -22,6 +23,7 @@ from app.schemas.video import (
     VideoDetailResponse,
     VideoResponse,
     VideoStatusResponse,
+    WordLevelsUpdate,
 )
 from app.services.upload_service import handle_video_upload
 from app.services.video_service import (
@@ -49,6 +51,9 @@ from app.services.video_service import (
     localize_video_admin as _localize_video_admin,
 )
 from app.services.video_service import (
+    recompute_word_levels as _recompute_word_levels,
+)
+from app.services.video_service import (
     search_subtitles as _search_subtitles,
 )
 from app.services.video_service import (
@@ -71,6 +76,9 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     update_video as _update_video,
+)
+from app.services.video_service import (
+    update_word_levels as _update_word_levels,
 )
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -253,6 +261,40 @@ async def update_admin_subtitles_batch(
         if "not found" in msg.lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.patch("/admin/{video_id}/subtitles/{subtitle_id}/word-levels", response_model=SubtitleResponse)
+@rate_limit("60/minute")
+async def update_admin_word_levels(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    payload: WordLevelsUpdate,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually override one subtitle's word-level annotations. Pass null to clear. Admin only."""
+    try:
+        return await _update_word_levels(db, video_id, subtitle_id, payload)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/subtitles/word-levels/recompute")
+@rate_limit("10/minute")
+async def recompute_admin_word_levels(
+    request: Request,
+    video_id: str,
+    payload: RecomputeWordLevelsRequest | None = None,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recompute word_levels from ECDICT for selected subtitles (or the whole video). Admin only."""
+    subtitle_ids = payload.subtitle_ids if payload else None
+    return await _recompute_word_levels(db, video_id, subtitle_ids)
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)

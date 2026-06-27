@@ -18,6 +18,7 @@ from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
+    RecomputeWordLevelsRequest,
     SubtitleBatchUpdate,
     SubtitleResponse,
     SubtitleUpdate,
@@ -26,6 +27,7 @@ from app.schemas.video import (
     VideoDetailResponse,
     VideoResponse,
     VideoStatusResponse,
+    WordLevelsUpdate,
 )
 
 
@@ -640,6 +642,68 @@ async def update_subtitles_batch(
     # Return in the order requested, refreshed.
     refreshed = {s.id: s for s in subtitles_by_id.values()}
     return [SubtitleResponse.model_validate(refreshed[item.id]) for item in payload.updates]
+
+
+async def update_word_levels(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_id: str,
+    payload: WordLevelsUpdate,
+) -> SubtitleResponse:
+    """Manually override one subtitle's word_levels (admin review)."""
+    from app.models.subtitle import Subtitle
+
+    result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
+    subtitle = result.scalar_one_or_none()
+    if subtitle is None:
+        raise ValueError("Subtitle not found")
+    if subtitle.video_id != video_id:
+        raise ValueError("Subtitle does not belong to this video")
+
+    subtitle.word_levels = payload.word_levels  # None clears all annotations
+    await db.commit()
+    await db.refresh(subtitle)
+    await _invalidate_video_detail_cache(video_id)
+    return SubtitleResponse.model_validate(subtitle)
+
+
+async def recompute_word_levels(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_ids: list[str] | None = None,
+) -> dict:
+    """Recompute word_levels from ECDICT for selected subtitles (or the whole video).
+
+    Mirrors the finalize pipeline's annotating step and the backfill script.
+    Gracefully degrades when ECDICT is unavailable (returns zero counts, no 500).
+    """
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text, is_available
+
+    if not is_available():
+        return {"subtitles_updated": 0, "exam_words_found": 0}
+
+    stmt = select(Subtitle).where(Subtitle.video_id == video_id)
+    if subtitle_ids is not None:
+        if not subtitle_ids:
+            return {"subtitles_updated": 0, "exam_words_found": 0}
+        stmt = stmt.where(Subtitle.id.in_(subtitle_ids))
+
+    result = await db.execute(stmt)
+    subtitles = result.scalars().all()
+
+    updated = 0
+    exam_words_found = 0
+    for sub in subtitles:
+        levels = annotate_text(sub.text_en)
+        sub.word_levels = levels or None
+        updated += 1
+        if levels:
+            exam_words_found += len(levels)
+
+    await db.commit()
+    await _invalidate_video_detail_cache(video_id)
+    return {"subtitles_updated": updated, "exam_words_found": exam_words_found}
 
 
 async def delete_video(db: AsyncSession, video_id: str) -> bool:
