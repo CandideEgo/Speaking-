@@ -1,0 +1,74 @@
+[
+  {
+    "level": "cet6",
+    "year": 2018,
+    "month": 12,
+    "question_type": "reading",
+    "sentence_en": "The government launched a campaign to promote sustainable development in rural areas.",
+    "sentence_zh": "政府发起了一项运动，以促进农村地区的可持续发展。",
+    "source": "2018年12月六级真题（第1套）阅读"
+  },
+  {
+    "level": "cet6",
+    "year": 2018,
+    "month": 12,
+    "question_type": "reading",
+    "sentence_en": "Scientists have accumulated substantial evidence that climate change affects agricultural productivity.",
+    "sentence_zh": "科学家们已经积累了大量证据，表明气候变化影响农业生产力。",
+    "source": "2018年12月六级真题（第1套）阅读"
+  },
+  {
+    "level": "cet6",
+    "year": 2019,
+    "month": 6,
+    "question_type": "listening",
+    "sentence_en": "The committee will evaluate the proposal before making a final decision next month.",
+    "sentence_zh": "委员会将在下个月做出最终决定前评估该提案。",
+    "source": "2019年6月六级真题（第2套）听力"
+  },
+  {
+    "level": "cet6",
+    "year": 2019,
+    "month": 6,
+    "question_type": "reading",
+    "sentence_en": "Researchers emphasize the importance of accumulating data over a long period.",
+    "sentence_zh": "研究人员强调长期积累数据的重要性。",
+    "source": "2019年6月六级真题（第1套）阅读"
+  },
+  {
+    "level": "cet6",
+    "year": 2020,
+    "month": 12,
+    "question_type": "reading",
+    "sentence_en": "The sustainable approach to urban planning has gained substantial support.",
+    "sentence_zh": "可持续的城市规划方法已获得大量支持。",
+    "source": "2020年12月六级真题（第2套）阅读"
+  },
+  {
+    "level": "cet4",
+    "year": 2019,
+    "month": 12,
+    "question_type": "reading",
+    "sentence_en": "The students decided to improve their English by reading more books.",
+    "sentence_zh": "学生们决定通过多读书来提高英语水平。",
+    "source": "2019年12月四级真题（第1套）阅读"
+  },
+  {
+    "level": "cet4",
+    "year": 2020,
+    "month": 9,
+    "question_type": "listening",
+    "sentence_en": "She decided to improve her skills before applying for the job.",
+    "sentence_zh": "她决定在申请这份工作之前提高自己的技能。",
+    "source": "2020年9月四级真题（第2套）听力"
+  },
+  {
+    "level": "cet4",
+    "year": 2021,
+    "month": 6,
+    "question_type": "reading",
+    "sentence_en": "Reading widely can improve your vocabulary and understanding.",
+    "sentence_zh": "广泛阅读可以提高你的词汇量和理解力。",
+    "source": "2021年6月四级真题（第1套）阅读"
+  }
+]

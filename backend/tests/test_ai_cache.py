@@ -41,15 +41,13 @@ async def test_enrich_caches_result_and_skips_llm_on_second_call(fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_enrich_falls_back_when_llm_fails(fake_redis):
-    """If the LLM raises, enrich returns the empty-default dict (no crash)."""
+async def test_enrich_raises_when_llm_fails(fake_redis):
+    """If the LLM raises, enrich propagates AIServiceError instead of silently
+    persisting an empty-default dict (the old behavior masked real failures)."""
     from app.services.ai_service import AIServiceError
 
     service = AIService()
 
     with patch.object(service, "_chat", new=AsyncMock(side_effect=AIServiceError("boom"))):
-        result = await service.enrich_vocabulary_word("brokenword")
-
-    assert result["definition"] == ""
-    assert result["example_sentences"] == []
-    assert result["difficulty_level"] == "B1"
+        with pytest.raises(AIServiceError):
+            await service.enrich_vocabulary_word("brokenword")

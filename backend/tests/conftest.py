@@ -29,6 +29,12 @@ os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
 # back to no-punctuation mode, and the dedicated tests assert graceful fallback.
 os.environ.setdefault("PUNCTUATION_MODEL_DISABLED", "1")
 
+# Force-register all ORM models on Base.metadata so the autouse
+# _async_setup fixture can create_all() them, including models added
+# after the ``create_app`` import above. (create_app does the same import
+# but only when called; this conftest fixture runs before any test
+# invokes create_app.)
+from app import models
 from app.core import redis as redis_module
 from app.core.database import Base, get_db
 from app.core.security import create_token, hash_password
