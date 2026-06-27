@@ -21,6 +21,7 @@ async def _seed_official_video(
             video_source=VideoSource.imported,
             status=VideoStatus.ready,
             is_official=True,
+            is_published=True,
             topic_tags=topic_tags,
             difficulty_level=difficulty,
             comment_quality_score=comment_quality_score,

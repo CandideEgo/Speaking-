@@ -30,6 +30,7 @@ class VideoResponse(BaseModel):
     status: str
     topic_tags: str | None
     is_official: bool
+    is_published: bool = False
     video_url_480p: str | None = None
     video_url_720p: str | None = None
     video_url_1080p: str | None = None
@@ -88,6 +89,7 @@ class VideoAdminUpdate(BaseModel):
     topic_tags: str | None = None
     is_official: bool | None = None
     is_featured: bool | None = None
+    is_published: bool | None = None
     admin_notes: str | None = None
 
     @field_validator("difficulty_level")

@@ -53,11 +53,12 @@ async def browse_feed(
     if cached:
         return json.loads(cached)
 
-    # Base query: official, ready videos
+    # Base query: official, published, ready videos
     stmt = (
         select(Video)
         .where(
             Video.is_official == True,
+            Video.is_published == True,
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         )
         .order_by(Video.created_at.desc())
@@ -116,6 +117,7 @@ async def browse_featured(
         select(Video)
         .where(
             Video.is_official == True,
+            Video.is_published == True,
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         )
         .order_by(Video.created_at.desc())

@@ -38,6 +38,7 @@ async def get_top_videos_by_comment_quality(
         select(Video)
         .where(
             Video.is_official == True,
+            Video.is_published == True,
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
             Video.comment_quality_score.isnot(None),
         )
@@ -55,6 +56,7 @@ async def get_top_videos_by_comment_quality(
     # Count total for has_more
     count_stmt = select(func.count(Video.id)).where(
         Video.is_official == True,
+        Video.is_published == True,
         Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         Video.comment_quality_score.isnot(None),
     )

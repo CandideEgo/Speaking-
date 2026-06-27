@@ -7,7 +7,7 @@ domain logic (queries, state transitions, side effects).
 
 from pathlib import Path
 
-from sqlalchemy import case, delete, func, or_, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -113,6 +113,9 @@ async def seed_video(
         video_source=platform,
         status=VideoStatus.processing,
         is_official=True,
+        # Seeded as a draft: stays off the homepage until an admin reviews and
+        # publishes it (is_published=True) via PATCH /videos/admin/{id}.
+        is_published=False,
     )
     db.add(video)
     await db.commit()
@@ -129,7 +132,11 @@ async def list_public_videos(db: AsyncSession) -> list[VideoResponse]:
     """List official public videos for the homepage."""
     result = await db.execute(
         select(Video)
-        .where(Video.is_official == True, Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]))
+        .where(
+            Video.is_official == True,
+            Video.is_published == True,
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+        )
         .order_by(Video.created_at.desc())
         .limit(50)
     )
@@ -193,6 +200,7 @@ async def get_video_detail(
         status=video.status.value,
         topic_tags=video.topic_tags,
         is_official=video.is_official,
+        is_published=video.is_published,
         video_url_480p=video.video_url_480p,
         video_url_720p=video.video_url_720p,
         video_url_1080p=video.video_url_1080p,
@@ -330,8 +338,10 @@ async def search_videos(
 
     # Base filters: status ready + access control
     status_filter = Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles])
+    # Official videos must also be published; user-owned videos are always
+    # visible to their owner regardless of publish state.
     access_filter = or_(
-        Video.is_official == True,
+        and_(Video.is_official == True, Video.is_published == True),
         Video.user_id == user_id,
     )
 
@@ -380,7 +390,7 @@ async def search_subtitles(
         .join(Video, Subtitle.video_id == Video.id)
         .where(
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
-            or_(Video.is_official == True, Video.user_id == user_id),
+            or_(and_(Video.is_official == True, Video.is_published == True), Video.user_id == user_id),
             or_(
                 Subtitle.text_en.ilike(pattern),
                 Subtitle.text_en.op("@@")(ts_query),
@@ -481,7 +491,22 @@ async def update_video(
     """Apply a partial admin update to a video (None fields are skipped)."""
     video = await _get_video_or_404(db, video_id)
 
-    for field in ("title", "difficulty_level", "topic_tags", "is_official", "is_featured", "admin_notes"):
+    # Publish guard: only ready videos may be published. Raising ValueError lets
+    # the route handler map this to a 400 (mirrors localize's error mapping).
+    if payload.is_published is True and video.status != VideoStatus.ready:
+        raise ValueError("只能发布 status=ready 的视频")
+
+    publish_changed = payload.is_published is not None and payload.is_published != video.is_published
+
+    for field in (
+        "title",
+        "difficulty_level",
+        "topic_tags",
+        "is_official",
+        "is_featured",
+        "is_published",
+        "admin_notes",
+    ):
         value = getattr(payload, field)
         if value is not None:
             setattr(video, field, value)
@@ -497,6 +522,14 @@ async def update_video(
         await redis.delete(f"video:detail:{video_id}")
     except Exception:
         pass
+
+    # Publish/unpublish changes which videos surface on the homepage/browse feed
+    # — invalidate those caches too. (Subtitle edits don't need this; browse only
+    # caches video metadata.)
+    if publish_changed:
+        from app.api.v1.browse import invalidate_browse_cache
+
+        await invalidate_browse_cache()
 
     return VideoAdminResponse.model_validate(video)
 

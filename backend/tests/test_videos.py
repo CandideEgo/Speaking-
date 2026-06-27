@@ -224,6 +224,71 @@ class TestAdminUpdateVideo:
         assert resp.status_code == 404
 
 
+class TestPublishGate:
+    """is_published separates official source attribution from public visibility."""
+
+    async def test_seed_creates_draft(self, client: AsyncClient, admin_headers: dict):
+        """Newly seeded official videos are drafts — not yet published."""
+        resp = await client.post(
+            "/api/v1/videos/seed",
+            headers=admin_headers,
+            json={"source_url": "https://www.youtube.com/watch?v=seeddraft001"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["is_official"] is True
+        assert data["is_published"] is False
+
+    async def test_publish_requires_ready_status(self, client: AsyncClient, admin_headers: dict):
+        """A non-ready video cannot be published (400, not 200)."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            (v,) = await _seed_video_rows(db, count=1, status="processing")
+
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{v.id}",
+            headers=admin_headers,
+            json={"is_published": True},
+        )
+        assert resp.status_code == 400
+
+    async def test_publish_ready_video_then_visible_on_homepage(self, client: AsyncClient, admin_headers: dict):
+        """A published ready video appears on the public homepage; an unpublished one doesn't."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            (published,) = await _seed_video_rows(db, count=1, title="Published")
+            await _seed_video_rows(db, count=1, title="Draft")
+
+        # Publish one of them.
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{published.id}",
+            headers=admin_headers,
+            json={"is_published": True},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["is_published"] is True
+
+        # Public homepage lists only the published one.
+        public = (await client.get("/api/v1/videos/public")).json()
+        titles = [item["title"] for item in public]
+        assert "Published" in titles
+        assert "Draft" not in titles
+
+    async def test_admin_list_still_shows_drafts(self, client: AsyncClient, admin_headers: dict):
+        """Admin list is not gated by is_published — admins see drafts to review them."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            await _seed_video_rows(db, count=1, title="Draft For Review")
+
+        resp = await client.get("/api/v1/videos/admin", headers=admin_headers)
+        assert resp.status_code == 200
+        titles = [item["title"] for item in resp.json()["items"]]
+        assert "Draft For Review" in titles
+
+
 class TestAdminDeleteVideo:
     async def test_delete_requires_admin(self, client: AsyncClient, auth_headers: dict):
         from tests.conftest import TestSessionLocal

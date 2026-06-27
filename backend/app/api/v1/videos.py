@@ -160,11 +160,15 @@ async def update_admin_video(
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update video metadata (title, difficulty, tags, official/featured, notes). Admin only."""
+    """Update video metadata (title, difficulty, tags, official/featured, published, notes). Admin only."""
     try:
         return await _update_video(db, video_id, payload)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+        # Publish guard (and any other domain rule): 400 Bad Request.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from None
 
 
 @router.delete("/admin/{video_id}", status_code=status.HTTP_204_NO_CONTENT)

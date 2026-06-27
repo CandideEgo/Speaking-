@@ -48,6 +48,11 @@ class Video(Base):
     # Metadata
     is_official: Mapped[bool] = mapped_column(Boolean, default=False)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Public visibility gate — distinct from ``is_official`` (source attribution).
+    # Official videos go through draft → review → publish; only published ones
+    # appear on the homepage / browse feed / search. See list_public_videos and
+    # the browse endpoints for the filtering.
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     topic_tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quiz_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
