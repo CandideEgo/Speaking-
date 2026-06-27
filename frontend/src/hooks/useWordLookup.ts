@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useSpeech } from "@/hooks/useSpeech";
-import type { Subtitle } from "@/types";
+import type { Subtitle, WordGloss } from "@/types";
 
 interface UseWordLookupOptions {
   /** Called to navigate to login when auth is required. */
@@ -17,7 +17,7 @@ interface UseWordLookupOptions {
 
 interface UseWordLookupReturn {
   selectedWord: string | null;
-  wordMeaning: string | null;
+  wordGloss: WordGloss | null;
   handleWordClick: (word: string) => void;
   saveToVocabulary: () => Promise<void>;
   speakWord: (text: string) => void;
@@ -26,7 +26,8 @@ interface UseWordLookupReturn {
 
 /**
  * Hook for word lookup state on the watch page.
- * Manages: selected word, meaning lookup, pronunciation, and vocabulary saving.
+ * Manages: selected word, gloss lookup (ECDICT + AI contextual notes),
+ * pronunciation, and vocabulary saving.
  */
 export function useWordLookup({
   requireAuth,
@@ -34,12 +35,12 @@ export function useWordLookup({
   videoId,
 }: UseWordLookupOptions): UseWordLookupReturn {
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
-  const [wordMeaning, setWordMeaning] = useState<string | null>(null);
+  const [wordGloss, setWordGloss] = useState<WordGloss | null>(null);
   const { speak: speakWord } = useSpeech({ rate: 1 });
 
   const clearWord = useCallback(() => {
     setSelectedWord(null);
-    setWordMeaning(null);
+    setWordGloss(null);
   }, []);
 
   const handleWordClick = useCallback(
@@ -50,22 +51,24 @@ export function useWordLookup({
         return;
       }
       setSelectedWord(clean);
-      setWordMeaning(null);
+      setWordGloss(null);
       speakWord(clean);
       try {
         const subtitles = getSubtitles();
         const ctx = subtitles?.find((s) => s.text_en.includes(clean));
-        if (ctx) {
-          const res = await api<{ meaning: string }>(
-            `/api/v1/ai/word-lookup?word=${encodeURIComponent(clean)}&sentence=${encodeURIComponent(ctx.text_en)}`
-          );
-          setWordMeaning(res.meaning);
-        }
+        const params = new URLSearchParams({ word: clean });
+        if (ctx?.text_en) params.set("context_sentence", ctx.text_en);
+        if (videoId) params.set("video_id", videoId);
+        const res = await api<WordGloss>(
+          `/api/v1/words/gloss?${params.toString()}`,
+        );
+        setWordGloss(res);
       } catch {
-        setWordMeaning("单词查询需要 Pro 订阅。");
+        setWordGloss(null);
+        toast.error("单词查询失败");
       }
     },
-    [selectedWord, clearWord, speakWord, getSubtitles]
+    [selectedWord, clearWord, speakWord, getSubtitles, videoId],
   );
 
   const saveToVocabulary = useCallback(async () => {
@@ -85,7 +88,7 @@ export function useWordLookup({
 
   return {
     selectedWord,
-    wordMeaning,
+    wordGloss,
     handleWordClick,
     saveToVocabulary,
     speakWord,
