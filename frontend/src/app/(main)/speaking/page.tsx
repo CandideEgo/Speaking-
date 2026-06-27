@@ -7,7 +7,14 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MicIcon } from "@/components/common/Icons";
 import SpeakingRecorder from "@/components/speaking/SpeakingRecorder";
-import { BookOpen, Repeat, Mic, ArrowRight, Loader2, CheckCircle, TrendingUp } from "lucide-react";
+import {
+  BookOpen,
+  Mic,
+  ArrowRight,
+  Loader2,
+  CheckCircle,
+  TrendingUp,
+} from "lucide-react";
 
 // --- Types ---
 
@@ -78,20 +85,6 @@ const MODE_CARDS = [
     buttonClass: "btn-outline",
   },
   {
-    key: "shadowing" as const,
-    title: "跟读",
-    subtitle: "Shadowing",
-    icon: Repeat,
-    iconBg: "bg-indigo-soft",
-    iconColor: "text-indigo",
-    tag: null,
-    tagClass: "",
-    description: "听原音后立即复述，提升语感和流利度。模仿母语者的节奏和语调。",
-    href: "/browse",
-    buttonText: "选择视频",
-    buttonClass: "btn-outline",
-  },
-  {
     key: "free_speaking" as const,
     title: "自由说",
     subtitle: "Free Speaking",
@@ -100,7 +93,8 @@ const MODE_CARDS = [
     iconColor: "text-warning",
     tag: "进阶挑战",
     tagClass: "bg-warning-soft text-warning",
-    description: "不依赖字幕，自由发挥话题表达。AI 智能评估你的表达力和连贯性。",
+    description:
+      "不依赖字幕，自由发挥话题表达。AI 智能评估你的表达力和连贯性。",
     href: null,
     buttonText: "开始练习",
     buttonClass: "btn-primary",
@@ -130,7 +124,9 @@ export default function SpeakingPage() {
     if (!isAuthenticated) return;
     (async () => {
       try {
-        const data = await api<AttemptsResponse>("/api/v1/speaking/attempts?page_size=3");
+        const data = await api<AttemptsResponse>(
+          "/api/v1/speaking/attempts?page_size=3",
+        );
         setAttempts(data.items);
       } catch {
         // silently fail
@@ -150,7 +146,9 @@ export default function SpeakingPage() {
 
   function getAvgScore(a: SpeakingAttemptItem): number | null {
     if (a.accuracy === null) return null;
-    const scores = [a.accuracy, a.fluency, a.completeness].filter((v) => v !== null) as number[];
+    const scores = [a.accuracy, a.fluency, a.completeness].filter(
+      (v) => v !== null,
+    ) as number[];
     return Math.round(scores.reduce((s, v) => s + v, 0) / scores.length);
   }
 
@@ -169,7 +167,9 @@ export default function SpeakingPage() {
         <div className="page-head">
           <div className="page-crumb">口语练习</div>
           <h1 className="page-title">选择模式，开始练习</h1>
-          <p className="page-desc">三种练习模式，从朗读到自由说，逐步提升你的英语口语。</p>
+          <p className="page-desc">
+            三种练习模式，从朗读到自由说，逐步提升你的英语口语。
+          </p>
         </div>
 
         {/* Free speaking recorder */}
@@ -180,7 +180,10 @@ export default function SpeakingPage() {
                 <Mic size={18} className="text-brand-500" />
                 <h3 className="text-sm font-semibold text-ink">自由口语练习</h3>
               </div>
-              <button onClick={() => setShowRecorder(false)} className="btn-ghost text-xs">
+              <button
+                onClick={() => setShowRecorder(false)}
+                className="btn-ghost text-xs"
+              >
                 返回
               </button>
             </div>
@@ -194,13 +197,17 @@ export default function SpeakingPage() {
             {MODE_CARDS.map((card) => {
               const Icon = card.icon;
               return (
-                <div key={card.key} className="mode-card" onClick={() => handleModeClick(card)}>
+                <div
+                  key={card.key}
+                  className="mode-card"
+                  onClick={() => handleModeClick(card)}
+                >
                   <div className="flex items-start justify-between mb-[18px]">
                     <div
                       className={cn(
                         "w-[46px] h-[46px] rounded-xl flex items-center justify-center",
                         card.iconBg,
-                        card.iconColor
+                        card.iconColor,
                       )}
                     >
                       <Icon size={22} />
@@ -209,20 +216,26 @@ export default function SpeakingPage() {
                       <span
                         className={cn(
                           "rounded-pill px-2.5 py-1 text-[11px] font-bold",
-                          card.tagClass
+                          card.tagClass,
                         )}
                       >
                         {card.tag}
                       </span>
                     )}
                   </div>
-                  <h3 className="!text-[20px] !font-bold !tracking-tight !m-0">{card.title}</h3>
-                  <p className="text-xs text-muted-soft mt-0.5 mb-2.5">{card.subtitle}</p>
-                  <p className="text-sm text-muted leading-relaxed !m-0 mb-5">{card.description}</p>
+                  <h3 className="!text-[20px] !font-bold !tracking-tight !m-0">
+                    {card.title}
+                  </h3>
+                  <p className="text-xs text-muted-soft mt-0.5 mb-2.5">
+                    {card.subtitle}
+                  </p>
+                  <p className="text-sm text-muted leading-relaxed !m-0 mb-5">
+                    {card.description}
+                  </p>
                   <button
                     className={cn(
                       "inline-flex items-center gap-1.5 text-[13px] font-semibold px-3.5 py-2 rounded-sm transition-colors duration-150",
-                      card.buttonClass
+                      card.buttonClass,
                     )}
                   >
                     {card.buttonText}
@@ -251,7 +264,9 @@ export default function SpeakingPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-soft">
                   <MicIcon className="h-8 w-8 text-muted" />
                 </div>
-                <p className="text-sm text-muted">还没有练习记录，选一个模式开始吧！</p>
+                <p className="text-sm text-muted">
+                  还没有练习记录，选一个模式开始吧！
+                </p>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
@@ -273,7 +288,9 @@ export default function SpeakingPage() {
                           <span className="text-sm font-semibold">
                             {MODE_LABELS[attempt.mode] || attempt.mode}
                           </span>
-                          <span className="text-xs text-muted">{timeAgo(attempt.created_at)}</span>
+                          <span className="text-xs text-muted">
+                            {timeAgo(attempt.created_at)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-3.5 mt-1.5 flex-wrap">
                           {attempt.accuracy !== null && (

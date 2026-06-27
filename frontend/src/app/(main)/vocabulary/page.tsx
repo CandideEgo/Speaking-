@@ -22,11 +22,9 @@ interface VocabWord {
 }
 
 interface VocabListResponse {
-  items: VocabWord[];
-  page: number;
-  page_size: number;
-  has_more: boolean;
-  stats: { total: number; due: number; mastered?: number; learning?: number };
+  words: VocabWord[];
+  // 后端 list 接口只返回 total/due；mastered/learning 由前端按 mastery_level 本地统计
+  stats: { total: number; due: number };
 }
 
 const QUALITY_BUTTONS = [
@@ -55,13 +53,18 @@ export default function VocabularyPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const [words, setWords] = useState<VocabWord[]>([]);
-  const [stats, setStats] = useState({ total: 0, due: 0, mastered: 0, learning: 0 });
+  const [stats, setStats] = useState({
+    total: 0,
+    due: 0,
+    mastered: 0,
+    learning: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
   const { speak } = useSpeech();
 
   const nextDueWord = words.find(
-    (w) => !w.next_review_at || new Date(w.next_review_at) <= new Date()
+    (w) => !w.next_review_at || new Date(w.next_review_at) <= new Date(),
   );
 
   useEffect(() => {
@@ -77,14 +80,22 @@ export default function VocabularyPage() {
     setLoading(true);
     try {
       const data = await api<VocabListResponse>(
-        `/api/v1/vocabulary?due_only=${dueOnly}&page=1&page_size=100`
+        `/api/v1/vocabulary?due_only=${dueOnly}&limit=100`,
       );
-      setWords(data.items);
+      setWords(data.words);
+      // mastered/learning 后端 list 接口未返回，按本次取回的单词 mastery_level 本地统计
+      const mastered = data.words.filter(
+        (w) => w.mastery_level === "mastered",
+      ).length;
+      const learning = data.words.filter(
+        (w) =>
+          w.mastery_level === "learning" || w.mastery_level === "reviewing",
+      ).length;
       setStats({
         total: data.stats.total,
         due: data.stats.due,
-        mastered: data.stats.mastered ?? 0,
-        learning: data.stats.learning ?? 0,
+        mastered,
+        learning,
       });
     } catch {
       toast.error("加载词汇失败");
@@ -95,7 +106,9 @@ export default function VocabularyPage() {
 
   async function handleReview(wordId: string, quality: number) {
     try {
-      await api(`/api/v1/vocabulary/${wordId}/review?quality=${quality}`, { method: "POST" });
+      await api(`/api/v1/vocabulary/${wordId}/review?quality=${quality}`, {
+        method: "POST",
+      });
       loadWords();
     } catch {
       toast.error("复习记录失败");
@@ -127,7 +140,9 @@ export default function VocabularyPage() {
         <div className="page-head">
           <div className="page-crumb">学习</div>
           <h1 className="page-title">词汇本</h1>
-          <p className="page-desc">收藏的生词在这里,用间隔复习算法帮你长期记忆。</p>
+          <p className="page-desc">
+            收藏的生词在这里,用间隔复习算法帮你长期记忆。
+          </p>
         </div>
 
         {/* Stat cards */}
@@ -136,7 +151,9 @@ export default function VocabularyPage() {
             <div className="flex items-center gap-2 text-xs font-semibold text-muted mb-2">
               <BookOpen size={14} /> 总计
             </div>
-            <div className="text-[28px] font-extrabold tracking-display-md">{stats.total}</div>
+            <div className="text-[28px] font-extrabold tracking-display-md">
+              {stats.total}
+            </div>
           </div>
           <div className="stat-card !border-brand-100">
             <div className="flex items-center gap-2 text-xs font-semibold text-brand-500 mb-2">
@@ -209,8 +226,8 @@ export default function VocabularyPage() {
               <div className="text-sm font-semibold">复习下一个单词</div>
               <div className="text-xs text-muted mt-0.5">
                 <b className="text-brand-500">{nextDueWord.word}</b> · 还有{" "}
-                <b className="text-brand-500">{stats.due}</b> 个待复习 · 建议用时{" "}
-                {Math.max(1, Math.ceil(stats.due / 3))} 分钟
+                <b className="text-brand-500">{stats.due}</b> 个待复习 ·
+                建议用时 {Math.max(1, Math.ceil(stats.due / 3))} 分钟
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -220,7 +237,7 @@ export default function VocabularyPage() {
                   onClick={() => handleReview(nextDueWord.id, q.value)}
                   className={cn(
                     "px-4 py-2 rounded-sm text-[13px] font-semibold text-white transition-all duration-150 hover:-translate-y-px hover:brightness-110",
-                    q.color
+                    q.color,
                   )}
                 >
                   {q.label}
@@ -236,13 +253,19 @@ export default function VocabularyPage() {
           <div className="tab-container !p-0 !bg-transparent">
             <button
               onClick={() => setDueOnly(false)}
-              className={cn("tab-pill !rounded-sm", !dueOnly && "tab-pill-active")}
+              className={cn(
+                "tab-pill !rounded-sm",
+                !dueOnly && "tab-pill-active",
+              )}
             >
               全部
             </button>
             <button
               onClick={() => setDueOnly(true)}
-              className={cn("tab-pill !rounded-sm", dueOnly && "tab-pill-active")}
+              className={cn(
+                "tab-pill !rounded-sm",
+                dueOnly && "tab-pill-active",
+              )}
             >
               待复习
             </button>
@@ -258,7 +281,9 @@ export default function VocabularyPage() {
           <div className="py-20 text-center">
             <BookOpen size={48} className="mx-auto text-muted" />
             <p className="mt-4 text-muted">
-              {dueOnly ? "今天没有需要复习的单词！" : "词汇本为空。观看视频时点击单词即可收藏。"}
+              {dueOnly
+                ? "今天没有需要复习的单词！"
+                : "词汇本为空。观看视频时点击单词即可收藏。"}
             </p>
           </div>
         ) : (
@@ -288,21 +313,26 @@ export default function VocabularyPage() {
                         </p>
                       )}
                       <p className="text-[13px] text-body leading-relaxed mt-1.5">
-                        {w.definition || (w.context_sentence ? `"${w.context_sentence}"` : "—")}
+                        {w.definition ||
+                          (w.context_sentence
+                            ? `"${w.context_sentence}"`
+                            : "—")}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <span
                         className={cn(
                           "text-[11px] font-bold px-2.5 py-[3px] rounded-pill",
-                          badge.cls
+                          badge.cls,
                         )}
                       >
                         {badge.text}
                       </span>
                       <button
                         onClick={() => {
-                          if (window.confirm(`确定要删除单词 "${w.word}" 吗？`)) {
+                          if (
+                            window.confirm(`确定要删除单词 "${w.word}" 吗？`)
+                          ) {
                             handleDelete(w.id);
                           }
                         }}
@@ -316,14 +346,16 @@ export default function VocabularyPage() {
 
                   {/* Inline review controls */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-hairline">
-                    <span className="text-[11px] text-muted mr-1">评分复习：</span>
+                    <span className="text-[11px] text-muted mr-1">
+                      评分复习：
+                    </span>
                     {QUALITY_BUTTONS.map((q) => (
                       <button
                         key={q.value}
                         onClick={() => handleReview(w.id, q.value)}
                         className={cn(
                           "px-2 py-1 rounded-sm text-[11px] font-semibold text-white transition-all duration-150 hover:-translate-y-px hover:brightness-110",
-                          q.color
+                          q.color,
                         )}
                       >
                         {q.label}

@@ -81,7 +81,10 @@ type AuthStore = AuthState & AuthActions;
  * Derive isAuthenticated from token + user state.
  * A token is only "authenticated" if it exists AND is not expired.
  */
-function deriveAuthenticated(token: string | null, user: AuthUser | null): boolean {
+function deriveAuthenticated(
+  token: string | null,
+  user: AuthUser | null,
+): boolean {
   if (!token || !user) return false;
   // If we have a decoded user with exp, double-check it's still valid
   if (typeof user.exp === "number") {
@@ -193,7 +196,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           });
         return;
       }
-      // No refresh token — clear and redirect
+      // No refresh token — clear and redirect (unless on the independent admin
+      // console, which manages its own auth via a separate token store).
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
       set({
@@ -203,7 +207,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
-      window.location.href = "/login";
+      if (!window.location.pathname.startsWith("/admin")) {
+        window.location.href = "/login";
+      }
       return;
     }
 
@@ -219,7 +225,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
-      window.location.href = "/login";
+      if (!window.location.pathname.startsWith("/admin")) {
+        window.location.href = "/login";
+      }
       return;
     }
 

@@ -37,22 +37,35 @@ export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
 
-  const { videos, loading, error, retry, activeDifficulty, setActiveDifficulty } = useHomeFeed();
+  const {
+    videos,
+    loading,
+    error,
+    retry,
+    activeDifficulty,
+    setActiveDifficulty,
+  } = useHomeFeed();
 
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
-  const [attempts, setAttempts] = useState<{ id: string; created_at: string }[]>([]);
-  const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>([]);
+  const [attempts, setAttempts] = useState<
+    { id: string; created_at: string }[]
+  >([]);
+  const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
+    [],
+  );
 
   useEffect(() => {
     (async () => {
       try {
         const [prefs, attemptsRes, recordsRes] = await Promise.all([
-          api<UserPreferences>("/api/v1/users/me/preferences").catch(() => null),
+          api<UserPreferences>("/api/v1/users/me/preferences").catch(
+            () => null,
+          ),
           api<{ items: { id: string; created_at: string }[] }>(
-            "/api/v1/speaking/attempts?page=1&page_size=200"
+            "/api/v1/speaking/attempts?page=1&page_size=200",
           ).catch(() => ({ items: [] })),
           api<{ records: LearningRecord[] }>(
-            "/api/v1/learning/records?page=1&page_size=4&completed=false"
+            "/api/v1/learning/records?page=1&page_size=4&completed=false",
           ).catch(() => ({ records: [] })),
         ]);
         setPreferences(prefs);
@@ -101,7 +114,9 @@ export default function HomePage() {
   }
 
   const todayISO = toISODate(new Date());
-  const todayAttempts = attempts.filter((a) => a.created_at.slice(0, 10) === todayISO).length;
+  const todayAttempts = attempts.filter(
+    (a) => a.created_at.slice(0, 10) === todayISO,
+  ).length;
   const dailyGoal = preferences?.daily_goal_value || 5;
   const goalMet = todayAttempts >= dailyGoal;
 
@@ -109,7 +124,11 @@ export default function HomePage() {
     const dates = new Set(attempts.map((a) => a.created_at.slice(0, 10)));
     const today = toISODate(new Date());
     const yesterday = toISODate(new Date(Date.now() - 86400000));
-    let current = dates.has(today) ? today : dates.has(yesterday) ? yesterday : null;
+    let current = dates.has(today)
+      ? today
+      : dates.has(yesterday)
+        ? yesterday
+        : null;
     if (!current) return 0;
     let streak = 0;
     const d = new Date(current);
@@ -132,7 +151,7 @@ export default function HomePage() {
           duration: 0,
           difficulty_level: null,
           source_url: "",
-          platform: "",
+          video_source: "imported",
           status: "ready" as const,
           error_message: null,
           topic_tags: null,
@@ -140,7 +159,6 @@ export default function HomePage() {
           video_url_480p: null,
           video_url_720p: null,
           video_url_1080p: null,
-          youtube_video_id: null,
           processing_mode: null,
           processing_step: null,
           created_at: r.created_at,
@@ -156,7 +174,9 @@ export default function HomePage() {
         {/* ── Greeting bar ── */}
         <div className="greet">
           <div>
-            <h1 className="text-[30px] font-extrabold tracking-display-md">你好,{userName} 👋</h1>
+            <h1 className="text-[30px] font-extrabold tracking-display-md">
+              你好,{userName} 👋
+            </h1>
             <p className="text-sm text-muted mt-1.5">继续你的学习连胜吧</p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -300,7 +320,8 @@ export default function HomePage() {
           {/* Difficulty pill tabs */}
           <div className="tab-container mb-6">
             {DIFFICULTY_GROUPS.map((group) => {
-              const isActive = difficultyGroupFromLevel(activeDifficulty) === group.id;
+              const isActive =
+                difficultyGroupFromLevel(activeDifficulty) === group.id;
               return (
                 <button
                   key={group.id}
@@ -328,7 +349,11 @@ export default function HomePage() {
               }
             />
           ) : curatedVideos.length === 0 ? (
-            <EmptyState icon={Play} title="暂无视频" description="内容正在准备中，请稍后再来" />
+            <EmptyState
+              icon={Play}
+              title="暂无视频"
+              description="内容正在准备中，请稍后再来"
+            />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {curatedVideos.map((v) => (
@@ -363,13 +388,21 @@ function VideoCard({ video }: { video: Video }) {
             </span>
           </div>
         )}
-        {video.difficulty_level && <span className="thumb-lv">{video.difficulty_level}</span>}
+        {video.difficulty_level && (
+          <span className="thumb-lv">{video.difficulty_level}</span>
+        )}
         {video.duration && video.duration > 0 && (
           <span className="thumb-dur">{formatDuration(video.duration)}</span>
         )}
         <div className="thumb-play">
           <div className="thumb-play-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="#fff"
+              stroke="none"
+            >
               <path d="M6 4l14 8-14 8V4Z" />
             </svg>
           </div>

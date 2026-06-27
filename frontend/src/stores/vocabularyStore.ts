@@ -100,8 +100,11 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     set({ loading: true });
     try {
       const params = dueOnly ? "?due_only=true" : "";
-      const data = await api<VocabularyWord[]>(`/api/v1/vocabulary${params}`);
-      set({ words: data, loading: false });
+      // 后端返回 { words, stats }，非裸数组
+      const data = await api<{ words: VocabularyWord[] }>(
+        `/api/v1/vocabulary${params}`,
+      );
+      set({ words: data.words, loading: false });
     } catch {
       set({ loading: false });
     }
@@ -185,7 +188,9 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
   async startQuiz(type: QuizType = "multiple_choice") {
     set({ isLoading: true, quizType: type, quizAnswers: {}, quizResult: null });
     try {
-      const data = await api<QuizSession>(`/api/v1/vocabulary/quiz?quiz_type=${type}`);
+      const data = await api<QuizSession>(
+        `/api/v1/vocabulary/quiz?quiz_type=${type}`,
+      );
       set({
         quizSession: data,
         isQuizActive: true,
@@ -218,10 +223,12 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
 
     set({ isQuizSubmitting: true });
     try {
-      const answers = Object.entries(state.quizAnswers).map(([idx, answer]) => ({
-        question_index: Number(idx),
-        answer,
-      }));
+      const answers = Object.entries(state.quizAnswers).map(
+        ([idx, answer]) => ({
+          question_index: Number(idx),
+          answer,
+        }),
+      );
 
       const result = await api<QuizResult>("/api/v1/vocabulary/quiz/submit", {
         method: "POST",

@@ -57,11 +57,17 @@ interface LearningRecord {
   last_accessed_at: string | null;
 }
 
+interface StreakInfo {
+  current_streak: number;
+  longest_streak: number;
+}
+
 interface DashboardData {
   speakingStats: SpeakingStats;
   vocabStats: VocabStats;
   attempts: SpeakingAttempt[];
   recentRecords: LearningRecord[];
+  streak: StreakInfo;
 }
 
 // --- Helpers ---
@@ -130,30 +136,35 @@ export default function DashboardPage() {
     setLoading(true);
     setError(false);
     try {
-      const [rawSpeakingStats, vocabStats, attemptsRes, recordsRes] = await Promise.all([
-        api<SpeakingStats & { total_videos?: number }>("/api/v1/speaking/stats?period=all").catch(
-          () => ({
+      const [rawSpeakingStats, vocabStats, attemptsRes, recordsRes, streakRes] =
+        await Promise.all([
+          api<SpeakingStats & { total_videos?: number }>(
+            "/api/v1/speaking/stats?period=all",
+          ).catch(() => ({
             total_speaking_attempts: 0,
             average_accuracy: 0,
             average_fluency: 0,
             average_completeness: 0,
             total_vocabulary: 0,
             total_videos_watched: 0,
-          })
-        ),
-        api<VocabStats>("/api/v1/vocabulary/stats").catch(() => ({
-          total: 0,
-          due_count: 0,
-          learning_count: 0,
-          mastered_count: 0,
-        })),
-        api<{ items: SpeakingAttempt[] }>("/api/v1/speaking/attempts?page=1&page_size=1000").catch(
-          () => ({ items: [] })
-        ),
-        api<{ records: LearningRecord[] }>("/api/v1/learning/records?page=1&page_size=5").catch(
-          () => ({ records: [] })
-        ),
-      ]);
+          })),
+          api<VocabStats>("/api/v1/vocabulary/stats").catch(() => ({
+            total: 0,
+            due_count: 0,
+            learning_count: 0,
+            mastered_count: 0,
+          })),
+          api<{ items: SpeakingAttempt[] }>(
+            "/api/v1/speaking/attempts?page=1&page_size=1000",
+          ).catch(() => ({ items: [] })),
+          api<{ records: LearningRecord[] }>(
+            "/api/v1/learning/records?page=1&page_size=5",
+          ).catch(() => ({ records: [] })),
+          api<StreakInfo>("/api/v1/users/me/streak").catch(() => ({
+            current_streak: 0,
+            longest_streak: 0,
+          })),
+        ]);
 
       setData({
         speakingStats: {
@@ -166,6 +177,7 @@ export default function DashboardPage() {
         vocabStats,
         attempts: attemptsRes.items,
         recentRecords: recordsRes.records,
+        streak: streakRes,
       });
     } catch {
       setError(true);
@@ -238,7 +250,7 @@ export default function DashboardPage() {
   }
 
   const userName = user?.name || "学习者";
-  const streak = 0; // TODO: backend does not expose streak yet
+  const streak = data?.streak?.current_streak ?? 0;
 
   return (
     <main className="min-h-full bg-canvas">
@@ -254,7 +266,8 @@ export default function DashboardPage() {
               你好,{userName} 👋
             </h1>
             <p className="text-muted mt-1.5">
-              你已经连续学习 <b className="text-brand-500">{streak} 天</b>,继续保持!
+              你已经连续学习 <b className="text-brand-500">{streak} 天</b>
+              ,继续保持!
             </p>
           </div>
           <button
@@ -290,7 +303,9 @@ export default function DashboardPage() {
                     <FlameIcon className="h-[19px] w-[19px]" />
                   </div>
                 </div>
-                <div className="dash-stat-num">{data.speakingStats.total_speaking_attempts}</div>
+                <div className="dash-stat-num">
+                  {data.speakingStats.total_speaking_attempts}
+                </div>
                 <div className="dash-stat-label">口语练习次数</div>
               </div>
               <div className="dash-stat">
@@ -319,7 +334,9 @@ export default function DashboardPage() {
                     <ZapIcon className="h-[19px] w-[19px]" />
                   </div>
                 </div>
-                <div className="dash-stat-num">{data.speakingStats.total_videos_watched}</div>
+                <div className="dash-stat-num">
+                  {data.speakingStats.total_videos_watched}
+                </div>
                 <div className="dash-stat-label">已学视频</div>
               </div>
             </div>
@@ -328,8 +345,12 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-[18px] mb-6">
               {/* Bar chart */}
               <div className="bg-canvas border border-hairline rounded-lg p-6">
-                <h3 className="!text-base !font-bold !m-0 !mb-1">本周口语练习</h3>
-                <p className="text-[13px] text-muted !m-0 !mb-5">每日练习次数</p>
+                <h3 className="!text-base !font-bold !m-0 !mb-1">
+                  本周口语练习
+                </h3>
+                <p className="text-[13px] text-muted !m-0 !mb-5">
+                  每日练习次数
+                </p>
                 <div className="bar-chart">
                   {weeklyActivity.counts.map((count, i) => {
                     const pct = (count / weeklyActivity.max) * 100;
@@ -340,7 +361,9 @@ export default function DashboardPage() {
                           className={cn("bar-fill", isMax && "bar-fill-hi")}
                           style={{ height: `${Math.max(pct, 10)}%` }}
                         />
-                        <div className="bar-label">{weeklyActivity.labels[i]}</div>
+                        <div className="bar-label">
+                          {weeklyActivity.labels[i]}
+                        </div>
                       </div>
                     );
                   })}
@@ -360,7 +383,7 @@ export default function DashboardPage() {
                         level === 1 && "heat-l1",
                         level === 2 && "heat-l2",
                         level === 3 && "heat-l3",
-                        level === 4 && "heat-l4"
+                        level === 4 && "heat-l4",
                       )}
                       title={`${toISODate(new Date(Date.now() - (34 - i) * 86400000))}: ${level} 级活跃`}
                     />
@@ -382,7 +405,9 @@ export default function DashboardPage() {
             {data.recentRecords.length > 0 && (
               <div className="bg-canvas border border-hairline rounded-lg p-6 mb-6">
                 <h3 className="!text-base !font-bold !m-0 !mb-1">最近学习</h3>
-                <p className="text-[13px] text-muted !m-0 !mb-5">你的学习时间线</p>
+                <p className="text-[13px] text-muted !m-0 !mb-5">
+                  你的学习时间线
+                </p>
                 <div className="flex flex-col gap-3">
                   {data.recentRecords.map((record, i) => {
                     const activityType =
@@ -399,7 +424,9 @@ export default function DashboardPage() {
                       <div key={record.id} className="tl-item">
                         <div className="tl-dot-line">
                           <div className={cn("tl-dot", color)}>{icon}</div>
-                          {i < data.recentRecords.length - 1 && <div className="tl-line" />}
+                          {i < data.recentRecords.length - 1 && (
+                            <div className="tl-line" />
+                          )}
                         </div>
                         <div className="tl-body">
                           <Link
@@ -409,12 +436,18 @@ export default function DashboardPage() {
                             {record.video?.title || "未知视频"}
                           </Link>
                           <div className="tl-desc">
-                            {record.speaking_attempts > 0 && `${record.speaking_attempts} 次跟读 `}
-                            {record.words_learned > 0 && `${record.words_learned} 个生词 `}
-                            {record.completed && <span className="text-success">· 已完成</span>}
+                            {record.speaking_attempts > 0 &&
+                              `${record.speaking_attempts} 次跟读 `}
+                            {record.words_learned > 0 &&
+                              `${record.words_learned} 个生词 `}
+                            {record.completed && (
+                              <span className="text-success">· 已完成</span>
+                            )}
                           </div>
                           <div className="tl-time">
-                            {timeAgo(record.last_accessed_at || record.created_at)}
+                            {timeAgo(
+                              record.last_accessed_at || record.created_at,
+                            )}
                           </div>
                         </div>
                       </div>
@@ -450,7 +483,9 @@ export default function DashboardPage() {
                             <Play className="h-8 w-8 text-muted-soft" />
                           </div>
                         )}
-                        <span className="thumb-dur">{record.completed ? "已完成" : "继续"}</span>
+                        <span className="thumb-dur">
+                          {record.completed ? "已完成" : "继续"}
+                        </span>
                         <div className="thumb-play">
                           <div className="thumb-play-btn">
                             <svg
@@ -466,7 +501,9 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <div className="vmeta">
-                        <p className="vtitle">{record.video?.title || "未知视频"}</p>
+                        <p className="vtitle">
+                          {record.video?.title || "未知视频"}
+                        </p>
                         <div className="vfoot">
                           <span>Speaking</span>
                           <span className="vdot" />
