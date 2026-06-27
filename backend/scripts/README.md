@@ -16,3 +16,6 @@
 
 - 运行脚本前确保已在 `backend/` 目录下激活虚拟环境
 - 大部分脚本需要数据库连接，确保 `.env` 配置正确
+- `download_youtube_audio.py` / `get_youtube_cookies.py` 依赖 Playwright，
+  **仅本地手动运行**——Playwright 不在运行镜像里（见 `requirements-dev.txt`）。
+  首次使用需：`pip install -r requirements-dev.txt && playwright install chromium`
