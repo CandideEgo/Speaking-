@@ -43,7 +43,8 @@ export function useVideoPlayer({
   // Detect desktop layout
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
-    const check = (e: MediaQueryListEvent | MediaQueryList) => setIsDesktop(e.matches);
+    const check = (e: MediaQueryListEvent | MediaQueryList) =>
+      setIsDesktop(e.matches);
     check(mql);
     mql.addEventListener("change", check);
     return () => mql.removeEventListener("change", check);
@@ -62,21 +63,25 @@ export function useVideoPlayer({
       .catch(() => toast.error("加载视频失败"));
   }, [videoId]);
 
-  // Auto-scroll current subtitle into view
-  useEffect(() => {
-    const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [currentSubtitleIndex]);
-
   // Poll for video status when processing
   useEffect(() => {
-    if (!video || (video.status !== "processing" && video.status !== "ready_subtitles")) return;
+    if (
+      !video ||
+      (video.status !== "processing" && video.status !== "ready_subtitles")
+    )
+      return;
     const interval = setInterval(async () => {
       try {
-        const updated = await api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`);
+        const updated = await api<VideoWithSubtitles>(
+          `/api/v1/videos/${videoId}`,
+        );
         setVideo(updated);
-        if (updated.status === "ready" && updated.video_url_720p) setPlaybackMode("ready");
-        else if (updated.status === "ready_subtitles" || updated.status === "processing")
+        if (updated.status === "ready" && updated.video_url_720p)
+          setPlaybackMode("ready");
+        else if (
+          updated.status === "ready_subtitles" ||
+          updated.status === "processing"
+        )
           setPlaybackMode("processing");
         else if (updated.status === "error") setPlaybackMode("loading");
       } catch {
@@ -93,7 +98,10 @@ export function useVideoPlayer({
 
   const seekBy = useCallback((delta: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + delta);
+      videoRef.current.currentTime = Math.max(
+        0,
+        videoRef.current.currentTime + delta,
+      );
     }
   }, []);
 
@@ -109,20 +117,27 @@ export function useVideoPlayer({
       setVideo((prev) => {
         if (!prev?.subtitles) return prev;
         setCurrentSubtitleIndex((prevIdx) => {
-          const newIndex = Math.max(0, Math.min(prev.subtitles.length - 1, prevIdx + delta));
+          const newIndex = Math.max(
+            0,
+            Math.min(prev.subtitles.length - 1, prevIdx + delta),
+          );
           seekTo(prev.subtitles[newIndex].start_time);
           return newIndex;
         });
         return prev;
       });
     },
-    [seekTo]
+    [seekTo],
   );
 
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
       switch (e.key) {
         case " ":
           e.preventDefault();

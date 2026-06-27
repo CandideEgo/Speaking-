@@ -696,12 +696,6 @@
   }
 }
 
-/* === YouTube player === */
-.youtube-player-container iframe {
-  width: 100%;
-  height: 100%;
-}
-
 /* === Channel-specific styles === */
 .douyin-scrollbar::-webkit-scrollbar {
   width: 4px;
@@ -711,12 +705,6 @@
   border-radius: 2px;
 }
 
-.youtube-pill-active {
-  @apply bg-ink text-on-primary;
-}
-.youtube-pill-inactive {
-  @apply bg-surface-soft text-ink hover:bg-surface-cream-strong;
-}
 .bili-blue {
   @apply text-indigo;
 }

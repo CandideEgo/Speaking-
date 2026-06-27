@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import type { Category, VideoItem } from "@/types/platform";
 
 interface UsePlatformFeedOptions {
-  platform: "bilibili" | "douyin" | "browse";
+  platform: "browse";
   initialCategory?: string;
   initialLevel?: string;
 }
@@ -23,15 +23,6 @@ interface CategoryResponse {
 
 // Fallback categories if API fails
 const FALLBACK_CATEGORIES: Record<string, Category[]> = {
-  bilibili: [
-    { id: "all", label: "首页" },
-    { id: "spoken", label: "口语练习" },
-    { id: "interview", label: "面试英语" },
-    { id: "travel", label: "旅行英语" },
-    { id: "business", label: "商务英语" },
-    { id: "culture", label: "文化差异" },
-    { id: "daily", label: "日常对话" },
-  ],
   browse: [
     { id: "all", label: "全部" },
     { id: "ted", label: "TED 演讲" },
@@ -41,15 +32,6 @@ const FALLBACK_CATEGORIES: Record<string, Category[]> = {
     { id: "educational", label: "教育学习" },
     { id: "movie", label: "电影片段" },
     { id: "tech", label: "科技" },
-  ],
-  douyin: [
-    { id: "all", label: "全部" },
-    { id: "spoken", label: "口语表达" },
-    { id: "slang", label: "地道俚语" },
-    { id: "pronunciation", label: "发音技巧" },
-    { id: "vocabulary", label: "词汇积累" },
-    { id: "culture", label: "英美文化" },
-    { id: "daily", label: "日常英语" },
   ],
 };
 
@@ -62,7 +44,9 @@ export function usePlatformFeed({
   const loaderRef = useRef<HTMLDivElement>(null);
   const fetchIdRef = useRef(0); // guard against stale fetches
 
-  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES[platform] || []);
+  const [categories, setCategories] = useState<Category[]>(
+    FALLBACK_CATEGORIES[platform] || [],
+  );
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [activeLevel, setActiveLevel] = useState(initialLevel);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -84,7 +68,9 @@ export function usePlatformFeed({
     let cancelled = false;
     async function load() {
       try {
-        const data = await api<CategoryResponse>(`/api/v1/${platform}/categories`);
+        const data = await api<CategoryResponse>(
+          `/api/v1/${platform}/categories`,
+        );
         if (!cancelled && data.categories?.length) {
           setCategories(data.categories);
         }
@@ -112,7 +98,7 @@ export function usePlatformFeed({
           params.set("level", level);
         }
         const data = await api<FeedResponse & { total?: number }>(
-          `/api/v1/${platform}/feed?${params.toString()}`
+          `/api/v1/${platform}/feed?${params.toString()}`,
         );
         // Only apply if this is still the latest fetch
         if (fetchId !== fetchIdRef.current) return;
@@ -136,7 +122,7 @@ export function usePlatformFeed({
         }
       }
     },
-    [platform]
+    [platform],
   );
 
   // Reset and fetch when category or level changes
@@ -159,10 +145,14 @@ export function usePlatformFeed({
         if (entries[0].isIntersecting && hasMore && !loading) {
           const nextPage = page + 1;
           setPage(nextPage);
-          fetchFeed(activeCategoryRef.current, nextPage, activeLevelRef.current);
+          fetchFeed(
+            activeCategoryRef.current,
+            nextPage,
+            activeLevelRef.current,
+          );
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(el);
@@ -190,7 +180,7 @@ export function usePlatformFeed({
         setAddingId(null);
       }
     },
-    [router]
+    [router],
   );
 
   // Retry feed fetch

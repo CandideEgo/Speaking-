@@ -7,25 +7,29 @@ import {
   Languages,
   BookOpen,
   FileText,
-  EyeOff,
-  FileEdit,
-  Brain,
-  ArrowLeftRight,
-  ListChecks,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 
 const modes: { key: SubtitleMode; label: string; icon: React.ReactNode }[] = [
   { key: "bilingual", label: "双语", icon: <Languages size={14} /> },
   { key: "english", label: "英语", icon: <BookOpen size={14} /> },
   { key: "chinese", label: "中文", icon: <FileText size={14} /> },
-  { key: "reading", label: "阅读", icon: <EyeOff size={14} /> },
-  { key: "dictation", label: "听写", icon: <FileEdit size={14} /> },
-  { key: "translate", label: "句子翻译", icon: <ArrowLeftRight size={14} /> },
-  { key: "fillblank", label: "填空", icon: <ListChecks size={14} /> },
-  { key: "flashcard", label: "词卡", icon: <Brain size={14} /> },
 ];
 
-export default function SubtitleModeTabs() {
+interface SubtitleModeTabsProps {
+  /** 折叠状态；传入后渲染右侧折叠/展开按钮，常驻头部不随模式切换跳位 */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  /** 折叠窄轨态时隐藏模式文字标签，只保留精简外观 */
+  compact?: boolean;
+}
+
+export default function SubtitleModeTabs({
+  collapsed = false,
+  onToggleCollapse,
+  compact = false,
+}: SubtitleModeTabsProps) {
   const { subtitleMode, setSubtitleMode } = useWatchStore();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -71,16 +75,33 @@ export default function SubtitleModeTabs() {
           aria-selected={subtitleMode === m.key}
           tabIndex={subtitleMode === m.key ? 0 : -1}
           className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150",
+            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 cursor-pointer",
+            compact && "px-2",
             subtitleMode === m.key
               ? "bg-coral/10 text-coral shadow-sm"
-              : "text-muted-foreground hover:text-ink hover:bg-cream-soft"
+              : "text-muted-foreground hover:text-ink hover:bg-cream-soft",
           )}
+          title={compact ? m.label : undefined}
         >
           {m.icon}
-          {m.label}
+          {!compact && m.label}
         </button>
       ))}
+
+      {onToggleCollapse && (
+        <button
+          onClick={onToggleCollapse}
+          className="ml-auto flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-ink hover:bg-cream-soft transition-colors duration-150 cursor-pointer"
+          title={collapsed ? "展开字幕面板" : "收起为字幕轨"}
+          aria-label={collapsed ? "展开字幕面板" : "收起为字幕轨"}
+        >
+          {collapsed ? (
+            <PanelRightOpen size={16} />
+          ) : (
+            <PanelRightClose size={16} />
+          )}
+        </button>
+      )}
     </div>
   );
 }
