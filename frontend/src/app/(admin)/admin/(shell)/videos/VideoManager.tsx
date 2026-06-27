@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Download,
@@ -8,6 +9,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Captions,
   Trash2,
   Video as VideoIcon,
   X,
@@ -46,6 +48,7 @@ function youtubeId(url: string): string | null {
 }
 
 export default function VideoManager() {
+  const router = useRouter();
   const [videos, setVideos] = useState<VideoAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -270,6 +273,16 @@ export default function VideoManager() {
                             官方
                           </span>
                         )}
+                        {v.is_official && !v.is_published && (
+                          <span className="inline-flex w-fit rounded-sm bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700">
+                            待审
+                          </span>
+                        )}
+                        {v.is_published && (
+                          <span className="inline-flex w-fit rounded-sm bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                            已发布
+                          </span>
+                        )}
                         {v.is_featured && (
                           <span className="inline-flex w-fit rounded-sm bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                             精选
@@ -310,6 +323,9 @@ export default function VideoManager() {
                           onSaved={loadVideos}
                           onLocalize={handleLocalize}
                           onDelete={handleDelete}
+                          onEditSubtitles={(id) =>
+                            router.push(`/admin/videos/${id}`)
+                          }
                         />
                       </td>
                     </tr>
@@ -334,12 +350,14 @@ interface DetailRowProps {
   onSaved: () => void;
   onLocalize: (v: VideoAdmin) => void;
   onDelete: (v: VideoAdmin) => void;
+  onEditSubtitles: (id: string) => void;
 }
 
 function VideoDetailRow({
   video,
   patchVideo,
   onSaved,
+  onEditSubtitles,
   onLocalize,
   onDelete,
 }: DetailRowProps) {
@@ -355,6 +373,7 @@ function VideoDetailRow({
   const [topicTags, setTopicTags] = useState(video.topic_tags || "");
   const [isOfficial, setIsOfficial] = useState(video.is_official);
   const [isFeatured, setIsFeatured] = useState(video.is_featured);
+  const [isPublished, setIsPublished] = useState(video.is_published);
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -401,6 +420,7 @@ function VideoDetailRow({
         topic_tags: topicTags || null,
         is_official: isOfficial,
         is_featured: isFeatured,
+        is_published: isPublished,
         admin_notes: adminNotes || null,
       });
       patchVideo(video.id, updated);
@@ -482,9 +502,20 @@ function VideoDetailRow({
 
       {/* Right: edit form */}
       <form onSubmit={handleSave} className="space-y-4">
-        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          编辑
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            编辑
+          </h3>
+          <button
+            type="button"
+            onClick={() => onEditSubtitles(video.id)}
+            className="btn-outline !py-1 !px-2 text-[11px] inline-flex items-center gap-1"
+            title="编辑字幕文本、时间轴与单词高亮"
+          >
+            <Captions size={12} />
+            字幕 / 高亮
+          </button>
+        </div>
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -549,6 +580,21 @@ function VideoDetailRow({
               className="h-4 w-4 rounded-sm border-hairline"
             />
             精选
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              disabled={video.status !== "ready" && !isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="h-4 w-4 rounded-sm border-hairline"
+            />
+            已发布
+            {video.status !== "ready" && !isPublished && (
+              <span className="text-xs text-muted-foreground">
+                （需 ready）
+              </span>
+            )}
           </label>
         </div>
 

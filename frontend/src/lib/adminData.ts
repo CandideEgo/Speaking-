@@ -15,7 +15,9 @@ import type {
   CommentReport,
   InviteCode,
   Paginated,
+  Subtitle,
   VideoAdmin,
+  VideoWithSubtitles,
 } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -212,6 +214,7 @@ export async function updateVideo(
   if (patch.topic_tags !== undefined) body.topic_tags = patch.topic_tags;
   if (patch.is_official !== undefined) body.is_official = patch.is_official;
   if (patch.is_featured !== undefined) body.is_featured = patch.is_featured;
+  if (patch.is_published !== undefined) body.is_published = patch.is_published;
   if (patch.admin_notes !== undefined) body.admin_notes = patch.admin_notes;
 
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}`, {
@@ -228,6 +231,75 @@ export async function localizeVideo(id: string): Promise<VideoAdmin> {
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/localize`, {
     method: "POST",
   });
+}
+
+// ---------------------------------------------------------------------------
+// Subtitle & word-level editing (Phase 5 review/edit flow)
+// ---------------------------------------------------------------------------
+
+/** Fetch video detail with subtitles. Admin token can access unpublished official videos. */
+export function getVideoDetail(id: string): Promise<VideoWithSubtitles> {
+  return adminApi<VideoWithSubtitles>(`/api/v1/videos/${id}`);
+}
+
+export interface SubtitlePatch {
+  text_en?: string;
+  text_zh?: string | null;
+  start_time?: number;
+  end_time?: number;
+  grammar_note?: string | null;
+  speaker?: string;
+}
+
+export async function updateSubtitle(
+  videoId: string,
+  subtitleId: string,
+  patch: SubtitlePatch,
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    },
+  );
+}
+
+export async function updateSubtitlesBatch(
+  videoId: string,
+  updates: (SubtitlePatch & { id: string })[],
+): Promise<Subtitle[]> {
+  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles`, {
+    method: "PATCH",
+    body: JSON.stringify({ updates }),
+  });
+}
+
+export async function updateWordLevels(
+  videoId: string,
+  subtitleId: string,
+  wordLevels: Record<string, string[]> | null,
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/word-levels`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ word_levels: wordLevels }),
+    },
+  );
+}
+
+export async function recomputeWordLevels(
+  videoId: string,
+  subtitleIds?: string[],
+): Promise<{ subtitles_updated: number; exam_words_found: number }> {
+  return adminApi<{ subtitles_updated: number; exam_words_found: number }>(
+    `/api/v1/videos/admin/${videoId}/subtitles/word-levels/recompute`,
+    {
+      method: "POST",
+      body: JSON.stringify(subtitleIds ? { subtitle_ids: subtitleIds } : {}),
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

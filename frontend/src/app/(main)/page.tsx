@@ -156,6 +156,7 @@ export default function HomePage() {
           error_message: null,
           topic_tags: null,
           is_official: true,
+          is_published: true,
           video_url_480p: null,
           video_url_720p: null,
           video_url_1080p: null,

@@ -24,6 +24,10 @@ export interface Video {
   error_message: string | null;
   topic_tags: string | null;
   is_official: boolean;
+  /** Public visibility gate — distinct from is_official (source attribution).
+   * Official videos go through draft → review → publish; only published ones
+   * appear on the homepage / browse feed. */
+  is_published: boolean;
   video_url_480p: string | null;
   video_url_720p: string | null;
   video_url_1080p: string | null;
