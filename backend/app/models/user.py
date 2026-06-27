@@ -40,6 +40,7 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     streak_count: Mapped[int] = mapped_column(Integer, default=0)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -57,3 +58,5 @@ class User(Base):
     followers = relationship("Follow", back_populates="followee", foreign_keys="Follow.followee_id")
     daily_activities = relationship("DailyActivity", back_populates="user", order_by="DailyActivity.date.desc()")
     preferences = relationship("UserPreferences", back_populates="user", uselist=False)
+    favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
+    notes = relationship("UserNote", back_populates="user", cascade="all, delete-orphan")

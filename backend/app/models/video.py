@@ -67,3 +67,6 @@ class Video(Base):
     learning_records = relationship("LearningRecord", back_populates="video")
     comments = relationship("VideoComment", back_populates="video", cascade="all, delete-orphan")
     comment_stats = relationship("VideoCommentStats", back_populates="video", uselist=False)
+    favorites = relationship("UserFavorite", back_populates="video", cascade="all, delete-orphan")
+    notes = relationship("UserNote", back_populates="video", cascade="all, delete-orphan")
+    practice_questions = relationship("VideoPracticeQuestion", back_populates="video", cascade="all, delete-orphan")

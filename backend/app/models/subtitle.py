@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -21,6 +21,11 @@ class Subtitle(Base):
     # AI annotations
     grammar_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     difficulty_words: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
+
+    # CET/高考/考研 exam-level word annotations.
+    # Maps lowercase word -> list of canonical exam level keys (see app.core.exam_levels).
+    # Computed once at ingest from ECDICT; level-agnostic so display can filter by user target.
+    word_levels: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # relationships
     video = relationship("Video", back_populates="subtitles")

@@ -41,6 +41,9 @@ class UserPreferences(Base):
     auto_play_next_subtitle: Mapped[bool] = mapped_column(Boolean, default=True)
     subtitle_mode_default: Mapped[str] = mapped_column(String(20), default="bilingual")
     preferred_difficulty: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # User's target exam level (canonical key from app.core.exam_levels, e.g. "cet4").
+    # Drives which annotated words are highlighted on the watch page.
+    target_exam: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
