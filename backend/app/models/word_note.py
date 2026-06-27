@@ -37,8 +37,8 @@ class WordAINote(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     word: Mapped[str] = mapped_column(String(100), nullable=False)
     level: Mapped[str] = mapped_column(String(20), nullable=False)
-    # Either "global" or "video:{uuid}".
-    context_source: Mapped[str] = mapped_column(String(40), nullable=False)
+    # Either "global" or "video:{uuid}" (6 + 36 = 42 chars); 50 gives headroom.
+    context_source: Mapped[str] = mapped_column(String(50), nullable=False)
     contextual_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     pitfalls: Mapped[str] = mapped_column(Text, nullable=False, default="")
     knowledge: Mapped[str] = mapped_column(Text, nullable=False, default="")
