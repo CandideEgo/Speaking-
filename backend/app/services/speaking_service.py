@@ -5,8 +5,10 @@ so HTTP concerns (content-type, size validation) stay in the route
 while domain logic (eligibility, evaluation, record-keeping) lives here.
 """
 
+import asyncio
 import os
 import tempfile
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -16,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.learning import LearningRecord, SpeakingAttempt
 from app.models.subtitle import Subtitle
 from app.models.user import User
-from app.services.ai_service import get_ai_service
+from app.services.ai_service import AIServiceError, get_ai_service
 from app.services.transcription.whisper_model import get_whisper_model
 
 logger = structlog.get_logger()
@@ -26,6 +28,117 @@ FREE_TIER_DAILY_LIMIT = 3
 
 # Minimum audio duration for a valid speaking attempt (seconds)
 MIN_AUDIO_DURATION = 1.0
+
+# Hard timeouts for the synchronous acoustic stages (run in a thread pool).
+# Prevents a cold-start model download (wav2vec2 from HF) or a stuck transcribe
+# from hanging the request indefinitely.
+WHISPER_TRANSCRIBE_TIMEOUT = 120.0  # seconds
+FORCED_ALIGNMENT_TIMEOUT = 90.0  # seconds
+
+# Default rubric criteria for read-aloud scoring. Kept as a module constant so
+# both the rubric prompt and the criteria_scores assembly share one source of
+# truth. (User-selected rubrics / SpeakingAttemptScore persistence are out of
+# scope for this pass — criteria_scores are returned per-attempt, not stored.)
+DEFAULT_CRITERIA = [
+    {
+        "name": "Accuracy",
+        "description": "How closely the user's pronunciation matches the original text",
+        "weight": 1.0,
+    },
+    {
+        "name": "Fluency",
+        "description": "Natural rhythm, pace, and smoothness of speech",
+        "weight": 1.0,
+    },
+    {
+        "name": "Completeness",
+        "description": "How much of the original text was covered without omissions",
+        "weight": 1.0,
+    },
+]
+
+
+@dataclass
+class SpeakingEvalResult:
+    """Result of evaluate_speaking: the persisted attempt plus the rubric
+    breakdown (criteria_scores + overall_feedback) for the response layer.
+
+    criteria_scores items: {name, score (0-100), feedback, weight}
+    """
+
+    attempt: SpeakingAttempt
+    criteria_scores: list[dict] = field(default_factory=list)
+    overall_feedback: str = ""
+
+
+def _criterion_score_by_name(criteria_scores: list[dict], name: str) -> float:
+    """Find a criterion's score (0-100) by case-insensitive name match."""
+    target = name.lower()
+    for c in criteria_scores:
+        if c.get("criterion_name", "").lower() == target:
+            return float(c.get("score", 0))
+    return 0.0
+
+
+def _map_rubric_to_flat(result: dict) -> tuple[float, float, float, str]:
+    """Map a rubric result {criteria_scores, overall_feedback} to the flat
+    (accuracy, fluency, completeness, feedback) columns stored on SpeakingAttempt.
+    """
+    criteria = result.get("criteria_scores", [])
+    accuracy = _criterion_score_by_name(criteria, "Accuracy")
+    fluency = _criterion_score_by_name(criteria, "Fluency")
+    completeness = _criterion_score_by_name(criteria, "Completeness")
+    feedback = result.get("overall_feedback", "")
+    return accuracy, fluency, completeness, feedback
+
+
+def _assemble_criteria_scores(
+    rubric_criteria: list[dict], llm_criteria: list[dict], overall_feedback: str
+) -> list[dict]:
+    """Merge LLM-returned per-criterion scores with the default criteria
+    (which carry the weight), producing the response shape:
+    [{name, score, feedback, weight}].
+    """
+    by_name = {c.get("criterion_name", ""): c for c in llm_criteria}
+    assembled = []
+    for crit in rubric_criteria:
+        name = crit["name"]
+        llm = by_name.get(name)
+        assembled.append(
+            {
+                "name": name,
+                "score": float(llm.get("score", 0)) if llm else 0.0,
+                "feedback": (llm.get("feedback") if llm else None) or overall_feedback,
+                "weight": crit.get("weight", 1.0),
+            }
+        )
+    return assembled
+
+
+def _assemble_criteria_scores_from_flat(
+    rubric_criteria: list[dict],
+    accuracy: float,
+    fluency: float,
+    completeness: float,
+    feedback: str,
+) -> list[dict]:
+    """Build a criteria breakdown from the flat (degraded-path) scores so the
+    response shape stays consistent with the rubric path.
+    """
+    flat_map = {"accuracy": accuracy, "fluency": fluency, "completeness": completeness}
+    assembled = []
+    for crit in rubric_criteria:
+        name = crit["name"]
+        score = flat_map.get(name.lower(), 0.0)
+        assembled.append(
+            {
+                "name": name,
+                "score": float(score),
+                "feedback": feedback,
+                "weight": crit.get("weight", 1.0),
+            }
+        )
+    return assembled
 
 
 async def check_daily_limit(db: AsyncSession, user: User) -> None:
@@ -66,24 +179,27 @@ async def evaluate_speaking(
     subtitle_id: str,
     audio_data: bytes,
     original_text: str,
-) -> SpeakingAttempt:
+) -> SpeakingEvalResult:
     """Process a speaking attempt: save audio, transcribe, align, score, return feedback.
 
     The pipeline has three stages:
-    1. Acoustic: Whisper transcription with initial_prompt hint + wav2vec2 forced alignment
+    1. Acoustic: Whisper transcription + wav2vec2 forced alignment (both bounded
+       by hard timeouts so a cold-start model download can't hang the request)
     2. Metrics: Compute objective metrics (speech rate, pause ratio, word hit rate)
-    3. LLM: Feed structured word-level data to AI for grounded feedback
+    3. LLM: Feed the alignment data + metrics to the AI for grounded rubric scoring
 
-    If alignment fails, falls back to text-only LLM scoring (word_scores=None).
+    If alignment fails, falls back to text-only LLM scoring (word_scores=None),
+    but still produces a full criteria breakdown for the response.
+
+    Returns a SpeakingEvalResult (attempt + criteria_scores + overall_feedback).
     """
 
-    # Save audio to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
     try:
         tmp.write(audio_data)
         tmp.close()
 
-        # Validate audio duration
+        # Validate audio duration (0.0 on probe failure → rejected below)
         audio_duration = _get_audio_duration(tmp.name)
         if audio_duration < MIN_AUDIO_DURATION:
             raise ValueError(
@@ -91,11 +207,18 @@ async def evaluate_speaking(
             )
 
         # Transcribe via Whisper (with initial_prompt for accent adaptation)
-        whisper_result = await _whisper_transcribe(tmp.name, original_text)
+        try:
+            whisper_result = await _whisper_transcribe(tmp.name, original_text)
+        except TimeoutError:
+            raise ValueError("语音识别超时，请缩短录音后重试") from None
         transcript = whisper_result["text"]
 
-        # Run forced alignment + compute metrics (with fallback)
-        alignment_result = None
+        # Empty transcript = mic failure / silence / ASR crash. Reject explicitly
+        # instead of scoring "original vs empty" (mirrors evaluate_free_speaking).
+        if not transcript.strip():
+            raise ValueError("无法识别语音内容，请在安静环境重新录制并清晰朗读。")
+
+        # Run forced alignment + compute metrics (with fallback + timeout)
         word_scores = None
         metrics = None
         try:
@@ -103,53 +226,63 @@ async def evaluate_speaking(
                 evaluate_speaking_alignment,
             )
 
-            alignment_result = evaluate_speaking_alignment(
-                audio_path=tmp.name,
-                transcript_segments=whisper_result["segments"],
-                original_text=original_text,
-                audio_duration=audio_duration,
+            loop = asyncio.get_event_loop()
+            alignment_result = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    evaluate_speaking_alignment,
+                    tmp.name,
+                    whisper_result["segments"],
+                    original_text,
+                    audio_duration,
+                ),
+                timeout=FORCED_ALIGNMENT_TIMEOUT,
             )
             if alignment_result:
                 word_scores = alignment_result["word_scores"]
                 metrics = alignment_result["metrics"]
+        except TimeoutError:
+            logger.warning("Forced alignment timed out, falling back to text-only scoring")
         except Exception:
-            logger.warning("Forced alignment failed, falling back to text-only scoring")
+            logger.warning("Forced alignment failed, falling back to text-only scoring", exc_info=True)
 
         # AI feedback — use rubric scoring when word-level data is available
         ai = get_ai_service()
+        criteria_scores: list[dict] = []
+        overall_feedback = ""
         if word_scores and metrics:
-            default_criteria = [
-                {
-                    "name": "Accuracy",
-                    "description": "How closely the user's pronunciation matches the original text",
-                    "weight": 1.0,
-                },
-                {"name": "Fluency", "description": "Natural rhythm, pace, and smoothness of speech", "weight": 1.0},
-                {
-                    "name": "Completeness",
-                    "description": "How much of the original text was covered without omissions",
-                    "weight": 1.0,
-                },
-            ]
             result = await ai.pronunciation_feedback_rubric(
                 original_text,
-                transcript or "",
-                rubric_criteria=default_criteria,
+                transcript,
+                rubric_criteria=DEFAULT_CRITERIA,
                 mode="read_aloud",
                 word_scores=word_scores,
                 metrics=metrics,
             )
+            accuracy, fluency, completeness, overall_feedback = _map_rubric_to_flat(result)
+            criteria_scores = _assemble_criteria_scores(
+                DEFAULT_CRITERIA, result.get("criteria_scores", []), overall_feedback
+            )
         else:
-            result = await ai.pronunciation_feedback(original_text, transcript or "")
+            # Degraded path: text-only scoring still returns flat scores; assemble
+            # a criteria breakdown from them so the response shape is consistent.
+            result = await ai.pronunciation_feedback(original_text, transcript)
+            accuracy = float(result.get("accuracy", 0))
+            fluency = float(result.get("fluency", 0))
+            completeness = float(result.get("completeness", 0))
+            overall_feedback = result.get("feedback", "")
+            criteria_scores = _assemble_criteria_scores_from_flat(
+                DEFAULT_CRITERIA, accuracy, fluency, completeness, overall_feedback
+            )
 
         attempt = SpeakingAttempt(
             user_id=user_id,
             subtitle_id=subtitle_id,
             transcript=transcript,
-            accuracy=result.get("accuracy", 0),
-            fluency=result.get("fluency", 0),
-            completeness=result.get("completeness", 0),
-            feedback=result.get("feedback", ""),
+            accuracy=accuracy,
+            fluency=fluency,
+            completeness=completeness,
+            feedback=overall_feedback,
             word_scores=word_scores,
             audio_duration=audio_duration,
         )
@@ -168,7 +301,11 @@ async def evaluate_speaking(
         await db.commit()
         await db.refresh(attempt)
 
-        return attempt
+        return SpeakingEvalResult(
+            attempt=attempt,
+            criteria_scores=criteria_scores,
+            overall_feedback=overall_feedback,
+        )
 
     finally:
         if os.path.exists(tmp.name):
@@ -310,10 +447,12 @@ async def _whisper_transcribe(audio_path: str, original_text: str = "") -> dict:
             which significantly improves recognition of accented speech.
 
     Returns:
-        Dict with keys: text, segments, audio_duration.
-    """
-    import asyncio
+        Dict with keys: text, segments, audio_duration. On failure returns an
+        empty transcript (the caller guards against empty text).
 
+    Raises:
+        TimeoutError if transcription exceeds WHISPER_TRANSCRIBE_TIMEOUT.
+    """
     loop = asyncio.get_event_loop()
 
     def _sync():
@@ -342,18 +481,23 @@ async def _whisper_transcribe(audio_path: str, original_text: str = "") -> dict:
             logger.exception("whisper transcribe failed")
             return {"text": "", "segments": [], "audio_duration": 0.0}
 
-    return await loop.run_in_executor(None, _sync)
+    return await asyncio.wait_for(loop.run_in_executor(None, _sync), timeout=WHISPER_TRANSCRIBE_TIMEOUT)
 
 
 def _get_audio_duration(audio_path: str) -> float:
-    """Get audio duration using ffprobe (same as video duration check)."""
+    """Get audio duration using ffprobe (same as video duration check).
+
+    Returns 0.0 on probe failure so the caller's MIN_AUDIO_DURATION check
+    rejects the audio, rather than silently assuming a valid 1.0s (which used
+    to bypass the check and corrupt downstream speech-rate metrics).
+    """
     try:
         from app.services.transcription.audio_extractor import get_video_duration
 
         return get_video_duration(audio_path)
     except Exception:
-        logger.warning("Could not determine audio duration, assuming valid")
-        return MIN_AUDIO_DURATION  # Assume valid if we can't check
+        logger.warning("Could not determine audio duration", exc_info=True)
+        return 0.0
 
 
 async def get_user_stats(db: AsyncSession, user_id: str, period: str = "all") -> dict:

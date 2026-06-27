@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+# Hard timeout (seconds) for a single LLM chat call. Bounds worst-case latency
+# so a slow/unreachable endpoint can't hang speaking evaluation indefinitely.
+LLM_TIMEOUT = 60.0
+
 
 class AIServiceError(Exception):
     """Raised when an LLM call fails after all retries are exhausted."""
@@ -18,14 +22,30 @@ class AIServiceError(Exception):
 
 class AIService:
     def __init__(self):
-        client_kwargs = {"api_key": settings.openai_api_key or "sk-placeholder"}
+        # Don't construct the client when no key is configured — this keeps
+        # module import (e.g. vocabulary_service builds a singleton at import
+        # time) working in keyless environments such as tests/CI. Any actual
+        # call then fails loudly via _chat instead of silently returning fake
+        # zero scores.
+        if not settings.openai_api_key:
+            self.client = None
+            self.model = settings.openai_model
+            return
+        client_kwargs = {"api_key": settings.openai_api_key}
         if settings.openai_base_url:
             client_kwargs["base_url"] = settings.openai_base_url
         self.client = AsyncOpenAI(**client_kwargs)
         self.model = settings.openai_model
 
     async def _chat(self, system: str, user: str, temperature: float = 0.3, response_format: dict | None = None) -> str:
+        if self.client is None:
+            raise AIServiceError("OPENAI_API_KEY not configured")
+        import time
+
+        t0 = time.monotonic()
         try:
+            # Hard timeout: a slow endpoint must not hang the request. 60s is
+            # ample for normal chat calls while bounding worst-case latency.
             resp = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -34,11 +54,16 @@ class AIService:
                 ],
                 temperature=temperature,
                 response_format=response_format if response_format else NOT_GIVEN,
+                timeout=LLM_TIMEOUT,
             )
             content = resp.choices[0].message.content
+            logger.info("_chat ok model=%s elapsed=%.2fs", self.model, time.monotonic() - t0)
             if content is None:
                 return ""
             return content
+        except openai.APITimeoutError as e:
+            logger.error("_chat TIMEOUT after %.2fs: %s", time.monotonic() - t0, e)
+            raise AIServiceError(f"AI service timeout (LLM 未在 {LLM_TIMEOUT:.0f}s 内响应)") from e
         except openai.APIStatusError as e:
             logger.error(f"AI API error: {e.status_code} - {e.message}")
             raise AIServiceError(f"AI service error: {e.status_code}") from e
@@ -63,9 +88,23 @@ class AIService:
 
         result = await self._chat(system, user)
         try:
-            return json.loads(self._extract_json(result))
+            parsed = json.loads(self._extract_json(result))
         except json.JSONDecodeError:
-            return [None] * len(texts)
+            parsed = []
+
+        # LLMs occasionally return fewer items than requested (truncation or
+        # merging adjacent sentences). Align to the input length and backfill
+        # any missing slots one-by-one so callers can index by position.
+        results: list[str | None] = [None] * len(texts)
+        for i, t in enumerate(parsed[: len(texts)]):
+            results[i] = t if isinstance(t, str) else None
+        for i in [idx for idx, v in enumerate(results) if v is None]:
+            try:
+                one = await self.translate_batch([texts[i]])
+                results[i] = one[0] if one else None
+            except AIServiceError:
+                results[i] = None
+        return results
 
     async def grammar_analyze_batch(self, texts: list[str]) -> list[str | None]:
         if not texts:
@@ -108,8 +147,8 @@ class AIService:
         result = await self._chat(system, text[:4000])
         try:
             return json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            return []
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回测验格式无效") from e
 
     async def pronunciation_feedback(self, original: str, user_transcript: str) -> dict:
         system = (
@@ -122,8 +161,8 @@ class AIService:
         result = await self._chat(system, user_msg)
         try:
             return json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            return {"accuracy": 0, "fluency": 0, "completeness": 0, "feedback": "评分失败"}
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回评分格式无效") from e
 
     async def pronunciation_feedback_rubric(
         self,
@@ -137,49 +176,65 @@ class AIService:
         """Score speaking against a rubric with multiple criteria.
 
         rubric_criteria: list of dicts [{name, description, weight}]
-        mode: "read_aloud" | "shadowing" | "free_speaking"
+        mode: "read_aloud" (only mode supported; free speaking uses free_speaking_feedback)
+        word_scores/metrics: acoustic alignment data fed into the prompt so the
+            LLM scores are grounded in objective measurements, not just text diff.
         Returns: {criteria_scores: [{criterion_name, score, feedback}], overall_feedback: string}
-        Falls back to pronunciation_feedback on failure.
+        Falls back to pronunciation_feedback on JSON parse failure.
         """
         criteria_desc = "\n".join(
             f"- {c['name']} (weight {c.get('weight', 1.0)}): {c.get('description', '')}" for c in rubric_criteria
         )
 
-        if mode == "read_aloud":
-            mode_instruction = (
-                "The user is reading aloud from a reference text. Compare the user's transcript "
-                "against the original text. Focus on pronunciation accuracy, word omissions, "
-                "substitutions, and insertions. Score each criterion based on how closely the "
-                "user's speech matches the original."
-            )
-            user_msg = f"Original text: {original}\nUser said: {user_transcript}"
-        elif mode == "shadowing":
-            mode_instruction = (
-                "The user is shadowing (repeating after) a reference text. Focus on rhythm, "
-                "intonation, pace matching, and natural flow. The user should sound like they "
-                "are echoing the original speaker. Score each criterion based on how well the "
-                "user matches the rhythm and prosody of the original."
-            )
-            user_msg = f"Reference text: {original}\nUser said: {user_transcript}"
-        elif mode == "free_speaking":
-            mode_instruction = (
-                "The user is speaking freely on a topic. There is no reference text to compare "
-                "against. Evaluate coherence, grammar, vocabulary range, and fluency based solely "
-                "on the user's transcript. Score each criterion based on the quality of the "
-                "free speech output."
-            )
-            user_msg = f"User's free speech: {user_transcript}"
-        else:
-            mode_instruction = "Evaluate the user's speaking attempt against the given criteria."
-            user_msg = f"Original: {original}\nUser said: {user_transcript}"
+        mode_instruction = (
+            "The user is reading aloud from a reference text. Compare the user's transcript "
+            "against the original text. Focus on pronunciation accuracy, word omissions, "
+            "substitutions, and insertions. Score each criterion based on how closely the "
+            "user's speech matches the original."
+        )
+
+        # Grounding block: surface the acoustic alignment data to the LLM.
+        acoustic_block = ""
+        if word_scores or metrics:
+            parts = []
+            if metrics:
+                parts.append(
+                    "Objective metrics:\n"
+                    f"- speech_rate: {metrics.get('speech_rate_wpm', 0)} wpm\n"
+                    f"- pause_ratio: {metrics.get('pause_ratio', 0)} (silence / total)\n"
+                    f"- word_hit_rate: {metrics.get('word_hit_rate', 0)}\n"
+                    f"- avg_alignment_confidence: {metrics.get('avg_alignment_score', 0)}"
+                )
+            if word_scores:
+                status_counts = {"correct": 0, "partial": 0, "missing": 0, "extra": 0}
+                for w in word_scores:
+                    st = w.get("status", "extra")
+                    if st in status_counts:
+                        status_counts[st] += 1
+                parts.append(
+                    "Per-word alignment summary:\n"
+                    f"- correct: {status_counts['correct']}\n"
+                    f"- partial: {status_counts['partial']}\n"
+                    f"- missing: {status_counts['missing']}\n"
+                    f"- extra: {status_counts['extra']}"
+                )
+            acoustic_block = "\n\n".join(parts)
+
+        user_msg = f"Original text: {original}\nUser said: {user_transcript}"
+        if acoustic_block:
+            user_msg += f"\n\n[Acoustic analysis — use this to ground your scoring]\n{acoustic_block}"
 
         system = (
             "You are an English speaking assessment coach for Chinese learners. "
             f"Mode: {mode}\n\n"
             f"{mode_instruction}\n\n"
             f"Rubric criteria:\n{criteria_desc}\n\n"
-            "Score each criterion independently on a scale of 0-100. Provide specific, "
-            "actionable feedback in Chinese for each criterion.\n\n"
+            "Score each criterion independently on a scale of 0-100 using these anchors: "
+            "90-100 excellent, 75-89 good, 60-74 fair, below 60 needs improvement. "
+            "When acoustic analysis is provided, weight it heavily for Accuracy and "
+            "Completeness (word_hit_rate, missing/extra counts) and for Fluency "
+            "(speech_rate, pause_ratio). Provide specific, actionable feedback in "
+            "Chinese for each criterion.\n\n"
             "Return JSON:\n"
             "{\n"
             '  "criteria_scores": [\n'
@@ -255,8 +310,8 @@ class AIService:
         result = await self._chat(system, user_msg)
         try:
             return json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            return {"fluency": 0, "feedback": "评分失败，请重试"}
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回评分格式无效") from e
 
     async def word_context_meaning(self, word: str, sentence: str) -> str:
         system = (
@@ -279,8 +334,8 @@ class AIService:
         try:
             parsed = json.loads(self._extract_json(result))
             return parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError:
-            return []
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回难词列表格式无效") from e
 
     async def assistant_daily_summary(self, stats: dict) -> str:
         system = (
@@ -370,15 +425,297 @@ class AIService:
             parsed.setdefault("difficulty_level", "B1")
             await self._cache_set(f"vocab_enrich:{cache_key}", json.dumps(parsed, ensure_ascii=False))
             return parsed
-        except (AIServiceError, json.JSONDecodeError):
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回词汇释义格式无效") from e
+        # AIServiceError from _chat propagates as-is.
+
+    async def gloss_word_context(self, word: str, context_sentence: str = "") -> dict:
+        """Generate context-sensitive learning notes for a word in a subtitle.
+
+        Unlike ``enrich_vocabulary_word`` (word-only cache), this is context-
+        sensitive — the same word in different sentences may carry different
+        meanings — so the cache key includes the sentence hash. Results live in
+        a separate ``word_gloss:`` Redis namespace to stay decoupled.
+
+        Returns a dict with:
+            contextual_note: the word's meaning in THIS context (Chinese)
+            pitfalls:        common mistakes / confusions for Chinese learners (Chinese)
+            knowledge:       etymology / usage extension / collocations (Chinese)
+        """
+        import hashlib
+
+        cache_key = hashlib.sha256(f"gloss:{word}:{context_sentence}".encode()).hexdigest()
+        cached = await self._cache_get(f"word_gloss:{cache_key}")
+        if cached:
+            return json.loads(cached)
+
+        system = (
+            "You are an English learning tutor for Chinese students preparing for CET/高考/考研. "
+            "Given a word and the sentence it appears in, return JSON with:\n"
+            '- "contextual_note": the exact meaning of the word in THIS context, in Chinese (concise)\n'
+            '- "pitfalls": common mistakes or confusions Chinese learners make with this word, in Chinese\n'
+            '- "knowledge": a short usage extension — collocation, etymology, or register, in Chinese\n'
+            "Keep each field under 120 Chinese characters. Return JSON only."
+        )
+        user = f"Word: {word}\nSentence: {context_sentence}" if context_sentence else f"Word: {word}"
+
+        try:
+            result = await self._chat(system, user, response_format={"type": "json_object"})
+            parsed = json.loads(self._extract_json(result))
+            parsed.setdefault("contextual_note", "")
+            parsed.setdefault("pitfalls", "")
+            parsed.setdefault("knowledge", "")
+            await self._cache_set(f"word_gloss:{cache_key}", json.dumps(parsed, ensure_ascii=False))
+            return parsed
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回词汇语境释义格式无效") from e
+
+    async def generate_practice_questions(
+        self,
+        subtitles_text: str,
+        cet_words: list[dict],
+        exam_level: str,
+        count: int = 5,
+        exam_examples: list[str] | None = None,
+    ) -> list[dict]:
+        """Generate CET/高考/考研 practice questions from a video transcript.
+
+        Produces a mix of content Q&A and word fill-in-the-blank. The
+        fill-in-the-blank gaps use words from ``cet_words`` (the target exam
+        level), so practicing reinforces the annotated vocabulary. The whole
+        transcript is the context for comprehension questions. Optional
+        ``exam_examples`` are 真题 (past-paper) sentences the generator may
+        adapt into fill-in-the-blank questions for an authentic exam flavor
+        (source layer of the 真题 integration).
+
+        Args:
+            subtitles_text: concatenated English subtitle lines (the transcript).
+            cet_words: list of {word, translation} for the target level — used
+                as fill-in-the-blank gaps. May be empty.
+            exam_level: canonical level key (e.g. "cet4") for prompt context.
+            count: total questions to generate.
+            exam_examples: optional 真题 sentences to seed authentic questions.
+
+        Returns:
+            list of {type: "qa"|"fill_blank", question, answer, options?, cet_words[]}
+        """
+        # Trim a long transcript so the prompt stays bounded.
+        transcript = (subtitles_text or "").strip()[:6000]
+        if not transcript:
+            return []
+
+        word_block = (
+            "\n".join(f"{i + 1}. {w['word']} ({w.get('translation', '')})" for i, w in enumerate(cet_words))
+            if cet_words
+            else "(no target-level words available)"
+        )
+        examples_block = (
+            "\n".join(f"- {s}" for s in (exam_examples or [])[:5])
+            if exam_examples
+            else "(no past-paper examples available)"
+        )
+
+        system = (
+            "You are an English exam (CET/高考/考研) question generator for Chinese learners. "
+            "Given a video transcript and a list of target-level vocabulary, generate practice questions.\n\n"
+            "Produce a mix of two types:\n"
+            '- "qa": a comprehension question about the transcript content. Include "answer" (a concise '
+            "Chinese or English answer). Optionally add 'options' (4 strings) to make it multiple-choice.\n"
+            '- "fill_blank": a fill-in-the-blank sentence drawn from the transcript, with the gap being a '
+            "word from the target vocabulary list. 'answer' is the gap word (its lemma). Optionally add "
+            "'options' (4 strings) for multiple-choice. Add 'cet_words' listing the target words used. "
+            "You may adapt a provided past-paper (真题) sentence into a fill-in-the-blank question when it "
+            "contains a target word, for an authentic exam flavor.\n\n"
+            'Return a JSON object {"questions": [ ... ]}. Each question object has: type, question, '
+            "answer, options (array or null), cet_words (array or null). Keep questions answerable from "
+            "the transcript. Do not reveal the answer in the question text."
+        )
+        user = (
+            f"Exam level: {exam_level}\n"
+            f"Number of questions: {count}\n"
+            f"Target vocabulary:\n{word_block}\n\n"
+            f"Past-paper sentences (may adapt into fill-in-the-blank):\n{examples_block}\n\n"
+            f"Transcript:\n{transcript}"
+        )
+
+        try:
+            result = await self._chat(system, user, response_format={"type": "json_object"})
+            parsed = json.loads(self._extract_json(result))
+            if isinstance(parsed, list):
+                questions = parsed
+            elif isinstance(parsed, dict) and "questions" in parsed:
+                questions = parsed["questions"]
+            else:
+                questions = []
+            # Normalize fields so callers can rely on their presence.
+            normalized = []
+            for q in questions:
+                if not isinstance(q, dict) or not str(q.get("question", "")).strip():
+                    continue
+                normalized.append(
+                    {
+                        "type": q.get("type", "qa"),
+                        "question": q["question"],
+                        "answer": q.get("answer", ""),
+                        "options": q.get("options") or None,
+                        "cet_words": q.get("cet_words") or [],
+                    }
+                )
+            return normalized
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回练习题格式无效") from e
+
+    async def generate_word_notes_bulk(
+        self,
+        items: list[dict],
+        source: str,
+        level: str = "global",
+    ) -> list[dict]:
+        """Pre-generate AI learning notes for a batch of words in one LLM call.
+
+        Each item is {word, translation, context_sentence?}. The optional
+        context_sentence gives the model a video-specific cue (e.g. "She runs
+        a company"); when omitted the notes are context-agnostic (global).
+
+        The model is asked for a JSON object {"notes": [...]} aligned to the
+        input order, each with {word, contextual_note, pitfalls, knowledge}
+        (all short Chinese strings). The returned list is in the same order as
+        ``items``; missing entries are filled with empty strings so the caller
+        can upsert by position.
+
+        Used by:
+          * ``finalize_video.prewarm_notes`` — video:{id} context, batch per video
+          * ``scripts/precompute_global_word_notes.py`` — 'global' context,
+            one-shot preheat of all ECDICT exam words
+        """
+        if not items:
+            return []
+        # Bound the batch so a single prompt stays under the model's context
+        # window. 15 fits comfortably with sentence context; bigger batches
+        # get worse per-word quality.
+        batch_size = 15
+        out: list[dict] = []
+        for batch_start in range(0, len(items), batch_size):
+            batch = items[batch_start : batch_start + batch_size]
+            out.extend(await self._generate_word_notes_one_batch(batch, source, level))
+        return out
+
+    async def _generate_word_notes_one_batch(
+        self,
+        batch: list[dict],
+        source: str,
+        level: str,
+    ) -> list[dict]:
+        """One LLM round-trip for a single batch. See ``generate_word_notes_bulk``."""
+        word_block = "\n".join(
+            f"{i + 1}. {w['word']} ({w.get('translation', '')})\n   Context: {w.get('context_sentence', '') or '(none)'}"
+            for i, w in enumerate(batch)
+        )
+        if source == "global":
+            scope_line = "These are general-purpose notes for any context."
+        else:
+            scope_line = (
+                f"These notes are for the word in the specific video context shown above "
+                f"(source: {source}). Adapt the meaning to that context."
+            )
+
+        system = (
+            "You are an English learning tutor for Chinese students preparing for CET/高考/考研. "
+            "For each input word, return JSON with three short Chinese fields.\n\n"
+            '- "contextual_note": the word\'s meaning in the given context (1 sentence, under 50 字)\n'
+            '- "pitfalls": 1-2 common mistakes Chinese learners make with this word (under 60 字)\n'
+            '- "knowledge": 1 short usage tip — collocation, etymology, or register (under 60 字)\n\n'
+            'Return a JSON object {"notes": [{"word": ..., "contextual_note": ..., "pitfalls": ..., "knowledge": ...}, ...]} '
+            "with exactly one entry per input word, in the same order. Keep Chinese compact."
+        )
+        user = f"Source: {source}\nLevel: {level}\n{scope_line}\n\nWords:\n{word_block}"
+
+        try:
+            result = await self._chat(system, user, response_format={"type": "json_object"})
+            parsed = json.loads(self._extract_json(result))
+            notes = parsed.get("notes") if isinstance(parsed, dict) else None
+            if not isinstance(notes, list):
+                notes = []
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回词汇注释格式无效") from e
+
+        # Align to input order; fill missing entries with empty strings.
+        aligned: list[dict] = []
+        for i, w in enumerate(batch):
+            n = notes[i] if i < len(notes) and isinstance(notes[i], dict) else {}
+            aligned.append(
+                {
+                    "word": w["word"],
+                    "level": level,
+                    "context_source": source,
+                    "contextual_note": str(n.get("contextual_note") or "").strip(),
+                    "pitfalls": str(n.get("pitfalls") or "").strip(),
+                    "knowledge": str(n.get("knowledge") or "").strip(),
+                }
+            )
+        return aligned
+
+    async def grade_answer(self, question: dict, user_answer: str) -> dict:
+        """Grade a single practice-question answer.
+
+        Fill-in-the-blank is graded leniently (lemma / case / tense tolerated);
+        open-ended Q&A is graded by the AI for semantic equivalence. Returns
+        {correct: bool, explanation: str}.
+        """
+        ua = (user_answer or "").strip()
+        expected = (question.get("answer") or "").strip()
+
+        # fill_blank: lenient local match first — avoids an AI call when obvious.
+        if question.get("type") == "fill_blank" and expected:
+            ua_norm = ua.lower().replace(" ", "")
+            exp_norm = expected.lower().replace(" ", "")
+            # Also accept a simple plural/ed/ing/inflexion variation.
+            variants = {
+                exp_norm,
+                exp_norm + "s",
+                exp_norm + "es",
+                exp_norm + "ed",
+                exp_norm + "ing",
+                exp_norm.rstrip("s"),
+                exp_norm.rstrip("ed"),
+                exp_norm.rstrip("ing"),
+            }
+            if ua_norm in variants:
+                return {"correct": True, "explanation": f"正确，答案为 {expected}。"}
+            # Multiple-choice fill_blank: exact option match.
+            options = question.get("options")
+            if options:
+                return {
+                    "correct": ua.lower() == expected.lower(),
+                    "explanation": f"正确答案：{expected}。",
+                }
+
+        # Multiple-choice qa: exact (option index already resolved by caller).
+        if question.get("options") and expected:
             return {
-                "definition": "",
-                "translation": "",
-                "part_of_speech": "",
-                "ipa": "",
-                "example_sentences": [],
-                "collocations": [],
-                "difficulty_level": "B1",
+                "correct": ua.lower() == expected.lower(),
+                "explanation": f"正确答案：{expected}。",
+            }
+
+        # Open-ended: AI semantic grading.
+        system = (
+            "You are an English exam grader for Chinese learners. Judge whether the user's answer is "
+            "semantically correct for the question. Return JSON: "
+            '{"correct": bool, "explanation": a short Chinese explanation}. Be lenient on wording.'
+        )
+        user = f"Question: {question.get('question', '')}\nReference answer: {expected}\nUser answer: {ua}"
+        try:
+            result = await self._chat(system, user, response_format={"type": "json_object"})
+            parsed = json.loads(self._extract_json(result))
+            return {
+                "correct": bool(parsed.get("correct", False)),
+                "explanation": str(parsed.get("explanation", "")),
+            }
+        except json.JSONDecodeError:
+            # Fall back to a lenient substring match.
+            return {
+                "correct": expected.lower() in ua.lower() or ua.lower() in expected.lower(),
+                "explanation": f"参考答案：{expected}。",
             }
 
     async def generate_vocab_quiz(self, words: list[dict], quiz_type: str) -> list[dict]:
@@ -445,8 +782,9 @@ class AIService:
             if isinstance(parsed, dict) and "questions" in parsed:
                 return parsed["questions"]
             return []
-        except (AIServiceError, json.JSONDecodeError):
-            return []
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回测验格式无效") from e
+        # AIServiceError from _chat propagates as-is.
 
 
 # --- Thread-safe singleton ---
