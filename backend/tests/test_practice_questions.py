@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select
 
 # --- AIService.generate_practice_questions ---
 
@@ -229,3 +230,223 @@ async def test_grade_endpoint(client, admin_headers, monkeypatch):
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["correct"] is True
+
+
+# --- UGC practice editing (Phase 2B) ---
+
+
+async def _seed_own_ready_video(db, owner_id, vid="vid-prac-edit", review="draft"):
+    from app.models.video import Video, VideoReviewStatus, VideoStatus
+
+    v = Video(
+        id=vid,
+        title="UGC Prac",
+        source_url="x",
+        status=VideoStatus.ready,
+        is_official=False,
+        review_status=review if isinstance(review, str) else review.value,
+        user_id=owner_id,
+    )
+    db.add(v)
+    await db.commit()
+    await db.refresh(v)
+    return v
+
+
+@pytest.mark.asyncio
+async def test_edit_practice_owner_overwrites(client, auth_headers):
+    """Owner replaces the cached practice set; not Pro-gated."""
+    from sqlalchemy import select
+
+    from app.models.practice import VideoPracticeQuestion
+    from app.models.user import User
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = await _seed_own_ready_video(db, owner.id)
+        vid = v.id
+        # seed an existing cached set
+        db.add(
+            VideoPracticeQuestion(
+                video_id=vid,
+                exam_level="cet4",
+                questions=[{"type": "qa", "question": "old", "answer": "A"}],
+                question_count=1,
+            )
+        )
+        await db.commit()
+
+    new_questions = [
+        {"type": "qa", "question": "New Q?", "answer": "New A", "options": None, "cet_words": []},
+        {"type": "fill_blank", "question": "She ___.", "answer": "runs", "options": ["runs"], "cet_words": ["runs"]},
+    ]
+    resp = await client.patch(
+        f"/api/v1/videos/{vid}/practice",
+        params={"level": "cet4"},
+        headers=auth_headers,
+        json={"questions": new_questions},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert len(data["questions"]) == 2
+    assert data["questions"][0]["question"] == "New Q?"
+
+    # Persisted.
+    async with TestSessionLocal() as db:
+        row = (
+            await db.execute(
+                select(VideoPracticeQuestion).where(
+                    VideoPracticeQuestion.video_id == vid, VideoPracticeQuestion.exam_level == "cet4"
+                )
+            )
+        ).scalar_one()
+        assert row.question_count == 2
+
+
+@pytest.mark.asyncio
+async def test_edit_practice_blocked_when_published(client, auth_headers):
+    from app.models.user import User
+    from app.models.video import VideoReviewStatus
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = await _seed_own_ready_video(db, owner.id, review=VideoReviewStatus.published)
+        vid = v.id
+
+    resp = await client.patch(
+        f"/api/v1/videos/{vid}/practice",
+        params={"level": "cet4"},
+        headers=auth_headers,
+        json={"questions": []},
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_edit_practice_non_owner_forbidden(client, auth_headers):
+    """Non-owner cannot edit another user's practice (404, no leak)."""
+    from app.models.user import User
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = await _seed_own_ready_video(db, owner.id)
+        vid = v.id
+
+    other_headers = await _make_other_headers()
+
+    resp = await client.patch(
+        f"/api/v1/videos/{vid}/practice",
+        params={"level": "cet4"},
+        headers=other_headers,
+        json={"questions": []},
+    )
+    assert resp.status_code == 404
+
+
+async def _make_other_headers() -> dict:
+    from app.core.security import create_token, hash_password
+    from app.models.user import PlanType, RoleType, User
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        user = User(
+            email="other-prac@example.com",
+            hashed_password=hash_password("Otherpass1!"),
+            name="Other",
+            plan=PlanType.free,
+            role=RoleType.user,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return {"Authorization": f"Bearer {create_token(user.id)}"}
+
+
+@pytest.mark.asyncio
+async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
+    from app.api.v1 import practice as practice_mod
+    from app.models.subtitle import Subtitle
+    from app.services import ecdict
+    from tests.conftest import TestSessionLocal
+
+    monkeypatch.setattr(
+        ecdict,
+        "lookup",
+        lambda token: {"lemma": "run", "translation": "跑"} if token.lower() in ("run", "runs") else None,
+    )
+    canned = [{"type": "qa", "question": "Fresh Q?", "answer": "A", "options": None, "cet_words": []}]
+    gen_mock = AsyncMock(return_value=canned)
+    monkeypatch.setattr(
+        practice_mod,
+        "get_ai_service",
+        lambda: type("FakeAI", (), {"generate_practice_questions": gen_mock})(),
+    )
+
+    async with TestSessionLocal() as db:
+        from app.models.user import User
+
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = await _seed_own_ready_video(db, owner.id, vid="vid-regen")
+        db.add(
+            Subtitle(
+                id="sr1",
+                video_id=v.id,
+                start_time=0,
+                end_time=1,
+                text_en="She runs a company.",
+                sentence_index=0,
+                word_levels={"runs": ["cet4"]},
+            )
+        )
+        await db.commit()
+        vid = v.id
+
+    resp = await client.post(
+        f"/api/v1/videos/{vid}/practice/regenerate",
+        params={"level": "cet4", "count": 1},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["questions"][0]["question"] == "Fresh Q?"
+    assert gen_mock.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_public_reads_snapshot_practice_during_rereview(client, auth_headers, admin_headers):
+    """During re-review a non-owner reads practice from the frozen snapshot, not
+    the owner's live draft. Admin (pro) is used as the public viewer here."""
+    from app.models.practice import VideoPracticeQuestion
+    from app.models.user import User
+    from app.models.video import VideoReviewStatus
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = await _seed_own_ready_video(db, owner.id, review=VideoReviewStatus.pending_review)
+        # live draft (what owner is editing)
+        db.add(
+            VideoPracticeQuestion(
+                video_id=v.id,
+                exam_level="cet4",
+                questions=[{"type": "qa", "question": "LIVE DRAFT", "answer": "A"}],
+                question_count=1,
+            )
+        )
+        # frozen approved snapshot has the older public question
+        v.published_snapshot = {
+            "version": 1,
+            "subtitles": [],
+            "practice": {
+                "cet4": [{"type": "qa", "question": "APPROVED PUBLIC", "answer": "A", "options": None, "cet_words": []}]
+            },
+        }
+        await db.commit()
+        vid = v.id
+
+    # Admin (a non-owner pro viewer) fetches practice → sees the snapshot.
+    resp = await client.get(f"/api/v1/videos/{vid}/practice", params={"level": "cet4"}, headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["questions"][0]["question"] == "APPROVED PUBLIC"
