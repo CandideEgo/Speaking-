@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 · 较大重构 — Speaking 首页设计提案</title>
+<link rel="stylesheet" href="_base.css">
+<!-- 版本03：bento 布局首屏，字体仍 Inter，浅色不变 -->
+<style>
+  .content { padding:28px 28px 96px; }
+
+  /* ===== BENTO 首屏：6 列网格 ===== */
+  .bento {
+    display:grid; grid-template-columns:repeat(6,1fr); gap:16px;
+    margin-bottom:8px;
+  }
+  .b-cell { border-radius:16px; overflow:hidden; position:relative; }
+
+  /* 问候大卡 (左 4 列) — 深色 hero */
+  .b-hero {
+    grid-column:span 4; min-height:230px; padding:32px; color:var(--on-dark);
+    background:linear-gradient(135deg,#161616,#0a0a0a); display:flex; flex-direction:column; justify-content:space-between;
+    border:1px solid #1c1c1c;
+  }
+  .b-hero .top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .b-hero .tag { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--brand-400); display:inline-flex; align-items:center; gap:8px; }
+  .b-hero .tag .led { width:7px; height:7px; border-radius:50%; background:var(--brand-500);
+    box-shadow:0 0 8px var(--brand-500); }
+  .b-hero h1 { font-size:36px; font-weight:800; letter-spacing:-0.03em; line-height:1.1; margin-top:14px; }
+  .b-hero h1 em { font-style:normal; color:var(--brand-400); }
+  .b-hero .sub { font-size:14px; color:var(--on-dark-soft); margin-top:8px; max-width:42ch; }
+  .b-hero .cta { display:flex; gap:10px; margin-top:22px; }
+  .b-hero .btn-go { display:inline-flex; align-items:center; gap:8px; padding:11px 18px; border-radius:8px;
+    background:var(--brand-500); color:var(--on-primary); font-size:14px; font-weight:600; box-shadow:var(--sh-brand);
+    transition:background .15s, transform .15s; }
+  .b-hero .btn-go:hover { background:var(--brand-600); transform:translateY(-2px); }
+  .b-hero .btn-go svg { width:15px; height:15px; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .b-hero .btn-ghost-d { display:inline-flex; align-items:center; gap:6px; padding:11px 16px; border-radius:8px;
+    border:1px solid #2c2c2c; color:var(--on-dark); font-size:14px; font-weight:600; transition:.15s; }
+  .b-hero .btn-ghost-d:hover { border-color:#4a4a4a; background:#1c1c1c; }
+
+  /* 右侧栈：连胜 + 目标 */
+  .b-stack { grid-column:span 2; display:flex; flex-direction:column; gap:16px; }
+  .b-streak {
+    flex:1; padding:24px; background:var(--brand-50); border:1px solid var(--brand-100);
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .b-streak .lbl { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--brand-700); }
+  .b-streak .big { font-size:64px; font-weight:800; letter-spacing:-0.04em; line-height:1;
+    color:var(--brand-600); margin-top:10px; }
+  .b-streak .big small { font-size:18px; font-weight:600; color:var(--brand-500); margin-left:4px; }
+  .b-streak .flame { font-size:22px; }
+  .b-streak .foot { font-size:12px; color:var(--brand-700); font-weight:500; margin-top:8px; }
+
+  .b-goal { flex:1; padding:24px; background:var(--canvas); border:1px solid var(--hairline);
+    display:flex; flex-direction:column; justify-content:space-between; }
+  .b-goal .lbl { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--muted); }
+  .b-goal .num { font-size:38px; font-weight:800; letter-spacing:-0.03em; line-height:1; margin-top:8px; }
+  .b-goal .num small { font-size:16px; font-weight:600; color:var(--muted); }
+  .b-goal .track { height:8px; background:var(--surface-card); border-radius:99px; overflow:hidden; margin-top:14px; }
+  .b-goal .fill { height:100%; width:60%; background:linear-gradient(90deg,var(--brand-500),var(--brand-400));
+    border-radius:99px; }
+  .b-goal .foot { font-size:12px; color:var(--muted); margin-top:8px; }
+
+  /* 今日练习入口 — 全宽 bento cell */
+  .b-practice { grid-column:span 6; padding:20px 26px; background:var(--surface-soft);
+    border:1px solid var(--hairline); display:flex; align-items:center; gap:24px; }
+  .b-practice .lbl { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--muted); }
+  .b-practice .title { font-size:17px; font-weight:700; letter-spacing:-0.02em; margin-top:3px; }
+  .b-practice .modes { display:flex; gap:10px; margin-left:auto; flex-wrap:wrap; }
+  .mode-chip {
+    display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:10px;
+    background:var(--canvas); border:1px solid var(--hairline); font-size:13px; font-weight:600;
+    color:var(--body); transition:.15s;
+  }
+  .mode-chip:hover { border-color:var(--ink); transform:translateY(-2px); box-shadow:var(--sh-soft); }
+  .mode-chip .dot { width:8px; height:8px; border-radius:50%; }
+  .mode-chip .dot.r { background:var(--brand-500); }
+  .mode-chip .dot.m { background:var(--success); }
+  .mode-chip .dot.f { background:#6366f1; }
+  .mode-chip small { color:var(--muted); font-weight:500; font-size:11px; }
+
+  /* 主推大卡 + 不对称网格 */
+  .sec-head { margin:40px 0 20px; align-items:center; }
+  .sec-title { font-size:22px; }
+  .sec-head .count { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
+
+  .feat-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:16px; }
+  .vcard-feat { grid-column:span 1; grid-row:span 2; }
+  @media (max-width:1024px){ .feat-grid{ grid-template-columns:1fr 1fr; } .vcard-feat{ grid-row:auto; } }
+  .vcard-feat .thumb { aspect-ratio:16/10; }
+  .vcard-feat .vtitle { font-size:18px; min-height:50px; }
+
+  /* 分类视觉化大卡 */
+  .cat-feat { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .cat-big {
+    position:relative; aspect-ratio:4/3; border-radius:16px; overflow:hidden; cursor:pointer;
+    border:1px solid var(--hairline);
+  }
+  .cat-big img { width:100%; height:100%; object-fit:cover; opacity:.55; transition:opacity .25s, transform .25s; }
+  .cat-big:hover img { opacity:.7; transform:scale(1.05); }
+  .cat-big .ov { position:absolute; inset:0; background:linear-gradient(180deg,transparent 30%,rgba(10,10,10,.85)); }
+  .cat-big .meta { position:absolute; left:16px; right:16px; bottom:14px; color:#fff; }
+  .cat-big .meta .emoji { font-size:24px; }
+  .cat-big .meta .label { font-size:16px; font-weight:700; letter-spacing:-0.01em; margin-top:4px; }
+  .cat-big .meta .count { font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(255,255,255,.7);
+    margin-top:2px; }
+  .cat-big .lv { position:absolute; top:12px; right:12px; font-family:'JetBrains Mono',monospace;
+    font-size:10px; letter-spacing:0.1em; color:rgba(255,255,255,.8); }
+
+  .grid-cards { gap:16px; }
+  .vcard { border-radius:14px; }
+  .vmeta { padding:14px 14px 15px; }
+  .vtitle { font-size:14px; min-height:39px; }
+
+  @media (max-width:1024px){
+    .bento{ grid-template-columns:repeat(2,1fr); }
+    .b-hero{ grid-column:span 2; } .b-stack{ grid-column:span 2; flex-direction:row; }
+    .b-practice{ grid-column:span 2; flex-direction:column; align-items:flex-start; }
+    .b-practice .modes{ margin-left:0; }
+    .cat-feat{ grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo"><span class="logo-mark">S</span><span class="logo-name">Speaking</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">主菜单</div>
+      <div class="nav-list">
+        <a class="nav-item active"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/></svg><span>首页</span></a>
+        <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/></svg><span>浏览视频</span></a>
+        <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg><span>口语练习</span><span class="badge">AI</span></a>
+      </div>
+      <div class="nav-section">社区</div>
+      <div class="nav-list"><a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>社区精选</span></a></div>
+      <div class="nav-section">学习</div>
+      <div class="nav-list">
+        <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>学习面板</span></a>
+        <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>词汇本</span></a>
+      </div>
+      <div class="nav-section">账户</div>
+      <div class="nav-list"><a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M2 20h20l-2-9-4-2-2-4H10L8 9 4 11z"/><path d="M12 5v15"/></svg><span>Pro 会员</span></a></div>
+    </nav>
+    <div class="sidebar-foot"><div class="plan-card"><div class="t">免费试用 Pro</div><div class="s">解锁无限口语评测</div><a class="btn-up">升级 Pro →</a></div></div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="search-wrap"><div class="search">
+        <svg class="ico-l" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input placeholder="搜索视频、字幕、单词…"><span class="kbd">⌘K</span>
+      </div></div>
+      <div class="topbar-actions">
+        <button class="btn-icon"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
+        <button class="btn-icon" style="position:relative"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></button>
+        <a class="avatar">林</a>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ===== BENTO 首屏 ===== -->
+      <div class="bento reveal d1">
+        <!-- hero -->
+        <div class="b-cell b-hero">
+          <div class="top">
+            <span class="tag"><span class="led"></span>每日练习 · 06.29</span>
+            <span class="flame">🔥</span>
+          </div>
+          <div>
+            <h1>你好林夕，<br>把英语<em>说出口</em>。</h1>
+            <p class="sub">还差 2 次口语练习即可达成今日目标。从一条真实演讲开始。</p>
+            <div class="cta">
+              <a class="btn-go"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg>开始口语练习</a>
+              <a class="btn-ghost-d">浏览视频库</a>
+            </div>
+          </div>
+        </div>
+        <!-- streak -->
+        <div class="b-stack">
+          <div class="b-cell b-streak">
+            <div>
+              <div class="lbl">Current Streak</div>
+              <div class="big">14<small>天</small></div>
+            </div>
+            <div class="foot">最长连胜 21 天 · 继续保持</div>
+          </div>
+          <div class="b-cell b-goal">
+            <div>
+              <div class="lbl">Daily Goal</div>
+              <div class="num">3<small>/5</small></div>
+            </div>
+            <div>
+              <div class="track"><div class="fill"></div></div>
+              <div class="foot">还差 2 次达成今日目标</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 今日练习入口 -->
+      <div class="bento reveal d2">
+        <div class="b-practice">
+          <div>
+            <div class="lbl">Quick Practice</div>
+            <div class="title">选择练习模式，60 秒开口说</div>
+          </div>
+          <div class="modes">
+            <a class="mode-chip"><span class="dot r"></span>朗读 <small>Read aloud</small></a>
+            <a class="mode-chip"><span class="dot m"></span>跟读 <small>Shadowing</small></a>
+            <a class="mode-chip"><span class="dot f"></span>自由说 <small>Free speaking</small></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 继续观看 — 主推大卡 + 不对称网格 -->
+      <section class="reveal d3">
+        <div class="sec-head">
+          <h2 class="sec-title">继续观看</h2>
+          <span class="count">4 个进行中</span>
+        </div>
+        <div class="feat-grid">
+          <a class="vcard vcard-feat">
+            <div class="thumb"><img src="https://picsum.photos/seed/bn-ted1/640/400" alt=""><span class="thumb-lv">B2</span><span class="thumb-dur">9:58</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div>
+            <div class="vmeta"><p class="vtitle">How to speak so that people want to listen — Julian Treasure</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">TED</span><span class="vdot"></span><span class="mono" style="font-size:11px;color:var(--brand-500);font-weight:600">62% 已观看</span></div></div>
+          </a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-ted2/480/270" alt=""><span class="thumb-lv">B1</span><span class="thumb-dur">20:19</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">The power of vulnerability</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">TED</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-vlog/480/270" alt=""><span class="thumb-lv">A2</span><span class="thumb-dur">12:34</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">A day in NYC as a food vlogger</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">Vlog</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-news/480/270" alt=""><span class="thumb-lv">B1</span><span class="thumb-dur">8:22</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">BBC: Inside the climate summit</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">新闻</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-movie/480/270" alt=""><span class="thumb-lv">B2</span><span class="thumb-dur">6:15</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">The Queen's Gambit opening</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">电影</span></div></div></a>
+        </div>
+      </section>
+
+      <!-- 分类视觉化大卡 -->
+      <section class="reveal d4">
+        <div class="sec-head">
+          <h2 class="sec-title">按分类浏览</h2>
+          <a class="sec-link">查看全部<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <div class="cat-feat">
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-ted/400/300" alt=""><div class="ov"></div><span class="lv">MOST POPULAR</span><div class="meta"><div class="emoji">🎤</div><div class="label">TED Talks</div><div class="count">24 个视频 · B1–C1</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-int/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">🎙️</div><div class="label">访谈</div><div class="count">18 个视频 · B2–C2</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-news/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">📰</div><div class="label">新闻</div><div class="count">31 个视频 · B1–C1</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-vlog/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">📹</div><div class="label">Vlog</div><div class="count">12 个视频 · A2–B1</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-edu/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">📚</div><div class="label">教育</div><div class="count">9 个视频 · A1–B1</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-film/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">🎬</div><div class="label">电影片段</div><div class="count">15 个视频 · B2–C2</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-tech/400/300" alt=""><div class="ov"></div><div class="meta"><div class="emoji">💻</div><div class="label">科技</div><div class="count">7 个视频 · B2–C1</div></div></a>
+          <a class="cat-big"><img src="https://picsum.photos/seed/cated-biz/400/300" alt=""><div class="ov"></div><span class="lv">COMING SOON</span><div class="meta"><div class="emoji">🛒</div><div class="label">商业</div><div class="count">即将上线</div></div></a>
+        </div>
+      </section>
+
+      <!-- 难度精选 -->
+      <section class="reveal d5">
+        <div class="sec-head">
+          <h2 class="sec-title">按难度精选</h2>
+          <a class="sec-link">更多<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <div class="tab-container">
+          <button class="tab-pill active">全部</button>
+          <button class="tab-pill">初级 A1-A2</button>
+          <button class="tab-pill">中级 B1-B2</button>
+          <button class="tab-pill">高级 C1-C2</button>
+        </div>
+        <div class="grid-cards">
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-v1/480/270" alt=""><span class="thumb-lv">B2</span><span class="thumb-dur">14:03</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">Inside the mind of a master procrastinator</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">TED</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-v2/480/270" alt=""><span class="thumb-lv">C1</span><span class="thumb-dur">14:48</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">Why we have too few women leaders</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">访谈</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-v3/480/270" alt=""><span class="thumb-lv">B2</span><span class="thumb-dur">6:15</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">How AI will change everything about work</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">科技</span></div></div></a>
+          <a class="vcard"><div class="thumb"><img src="https://picsum.photos/seed/bn-v4/480/270" alt=""><span class="thumb-lv">A2</span><span class="thumb-dur">10:12</span><div class="thumb-play"><div class="thumb-play-btn"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z"/></svg></div></div></div><div class="vmeta"><p class="vtitle">Easy English: Ordering coffee at a café</p><div class="vfoot"><span>Speaking</span><span class="vdot"></span><span class="chip">教育</span></div></div></a>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<nav class="mobile-tabbar">
+  <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/></svg>首页</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/></svg>浏览</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg>口语</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>词汇</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>社区</a>
+</nav>
+</body>
+</html>

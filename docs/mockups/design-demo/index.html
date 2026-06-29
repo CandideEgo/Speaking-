@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Speaking — On Air</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================ SIDEBAR ============================ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark"><span class="dot"></span></div>
+      <div>
+        <div class="brand-name">Speak<em>ing</em></div>
+        <div class="brand-sub">studio · v3</div>
+      </div>
+    </div>
+
+    <div class="nav-section">Studio</div>
+    <nav class="nav" id="nav">
+      <a class="nav-item active" data-view="onair">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M5 12a7 7 0 0 1 14 0M2 12a10 10 0 0 1 20 0"/></svg>
+        On Air <span class="kbd">1</span>
+      </a>
+      <a class="nav-item" data-view="library">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3V9Z"/></svg>
+        Library <span class="kbd">2</span>
+      </a>
+      <a class="nav-item" data-view="studio">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        Studio <span class="kbd">3</span>
+      </a>
+      <a class="nav-item" data-view="logbook">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5Z"/><path d="M8 8h8M8 12h5"/></svg>
+        Logbook <span class="kbd">4</span>
+      </a>
+      <a class="nav-item" data-view="lexicon">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5v15a1 1 0 0 0 1 1h14M4 5h7M4 5a1 1 0 0 1 1-1h6v16M11 4h7a1 1 0 0 1 1 1v15"/></svg>
+        Lexicon <span class="kbd">5</span>
+      </a>
+    </nav>
+
+    <div class="nav-section">Playback</div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20M2 12h20"/></svg>
+        Submit a link
+      </a>
+      <a class="nav-item">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Due today <span class="kbd" style="color:var(--signal-2)">12</span>
+      </a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="avatar">林</div>
+      <div class="meta"><b>林夕</b><span>PRO · day 14</span></div>
+      <svg class="gear" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+    </div>
+  </aside>
+
+  <!-- ============================ MAIN ============================ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb"><span id="crumb-view">On Air</span> <span style="color:var(--cream-5)">/</span> <b>今晚的频道</b></div>
+      <div class="onair-badge"><span class="led"></span><span>ON AIR · 03:42</span></div>
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="搜视频、单词、频道…" />
+      </div>
+      <button class="topbtn" title="通知">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="badge-dot"></span>
+      </button>
+      <button class="topbtn" title="提交链接">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </header>
+
+    <div class="content">
+
+      <!-- ============== VIEW: ON AIR (home) ============== -->
+      <section class="view active" id="view-onair">
+        <!-- HERO -->
+        <div class="reveal d1" style="display:grid;grid-template-columns:1.15fr .85fr;gap:34px;align-items:center;margin-bottom:42px">
+          <div>
+            <span class="eyebrow"><span class="pip"></span>Tonight · 23 channels broadcasting</span>
+            <h1 class="serif" style="font-size:clamp(40px,5.4vw,72px);font-weight:400;line-height:1.02;letter-spacing:-.025em;margin:18px 0 18px">
+              Don't just <span style="color:var(--cream-3)">watch</span> English.<br>
+              <em style="font-style:italic;color:var(--signal-2);font-weight:500">Speak it back.</em>
+            </h1>
+            <p style="color:var(--cream-3);font-size:16.5px;line-height:1.6;max-width:48ch;margin-bottom:26px">
+              粘贴任意英文视频，AI 自动切成逐句字幕。一句一录、一句一评——
+              <span style="color:var(--mint)">准确度</span>、<span style="color:var(--signal-2)">流利度</span>、<span style="color:var(--gold)">完整度</span>，三轨打分，用真实人声练你的舌头。
+            </p>
+            <div style="display:flex;gap:11px;flex-wrap:wrap">
+              <a class="btn btn-primary" data-go="studio">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                走进录音棚
+              </a>
+              <a class="btn btn-ghost" data-go="library">翻翻片库</a>
+              <a class="btn btn-line" style="margin-left:4px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                粘贴一个链接
+              </a>
+            </div>
+          </div>
+
+          <!-- studio booth mock -->
+          <div class="panel reveal d2" style="padding:20px;position:relative;overflow:hidden">
+            <div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 90% 0%,rgba(255,107,53,.12),transparent 55%),radial-gradient(80% 60% at 0% 100%,rgba(94,234,212,.08),transparent 60%);pointer-events:none"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;position:relative">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div class="onair-badge" style="padding:4px 10px 4px 8px"><span class="led"></span><span>REC TAKE 03</span></div>
+                <span class="mono" style="font-size:11px;color:var(--cream-4)">how-to-speak-so-people-listen.mp4</span>
+              </div>
+              <span class="mono tnum" style="font-size:12px;color:var(--cream-3)">00:03:42<span style="color:var(--cream-5)"> / 12:08</span></span>
+            </div>
+
+            <!-- subtitle line -->
+            <div class="serif" style="position:relative;font-size:21px;line-height:1.45;font-weight:400;letter-spacing:-.01em;margin-bottom:6px;min-height:96px">
+              <span style="color:var(--cream-3)">and the way you say it</span>
+              <span style="color:var(--cream)"> is just as </span>
+              <span style="background:linear-gradient(180deg,transparent 62%,rgba(255,107,53,.28) 62%);color:var(--signal-2);font-weight:500">important</span>
+              <span style="color:var(--cream)"> as </span>
+              <span style="border-bottom:2px dotted var(--mint);color:var(--mint)">what</span>
+              <span style="color:var(--cream)"> you say.</span>
+            </div>
+            <div class="mono" style="font-size:12px;color:var(--cream-4);margin-bottom:18px;position:relative">你说话的方式，和你说的内容一样重要。</div>
+
+            <!-- live waveform -->
+            <div style="height:54px;display:flex;align-items:center;gap:18px;position:relative;margin-bottom:16px">
+              <div class="wave live-wave" style="height:46px;gap:3px">
+                <i style="height:30%"></i><i style="height:55%;animation-delay:.1s"></i><i style="height:80%;animation-delay:.2s"></i><i style="height:100%;animation-delay:.3s"></i><i style="height:72%;animation-delay:.15s"></i><i style="height:90%;animation-delay:.35s;background:var(--rec)"></i><i style="height:60%;animation-delay:.25s"></i><i style="height:85%;animation-delay:.1s"></i><i style="height:45%;animation-delay:.4s"></i><i style="height:70%;animation-delay:.2s"></i><i style="height:95%;animation-delay:.3s"></i><i style="height:50%;animation-delay:.05s"></i><i style="height:78%;animation-delay:.18s"></i><i style="height:35%;animation-delay:.33s"></i><i style="height:65%;animation-delay:.22s"></i><i style="height:88%;animation-delay:.12s"></i><i style="height:42%;animation-delay:.28s"></i><i style="height:72%;animation-delay:.16s"></i><i style="height:58%;animation-delay:.38s"></i><i style="height:80%;animation-delay:.24s"></i><i style="height:38%;animation-delay:.09s"></i><i style="height:66%;animation-delay:.31s"></i>
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div class="mono" style="font-size:10px;color:var(--cream-4);letter-spacing:.12em">INPUT LEVEL</div>
+                <div class="level" style="justify-content:flex-end;margin-top:5px">
+                  <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on hot"></i><i class="on hot"></i><i class="on hot"></i><i class="peak"></i><i></i><i></i><i></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- score row -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;position:relative">
+              <div style="background:var(--ink-880);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center">
+                <div class="mono" style="font-size:10px;color:var(--cream-4);letter-spacing:.14em">ACCURACY</div>
+                <div class="serif" style="font-size:30px;color:var(--mint);line-height:1;margin-top:4px">92</div>
+              </div>
+              <div style="background:var(--ink-880);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center">
+                <div class="mono" style="font-size:10px;color:var(--cream-4);letter-spacing:.14em">FLUENCY</div>
+                <div class="serif" style="font-size:30px;color:var(--signal-2);line-height:1;margin-top:4px">78</div>
+              </div>
+              <div style="background:var(--ink-880);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center">
+                <div class="mono" style="font-size:10px;color:var(--cream-4);letter-spacing:.14em">COMPLETE</div>
+                <div class="serif" style="font-size:30px;color:var(--gold);line-height:1;margin-top:4px">88</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ STATS STRIP ============ -->
+        <div class="reveal d3" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:46px">
+          <div class="stat">
+            <div class="label">streak</div>
+            <div class="num">14<span class="unit">days</span></div>
+            <div class="delta up">↗ longest yet</div>
+          </div>
+          <div class="stat">
+            <div class="label">sentences spoken</div>
+            <div class="num">1,284</div>
+            <div class="delta up">↗ +86 this week</div>
+          </div>
+          <div class="stat">
+            <div class="label">avg score</div>
+            <div class="num">84<span class="unit">/100</span></div>
+            <div class="delta up">↗ +6 vs last wk</div>
+          </div>
+          <div class="stat">
+            <div class="label">due for review</div>
+            <div class="num" style="color:var(--signal-2)">12<span class="unit">words</span></div>
+            <div class="delta" style="color:var(--gold)">SM-2 调度中</div>
+          </div>
+        </div>
+
+        <!-- ============ 3-STEP FLOW ============ -->
+        <div class="reveal d4" style="margin-bottom:46px">
+          <div class="sec-head">
+            <div>
+              <span class="eyebrow mint"><span class="pip"></span>how it works</span>
+              <h2 style="margin-top:8px">三步走完一次 <em>take</em>。</h2>
+            </div>
+            <p class="lead">像录音棚录人声一样：选带、对轨、回放打分。每一句都是一个可重录的 take。</p>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+            <div class="panel" style="padding:24px;position:relative">
+              <div class="mono" style="font-size:11px;color:var(--signal-2);letter-spacing:.2em">TAKE · 01</div>
+              <div class="serif" style="font-size:24px;margin:10px 0 12px;font-weight:400;letter-spacing:-.01em">挑一段真实人声</div>
+              <p style="color:var(--cream-3);font-size:13.5px;line-height:1.6;margin-bottom:16px">YouTube / Bilibili 任你贴。演讲、访谈、播客、电影对白——AI 切成逐句字幕，标好难度等级。</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span class="tag">TED</span><span class="tag">podcast</span><span class="tag">interview</span><span class="tag">film</span><span class="tag">vlog</span>
+              </div>
+            </div>
+            <div class="panel" style="padding:24px;position:relative">
+              <div class="mono" style="font-size:11px;color:var(--signal-2);letter-spacing:.2em">TAKE · 02</div>
+              <div class="serif" style="font-size:24px;margin:10px 0 12px;font-weight:400;letter-spacing:-.01em">对一句，录一句</div>
+              <p style="color:var(--cream-3);font-size:13.5px;line-height:1.6;margin-bottom:16px">逐词可点的字幕，点词即查音标释义。按住话筒跟读，松手即交——faster-whisper 本地转写，毫秒级回放。</p>
+              <div style="height:34px;display:flex;align-items:center;gap:2px" class="wave live-wave">
+                <i style="height:40%"></i><i style="height:70%;animation-delay:.1s"></i><i style="height:50%;animation-delay:.2s"></i><i style="height:90%;animation-delay:.3s"></i><i style="height:60%;animation-delay:.15s"></i><i style="height:80%;animation-delay:.35s"></i><i style="height:45%;animation-delay:.25s"></i><i style="height:75%;animation-delay:.1s"></i><i style="height:55%;animation-delay:.4s"></i><i style="height:85%;animation-delay:.2s"></i><i style="height:40%;animation-delay:.3s"></i><i style="height:65%;animation-delay:.05s"></i><i style="height:78%;animation-delay:.18s"></i><i style="height:50%;animation-delay:.33s"></i><i style="height:88%;animation-delay:.22s"></i><i style="height:42%;animation-delay:.12s"></i>
+              </div>
+            </div>
+            <div class="panel" style="padding:24px;position:relative;background:linear-gradient(180deg,var(--ink-800),var(--ink-880))">
+              <div class="mono" style="font-size:11px;color:var(--signal-2);letter-spacing:.2em">TAKE · 03</div>
+              <div class="serif" style="font-size:24px;margin:10px 0 12px;font-weight:400;letter-spacing:-.01em">三轨打分，中文复盘</div>
+              <p style="color:var(--cream-3);font-size:13.5px;line-height:1.6;margin-bottom:16px">准确度 / 流利度 / 完整度，0–100。AI 给中文反馈：哪个音偏了、哪里该连读、哪里吞了尾音。</p>
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="ring" style="--p:92;--c:var(--mint);width:58px;height:58px"><div class="v" style="font-size:18px">92<small>ACC</small></div></div>
+                <div class="ring" style="--p:78;--c:var(--signal);width:58px;height:58px"><div class="v" style="font-size:18px">78<small>FLU</small></div></div>
+                <div class="ring" style="--p:88;--c:var(--gold);width:58px;height:58px"><div class="v" style="font-size:18px">88<small>CP</small></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ FEATURED TONIGHT ============ -->
+        <div class="reveal d5" style="margin-bottom:34px">
+          <div class="sec-head">
+            <div>
+              <span class="eyebrow"><span class="pip"></span>tonight's selection</span>
+              <h2 style="margin-top:8px">今晚的 <em>片单</em>。</h2>
+            </div>
+            <a class="btn btn-ghost" data-go="library" style="padding:8px 14px;font-size:13px">查看全部 →</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px" id="featured-grid"></div>
+        </div>
+
+        <!-- ============ JUST AI NOTE preview ============ -->
+        <div class="reveal d6" style="display:grid;grid-template-columns:.9fr 1.1fr;gap:18px;align-items:stretch">
+          <div class="panel" style="padding:26px;display:flex;flex-direction:column;justify-content:space-between">
+            <div>
+              <span class="eyebrow mint"><span class="pip"></span>AI word note</span>
+              <div class="serif" style="font-size:42px;margin:14px 0 4px;letter-spacing:-.02em">/ˌɪmpɔːrˈtant/</div>
+              <div class="mono" style="font-size:12px;color:var(--cream-4);margin-bottom:18px">important · adj. · CEFR B1</div>
+              <p style="color:var(--cream-2);font-size:14px;line-height:1.65;margin-bottom:14px">本句中作表语，重音在第三音节 <span class="mono" style="color:var(--signal-2)">-tant</span>。母语者常弱化前缀，把 <span class="mono">im-</span> 读成 /ɪm/，连读时 <span class="mono">t</span> 几乎不送气。</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <span class="tag mint">考点词</span><span class="tag">连读提示</span><span class="tag gold">高考核心</span>
+            </div>
+          </div>
+          <div class="panel" style="padding:24px;display:flex;flex-direction:column;gap:12px">
+            <span class="eyebrow"><span class="pip"></span>recent takes · live feed</span>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-top:4px" id="recent-feed"></div>
+          </div>
+        </div>
+
+      </section>
+
+
+      <!-- ============== VIEW: LIBRARY ============== -->
+      <section class="view" id="view-library">
+        <div class="reveal d1" style="margin-bottom:26px">
+          <span class="eyebrow"><span class="pip"></span>the library</span>
+          <h1 class="serif" style="font-size:46px;font-weight:400;letter-spacing:-.02em;margin:12px 0 6px">挑一盘 <em style="font-style:italic;color:var(--signal-2)">磁带</em>。</h1>
+          <p style="color:var(--cream-3);font-size:15px;max-width:54ch">12,400 段真实英文视频，按主题、难度、时长归类。每段都已切好逐句字幕。</p>
+        </div>
+
+        <div class="reveal d2" style="display:flex;gap:14px;align-items:center;margin-bottom:24px;flex-wrap:wrap">
+          <div class="tabs" id="lib-tabs">
+            <div class="tab active">全部</div>
+            <div class="tab">演讲</div>
+            <div class="tab">访谈</div>
+            <div class="tab">播客</div>
+            <div class="tab">影视</div>
+            <div class="tab">新闻</div>
+            <div class="tab">vlog</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+            <div class="tabs"><div class="tab active">难度</div><div class="tab">A2</div><div class="tab">B1</div><div class="tab">B2</div><div class="tab">C1</div></div>
+            <div class="tabs"><div class="tab active">最新</div><div class="tab">热门</div><div class="tab">最短</div></div>
+          </div>
+        </div>
+
+        <div class="reveal d3" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px" id="lib-grid"></div>
+
+        <div class="reveal d5" style="margin-top:34px;display:flex;justify-content:center">
+          <button class="btn btn-ghost">载入更多 · 还有 12,384 段</button>
+        </div>
+      </section>
+
+
+      <!-- ============== VIEW: STUDIO (watch page — core) ============== -->
+      <section class="view" id="view-studio">
+        <div class="reveal d1" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:20px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <button class="topbtn" data-go="library" style="width:38px;height:38px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg></button>
+            <div>
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+                <span class="tag signal">B2</span><span class="tag">TED · 演讲</span><span class="mono" style="font-size:11px;color:var(--cream-4)">#v_8842</span>
+              </div>
+              <h1 class="serif" style="font-size:25px;font-weight:500;letter-spacing:-.01em">How to speak so that people want to listen</h1>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" style="padding:9px 14px;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> 收藏</button>
+            <button class="btn btn-line" style="padding:9px 14px;font-size:13px">快捷键 ⌘/</button>
+          </div>
+        </div>
+
+        <!-- main studio grid -->
+        <div class="reveal d2" style="display:grid;grid-template-columns:1.55fr 1fr;gap:18px">
+          <!-- LEFT: player + subtitle + recorder -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <!-- player -->
+            <div class="panel" style="padding:0;overflow:hidden;position:relative">
+              <div style="aspect-ratio:16/9;position:relative;background:#000;overflow:hidden">
+                <img src="https://picsum.photos/seed/studio-talk/960/540" style="width:100%;height:100%;object-fit:cover;opacity:.78"/>
+                <div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 100%,rgba(0,0,0,.7),transparent 60%),linear-gradient(180deg,transparent 55%,rgba(0,0,0,.6))"></div>
+                <!-- center play -->
+                <div style="position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:66px;height:66px;border-radius:50%;background:rgba(244,239,230,.92);display:grid;place-items:center;cursor:pointer">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="#0d0c0a"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <!-- top chips -->
+                <div style="position:absolute;top:12px;left:12px;display:flex;gap:7px">
+                  <div class="onair-badge" style="padding:4px 10px 4px 8px"><span class="led"></span><span>LIVE</span></div>
+                  <span class="mono" style="font-size:11px;background:rgba(8,7,5,.6);padding:4px 8px;border-radius:6px;backdrop-filter:blur(4px)">4K · EN</span>
+                </div>
+                <!-- bottom timecode -->
+                <div style="position:absolute;left:14px;right:14px;bottom:14px;display:flex;align-items:center;gap:12px">
+                  <span class="mono tnum" style="font-size:12px;color:var(--cream)">03:42<span style="color:var(--cream-4)"> / 12:08</span></span>
+                  <div style="flex:1;height:4px;background:rgba(255,255,255,.18);border-radius:99px;position:relative;cursor:pointer">
+                    <div style="position:absolute;left:0;top:0;height:100%;width:31%;background:var(--signal);border-radius:99px"></div>
+                    <div style="position:absolute;left:31%;top:50%;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%;background:var(--signal);box-shadow:0 0 0 4px rgba(255,107,53,.25)"></div>
+                  </div>
+                  <span class="mono" style="font-size:11px;color:var(--cream-3)">1.0×</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- current subtitle line (interactive words) -->
+            <div class="panel" style="padding:22px 24px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <span class="eyebrow"><span class="pip"></span>line 084 · now playing</span>
+                <div style="display:flex;gap:6px" id="sub-modes">
+                  <span class="tab active" data-mode="bi">双语</span>
+                  <span class="tab" data-mode="en">EN</span>
+                  <span class="tab" data-mode="zh">中</span>
+                </div>
+              </div>
+              <div class="serif" id="sub-line" style="font-size:23px;line-height:1.5;font-weight:400;letter-spacing:-.005em;margin-bottom:8px">
+                <span class="w">and</span> <span class="w">the</span> <span class="w" style="color:var(--cream-3)">way</span> <span class="w">you</span> <span class="w" style="color:var(--cream-3)">say</span> <span class="w">it</span> <span class="w" style="color:var(--cream-3)">is</span> <span class="w" style="color:var(--cream-3)">just</span> <span class="w" style="color:var(--cream-3)">as</span> <span class="w hl">important</span> <span class="w" style="color:var(--cream-3)">as</span> <span class="w">what</span> <span class="w" style="color:var(--cream-3)">you</span> <span class="w" style="color:var(--cream-3)">say.</span>
+              </div>
+              <div class="mono" id="sub-zh" style="font-size:13px;color:var(--cream-4)">你说话的方式，和你说的内容一样重要。</div>
+            </div>
+
+            <!-- recorder bar -->
+            <div class="panel" style="padding:18px 20px;background:linear-gradient(180deg,var(--ink-800),var(--ink-880))">
+              <div style="display:flex;align-items:center;gap:18px">
+                <button id="rec-btn" style="width:56px;height:56px;border-radius:50%;border:0;background:var(--rec);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 0 0 5px rgba(239,68,68,.16),0 8px 26px -8px var(--rec-glow);flex:none;transition:.2s">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                </button>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px">
+                    <div style="display:flex;align-items:center;gap:9px">
+                      <span class="mono" style="font-size:11px;color:var(--cream-4);letter-spacing:.14em">READY TO RECORD</span>
+                      <span class="tag mint">就绪</span>
+                    </div>
+                    <span class="mono tnum" id="rec-time" style="font-size:13px;color:var(--cream-3)">00:00.0</span>
+                  </div>
+                  <!-- idle waveform placeholder -->
+                  <div style="height:30px;display:flex;align-items:center;gap:2px" id="rec-wave">
+                    <i style="display:block;width:3px;height:18%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:30%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:22%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:40%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:55%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:35%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:60%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:48%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:72%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:38%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:65%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:50%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:80%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:42%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:58%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:70%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:35%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:62%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:45%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:78%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:30%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:68%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:52%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:40%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:75%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:33%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:60%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:48%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:70%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:38%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:82%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:45%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:65%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:50%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:72%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:36%;background:var(--ink-650);border-radius:2px"></i><i style="display:block;width:3px;height:58%;background:var(--ink-650);border-radius:2px"></i>
+                  </div>
+                </div>
+                <button class="btn btn-ghost" style="padding:10px 14px;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19 12a7 7 0 0 0-3-5.7"/></svg>原声</button>
+                <button class="btn btn-ghost" style="padding:10px 14px;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>慢放</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: score + subtitle list -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <!-- score panel -->
+            <div class="panel" style="padding:22px;background:linear-gradient(180deg,var(--ink-800),var(--ink-880))">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <span class="eyebrow"><span class="pip"></span>last take · scored</span>
+                <span class="mono" style="font-size:11px;color:var(--cream-4)">2 min ago</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px">
+                <div class="ring" style="--p:86;--c:var(--mint);width:96px;height:96px"><div class="v" style="font-size:30px">86<small>综合</small></div></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span class="mono" style="color:var(--cream-4)">ACCURACY</span><span class="mono" style="color:var(--mint)">92</span></div>
+                    <div class="pbar"><i style="width:92%;background:var(--mint)"></i></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span class="mono" style="color:var(--cream-4)">FLUENCY</span><span class="mono" style="color:var(--signal-2)">78</span></div>
+                    <div class="pbar"><i style="width:78%;background:var(--signal)"></i></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span class="mono" style="color:var(--cream-4)">COMPLETE</span><span class="mono" style="color:var(--gold)">88</span></div>
+                    <div class="pbar"><i style="width:88%;background:var(--gold)"></i></div>
+                  </div>
+                </div>
+              </div>
+              <div style="background:var(--ink-900);border:1px solid var(--line);border-radius:10px;padding:13px 14px">
+                <div class="mono" style="font-size:10px;color:var(--signal-2);letter-spacing:.16em;margin-bottom:6px">AI 反馈 · 中文</div>
+                <p style="font-size:13px;color:var(--cream-2);line-height:1.6">"<span style="color:var(--mint)">important</span>" 重音位置准确。但 <span style="color:var(--signal-2)">just as</span> 之间卡顿过长，破坏了连读节奏；句尾 <span style="color:var(--gold)">say</span> 的 /eɪ/ 双元音不够饱满。建议跟原声再录一遍。</p>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn btn-primary" style="flex:1;justify-content:center;padding:9px"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5v14M5 12h14" stroke="#1a0c04" stroke-width="2.4"/></svg>再录一轨</button>
+                <button class="btn btn-ghost" style="padding:9px 12px">存入日志</button>
+              </div>
+            </div>
+
+            <!-- subtitle list -->
+            <div class="panel" style="padding:0;overflow:hidden;flex:1;display:flex;flex-direction:column">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between">
+                <span class="eyebrow"><span class="pip"></span>transcript · 142 lines</span>
+                <div style="display:flex;gap:5px">
+                  <span class="tab active">字幕</span><span class="tab">测验</span>
+                </div>
+              </div>
+              <div id="sub-list" style="overflow-y:auto;max-height:420px;padding:6px"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ============== VIEW: LOGBOOK ============== -->
+      <section class="view" id="view-logbook">
+        <div class="reveal d1" style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:26px;gap:20px">
+          <div>
+            <span class="eyebrow"><span class="pip"></span>the logbook</span>
+            <h1 class="serif" style="font-size:46px;font-weight:400;letter-spacing:-.02em;margin:12px 0 6px">这周你的舌头 <em style="font-style:italic;color:var(--signal-2)">去了哪里</em>。</h1>
+            <p style="color:var(--cream-3);font-size:15px">每一次 take 都被记进日志。连读、热力、趋势——开口的痕迹全在这里。</p>
+          </div>
+          <div class="tabs"><div class="tab">周</div><div class="tab active">月</div><div class="tab">全部</div></div>
+        </div>
+
+        <div class="reveal d2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+          <div class="stat"><div class="label">takes this month</div><div class="num">312</div><div class="delta up">↗ +24%</div></div>
+          <div class="stat"><div class="label">hours spoken</div><div class="num">14.6<span class="unit">h</span></div><div class="delta up">↗ +3.1h</div></div>
+          <div class="stat"><div class="label">avg fluency</div><div class="num" style="color:var(--signal-2)">79</div><div class="delta up">↗ +5</div></div>
+          <div class="stat"><div class="label">words learned</div><div class="num" style="color:var(--mint)">186</div><div class="delta up">↗ +42</div></div>
+        </div>
+
+        <!-- heatmap + trend -->
+        <div class="reveal d3" style="display:grid;grid-template-columns:1.7fr 1fr;gap:16px;margin-bottom:20px">
+          <div class="panel" style="padding:22px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <div><span class="eyebrow mint"><span class="pip"></span>activity · 12 weeks</span>
+              <div class="serif" style="font-size:20px;margin-top:6px;font-weight:400">连续开口 14 天</div></div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-4)" class="mono">
+                少 <span style="width:11px;height:11px;background:var(--ink-750);border-radius:3px;display:inline-block"></span><span style="width:11px;height:11px;background:rgba(255,107,53,.3);border-radius:3px;display:inline-block"></span><span style="width:11px;height:11px;background:rgba(255,107,53,.6);border-radius:3px;display:inline-block"></span><span style="width:11px;height:11px;background:var(--signal);border-radius:3px;display:inline-block"></span> 多
+              </div>
+            </div>
+            <div id="heatmap" style="display:flex;gap:3px"></div>
+            <div class="mono" style="font-size:10px;color:var(--cream-5);margin-top:8px;display:flex;justify-content:space-between"><span>3月</span><span>4月</span><span>5月</span><span>6月</span></div>
+          </div>
+          <div class="panel" style="padding:22px">
+            <span class="eyebrow"><span class="pip"></span>score trend · 30d</span>
+            <div class="serif" style="font-size:20px;margin:6px 0 14px;font-weight:400">综合分 <em style="font-style:italic;color:var(--mint)">84</em> ↗</div>
+            <svg id="trend" viewBox="0 0 320 150" style="width:100%;height:150px"></svg>
+            <div style="display:flex;justify-content:space-between;margin-top:8px" class="mono"><span style="font-size:10px;color:var(--cream-5)">06-01</span><span style="font-size:10px;color:var(--cream-5)">06-15</span><span style="font-size:10px;color:var(--cream-5)">06-29</span></div>
+          </div>
+        </div>
+
+        <!-- timeline -->
+        <div class="reveal d4 panel" style="padding:22px">
+          <div class="sec-head" style="margin-bottom:14px">
+            <div><span class="eyebrow"><span class="pip"></span>recent activity</span><h2 style="font-size:22px;margin-top:6px">最近的 <em>takes</em></h2></div>
+          </div>
+          <div id="timeline" style="display:flex;flex-direction:column;gap:2px"></div>
+        </div>
+      </section>
+
+
+      <!-- ============== VIEW: LEXICON ============== -->
+      <section class="view" id="view-lexicon">
+        <div class="reveal d1" style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:20px">
+          <div>
+            <span class="eyebrow mint"><span class="pip"></span>the lexicon</span>
+            <h1 class="serif" style="font-size:46px;font-weight:400;letter-spacing:-.02em;margin:12px 0 6px">你的 <em style="font-style:italic;color:var(--signal-2)">词库</em>，SM-2 帮你调度。</h1>
+            <p style="color:var(--cream-3);font-size:15px">186 个词，按记忆曲线排好复习时间。今天有 12 个到期。</p>
+          </div>
+          <button class="btn btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>开始今日复习</button>
+        </div>
+
+        <div class="reveal d2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px">
+          <div class="stat"><div class="label">total words</div><div class="num">186</div><div class="delta" style="color:var(--cream-4)">+42 本月</div></div>
+          <div class="stat"><div class="label">due today</div><div class="num" style="color:var(--signal-2)">12</div><div class="delta" style="color:var(--gold)">建议现在复习</div></div>
+          <div class="stat"><div class="label">mastered</div><div class="num" style="color:var(--mint)">94</div><div class="delta up">↗ +8</div></div>
+          <div class="stat"><div class="label">retention</div><div class="num">91<span class="unit">%</span></div><div class="delta up">↗ +3%</div></div>
+        </div>
+
+        <div class="reveal d3" style="display:flex;gap:10px;margin-bottom:18px">
+          <div class="tabs" id="lex-tabs"><div class="tab active">到期 12</div><div class="tab">全部 186</div><div class="tab">已掌握 94</div><div class="tab">学习中 80</div></div>
+          <div class="search" style="max-width:280px;margin-left:auto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="查单词…"></div>
+        </div>
+
+        <div class="reveal d4" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px" id="lex-grid"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><span class="led"></span><span id="toast-msg">已切换</span></div>
+
+<script src="app.js"></script>
+</body>
+</html>

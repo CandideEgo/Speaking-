@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 · 粗野风 — Speaking 首页设计提案</title>
+<style>
+/* =====================================================================
+   06 BRUTALIST — 硬边框 / 超大 mono / 强对比 / 网格打破 / 原始粗粝
+   独立美学。粗黑分割线、无圆角、大写 mono 标签、错位版式、橙色色块。
+   ===================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Archivo:wght@400;500;600;700;800;900&display=swap');
+
+:root{
+  --bg:#f2efe9; --bg-2:#e8e4db; --ink:#0a0a0a; --ink-2:#1a1a1a;
+  --signal:#ff3d00; --signal-2:#ff6b35; --accent:#1a1a1a;
+  --paper:#fafaf7;
+  --mono:'Space Mono',ui-monospace,monospace; --sans:'Archivo',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+::selection{background:var(--signal);color:#fff}
+a{text-decoration:none;color:inherit}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer;border:0;background:none}
+::-webkit-scrollbar{width:12px}::-webkit-scrollbar-track{background:var(--bg-2)}
+::-webkit-scrollbar-thumb{background:var(--ink);border:3px solid var(--bg-2)}
+
+.mono{font-family:var(--mono)}
+.kbd-tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 7px;border:1.5px solid var(--ink);display:inline-block}
+
+.app{display:grid;grid-template-columns:244px 1fr;min-height:100vh;border-left:3px solid var(--ink);border-right:3px solid var(--ink)}
+
+/* ===== SIDEBAR ===== */
+.side{position:sticky;top:0;height:100vh;background:var(--ink);color:var(--bg);
+  border-right:3px solid var(--ink);display:flex;flex-direction:column;z-index:30}
+.side-brand{padding:24px 20px;border-bottom:3px solid var(--bg);display:flex;align-items:center;gap:12px}
+.side-brand .mk{width:42px;height:42px;background:var(--signal);color:#fff;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:700;font-size:22px;border:2px solid var(--bg)}
+.side-brand .nm{font-family:var(--mono);font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.side-brand .nm em{font-style:normal;color:var(--signal)}
+.side-brand .sb{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--bg-2);text-transform:uppercase;margin-top:3px}
+.side-nav{flex:1;padding:8px 0;overflow-y:auto}
+.sn-sec{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:#6b6b6b;text-transform:uppercase;padding:18px 20px 8px}
+.sn-item{display:flex;align-items:center;gap:12px;padding:13px 20px;font-family:var(--mono);font-size:13px;font-weight:700;
+  color:var(--bg-2);border-left:4px solid transparent;transition:.12s;position:relative;text-transform:uppercase;letter-spacing:.04em}
+.sn-item:hover{background:#1a1a1a;color:var(--bg)}
+.sn-item.active{background:var(--signal);color:#fff;border-left-color:var(--bg)}
+.sn-item .ic{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sn-item .bdg{margin-left:auto;font-size:9px;background:var(--bg);color:var(--ink);padding:2px 6px;font-weight:700;letter-spacing:.06em}
+.side-foot{border-top:3px solid var(--bg);padding:18px 20px}
+.side-foot .u{display:flex;align-items:center;gap:10px}
+.side-foot .av{width:36px;height:36px;background:var(--signal);color:#fff;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:700;font-size:16px;border:2px solid var(--bg)}
+.side-foot .u b{font-family:var(--mono);font-size:13px;font-weight:700;display:block}
+.side-foot .u span{font-family:var(--mono);font-size:10px;color:#9a9a9a;letter-spacing:.06em}
+.side-foot .pl{margin-top:14px;background:var(--signal);color:#fff;padding:14px;border:2px solid var(--bg);position:relative}
+.side-foot .pl .t{font-family:var(--mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.side-foot .pl .s{font-size:12px;margin-top:3px}
+.side-foot .pl a{display:block;margin-top:9px;background:var(--ink);color:var(--bg);text-align:center;font-family:var(--mono);
+  font-size:12px;font-weight:700;padding:9px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ===== MAIN ===== */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:stretch;background:var(--bg);
+  border-bottom:3px solid var(--ink)}
+.topbar > *{border-right:3px solid var(--ink)}
+.topbar > *:last-child{border-right:0}
+.tb-crumb{padding:0 22px;display:flex;flex-direction:column;justify-content:center;font-family:var(--mono)}
+.tb-crumb .a{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#6b6b6b}
+.tb-crumb .b{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.search{flex:1;display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--paper)}
+.search input{flex:1;background:none;border:0;outline:0;font-family:var(--mono);font-size:14px;color:var(--ink);padding:16px 0}
+.search input::placeholder{color:#9a9a9a}
+.search .kbd{font-family:var(--mono);font-size:11px;font-weight:700;border:1.5px solid var(--ink);padding:2px 7px;background:var(--bg)}
+.tb-btn{width:56px;display:grid;place-items:center;color:var(--ink);position:relative;background:var(--bg)}
+.tb-btn:hover{background:var(--ink);color:var(--bg)}
+.tb-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb-btn .dot{position:absolute;top:14px;right:14px;width:9px;height:9px;background:var(--signal);border:2px solid var(--bg)}
+.av-tb{width:56px;display:grid;place-items:center;background:var(--signal);color:#fff;border-right:0!important;font-family:var(--mono);font-weight:700;font-size:16px}
+
+.content{flex:1;max-width:1320px;width:100%;margin:0 auto;padding:0 0 80px}
+
+/* ===== HERO — 错位版式 ===== */
+.hero{display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid var(--ink);position:relative}
+.hero-l{padding:48px 40px 40px;border-right:3px solid var(--ink);position:relative}
+.hero-l .stamp{position:absolute;top:0;left:0;background:var(--signal);color:#fff;font-family:var(--mono);
+  font-size:11px;font-weight:700;letter-spacing:.12em;padding:8px 16px;text-transform:uppercase;border-bottom:3px solid var(--ink);border-right:3px solid var(--ink)}
+.hero-l .date{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#6b6b6b;margin-top:54px}
+.hero-l h1{font-family:var(--sans);font-weight:900;font-size:84px;line-height:.86;letter-spacing:-.045em;margin-top:16px;color:var(--ink)}
+.hero-l h1 .out{-webkit-text-stroke:2px var(--ink);color:transparent}
+.hero-l h1 .fill{background:var(--signal);color:#fff;padding:0 .08em;display:inline-block;transform:rotate(-1deg)}
+.hero-l .sub{font-family:var(--mono);font-size:14px;line-height:1.5;margin-top:24px;max-width:40ch;color:var(--ink-2)}
+.hero-l .cta{display:flex;gap:0;margin-top:28px}
+.btn-speak{font-family:var(--mono);font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.06em;
+  padding:16px 26px;background:var(--ink);color:var(--bg);border:0;display:inline-flex;align-items:center;gap:10px;
+  transition:.12s}
+.btn-speak:hover{background:var(--signal)}
+.btn-speak svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.btn-browse{font-family:var(--mono);font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.06em;
+  padding:16px 24px;background:var(--bg);color:var(--ink);border:3px solid var(--ink);border-left:0;display:inline-flex;align-items:center;gap:8px}
+.btn-browse:hover{background:var(--ink);color:var(--bg)}
+
+.hero-r{display:grid;grid-template-rows:1fr 1fr 1fr}
+.hero-r .cell{padding:22px 28px;border-bottom:3px solid var(--ink);display:flex;align-items:center;gap:20px;position:relative}
+.hero-r .cell:last-child{border-bottom:0}
+.hero-r .cell .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#6b6b6b;position:absolute;top:10px;right:16px}
+.hero-r .cell .big{font-family:var(--sans);font-weight:900;font-size:72px;line-height:.9;letter-spacing:-.045em}
+.hero-r .cell .unit{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.hero-r .cell.streak{background:var(--ink);color:var(--bg)}
+.hero-r .cell.streak .lbl{color:#9a9a9a}
+.hero-r .cell.streak .big{color:var(--signal)}
+.hero-r .cell.streak .unit{color:var(--bg-2)}
+.hero-r .cell.goal .big{color:var(--signal)}
+.hero-r .cell.score .big{color:var(--ink)}
+
+/* ===== TICKER ===== */
+.ticker{background:var(--ink);color:var(--bg);padding:11px 0;overflow:hidden;border-bottom:3px solid var(--ink);display:flex;gap:0}
+.ticker .t{flex:1;display:flex;gap:40px;align-items:center;white-space:nowrap;padding-left:24px;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ticker .t span{display:inline-flex;align-items:center;gap:8px}
+.ticker .t .dot{width:7px;height:7px;background:var(--signal);display:inline-block}
+
+/* ===== SECTION ===== */
+.sec{border-bottom:3px solid var(--ink)}
+.sec-head{display:flex;align-items:center;gap:0}
+.sec-head .no{font-family:var(--mono);font-size:13px;font-weight:700;background:var(--ink);color:var(--bg);
+  padding:14px 18px;letter-spacing:.06em}
+.sec-head h2{font-family:var(--sans);font-weight:900;font-size:32px;letter-spacing:-.03em;padding:0 22px;flex:1;text-transform:uppercase}
+.sec-head .meta{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6b6b6b;padding-right:24px;font-weight:700}
+.sec-head .meta a{color:var(--signal);font-weight:700}
+.sec-head .meta a:hover{text-decoration:underline}
+
+/* ===== CONTINUE — 主推大卡 + 列表 ===== */
+.cont-grid{display:grid;grid-template-columns:1.5fr 1fr}
+.cont-feat{border-right:3px solid var(--ink);cursor:pointer}
+.cont-feat .img{position:relative;aspect-ratio:16/10;overflow:hidden;background:var(--ink);border-bottom:3px solid var(--ink)}
+.cont-feat .img img{width:100%;height:100%;object-fit:cover;opacity:.75;transition:.3s}
+.cont-feat:hover .img img{opacity:1;transform:scale(1.03)}
+.cont-feat .img .lv{position:absolute;top:0;left:0;background:var(--signal);color:#fff;font-family:var(--mono);
+  font-size:12px;font-weight:700;padding:8px 14px;letter-spacing:.06em;border-bottom:3px solid var(--ink);border-right:3px solid var(--ink)}
+.cont-feat .img .dur{position:absolute;bottom:0;right:0;background:var(--ink);color:var(--bg);font-family:var(--mono);
+  font-size:13px;font-weight:700;padding:8px 14px;border-top:3px solid var(--bg);border-left:3px solid var(--bg)}
+.cont-feat .cap{padding:24px 28px}
+.cont-feat .cap .tg{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--signal)}
+.cont-feat .cap h3{font-family:var(--sans);font-weight:900;font-size:34px;letter-spacing:-.03em;line-height:1;margin-top:10px;text-transform:uppercase}
+.cont-feat .cap .by{font-family:var(--mono);font-size:12px;color:#6b6b6b;margin-top:12px;font-weight:700;letter-spacing:.04em}
+.cont-list{display:flex;flex-direction:column}
+.cont-item{display:flex;gap:16px;padding:18px 22px;border-bottom:3px solid var(--ink);cursor:pointer;align-items:center;transition:.12s}
+.cont-item:last-child{border-bottom:0}
+.cont-item:hover{background:var(--ink);color:var(--bg)}
+.cont-item:hover .ci-meta{color:var(--bg-2)}
+.cont-item .num{font-family:var(--mono);font-size:22px;font-weight:700;color:#9a9a9a;min-width:34px}
+.cont-item:hover .num{color:var(--signal)}
+.cont-item .ci-img{width:84px;height:54px;background:var(--ink);flex:none;overflow:hidden;border:2px solid var(--ink)}
+.cont-item .ci-img img{width:100%;height:100%;object-fit:cover}
+.cont-item .ci-body{flex:1;min-width:0}
+.cont-item .ci-t{font-family:var(--sans);font-weight:700;font-size:15px;line-height:1.2;letter-spacing:-.01em}
+.cont-item .ci-meta{font-family:var(--mono);font-size:11px;color:#6b6b6b;margin-top:4px;letter-spacing:.04em}
+
+/* ===== CATEGORY — 编号网格 ===== */
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.cat-cell{padding:26px 24px;border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);cursor:pointer;transition:.12s;position:relative}
+.cat-cell:nth-child(4n){border-right:0}
+.cat-cell:hover{background:var(--ink);color:var(--bg)}
+.cat-cell:hover .cc-no,.cat-cell:hover .cc-ct{color:var(--signal)}
+.cat-cell .cc-no{font-family:var(--mono);font-size:11px;font-weight:700;color:#9a9a9a;letter-spacing:.1em}
+.cat-cell .cc-em{font-size:30px;margin-top:14px;line-height:1}
+.cat-cell .cc-nm{font-family:var(--sans);font-weight:900;font-size:22px;letter-spacing:-.025em;margin-top:10px;text-transform:uppercase}
+.cat-cell .cc-ct{font-family:var(--mono);font-size:12px;font-weight:700;color:#6b6b6b;margin-top:6px;letter-spacing:.04em}
+.cat-cell.empty{opacity:.4}
+
+/* ===== DIFFICULTY + GRID ===== */
+.diff-row{display:flex;align-items:stretch;border-bottom:3px solid var(--ink)}
+.diff-row .dlbl{background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:12px;font-weight:700;
+  padding:14px 20px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center}
+.diff-tabs{display:flex;flex:1}
+.diff-tab{font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 22px;border-right:3px solid var(--ink);
+  text-transform:uppercase;letter-spacing:.04em;transition:.12s;color:var(--ink)}
+.diff-tab:hover{background:var(--bg-2)}
+.diff-tab.on{background:var(--signal);color:#fff}
+.diff-tab:last-child{border-right:0}
+
+.vgrid{display:grid;grid-template-columns:repeat(4,1fr)}
+.vcard{border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);cursor:pointer;transition:.12s;background:var(--bg)}
+.vcard:nth-child(4n){border-right:0}
+.vcard:hover{background:var(--ink);color:var(--bg)}
+.vcard:hover .vmeta{color:var(--bg-2)}
+.vcard:hover .vchip{background:var(--signal);color:#fff;border-color:var(--signal)}
+.vcard .vimg{position:relative;aspect-ratio:16/9;overflow:hidden;background:var(--ink-2);border-bottom:3px solid var(--ink)}
+.vcard .vimg img{width:100%;height:100%;object-fit:cover;opacity:.8;transition:.3s}
+.vcard:hover .vimg img{opacity:1;transform:scale(1.05)}
+.vcard .vimg .lv{position:absolute;top:0;left:0;background:var(--signal);color:#fff;font-family:var(--mono);
+  font-size:11px;font-weight:700;padding:6px 11px;letter-spacing:.06em}
+.vcard .vimg .dur{position:absolute;bottom:0;right:0;background:var(--ink);color:var(--bg);font-family:var(--mono);
+  font-size:11px;font-weight:700;padding:5px 10px}
+.vcard .vbody{padding:18px 20px}
+.vcard .vbody h4{font-family:var(--sans);font-weight:800;font-size:16px;line-height:1.2;letter-spacing:-.015em;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}
+.vcard .vmeta{font-family:var(--mono);font-size:11px;color:#6b6b6b;margin-top:10px;font-weight:700;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+.vchip{font-family:var(--mono);font-size:10px;font-weight:700;background:var(--bg-2);color:var(--ink);padding:2px 7px;border:1.5px solid var(--ink);letter-spacing:.04em;transition:.12s}
+
+/* footer */
+.foot{display:flex;justify-content:space-between;align-items:center;padding:28px 40px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6b6b6b}
+.foot .big{font-family:var(--sans);font-weight:900;font-size:22px;letter-spacing:-.025em;text-transform:none;color:var(--ink)}
+.foot .big em{font-style:normal;background:var(--signal);color:#fff;padding:0 .12em}
+
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.reveal{opacity:0;animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
+.d1{animation-delay:.04s}.d2{animation-delay:.12s}.d3{animation-delay:.20s}.d4{animation-delay:.28s}
+
+@media(max-width:1024px){
+  .app{grid-template-columns:1fr;border-left:0;border-right:0}.side{display:none}
+  .hero{grid-template-columns:1fr}.hero-l{border-right:0;border-bottom:3px solid var(--ink)}
+  .hero-l h1{font-size:54px}
+  .cont-grid{grid-template-columns:1fr}.cont-feat{border-right:0;border-bottom:3px solid var(--ink)}
+  .cat-grid{grid-template-columns:repeat(2,1fr)}.cat-cell:nth-child(4n){border-right:3px solid var(--ink)}.cat-cell:nth-child(2n){border-right:0}
+  .vgrid{grid-template-columns:repeat(2,1fr)}.vcard:nth-child(4n){border-right:3px solid var(--ink)}.vcard:nth-child(2n){border-right:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="side">
+    <div class="side-brand"><span class="mk">S</span><div><div class="nm">SPEAK<em>ING</em></div><div class="sb">№ 14 · 2026.06.29</div></div></div>
+    <nav class="side-nav">
+      <div class="sn-sec">// Main</div>
+      <a class="sn-item active"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/></svg>首页</a>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/></svg>浏览</a>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg>口语<span class="bdg">AI</span></a>
+      <div class="sn-sec">// Community</div>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>社区</a>
+      <div class="sn-sec">// Study</div>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>面板</a>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>词汇</a>
+      <div class="sn-sec">// Account</div>
+      <a class="sn-item"><svg class="ic" viewBox="0 0 24 24"><path d="M2 20h20l-2-9-4-2-2-4H10L8 9 4 11z"/><path d="M12 5v15"/></svg>Pro</a>
+    </nav>
+    <div class="side-foot">
+      <div class="u"><span class="av">林</span><div><b>林夕</b><span>PRO · D14</span></div></div>
+      <div class="pl"><div class="t">FREE PRO TRIAL</div><div class="s">无限口语评测</div><a>→ GO PRO</a></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="tb-crumb"><span class="a">// Home</span><span class="b">首页</span></div>
+      <div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg><input placeholder="SEARCH VIDEO / SUBTITLE / WORD…"><span class="kbd">⌘K</span></div>
+      <button class="tb-btn"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
+      <button class="tb-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></button>
+      <span class="av-tb">林</span>
+    </header>
+
+    <main class="content">
+
+      <!-- HERO -->
+      <div class="hero reveal d1">
+        <div class="hero-l">
+          <span class="stamp">DAILY · 06.29</span>
+          <div class="date">林夕 · 学习者 · streak × 14</div>
+          <h1>别只是<br><span class="out">看</span>英语。<br><span class="fill">说回去。</span></h1>
+          <p class="sub">// 挑一段真实演讲，对着麦克风开口说。AI 逐字给你打分。还差 2 次练习达成今日目标。</p>
+          <div class="cta">
+            <a class="btn-speak"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg>开始录音</a>
+            <a class="btn-browse">浏览视频库 →</a>
+          </div>
+        </div>
+        <div class="hero-r">
+          <div class="cell streak"><span class="lbl">Streak</span><span class="big">14</span><span class="unit">DAYS</span></div>
+          <div class="cell goal"><span class="lbl">Goal</span><span class="big">3/5</span><span class="unit">TODAY</span></div>
+          <div class="cell score"><span class="lbl">Avg</span><span class="big">86</span><span class="unit">SCORE</span></div>
+        </div>
+      </div>
+
+      <!-- TICKER -->
+      <div class="ticker">
+        <div class="t">
+          <span><i class="dot"></i>14 DAY STREAK</span><span>NEW: STEVE JOBS COMMENCEMENT</span><span>3/5 GOAL TODAY</span><span>B2 LEVEL FEATURED</span><span>AI SCORING ● LIVE</span>
+        </div>
+      </div>
+
+      <!-- CONTINUE -->
+      <div class="sec reveal d2">
+        <div class="sec-head"><span class="no">01</span><h2>继续观看</h2><div class="meta">In Progress · <a>全部 →</a></div></div>
+        <div class="cont-grid">
+          <a class="cont-feat">
+            <div class="img"><img src="https://picsum.photos/seed/br-lead/800/500" alt=""><span class="lv">B2</span><span class="dur">9:58</span></div>
+            <div class="cap"><span class="tg">// FEATURED · TED</span><h3>How to speak so people want to listen</h3><div class="by">JULIAN TREASURE · 9:58 · 62% WATCHED</div></div>
+          </a>
+          <div class="cont-list">
+            <a class="cont-item"><span class="num">02</span><div class="ci-img"><img src="https://picsum.photos/seed/br-s1/200/130" alt=""></div><div class="ci-body"><div class="ci-t">The power of vulnerability</div><div class="ci-meta">B1 · TED · 20:19 · 28%</div></div></a>
+            <a class="cont-item"><span class="num">03</span><div class="ci-img"><img src="https://picsum.photos/seed/br-s2/200/130" alt=""></div><div class="ci-body"><div class="ci-t">A day in NYC as a food vlogger</div><div class="ci-meta">A2 · Vlog · 12:34 · 45%</div></div></a>
+            <a class="cont-item"><span class="num">04</span><div class="ci-img"><img src="https://picsum.photos/seed/br-s3/200/130" alt=""></div><div class="ci-body"><div class="ci-t">BBC: Inside the climate summit</div><div class="ci-meta">B1 · 新闻 · 8:22 · 71%</div></div></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- CATEGORY -->
+      <div class="sec reveal d3">
+        <div class="sec-head"><span class="no">02</span><h2>按分类浏览</h2><div class="meta">The Index · <a>全部 →</a></div></div>
+        <div class="cat-grid">
+          <a class="cat-cell"><div class="cc-no">№ 01</div><div class="cc-em">🎤</div><div class="cc-nm">TED Talks</div><div class="cc-ct">24 · B1–C1</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 02</div><div class="cc-em">🎙️</div><div class="cc-nm">访谈</div><div class="cc-ct">18 · B2–C2</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 03</div><div class="cc-em">📰</div><div class="cc-nm">新闻</div><div class="cc-ct">31 · B1–C1</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 04</div><div class="cc-em">📹</div><div class="cc-nm">Vlog</div><div class="cc-ct">12 · A2–B1</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 05</div><div class="cc-em">📚</div><div class="cc-nm">教育</div><div class="cc-ct">9 · A1–B1</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 06</div><div class="cc-em">🎬</div><div class="cc-nm">电影片段</div><div class="cc-ct">15 · B2–C2</div></a>
+          <a class="cat-cell"><div class="cc-no">№ 07</div><div class="cc-em">💻</div><div class="cc-nm">科技</div><div class="cc-ct">7 · B2–C1</div></a>
+          <a class="cat-cell empty"><div class="cc-no">№ 08</div><div class="cc-em">🛒</div><div class="cc-nm">商业</div><div class="cc-ct">— · SOON</div></a>
+        </div>
+      </div>
+
+      <!-- CURATED -->
+      <div class="sec reveal d4">
+        <div class="sec-head"><span class="no">03</span><h2>按难度精选</h2><div class="meta">Curated · <a>更多 →</a></div></div>
+        <div class="diff-row">
+          <span class="dlbl">LEVEL</span>
+          <div class="diff-tabs">
+            <span class="diff-tab on">全部</span><span class="diff-tab">A1–A2</span><span class="diff-tab">B1–B2</span><span class="diff-tab">C1–C2</span>
+          </div>
+        </div>
+        <div class="vgrid">
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v1/480/270" alt=""><span class="lv">B2</span><span class="dur">14:03</span></div><div class="vbody"><h4>Inside the mind of a master procrastinator</h4><div class="vmeta">TED · 14:03 <span class="vchip">B2</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v2/480/270" alt=""><span class="lv">C1</span><span class="dur">14:48</span></div><div class="vbody"><h4>Why we have too few women leaders</h4><div class="vmeta">访谈 · 14:48 <span class="vchip">C1</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v3/480/270" alt=""><span class="lv">B2</span><span class="dur">6:15</span></div><div class="vbody"><h4>The Queen's Gambit opening scene</h4><div class="vmeta">电影 · 6:15 <span class="vchip">B2</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v4/480/270" alt=""><span class="lv">C1</span><span class="dur">16:40</span></div><div class="vbody"><h4>How AI will change everything about work</h4><div class="vmeta">科技 · 16:40 <span class="vchip">C1</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v5/480/270" alt=""><span class="lv">A2</span><span class="dur">10:12</span></div><div class="vbody"><h4>Easy English: Ordering coffee at a café</h4><div class="vmeta">教育 · 10:12 <span class="vchip">A2</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v6/480/270" alt=""><span class="lv">B1</span><span class="dur">22:05</span></div><div class="vbody"><h4>The science of habit formation</h4><div class="vmeta">访谈 · 22:05 <span class="vchip">B1</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v7/480/270" alt=""><span class="lv">B2</span><span class="dur">11:37</span></div><div class="vbody"><h4>Steve Jobs Stanford commencement</h4><div class="vmeta">TED · 11:37 <span class="vchip">B2</span></div></div></a>
+          <a class="vcard"><div class="vimg"><img src="https://picsum.photos/seed/br-v8/480/270" alt=""><span class="lv">A2</span><span class="dur">7:48</span></div><div class="vbody"><h4>Morning routine: A student in London</h4><div class="vmeta">Vlog · 7:48 <span class="vchip">A2</span></div></div></a>
+        </div>
+      </div>
+
+      <div class="foot">
+        <div>// SPEAKING · PRACTICE WITH REAL SPEECH</div>
+        <div class="big">说出口<em>才算学会</em>。</div>
+        <div>SET IN ARCHIVO &amp; SPACE MONO</div>
+      </div>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

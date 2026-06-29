@@ -79,5 +79,5 @@ frontend/yt_cookies.mjs
 frontend/.debug-shots/
 backend/watch-current.png
 
-# Project planning notes (not code)
-后续开发项目.txt
+# Project planning notes (not code) — moved to docs/plans/
+# 后续开发项目.txt

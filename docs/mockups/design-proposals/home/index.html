@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaking 首页设计提案 · 6 版对比</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital@0;1&display=swap');
+:root{
+  --ink:#0a0a0a; --muted:#71717a; --muted-soft:#a1a1aa; --hairline:#ededed;
+  --canvas:#fff; --soft:#fafafa; --card:#f4f4f5; --brand:#ff5a1f; --brand-50:#fff1eb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--soft);color:var(--ink);
+  -webkit-font-smoothing:antialiased;padding:48px 28px 80px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto}
+.head{margin-bottom:44px;border-bottom:1px solid var(--hairline);padding-bottom:28px}
+.head .ey{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--brand);font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.head .ey .pip{width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 8px var(--brand)}
+.head h1{font-family:'Fraunces',serif;font-weight:400;font-size:46px;letter-spacing:-.02em;line-height:1.1;margin-top:14px}
+.head h1 em{font-style:italic;color:var(--brand)}
+.head p{color:var(--muted);font-size:15px;margin-top:12px;max-width:62ch}
+.head .nav{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.head .nav a{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;padding:7px 13px;border-radius:99px;
+  background:var(--canvas);border:1px solid var(--hairline);color:var(--muted);transition:.15s}
+.head .nav a:hover{border-color:var(--ink);color:var(--ink)}
+
+.group-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted-soft);font-weight:600;margin:36px 0 14px;display:flex;align-items:center;gap:12px}
+.group-label::after{content:"";flex:1;height:1px;background:var(--hairline)}
+.group-label.g1{color:var(--brand)}
+.group-label.g2{color:#6366f1}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+@media(max-width:780px){.grid{grid-template-columns:1fr}}
+.card{display:block;background:var(--canvas);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;
+  transition:transform .18s, box-shadow .18s, border-color .18s;cursor:pointer}
+.card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(10,10,10,.08);border-color:transparent}
+.card .thumb{aspect-ratio:16/10;overflow:hidden;position:relative;display:flex}
+.card .thumb .half{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:18px;position:relative;overflow:hidden}
+.card .thumb .tag{position:absolute;top:14px;left:14px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;padding:4px 9px;border-radius:6px}
+.card .thumb .ttl{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.card .thumb .ttl em{font-style:italic}
+.card .thumb .sub{font-size:12px;margin-top:6px;font-weight:500}
+
+/* per-card preview theming */
+.c01 .thumb{background:var(--canvas)} .c01 .thumb .tag{background:var(--brand-50);color:var(--brand)}
+.c01 .thumb .ttl{color:var(--ink)}
+.c01 .thumb .sub{color:var(--muted)}
+.c02 .thumb{background:var(--canvas)} .c02 .thumb .tag{background:var(--brand);color:#fff}
+.c02 .thumb .ttl{font-family:'Fraunces',serif;font-weight:400;color:var(--ink)} .c02 .thumb .ttl em{color:var(--brand)}
+.c02 .thumb .sub{font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:11px}
+.c03 .thumb{background:var(--canvas)} .c03 .thumb .tag{background:var(--ink);color:#fff}
+.c03 .thumb .ttl{color:var(--ink)} .c03 .thumb .sub{color:var(--muted)}
+.c04 .thumb{background:#f6f1e7} .c04 .thumb .tag{background:var(--ink);color:#f6f1e7}
+.c04 .thumb .ttl{font-family:'Fraunces',serif;font-weight:400;color:#1a1714} .c04 .thumb .ttl em{color:#d94f1f;font-style:italic}
+.c04 .thumb .sub{font-family:'JetBrains Mono',monospace;color:#6b6356;font-size:11px}
+.c05 .thumb{background:#0d0c0a} .c05 .thumb .tag{background:rgba(239,68,68,.18);color:#ffb4b4;border:1px solid rgba(239,68,68,.3)}
+.c05 .thumb .ttl{font-family:'Fraunces',serif;font-weight:400;color:#f4efe6} .c05 .thumb .ttl em{color:#ff6b35;font-style:italic}
+.c05 .thumb .sub{font-family:'JetBrains Mono',monospace;color:#a8a092;font-size:11px}
+.c06 .thumb{background:#f2efe9} .c06 .thumb .tag{background:var(--ink);color:#f2efe9}
+.c06 .thumb .ttl{font-family:'Archivo',system-ui;font-weight:900;color:var(--ink);text-transform:uppercase} .c06 .thumb .ttl em{font-style:normal;background:var(--brand);color:#fff;padding:0 .1em}
+.c06 .thumb .sub{font-family:'Space Mono',monospace;color:#6b6b6b;font-size:11px;text-transform:uppercase}
+
+.card .body{padding:18px 20px}
+.card .body .num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted-soft);font-weight:600;letter-spacing:.1em}
+.card .body .nm{font-size:18px;font-weight:700;letter-spacing:-.015em;margin-top:6px}
+.card .body .desc{font-size:13.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+.card .body .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.card .body .chips span{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:4px 9px;
+  border-radius:6px;background:var(--card);color:var(--muted);letter-spacing:.02em}
+
+.note{margin-top:48px;padding:24px 26px;background:var(--canvas);border:1px solid var(--hairline);border-radius:16px;
+  border-left:3px solid var(--brand)}
+.note .t{font-size:14px;font-weight:700;margin-bottom:8px}
+.note p{font-size:13.5px;color:var(--muted);line-height:1.6}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="ey"><span class="pip"></span>Speaking · 首页设计提案</span>
+    <h1>6 版首页<em>静态样图</em>对比</h1>
+    <p>针对正在运行的 <code style="background:var(--card);padding:1px 6px;border-radius:5px;font-size:13px">http://localhost:3000/</code> 首页。Group 1（3 版）守住现有浅色 / 橙 / Inter 体系，只动一个变量；Group 2（3 版）用 frontend-design skill 做截然不同的美学方向。点击任一卡片打开完整样图。选定方向后，再把视觉决策落回 Tailwind + 组件代码。</p>
+    <div class="nav">
+      <a href="01-polish.html">01 精修</a>
+      <a href="02-serif.html">02 气质</a>
+      <a href="03-bento.html">03 重构</a>
+      <a href="04-editorial.html">04 杂志</a>
+      <a href="05-studio.html">05 工作室</a>
+      <a href="06-brutalist.html">06 粗野</a>
+    </div>
+  </div>
+
+  <div class="group-label g1">Group 1 · 基于现有体系（浅色 / 橙 / Inter）</div>
+  <div class="grid">
+    <a class="card c01" href="01-polish.html">
+      <div class="thumb"><span class="tag">01 · POLISH</span><div class="half"><div class="ttl">精修打磨</div><div class="sub">结构·字体·配色全不变，只优化细节</div></div></div>
+      <div class="body"><div class="num">VARIANT 01</div><div class="nm">精修打磨</div>
+        <div class="desc">8px 节奏对齐、问候条三段层次、卡片双层柔和阴影、分类计数配色、staggered 入场动画。看起来是"打磨过的现在"。</div>
+        <div class="chips"><span>Inter</span><span>浅色</span><span>橙</span><span>低风险</span></div>
+      </div>
+    </a>
+    <a class="card c02" href="02-serif.html">
+      <div class="thumb"><span class="tag">02 · ELEVATE</span><div class="half"><div class="ttl">提升<em>气质</em></div><div class="sub">换衬线显示字 + eyebrow 小标签</div></div></div>
+      <div class="body"><div class="num">VARIANT 02</div><div class="nm">提升气质</div>
+        <div class="desc">大标题换 Instrument Serif 衬线（斜体强调关键词），加 mono 全大写 eyebrow、大号连胜数字、极淡暖色氛围。一眼看出气质变了。</div>
+        <div class="chips"><span>Instrument Serif</span><span>浅色</span><span>橙</span><span>杂志感</span></div>
+      </div>
+    </a>
+    <a class="card c03" href="03-bento.html">
+      <div class="thumb"><span class="tag">03 · RECONSTRUCT</span><div class="half"><div class="ttl">较大重构</div><div class="sub">bento 布局首屏 · 字体仍 Inter</div></div></div>
+      <div class="body"><div class="num">VARIANT 03</div><div class="nm">较大重构</div>
+        <div class="desc">首屏改 bento：左侧深色 hero + 右侧连胜/目标栈，今日练习入口卡插入，分类改视觉化大卡，主推大卡不对称网格。冲击最强。</div>
+        <div class="chips"><span>Inter</span><span>浅色</span><span>bento</span><span>工作量大</span></div>
+      </div>
+    </a>
+  </div>
+
+  <div class="group-label g2">Group 2 · frontend-design skill（大胆独特美学）</div>
+  <div class="grid">
+    <a class="card c04" href="04-editorial.html">
+      <div class="thumb"><span class="tag">04 · EDITORIAL</span><div class="half"><div class="ttl">编辑<em>杂志</em>风</div><div class="sub">暖米底 · 大衬线 · 不对称网格</div></div></div>
+      <div class="body"><div class="num">VARIANT 04</div><div class="nm">编辑杂志风</div>
+        <div class="desc">暖纸底 + 报刊 masthead + 主推大文章 + 目录式分类索引。Fraunces 衬线 + Instrument Sans + mono。把"学英语"做成一份每日报纸。</div>
+        <div class="chips"><span>Fraunces</span><span>暖米</span><span>报刊</span><span>独特</span></div>
+      </div>
+    </a>
+    <a class="card c05" href="05-studio.html">
+      <div class="thumb"><span class="tag">05 · STUDIO</span><div class="half"><div class="ttl">深色<em>工作室</em></div><div class="sub">ON AIR · 霓虹橙 + 薄荷 · 胶片颗粒</div></div></div>
+      <div class="body"><div class="num">VARIANT 05</div><div class="nm">深色工作室风</div>
+        <div class="desc">暖黑底 + ON AIR 红灯 + 电平表 + 录音棚隐喻。把"练口语"具象成录音棚。橙+薄荷双色信号、胶片颗粒、圆环进度。沉浸感最强。</div>
+        <div class="chips"><span>Fraunces</span><span>深色</span><span>ON AIR</span><span>沉浸</span></div>
+      </div>
+    </a>
+    <a class="card c06" href="06-brutalist.html">
+      <div class="thumb"><span class="tag">06 · BRUTALIST</span><div class="half"><div class="ttl"><em>说</em>回去。</div><div class="sub">硬边框 · 超大 mono · 强对比</div></div></div>
+      <div class="body"><div class="num">VARIANT 06</div><div class="nm">粗野风</div>
+        <div class="desc">粗黑 3px 分割线、无圆角、超大 900 字重标题（描边+色块填充）、Space Mono 全大写标签、编号网格、滚动 ticker。原始粗粝、记忆点极强。</div>
+        <div class="chips"><span>Archivo</span><span>Space Mono</span><span>硬边</span><span>极强冲击</span></div>
+      </div>
+    </a>
+  </div>
+
+  <div class="note">
+    <div class="t">怎么选？</div>
+    <p><b>Group 1</b> 是"在现有体系内进化"——风险低、与现有 Tailwind 代码兼容性好。01 最保守，03 最激进。<b>Group 2</b> 是"换一种气质"——视觉冲击大，但要把字体/配色/布局系统整体替换，工作量更大。你可以先逐个打开样图感受，告诉我倾向哪一版（或哪几版的某部分），我再据此把决策落回 <code>tailwind.config.ts</code> + <code>globals.css</code> + 首页/侧栏/顶栏组件的实际代码。</p>
+  </div>
+</div>
+</body>
+</html>
