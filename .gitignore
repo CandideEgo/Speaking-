@@ -25,6 +25,10 @@ wsl.localhost/
 .DS_Store
 Thumbs.db
 
+# Windows NUL redirect artifacts
+nul
+NUL
+
 # Logs
 logs/*.log
 *.log
@@ -60,6 +64,15 @@ test_audio.wav
 
 # Playwright CLI artifacts
 .playwright-cli/
+backend/.playwright-cli/
+frontend/.playwright-cli/
+
+# Backend build artifacts (should never exist)
+backend/.next/
+backend/.mypy_cache/
+
+# Backend nested directory (accident)
+backend/backend/
 
 # Temporary test/debug files
 tmp_audio*

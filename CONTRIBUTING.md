@@ -321,11 +321,9 @@ Speaking/
 │   ├── reports/              # 技术研究报告
 │   └── plans/                # 改进计划 + 管线文档 + 开发工作流
 ├── .pre-commit-config.yaml   # Pre-commit hooks (ruff + prettier + 通用检查)
-├── docker-compose.dev.yml    # 开发基础设施
-├── docker-compose.yml        # 全栈开发环境
-├── docker-compose.prod.yml   # 生产环境
-├── REQUIREMENTS.md → docs/api/REQUIREMENTS.md
-└── PROGRESS.md → docs/progress/PROGRESS.md
+├── nginx.conf                # Nginx 配置 (HTTP, 开发用)
+├── nginx.ssl.conf            # Nginx 配置 (HTTPS, 生产用)
+└── logs/                     # 运行时日志 (gitignored)
 ```
 
 ---
