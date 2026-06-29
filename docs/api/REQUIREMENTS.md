@@ -22,9 +22,9 @@
 | 前端 | Next.js 14 (App Router) + React 18 + Tailwind CSS |
 | 数据库 | PostgreSQL 16 + Redis 7 |
 | 语音识别 | faster-whisper (本地运行, int8 量化) |
-| AI 能力 | OpenAI 兼容 API（当前使用 Kimi） |
+| AI 能力 | OpenAI 兼容 API（当前使用 Agnes AI） |
 | 媒体处理 | yt-dlp + ffmpeg |
-| 认证 | JWT (python-jose) |
+| 认证 | JWT (PyJWT) |
 
 ---
 

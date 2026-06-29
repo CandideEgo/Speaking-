@@ -1,5 +1,7 @@
 # Speaking 项目 Ultracode 评估与改进计划
 
+> **COMPLETED** — All 10 phases finished. This document is retained for historical reference only.
+
 ## 背景
 
 对 Speaking 项目进行了全栈代码审计，发现 **76 个问题**，从生产崩溃 Bug 到无障碍性缺陷。本计划将它们组织为 10 个阶段，通过 ultracode 多 agent 工作流系统化解决。
