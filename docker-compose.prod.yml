@@ -46,9 +46,10 @@ services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile.cloud
     command: >
       gunicorn app.main:app
-        -w 4
+        -w 2
         -k uvicorn.workers.UvicornWorker
         -b 0.0.0.0:8000
         --access-logfile -
@@ -70,6 +71,7 @@ services:
       # Remote-GPU transcription callback (inbound) auth + watchdog timeout.
       TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
+      ENV: ${ENV:-production}
     expose:
       - "8000"
     volumes:
@@ -89,6 +91,7 @@ services:
   celery:
     build:
       context: ./backend
+      dockerfile: Dockerfile.cloud
     # Cloud worker consumes only the default queue; the transcription_gpu queue
     # is drained by the remote GPU worker (not this service).
     command: celery -A app.tasks.celery_app worker -Q celery --loglevel=warning
@@ -107,6 +110,7 @@ services:
       OSS_PREFIX: ${OSS_PREFIX:-}
       TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
+      ENV: ${ENV:-production}
     volumes:
       - media:/app/media
     depends_on:
@@ -124,12 +128,14 @@ services:
   celery-beat:
     build:
       context: ./backend
+      dockerfile: Dockerfile.cloud
     # Periodic tasks: order-expiry + stale-transcription watchdog.
     command: celery -A app.tasks.celery_app beat --loglevel=warning
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
+      ENV: ${ENV:-production}
     depends_on:
       redis:
         condition: service_healthy
@@ -142,9 +148,9 @@ services:
 
   flower:
     image: mher/flower:2.0
-    command: celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower --port=5555
-    expose:
-      - "5555"
+    command: celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flower}
+    ports:
+      - "127.0.0.1:5555:5555"
     depends_on:
       - redis
     restart: unless-stopped
@@ -161,6 +167,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
       - frontend
