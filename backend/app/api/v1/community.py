@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_optional_user
@@ -38,9 +39,28 @@ async def get_feed(
     db: AsyncSession = Depends(get_db),
 ):
     """Get community feed. Authenticated users see posts from followed users + popular.
-    Anonymous users see trending posts."""
+    Anonymous users see trending posts. ``type`` filters by post type
+    (incl. ``video_share`` for UGC videos surfaced to the community)."""
     user_id = current_user.id if current_user else None
     return await community_service.get_feed(db, user_id=user_id, post_type=type, page=page, page_size=page_size)
+
+
+@router.get("/videos")
+@rate_limit("30/minute")
+async def list_community_videos(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """List published user-uploaded videos for the community feed.
+
+    Per the UGC design, approved UGC surfaces only in the community (the
+    homepage/browse feed stays official-curated). Public endpoint.
+    """
+    from app.services.video_service import list_published_ugc_videos
+
+    return await list_published_ugc_videos(db, page=page, page_size=page_size)
 
 
 # ---------------------------------------------------------------------------
@@ -57,16 +77,28 @@ async def create_post(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new community post."""
-    post = await community_service.create_post(
-        db,
-        user_id=current_user.id,
-        post_type=data.post_type,
-        content=data.content,
-        media_url=data.media_url,
-        video_id=data.video_id,
-        speaking_attempt_id=data.speaking_attempt_id,
-        vocabulary_id=data.vocabulary_id,
-    )
+    try:
+        post = await community_service.create_post(
+            db,
+            user_id=current_user.id,
+            post_type=data.post_type,
+            content=data.content,
+            media_url=data.media_url,
+            video_id=data.video_id,
+            speaking_attempt_id=data.speaking_attempt_id,
+            vocabulary_id=data.vocabulary_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    # Resolve the attached video brief for video_share posts.
+    video_brief = None
+    if post.post_type == "video_share" and post.video_id:
+        from app.models.video import Video
+
+        v = (await db.execute(select(Video).where(Video.id == post.video_id))).scalar_one_or_none()
+        video_brief = community_service._video_brief(v)
+
     # Build response with user info
     return {
         "id": post.id,
@@ -83,6 +115,7 @@ async def create_post(
         "comment_count": post.comment_count,
         "is_liked": False,
         "created_at": post.created_at,
+        "video": video_brief,
     }
 
 

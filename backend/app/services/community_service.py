@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment
 from app.models.user import User
+from app.models.video import Video
 from app.services.notification_service import create_notification
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,26 @@ async def create_post(
     speaking_attempt_id: str | None = None,
     vocabulary_id: str | None = None,
 ) -> Post:
+    # A video_share post must reference a video the poster is allowed to surface:
+    # their own published video, or an official published video. This stops a
+    # user from attaching another user's private/unpublished video to a public post.
+    if video_id is not None:
+        from app.models.video import VideoReviewStatus, VideoStatus
+
+        v_result = await db.execute(select(Video).where(Video.id == video_id))
+        video = v_result.scalar_one_or_none()
+        if video is None:
+            raise ValueError("Video not found")
+        if video.status not in (VideoStatus.ready, VideoStatus.ready_subtitles):
+            raise ValueError("视频仍在处理中，暂不可分享")
+        shareable = video.is_official or video.user_id == user_id
+        if not shareable:
+            raise ValueError("无权分享该视频")
+        if not video.is_official and video.review_status != VideoReviewStatus.published.value:
+            raise ValueError("视频尚未通过审核，暂不可分享")
+    elif post_type == "video_share":
+        raise ValueError("video_share 帖子必须包含 video_id")
+
     post = Post(
         user_id=user_id,
         post_type=post_type,
@@ -54,6 +75,29 @@ async def create_post(
     await db.commit()
     await db.refresh(post)
     return post
+
+
+def _video_brief(video: Video | None) -> dict | None:
+    """Build a VideoBrief dict from a Video model, or None."""
+    if video is None:
+        return None
+    return {
+        "id": video.id,
+        "title": video.title,
+        "thumbnail_url": video.thumbnail_url,
+        "duration": video.duration,
+        "difficulty_level": video.difficulty_level,
+        "video_url_720p": video.video_url_720p,
+    }
+
+
+async def _attach_videos(db: AsyncSession, posts: list[Post]) -> dict[str, dict]:
+    """Batch-load VideoBriefs for every video_share post in ``posts``."""
+    video_ids = {p.video_id for p in posts if p.post_type == "video_share" and p.video_id}
+    if not video_ids:
+        return {}
+    result = await db.execute(select(Video).where(Video.id.in_(video_ids)))
+    return {v.id: _video_brief(v) for v in result.scalars().all()}
 
 
 async def get_feed(
@@ -120,6 +164,9 @@ async def get_feed(
     page_posts = all_posts[offset : offset + page_size]
     has_more = len(all_posts) > offset + page_size
 
+    # Batch-load authors + attached videos for the page.
+    videos_by_id = await _attach_videos(db, page_posts)
+
     # Load users for posts
     items = []
     for post in page_posts:
@@ -146,6 +193,7 @@ async def get_feed(
                 "comment_count": post.comment_count,
                 "is_liked": is_liked,
                 "created_at": post.created_at,
+                "video": videos_by_id.get(post.video_id) if post.post_type == "video_share" else None,
             }
         )
 

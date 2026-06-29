@@ -243,3 +243,144 @@ class TestFeed:
         resp = await client.get("/api/v1/community/feed", headers=auth_headers)
         assert resp.status_code == 200
         assert "items" in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# UGC video share (Phase 2C)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_ugc_video(owner_id, *, review="published", vid="vid-share-1"):
+    from app.models.video import Video, VideoReviewStatus, VideoStatus
+
+    async with TestSessionLocal() as db:
+        v = Video(
+            id=vid,
+            title="My UGC Video",
+            source_url="x",
+            video_source="local",
+            status=VideoStatus.ready,
+            is_official=False,
+            is_published=True,
+            review_status=review if isinstance(review, str) else review.value,
+            user_id=owner_id,
+            video_url_720p="/media/ugc.mp4",
+            difficulty_level="B1",
+            duration=120.0,
+        )
+        db.add(v)
+        await db.commit()
+        return v.id
+
+
+class TestVideoShare:
+    async def test_share_own_published_video(self, client: AsyncClient, auth_headers: dict):
+        """Owner shares their own published UGC video → 201 with video brief."""
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        async with TestSessionLocal() as db:
+            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            vid = await _seed_ugc_video(owner.id)
+
+        resp = await client.post(
+            "/api/v1/community/posts",
+            headers=auth_headers,
+            json={"post_type": "video_share", "content": "看看这个视频", "video_id": vid},
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["post_type"] == "video_share"
+        assert data["video"] is not None
+        assert data["video"]["id"] == vid
+        assert data["video"]["title"] == "My UGC Video"
+
+    async def test_share_requires_published(self, client: AsyncClient, auth_headers: dict):
+        """Owner's own but unpublished/draft video cannot be shared (400)."""
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        async with TestSessionLocal() as db:
+            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            vid = await _seed_ugc_video(owner.id, review="draft", vid="vid-share-draft")
+
+        resp = await client.post(
+            "/api/v1/community/posts",
+            headers=auth_headers,
+            json={"post_type": "video_share", "content": "x", "video_id": vid},
+        )
+        assert resp.status_code == 400
+
+    async def test_share_others_private_video_rejected(self, client: AsyncClient, auth_headers: dict):
+        """A second user must not attach another user's private video (400)."""
+        other_id = await _make_user("other-share@example.com")
+        vid = await _seed_ugc_video(other_id, vid="vid-share-other")
+
+        resp = await client.post(
+            "/api/v1/community/posts",
+            headers=auth_headers,
+            json={"post_type": "video_share", "content": "hijack", "video_id": vid},
+        )
+        assert resp.status_code == 400
+
+    async def test_video_share_requires_video_id(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.post(
+            "/api/v1/community/posts",
+            headers=auth_headers,
+            json={"post_type": "video_share", "content": "no video"},
+        )
+        assert resp.status_code == 400
+
+    async def test_feed_includes_video_brief(self, client: AsyncClient, auth_headers: dict):
+        """A video_share post in the feed carries the resolved video brief."""
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        async with TestSessionLocal() as db:
+            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            vid = await _seed_ugc_video(owner.id, vid="vid-share-feed")
+
+        await client.post(
+            "/api/v1/community/posts",
+            headers=auth_headers,
+            json={"post_type": "video_share", "content": "feed check", "video_id": vid},
+        )
+        resp = await client.get("/api/v1/community/feed?type=video_share", headers=auth_headers)
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert any(i["post_type"] == "video_share" and i["video"] and i["video"]["id"] == vid for i in items)
+
+
+class TestCommunityVideos:
+    async def test_list_community_videos(self, client: AsyncClient, auth_headers: dict):
+        """GET /community/videos lists published UGC videos."""
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        async with TestSessionLocal() as db:
+            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            await _seed_ugc_video(owner.id, vid="vid-comm-list")
+
+        resp = await client.get("/api/v1/community/videos")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any(v["id"] == "vid-comm-list" for v in data["items"])
+        # official videos must NOT appear here (UGC-only feed)
+        assert all(not v.get("is_official") for v in data["items"])
+
+    async def test_list_excludes_unpublished_ugc(self, client: AsyncClient, auth_headers: dict):
+        from sqlalchemy import select
+
+        from app.models.user import User
+
+        async with TestSessionLocal() as db:
+            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            await _seed_ugc_video(owner.id, review="draft", vid="vid-comm-draft")
+
+        resp = await client.get("/api/v1/community/videos")
+        assert resp.status_code == 200
+        assert all(v["id"] != "vid-comm-draft" for v in resp.json()["items"])
