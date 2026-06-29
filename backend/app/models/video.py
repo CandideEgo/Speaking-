@@ -53,6 +53,10 @@ class Video(Base):
     # appear on the homepage / browse feed / search. See list_public_videos and
     # the browse endpoints for the filtering.
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Set by the one-click "seed-full" admin flow: when finalize_video reaches
+    # the ready step it auto-publishes (is_published=True) without a manual
+    # PATCH. Default false preserves the existing review-then-publish flow.
+    auto_publish: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     topic_tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quiz_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)

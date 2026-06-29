@@ -202,6 +202,15 @@ export async function seedVideo(source_url: string): Promise<void> {
   });
 }
 
+/** One-click seed: ensure cookies, seed, auto-publish on ready. Returns the new video id. */
+export async function seedVideoFull(source_url: string): Promise<string> {
+  const data = await adminApi<{ id: string }>("/api/v1/videos/seed-full", {
+    method: "POST",
+    body: JSON.stringify({ source_url }),
+  });
+  return data.id;
+}
+
 export async function updateVideo(
   id: string,
   patch: Partial<VideoAdmin>,

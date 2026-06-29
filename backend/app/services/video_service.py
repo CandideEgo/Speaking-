@@ -107,8 +107,26 @@ async def submit_video(
 async def seed_video(
     db: AsyncSession,
     source_url: str,
+    auto_publish: bool = False,
 ) -> VideoResponse:
-    """Seed an official video for the public homepage. Admin only."""
+    """Seed an official video for the public homepage. Admin only.
+
+    If an official video for this URL is already ready (or has subtitles), it
+    is returned as-is instead of re-running the whole pipeline — prevents
+    duplicate rows when an admin re-clicks the seed button.
+    """
+    # Dedup: an official, already-processed video for this URL wins.
+    existing_result = await db.execute(
+        select(Video).where(
+            Video.source_url == source_url,
+            Video.is_official == True,
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        return VideoResponse.model_validate(existing)
+
     platform = _detect_platform(source_url)
 
     video = Video(
@@ -117,9 +135,11 @@ async def seed_video(
         video_source=platform,
         status=VideoStatus.processing,
         is_official=True,
-        # Seeded as a draft: stays off the homepage until an admin reviews and
-        # publishes it (is_published=True) via PATCH /videos/admin/{id}.
+        # Seeded as a draft: stays off the homepage until published. The
+        # one-click flow sets auto_publish=True so finalize_video publishes it
+        # automatically once ready; the manual flow leaves it False for review.
         is_published=False,
+        auto_publish=auto_publish,
     )
     db.add(video)
     await db.commit()

@@ -580,6 +580,22 @@ def finalize_video(self, video_id: str):
                 _release_lock_and_steps(video_id)
                 logger.info("Video %s finalized", video_id)
 
+                # One-click flow: auto-publish once ready. Safe here because we
+                # just set status=ready, satisfying the publish guard. Best-effort
+                # browse cache invalidation so the homepage reflects it promptly.
+                if video.auto_publish and not video.is_published:
+                    video.is_published = True
+                    await db.commit()
+                    try:
+                        from app.api.v1.browse import invalidate_browse_cache
+
+                        await invalidate_browse_cache()
+                    except Exception:
+                        logger.warning(
+                            "auto_publish browse cache invalidation failed", video_id=video_id, exc_info=True
+                        )
+                    logger.info("Video %s auto-published", video_id)
+
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:
                     await _cleanup_oss_raw(video.id, video.source_url)

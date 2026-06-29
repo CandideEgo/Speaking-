@@ -389,3 +389,36 @@ async def seed_video(
 ):
     """Seed an official video for the public homepage. Admin only."""
     return await _seed_video(db, data.source_url)
+
+
+@router.post("/seed-full", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("3/minute")
+async def seed_video_full(
+    request: Request,
+    data: VideoCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """One-click seed: ensure cookies, seed, run the full pipeline, auto-publish.
+
+    Probes yt-dlp cookies against the URL; if invalid, refreshes from the
+    persistent playwright-cli browser session; if the session is logged out,
+    returns 423 so the admin knows to re-login on the server. On success the
+    video is seeded with auto_publish=True so finalize_video publishes it once
+    ready — the frontend just polls /status.
+    """
+    from app.services.youtube_cookies_service import ensure_cookies
+
+    cookies_status = await ensure_cookies(data.source_url)
+    if cookies_status == "need_manual_login":
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="YouTube cookies 需重新登录：请在服务器上运行 playwright-cli open "
+            "https://www.youtube.com --persistent 并登录后重试",
+        )
+    if cookies_status == "error":
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
+        )
+    return await _seed_video(db, data.source_url, auto_publish=True)
