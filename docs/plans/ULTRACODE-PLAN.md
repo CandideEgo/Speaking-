@@ -17,7 +17,7 @@
 
 在代码 agent 运行之前，以下需要人工操作：
 
-1. **轮换 Agnes AI API Key** `sk-rb3NrV4Cipz8D3zpVL0Xcxo28oe5gCy42tcDIIg5laf7yrI5` — 在 commit `57bbdf9` 中通过 `.env.example` 暴露。从 Agnes AI 控制台生成新密钥，更新生产环境变量，使旧密钥失效。
+1. **轮换 Agnes AI API Key** `sk-<REDACTED>` — 在 commit `57bbdf9` 中通过 `.env.example` 暴露。从 Agnes AI 控制台生成新密钥，更新生产环境变量，使旧密钥失效。
 2. **清除 git 历史** 使用 BFG Repo Cleaner 从所有历史提交中删除已提交的密钥。
 3. **替换 `.env.example` 密钥** 为占位符 `your-api-key-here`。
 4. **确认 Redis 密码** 与 `docker-compose.prod.yml` 命令和健康检查匹配。
