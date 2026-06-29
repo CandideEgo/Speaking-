@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment
 from app.models.user import User
+from app.services.notification_service import create_notification
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,15 @@ def _user_brief(user: User) -> dict:
     return {
         "id": user.id,
         "name": user.name,
-        "avatar_url": None,  # avatar_url not yet on User model
+        "avatar_url": user.avatar_url,
         "level": user.level,
     }
+
+
+async def _user_name(db: AsyncSession, user_id: str) -> str | None:
+    """Fetch a user's display name, or None if the user does not exist."""
+    result = await db.execute(select(User.name).where(User.id == user_id))
+    return result.scalar_one_or_none()
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +171,17 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
         like = PostLike(user_id=user_id, post_id=post_id)
         db.add(like)
         post.like_count += 1
+        # Notify the post owner (never self) of the new like.
+        if post.user_id != user_id:
+            actor_name = await _user_name(db, user_id)
+            await create_notification(
+                user_id=post.user_id,
+                type="post_liked",
+                title="收到点赞",
+                message=f"{actor_name or '有人'} 赞了你的帖子",
+                db=db,
+                related_url=f"/community?post={post_id}",
+            )
         await db.commit()
         return {"liked": True}
 
@@ -211,6 +229,31 @@ async def add_comment(
     comment = UserComment(user_id=user_id, post_id=post_id, content=content, parent_id=parent_id)
     db.add(comment)
     post.comment_count += 1
+
+    # Notify relevant users (never self) of the new comment.
+    actor_name = await _user_name(db, user_id)
+    notified: set[str] = set()
+    if parent_id and parent is not None and parent.user_id != user_id:
+        await create_notification(
+            user_id=parent.user_id,
+            type="comment_reply",
+            title="收到回复",
+            message=f"{actor_name or '有人'} 回复了你的评论",
+            db=db,
+            related_url=f"/community?post={post_id}",
+        )
+        notified.add(parent.user_id)
+    # Top-level comment (or a reply whose parent author is the post owner) → notify post owner.
+    if post.user_id != user_id and post.user_id not in notified:
+        await create_notification(
+            user_id=post.user_id,
+            type="comment_reply",
+            title="收到评论",
+            message=f"{actor_name or '有人'} 评论了你的帖子",
+            db=db,
+            related_url=f"/community?post={post_id}",
+        )
+
     await db.commit()
     await db.refresh(comment)
     return comment
@@ -371,6 +414,16 @@ async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) ->
     else:
         follow = Follow(follower_id=follower_id, followee_id=followee_id)
         db.add(follow)
+        # Notify the followee of the new follower.
+        actor_name = await _user_name(db, follower_id)
+        await create_notification(
+            user_id=followee_id,
+            type="social_follow",
+            title="新的关注",
+            message=f"{actor_name or '有人'} 关注了你",
+            db=db,
+            related_url="/community",
+        )
         await db.commit()
         return {"following": True}
 

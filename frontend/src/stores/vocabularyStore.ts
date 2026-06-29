@@ -132,9 +132,8 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
 
   async reviewWord(wordId: string, quality: number) {
     try {
-      await api(`/api/v1/vocabulary/${wordId}/review`, {
+      await api(`/api/v1/vocabulary/${wordId}/review?quality=${quality}`, {
         method: "POST",
-        body: JSON.stringify({ quality }),
       });
       // Refresh words to get updated review state
       get().fetchWords();

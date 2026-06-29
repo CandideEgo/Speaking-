@@ -11,28 +11,32 @@ import Link from "next/link";
 
 // --- Types ---
 
+interface PostUser {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  level: string | null;
+}
+
 interface Post {
   id: string;
-  author_name: string;
-  author_initial: string;
-  author_color: string;
+  user: PostUser;
   content: string;
   post_type: string;
+  media_url?: string | null;
   video_id?: string;
   video_title?: string;
   video_channel?: string;
   video_level?: string;
   video_duration?: number;
-  likes_count: number;
-  comments_count: number;
+  like_count: number;
+  comment_count: number;
   created_at: string;
   is_liked?: boolean;
 }
 
 interface PostsResponse {
   items: Post[];
-  page: number;
-  page_size: number;
   has_more: boolean;
 }
 
@@ -43,12 +47,7 @@ interface Comment {
   like_count: number;
   is_liked: boolean;
   created_at: string;
-  user: {
-    id: string;
-    name: string;
-    avatar_url: string | null;
-    level: string | null;
-  };
+  user: PostUser;
   replies: Comment[];
 }
 
@@ -64,11 +63,32 @@ function timeAgo(dateStr: string): string {
   return `${days} 天前`;
 }
 
+const AVATAR_COLORS = [
+  "bg-gradient-to-br from-brand-500 to-brand-400",
+  "bg-gradient-to-br from-indigo-500 to-indigo-400",
+  "bg-gradient-to-br from-emerald-500 to-emerald-400",
+  "bg-gradient-to-br from-amber-500 to-amber-400",
+  "bg-gradient-to-br from-rose-500 to-rose-400",
+  "bg-gradient-to-br from-sky-500 to-sky-400",
+];
+
+function avatarColor(seed: string | null | undefined): string {
+  const s = seed || "?";
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function userInitial(user: PostUser | undefined | null): string {
+  return (user?.name?.[0] || "U").toUpperCase();
+}
+
 const POST_TYPE_TAGS: Record<string, { label: string; color: string }> = {
-  discussion: { label: "讨论", color: "bg-brand-50 text-brand-500" },
-  tip: { label: "口语进步", color: "bg-success-soft text-success" },
-  resource: { label: "资源", color: "bg-indigo-soft text-indigo" },
-  question: { label: "提问", color: "bg-warning-soft text-warning" },
+  text: { label: "讨论", color: "bg-brand-50 text-brand-500" },
+  progress_share: { label: "学习进展", color: "bg-success-soft text-success" },
+  vocabulary_share: { label: "词汇", color: "bg-indigo-soft text-indigo" },
+  speaking_share: { label: "口语", color: "bg-warning-soft text-warning" },
+  video_share: { label: "视频", color: "bg-sky-soft text-sky" },
 };
 
 const TABS = [
@@ -90,9 +110,13 @@ export default function CommunityPage() {
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState("");
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
-  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
+  const [commentsByPost, setCommentsByPost] = useState<
+    Record<string, Comment[]>
+  >({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
-  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>(
+    {},
+  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -107,7 +131,7 @@ export default function CommunityPage() {
     setLoading(true);
     try {
       const data = await api<PostsResponse>(
-        `/api/v1/community/posts?sort=${activeTab}&page_size=20`
+        `/api/v1/community/feed?page=1&page_size=20`,
       );
       setPosts(data.items);
     } catch {
@@ -123,7 +147,7 @@ export default function CommunityPage() {
     try {
       await api("/api/v1/community/posts", {
         method: "POST",
-        body: JSON.stringify({ content: newPost, post_type: "discussion" }),
+        body: JSON.stringify({ content: newPost, post_type: "text" }),
       });
       setNewPost("");
       loadPosts();
@@ -141,10 +165,10 @@ export default function CommunityPage() {
             ? {
                 ...p,
                 is_liked: !p.is_liked,
-                likes_count: p.is_liked ? p.likes_count - 1 : p.likes_count + 1,
+                like_count: p.is_liked ? p.like_count - 1 : p.like_count + 1,
               }
-            : p
-        )
+            : p,
+        ),
       );
     } catch {
       /* silently fail */
@@ -154,7 +178,9 @@ export default function CommunityPage() {
   async function loadComments(postId: string) {
     setCommentLoading((prev) => ({ ...prev, [postId]: true }));
     try {
-      const data = await api<Comment[]>(`/api/v1/community/posts/${postId}/comments`);
+      const data = await api<Comment[]>(
+        `/api/v1/community/posts/${postId}/comments`,
+      );
       setCommentsByPost((prev) => ({ ...prev, [postId]: data }));
     } catch {
       toast.error("加载评论失败");
@@ -178,17 +204,22 @@ export default function CommunityPage() {
     const content = commentDraft[postId]?.trim();
     if (!content) return;
     try {
-      const created = await api<Comment>(`/api/v1/community/posts/${postId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ content }),
-      });
+      const created = await api<Comment>(
+        `/api/v1/community/posts/${postId}/comments`,
+        {
+          method: "POST",
+          body: JSON.stringify({ content }),
+        },
+      );
       setCommentsByPost((prev) => ({
         ...prev,
         [postId]: [created, ...(prev[postId] || [])],
       }));
       setCommentDraft((prev) => ({ ...prev, [postId]: "" }));
       setPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p))
+        prev.map((p) =>
+          p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
+        ),
       );
       toast.success("评论已发布");
     } catch {
@@ -200,7 +231,10 @@ export default function CommunityPage() {
     const url = `${window.location.origin}/community`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${post.author_name} 的动态`, url });
+        await navigator.share({
+          title: `${post.user.name ?? "用户"} 的动态`,
+          url,
+        });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(url);
         toast.success("链接已复制到剪贴板");
@@ -210,7 +244,7 @@ export default function CommunityPage() {
     }
   }
 
-  const userInitial = (user?.name?.[0] || "C").toUpperCase();
+  const currentUserInitial = (user?.name?.[0] || "C").toUpperCase();
 
   return (
     <main className="min-h-full bg-canvas">
@@ -228,7 +262,10 @@ export default function CommunityPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={cn("tab-pill", activeTab === tab.key && "tab-pill-active")}
+              className={cn(
+                "tab-pill",
+                activeTab === tab.key && "tab-pill-active",
+              )}
             >
               {tab.label}
             </button>
@@ -243,7 +280,7 @@ export default function CommunityPage() {
             <div className="create-post">
               <div className="flex gap-3 items-center">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-[13px] flex items-center justify-center flex-shrink-0">
-                  {userInitial}
+                  {currentUserInitial}
                 </div>
                 <textarea
                   placeholder="分享你的学习心得..."
@@ -253,7 +290,9 @@ export default function CommunityPage() {
                 />
               </div>
               <div className="flex justify-between items-center mt-3">
-                <span className="text-xs text-muted-soft">支持添加视频和图片</span>
+                <span className="text-xs text-muted-soft">
+                  支持添加视频和图片
+                </span>
                 <button
                   onClick={handleCreatePost}
                   className="btn-primary !py-[7px] !px-3.5 !text-[13px]"
@@ -279,23 +318,36 @@ export default function CommunityPage() {
                   <div key={post.id} className="post-card">
                     {/* Author header */}
                     <div className="flex items-center gap-2.5 mb-3">
-                      <div
-                        className={cn(
-                          "w-[38px] h-[38px] rounded-full flex items-center justify-center font-bold text-[14px] text-on-primary flex-shrink-0",
-                          post.author_color
-                        )}
-                      >
-                        {post.author_initial}
-                      </div>
+                      {post.user.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={post.user.avatar_url}
+                          alt={post.user.name ?? "用户"}
+                          className="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div
+                          className={cn(
+                            "w-[38px] h-[38px] rounded-full flex items-center justify-center font-bold text-[14px] text-on-primary flex-shrink-0",
+                            avatarColor(post.user.id),
+                          )}
+                        >
+                          {userInitial(post.user)}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold">{post.author_name}</div>
-                        <div className="text-xs text-muted">{timeAgo(post.created_at)}</div>
+                        <div className="text-sm font-semibold">
+                          {post.user.name ?? "用户"}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {timeAgo(post.created_at)}
+                        </div>
                       </div>
                       {tag && (
                         <span
                           className={cn(
                             "text-[11px] font-bold px-2.5 py-1 rounded-pill",
-                            tag.color
+                            tag.color,
                           )}
                         >
                           {tag.label}
@@ -304,7 +356,9 @@ export default function CommunityPage() {
                     </div>
 
                     {/* Content */}
-                    <p className="text-sm text-body leading-relaxed mb-3.5">{post.content}</p>
+                    <p className="text-sm text-body leading-relaxed mb-3.5">
+                      {post.content}
+                    </p>
 
                     {/* Video preview */}
                     {post.video_id && (
@@ -338,11 +392,16 @@ export default function CommunityPage() {
                         onClick={() => handleLike(post.id)}
                         className={cn(
                           "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
-                          post.is_liked ? "text-brand-500" : "text-muted hover:text-ink"
+                          post.is_liked
+                            ? "text-brand-500"
+                            : "text-muted hover:text-ink",
                         )}
                       >
-                        <Heart size={16} className={post.is_liked ? "fill-brand-500" : ""} />
-                        {post.likes_count}
+                        <Heart
+                          size={16}
+                          className={post.is_liked ? "fill-brand-500" : ""}
+                        />
+                        {post.like_count}
                       </button>
                       <button
                         onClick={() => toggleComments(post.id)}
@@ -350,11 +409,11 @@ export default function CommunityPage() {
                           "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
                           expandedPostId === post.id
                             ? "text-brand-500"
-                            : "text-muted hover:text-ink"
+                            : "text-muted hover:text-ink",
                         )}
                       >
                         <MessageCircle size={16} />
-                        {post.comments_count}
+                        {post.comment_count}
                       </button>
                       <button
                         onClick={() => handleSharePost(post)}
@@ -374,7 +433,10 @@ export default function CommunityPage() {
                             type="text"
                             value={commentDraft[post.id] || ""}
                             onChange={(e) =>
-                              setCommentDraft((prev) => ({ ...prev, [post.id]: e.target.value }))
+                              setCommentDraft((prev) => ({
+                                ...prev,
+                                [post.id]: e.target.value,
+                              }))
                             }
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleAddComment(post.id);
@@ -394,7 +456,10 @@ export default function CommunityPage() {
                         {/* Comments list */}
                         {commentLoading[post.id] ? (
                           <div className="flex justify-center py-4">
-                            <Loader2 size={20} className="animate-spin text-brand-500" />
+                            <Loader2
+                              size={20}
+                              className="animate-spin text-brand-500"
+                            />
                           </div>
                         ) : (
                           <div className="space-y-3">
@@ -406,7 +471,9 @@ export default function CommunityPage() {
                               (commentsByPost[post.id] || []).map((comment) => (
                                 <div key={comment.id} className="flex gap-2.5">
                                   <div className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-[11px] font-bold text-muted flex-shrink-0">
-                                    {(comment.user?.name?.[0] || "U").toUpperCase()}
+                                    {(
+                                      comment.user?.name?.[0] || "U"
+                                    ).toUpperCase()}
                                   </div>
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
@@ -460,7 +527,9 @@ export default function CommunityPage() {
               <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
                 热门话题
               </h4>
-              <p className="text-[13px] text-muted">话题榜即将上线，敬请期待。</p>
+              <p className="text-[13px] text-muted">
+                话题榜即将上线，敬请期待。
+              </p>
             </div>
           </div>
         </div>

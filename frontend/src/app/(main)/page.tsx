@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { useHomeFeed } from "@/hooks/useHomeFeed";
+import { useHomeFeed, DIFFICULTY_GROUPS } from "@/hooks/useHomeFeed";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
-import type { Video, UserPreferences, LearningRecord } from "@/types";
+import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
 const CATEGORIES = [
@@ -24,31 +24,20 @@ const CATEGORIES = [
   { emoji: "🛒", label: "商业", tag: "商业" },
 ];
 
-/* ── Difficulty tab groups ── */
-const DIFFICULTY_GROUPS = [
-  { id: "all", label: "全部", levels: [] },
-  { id: "beginner", label: "初级 A1-A2", levels: ["A1", "A2"] },
-  { id: "intermediate", label: "中级 B1-B2", levels: ["B1", "B2"] },
-  { id: "advanced", label: "高级 C1-C2", levels: ["C1", "C2"] },
-];
-
 export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
 
-  const {
-    videos,
-    loading,
-    error,
-    retry,
-    activeDifficulty,
-    setActiveDifficulty,
-  } = useHomeFeed();
+  const { videos, loading, error, retry, activeGroup, setActiveGroup } =
+    useHomeFeed();
 
-  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
-  const [attempts, setAttempts] = useState<
-    { id: string; created_at: string }[]
-  >([]);
+  const [streakInfo, setStreakInfo] = useState<{
+    current_streak: number;
+    longest_streak: number;
+    goal_type: string;
+    goal_value: number;
+    today_progress: number;
+  } | null>(null);
   const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
     [],
   );
@@ -56,50 +45,25 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [prefs, attemptsRes, recordsRes] = await Promise.all([
-          api<UserPreferences>("/api/v1/users/me/preferences").catch(
-            () => null,
-          ),
-          api<{ items: { id: string; created_at: string }[] }>(
-            "/api/v1/speaking/attempts?page=1&page_size=200",
-          ).catch(() => ({ items: [] })),
+        const [streakRes, recordsRes] = await Promise.all([
+          api<{
+            current_streak: number;
+            longest_streak: number;
+            goal_type: string;
+            goal_value: number;
+            today_progress: number;
+          }>("/api/v1/users/me/streak").catch(() => null),
           api<{ records: LearningRecord[] }>(
             "/api/v1/learning/records?page=1&page_size=4&completed=false",
           ).catch(() => ({ records: [] })),
         ]);
-        setPreferences(prefs);
-        setAttempts(attemptsRes.items);
+        if (streakRes) setStreakInfo(streakRes);
         setInProgressRecords(recordsRes.records);
       } catch {
         // silent fallback
       }
     })();
   }, []);
-
-  // Map active difficulty group to tab id
-  function difficultyGroupFromLevel(level: string): string {
-    if (level === "all") return "all";
-    for (const g of DIFFICULTY_GROUPS) {
-      if (g.levels.includes(level)) return g.id;
-    }
-    return "all";
-  }
-
-  function handleGroupSelect(groupId: string) {
-    const group = DIFFICULTY_GROUPS.find((g) => g.id === groupId);
-    if (!group) return;
-    // If switching groups, set to first level in that group (or 'all')
-    if (group.id === "all") {
-      setActiveDifficulty("all");
-    } else if (group.levels.length > 0) {
-      // Keep current level if it's in the new group, otherwise pick the first
-      if (group.levels.includes(activeDifficulty)) {
-        // stay on current level
-      } else {
-        setActiveDifficulty(group.levels[0]);
-      }
-    }
-  }
 
   // Count videos per category tag
   const categoryCounts: Record<string, number> = {};
@@ -108,62 +72,42 @@ export default function HomePage() {
     categoryCounts[tag] = (categoryCounts[tag] || 0) + 1;
   }
 
-  function toISODate(d: Date): string {
-    return d.toISOString().slice(0, 10);
-  }
+  const streak = streakInfo?.current_streak ?? 0;
+  const longestStreak = streakInfo?.longest_streak ?? 0;
+  const goalType = streakInfo?.goal_type ?? "speaking_attempts";
+  const goalValue = streakInfo?.goal_value ?? 5;
+  const todayProgress = streakInfo?.today_progress ?? 0;
+  const goalMet = todayProgress >= goalValue;
+  const goalUnit =
+    goalType === "minutes" ? "分钟" : goalType === "words" ? "单词" : "次练习";
 
-  const todayISO = toISODate(new Date());
-  const todayAttempts = attempts.filter(
-    (a) => a.created_at.slice(0, 10) === todayISO,
-  ).length;
-  const dailyGoal = preferences?.daily_goal_value || 5;
-  const goalMet = todayAttempts >= dailyGoal;
-
-  function computeStreak() {
-    const dates = new Set(attempts.map((a) => a.created_at.slice(0, 10)));
-    const today = toISODate(new Date());
-    const yesterday = toISODate(new Date(Date.now() - 86400000));
-    let current = dates.has(today)
-      ? today
-      : dates.has(yesterday)
-        ? yesterday
-        : null;
-    if (!current) return 0;
-    let streak = 0;
-    const d = new Date(current);
-    while (dates.has(toISODate(d))) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    }
-    return streak;
-  }
-
-  const streak = computeStreak();
-
-  // Continue watching: real in-progress records, fallback to first 4 videos
-  const continueWatching =
+  // Continue watching: real in-progress records (with progress), fallback to first 4 videos
+  const continueWatching: { video: Video; progress?: number }[] =
     inProgressRecords.length > 0
       ? inProgressRecords.map((r) => ({
-          id: r.video_id,
-          title: r.video?.title || "未知视频",
-          thumbnail_url: r.video?.thumbnail_url ?? null,
-          duration: 0,
-          difficulty_level: null,
-          source_url: "",
-          video_source: "imported",
-          status: "ready" as const,
-          error_message: null,
-          topic_tags: null,
-          is_official: true,
-          is_published: true,
-          video_url_480p: null,
-          video_url_720p: null,
-          video_url_1080p: null,
-          processing_mode: null,
-          processing_step: null,
-          created_at: r.created_at,
+          video: {
+            id: r.video_id,
+            title: r.video?.title || "未知视频",
+            thumbnail_url: r.video?.thumbnail_url ?? null,
+            duration: 0,
+            difficulty_level: null,
+            source_url: "",
+            video_source: "imported",
+            status: "ready" as const,
+            error_message: null,
+            topic_tags: null,
+            is_official: true,
+            is_published: true,
+            video_url_480p: null,
+            video_url_720p: null,
+            video_url_1080p: null,
+            processing_mode: null,
+            processing_step: null,
+            created_at: r.created_at,
+          },
+          progress: r.progress_percentage || undefined,
         }))
-      : videos.slice(0, 4);
+      : videos.slice(0, 4).map((video) => ({ video }));
 
   // Curated videos: all filtered videos
   const curatedVideos = videos;
@@ -195,7 +139,7 @@ export default function HomePage() {
               <p className="b-hero-sub">
                 {goalMet
                   ? "今日目标已达成！继续保持，或挑战更高难度。"
-                  : `还差 ${Math.max(0, dailyGoal - todayAttempts)} 次口语练习即可达成今日目标。从一条真实演讲开始。`}
+                  : `还差 ${Math.max(0, goalValue - todayProgress)} ${goalUnit}即可达成今日目标。从一条真实演讲开始。`}
               </p>
               <div className="b-hero-cta">
                 <Link href="/speaking" className="btn-go">
@@ -231,14 +175,14 @@ export default function HomePage() {
                   <small>天</small>
                 </div>
               </div>
-              <div className="foot">最长连胜保持中 · 继续加油</div>
+              <div className="foot">最长 {longestStreak} 天 · 继续加油</div>
             </div>
             <div className="b-goal">
               <div>
                 <div className="lbl">Daily Goal</div>
                 <div className="num">
-                  {todayAttempts}
-                  <small>/{dailyGoal}</small>
+                  {todayProgress}
+                  <small>/{goalValue}</small>
                 </div>
               </div>
               <div>
@@ -246,14 +190,14 @@ export default function HomePage() {
                   <div
                     className="b-goal-fill"
                     style={{
-                      width: `${Math.min(100, (todayAttempts / dailyGoal) * 100)}%`,
+                      width: `${Math.min(100, (todayProgress / goalValue) * 100)}%`,
                     }}
                   />
                 </div>
                 <div className="foot">
                   {goalMet
                     ? "今日目标已达成 🎉"
-                    : `还差 ${Math.max(0, dailyGoal - todayAttempts)} 次达成目标`}
+                    : `还差 ${Math.max(0, goalValue - todayProgress)} ${goalUnit}达成目标`}
                 </div>
               </div>
             </div>
@@ -294,12 +238,12 @@ export default function HomePage() {
               </span>
             </div>
             <div className="feat-grid">
-              {continueWatching.map((v, i) => (
+              {continueWatching.map((item, i) => (
                 <VideoCard
-                  key={v.id}
-                  video={v}
+                  key={item.video.id}
+                  video={item.video}
                   feat={i === 0}
-                  progress={inProgressRecords.length > 0 ? 62 : undefined}
+                  progress={item.progress}
                 />
               ))}
             </div>
@@ -335,7 +279,7 @@ export default function HomePage() {
                   href={`/browse?category=${encodeURIComponent(cat.tag)}`}
                   className="cat-big"
                 >
-                  <img src={cat.img} alt="" loading="lazy" />
+                  <div className={`cat-bg bg-gradient-to-br ${cat.gradient}`} />
                   <div className="ov" />
                   {count ? null : <span className="lv">COMING SOON</span>}
                   <div className="meta">
@@ -375,13 +319,12 @@ export default function HomePage() {
           {/* Difficulty pill tabs */}
           <div className="tab-container mb-6">
             {DIFFICULTY_GROUPS.map((group) => {
-              const isActive =
-                difficultyGroupFromLevel(activeDifficulty) === group.id;
+              const isActive = activeGroup === group.id;
               return (
                 <button
                   key={group.id}
                   className={`tab-pill ${isActive ? "tab-pill-active" : ""}`}
-                  onClick={() => handleGroupSelect(group.id)}
+                  onClick={() => setActiveGroup(group.id)}
                 >
                   {group.label}
                 </button>
@@ -422,10 +365,21 @@ export default function HomePage() {
   );
 }
 
-/* ── 分类元数据（带预览图 + 难度区间，用于视觉化大卡） ── */
+/* ── 分类元数据（确定性渐变 + 难度区间，用于视觉化大卡） ── */
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  TED: "from-violet-500 to-indigo-600",
+  访谈: "from-rose-500 to-pink-600",
+  新闻: "from-sky-500 to-blue-600",
+  Vlog: "from-amber-500 to-orange-600",
+  教育: "from-emerald-500 to-teal-600",
+  电影: "from-fuchsia-500 to-purple-600",
+  科技: "from-cyan-500 to-sky-600",
+  商业: "from-lime-500 to-green-600",
+};
+
 const CATEGORIES_WITH_META = CATEGORIES.map((c) => ({
   ...c,
-  img: `https://picsum.photos/seed/cat-${c.tag}/400/300`,
+  gradient: CATEGORY_GRADIENTS[c.tag] ?? "from-brand-500 to-brand-400",
   range:
     c.tag === "TED" || c.tag === "新闻"
       ? "B1–C1"

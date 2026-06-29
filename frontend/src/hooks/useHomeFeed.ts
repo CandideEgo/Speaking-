@@ -6,24 +6,22 @@ import { api } from "@/lib/api";
 import type { Video } from "@/types";
 
 interface UseHomeFeedOptions {
-  initialDifficulty?: string;
+  initialGroup?: string;
 }
 
-const DIFFICULTY_TABS = [
-  { id: "all", label: "全部" },
-  { id: "A1", label: "A1" },
-  { id: "A2", label: "A2" },
-  { id: "B1", label: "B1" },
-  { id: "B2", label: "B2" },
-  { id: "C1", label: "C1" },
-  { id: "C2", label: "C2" },
+/* Difficulty groups map a single pill to one or more CEFR levels. */
+export const DIFFICULTY_GROUPS = [
+  { id: "all", label: "全部", levels: [] as string[] },
+  { id: "beginner", label: "初级 A1-A2", levels: ["A1", "A2"] },
+  { id: "intermediate", label: "中级 B1-B2", levels: ["B1", "B2"] },
+  { id: "advanced", label: "高级 C1-C2", levels: ["C1", "C2"] },
 ];
 
-export function useHomeFeed({ initialDifficulty = "all" }: UseHomeFeedOptions = {}) {
+export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeDifficulty, setActiveDifficulty] = useState(initialDifficulty);
+  const [activeGroup, setActiveGroup] = useState(initialGroup);
   const cancelledRef = useRef(false);
 
   // Shared fetch logic — used by both useEffect and retry
@@ -57,11 +55,16 @@ export function useHomeFeed({ initialDifficulty = "all" }: UseHomeFeedOptions = 
     };
   }, [fetchVideos]);
 
-  // Client-side difficulty filter
+  // Client-side difficulty filter by group (set of levels)
+  const group = DIFFICULTY_GROUPS.find((g) => g.id === activeGroup);
+  const levels = group?.levels ?? [];
   const filtered =
-    activeDifficulty === "all"
+    levels.length === 0
       ? videos
-      : videos.filter((v) => v.difficulty_level === activeDifficulty);
+      : videos.filter(
+          (v) =>
+            v.difficulty_level != null && levels.includes(v.difficulty_level),
+        );
 
   // Group by first topic tag
   const grouped: Record<string, Video[]> = {};
@@ -81,8 +84,7 @@ export function useHomeFeed({ initialDifficulty = "all" }: UseHomeFeedOptions = 
     loading,
     error,
     retry,
-    difficultyTabs: DIFFICULTY_TABS,
-    activeDifficulty,
-    setActiveDifficulty,
+    activeGroup,
+    setActiveGroup,
   };
 }

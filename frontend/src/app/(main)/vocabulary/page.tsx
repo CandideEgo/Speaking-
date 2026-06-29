@@ -23,8 +23,17 @@ interface VocabWord {
 
 interface VocabListResponse {
   words: VocabWord[];
-  // 后端 list 接口只返回 total/due；mastered/learning 由前端按 mastery_level 本地统计
+  // 后端 list 接口只返回 total/due；mastered/learning 由 /vocabulary/stats 提供
   stats: { total: number; due: number };
+}
+
+interface VocabStatsResponse {
+  total: number;
+  new_count: number;
+  learning_count: number;
+  reviewing_count: number;
+  mastered_count: number;
+  due_count: number;
 }
 
 const QUALITY_BUTTONS = [
@@ -74,6 +83,7 @@ export default function VocabularyPage() {
       return;
     }
     loadWords();
+    loadStats();
   }, [dueOnly, isLoading, isAuthenticated]);
 
   async function loadWords() {
@@ -83,24 +93,24 @@ export default function VocabularyPage() {
         `/api/v1/vocabulary?due_only=${dueOnly}&limit=100`,
       );
       setWords(data.words);
-      // mastered/learning 后端 list 接口未返回，按本次取回的单词 mastery_level 本地统计
-      const mastered = data.words.filter(
-        (w) => w.mastery_level === "mastered",
-      ).length;
-      const learning = data.words.filter(
-        (w) =>
-          w.mastery_level === "learning" || w.mastery_level === "reviewing",
-      ).length;
-      setStats({
-        total: data.stats.total,
-        due: data.stats.due,
-        mastered,
-        learning,
-      });
     } catch {
       toast.error("加载词汇失败");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const data = await api<VocabStatsResponse>(`/api/v1/vocabulary/stats`);
+      setStats({
+        total: data.total,
+        due: data.due_count,
+        mastered: data.mastered_count,
+        learning: data.learning_count + data.reviewing_count,
+      });
+    } catch {
+      // keep existing stats on error
     }
   }
 
@@ -110,6 +120,7 @@ export default function VocabularyPage() {
         method: "POST",
       });
       loadWords();
+      loadStats();
     } catch {
       toast.error("复习记录失败");
     }
@@ -120,6 +131,7 @@ export default function VocabularyPage() {
       await api(`/api/v1/vocabulary/${wordId}`, { method: "DELETE" });
       toast.success("已移除单词");
       loadWords();
+      loadStats();
     } catch {
       toast.error("移除失败");
     }

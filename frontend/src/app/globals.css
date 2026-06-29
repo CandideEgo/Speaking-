@@ -709,10 +709,10 @@
   .cat-big {
     @apply relative aspect-[4/3] rounded-lg overflow-hidden cursor-pointer border border-hairline;
   }
-  .cat-big img {
-    @apply w-full h-full object-cover opacity-55 transition-all duration-200;
+  .cat-big .cat-bg {
+    @apply w-full h-full opacity-55 transition-all duration-200;
   }
-  .cat-big:hover img {
+  .cat-big:hover .cat-bg {
     @apply opacity-70 scale-105;
   }
   .cat-big .ov {

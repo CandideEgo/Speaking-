@@ -14,6 +14,8 @@ import {
 } from "@/components/common/Icons";
 import { RotateCcw, Play } from "lucide-react";
 import Link from "next/link";
+import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
+import type { DailyActivity } from "@/types";
 
 // --- Types ---
 
@@ -31,15 +33,6 @@ interface VocabStats {
   due_count: number;
   learning_count: number;
   mastered_count: number;
-}
-
-interface SpeakingAttempt {
-  id: string;
-  subtitle_id: string;
-  created_at: string;
-  accuracy: number | null;
-  fluency: number | null;
-  completeness: number | null;
 }
 
 interface LearningRecord {
@@ -65,7 +58,7 @@ interface StreakInfo {
 interface DashboardData {
   speakingStats: SpeakingStats;
   vocabStats: VocabStats;
-  attempts: SpeakingAttempt[];
+  activities: DailyActivity[];
   recentRecords: LearningRecord[];
   streak: StreakInfo;
 }
@@ -80,16 +73,6 @@ function timeAgo(dateStr: string): string {
   if (hours < 24) return `${hours} 小时前`;
   const days = Math.floor(hours / 24);
   return `${days} 天前`;
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 function getPastWeekLabels(): string[] {
@@ -136,35 +119,50 @@ export default function DashboardPage() {
     setLoading(true);
     setError(false);
     try {
-      const [rawSpeakingStats, vocabStats, attemptsRes, recordsRes, streakRes] =
-        await Promise.all([
-          api<SpeakingStats & { total_videos?: number }>(
-            "/api/v1/speaking/stats?period=all",
-          ).catch(() => ({
-            total_speaking_attempts: 0,
-            average_accuracy: 0,
-            average_fluency: 0,
-            average_completeness: 0,
-            total_vocabulary: 0,
-            total_videos_watched: 0,
-          })),
-          api<VocabStats>("/api/v1/vocabulary/stats").catch(() => ({
-            total: 0,
-            due_count: 0,
-            learning_count: 0,
-            mastered_count: 0,
-          })),
-          api<{ items: SpeakingAttempt[] }>(
-            "/api/v1/speaking/attempts?page=1&page_size=1000",
-          ).catch(() => ({ items: [] })),
-          api<{ records: LearningRecord[] }>(
-            "/api/v1/learning/records?page=1&page_size=5",
-          ).catch(() => ({ records: [] })),
-          api<StreakInfo>("/api/v1/users/me/streak").catch(() => ({
-            current_streak: 0,
-            longest_streak: 0,
-          })),
-        ]);
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevYear = month === 1 ? year - 1 : year;
+
+      const [
+        rawSpeakingStats,
+        vocabStats,
+        activityCurr,
+        activityPrev,
+        recordsRes,
+        streakRes,
+      ] = await Promise.all([
+        api<SpeakingStats & { total_videos?: number }>(
+          "/api/v1/speaking/stats?period=all",
+        ).catch(() => ({
+          total_speaking_attempts: 0,
+          average_accuracy: 0,
+          average_fluency: 0,
+          average_completeness: 0,
+          total_vocabulary: 0,
+          total_videos_watched: 0,
+        })),
+        api<VocabStats>("/api/v1/vocabulary/stats").catch(() => ({
+          total: 0,
+          due_count: 0,
+          learning_count: 0,
+          mastered_count: 0,
+        })),
+        api<{ activities: DailyActivity[] }>(
+          `/api/v1/users/me/activity?year=${year}&month=${month}`,
+        ).catch(() => ({ activities: [] })),
+        api<{ activities: DailyActivity[] }>(
+          `/api/v1/users/me/activity?year=${prevYear}&month=${prevMonth}`,
+        ).catch(() => ({ activities: [] })),
+        api<{ records: LearningRecord[] }>(
+          "/api/v1/learning/records?page=1&page_size=5",
+        ).catch(() => ({ records: [] })),
+        api<StreakInfo>("/api/v1/users/me/streak").catch(() => ({
+          current_streak: 0,
+          longest_streak: 0,
+        })),
+      ]);
 
       setData({
         speakingStats: {
@@ -175,7 +173,7 @@ export default function DashboardPage() {
             0,
         },
         vocabStats,
-        attempts: attemptsRes.items,
+        activities: [...activityCurr.activities, ...activityPrev.activities],
         recentRecords: recordsRes.records,
         streak: streakRes,
       });
@@ -195,51 +193,33 @@ export default function DashboardPage() {
     loadData();
   }, [isAuthenticated, isLoading, router]);
 
-  // Weekly activity from attempts
+  // Weekly activity from the daily-activity snapshots (last 7 days).
   const weeklyActivity = useMemo(() => {
-    const today = new Date();
     const counts: number[] = Array(7).fill(0);
-    if (!data?.attempts) return { labels: getPastWeekLabels(), counts, max: 1 };
+    const today = new Date();
+    const map = new Map<string, number>();
+    for (const a of data?.activities ?? [])
+      map.set(a.date, a.speaking_attempts);
 
-    data.attempts.forEach((a) => {
-      const d = new Date(a.created_at);
-      const diffDays = Math.floor((today.getTime() - d.getTime()) / 86400000);
-      if (diffDays >= 0 && diffDays < 7) {
-        counts[6 - diffDays] += 1;
-      }
-    });
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      counts[6 - i] = map.get(key) ?? 0;
+    }
 
     return {
       labels: getPastWeekLabels(),
       counts,
       max: Math.max(...counts, 1),
     };
-  }, [data?.attempts]);
+  }, [data?.activities]);
 
-  // Heatmap from attempts (past 35 days)
-  const heatmapLevels = useMemo(() => {
-    const today = new Date();
-    const counts: number[] = Array(35).fill(0);
-    if (!data?.attempts) return counts;
-
-    data.attempts.forEach((a) => {
-      const d = new Date(a.created_at);
-      const diffDays = Math.floor((today.getTime() - d.getTime()) / 86400000);
-      if (diffDays >= 0 && diffDays < 35) {
-        counts[34 - diffDays] += 1;
-      }
-    });
-
-    // Normalize to 0-4 levels based on max count
-    const max = Math.max(...counts, 1);
-    return counts.map((c) => {
-      if (c === 0) return 0;
-      if (c <= max * 0.25) return 1;
-      if (c <= max * 0.5) return 2;
-      if (c <= max * 0.75) return 3;
-      return 4;
-    });
-  }, [data?.attempts]);
+  // Current month for the heatmap component.
+  const heatmapMonth = useMemo(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }, []);
 
   if (isLoading) {
     return (
@@ -373,31 +353,12 @@ export default function DashboardPage() {
               {/* Heatmap */}
               <div className="bg-canvas border border-hairline rounded-lg p-6">
                 <h3 className="!text-base !font-bold !m-0 !mb-1">学习热力图</h3>
-                <p className="text-[13px] text-muted !m-0 !mb-5">过去 5 周</p>
-                <div className="heat-grid">
-                  {heatmapLevels.map((level, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "heat-cell",
-                        level === 1 && "heat-l1",
-                        level === 2 && "heat-l2",
-                        level === 3 && "heat-l3",
-                        level === 4 && "heat-l4",
-                      )}
-                      title={`${toISODate(new Date(Date.now() - (34 - i) * 86400000))}: ${level} 级活跃`}
-                    />
-                  ))}
-                </div>
-                <div className="heat-legend">
-                  <span>少</span>
-                  <div className="w-[11px] h-[11px] rounded-[3px] bg-surface-card inline-block" />
-                  <div className="w-[11px] h-[11px] rounded-[3px] bg-brand-50 inline-block" />
-                  <div className="w-[11px] h-[11px] rounded-[3px] bg-brand-100 inline-block" />
-                  <div className="w-[11px] h-[11px] rounded-[3px] bg-brand-200 inline-block" />
-                  <div className="w-[11px] h-[11px] rounded-[3px] bg-brand-500 inline-block" />
-                  <span>多</span>
-                </div>
+                <p className="text-[13px] text-muted !m-0 !mb-5">本月</p>
+                <ActivityHeatmap
+                  activities={data.activities}
+                  year={heatmapMonth.year}
+                  month={heatmapMonth.month}
+                />
               </div>
             </div>
 

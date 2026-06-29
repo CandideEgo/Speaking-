@@ -73,7 +73,7 @@ async def create_post(
         "user": {
             "id": current_user.id,
             "name": current_user.name,
-            "avatar_url": None,
+            "avatar_url": current_user.avatar_url,
             "level": current_user.level,
         },
         "post_type": post.post_type,
@@ -162,7 +162,7 @@ async def add_comment(
         "user": {
             "id": current_user.id,
             "name": current_user.name,
-            "avatar_url": None,
+            "avatar_url": current_user.avatar_url,
             "level": current_user.level,
         },
         "content": comment.content,
