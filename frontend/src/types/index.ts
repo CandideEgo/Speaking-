@@ -28,6 +28,10 @@ export interface Video {
    * Official videos go through draft → review → publish; only published ones
    * appear on the homepage / browse feed. */
   is_published: boolean;
+  /** UGC review lifecycle for user-uploaded videos
+   * (draft/pending_review/published/rejected). Official videos mirror
+   * is_published here for consistency. */
+  review_status: "draft" | "pending_review" | "published" | "rejected";
   video_url_480p: string | null;
   video_url_720p: string | null;
   video_url_1080p: string | null;

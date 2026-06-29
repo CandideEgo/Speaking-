@@ -98,6 +98,7 @@ export default function HomePage() {
             topic_tags: null,
             is_official: true,
             is_published: true,
+            review_status: "published" as const,
             video_url_480p: null,
             video_url_720p: null,
             video_url_1080p: null,

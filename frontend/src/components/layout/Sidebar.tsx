@@ -15,6 +15,7 @@ import {
   CompassIcon,
   MicIcon,
   CrownIcon,
+  UploadIcon,
 } from "@/components/common/Icons";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,10 @@ const navigation: NavSection[] = [
       { label: "学习面板", href: "/dashboard", icon: LayoutDashboardIcon },
       { label: "词汇本", href: "/vocabulary", icon: BookOpenIcon },
     ],
+  },
+  {
+    title: "创作",
+    items: [{ label: "创作者中心", href: "/my-videos", icon: UploadIcon }],
   },
   {
     title: "账户",
