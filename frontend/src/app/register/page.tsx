@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -41,6 +42,10 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!agreed) {
+      setError("请先阅读并同意《用户协议》与《隐私政策》");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
@@ -73,7 +78,10 @@ export default function RegisterPage() {
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             已有账号？{" "}
-            <Link href="/login" className="text-brand-500 hover:underline font-medium">
+            <Link
+              href="/login"
+              className="text-brand-500 hover:underline font-medium"
+            >
               登录
             </Link>
           </p>
@@ -116,9 +124,36 @@ export default function RegisterPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
+          <label className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-hairline text-brand-500 focus:ring-brand-500"
+            />
+            <span>
+              我已阅读并同意
+              <Link
+                href="/terms"
+                className="text-brand-500 hover:underline"
+                target="_blank"
+              >
+                《用户协议》
+              </Link>
+              与
+              <Link
+                href="/privacy"
+                className="text-brand-500 hover:underline"
+                target="_blank"
+              >
+                《隐私政策》
+              </Link>
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !agreed}
             className="btn-primary w-full justify-center mt-2"
           >
             {loading ? "注册中..." : "注册"}

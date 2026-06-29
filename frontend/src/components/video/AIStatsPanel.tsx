@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { Sparkles, Loader2, Mic, BarChart3, BookOpen, Play } from "lucide-react";
+import { Sparkles, Mic, BarChart3, BookOpen, Play } from "lucide-react";
 import type { User } from "@/types";
 
 interface AIStatsPanelProps {
@@ -25,25 +26,8 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
   const [recommendation, setRecommendation] = useState<string | null>(null);
   const [aiStats, setAiStats] = useState<AIStats["stats"] | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
-  const [upgrading, setUpgrading] = useState(false);
 
   const isPro = user.plan === "pro";
-
-  async function handleUpgrade() {
-    setUpgrading(true);
-    try {
-      const order = await api<{ payment_url: string }>("/api/v1/payments/create-order", {
-        method: "POST",
-        body: JSON.stringify({ plan: "pro_monthly" }),
-      });
-      await api(order.payment_url);
-      window.location.reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "支付失败");
-    } finally {
-      setUpgrading(false);
-    }
-  }
 
   async function loadAIData() {
     setLoadingAI(true);
@@ -67,8 +51,16 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
   }
 
   const stats = [
-    { label: "跟读次数", value: aiStats?.total_speaking_attempts ?? 0, icon: Mic },
-    { label: "准确率", value: `${aiStats?.average_accuracy ?? 0}%`, icon: BarChart3 },
+    {
+      label: "跟读次数",
+      value: aiStats?.total_speaking_attempts ?? 0,
+      icon: Mic,
+    },
+    {
+      label: "准确率",
+      value: `${aiStats?.average_accuracy ?? 0}%`,
+      icon: BarChart3,
+    },
     { label: "词汇量", value: aiStats?.vocabulary_count ?? 0, icon: BookOpen },
     { label: "视频数", value: aiStats?.videos_watched ?? 0, icon: Play },
   ];
@@ -83,7 +75,9 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
                 你好{user.name ? `，${user.name}` : ""}
               </h1>
               <p className="mt-1.5 text-sm text-muted-foreground">
-                {isPro ? "Pro 会员，全部功能已解锁。" : "试用中。升级 Pro 解锁 AI 助手。"}
+                {isPro
+                  ? "Pro 会员，全部功能已解锁。"
+                  : "试用中。升级 Pro 解锁 AI 助手。"}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -115,10 +109,10 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
               </select>
             </div>
             {!isPro && (
-              <button onClick={handleUpgrade} disabled={upgrading} className="btn-primary">
+              <Link href="/pricing" className="btn-primary">
                 <Sparkles size={14} />
-                {upgrading ? "处理中..." : "升级 Pro"}
-              </button>
+                升级 Pro
+              </Link>
             )}
           </div>
         </div>
@@ -153,7 +147,9 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
                     <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-coral">
                       学习总结
                     </h3>
-                    <p className="mt-1.5 text-sm text-white/80 leading-relaxed">{aiSummary}</p>
+                    <p className="mt-1.5 text-sm text-white/80 leading-relaxed">
+                      {aiSummary}
+                    </p>
                   </div>
                 )}
                 {recommendation && (
@@ -161,7 +157,9 @@ export default function AIStatsPanel({ user }: AIStatsPanelProps) {
                     <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-coral">
                       今日推荐
                     </h3>
-                    <p className="mt-1.5 text-sm text-white/80 leading-relaxed">{recommendation}</p>
+                    <p className="mt-1.5 text-sm text-white/80 leading-relaxed">
+                      {recommendation}
+                    </p>
                   </div>
                 )}
                 {!aiSummary && !recommendation && (

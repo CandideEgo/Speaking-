@@ -10,10 +10,12 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
@@ -27,6 +29,12 @@ from app.schemas.payment import (
 from app.services.payment_provider import PLAN_DEFINITIONS, PLAN_DURATIONS, get_payment_provider
 
 logger = structlog.get_logger()
+settings = get_settings()
+
+# ICP 合规提示，payments_enabled=False 时由 create-order 返回。
+PAYMENTS_DISABLED_MESSAGE = (
+    "本网站为非经营性工具展示平台，不支持在线支付。请前往微信小商店购买后，使用兑换码激活 Pro 会员。"
+)
 
 
 def _utcnow() -> datetime:
@@ -90,6 +98,10 @@ async def create_order(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a payment order for the selected plan."""
+    # ICP 合规：站内支付默认禁用，返回合规提示而非创建订单。
+    if not settings.payments_enabled:
+        return JSONResponse(status_code=451, content={"detail": PAYMENTS_DISABLED_MESSAGE})
+
     # Accept both JSON body and query param for backward compat
     plan = body.plan if body else request.query_params.get("plan", "pro_monthly")
 

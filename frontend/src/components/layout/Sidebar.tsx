@@ -16,6 +16,7 @@ import {
   MicIcon,
   CrownIcon,
 } from "@/components/common/Icons";
+import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -76,11 +77,18 @@ function NavLink({
       className={cn(
         "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium",
         "transition-colors duration-150",
-        isActive ? "bg-ink text-on-primary" : "text-olive hover:bg-surface-card hover:text-ink",
-        collapsed && "justify-center px-2"
+        isActive
+          ? "bg-ink text-on-primary"
+          : "text-olive hover:bg-surface-card hover:text-ink",
+        collapsed && "justify-center px-2",
       )}
     >
-      <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive && "text-on-primary")} />
+      <item.icon
+        className={cn(
+          "h-[18px] w-[18px] flex-shrink-0",
+          isActive && "text-on-primary",
+        )}
+      />
       <span className="nav-label truncate">{item.label}</span>
       {item.badge && !collapsed && (
         <span className="nav-badge ml-auto text-[11px] font-semibold bg-brand-500 text-on-primary px-[7px] py-0.5 rounded-pill">
@@ -146,7 +154,9 @@ function SidebarNavContent({
       <div className="p-3 border-t border-hairline">
         {!collapsed ? (
           <div className="bg-surface-soft border border-hairline rounded-lg p-3.5">
-            <div className="text-[13px] font-semibold">免费试用 Pro</div>
+            <div className="text-[13px] font-semibold">
+              升级 Pro · 前往小商店
+            </div>
             <div className="text-xs text-muted mt-0.5">解锁无限口语评测</div>
             <Link
               href="/pricing"
@@ -164,6 +174,7 @@ function SidebarNavContent({
             <CrownIcon className="h-4 w-4" />
           </Link>
         )}
+        {!collapsed && <ComplianceInfo className="mt-2.5 text-center" />}
       </div>
     </aside>
   );
@@ -215,7 +226,7 @@ export function Sidebar() {
       });
       return () => mm.revert();
     },
-    { scope: desktopRef, dependencies: [collapsed] }
+    { scope: desktopRef, dependencies: [collapsed] },
   );
 
   // Mobile sidebar overlay animation
@@ -231,7 +242,7 @@ export function Sidebar() {
           gsap.fromTo(
             mobileOverlayRef.current,
             { autoAlpha: 0 },
-            { autoAlpha: 1, duration, ease: EASES.smooth }
+            { autoAlpha: 1, duration, ease: EASES.smooth },
           );
           gsap.fromTo(
             mobilePanelRef.current,
@@ -240,7 +251,7 @@ export function Sidebar() {
               xPercent: 0,
               duration: motionDuration(DURATIONS.medium, reduceMotion),
               ease: EASES.snappy,
-            }
+            },
           );
         } else {
           gsap.to(mobilePanelRef.current, {
@@ -260,7 +271,7 @@ export function Sidebar() {
       });
       return () => mm.revert();
     },
-    { dependencies: [mobileOpen] }
+    { dependencies: [mobileOpen] },
   );
 
   return (
@@ -293,7 +304,10 @@ export function Sidebar() {
           className="absolute left-0 top-0 bottom-0 w-[248px]"
           style={{ transform: "translateX(-100%)" }}
         >
-          <SidebarNavContent pathname={pathname} onNavClick={() => setMobileOpen(false)} />
+          <SidebarNavContent
+            pathname={pathname}
+            onNavClick={() => setMobileOpen(false)}
+          />
         </div>
       </div>
     </>

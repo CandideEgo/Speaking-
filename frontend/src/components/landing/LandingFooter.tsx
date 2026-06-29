@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 
 const footerLinks = {
   产品: [
@@ -11,10 +12,10 @@ const footerLinks = {
     { label: "学习面板", href: "/dashboard" },
     { label: "社区", href: "/community" },
   ],
-  公司: [
-    { label: "关于我们", href: "#" },
-    { label: "博客", href: "#" },
-    { label: "联系我们", href: "#" },
+  法律: [
+    { label: "用户协议", href: "/terms" },
+    { label: "隐私政策", href: "/privacy" },
+    { label: "开通会员", href: "/upgrade" },
   ],
 };
 
@@ -57,8 +58,11 @@ export function LandingFooter() {
           ))}
         </div>
 
-        <div className="mt-10 pt-6 border-t border-hairline text-[12px] text-muted-soft text-center">
-          © {new Date().getFullYear()} Speaking. All rights reserved.
+        <div className="mt-10 pt-6 border-t border-hairline text-center">
+          <div className="text-[12px] text-muted-soft">
+            © {new Date().getFullYear()} Speaking. All rights reserved.
+          </div>
+          <ComplianceInfo className="mt-2" />
         </div>
       </div>
     </footer>

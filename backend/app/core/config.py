@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     wechat_api_v3_key: str = ""
     wechat_serial_no: str = ""
     payment_verify_signature: bool = False
+    # ICP 合规：个体工商户无 ICP 经营许可证，不能站内收款。默认禁用站内支付，
+    # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
+    payments_enabled: bool = False
 
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897

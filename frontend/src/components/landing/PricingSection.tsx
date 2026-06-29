@@ -16,7 +16,12 @@ const plans = [
     price: "¥39",
     period: "/月",
     desc: "解锁全部 AI 功能",
-    features: ["无限视频 + 口语评测", "逐词评分与反馈", "AI 词汇查询", "每日学习总结"],
+    features: [
+      "无限视频 + 口语评测",
+      "逐词评分与反馈",
+      "AI 词汇查询",
+      "每日学习总结",
+    ],
     cta: "升级 Pro",
     ctaClass: "btn-primary",
     popular: true,
@@ -50,17 +55,25 @@ export function PricingSection() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px] max-w-[980px] mx-auto">
           {plans.map((p) => (
-            <div key={p.name} className={`price-card ${p.popular ? "price-pop" : ""}`}>
+            <div
+              key={p.name}
+              className={`price-card ${p.popular ? "price-pop" : ""}`}
+            >
               {p.popular && <div className="price-ribbon">最受欢迎</div>}
               <div className="text-[15px] font-bold text-muted">{p.name}</div>
               <div className="text-[42px] font-extrabold tracking-display-lg mt-2.5 mb-1">
                 {p.price}
-                <small className="text-[15px] font-medium text-muted">{p.period}</small>
+                <small className="text-[15px] font-medium text-muted">
+                  {p.period}
+                </small>
               </div>
               <div className="text-[13px] text-muted mb-5">{p.desc}</div>
               <ul className="flex-1 flex flex-col gap-2.5 mb-6">
                 {p.features.map((f) => (
-                  <li key={f} className="flex gap-2 items-start text-sm text-body">
+                  <li
+                    key={f}
+                    className="flex gap-2 items-start text-sm text-body"
+                  >
                     <svg
                       width="16"
                       height="16"
@@ -87,6 +100,10 @@ export function PricingSection() {
             </div>
           ))}
         </div>
+
+        <p className="mt-6 text-center text-xs text-muted-soft">
+          会员通过微信小商店购买，购买后使用兑换码激活。本站为非经营性工具展示平台，不提供在线支付。
+        </p>
       </div>
     </section>
   );

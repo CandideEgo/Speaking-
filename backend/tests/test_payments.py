@@ -1,6 +1,19 @@
 """Tests for payment endpoints."""
 
+import pytest
 from httpx import AsyncClient
+
+
+@pytest.fixture
+def enable_payments(monkeypatch):
+    """Temporarily flip ``payments_enabled`` on for legacy in-site payment flow tests.
+
+    ICP 合规默认禁用站内支付（create-order 返回 451）。这些 legacy 测试覆盖
+    "支付开启时"的真实建单/mock 支付流程，故需临时打开开关。
+    """
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "payments_enabled", True)
 
 
 class TestCreateOrder:
@@ -8,7 +21,17 @@ class TestCreateOrder:
         resp = await client.post("/api/v1/payments/create-order")
         assert resp.status_code == 401
 
-    async def test_create_order_for_free_user(self, client: AsyncClient, auth_headers: dict):
+    async def test_create_order_disabled_by_default(self, client: AsyncClient, auth_headers: dict):
+        # ICP 合规：payments_enabled 默认 False，create-order 返回 451 合规提示。
+        resp = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        assert resp.status_code == 451
+        assert "不支持在线支付" in resp.json()["detail"]
+
+    async def test_create_order_for_free_user(self, client: AsyncClient, auth_headers: dict, enable_payments):
         resp = await client.post(
             "/api/v1/payments/create-order",
             headers=auth_headers,
@@ -20,7 +43,7 @@ class TestCreateOrder:
         assert data["amount"] == 3900
         assert data["currency"] == "CNY"
 
-    async def test_create_order_pro_user_blocked(self, client: AsyncClient, admin_headers: dict):
+    async def test_create_order_pro_user_blocked(self, client: AsyncClient, admin_headers: dict, enable_payments):
         # Admin is already Pro
         resp = await client.post(
             "/api/v1/payments/create-order",
@@ -30,7 +53,7 @@ class TestCreateOrder:
         assert resp.status_code == 400
         assert "already" in resp.json()["detail"].lower()
 
-    async def test_create_order_invalid_plan(self, client: AsyncClient, auth_headers: dict):
+    async def test_create_order_invalid_plan(self, client: AsyncClient, auth_headers: dict, enable_payments):
         resp = await client.post(
             "/api/v1/payments/create-order",
             headers=auth_headers,
@@ -41,7 +64,7 @@ class TestCreateOrder:
 
 
 class TestMockPay:
-    async def test_mock_pay_upgrades_user(self, client: AsyncClient, auth_headers: dict):
+    async def test_mock_pay_upgrades_user(self, client: AsyncClient, auth_headers: dict, enable_payments):
         # Create order
         order = await client.post(
             "/api/v1/payments/create-order",
