@@ -7,13 +7,15 @@ These handlers parse requests, call the service, and return responses.
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
+from app.api.dependencies import get_admin_user, get_current_user, get_optional_user, require_video_owner
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.models.video import VideoReviewStatus
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
     RecomputeWordLevelsRequest,
+    ReviewRejectRequest,
     SubtitleBatchUpdate,
     SubtitleResponse,
     SubtitleUpdate,
@@ -26,6 +28,12 @@ from app.schemas.video import (
     WordLevelsUpdate,
 )
 from app.services.upload_service import handle_video_upload
+from app.services.video_service import (
+    approve_review as _approve_review,
+)
+from app.services.video_service import (
+    begin_edit as _begin_edit,
+)
 from app.services.video_service import (
     delete_video as _delete_video,
 )
@@ -54,6 +62,9 @@ from app.services.video_service import (
     recompute_word_levels as _recompute_word_levels,
 )
 from app.services.video_service import (
+    reject_review as _reject_review,
+)
+from app.services.video_service import (
     search_subtitles as _search_subtitles,
 )
 from app.services.video_service import (
@@ -61,6 +72,9 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     seed_video as _seed_video,
+)
+from app.services.video_service import (
+    submit_for_review as _submit_for_review,
 )
 from app.services.video_service import (
     submit_quiz_result as _submit_quiz_result,
@@ -79,6 +93,9 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     update_word_levels as _update_word_levels,
+)
+from app.services.video_service import (
+    withdraw_submission as _withdraw_submission,
 )
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -152,6 +169,9 @@ async def list_admin_videos(
     status: str | None = Query(None, description="Filter by processing status"),
     is_official: bool | None = Query(None, description="Filter official/user videos"),
     is_featured: bool | None = Query(None, description="Filter featured videos"),
+    review_status: str | None = Query(
+        None, description="Filter by UGC review status (draft/pending_review/published/rejected)"
+    ),
     keyword: str | None = Query(None, description="Search title/topic_tags"),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
@@ -162,6 +182,7 @@ async def list_admin_videos(
         status=status,
         is_official=is_official,
         is_featured=is_featured,
+        review_status=review_status,
         keyword=keyword,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -297,6 +318,51 @@ async def recompute_admin_word_levels(
     return await _recompute_word_levels(db, video_id, subtitle_ids)
 
 
+@router.post("/admin/{video_id}/review/approve", response_model=VideoAdminResponse)
+@rate_limit("30/minute")
+async def approve_admin_review(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve a UGC video pending review: freezes live subtitles as the public
+    version and marks it published. Admin only."""
+    video = await _get_admin_video_or_404(db, video_id)
+    try:
+        return VideoAdminResponse.model_validate(await _approve_review(db, video, current_user))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/admin/{video_id}/review/reject", response_model=VideoAdminResponse)
+@rate_limit("30/minute")
+async def reject_admin_review(
+    request: Request,
+    video_id: str,
+    payload: ReviewRejectRequest,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reject a UGC video pending review with a reason. The public keeps the
+    last approved snapshot (if any); the owner can edit & resubmit. Admin only."""
+    video = await _get_admin_video_or_404(db, video_id)
+    try:
+        return VideoAdminResponse.model_validate(await _reject_review(db, video, current_user, payload.reason))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+async def _get_admin_video_or_404(db: AsyncSession, video_id: str):
+    """Admin helper: fetch any video by id (no access gate — admin sees all)."""
+    from app.services.video_service import _get_video_or_404
+
+    try:
+        return await _get_video_or_404(db, video_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+
+
 @router.get("/{video_id}", response_model=VideoDetailResponse)
 @rate_limit("30/minute")
 async def get_video(
@@ -377,6 +443,121 @@ async def upload_video(
 ):
     """Upload a local video file for processing."""
     return await handle_video_upload(file=file, title=title, current_user=current_user, db=db)
+
+
+# ---------------------------------------------------------------------------
+# UGC creator endpoints (owner-scoped)
+#
+# Owners can edit their own video's subtitles + manage the review lifecycle.
+# Editing a published video is blocked until the owner calls begin-edit (which
+# freezes the approved version and flips to pending_review so the public keeps
+# watching the snapshot).
+# ---------------------------------------------------------------------------
+
+
+async def _require_editable_own_video(video_id: str, current_user: User, db: AsyncSession):
+    """Fetch a video owned by the caller and ensure it is in an editable state.
+
+    Returns the Video. Raises 404 if not owned, 409 if currently published
+    (owner must begin-edit first to avoid clobbering the public version).
+    """
+    video = await require_video_owner(video_id, current_user, db)
+    if video.review_status == VideoReviewStatus.published.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="视频已发布，请先调用 begin-edit 触发重新审核后再编辑",
+        )
+    return video
+
+
+@router.patch("/{video_id}/subtitles/{subtitle_id}", response_model=SubtitleResponse)
+@rate_limit("60/minute")
+async def update_own_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    payload: SubtitleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit one subtitle on your own video. Owner only; blocked while published."""
+    await _require_editable_own_video(video_id, current_user, db)
+    try:
+        return await _update_subtitle(db, video_id, subtitle_id, payload)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.patch("/{video_id}/subtitles", response_model=list[SubtitleResponse])
+@rate_limit("60/minute")
+async def update_own_subtitles_batch(
+    request: Request,
+    video_id: str,
+    payload: SubtitleBatchUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply many subtitle edits in one transaction to your own video. Owner only."""
+    await _require_editable_own_video(video_id, current_user, db)
+    try:
+        return await _update_subtitles_batch(db, video_id, payload)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/{video_id}/begin-edit", response_model=VideoResponse)
+@rate_limit("10/minute")
+async def begin_own_edit(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Start editing a published video: freezes the approved version (public keeps
+    watching it) and flips to pending_review. Owner only."""
+    video = await require_video_owner(video_id, current_user, db)
+    try:
+        return VideoResponse.model_validate(await _begin_edit(db, video))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/{video_id}/submit-review", response_model=VideoResponse)
+@rate_limit("10/minute")
+async def submit_own_review(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit your video for admin review. Owner only."""
+    video = await require_video_owner(video_id, current_user, db)
+    try:
+        return VideoResponse.model_validate(await _submit_for_review(db, video))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/{video_id}/withdraw", response_model=VideoResponse)
+@rate_limit("10/minute")
+async def withdraw_own_review(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Withdraw your pending review back to draft. Owner only."""
+    video = await require_video_owner(video_id, current_user, db)
+    try:
+        return VideoResponse.model_validate(await _withdraw_submission(db, video))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)

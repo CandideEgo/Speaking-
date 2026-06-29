@@ -31,6 +31,9 @@ class VideoResponse(BaseModel):
     topic_tags: str | None
     is_official: bool
     is_published: bool = False
+    # UGC review lifecycle (draft/pending_review/published/rejected). Exposed so
+    # the owner's "my videos" list and the admin queue can badge status.
+    review_status: str = "draft"
     video_url_480p: str | None = None
     video_url_720p: str | None = None
     video_url_1080p: str | None = None
@@ -75,6 +78,19 @@ class VideoAdminResponse(VideoResponse):
     admin_notes: str | None = None
     error_message: str | None = None
     processing_progress: int = 0
+    # UGC review audit fields — admin sees why/when a video was rejected.
+    rejection_reason: str | None = None
+    submitted_at: str | None = None
+    reviewed_at: str | None = None
+
+    @field_validator("submitted_at", "reviewed_at", mode="before")
+    @classmethod
+    def _serialize_dt(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
 
 
 class VideoAdminUpdate(BaseModel):
@@ -109,7 +125,8 @@ class SubtitleUpdate(BaseModel):
     All fields optional — only supplied fields are written. Editing ``text_en``
     resets ``word_levels`` to the ECDICT baseline (the inflection index is
     derived from the English text), so manual word-level overrides on that line
-    must be redone after an English edit.
+    must be redone after an English edit — unless ``preserve_word_levels`` is
+    set, in which case existing overrides are kept as-is.
     """
 
     text_en: str | None = None
@@ -118,6 +135,10 @@ class SubtitleUpdate(BaseModel):
     end_time: float | None = None
     grammar_note: str | None = None
     speaker: str | None = None
+    # When True, editing text_en does NOT reset word_levels to the ECDICT
+    # baseline — existing manual overrides are preserved. Default False keeps
+    # the original ingest-pipeline behaviour.
+    preserve_word_levels: bool = False
 
     @field_validator("text_en", "text_zh", "grammar_note", "speaker")
     @classmethod
@@ -179,6 +200,20 @@ class RecomputeWordLevelsRequest(BaseModel):
     """Recompute word_levels from ECDICT for selected subtitles (or all)."""
 
     subtitle_ids: list[str] | None = None  # None = whole video
+
+
+class ReviewRejectRequest(BaseModel):
+    """Admin rejection payload for a UGC video under review."""
+
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def require_nonempty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("reason must not be empty")
+        return v
 
 
 class VideoStatusResponse(BaseModel):

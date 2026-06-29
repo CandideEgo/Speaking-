@@ -5,16 +5,17 @@ so HTTP concerns (parsing, status codes) stay separate from
 domain logic (queries, state transitions, side effects).
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies import check_video_access
+from app.api.dependencies import check_video_access, is_video_owner
 from app.models.learning import LearningRecord
 from app.models.user import User
-from app.models.video import Video, VideoSource, VideoStatus
+from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
@@ -175,6 +176,178 @@ async def list_user_videos(db: AsyncSession, user_id: str) -> list[VideoResponse
     return [VideoResponse.model_validate(v) for v in videos]
 
 
+async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:
+    """List published user-uploaded videos for the community feed.
+
+    Per the UGC design, approved UGC surfaces only in the community feed (the
+    homepage/browse feed stays official-curated). Returns ``{items, has_more}``.
+    """
+    page = max(1, page)
+    page_size = max(1, min(page_size, 50))
+    offset = (page - 1) * page_size
+
+    base = select(Video).where(
+        Video.is_official == False,
+        Video.review_status == VideoReviewStatus.published.value,
+        Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+    )
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+
+    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
+    rows = result.scalars().all()
+    has_more = len(rows) > page_size
+    items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
+    return {"items": items, "has_more": has_more, "total": total}
+
+
+# ---------------------------------------------------------------------------
+# UGC review lifecycle
+# ---------------------------------------------------------------------------
+
+_SNAPSHOT_VERSION = 1
+
+
+def _subtitles_from_snapshot(snapshot: dict | None) -> list[SubtitleResponse]:
+    """Build SubtitleResponse list from a frozen published_snapshot."""
+    if not snapshot:
+        return []
+    raw = snapshot.get("subtitles") or []
+    out: list[SubtitleResponse] = []
+    for s in raw:
+        out.append(
+            SubtitleResponse(
+                id=s.get("id", ""),
+                start_time=s.get("start_time", 0.0),
+                end_time=s.get("end_time", 0.0),
+                text_en=s.get("text_en", ""),
+                text_zh=s.get("text_zh"),
+                sentence_index=s.get("sentence_index", 0),
+                grammar_note=s.get("grammar_note"),
+                speaker=s.get("speaker"),
+                word_levels=s.get("word_levels"),
+            )
+        )
+    return out
+
+
+async def _build_snapshot(db: AsyncSession, video: Video) -> dict:
+    """Freeze the current live subtitles into a published_snapshot dict."""
+    result = await db.execute(select(Video).options(selectinload(Video.subtitles)).where(Video.id == video.id))
+    loaded = result.scalar_one_or_none()
+    subs = loaded.subtitles if loaded else []
+    return {
+        "version": _SNAPSHOT_VERSION,
+        "subtitles": [
+            {
+                "id": s.id,
+                "start_time": s.start_time,
+                "end_time": s.end_time,
+                "text_en": s.text_en,
+                "text_zh": s.text_zh,
+                "sentence_index": s.sentence_index,
+                "grammar_note": s.grammar_note,
+                "speaker": s.speaker,
+                "word_levels": s.word_levels,
+            }
+            for s in (subs or [])
+        ],
+    }
+
+
+async def begin_edit(db: AsyncSession, video: Video) -> Video:
+    """Owner starts editing a published video: freeze the approved version to
+    ``published_snapshot`` and flip to ``pending_review`` so the public keeps
+    watching the snapshot while the owner edits the live draft."""
+    if video.review_status != VideoReviewStatus.published.value:
+        raise ValueError("只有已发布的视频才能开始编辑")
+    video.published_snapshot = await _build_snapshot(db, video)
+    video.review_status = VideoReviewStatus.pending_review.value
+    video.submitted_at = None
+    await db.commit()
+    await db.refresh(video)
+    await _invalidate_video_detail_cache(video.id)
+    return video
+
+
+async def submit_for_review(db: AsyncSession, video: Video) -> Video:
+    """Owner submits a draft/rejected video for admin review."""
+    if video.review_status not in (VideoReviewStatus.draft.value, VideoReviewStatus.rejected.value):
+        raise ValueError("当前状态无法提交审核")
+    if video.status != VideoStatus.ready:
+        raise ValueError("视频仍在处理中，暂无法提交审核")
+    # Must have at least one subtitle line to review.
+    from app.models.subtitle import Subtitle
+
+    has_subs = (
+        await db.execute(
+            select(func.count()).select_from(select(Subtitle).where(Subtitle.video_id == video.id).subquery())
+        )
+    ).scalar_one()
+    if not has_subs:
+        raise ValueError("尚无字幕，无法提交审核")
+
+    video.review_status = VideoReviewStatus.pending_review.value
+    video.submitted_at = datetime.now(UTC)
+    video.rejection_reason = None
+    await db.commit()
+    await db.refresh(video)
+    await _invalidate_video_detail_cache(video.id)
+    return video
+
+
+async def withdraw_submission(db: AsyncSession, video: Video) -> Video:
+    """Owner withdraws a pending review back to draft."""
+    if video.review_status != VideoReviewStatus.pending_review.value:
+        raise ValueError("仅待审核状态可撤回")
+    video.review_status = VideoReviewStatus.draft.value
+    video.submitted_at = None
+    await db.commit()
+    await db.refresh(video)
+    await _invalidate_video_detail_cache(video.id)
+    return video
+
+
+async def approve_review(db: AsyncSession, video: Video, admin: User) -> Video:
+    """Admin approves a pending review: freeze live subtitles as the new public
+    version and mark published. (Both is_published and review_status are kept in
+    sync so existing listing filters keep working.)"""
+    if video.review_status != VideoReviewStatus.pending_review.value:
+        raise ValueError("仅待审核状态可批准")
+    video.published_snapshot = await _build_snapshot(db, video)
+    video.review_status = VideoReviewStatus.published.value
+    video.is_published = True
+    video.reviewed_by = admin.id
+    video.reviewed_at = datetime.now(UTC)
+    video.rejection_reason = None
+    await db.commit()
+    await db.refresh(video)
+    await _invalidate_video_detail_cache(video.id)
+    # Published UGC may now surface in the community feed.
+    try:
+        from app.api.v1.browse import invalidate_browse_cache
+
+        await invalidate_browse_cache()
+    except Exception:
+        pass
+    return video
+
+
+async def reject_review(db: AsyncSession, video: Video, admin: User, reason: str) -> Video:
+    """Admin rejects a pending review. The published_snapshot is preserved so
+    the public keeps watching the last approved version (if any); the owner can
+    edit the live draft and resubmit."""
+    if video.review_status != VideoReviewStatus.pending_review.value:
+        raise ValueError("仅待审核状态可驳回")
+    video.review_status = VideoReviewStatus.rejected.value
+    video.reviewed_by = admin.id
+    video.reviewed_at = datetime.now(UTC)
+    video.rejection_reason = reason
+    await db.commit()
+    await db.refresh(video)
+    await _invalidate_video_detail_cache(video.id)
+    return video
+
+
 async def get_video_detail(
     db: AsyncSession,
     video_id: str,
@@ -213,24 +386,21 @@ async def get_video_detail(
     if not check_video_access(video, current_user):
         return None
 
-    detail = VideoDetailResponse(
-        id=video.id,
-        title=video.title,
-        source_url=video.source_url,
-        video_source=video.video_source.value,
-        thumbnail_url=video.thumbnail_url,
-        duration=video.duration,
-        difficulty_level=video.difficulty_level,
-        status=video.status.value,
-        topic_tags=video.topic_tags,
-        is_official=video.is_official,
-        is_published=video.is_published,
-        video_url_480p=video.video_url_480p,
-        video_url_720p=video.video_url_720p,
-        video_url_1080p=video.video_url_1080p,
-        processing_mode=video.processing_mode,
-        created_at=video.created_at.isoformat(),
-        subtitles=[
+    # Decide which subtitles the viewer sees. The owner always sees their live
+    # (draft) subtitles. A non-owner viewing a UGC video under re-review
+    # (pending/rejected) sees the frozen approved snapshot instead of the live
+    # draft the owner is editing.
+    use_snapshot = (
+        not is_video_owner(video, current_user)
+        and not video.is_official
+        and video.review_status in (VideoReviewStatus.pending_review.value, VideoReviewStatus.rejected.value)
+        and video.published_snapshot is not None
+    )
+
+    if use_snapshot:
+        subtitle_responses = _subtitles_from_snapshot(video.published_snapshot)
+    else:
+        subtitle_responses = [
             SubtitleResponse(
                 id=s.id,
                 start_time=s.start_time,
@@ -243,7 +413,27 @@ async def get_video_detail(
                 word_levels=s.word_levels,
             )
             for s in (video.subtitles or [])
-        ],
+        ]
+
+    detail = VideoDetailResponse(
+        id=video.id,
+        title=video.title,
+        source_url=video.source_url,
+        video_source=video.video_source.value,
+        thumbnail_url=video.thumbnail_url,
+        duration=video.duration,
+        difficulty_level=video.difficulty_level,
+        status=video.status.value,
+        topic_tags=video.topic_tags,
+        is_official=video.is_official,
+        is_published=video.is_published,
+        review_status=video.review_status,
+        video_url_480p=video.video_url_480p,
+        video_url_720p=video.video_url_720p,
+        video_url_1080p=video.video_url_1080p,
+        processing_mode=video.processing_mode,
+        created_at=video.created_at.isoformat(),
+        subtitles=subtitle_responses,
     )
 
     # Cache official video details for 5 minutes
@@ -460,6 +650,7 @@ async def list_all_videos(
     status: str | None = None,
     is_official: bool | None = None,
     is_featured: bool | None = None,
+    review_status: str | None = None,
     keyword: str | None = None,
     page: int = 1,
     page_size: int = 20,
@@ -469,7 +660,8 @@ async def list_all_videos(
     Unlike the public list, this returns videos in any status (including
     ``processing``/``error``). Keyword search uses ILIKE on title/topic_tags so
     it works on SQLite (tests) and Postgres alike — we deliberately avoid the
-    Postgres-only ``search_vector`` column here.
+    Postgres-only ``search_vector`` column here. ``review_status`` filters the
+    UGC review queue (e.g. ``pending_review``).
     """
     stmt = select(Video)
     if status:
@@ -483,6 +675,8 @@ async def list_all_videos(
         stmt = stmt.where(Video.is_official == is_official)
     if is_featured is not None:
         stmt = stmt.where(Video.is_featured == is_featured)
+    if review_status:
+        stmt = stmt.where(Video.review_status == review_status)
     if keyword and keyword.strip():
         pattern = f"%{keyword.strip()}%"
         stmt = stmt.where(or_(Video.title.ilike(pattern), Video.topic_tags.ilike(pattern)))
@@ -534,6 +728,15 @@ async def update_video(
         value = getattr(payload, field)
         if value is not None:
             setattr(video, field, value)
+
+    # Keep review_status in sync with the admin publish toggle so the two
+    # visibility gates never diverge (official videos are managed here; UGC
+    # videos are managed via the dedicated approve/reject endpoints).
+    if publish_changed:
+        if video.is_published:
+            video.review_status = VideoReviewStatus.published.value
+        else:
+            video.review_status = VideoReviewStatus.draft.value
 
     await db.commit()
     await db.refresh(video)
@@ -603,10 +806,11 @@ async def update_subtitle(
         if value is not None:
             setattr(subtitle, field, value)
 
-    if text_en_changed:
+    if text_en_changed and not payload.preserve_word_levels:
         # Re-derive word_levels from the new English text — same primitive the
         # finalize pipeline and backfill script use. This overwrites any manual
-        # overrides on this line; UI should warn before editing text_en.
+        # overrides on this line; UI should warn before editing text_en. Pass
+        # ``preserve_word_levels=True`` to keep existing overrides.
         levels = annotate_text(subtitle.text_en)
         subtitle.word_levels = levels or None
 
@@ -648,7 +852,7 @@ async def update_subtitles_batch(
             value = getattr(item, field)
             if value is not None:
                 setattr(sub, field, value)
-        if text_en_changed:
+        if text_en_changed and not item.preserve_word_levels:
             levels = annotate_text(sub.text_en)
             sub.word_levels = levels or None
         updated.append(SubtitleResponse.model_validate(sub))

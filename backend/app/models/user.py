@@ -47,7 +47,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships
-    videos = relationship("Video", back_populates="user")
+    # foreign_keys is required because videos has TWO FKs to users (user_id +
+    # reviewed_by); this relationship tracks ownership via user_id.
+    videos = relationship("Video", foreign_keys="Video.user_id", back_populates="user")
     speaking_attempts = relationship("SpeakingAttempt", back_populates="user")
     learning_records = relationship("LearningRecord", back_populates="user")
     vocabulary = relationship("Vocabulary", back_populates="user")

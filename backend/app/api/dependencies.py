@@ -160,7 +160,11 @@ def check_video_access(video: Video, current_user: User | None) -> bool:
 
     Access rules:
     - Official videos are public (anyone can access).
-    - Non-official (user-submitted) videos require the viewer to be the owner.
+    - User-uploaded (UGC) videos are public once ``review_status == published``.
+    - A UGC video under re-review (``pending_review``/``rejected``) stays public
+      if it has a ``published_snapshot`` (the public keeps watching the last
+      approved version); otherwise it is private.
+    - The owner can always access their own video (incl. drafts).
 
     Returns True if access is allowed, False otherwise.
     """
@@ -168,7 +172,36 @@ def check_video_access(video: Video, current_user: User | None) -> bool:
         return True
     if current_user is not None and video.user_id == current_user.id:
         return True
+    review_status = getattr(video, "review_status", None)
+    if review_status == "published":
+        return True
+    # Under re-review with a frozen approved version: still publicly viewable.
+    if review_status in ("pending_review", "rejected") and getattr(video, "published_snapshot", None):
+        return True
     return False
+
+
+def is_video_owner(video: Video, current_user: User | None) -> bool:
+    """True if ``current_user`` owns ``video`` (UGC ownership check)."""
+    return current_user is not None and video.user_id == current_user.id
+
+
+async def require_video_owner(
+    video_id: str,
+    current_user: User,
+    db: AsyncSession,
+) -> Video:
+    """Fetch a video and enforce that ``current_user`` is its owner.
+
+    Returns 404 (not 403) when the video is missing or not owned by the caller,
+    so non-owners cannot probe which video ids exist. Used by the UGC creator
+    edit / submit-review / withdraw endpoints.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if video is None or not is_video_owner(video, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return video
 
 
 async def require_video_access(
