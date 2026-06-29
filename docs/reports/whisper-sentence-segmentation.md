@@ -417,7 +417,7 @@ cd /c/Users/Administrator/Speaking
 ### 6.2 LLM 配置
 
 ```text
-OPENAI_API_KEY=sk-rb3NrV4Cipz8D3zpVL0Xcxo28oe5gCy42tcDIIg5laf7yrI5
+OPENAI_API_KEY=sk-<REDACTED>
 OPENAI_BASE_URL=https://apihub.agnes-ai.com/v1
 OPENAI_MODEL=agnes-2.0-flash
 ```
@@ -428,7 +428,7 @@ OPENAI_MODEL=agnes-2.0-flash
 from openai import OpenAI
 import difflib
 
-OPENAI_API_KEY = "sk-rb3NrV4Cipz8D3zpVL0Xcxo28oe5gCy42tcDIIg5laf7yrI5"
+OPENAI_API_KEY = "sk-<REDACTED>"
 OPENAI_BASE_URL = "https://apihub.agnes-ai.com/v1"
 OPENAI_MODEL = "agnes-2.0-flash"
 
