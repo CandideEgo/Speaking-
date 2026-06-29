@@ -204,7 +204,7 @@ Idempotent: skips by `source_url`. Incremental: add to `OFFICIAL_VIDEOS` list an
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Speaking-** (5525 symbols, 9048 relationships, 261 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Speaking-** (7716 symbols, 13328 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -215,22 +215,6 @@ This project is indexed by GitNexus as **Speaking-** (5525 symbols, 9048 relatio
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
 - When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
 - When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## Development Workflow (GitNexus-First)
-
-When receiving a new feature request or bug fix, follow this sequence to minimize exploration time:
-
-1. **Locate** → `query({query: "需求关键词", goal: "找到相关执行流"})` — 1 call replaces 5-10 grep/file reads
-2. **Understand** → `context({name: "核心符号"})` — 1 call gives callers + callees + process participation (no need to read multiple files)
-3. **Assess risk** → `impact({target: "要改的符号", direction: "upstream"})` — know blast radius before writing any code
-4. **Implement** → make changes, using `context()` on any unfamiliar symbol encountered mid-edit
-5. **Verify scope** → `detect_changes()` — confirm changes only touch expected symbols/flows before committing
-
-**Shortcut patterns:**
-- "改 X 功能" → skip step 1-2 if you already know the symbol, go straight to `impact()` then implement
-- "加新功能" → `query()` to find similar existing flows, then model after them
-- "修 bug" → `query()` to trace the failing flow, `context()` on the suspect symbol
-- "重构/重命名" → `impact()` first, then `rename()` for the actual rename
 
 ## Never Do
 
