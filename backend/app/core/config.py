@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     # Speech transcription (default: 'base' matches Dockerfile pre-cached model)
     whisper_model_path: str = "base"
-    whisperx_batch_size: int = 16
+    whisperx_batch_size: int = 8  # ASR batch; lower = less VRAM, fewer OOMs on 8GB GPUs
     whisper_chunk_duration: float = 600.0  # seconds; longer videos use chunked transcription
     whisper_max_concurrent_chunks: int = 2
     whisper_device: str = "auto"  # "auto" | "cuda" | "cpu"

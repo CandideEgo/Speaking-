@@ -127,9 +127,15 @@ def _transcribe_single_chunk(audio_path: str) -> list[dict]:
         list[dict]: Aligned/segmented dicts.
             Each: {"start": float, "end": float, "text": str, "words": [...]}
     """
-    from .whisper_model import transcribe_audio
+    from .whisper_model import _clear_cuda_cache, transcribe_audio
 
-    return transcribe_audio(audio_path)
+    try:
+        return transcribe_audio(audio_path)
+    finally:
+        # Defragment between chunks so the resident singleton model can still
+        # get a contiguous batch block on the next chunk. No-op on CPU. Runs in
+        # the executor thread (same CUDA context as the transcription above).
+        _clear_cuda_cache()
 
 
 async def transcribe_local_chunks(audio_path: str, total_duration: float) -> list[dict]:

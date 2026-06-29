@@ -235,11 +235,69 @@ def release_whisperx_models():
 # ---------------------------------------------------------------------------
 
 
-def transcribe_with_whisperx(audio_path: str) -> list[dict]:
+def _is_oom(exc: BaseException) -> bool:
+    """True if ``exc`` looks like a CUDA / CTranslate2 out-of-memory error.
+
+    WhisperX's underlying CTranslate2 raises ``RuntimeError("...out of memory...")``
+    rather than ``torch.cuda.OutOfMemoryError``, so match on the message text
+    first; the isinstance check is a guarded bonus for newer PyTorch.
+    """
+    msg = f"{exc}".lower()
+    if "out of memory" in msg or "out of memory" in repr(exc).lower():
+        return True
+    try:
+        import torch
+
+        return isinstance(exc, torch.cuda.OutOfMemoryError)
+    except Exception:
+        return False
+
+
+def _clear_cuda_cache() -> None:
+    """Defragment the CUDA caching allocator without releasing resident models.
+
+    Called between OOM retries and between chunks so a singleton model can still
+    obtain a contiguous batch block. Does NOT ``del`` models — reload is costlier
+    and may itself OOM. No-op on CPU / when torch is absent.
+    """
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def _oom_batch_ladder(base: int) -> list[int]:
+    """Batch sizes to try when recovering from OOM: [base, base//2, base//4].
+
+    Floor of 2 so the final attempt still batches. For default base=8 → [8, 4, 2].
+    """
+    ladder: list[int] = []
+    cur = max(2, base)
+    seen: set[int] = set()
+    for _ in range(3):
+        cur = max(2, cur)
+        if cur not in seen:
+            ladder.append(cur)
+            seen.add(cur)
+        if cur <= 2:
+            break
+        cur //= 2
+    return ladder or [2]
+
+
+def transcribe_with_whisperx(audio_path: str, batch_size: int | None = None) -> list[dict]:
     """Transcribe + align with WhisperX. Returns aligned segment dicts.
 
     Pipeline: ASR (VAD + batched) → punctuation restoration → wav2vec2 align.
     Raises on failure so the caller can fall back to faster-whisper.
+
+    ``batch_size`` overrides ``settings.whisperx_batch_size`` for this call —
+    used by the OOM retry ladder in :func:`transcribe_audio` to shrink the
+    activation footprint and recover from transient CUDA OOM without degrading
+    to faster-whisper.
     """
     import whisperx
 
@@ -251,9 +309,12 @@ def transcribe_with_whisperx(audio_path: str) -> list[dict]:
 
     # Step 1: ASR with VAD + batched inference
     model = get_whisperx_model()
-    result = model.transcribe(audio, batch_size=settings.whisperx_batch_size)
+    effective_batch = batch_size or settings.whisperx_batch_size
+    result = model.transcribe(audio, batch_size=effective_batch)
     language = result.get("language", "en")
-    logger.info("WhisperX ASR complete", language=language, segment_count=len(result["segments"]))
+    logger.info(
+        "WhisperX ASR complete", language=language, segment_count=len(result["segments"]), batch_size=effective_batch
+    )
 
     # Step 2: Restore punctuation before alignment. A no-op on turbo models
     # (which emit punctuation natively) but required for small/base models whose
@@ -300,6 +361,19 @@ def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
         language=language,
     )
     out = faster_whisper_segments_to_dicts(segments)
+
+    # Fallback path used to skip punctuation + alignment, emitting raw ~30s
+    # Whisper segment windows as giant unsegmented subtitle lines. Restore
+    # punctuation (same model WhisperX uses) then split long segments on
+    # sentence boundaries so the fallback never produces 29s subtitle lines.
+    settings = get_settings()
+    if settings.whisper_punctuation_restore:
+        from .punctuation import restore_punctuation
+
+        out = restore_punctuation(out)
+    from .formatters import split_long_segments
+
+    out = split_long_segments(out, max_duration=12.0)
     logger.info("faster-whisper transcription complete", segment_count=len(out))
     return out
 
@@ -341,14 +415,19 @@ def _disable_whisperx_runtime(reason: str) -> None:
 
 
 def transcribe_audio(audio_path: str) -> list[dict]:
-    """Dispatch transcription by configured engine, with WhisperX → faster-whisper fallback.
+    """Dispatch transcription by configured engine, with OOM-aware WhisperX retries.
 
-    Returns aligned/segmented dicts. When ``whisper_engine == "whisperx"`` and
-    WhisperX fails (model load, alignment, etc.), automatically retries with
-    faster-whisper so transcription never hard-fails on engine issues. The
-    fallback is sticky: once WhisperX fails, the rest of a chunked job uses
-    faster-whisper so one video never mixes sentence-segmented (WhisperX) and
-    segment-level (faster-whisper) subtitles.
+    When ``whisper_engine == "whisperx"`` and WhisperX hits a CUDA OOM, retry
+    with a shrinking batch size (``[base, base//2, base//4]``) after clearing the
+    CUDA cache — most OOM is fragmentation that a smaller batch + empty_cache
+    fixes, so we avoid degrading to faster-whisper (which skips alignment and
+    emits giant unsegmented lines). Only after the ladder is exhausted, or on a
+    non-OOM hard failure, do we fall back to faster-whisper.
+
+    Sticky policy: a non-OOM hard failure (broken align model, corrupt weights)
+    marks WhisperX unusable for the rest of the process so we don't re-try a
+    known-broken path every chunk. An OOM is **not** sticky — it's transient, so
+    each chunk independently retries WhisperX with the full ladder.
     """
     from app.core.config import get_settings
 
@@ -357,15 +436,35 @@ def transcribe_audio(audio_path: str) -> list[dict]:
     if settings.whisper_engine == "faster_whisper" or not _whisperx_usable():
         return transcribe_with_faster_whisper(audio_path)
 
-    try:
-        return transcribe_with_whisperx(audio_path)
-    except Exception as exc:
-        logger.warning(
-            "WhisperX transcription failed, falling back to faster-whisper",
-            error=str(exc),
-        )
-        _disable_whisperx_runtime(str(exc))
-        return transcribe_with_faster_whisper(audio_path)
+    ladder = _oom_batch_ladder(settings.whisperx_batch_size)
+    for attempt, batch_size in enumerate(ladder):
+        try:
+            return transcribe_with_whisperx(audio_path, batch_size=batch_size)
+        except Exception as exc:
+            oom = _is_oom(exc)
+            if oom and attempt < len(ladder) - 1:
+                logger.warning(
+                    "WhisperX OOM, retrying with smaller batch",
+                    batch_size=batch_size,
+                    next_batch_size=ladder[attempt + 1],
+                    error=str(exc),
+                )
+                _clear_cuda_cache()
+                continue
+            logger.warning(
+                "WhisperX failed, falling back to faster-whisper",
+                error=str(exc),
+                oom=oom,
+                attempts=attempt + 1,
+            )
+            # OOM is transient — don't poison subsequent chunks. Only a non-OOM
+            # hard failure is sticky (avoid re-trying a known-broken path).
+            if not oom:
+                _disable_whisperx_runtime(str(exc))
+            return transcribe_with_faster_whisper(audio_path)
+
+    # Unreachable: the loop always returns, but keep a safe fallback.
+    return transcribe_with_faster_whisper(audio_path)
 
 
 # ---------------------------------------------------------------------------
