@@ -7,7 +7,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { useHomeFeed } from "@/hooks/useHomeFeed";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -171,96 +170,143 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-8 pb-24">
-        {/* ── Greeting bar ── */}
-        <div className="greet">
-          <div>
-            <h1 className="text-[30px] font-extrabold tracking-display-md">
-              你好,{userName} 👋
-            </h1>
-            <p className="text-sm text-muted mt-1.5">继续你的学习连胜吧</p>
+      <main className="container-page py-7 pb-24">
+        {/* ── Bento 首屏：hero + 连胜 + 目标 ── */}
+        <div className="bento">
+          {/* hero 大卡 */}
+          <div className="b-hero">
+            <div className="flex items-start justify-between">
+              <span className="b-hero-tag">
+                <span className="led" />
+                每日练习 ·{" "}
+                {new Date().toLocaleDateString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                })}
+              </span>
+              <span className="text-[22px]">🔥</span>
+            </div>
+            <div>
+              <h1>
+                你好{userName}，
+                <br />
+                把英语<em>说出口</em>。
+              </h1>
+              <p className="b-hero-sub">
+                {goalMet
+                  ? "今日目标已达成！继续保持，或挑战更高难度。"
+                  : `还差 ${Math.max(0, dailyGoal - todayAttempts)} 次口语练习即可达成今日目标。从一条真实演讲开始。`}
+              </p>
+              <div className="b-hero-cta">
+                <Link href="/speaking" className="btn-go">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="9" y="3" width="6" height="12" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0" />
+                  </svg>
+                  开始口语练习
+                </Link>
+                <Link href="/browse" className="btn-ghost-d">
+                  浏览视频库
+                </Link>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="pill pill-flame-on">
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2C8 6 6 8 6 12a6 6 0 0 0 12 0c0-2-2-4-3-6-1 2-3 2-3-4Z" />
-              </svg>
-              {streak} 天连胜
-            </span>
-            <span className={cn("pill", goalMet ? "pill-goal-done" : "")}>
-              {goalMet ? (
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              ) : (
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 7v5l3 3" />
-                </svg>
-              )}
-              今日目标 {goalMet ? "已达成" : `${todayAttempts}/${dailyGoal}`}
-            </span>
-            <Link href="/speaking" className="btn-primary">
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="9" y="3" width="6" height="12" rx="3" />
-                <path d="M5 11a7 7 0 0 0 14 0" />
-              </svg>
-              口语练习
-            </Link>
+
+          {/* 连胜 + 目标 栈 */}
+          <div className="b-stack">
+            <div className="b-streak">
+              <div>
+                <div className="lbl">Current Streak</div>
+                <div className="big">
+                  {streak}
+                  <small>天</small>
+                </div>
+              </div>
+              <div className="foot">最长连胜保持中 · 继续加油</div>
+            </div>
+            <div className="b-goal">
+              <div>
+                <div className="lbl">Daily Goal</div>
+                <div className="num">
+                  {todayAttempts}
+                  <small>/{dailyGoal}</small>
+                </div>
+              </div>
+              <div>
+                <div className="b-goal-track">
+                  <div
+                    className="b-goal-fill"
+                    style={{
+                      width: `${Math.min(100, (todayAttempts / dailyGoal) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="foot">
+                  {goalMet
+                    ? "今日目标已达成 🎉"
+                    : `还差 ${Math.max(0, dailyGoal - todayAttempts)} 次达成目标`}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ── Continue watching ── */}
+        {/* ── 今日练习入口 ── */}
+        <div className="bento">
+          <div className="b-practice">
+            <div>
+              <div className="lbl">Quick Practice</div>
+              <div className="title">选择练习模式，60 秒开口说</div>
+            </div>
+            <div className="b-practice-modes">
+              <Link href="/speaking?mode=read_aloud" className="mode-chip">
+                <span className="dot r" />
+                朗读 <small>Read aloud</small>
+              </Link>
+              <Link href="/speaking?mode=shadowing" className="mode-chip">
+                <span className="dot m" />
+                跟读 <small>Shadowing</small>
+              </Link>
+              <Link href="/speaking?mode=free_speaking" className="mode-chip">
+                <span className="dot f" />
+                自由说 <small>Free speaking</small>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 继续观看：主推大卡 + 不对称网格 ── */}
         {continueWatching.length > 0 && (
           <section>
             <div className="sec-head">
               <h2 className="sec-title">继续观看</h2>
+              <span className="text-xs text-muted font-mono">
+                {continueWatching.length} 个进行中
+              </span>
             </div>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {continueWatching.map((v) => (
-                <VideoCard key={v.id} video={v} />
+            <div className="feat-grid">
+              {continueWatching.map((v, i) => (
+                <VideoCard
+                  key={v.id}
+                  video={v}
+                  feat={i === 0}
+                  progress={inProgressRecords.length > 0 ? 62 : undefined}
+                />
               ))}
             </div>
           </section>
         )}
 
-        {/* ── Category band ── */}
+        {/* ── 分类视觉化大卡 ── */}
         <section>
           <div className="sec-head">
             <h2 className="sec-title">按分类浏览</h2>
@@ -280,24 +326,32 @@ export default function HomePage() {
               </svg>
             </Link>
           </div>
-          <div className="cat-band scrollbar-hide">
-            {CATEGORIES.map((cat) => (
-              <Link
-                key={cat.tag}
-                href={`/browse?category=${encodeURIComponent(cat.tag)}`}
-                className="cat-card"
-              >
-                <span className="text-[26px]">{cat.emoji}</span>
-                <span className="text-[13px] font-semibold">{cat.label}</span>
-                <span className="text-[11px] text-muted">
-                  {categoryCounts[cat.tag] ? `${categoryCounts[cat.tag]}` : "—"}
-                </span>
-              </Link>
-            ))}
+          <div className="cat-feat">
+            {CATEGORIES_WITH_META.map((cat) => {
+              const count = categoryCounts[cat.tag];
+              return (
+                <Link
+                  key={cat.tag}
+                  href={`/browse?category=${encodeURIComponent(cat.tag)}`}
+                  className="cat-big"
+                >
+                  <img src={cat.img} alt="" loading="lazy" />
+                  <div className="ov" />
+                  {count ? null : <span className="lv">COMING SOON</span>}
+                  <div className="meta">
+                    <div className="emoji">{cat.emoji}</div>
+                    <div className="label">{cat.label}</div>
+                    <div className="count">
+                      {count ? `${count} 个视频 · ${cat.range}` : "即将上线"}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
 
-        {/* ── Curated by difficulty ── */}
+        {/* ── 按难度精选 ── */}
         <section>
           <div className="sec-head">
             <h2 className="sec-title">按难度精选</h2>
@@ -368,12 +422,41 @@ export default function HomePage() {
   );
 }
 
-/* ── Video card (vcard pattern) ── */
-function VideoCard({ video }: { video: Video }) {
+/* ── 分类元数据（带预览图 + 难度区间，用于视觉化大卡） ── */
+const CATEGORIES_WITH_META = CATEGORIES.map((c) => ({
+  ...c,
+  img: `https://picsum.photos/seed/cat-${c.tag}/400/300`,
+  range:
+    c.tag === "TED" || c.tag === "新闻"
+      ? "B1–C1"
+      : c.tag === "访谈" || c.tag === "电影"
+        ? "B2–C2"
+        : c.tag === "Vlog"
+          ? "A2–B1"
+          : c.tag === "教育"
+            ? "A1–B1"
+            : c.tag === "科技"
+              ? "B2–C1"
+              : "A1–C2",
+}));
+
+/* ── Video card (vcard pattern, 支持 feat 主推大卡 + progress 进度标记) ── */
+function VideoCard({
+  video,
+  feat = false,
+  progress,
+}: {
+  video: Video;
+  feat?: boolean;
+  progress?: number;
+}) {
   const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
 
   return (
-    <Link href={`/watch/${video.id}`} className="vcard group">
+    <Link
+      href={`/watch/${video.id}`}
+      className={`vcard group ${feat ? "vcard-feat" : ""}`}
+    >
       <div className="thumb">
         {video.thumbnail_url ? (
           <img
@@ -415,6 +498,12 @@ function VideoCard({ video }: { video: Video }) {
           <span>Speaking</span>
           <span className="vdot" />
           <span className="chip">{category}</span>
+          {feat && progress !== undefined && (
+            <>
+              <span className="vdot" />
+              <span className="vprog-tag">{progress}% 已观看</span>
+            </>
+          )}
         </div>
       </div>
     </Link>

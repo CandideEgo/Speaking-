@@ -547,6 +547,229 @@
   .card-cream {
     @apply bg-surface-card rounded-lg p-8;
   }
+
+  /* ============================================================
+     HOME — bento 首屏 (variant 03)
+     独立于现有 .greet/.cat-card/.vcard，仅首页使用，不影响其它页面
+     ============================================================ */
+  .bento {
+    @apply grid gap-4 mb-2;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  /* hero 大卡 — 深色，占 4 列 */
+  .b-hero {
+    @apply relative min-h-[230px] p-8 rounded-lg flex flex-col justify-between overflow-hidden border;
+    grid-column: span 4 / span 4;
+    background: linear-gradient(135deg, #161616, #0a0a0a);
+    border-color: #1c1c1c;
+    color: #fafafa;
+  }
+  .b-hero-tag {
+    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase font-mono;
+    letter-spacing: 0.16em;
+    color: #ff7a45;
+  }
+  .b-hero-tag .led {
+    @apply w-[7px] h-[7px] rounded-full bg-brand-500;
+    box-shadow: 0 0 8px #ff5a1f;
+  }
+  .b-hero h1 {
+    @apply text-[34px] font-extrabold tracking-display-md leading-[1.1] mt-3.5 text-on-dark;
+  }
+  .b-hero h1 em {
+    @apply not-italic text-brand-400;
+  }
+  .b-hero-sub {
+    @apply text-sm mt-2 max-w-[42ch] text-on-dark-soft;
+  }
+  .b-hero-cta {
+    @apply flex gap-2.5 mt-5;
+  }
+  .btn-go {
+    @apply inline-flex items-center gap-2 px-[18px] py-[11px] rounded-sm text-sm font-semibold
+           bg-brand-500 text-on-primary shadow-brand
+           hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-150;
+  }
+  .btn-ghost-d {
+    @apply inline-flex items-center gap-1.5 px-4 py-[11px] rounded-sm text-sm font-semibold border
+           text-on-dark hover:bg-surface-dark-soft transition-colors duration-150;
+    border-color: #2c2c2c;
+  }
+  .btn-ghost-d:hover {
+    border-color: #4a4a4a;
+  }
+  /* 右侧栈 — 连胜 + 目标，占 2 列 */
+  .b-stack {
+    grid-column: span 2 / span 2;
+    @apply flex flex-col gap-4;
+  }
+  .b-streak {
+    @apply flex-1 p-6 rounded-lg border flex flex-col justify-between bg-brand-50 border-brand-100;
+  }
+  .b-streak .lbl,
+  .b-goal .lbl,
+  .b-practice .lbl,
+  .b-cat-big .lv {
+    @apply text-[11px] font-semibold uppercase font-mono;
+    letter-spacing: 0.14em;
+  }
+  .b-streak .lbl {
+    @apply text-brand-700;
+  }
+  .b-streak .big {
+    @apply text-[60px] font-extrabold tracking-display-lg leading-none mt-2.5 text-brand-600;
+  }
+  .b-streak .big small {
+    @apply text-[18px] font-semibold ml-1 text-brand-500;
+  }
+  .b-streak .foot {
+    @apply text-xs font-medium mt-2 text-brand-700;
+  }
+  .b-goal {
+    @apply flex-1 p-6 rounded-lg border bg-canvas border-hairline
+           flex flex-col justify-between;
+  }
+  .b-goal .lbl {
+    @apply text-muted-foreground;
+  }
+  .b-goal .num {
+    @apply text-[36px] font-extrabold tracking-display-lg leading-none mt-2;
+  }
+  .b-goal .num small {
+    @apply text-base font-semibold text-muted;
+  }
+  .b-goal-track {
+    @apply h-2 rounded-pill overflow-hidden mt-3.5 bg-surface-card;
+  }
+  .b-goal-fill {
+    @apply h-full rounded-pill;
+    background: linear-gradient(90deg, #ff5a1f, #ff7a45);
+  }
+  .b-goal .foot {
+    @apply text-xs text-muted mt-2;
+  }
+  /* 今日练习入口 — 全宽 */
+  .b-practice {
+    grid-column: span 6 / span 6;
+    @apply px-[26px] py-5 rounded-lg border bg-surface-soft border-hairline
+           flex items-center gap-6;
+  }
+  .b-practice .lbl {
+    @apply text-muted-foreground;
+  }
+  .b-practice .title {
+    @apply text-[17px] font-bold tracking-display-sm mt-[3px];
+  }
+  .b-practice-modes {
+    @apply flex gap-2.5 ml-auto flex-wrap;
+  }
+  .mode-chip {
+    @apply inline-flex items-center gap-2 px-[15px] py-[9px] rounded-md text-[13px] font-semibold
+           bg-canvas border border-hairline text-body
+           hover:border-ink hover:-translate-y-0.5 hover:shadow-soft transition-all duration-150 cursor-pointer;
+  }
+  .mode-chip .dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  .mode-chip .dot.r {
+    @apply bg-brand-500;
+  }
+  .mode-chip .dot.m {
+    @apply bg-success;
+  }
+  .mode-chip .dot.f {
+    @apply bg-indigo;
+  }
+  .mode-chip small {
+    @apply text-[11px] font-medium text-muted;
+  }
+  /* 主推大卡 — 不对称网格 */
+  .feat-grid {
+    @apply grid gap-4;
+    grid-template-columns: 1.6fr 1fr 1fr;
+  }
+  .vcard-feat {
+    grid-column: span 1 / span 1;
+    grid-row: span 2 / span 2;
+  }
+  .vcard-feat .thumb {
+    @apply aspect-[16/10];
+  }
+  .vcard-feat .vtitle {
+    @apply text-lg min-h-[50px];
+  }
+  .vprog-tag {
+    @apply text-[11px] font-semibold font-mono text-brand-500;
+  }
+  /* 分类视觉化大卡 */
+  .cat-feat {
+    @apply grid gap-4;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cat-big {
+    @apply relative aspect-[4/3] rounded-lg overflow-hidden cursor-pointer border border-hairline;
+  }
+  .cat-big img {
+    @apply w-full h-full object-cover opacity-55 transition-all duration-200;
+  }
+  .cat-big:hover img {
+    @apply opacity-70 scale-105;
+  }
+  .cat-big .ov {
+    @apply absolute inset-0;
+    background: linear-gradient(
+      180deg,
+      transparent 30%,
+      rgba(10, 10, 10, 0.85)
+    );
+  }
+  .cat-big .meta {
+    @apply absolute left-4 right-4 bottom-[14px] text-on-primary;
+  }
+  .cat-big .meta .emoji {
+    @apply text-[24px];
+  }
+  .cat-big .meta .label {
+    @apply text-base font-bold tracking-display-sm mt-1;
+  }
+  .cat-big .meta .count {
+    @apply text-[11px] mt-0.5 font-mono;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .cat-big .lv {
+    @apply absolute top-3 right-3 text-[10px] font-mono;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.8);
+  }
+  /* 响应式：bento 在中等屏降级 */
+  @media (max-width: 1024px) {
+    .bento {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .b-hero {
+      grid-column: span 2 / span 2;
+    }
+    .b-stack {
+      grid-column: span 2 / span 2;
+      @apply flex-row;
+    }
+    .b-practice {
+      grid-column: span 2 / span 2;
+      @apply flex-col items-start;
+    }
+    .b-practice-modes {
+      @apply ml-0;
+    }
+    .feat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .vcard-feat {
+      grid-row: auto / auto;
+    }
+    .cat-feat {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 }
 
 /* === Subtitle panel scrollbar === */
