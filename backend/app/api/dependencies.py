@@ -120,6 +120,10 @@ async def get_optional_user(
     if user is not None and _token_issued_before_password_change(payload, user):
         return None
 
+    # Reject banned users even on optional-auth endpoints.
+    if user is not None and user.is_banned:
+        return None
+
     return user
 
 

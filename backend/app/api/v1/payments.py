@@ -222,7 +222,9 @@ async def payment_status(request: Request, current_user: User = Depends(get_curr
     """Return the current user's plan/payment status."""
     return PaymentStatusResponse(
         plan=current_user.plan.value,
-        is_pro=current_user.plan == PlanType.pro,
+        is_pro=current_user.plan == PlanType.pro
+        and current_user.plan_expires_at is not None
+        and _to_aware_utc(current_user.plan_expires_at) > datetime.now(UTC),
         plan_expires_at=current_user.plan_expires_at,
     )
 

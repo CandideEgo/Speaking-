@@ -155,8 +155,9 @@ async def redeem_code(
 
     current_user.plan = PlanType.pro
     if code.duration_days and code.duration_days > 0:
-        current_expires = _to_aware_utc(current_user.plan_expires_at) if current_user.plan_expires_at else _utcnow()
-        current_user.plan_expires_at = max(current_expires, _utcnow()) + timedelta(days=code.duration_days)
+        now = datetime.now(UTC)
+        current_expires = _to_aware_utc(current_user.plan_expires_at) if current_user.plan_expires_at else now
+        current_user.plan_expires_at = max(current_expires, now) + timedelta(days=code.duration_days)
 
     await db.commit()
 
