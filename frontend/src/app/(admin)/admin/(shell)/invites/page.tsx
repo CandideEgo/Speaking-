@@ -7,6 +7,7 @@ import { Download, RefreshCw, Ticket } from "lucide-react";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
+import { Button } from "@/components/ui/Button";
 import type { InviteCode } from "@/types";
 import {
   exportInviteCsv,
@@ -117,10 +118,9 @@ export default function AdminInvitesPage() {
               />
             </div>
           </div>
-          <button type="submit" disabled={generating} className="btn-primary">
-            <Ticket size={16} />
+          <Button type="submit" disabled={generating} icon={Ticket}>
             {generating ? "生成中..." : "生成兑换码"}
-          </button>
+          </Button>
         </form>
       </SectionCard>
 
@@ -128,24 +128,23 @@ export default function AdminInvitesPage() {
         title="兑换码列表"
         actions={
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={loadCodes}
               disabled={loadingCodes}
-              className="btn-secondary !py-2 !px-3 text-xs"
+              variant="secondary"
+              icon={RefreshCw}
+              size="sm"
             >
-              <RefreshCw
-                size={12}
-                className={loadingCodes ? "animate-spin" : ""}
-              />
               刷新
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={exportCsv}
-              className="btn-secondary !py-2 !px-3 text-xs"
+              variant="secondary"
+              icon={Download}
+              size="sm"
             >
-              <Download size={12} />
               导出 CSV
-            </button>
+            </Button>
           </div>
         }
       >

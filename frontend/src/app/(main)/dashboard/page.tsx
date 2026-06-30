@@ -15,6 +15,8 @@ import {
 import { RotateCcw, Play } from "lucide-react";
 import Link from "next/link";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
+import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -249,15 +251,16 @@ export default function DashboardPage() {
               ,继续保持!
             </p>
           </div>
-          <button
+          <Button
             onClick={loadData}
             disabled={loading}
-            className="btn-outline !py-2 !px-3"
+            variant="outline"
+            icon={RotateCcw}
+            size="sm"
             aria-label="刷新数据"
           >
-            <RotateCcw className={cn("h-4 w-4", loading && "animate-spin")} />
             刷新
-          </button>
+          </Button>
         </div>
 
         {loading && !data ? (
@@ -268,9 +271,9 @@ export default function DashboardPage() {
           <div className="py-20 text-center">
             <BarChart3Icon className="h-12 w-12 mx-auto text-muted mb-4" />
             <p className="text-muted">加载数据失败，请稍后重试</p>
-            <button onClick={loadData} className="btn-primary mt-4">
+            <Button onClick={loadData} className="mt-4">
               重试
-            </button>
+            </Button>
           </div>
         ) : data ? (
           <>
@@ -484,9 +487,9 @@ export default function DashboardPage() {
           <div className="py-20 text-center">
             <BarChart3Icon className="h-12 w-12 mx-auto text-muted mb-4" />
             <p className="text-muted">暂无学习数据，开始你的第一次练习吧！</p>
-            <Link href="/browse" className="btn-primary mt-4 inline-flex">
+            <LinkButton href="/browse" className="mt-4">
               浏览视频
-            </Link>
+            </LinkButton>
           </div>
         )}
       </div>

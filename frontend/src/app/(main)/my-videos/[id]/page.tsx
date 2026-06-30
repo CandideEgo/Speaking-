@@ -33,6 +33,8 @@ import {
   type SubtitlePatch,
 } from "@/lib/creatorData";
 import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
+import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -135,12 +137,9 @@ export default function MyVideoEditorPage() {
     return (
       <main className="min-h-full bg-canvas">
         <div className="container-page py-8">
-          <Link
-            href="/my-videos"
-            className="btn-outline inline-flex items-center gap-1"
-          >
-            <ArrowLeft size={15} /> 返回
-          </Link>
+          <LinkButton href="/my-videos" variant="outline" icon={ArrowLeft}>
+            返回
+          </LinkButton>
           <p className="mt-6 text-muted">{error || "视频不存在或无权访问"}</p>
         </div>
       </main>
@@ -212,12 +211,14 @@ export default function MyVideoEditorPage() {
   return (
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
-        <Link
+        <LinkButton
           href="/my-videos"
-          className="btn-outline inline-flex items-center gap-1 mb-5"
+          variant="outline"
+          icon={ArrowLeft}
+          className="mb-5"
         >
-          <ArrowLeft size={15} /> 返回我的视频
-        </Link>
+          返回我的视频
+        </LinkButton>
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
@@ -238,28 +239,30 @@ export default function MyVideoEditorPage() {
           {/* Review actions */}
           <div className="flex gap-2 flex-wrap">
             {isPublished && (
-              <button
+              <Button
                 onClick={() => reviewAction(beginEdit, "开始编辑")}
-                className="btn-outline inline-flex items-center gap-1.5"
+                variant="outline"
+                icon={Pencil}
               >
-                <Pencil size={14} /> 编辑已发布视频
-              </button>
+                编辑已发布视频
+              </Button>
             )}
             {editable && (
-              <button
+              <Button
                 onClick={() => reviewAction(submitForReview, "提交审核")}
-                className="btn-primary inline-flex items-center gap-1.5"
+                icon={Send}
               >
-                <Send size={14} /> 提交审核
-              </button>
+                提交审核
+              </Button>
             )}
             {isPending && (
-              <button
+              <Button
                 onClick={() => reviewAction(withdrawSubmission, "撤回")}
-                className="btn-outline inline-flex items-center gap-1.5"
+                variant="outline"
+                icon={Undo2}
               >
-                <Undo2 size={14} /> 撤回审核
-              </button>
+                撤回审核
+              </Button>
             )}
           </div>
         </div>
@@ -489,18 +492,15 @@ function PracticeEditor({
             ))}
           </select>
         </div>
-        <button
+        <Button
           onClick={handleRegenerate}
           disabled={!editable || regenerating}
-          className="btn-outline inline-flex items-center gap-1 text-xs"
+          variant="outline"
+          icon={regenerating ? Loader2 : RefreshCw}
+          size="sm"
         >
-          {regenerating ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <RefreshCw size={12} />
-          )}
           AI 重新生成
-        </button>
+        </Button>
       </div>
 
       {loading ? (
@@ -627,20 +627,16 @@ function PracticeEditor({
 
       {editable && (
         <div className="flex gap-2">
-          <button
-            onClick={() => addQuestion()}
-            className="btn-outline inline-flex items-center gap-1 text-sm"
-          >
-            <Plus size={14} /> 添加题目
-          </button>
-          <button
+          <Button onClick={() => addQuestion()} variant="outline" icon={Plus}>
+            添加题目
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={saving}
-            className="btn-primary inline-flex items-center gap-1 text-sm"
+            icon={saving ? Loader2 : undefined}
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : null}
             保存练习题
-          </button>
+          </Button>
         </div>
       )}
     </div>

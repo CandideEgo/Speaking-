@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 
 import { WordLevelsEditor } from "./WordLevelsEditor";
+import { Button } from "@/components/ui/Button";
 import type { Subtitle } from "@/types";
 import type { SubtitlePatch } from "@/lib/creatorData";
 
@@ -97,13 +98,15 @@ export function SubtitleEditor({
         <span>
           · {subtitle.start_time.toFixed(1)}s – {subtitle.end_time.toFixed(1)}s
         </span>
-        <button
+        <Button
           type="button"
           onClick={() => setEditingLevels((v) => !v)}
-          className="btn-outline !py-0.5 !px-1.5 text-[10px] ml-auto"
+          variant="outline"
+          size="xs"
+          className="ml-auto"
         >
           {editingLevels ? "收起高亮" : "编辑高亮"}
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -133,17 +136,18 @@ export function SubtitleEditor({
             className="input-field"
           />
           {videoRef && (
-            <button
+            <Button
               type="button"
               onClick={() => {
                 const t = captureCurrentTime();
                 if (t !== null) setStartTime(String(t));
               }}
-              className="btn-outline !px-1.5 text-[10px]"
+              variant="outline"
+              size="xs"
               title="取当前播放时间"
             >
               ●
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex gap-1">
@@ -156,17 +160,18 @@ export function SubtitleEditor({
             className="input-field"
           />
           {videoRef && (
-            <button
+            <Button
               type="button"
               onClick={() => {
                 const t = captureCurrentTime();
                 if (t !== null) setEndTime(String(t));
               }}
-              className="btn-outline !px-1.5 text-[10px]"
+              variant="outline"
+              size="xs"
               title="取当前播放时间"
             >
               ●
-            </button>
+            </Button>
           )}
         </div>
         <input
@@ -192,19 +197,15 @@ export function SubtitleEditor({
 
       {dirty && (
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="btn-primary !py-1 !px-3 text-xs inline-flex items-center gap-1"
+            icon={saving ? Loader2 : Save}
+            size="sm"
           >
-            {saving ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Save size={12} />
-            )}
             保存字幕
-          </button>
+          </Button>
         </div>
       )}
 

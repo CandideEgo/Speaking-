@@ -18,6 +18,7 @@ import { SectionCard } from "@/components/admin/SectionCard";
 import { Pagination } from "@/components/admin/Pagination";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
+import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
 import {
@@ -173,14 +174,15 @@ export default function AdminUsersPage() {
       title="用户管理"
       description="管理用户角色、封禁状态与 Pro 会员。"
       actions={
-        <button
+        <Button
           onClick={load}
           disabled={loading}
-          className="btn-secondary !py-2 !px-3 text-xs"
+          variant="secondary"
+          icon={RefreshCw}
+          size="sm"
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           刷新
-        </button>
+        </Button>
       }
     >
       <div className="mb-4 flex items-center gap-3 flex-wrap">
@@ -282,25 +284,25 @@ export default function AdminUsersPage() {
             </td>
             <td className="py-3 text-right">
               <div className="inline-flex gap-1">
-                <button
+                <Button
                   onClick={() => handleBan(u)}
                   title={u.is_banned ? "解封" : "封禁"}
-                  className={cn(
-                    "btn-secondary !py-1 !px-2 text-[11px]",
-                    u.is_banned && "text-green-600",
-                  )}
+                  variant="secondary"
+                  size="compact"
+                  className={cn(u.is_banned && "text-green-600")}
                 >
                   {u.is_banned ? <ShieldOff size={11} /> : <Shield size={11} />}
                   {u.is_banned ? "解封" : "封禁"}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handlePromote(u)}
                   title="切换管理员角色"
-                  className="btn-secondary !py-1 !px-2 text-[11px]"
+                  variant="secondary"
+                  size="compact"
                 >
                   <UserCog size={11} />
                   {(u.role || "user") === "admin" ? "降级" : "提升"}
-                </button>
+                </Button>
               </div>
             </td>
           </tr>
@@ -381,12 +383,9 @@ function UserDetailRow({
               className="input-field !py-1.5 w-28"
             />
           </div>
-          <button
-            onClick={() => onGrantPro(user, days)}
-            className="btn-primary !py-2 !px-3 text-xs"
-          >
-            <Crown size={12} /> 赠送 Pro
-          </button>
+          <Button onClick={() => onGrantPro(user, days)} icon={Crown} size="sm">
+            赠送 Pro
+          </Button>
           {user.plan === "pro" && (
             <button
               onClick={() => onRevokePro(user)}
