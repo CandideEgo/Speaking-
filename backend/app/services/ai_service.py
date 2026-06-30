@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import threading
 
 import openai
@@ -18,6 +19,18 @@ LLM_TIMEOUT = 60.0
 
 class AIServiceError(Exception):
     """Raised when an LLM call fails after all retries are exhausted."""
+
+
+def _normalize_sentence(s: str) -> str:
+    """Lowercase, strip sentence-ending punctuation, and collapse whitespace.
+
+    Used to grade sentence_building answers structurally: the user's reordered
+    tokens should match the expected sentence once punctuation/case are ignored.
+    """
+    s = (s or "").lower().strip()
+    # Strip leading/trailing sentence punctuation (. ! ? , ; :) and quotes.
+    s = re.sub(r"^[.\,!?:;\"'` ]+|[.\,!?:;\"'` ]+$", "", s)
+    return re.sub(r"\s+", " ", s)
 
 
 class AIService:
@@ -518,17 +531,26 @@ class AIService:
         system = (
             "You are an English exam (CET/高考/考研) question generator for Chinese learners. "
             "Given a video transcript and a list of target-level vocabulary, generate practice questions.\n\n"
-            "Produce a mix of two types:\n"
-            '- "qa": a comprehension question about the transcript content. Include "answer" (a concise '
-            "Chinese or English answer). Optionally add 'options' (4 strings) to make it multiple-choice.\n"
-            '- "fill_blank": a fill-in-the-blank sentence drawn from the transcript, with the gap being a '
-            "word from the target vocabulary list. 'answer' is the gap word (its lemma). Optionally add "
-            "'options' (4 strings) for multiple-choice. Add 'cet_words' listing the target words used. "
+            "Produce a mix of these types:\n"
+            "- qa: a comprehension question about the transcript content. Include answer (a concise "
+            "Chinese or English answer). Optionally add options (4 strings) to make it multiple-choice.\n"
+            "- fill_blank: a fill-in-the-blank sentence drawn from the transcript, with the gap being a "
+            "word from the target vocabulary list. answer is the gap word (its lemma). Optionally add "
+            "options (4 strings) for multiple-choice. Add cet_words listing the target words used. "
             "You may adapt a provided past-paper (真题) sentence into a fill-in-the-blank question when it "
-            "contains a target word, for an authentic exam flavor.\n\n"
+            "contains a target word, for an authentic exam flavor.\n"
+            "- reading: a short reading-comprehension question. Build a 2-4 sentence passage that "
+            "paraphrases or expands on part of the transcript (put it in the passage field), then ask a "
+            "comprehension question about it. answer is the answer; options (4 strings) makes it "
+            "multiple-choice.\n"
+            "- sentence_building: a sentence-building / 造句 question. Take a short sentence from the "
+            "transcript, split it into word tokens, and put the shuffled tokens in tokens. answer is "
+            "the correct sentence (the tokens in order, space-joined, original punctuation stripped). "
+            "Do not include options for this type.\n\n"
             'Return a JSON object {"questions": [ ... ]}. Each question object has: type, question, '
-            "answer, options (array or null), cet_words (array or null). Keep questions answerable from "
-            "the transcript. Do not reveal the answer in the question text."
+            "answer, options (array or null), cet_words (array or null), passage (string or null, "
+            "reading only), tokens (array of strings or null, sentence_building only). Keep questions "
+            "answerable from the transcript. Do not reveal the answer in the question text."
         )
         user = (
             f"Exam level: {exam_level}\n"
@@ -559,6 +581,8 @@ class AIService:
                         "answer": q.get("answer", ""),
                         "options": q.get("options") or None,
                         "cet_words": q.get("cet_words") or [],
+                        "passage": q.get("passage") or None,
+                        "tokens": q.get("tokens") or None,
                     }
                 )
             return normalized
@@ -664,6 +688,18 @@ class AIService:
         """
         ua = (user_answer or "").strip()
         expected = (question.get("answer") or "").strip()
+
+        # sentence_building: grade the token order locally (no AI). Accept the
+        # answer if the user's tokens match the expected sentence ignoring case
+        # and surrounding punctuation. This is a structural check, not semantic.
+        if question.get("type") == "sentence_building" and expected:
+            ua_norm = _normalize_sentence(ua)
+            exp_norm = _normalize_sentence(expected)
+            correct = ua_norm == exp_norm
+            return {
+                "correct": correct,
+                "explanation": f"正确句子：{expected}。" if not correct else f"正确，答案为 {expected}。",
+            }
 
         # fill_blank: lenient local match first — avoids an AI call when obvious.
         if question.get("type") == "fill_blank" and expected:

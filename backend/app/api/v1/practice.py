@@ -33,11 +33,16 @@ DEFAULT_COUNT = 6
 
 
 class PracticeQuestion(BaseModel):
-    type: str  # "qa" | "fill_blank"
+    type: str  # "qa" | "fill_blank" | "reading" | "sentence_building"
     question: str
     answer: str
     options: list[str] | None = None
     cet_words: list[str] = []
+    # reading: a comprehension passage the question refers to.
+    passage: str | None = None
+    # sentence_building: the scrambled tokens; answer is the correct order
+    # (space-joined) and options holds the shuffled tokens.
+    tokens: list[str] | None = None
 
 
 class PracticeSet(BaseModel):
@@ -219,6 +224,124 @@ async def get_practice(
         exam_level=level,
         questions=[PracticeQuestion(**q) for q in questions],
     )
+
+
+# ---------------------------------------------------------------------------
+# Vocabulary drill (Phase 4) — deterministic, free-tier, no AI.
+#
+# Generates spelling + meaning-choice items from the video's target-level
+# words (drawn from subtitle word_levels via _collect_target_words, same
+# primitive the AI practice set uses). Distractors come from other target
+# words' translations, so it stays fully local (ECDICT only) and engages the
+# learner with the video's own vocabulary.
+# ---------------------------------------------------------------------------
+
+
+class VocabDrillItem(BaseModel):
+    """One vocabulary drill item.
+
+    Two kinds:
+    - kind="spelling": show ``translation``, learner types the English word
+      (``answer`` = the lemma). Graded leniently client-side (case/plural).
+    - kind="meaning_choice": show ``word``, pick its Chinese translation from
+      ``options`` (``answer`` = the correct option; ``options`` are shuffled).
+    """
+
+    kind: str  # "spelling" | "meaning_choice"
+    word: str
+    translation: str
+    answer: str
+    options: list[str] | None = None
+    cet_words: list[str] = []
+
+
+class VocabDrillSet(BaseModel):
+    video_id: str
+    exam_level: str
+    items: list[VocabDrillItem]
+
+
+@router.get("/{video_id}/vocabulary-drill", response_model=VocabDrillSet)
+async def get_vocabulary_drill(
+    video_id: str,
+    level: str = Query(..., description="Target exam level key"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deterministic vocabulary drill from the video's target-level words.
+
+    Free-tier (not Pro-gated): the drill drives engagement with the video's
+    own vocabulary and needs no AI. Generates spelling + meaning-choice items
+    on every call (cheap; not cached) so the learner can drill repeatedly.
+    """
+    if level not in EXAM_LEVEL_KEYS:
+        raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
+
+    # Validate the video exists + is ready (raises 404 on miss).
+    await _get_ready_video_or_404(db, video_id)
+
+    from app.models.subtitle import Subtitle
+
+    sub_result = await db.execute(
+        select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index)
+    )
+    subtitles = list(sub_result.scalars().all())
+    if not subtitles:
+        raise HTTPException(status_code=409, detail="字幕尚未就绪，无法生成词汇练习")
+
+    target_words = _collect_target_words(subtitles, level)
+    if not target_words:
+        raise HTTPException(status_code=409, detail="该视频暂无目标等级词汇，无法生成练习")
+
+    # Pool of translations for meaning-choice distractors.
+    all_translations = [w["translation"] for w in target_words if w["translation"]]
+
+    items: list[VocabDrillItem] = []
+    for w in target_words:
+        word = w["word"]
+        translation = w["translation"] or ""
+
+        # Spelling item: show translation, type the word.
+        items.append(
+            VocabDrillItem(
+                kind="spelling",
+                word=word,
+                translation=translation,
+                answer=word,
+                cet_words=[word],
+            )
+        )
+
+        # Meaning-choice item: pick the translation for `word`. Distractors are
+        # other target words' translations (deduped, up to 3).
+        if translation:
+            distractors = [t for t in all_translations if t and t != translation]
+            # Shuffle deterministically-ish by set ordering is fine for a drill.
+            distractor_pool = list(dict.fromkeys(distractors))[:3]
+            if len(distractor_pool) >= 2:  # need at least 2 distractors to be worthwhile
+                options = [*distractor_pool, translation]
+                # simple in-place shuffle to avoid the answer always being last
+                _shuffle_options(options)
+                items.append(
+                    VocabDrillItem(
+                        kind="meaning_choice",
+                        word=word,
+                        translation=translation,
+                        answer=translation,
+                        options=options,
+                        cet_words=[word],
+                    )
+                )
+
+    return VocabDrillSet(video_id=video_id, exam_level=level, items=items)
+
+
+def _shuffle_options(options: list[str]) -> None:
+    """Rotate a small options list in place so the correct answer isn't fixed."""
+    if len(options) < 2:
+        return
+    # Rotate by one position — deterministic, avoids importing random here.
+    options[:] = options[1:] + options[:1]
 
 
 @router.post("/{video_id}/practice/grade", response_model=GradeResponse)

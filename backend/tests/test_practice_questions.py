@@ -122,6 +122,64 @@ async def test_grade_open_ended_calls_ai(fake_redis):
     assert result["explanation"] == "语义正确"
 
 
+@pytest.mark.asyncio
+async def test_grade_sentence_building_local_match(fake_redis):
+    """sentence_building is graded locally by normalized token order — no AI."""
+    from unittest.mock import patch
+
+    from app.services.ai_service import AIService
+
+    service = AIService()
+    question = {
+        "type": "sentence_building",
+        "question": "用这些词造句",
+        "answer": "She runs a company.",
+        "tokens": ["company", "a", "runs", "She"],
+    }
+    chat_mock = AsyncMock()
+    with patch.object(service, "_chat", new=chat_mock):
+        result = await service.grade_answer(question, "she runs a company")
+    assert result["correct"] is True
+    chat_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_grade_sentence_building_wrong_order(fake_redis):
+    from app.services.ai_service import AIService
+
+    service = AIService()
+    question = {
+        "type": "sentence_building",
+        "answer": "She runs a company.",
+        "tokens": ["company", "a", "runs", "She"],
+    }
+    result = await service.grade_answer(question, "a company runs she")
+    assert result["correct"] is False
+
+
+@pytest.mark.asyncio
+async def test_generate_practice_questions_preserves_reading_fields(fake_redis):
+    """Reading/sentence_building questions carry passage/tokens through normalization."""
+    from app.services.ai_service import AIService
+
+    service = AIService()
+    raw = (
+        '{"questions": ['
+        '{"type":"reading","question":"What is the passage about?","answer":"创业","passage":"She started a small company."},'
+        '{"type":"sentence_building","question":"造句","answer":"She runs a company.","tokens":["company","a","runs","She"]}'
+        "]}"
+    )
+    with patch.object(service, "_chat", new=AsyncMock(return_value=raw)):
+        questions = await service.generate_practice_questions(
+            "She runs a company.", [{"word": "run", "translation": "经营"}], "cet4", 2
+        )
+    assert len(questions) == 2
+    reading = next(q for q in questions if q["type"] == "reading")
+    assert reading["passage"] == "She started a small company."
+    sb = next(q for q in questions if q["type"] == "sentence_building")
+    assert sb["tokens"] == ["company", "a", "runs", "She"]
+
+
 # --- endpoints ---
 
 
@@ -450,3 +508,97 @@ async def test_public_reads_snapshot_practice_during_rereview(client, auth_heade
     resp = await client.get(f"/api/v1/videos/{vid}/practice", params={"level": "cet4"}, headers=admin_headers)
     assert resp.status_code == 200, resp.text
     assert resp.json()["questions"][0]["question"] == "APPROVED PUBLIC"
+
+
+# --- vocabulary drill (Phase 4) ---
+
+
+@pytest.mark.asyncio
+async def test_vocabulary_drill_free_user_allowed(client, auth_headers, monkeypatch):
+    """Vocab drill is free-tier (not Pro-gated) and deterministic (no AI)."""
+    from app.models.subtitle import Subtitle
+    from app.models.user import User
+    from app.models.video import Video, VideoReviewStatus, VideoStatus
+    from app.services import ecdict
+    from tests.conftest import TestSessionLocal
+
+    monkeypatch.setattr(
+        ecdict,
+        "lookup",
+        lambda token: {"lemma": token, "translation": "跑"} if token.lower() == "runs" else None,
+    )
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = Video(
+            id="vid-vocab-drill",
+            title="Vocab Drill",
+            source_url="x",
+            status=VideoStatus.ready,
+            is_official=False,
+            review_status=VideoReviewStatus.published.value,
+            user_id=owner.id,
+        )
+        db.add(v)
+        db.add(
+            Subtitle(
+                id="svd1",
+                video_id=v.id,
+                start_time=0,
+                end_time=1,
+                text_en="She runs fast.",
+                sentence_index=0,
+                word_levels={"runs": ["cet4"]},
+            )
+        )
+        await db.commit()
+        vid = v.id
+
+    # Free user (auth_headers) can access the drill — not 403.
+    resp = await client.get(f"/api/v1/videos/{vid}/vocabulary-drill", params={"level": "cet4"}, headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["exam_level"] == "cet4"
+    items = data["items"]
+    # At least one spelling item for "runs".
+    spelling = [i for i in items if i["kind"] == "spelling"]
+    assert spelling and spelling[0]["word"] == "runs"
+    assert spelling[0]["answer"] == "runs"
+
+
+@pytest.mark.asyncio
+async def test_vocabulary_drill_no_target_words(client, auth_headers):
+    """A video with no target-level words returns 409."""
+    from app.models.subtitle import Subtitle
+    from app.models.user import User
+    from app.models.video import Video, VideoReviewStatus, VideoStatus
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        v = Video(
+            id="vid-vocab-empty",
+            title="Empty",
+            source_url="x",
+            status=VideoStatus.ready,
+            is_official=False,
+            review_status=VideoReviewStatus.published.value,
+            user_id=owner.id,
+        )
+        db.add(v)
+        db.add(
+            Subtitle(
+                id="sve1",
+                video_id=v.id,
+                start_time=0,
+                end_time=1,
+                text_en="Hello world.",
+                sentence_index=0,
+                word_levels=None,
+            )
+        )
+        await db.commit()
+        vid = v.id
+
+    resp = await client.get(f"/api/v1/videos/{vid}/vocabulary-drill", params={"level": "cet4"}, headers=auth_headers)
+    assert resp.status_code == 409
