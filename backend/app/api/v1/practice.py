@@ -18,7 +18,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, is_video_owner, require_pro_user, require_video_owner
+from app.api.dependencies import (
+    check_video_access,
+    get_current_user,
+    is_video_owner,
+    require_pro_user,
+    require_video_owner,
+)
 from app.core.database import get_db
 from app.core.exam_levels import EXAM_LEVEL_KEYS, level_order, max_level, should_display
 from app.models.practice import VideoPracticeQuestion
@@ -79,10 +85,12 @@ class PracticeQuestionEdit(BaseModel):
     questions: list[PracticeQuestionItem] = Field(default_factory=list)
 
 
-async def _get_ready_video_or_404(db: AsyncSession, video_id: str) -> Video:
+async def _get_ready_video_or_404(db: AsyncSession, video_id: str, current_user: User | None = None) -> Video:
     video = (await db.execute(select(Video).where(Video.id == video_id))).scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
+    if not check_video_access(video, current_user):
+        raise HTTPException(status_code=403, detail="无权访问该视频")
     return video
 
 
@@ -144,7 +152,7 @@ async def get_practice(
     if level not in EXAM_LEVEL_KEYS:
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
 
-    video = await _get_ready_video_or_404(db, video_id)
+    video = await _get_ready_video_or_404(db, video_id, current_user)
 
     # While a UGC video is under re-review, non-owners read the frozen snapshot
     # (last approved version), not the owner's in-progress draft.
@@ -278,7 +286,7 @@ async def get_vocabulary_drill(
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
 
     # Validate the video exists + is ready (raises 404 on miss).
-    await _get_ready_video_or_404(db, video_id)
+    await _get_ready_video_or_404(db, video_id, current_user)
 
     from app.models.subtitle import Subtitle
 
@@ -337,11 +345,12 @@ async def get_vocabulary_drill(
 
 
 def _shuffle_options(options: list[str]) -> None:
-    """Rotate a small options list in place so the correct answer isn't fixed."""
+    """Shuffle options in place so the correct answer position is random."""
     if len(options) < 2:
         return
-    # Rotate by one position — deterministic, avoids importing random here.
-    options[:] = options[1:] + options[:1]
+    import random
+
+    random.shuffle(options)
 
 
 @router.post("/{video_id}/practice/grade", response_model=GradeResponse)
@@ -352,7 +361,7 @@ async def grade_practice_answer(
     db: AsyncSession = Depends(get_db),
 ):
     """Grade a single practice-question answer."""
-    await _get_ready_video_or_404(db, video_id)
+    await _get_ready_video_or_404(db, video_id, current_user)
     try:
         ai = get_ai_service()
         result = await ai.grade_answer(body.question.model_dump(), body.user_answer)

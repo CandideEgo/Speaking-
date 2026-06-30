@@ -176,12 +176,17 @@ export interface VocabQuizQuestion {
   question: string;
   options: string[] | null;
   correct_answer: string;
-  correct_index: number | null;
+  correct_answer_index: number | null;
   context: string | null;
 }
 
 /* ── Community ── */
-export type PostType = "text" | "progress" | "vocabulary" | "speaking";
+export type PostType =
+  | "text"
+  | "progress_share"
+  | "vocabulary_share"
+  | "speaking_share"
+  | "video_share";
 
 export interface Post {
   id: string;
@@ -226,7 +231,10 @@ export interface UserStats {
 export interface StreakInfo {
   current_streak: number;
   longest_streak: number;
-  last_active_date: string;
+  last_active_at: string | null;
+  goal_type: string | null;
+  goal_value: number;
+  today_progress: Record<string, number>;
 }
 
 export interface DailyActivity {

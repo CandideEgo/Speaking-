@@ -155,35 +155,45 @@ export default function MyVideoEditorPage() {
 
   const handleSaveSubtitle =
     (subtitleId: string) => async (patch: SubtitlePatch) => {
-      const updated = await updateSubtitle(videoId, subtitleId, patch);
-      setVideo((v) =>
-        v
-          ? {
-              ...v,
-              subtitles: v.subtitles.map((s) =>
-                s.id === subtitleId ? updated : s,
-              ),
-            }
-          : v,
-      );
-      return updated;
+      try {
+        const updated = await updateSubtitle(videoId, subtitleId, patch);
+        setVideo((v) =>
+          v
+            ? {
+                ...v,
+                subtitles: v.subtitles.map((s) =>
+                  s.id === subtitleId ? updated : s,
+                ),
+              }
+            : v,
+        );
+        return updated;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "保存字幕失败");
+        throw err;
+      }
     };
 
   const handleSaveWordLevels =
     (subtitleId: string) =>
     async (wordLevels: Record<string, string[]> | null) => {
-      const updated = await updateWordLevels(videoId, subtitleId, wordLevels);
-      setVideo((v) =>
-        v
-          ? {
-              ...v,
-              subtitles: v.subtitles.map((s) =>
-                s.id === subtitleId ? updated : s,
-              ),
-            }
-          : v,
-      );
-      return updated;
+      try {
+        const updated = await updateWordLevels(videoId, subtitleId, wordLevels);
+        setVideo((v) =>
+          v
+            ? {
+                ...v,
+                subtitles: v.subtitles.map((s) =>
+                  s.id === subtitleId ? updated : s,
+                ),
+              }
+            : v,
+        );
+        return updated;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "保存词级标注失败");
+        throw err;
+      }
     };
 
   const reviewAction = async (

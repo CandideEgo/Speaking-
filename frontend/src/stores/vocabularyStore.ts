@@ -28,7 +28,7 @@ interface QuizQuestionSimple {
   id: string;
   word: string;
   options: string[];
-  correct_index: number;
+  correct_answer_index: number;
 }
 
 interface VocabularyState {
@@ -156,7 +156,7 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     const question = state.quizQuestions[state.quizIndex];
     if (!question) return;
 
-    const isCorrect = answerIndex === question.correct_index;
+    const isCorrect = answerIndex === question.correct_answer_index;
     const newIndex = state.quizIndex + 1;
     const newScore = state.quizScore + (isCorrect ? 1 : 0);
     const completed = newIndex >= state.quizQuestions.length;
@@ -199,7 +199,7 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
           id: q.id,
           word: q.word,
           options: q.options ?? [],
-          correct_index: q.correct_index ?? 0,
+          correct_answer_index: q.correct_answer_index ?? 0,
         })),
         quizIndex: 0,
         quizScore: 0,

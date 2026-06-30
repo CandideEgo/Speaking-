@@ -144,15 +144,16 @@ export default function CommunityPage() {
 
   async function handleCreatePost() {
     if (!newPost.trim()) return;
+    const draft = newPost;
     try {
       await api("/api/v1/community/posts", {
         method: "POST",
-        body: JSON.stringify({ content: newPost, post_type: "text" }),
+        body: JSON.stringify({ content: draft, post_type: "text" }),
       });
       setNewPost("");
       loadPosts();
-    } catch {
-      // silently fail
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "发布失败");
     }
   }
 
@@ -170,8 +171,8 @@ export default function CommunityPage() {
             : p,
         ),
       );
-    } catch {
-      /* silently fail */
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "操作失败");
     }
   }
 
