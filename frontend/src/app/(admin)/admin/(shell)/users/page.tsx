@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { Pagination } from "@/components/admin/Pagination";
+import { Badge } from "@/components/common/Badge";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
 import {
   listUsers,
@@ -45,6 +47,15 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Confirmation state for destructive/role-change actions (replaces native
+  // window.confirm).
+  const [confirmPrompt, setConfirmPrompt] = useState<{
+    title: string;
+    message: string;
+    tone: "default" | "danger";
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,8 +90,21 @@ export default function AdminUsersPage() {
 
   async function handleBan(user: AdminUser) {
     const next = !user.is_banned;
-    if (next && !window.confirm(`确认封禁用户「${user.name || user.email}」？`))
+    if (next) {
+      setConfirmPrompt({
+        title: "封禁用户",
+        message: `确认封禁用户「${user.name || user.email}」？`,
+        tone: "danger",
+        confirmLabel: "确认封禁",
+        onConfirm: () => doBan(user),
+      });
       return;
+    }
+    doBan(user);
+  }
+
+  async function doBan(user: AdminUser) {
+    const next = !user.is_banned;
     try {
       await setUserBanned(user.id, next);
       patchUser(user.id, { is_banned: next });
@@ -93,8 +117,17 @@ export default function AdminUsersPage() {
   async function handlePromote(user: AdminUser) {
     const next = (user.role || "user") === "admin" ? "user" : "admin";
     const verb = next === "admin" ? "提升为管理员" : "降级为普通用户";
-    if (!window.confirm(`确认将「${user.name || user.email}」${verb}？`))
-      return;
+    setConfirmPrompt({
+      title: verb,
+      message: `确认将「${user.name || user.email}」${verb}？`,
+      tone: "default",
+      confirmLabel: "确认",
+      onConfirm: () => doPromote(user),
+    });
+  }
+
+  async function doPromote(user: AdminUser) {
+    const next = (user.role || "user") === "admin" ? "user" : "admin";
     try {
       await promoteUser(user.id, next);
       patchUser(user.id, { role: next });
@@ -115,8 +148,16 @@ export default function AdminUsersPage() {
   }
 
   async function handleRevokePro(user: AdminUser) {
-    if (!window.confirm(`确认撤销「${user.name || user.email}」的 Pro 会员？`))
-      return;
+    setConfirmPrompt({
+      title: "撤销 Pro",
+      message: `确认撤销「${user.name || user.email}」的 Pro 会员？`,
+      tone: "danger",
+      confirmLabel: "确认撤销",
+      onConfirm: () => doRevokePro(user),
+    });
+  }
+
+  async function doRevokePro(user: AdminUser) {
     try {
       const updated = await setUserPlan(user.id, "free", 0);
       patchUser(user.id, updated);
@@ -224,27 +265,25 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="py-3 pr-4">
                     {(u.role || "user") === "admin" ? (
-                      <span className="inline-flex items-center gap-1 rounded-sm bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-600">
-                        <Shield size={11} /> 管理员
-                      </span>
+                      <Badge tone="brand" icon={Shield}>
+                        管理员
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground">普通用户</span>
                     )}
                   </td>
                   <td className="py-3 pr-4">
                     {u.plan === "pro" ? (
-                      <span className="inline-flex items-center gap-1 rounded-sm bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        <Crown size={11} /> Pro
-                      </span>
+                      <Badge tone="amber" icon={Crown}>
+                        Pro
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground">Free</span>
                     )}
                   </td>
                   <td className="py-3 pr-4">
                     {u.is_banned ? (
-                      <span className="inline-flex rounded-sm bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600">
-                        已封禁
-                      </span>
+                      <Badge tone="red">已封禁</Badge>
                     ) : (
                       <span className="text-muted-foreground">正常</span>
                     )}
@@ -308,6 +347,20 @@ export default function AdminUsersPage() {
         loading={loading}
         onPrev={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => p + 1)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmPrompt}
+        tone={confirmPrompt?.tone ?? "default"}
+        title={confirmPrompt?.title}
+        confirmLabel={confirmPrompt?.confirmLabel ?? "确认"}
+        message={confirmPrompt?.message ?? ""}
+        onClose={() => setConfirmPrompt(null)}
+        onConfirm={() => {
+          const p = confirmPrompt;
+          setConfirmPrompt(null);
+          p?.onConfirm();
+        }}
       />
     </SectionCard>
   );

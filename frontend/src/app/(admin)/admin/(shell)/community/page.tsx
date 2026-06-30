@@ -14,10 +14,11 @@ import {
   X,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { Pagination } from "@/components/admin/Pagination";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type {
   AdminComment,
   AdminPost,
@@ -40,15 +41,11 @@ const REPORT_FILTERS = [
   { key: "dismissed", label: "已驳回" },
 ];
 
-const STATUS_LABEL: Record<ReportStatus, { label: string; className: string }> =
-  {
-    pending: { label: "待处理", className: "bg-amber-50 text-amber-700" },
-    reviewed: { label: "已处理", className: "bg-green-50 text-green-700" },
-    dismissed: {
-      label: "已驳回",
-      className: "bg-cream-soft text-muted-foreground",
-    },
-  };
+const STATUS_LABEL: Record<ReportStatus, { label: string; tone: BadgeTone }> = {
+  pending: { label: "待处理", tone: "amber" },
+  reviewed: { label: "已处理", tone: "green" },
+  dismissed: { label: "已驳回", tone: "neutral" },
+};
 
 const POST_TYPE_LABEL: Record<string, string> = {
   text: "文本",
@@ -78,6 +75,11 @@ function ReportQueue() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Confirmation state for resolve actions (replaces native window.confirm).
+  const [resolvePrompt, setResolvePrompt] = useState<{
+    report: CommentReport;
+    action: "remove" | "dismiss";
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,8 +110,6 @@ function ReportQueue() {
     report: CommentReport,
     action: "remove" | "dismiss",
   ) {
-    const verb = action === "remove" ? "通过举报并删除该评论" : "驳回该举报";
-    if (!window.confirm(`确认${verb}？`)) return;
     try {
       await resolveReport(report.id, action);
       toast.success(action === "remove" ? "已删除评论" : "已驳回举报");
@@ -193,14 +193,9 @@ function ReportQueue() {
                     {r.reporter_name}
                   </td>
                   <td className="py-3 pr-4">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-sm px-2 py-0.5 text-[10px] font-medium",
-                        STATUS_LABEL[r.status].className,
-                      )}
-                    >
+                    <Badge tone={STATUS_LABEL[r.status].tone}>
                       {STATUS_LABEL[r.status].label}
-                    </span>
+                    </Badge>
                   </td>
                   <td
                     className="py-3 text-right"
@@ -209,13 +204,17 @@ function ReportQueue() {
                     {r.status === "pending" ? (
                       <div className="inline-flex gap-1">
                         <button
-                          onClick={() => handleResolve(r, "remove")}
+                          onClick={() =>
+                            setResolvePrompt({ report: r, action: "remove" })
+                          }
                           className="inline-flex items-center gap-1 rounded-sm bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-100"
                         >
                           <Check size={11} /> 通过
                         </button>
                         <button
-                          onClick={() => handleResolve(r, "dismiss")}
+                          onClick={() =>
+                            setResolvePrompt({ report: r, action: "dismiss" })
+                          }
                           className="inline-flex items-center gap-1 rounded-sm bg-surface-soft px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-ink"
                         >
                           <X size={11} /> 驳回
@@ -269,6 +268,26 @@ function ReportQueue() {
         onPrev={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => p + 1)}
       />
+
+      <ConfirmDialog
+        open={!!resolvePrompt}
+        tone={resolvePrompt?.action === "remove" ? "danger" : "default"}
+        title={resolvePrompt?.action === "remove" ? "通过举报" : "驳回举报"}
+        confirmLabel={
+          resolvePrompt?.action === "remove" ? "通过并删除" : "驳回"
+        }
+        message={
+          resolvePrompt?.action === "remove"
+            ? "确认通过举报并删除该评论？"
+            : "确认驳回该举报？"
+        }
+        onClose={() => setResolvePrompt(null)}
+        onConfirm={() => {
+          const p = resolvePrompt;
+          setResolvePrompt(null);
+          if (p) handleResolve(p.report, p.action);
+        }}
+      />
     </SectionCard>
   );
 }
@@ -286,6 +305,14 @@ function PostsManager() {
     Record<string, AdminComment[]>
   >({});
   const [loadingComments, setLoadingComments] = useState<string | null>(null);
+  // Delete-confirmation state (replaces native window.confirm).
+  const [deletePostTarget, setDeletePostTarget] = useState<AdminPost | null>(
+    null,
+  );
+  const [deleteCommentTarget, setDeleteCommentTarget] = useState<{
+    postId: string;
+    comment: AdminComment;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -323,7 +350,6 @@ function PostsManager() {
   }
 
   async function handleDeletePost(post: AdminPost) {
-    if (!window.confirm("确认强制删除该帖子及其所有评论？")) return;
     try {
       await deletePost(post.id);
       toast.success("帖子已删除");
@@ -334,7 +360,6 @@ function PostsManager() {
   }
 
   async function handleDeleteComment(postId: string, comment: AdminComment) {
-    if (!window.confirm("确认删除该评论？")) return;
     try {
       await deleteComment(comment.id);
       toast.success("评论已删除");
@@ -418,9 +443,9 @@ function PostsManager() {
                       )}
                       <span className="text-ink truncate max-w-[280px]">
                         {p.is_pinned && (
-                          <span className="mr-1 inline-flex rounded-sm bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                          <Badge tone="amber" className="mr-1 px-1.5">
                             置顶
-                          </span>
+                          </Badge>
                         )}
                         {p.content}
                       </span>
@@ -445,16 +470,14 @@ function PostsManager() {
                   </td>
                   <td className="py-3 pr-4">
                     {p.report_count > 0 ? (
-                      <span className="inline-flex rounded-sm bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600">
-                        {p.report_count}
-                      </span>
+                      <Badge tone="red">{p.report_count}</Badge>
                     ) : (
                       <span className="text-muted-soft">0</span>
                     )}
                   </td>
                   <td className="py-3 text-right">
                     <button
-                      onClick={() => handleDeletePost(p)}
+                      onClick={() => setDeletePostTarget(p)}
                       className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700"
                     >
                       <Trash2 size={11} /> 删除
@@ -492,7 +515,12 @@ function PostsManager() {
                                 </p>
                               </div>
                               <button
-                                onClick={() => handleDeleteComment(p.id, c)}
+                                onClick={() =>
+                                  setDeleteCommentTarget({
+                                    postId: p.id,
+                                    comment: c,
+                                  })
+                                }
                                 className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 flex-shrink-0"
                               >
                                 <Trash2 size={11} /> 删除
@@ -509,6 +537,34 @@ function PostsManager() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={!!deletePostTarget}
+        tone="danger"
+        title="删除帖子"
+        confirmLabel="确认删除"
+        message="确认强制删除该帖子及其所有评论？"
+        onClose={() => setDeletePostTarget(null)}
+        onConfirm={() => {
+          const t = deletePostTarget;
+          setDeletePostTarget(null);
+          if (t) handleDeletePost(t);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!deleteCommentTarget}
+        tone="danger"
+        title="删除评论"
+        confirmLabel="确认删除"
+        message="确认删除该评论？"
+        onClose={() => setDeleteCommentTarget(null)}
+        onConfirm={() => {
+          const t = deleteCommentTarget;
+          setDeleteCommentTarget(null);
+          if (t) handleDeleteComment(t.postId, t.comment);
+        }}
+      />
     </SectionCard>
   );
 }

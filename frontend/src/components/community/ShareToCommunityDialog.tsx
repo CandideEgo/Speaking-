@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, X, Share2 } from "lucide-react";
+import { Loader2, Share2 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { Modal } from "@/components/common/Modal";
 
 /**
  * Share-to-community dialog. POSTs a community post with the right post_type
@@ -70,45 +71,17 @@ export function ShareToCommunityDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={() => {
-        if (!submitting) onClose();
-      }}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-canvas border border-hairline p-5 space-y-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold flex items-center gap-1.5">
-            <Share2 size={15} /> 分享到社区
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="text-muted hover:text-ink"
-            aria-label="关闭"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          将{subject}分享到社区，让同学看到你的学习。
-        </p>
-
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={3}
-          autoFocus
-          placeholder={`说点什么（可留空，将默认填入"分享了${subject}"）`}
-          className="input-field resize-none"
-        />
-
-        <div className="flex justify-end gap-2">
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeOnBackdrop={!submitting}
+      title={
+        <>
+          <Share2 size={15} /> 分享到社区
+        </>
+      }
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
@@ -126,8 +99,21 @@ export function ShareToCommunityDialog({
             {submitting && <Loader2 size={13} className="animate-spin" />}
             发布
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <p className="text-xs text-muted-foreground">
+        将{subject}分享到社区，让同学看到你的学习。
+      </p>
+
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        rows={3}
+        autoFocus
+        placeholder={`说点什么（可留空，将默认填入"分享了${subject}"）`}
+        className="input-field resize-none"
+      />
+    </Modal>
   );
 }

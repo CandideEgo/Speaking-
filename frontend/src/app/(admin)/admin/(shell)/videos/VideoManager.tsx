@@ -21,6 +21,9 @@ import { mediaUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
+import { Modal } from "@/components/common/Modal";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
 import type { VideoAdmin } from "@/types";
 import {
   approveReview,
@@ -50,11 +53,11 @@ const REVIEW_FILTERS = [
   { key: "rejected", label: "已驳回" },
 ];
 
-const REVIEW_BADGE: Record<string, { label: string; cls: string }> = {
-  draft: { label: "草稿", cls: "bg-surface-soft text-muted-foreground" },
-  pending_review: { label: "待审核", cls: "bg-orange-50 text-orange-700" },
-  published: { label: "已发布", cls: "bg-green-50 text-green-700" },
-  rejected: { label: "已驳回", cls: "bg-red-50 text-red-700" },
+const REVIEW_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
+  draft: { label: "草稿", tone: "neutral" },
+  pending_review: { label: "待审核", tone: "orange" },
+  published: { label: "已发布", tone: "green" },
+  rejected: { label: "已驳回", tone: "red" },
 };
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -174,13 +177,10 @@ export default function VideoManager() {
     };
   }, []);
 
+  // Delete-confirmation state (replaces native window.confirm).
+  const [deleteTarget, setDeleteTarget] = useState<VideoAdmin | null>(null);
+
   async function handleDelete(video: VideoAdmin) {
-    if (
-      !window.confirm(
-        `确认删除视频「${video.title}」？此操作不可撤销，将删除字幕、学习记录和本地媒体文件。`,
-      )
-    )
-      return;
     try {
       await deleteVideo(video.id);
       toast.success("视频已删除");
@@ -407,36 +407,34 @@ export default function VideoManager() {
                     <td className="py-3 pr-4">
                       <div className="flex flex-col gap-1">
                         {v.is_official && (
-                          <span className="inline-flex w-fit rounded-sm bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-600">
+                          <Badge tone="brand" className="w-fit">
                             官方
-                          </span>
+                          </Badge>
                         )}
                         {!v.is_official &&
                           v.review_status &&
                           REVIEW_BADGE[v.review_status] && (
-                            <span
-                              className={cn(
-                                "inline-flex w-fit rounded-sm px-2 py-0.5 text-[10px] font-medium",
-                                REVIEW_BADGE[v.review_status].cls,
-                              )}
+                            <Badge
+                              tone={REVIEW_BADGE[v.review_status].tone}
+                              className="w-fit"
                             >
                               {REVIEW_BADGE[v.review_status].label}
-                            </span>
+                            </Badge>
                           )}
                         {v.is_official && !v.is_published && (
-                          <span className="inline-flex w-fit rounded-sm bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700">
+                          <Badge tone="orange" className="w-fit">
                             待审
-                          </span>
+                          </Badge>
                         )}
                         {v.is_published && (
-                          <span className="inline-flex w-fit rounded-sm bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                          <Badge tone="green" className="w-fit">
                             已发布
-                          </span>
+                          </Badge>
                         )}
                         {v.is_featured && (
-                          <span className="inline-flex w-fit rounded-sm bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                          <Badge tone="amber" className="w-fit">
                             精选
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </td>
@@ -472,7 +470,7 @@ export default function VideoManager() {
                           patchVideo={patchVideo}
                           onSaved={loadVideos}
                           onLocalize={handleLocalize}
-                          onDelete={handleDelete}
+                          onDelete={(vid) => setDeleteTarget(vid)}
                           onApprove={handleApprove}
                           onReject={(vid) => {
                             setRejectTarget(
@@ -496,51 +494,66 @@ export default function VideoManager() {
       </div>
 
       {/* Reject dialog */}
-      {rejectTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => {
-            if (!reviewBusy) setRejectTarget(null);
-          }}
-        >
-          <div
-            className="w-full max-w-md rounded-lg bg-canvas border border-hairline p-5 space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-bold">驳回视频</h3>
-            <p className="text-xs text-muted-foreground">
-              驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
-            </p>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              rows={3}
-              autoFocus
-              placeholder="请填写驳回原因（将展示给创作者）"
-              className="input-field resize-none"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectTarget(null)}
-                disabled={reviewBusy}
-                className="btn-outline !py-1.5 !px-3 text-xs"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmReject}
-                disabled={reviewBusy || !rejectReason.trim()}
-                className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-              >
-                {reviewBusy && <Loader2 size={13} className="animate-spin" />}
-                确认驳回
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!rejectTarget}
+        onClose={() => {
+          if (!reviewBusy) setRejectTarget(null);
+        }}
+        closeOnBackdrop={!reviewBusy}
+        title="驳回视频"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRejectTarget(null)}
+              disabled={reviewBusy}
+              className="btn-outline !py-1.5 !px-3 text-xs"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmReject}
+              disabled={reviewBusy || !rejectReason.trim()}
+              className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              {reviewBusy && <Loader2 size={13} className="animate-spin" />}
+              确认驳回
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-muted-foreground">
+          驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
+        </p>
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="请填写驳回原因（将展示给创作者）"
+          className="input-field resize-none"
+        />
+      </Modal>
+
+      {/* Delete-confirmation dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        tone="danger"
+        title="删除视频"
+        confirmLabel="确认删除"
+        message={
+          deleteTarget
+            ? `确认删除视频「${deleteTarget.title}」？此操作不可撤销，将删除字幕、学习记录和本地媒体文件。`
+            : ""
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          if (target) handleDelete(target);
+        }}
+      />
     </div>
   );
 }

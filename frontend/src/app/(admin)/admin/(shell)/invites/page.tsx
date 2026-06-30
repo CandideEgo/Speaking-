@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Download, RefreshCw, Ticket } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { SectionCard } from "@/components/admin/SectionCard";
+import { Badge } from "@/components/common/Badge";
 import type { InviteCode } from "@/types";
 import {
   exportInviteCsv,
@@ -182,16 +182,9 @@ export default function AdminInvitesPage() {
                       {c.batch_label || "-"}
                     </td>
                     <td className="py-2">
-                      <span
-                        className={cn(
-                          "inline-flex rounded-sm px-2 py-0.5 text-[10px] font-medium",
-                          c.is_used
-                            ? "bg-cream-soft text-muted-foreground"
-                            : "bg-green-50 text-green-700",
-                        )}
-                      >
+                      <Badge tone={c.is_used ? "neutral" : "green"}>
                         {c.is_used ? "已使用" : "可用"}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="py-2 text-muted-foreground font-mono">
                       {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
+import { Badge } from "@/components/common/Badge";
 
 const TITLES: Record<string, string> = {
   "/admin/videos": "视频内容",
@@ -38,9 +39,7 @@ export function AdminTopbar({ pathname }: { pathname: string }) {
             <ShieldCheck size={14} />
           </span>
           <span className="text-ink">{displayName}</span>
-          <span className="rounded-sm bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600">
-            管理员
-          </span>
+          <Badge tone="brand">管理员</Badge>
         </div>
         <button
           onClick={logout}
