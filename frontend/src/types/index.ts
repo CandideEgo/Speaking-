@@ -118,6 +118,15 @@ export interface QuizQuestion {
   answer: string;
 }
 
+/** Per-question grading result shared by all practice/drill/quiz hooks. */
+export interface GradedResult {
+  correct: boolean;
+  /** AI practice returns a textual explanation; vocab/quiz leave this null. */
+  explanation: string | null;
+  /** The correct answer, shown when the learner was wrong. */
+  correctAnswer?: string;
+}
+
 export interface SpeakingResult {
   accuracy: number;
   fluency: number;

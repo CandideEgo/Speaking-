@@ -10,10 +10,7 @@ import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePracticeMode } from "@/hooks/usePracticeMode";
 import { useVocabDrill } from "@/hooks/useVocabDrill";
-import {
-  VocabDrillPanel,
-  SentenceBuilderInput,
-} from "@/components/practice/PracticePanels";
+import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
 import { api, mediaUrl } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
@@ -118,14 +115,7 @@ export default function WatchPage() {
     }
   }, [currentSubtitleIndex]);
 
-  const {
-    quizQuestions,
-    quizAnswers,
-    quizSubmitted,
-    quizScore,
-    handleQuizAnswer,
-    submitQuiz,
-  } = useQuiz({ videoId: id });
+  const quiz = useQuiz({ videoId: id });
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const requireAuth = (): boolean => {
@@ -155,12 +145,9 @@ export default function WatchPage() {
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
 
   // --- Practice mode (CET/高考/考研, per-level AI questions) ---
-  // 默认展开：练习模式已移到下方翻页区，作为该页主体内容。
-  const [practiceOpen, setPracticeOpen] = useState(true);
   const practice = usePracticeMode({ videoId: id, level: selectedExamLevel });
 
   // --- Vocabulary drill (free-tier, deterministic, per-level) ---
-  const [vocabOpen, setVocabOpen] = useState(true);
   const vocabDrill = useVocabDrill({ videoId: id, level: selectedExamLevel });
 
   // Whether the current user is Pro (for gating reading/sentence_building
@@ -939,117 +926,15 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区（可扩展容器，后续可加阅读题等其他题型） ===== */}
+      {/* ===== 练习区：词汇练习 / AI 练习 / 理解测验 三合一 ===== */}
       <div className="mt-6">
-        <VocabDrillPanel
-          open={vocabOpen}
-          onToggle={() => setVocabOpen((o) => !o)}
+        <UnifiedPracticePanel
+          vocab={vocabDrill}
+          practice={practice}
+          quiz={quiz}
+          isPro={isPro}
           levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-          drill={vocabDrill}
         />
-
-        <div className="mt-4">
-          <PracticeSection
-            open={practiceOpen}
-            onToggle={() => setPracticeOpen((o) => !o)}
-            levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-            practice={practice}
-            isPro={isPro}
-          />
-        </div>
-
-        {/* Quiz block */}
-        {quizQuestions.length > 0 && (
-          <div className="quiz mt-4">
-            <h3 className="!text-[15px] !font-bold !m-0 !mb-3.5">
-              理解测验 · 填空
-            </h3>
-            {quizSubmitted && quizScore !== null ? (
-              <div className="text-center py-6">
-                <div
-                  className={cn(
-                    "mx-auto flex h-16 w-16 items-center justify-center rounded-full",
-                    quizScore >= 60 ? "bg-success-soft" : "bg-brand-50",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "text-2xl font-bold",
-                      quizScore >= 60 ? "text-success" : "text-brand-500",
-                    )}
-                  >
-                    {quizScore}%
-                  </span>
-                </div>
-                <p className="mt-3 text-sm font-medium text-ink">
-                  {quizScore >= 60 ? "太棒了！" : "继续加油！"}
-                </p>
-              </div>
-            ) : (
-              <>
-                {quizQuestions.map((q, qi) => (
-                  <div key={qi} className="mb-4">
-                    <p className="text-[14px] font-semibold mb-2.5">
-                      {qi + 1}. {q.question}
-                    </p>
-                    {q.type === "comprehension" && q.options ? (
-                      <div>
-                        {q.options.map((opt, oi) => (
-                          <label
-                            key={oi}
-                            className={cn(
-                              "q-opt",
-                              quizAnswers[qi] === opt && "q-opt-selected",
-                            )}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleQuizAnswer(qi, opt);
-                            }}
-                          >
-                            <input
-                              type="radio"
-                              name={`q-${qi}`}
-                              value={opt}
-                              checked={quizAnswers[qi] === opt}
-                              onChange={() => handleQuizAnswer(qi, opt)}
-                              className="sr-only"
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
-                    ) : q.type === "fill_blank" ? (
-                      <input
-                        type="text"
-                        placeholder="输入答案..."
-                        value={quizAnswers[qi] || ""}
-                        onChange={(e) => handleQuizAnswer(qi, e.target.value)}
-                        className="input-field mt-1"
-                      />
-                    ) : (
-                      <textarea
-                        placeholder="写出你听到的内容..."
-                        value={quizAnswers[qi] || ""}
-                        onChange={(e) => handleQuizAnswer(qi, e.target.value)}
-                        rows={2}
-                        className="input-field mt-1"
-                      />
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={submitQuiz}
-                  disabled={
-                    Object.keys(quizAnswers).length < quizQuestions.length
-                  }
-                  className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  提交答案
-                </button>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
@@ -1342,196 +1227,6 @@ function ExamLevelSelector({
             ))}
           </div>
         </>
-      )}
-    </div>
-  );
-}
-
-/** 练习模式区块：下方练习页主体，点击收起药丸可折叠。AI 生成练习题（按当前考试层级）。 */
-function PracticeSection({
-  open,
-  onToggle,
-  levelLabel,
-  practice,
-  isPro,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  levelLabel: string;
-  practice: ReturnType<typeof usePracticeMode>;
-  isPro: boolean;
-}) {
-  const {
-    loading,
-    error,
-    questions,
-    answers,
-    setAnswer,
-    graded,
-    submitted,
-    score,
-    submitting,
-    fetchPractice,
-    reset,
-  } = practice;
-
-  return (
-    <div className="bg-canvas border border-hairline rounded-xl overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-surface-soft transition-colors"
-      >
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-          <GraduationCap size={16} className="text-brand-500" />
-          练习模式
-          <span className="text-[11px] font-normal text-muted">
-            · 基于本视频字幕 AI 生成 · {levelLabel}
-          </span>
-          {!isPro && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-              Pro
-            </span>
-          )}
-        </span>
-        <ChevronDown
-          size={16}
-          className={cn(
-            "text-muted transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-hairline">
-          {loading ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-muted">
-              <Loader2 size={16} className="animate-spin" /> AI 正在生成练习题…
-            </div>
-          ) : error ? (
-            <div className="py-4">
-              <p className="text-sm text-ink/70 mb-2">{error}</p>
-              <button
-                onClick={fetchPractice}
-                className="btn-outline !py-1.5 !text-xs"
-              >
-                重试
-              </button>
-            </div>
-          ) : questions.length === 0 ? (
-            <p className="py-4 text-sm text-muted">暂无练习题。</p>
-          ) : submitted && score !== null ? (
-            <div className="text-center py-6">
-              <div
-                className={cn(
-                  "mx-auto flex h-14 w-14 items-center justify-center rounded-full",
-                  score >= 60 ? "bg-success-soft" : "bg-brand-50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "text-xl font-bold",
-                    score >= 60 ? "text-success" : "text-brand-500",
-                  )}
-                >
-                  {score}%
-                </span>
-              </div>
-              <p className="mt-2 text-sm font-medium text-ink">
-                {score >= 60 ? "太棒了！" : "继续加油！"}
-              </p>
-              <button
-                onClick={reset}
-                className="btn-outline !py-1.5 !text-xs mt-3"
-              >
-                再做一次
-              </button>
-            </div>
-          ) : (
-            <>
-              {questions.map((q, qi) => (
-                <div key={qi} className="mb-4 mt-3">
-                  <p className="text-[14px] font-semibold mb-2 text-ink">
-                    {qi + 1}. {q.question}
-                  </p>
-                  {q.type === "reading" && q.passage ? (
-                    <p className="text-[13px] text-body leading-relaxed bg-surface-soft rounded-lg p-3 mb-2">
-                      {q.passage}
-                    </p>
-                  ) : null}
-                  {q.type === "sentence_building" && q.tokens ? (
-                    <SentenceBuilderInput
-                      tokens={q.tokens}
-                      value={answers[qi] || ""}
-                      onChange={(v) => setAnswer(qi, v)}
-                    />
-                  ) : q.options ? (
-                    <div>
-                      {q.options.map((opt, oi) => (
-                        <label
-                          key={oi}
-                          className={cn(
-                            "q-opt",
-                            answers[qi] === opt && "q-opt-selected",
-                          )}
-                          // preventDefault 阻止 label 默认把焦点转给内部 sr-only radio ——
-                          // 否则浏览器会对该 absolute 1px 元素做隐式 focus 滚动，把整页
-                          // <main> 的 scrollTop 跳走，导致点击选项后整页下半部白屏。
-                          // onChange 仍会触发，checked 由 state 控制，不受影响。
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setAnswer(qi, opt);
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name={`pq-${qi}`}
-                            value={opt}
-                            checked={answers[qi] === opt}
-                            onChange={() => setAnswer(qi, opt)}
-                            className="sr-only"
-                          />
-                          {opt}
-                        </label>
-                      ))}
-                    </div>
-                  ) : q.type === "fill_blank" ? (
-                    <input
-                      type="text"
-                      placeholder="输入答案..."
-                      value={answers[qi] || ""}
-                      onChange={(e) => setAnswer(qi, e.target.value)}
-                      className="input-field mt-1"
-                    />
-                  ) : (
-                    <textarea
-                      placeholder="输入你的答案..."
-                      value={answers[qi] || ""}
-                      onChange={(e) => setAnswer(qi, e.target.value)}
-                      rows={2}
-                      className="input-field mt-1"
-                    />
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={practice.submit}
-                disabled={
-                  submitting || Object.keys(answers).length < questions.length
-                }
-                className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> AI 判分中…
-                  </span>
-                ) : (
-                  "提交答案"
-                )}
-              </button>
-            </>
-          )}
-        </div>
       )}
     </div>
   );

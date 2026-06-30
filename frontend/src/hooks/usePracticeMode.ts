@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { PracticeQuestion, PracticeSet } from "@/types";
+import type { PracticeQuestion, PracticeSet, GradedResult } from "@/types";
 
 interface UsePracticeModeOptions {
   videoId: string;
@@ -10,58 +10,56 @@ interface UsePracticeModeOptions {
   level: string | null;
 }
 
-interface GradedQuestion extends PracticeQuestion {
-  userAnswer: string;
-  correct: boolean | null;
-  explanation: string | null;
-}
-
-interface UsePracticeModeReturn {
+export interface UsePracticeModeReturn {
   loading: boolean;
   error: string | null;
-  questions: PracticeQuestion[];
+  items: PracticeQuestion[];
   answers: Record<number, string>;
-  setAnswer: (index: number, answer: string) => void;
-  graded: GradedQuestion[];
-  submitted: boolean;
+  graded: Record<number, GradedResult>;
+  grading: Record<number, boolean>;
+  answeredCount: number;
+  correctCount: number;
+  /** Score over total questions (0-100). null until items load. */
   score: number | null;
-  submitting: boolean;
-  fetchPractice: () => Promise<void>;
-  submit: () => Promise<void>;
+  /** Running accuracy over answered questions (0-100). null if none answered. */
+  accuracy: number | null;
+  setAnswer: (index: number, answer: string) => void;
+  /** Grade a single question. Pass `answer` to set+grade in one go (choice
+   * questions); omit to grade the currently-entered answer (text questions). */
+  gradeAnswer: (index: number, answer?: string) => Promise<void>;
   reset: () => void;
+  refetch: () => Promise<void>;
 }
 
 /**
  * Practice mode: fetches the AI-generated question set for the current exam
- * level, tracks answers, and grades each answer via the backend (fill-in-the-
- * blank lenient locally, open-ended Q&A by AI). Mirrors useQuiz's shape.
+ * level and grades each answer **immediately and per-question** via the
+ * backend `/practice/grade` endpoint (one question per call). Once a question
+ * is graded it is locked; `reset()` clears the attempt.
  */
 export function usePracticeMode({
   videoId,
   level,
 }: UsePracticeModeOptions): UsePracticeModeReturn {
-  const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [items, setItems] = useState<PracticeQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [graded, setGraded] = useState<GradedQuestion[]>([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
+  const [graded, setGraded] = useState<Record<number, GradedResult>>({});
+  const [grading, setGrading] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPractice = useCallback(async () => {
     if (!level) return;
     setLoading(true);
     setError(null);
-    setSubmitted(false);
-    setScore(null);
-    setGraded([]);
+    setGraded({});
+    setGrading({});
     setAnswers({});
     try {
       const data = await api<PracticeSet>(
         `/api/v1/videos/${videoId}/practice?level=${encodeURIComponent(level)}`,
       );
-      setQuestions(data.questions || []);
+      setItems(data.questions || []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "练习题加载失败";
       // 403 -> pro required; surface a friendly message
@@ -70,7 +68,7 @@ export function usePracticeMode({
       } else {
         setError("练习题加载失败，请稍后重试");
       }
-      setQuestions([]);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -84,61 +82,76 @@ export function usePracticeMode({
     setAnswers((prev) => ({ ...prev, [index]: answer }));
   }, []);
 
-  const submit = useCallback(async () => {
-    if (!questions.length) return;
-    setSubmitting(true);
-    try {
-      const results: GradedQuestion[] = [];
-      let correctCount = 0;
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        const ua = answers[i] || "";
-        let correct = false;
-        let explanation: string | null = null;
-        try {
-          const res = await api<{ correct: boolean; explanation: string }>(
-            `/api/v1/videos/${videoId}/practice/grade`,
-            {
-              method: "POST",
-              body: JSON.stringify({ question: q, user_answer: ua }),
-            },
-          );
-          correct = res.correct;
-          explanation = res.explanation;
-        } catch {
-          correct = false;
-          explanation = "判分失败";
-        }
-        if (correct) correctCount += 1;
-        results.push({ ...q, userAnswer: ua, correct, explanation });
+  const gradeAnswer = useCallback(
+    async (index: number, answer?: string) => {
+      // Lock-after-grade + in-flight guard: don't re-grade a question that is
+      // already graded or currently being graded (prevents double POST on
+      // rapid double-click of options before the response lands).
+      if (graded[index] || grading[index]) return;
+      const q = items[index];
+      if (!q) return;
+      const ua = answer !== undefined ? answer : answers[index] || "";
+      if (answer !== undefined) {
+        setAnswers((prev) => ({ ...prev, [index]: answer }));
       }
-      setGraded(results);
-      setScore(Math.round((correctCount / questions.length) * 100));
-      setSubmitted(true);
-    } finally {
-      setSubmitting(false);
-    }
-  }, [questions, answers, videoId]);
+      setGrading((prev) => ({ ...prev, [index]: true }));
+      try {
+        const res = await api<{ correct: boolean; explanation: string }>(
+          `/api/v1/videos/${videoId}/practice/grade`,
+          {
+            method: "POST",
+            body: JSON.stringify({ question: q, user_answer: ua }),
+          },
+        );
+        setGraded((prev) => ({
+          ...prev,
+          [index]: { correct: res.correct, explanation: res.explanation },
+        }));
+      } catch {
+        setGraded((prev) => ({
+          ...prev,
+          [index]: { correct: false, explanation: "判分失败，请稍后重试" },
+        }));
+      } finally {
+        setGrading((prev) => {
+          const next = { ...prev };
+          delete next[index];
+          return next;
+        });
+      }
+    },
+    [items, answers, graded, grading, videoId],
+  );
 
   const reset = useCallback(() => {
-    setSubmitted(false);
-    setScore(null);
-    setGraded([]);
+    setGraded({});
+    setGrading({});
     setAnswers({});
   }, []);
+
+  const answeredCount = Object.keys(graded).length;
+  const correctCount = Object.values(graded).filter((g) => g.correct).length;
+  const score = items.length
+    ? Math.round((correctCount / items.length) * 100)
+    : null;
+  const accuracy = answeredCount
+    ? Math.round((correctCount / answeredCount) * 100)
+    : null;
 
   return {
     loading,
     error,
-    questions,
+    items,
     answers,
-    setAnswer,
     graded,
-    submitted,
+    grading,
+    answeredCount,
+    correctCount,
     score,
-    submitting,
-    fetchPractice,
-    submit,
+    accuracy,
+    setAnswer,
+    gradeAnswer,
     reset,
+    refetch: fetchPractice,
   };
 }

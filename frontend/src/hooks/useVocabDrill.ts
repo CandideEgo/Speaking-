@@ -2,30 +2,28 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { VocabDrillItem, VocabDrillSet } from "@/types";
+import type { VocabDrillItem, VocabDrillSet, GradedResult } from "@/types";
 
 interface UseVocabDrillOptions {
   videoId: string;
   level: string | null;
 }
 
-interface GradedItem extends VocabDrillItem {
-  userAnswer: string;
-  correct: boolean;
-}
-
-interface UseVocabDrillReturn {
+export interface UseVocabDrillReturn {
   loading: boolean;
   error: string | null;
   items: VocabDrillItem[];
   answers: Record<number, string>;
-  setAnswer: (index: number, answer: string) => void;
-  graded: GradedItem[];
-  submitted: boolean;
+  graded: Record<number, GradedResult>;
+  grading: Record<number, boolean>;
+  answeredCount: number;
+  correctCount: number;
   score: number | null;
-  fetchDrill: () => Promise<void>;
-  submit: () => void;
+  accuracy: number | null;
+  setAnswer: (index: number, answer: string) => void;
+  gradeAnswer: (index: number, answer?: string) => void;
   reset: () => void;
+  refetch: () => Promise<void>;
 }
 
 /** Normalize an English word for lenient spelling comparison:
@@ -41,10 +39,9 @@ function normalizeWord(s: string): string {
 
 /**
  * Vocabulary drill: fetches the deterministic spelling + meaning-choice items
- * for the current exam level (free-tier, no AI) and grades locally.
- *
- * Mirrors usePracticeMode's shape so it slots into the same section component
- * pattern, but grading is fully client-side (no /practice/grade call).
+ * for the current exam level (free-tier, no AI) and grades **immediately and
+ * per-question**, client-side. Once graded, a question is locked; `reset()`
+ * clears the attempt.
  */
 export function useVocabDrill({
   videoId,
@@ -52,9 +49,7 @@ export function useVocabDrill({
 }: UseVocabDrillOptions): UseVocabDrillReturn {
   const [items, setItems] = useState<VocabDrillItem[]>([]);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [graded, setGraded] = useState<GradedItem[]>([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
+  const [graded, setGraded] = useState<Record<number, GradedResult>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,9 +57,7 @@ export function useVocabDrill({
     if (!level) return;
     setLoading(true);
     setError(null);
-    setSubmitted(false);
-    setScore(null);
-    setGraded([]);
+    setGraded({});
     setAnswers({});
     try {
       const data = await api<VocabDrillSet>(
@@ -88,13 +81,15 @@ export function useVocabDrill({
     setAnswers((prev) => ({ ...prev, [index]: answer }));
   }, []);
 
-  const submit = useCallback(() => {
-    if (!items.length) return;
-    const results: GradedItem[] = [];
-    let correctCount = 0;
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const ua = answers[i] || "";
+  const gradeAnswer = useCallback(
+    (index: number, answer?: string) => {
+      if (graded[index]) return;
+      const it = items[index];
+      if (!it) return;
+      const ua = answer !== undefined ? answer : answers[index] || "";
+      if (answer !== undefined) {
+        setAnswers((prev) => ({ ...prev, [index]: answer }));
+      }
       let correct = false;
       if (it.kind === "spelling") {
         correct = normalizeWord(ua) === normalizeWord(it.answer);
@@ -102,32 +97,42 @@ export function useVocabDrill({
         // meaning_choice: answer is the correct option string.
         correct = (ua || "").trim() === (it.answer || "").trim();
       }
-      if (correct) correctCount += 1;
-      results.push({ ...it, userAnswer: ua, correct });
-    }
-    setGraded(results);
-    setScore(Math.round((correctCount / items.length) * 100));
-    setSubmitted(true);
-  }, [items, answers]);
+      setGraded((prev) => ({
+        ...prev,
+        [index]: { correct, explanation: null, correctAnswer: it.answer },
+      }));
+    },
+    [items, answers, graded],
+  );
 
   const reset = useCallback(() => {
-    setSubmitted(false);
-    setScore(null);
-    setGraded([]);
+    setGraded({});
     setAnswers({});
   }, []);
+
+  const answeredCount = Object.keys(graded).length;
+  const correctCount = Object.values(graded).filter((g) => g.correct).length;
+  const score = items.length
+    ? Math.round((correctCount / items.length) * 100)
+    : null;
+  const accuracy = answeredCount
+    ? Math.round((correctCount / answeredCount) * 100)
+    : null;
 
   return {
     loading,
     error,
     items,
     answers,
-    setAnswer,
     graded,
-    submitted,
+    grading: {},
+    answeredCount,
+    correctCount,
     score,
-    fetchDrill,
-    submit,
+    accuracy,
+    setAnswer,
+    gradeAnswer,
     reset,
+    refetch: fetchDrill,
   };
 }
