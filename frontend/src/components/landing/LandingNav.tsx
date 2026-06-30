@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
+import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 const NAV_LINKS = [
   { label: "功能", href: "#features" },
@@ -59,24 +61,26 @@ export function LandingNav() {
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
-            <Link href="/dashboard" className="btn-primary !py-2 !px-5 text-[13px]">
+            <LinkButton href="/dashboard" variant="primary" size="nav">
               进入控制台
-            </Link>
+            </LinkButton>
           ) : (
             <>
-              <Link href="/login" className="btn-ghost text-[13px]">
+              <LinkButton href="/login" variant="ghost" size="nav">
                 登录
-              </Link>
-              <Link href="/register" className="btn-primary !py-2 !px-5 text-[13px]">
+              </LinkButton>
+              <LinkButton href="/register" variant="primary" size="nav">
                 免费试用
-              </Link>
+              </LinkButton>
             </>
           )}
         </div>
 
         {/* Mobile hamburger */}
-        <button
-          className="md:hidden btn-icon"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label="菜单"
         >
@@ -88,7 +92,7 @@ export function LandingNav() {
               strokeLinecap="round"
             />
           </svg>
-        </button>
+        </Button>
       </div>
 
       {/* Mobile menu */}
@@ -106,17 +110,17 @@ export function LandingNav() {
           ))}
           <div className="flex gap-3 mt-3 pt-3 border-t border-hairline">
             {isAuthenticated ? (
-              <Link href="/dashboard" className="btn-primary flex-1 justify-center text-sm">
+              <LinkButton href="/dashboard" variant="primary" fullWidth>
                 进入控制台
-              </Link>
+              </LinkButton>
             ) : (
               <>
-                <Link href="/login" className="btn-ghost flex-1 justify-center text-sm">
+                <LinkButton href="/login" variant="ghost" fullWidth>
                   登录
-                </Link>
-                <Link href="/register" className="btn-primary flex-1 justify-center text-sm">
+                </LinkButton>
+                <LinkButton href="/register" variant="primary" fullWidth>
                   免费试用
-                </Link>
+                </LinkButton>
               </>
             )}
           </div>

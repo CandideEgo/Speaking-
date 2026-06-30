@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
 import { CommunityFeedWidget } from "@/components/community/CommunityFeedWidget";
+import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
@@ -106,6 +108,8 @@ export default function HomePage() {
             video_url_1080p: null,
             processing_mode: null,
             processing_step: null,
+            like_count: 0,
+            favorite_count: 0,
             created_at: r.created_at,
           },
           progress: r.progress_percentage || undefined,
@@ -145,25 +149,17 @@ export default function HomePage() {
                   : `还差 ${Math.max(0, goalValue - todayProgress)} ${goalUnit}即可达成今日目标。从一条真实演讲开始。`}
               </p>
               <div className="b-hero-cta">
-                <Link href="/speaking" className="btn-go">
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="9" y="3" width="6" height="12" rx="3" />
-                    <path d="M5 11a7 7 0 0 0 14 0" />
-                  </svg>
+                <LinkButton
+                  href="/speaking"
+                  variant="primary"
+                  icon={Play}
+                  size="nav"
+                >
                   开始口语练习
-                </Link>
-                <Link href="/browse" className="btn-ghost-d">
+                </LinkButton>
+                <LinkButton href="/browse" variant="ghostDark" size="nav">
                   浏览视频库
-                </Link>
+                </LinkButton>
               </div>
             </div>
           </div>
@@ -346,11 +342,7 @@ export default function HomePage() {
               icon={Play}
               title="加载失败"
               description={error}
-              action={
-                <button onClick={retry} className="btn-primary">
-                  重试
-                </button>
-              }
+              action={<Button onClick={retry}>重试</Button>}
             />
           ) : curatedVideos.length === 0 ? (
             <EmptyState

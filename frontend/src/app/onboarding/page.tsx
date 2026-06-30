@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { Button } from "@/components/ui/Button";
 
 const LEVELS = [
   { value: "A1", label: "A1 入门", description: "刚接触英语" },
@@ -106,9 +107,9 @@ export default function OnboardingPage() {
             <p className="text-muted-foreground">
               用真实视频学开口说英语。让我们先了解一下你的水平。
             </p>
-            <button onClick={() => setStep(1)} className="btn-primary w-full">
+            <Button onClick={() => setStep(1)} fullWidth>
               开始设置
-            </button>
+            </Button>
           </div>
         )}
 
@@ -140,19 +141,16 @@ export default function OnboardingPage() {
               ))}
             </div>
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={() => setStep(0)}
-                className="btn-secondary-dark flex-1"
+                variant="secondaryDark"
+                fullWidth
               >
                 上一步
-              </button>
-              <button
-                onClick={() => setStep(2)}
-                disabled={!level}
-                className="btn-primary flex-1 disabled:opacity-50"
-              >
+              </Button>
+              <Button onClick={() => setStep(2)} disabled={!level} fullWidth>
                 下一步
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -203,19 +201,16 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={() => setStep(1)}
-                className="btn-secondary-dark flex-1"
+                variant="secondaryDark"
+                fullWidth
               >
                 上一步
-              </button>
-              <button
-                onClick={handleComplete}
-                disabled={saving}
-                className="btn-primary flex-1"
-              >
+              </Button>
+              <Button onClick={handleComplete} disabled={saving} fullWidth>
                 {saving ? "保存中..." : "开始学习"}
-              </button>
+              </Button>
             </div>
           </div>
         )}

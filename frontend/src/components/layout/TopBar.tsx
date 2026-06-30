@@ -13,7 +13,15 @@ import {
 } from "@/components/search/SearchDropdown";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
-import { SearchIcon, BellIcon, SunIcon, MoonIcon, SparklesIcon } from "@/components/common/Icons";
+import {
+  SearchIcon,
+  BellIcon,
+  SunIcon,
+  MoonIcon,
+  SparklesIcon,
+} from "@/components/common/Icons";
+import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 export function TopBar() {
   const pathname = usePathname();
@@ -25,7 +33,9 @@ export function TopBar() {
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-  const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
+  const [subtitleResults, setSubtitleResults] = useState<
+    SubtitleSearchResult[]
+  >([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -49,9 +59,11 @@ export function TopBar() {
     setIsSearching(true);
     try {
       const [videoResults, subResults] = await Promise.all([
-        api<SearchResultItem[]>(`/api/v1/videos/search?q=${encodeURIComponent(query)}&limit=10`),
+        api<SearchResultItem[]>(
+          `/api/v1/videos/search?q=${encodeURIComponent(query)}&limit=10`,
+        ),
         api<SubtitleSearchResult[]>(
-          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(query)}&limit=5`
+          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(query)}&limit=5`,
         ).catch(() => [] as SubtitleSearchResult[]),
       ]);
       setSearchResults(videoResults);
@@ -82,13 +94,16 @@ export function TopBar() {
         performSearch(value);
       }, 300);
     },
-    [performSearch]
+    [performSearch],
   );
 
   // Close dropdown on click-away
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target as Node)
+      ) {
         setShowDropdown(false);
       }
     }
@@ -114,7 +129,9 @@ export function TopBar() {
     let cancelled = false;
     async function fetchUnreadCount() {
       try {
-        const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
+        const data = await api<{ count: number }>(
+          "/api/v1/notifications/unread-count",
+        );
         if (!cancelled) setUnreadCount(data.count);
       } catch {
         // silently fail
@@ -158,7 +175,11 @@ export function TopBar() {
   }
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
-  const userInitial = (user?.name?.[0] || user?.email?.[0] || "?").toUpperCase();
+  const userInitial = (
+    user?.name?.[0] ||
+    user?.email?.[0] ||
+    "?"
+  ).toUpperCase();
 
   return (
     <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-white/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
@@ -167,12 +188,20 @@ export function TopBar() {
         <div className="flex flex-1 justify-center max-w-[520px] mx-auto">
           {/* Mobile: search icon button */}
           <div className="md:hidden flex items-center">
-            <Link href="/search" className="btn-icon" aria-label="搜索">
+            <LinkButton
+              href="/search"
+              variant="ghost"
+              size="icon"
+              aria-label="搜索"
+            >
               <SearchIcon className="h-[17px] w-[17px]" />
-            </Link>
+            </LinkButton>
           </div>
           {/* Desktop: search input */}
-          <div ref={searchContainerRef} className="hidden md:block relative w-full">
+          <div
+            ref={searchContainerRef}
+            className="hidden md:block relative w-full"
+          >
             <input
               ref={searchInputRef}
               type="text"
@@ -209,9 +238,10 @@ export function TopBar() {
       {/* Right actions */}
       <div className="flex items-center gap-1.5">
         {mounted && (
-          <button
+          <Button
             onClick={toggleTheme}
-            className="btn-icon"
+            variant="ghost"
+            size="icon"
             aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           >
             {theme === "dark" ? (
@@ -219,32 +249,33 @@ export function TopBar() {
             ) : (
               <MoonIcon className="h-[18px] w-[18px]" />
             )}
-          </button>
+          </Button>
         )}
 
         {!isAuthenticated ? (
           <>
-            <Link href="/login" className="btn-ghost">
+            <LinkButton href="/login" variant="ghost">
               登录
-            </Link>
-            <Link href="/register" className="btn-primary !py-2 !px-4 text-[13px]">
+            </LinkButton>
+            <LinkButton href="/register" variant="primary" size="nav">
               免费试用
-            </Link>
+            </LinkButton>
           </>
         ) : (
           <>
             {/* Notification */}
             <div className="relative">
-              <button
+              <Button
                 onClick={() => setShowNotifications((prev) => !prev)}
-                className="btn-icon relative"
+                variant="ghost"
+                size="icon"
                 aria-label="通知"
               >
                 <BellIcon className="h-[18px] w-[18px]" />
                 {unreadCount > 0 && (
                   <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
                 )}
-              </button>
+              </Button>
               {showNotifications && (
                 <NotificationDropdown
                   onClose={() => setShowNotifications(false)}
