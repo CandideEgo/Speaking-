@@ -25,6 +25,9 @@ import { DataTable } from "@/components/admin/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input, Textarea } from "@/components/ui/Input";
 import type { VideoAdmin } from "@/types";
 import {
   approveReview,
@@ -246,33 +249,34 @@ export default function VideoManager() {
   return (
     <div className="space-y-6">
       {/* Seed form */}
-      <div className="card-outline">
+      <Card>
         <h2 className="font-display text-2xl text-ink">种植官方视频</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           提交视频链接以为首页种植官方内容。
         </p>
         <form onSubmit={handleSeed} className="mt-4 flex gap-3 flex-wrap">
-          <input
+          <Input
             type="url"
             value={seedUrl}
             onChange={(e) => setSeedUrl(e.target.value)}
             placeholder="YouTube 或 Bilibili 链接..."
-            className="input-field flex-1 min-w-[240px]"
+            className="flex-1 min-w-[240px]"
             required
           />
-          <button
+          <Button
             type="submit"
+            variant="secondary"
             disabled={seeding}
-            className="btn-secondary whitespace-nowrap"
+            className="whitespace-nowrap"
+            icon={Plus}
           >
-            <Plus size={16} />
             {seeding ? "处理中..." : "种植视频"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSeedFull}
             disabled={seeding}
-            className="btn-primary whitespace-nowrap"
+            className="whitespace-nowrap"
             title="自动检查 cookies → 种植 → 跑全流程 → 发布"
           >
             {seeding && fullFlowId ? (
@@ -281,7 +285,7 @@ export default function VideoManager() {
               <Plus size={16} />
             )}
             一键全流程
-          </button>
+          </Button>
         </form>
         {fullFlowId && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
@@ -289,20 +293,21 @@ export default function VideoManager() {
             一键流程进行中：{fullFlowStep}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* List + filters */}
-      <div className="card-outline">
+      <Card>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="font-display text-2xl text-ink">视频管理</h2>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={loadVideos}
             disabled={loading}
-            className="btn-secondary !py-2 !px-3 text-xs"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
             刷新
-          </button>
+          </Button>
         </div>
 
         {/* Filters */}
@@ -318,7 +323,7 @@ export default function VideoManager() {
             value={reviewStatusFilter}
             onChange={setReviewStatusFilter}
           />
-          <input
+          <Input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -326,7 +331,7 @@ export default function VideoManager() {
               if (e.key === "Enter") loadVideos();
             }}
             placeholder="搜索标题/标签..."
-            className="input-field !py-1.5 max-w-xs ml-auto"
+            className="!py-1.5 max-w-xs ml-auto"
           />
         </div>
 
@@ -436,16 +441,15 @@ export default function VideoManager() {
               </td>
               <td className="py-3 text-right">
                 <div className="inline-flex gap-1">
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="compact"
                     onClick={() => setEditingId(isExpanded ? null : v.id)}
-                    className={cn(
-                      "btn-secondary !py-1 !px-2 text-[11px]",
-                      isExpanded && "border-ink",
-                    )}
+                    className={cn(isExpanded && "border-ink")}
                   >
                     {isExpanded ? <X size={12} /> : <Pencil size={12} />}
                     {isExpanded ? "关闭" : "编辑"}
-                  </button>
+                  </Button>
                 </div>
               </td>
             </tr>
@@ -467,7 +471,7 @@ export default function VideoManager() {
             />
           )}
         />
-      </div>
+      </Card>
 
       {/* Reject dialog */}
       <Modal
@@ -479,36 +483,37 @@ export default function VideoManager() {
         title="驳回视频"
         footer={
           <>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setRejectTarget(null)}
               disabled={reviewBusy}
-              className="btn-outline !py-1.5 !px-3 text-xs"
             >
               取消
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="sm"
               onClick={handleConfirmReject}
               disabled={reviewBusy || !rejectReason.trim()}
-              className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
             >
               {reviewBusy && <Loader2 size={13} className="animate-spin" />}
               确认驳回
-            </button>
+            </Button>
           </>
         }
       >
         <p className="text-xs text-muted-foreground">
           驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
         </p>
-        <textarea
+        <Textarea
           value={rejectReason}
           onChange={(e) => setRejectReason(e.target.value)}
           rows={3}
           autoFocus
           placeholder="请填写驳回原因（将展示给创作者）"
-          className="input-field resize-none"
+          className="resize-none"
         />
       </Modal>
 
@@ -682,10 +687,11 @@ function VideoDetailRow({
         </div>
 
         <div>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onLocalize(video)}
             disabled={hasLocal || isProcessing}
-            className="btn-secondary !py-2 !px-3 text-xs disabled:opacity-50"
             title={
               hasLocal
                 ? "已有本地视频"
@@ -696,7 +702,7 @@ function VideoDetailRow({
           >
             <Download size={12} />
             {isProcessing ? "搬运中..." : hasLocal ? "已有本地" : "搬运到本地"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -706,15 +712,16 @@ function VideoDetailRow({
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             编辑
           </h3>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={() => onEditSubtitles(video.id)}
-            className="btn-outline !py-1 !px-2 text-[11px] inline-flex items-center gap-1"
             title="编辑字幕文本、时间轴与单词高亮"
           >
             <Captions size={12} />
             字幕 / 高亮
-          </button>
+          </Button>
         </div>
 
         {/* UGC review actions (pending_review only) */}
@@ -727,24 +734,25 @@ function VideoDetailRow({
                 : "未知时间"}
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
+                size="sm"
                 onClick={() => onApprove(video)}
                 disabled={reviewBusy}
-                className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
               >
                 <Check size={13} />
                 批准并发布
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="destructive"
+                size="sm"
                 onClick={() => onReject(video.id)}
                 disabled={reviewBusy}
-                className="btn-outline !py-1.5 !px-3 text-xs inline-flex items-center gap-1 !text-red-600 !border-red-300"
               >
                 <XCircle size={13} />
                 驳回
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -760,11 +768,10 @@ function VideoDetailRow({
           <label className="block text-xs font-medium text-muted-foreground mb-1">
             标题
           </label>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="input-field"
             required
           />
         </div>
@@ -791,12 +798,11 @@ function VideoDetailRow({
             <label className="block text-xs font-medium text-muted-foreground mb-1">
               标签
             </label>
-            <input
+            <Input
               type="text"
               value={topicTags}
               onChange={(e) => setTopicTags(e.target.value)}
               placeholder="逗号分隔"
-              className="input-field"
             />
           </div>
         </div>
@@ -841,11 +847,11 @@ function VideoDetailRow({
           <label className="block text-xs font-medium text-muted-foreground mb-1">
             管理员备注
           </label>
-          <textarea
+          <Textarea
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}
             rows={3}
-            className="input-field resize-none"
+            className="resize-none"
             placeholder="仅管理员可见..."
           />
         </div>
@@ -859,14 +865,9 @@ function VideoDetailRow({
             <Trash2 size={12} />
             删除视频
           </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="btn-primary !py-2 !px-4 text-xs"
-          >
-            <Pencil size={12} />
+          <Button type="submit" size="sm" disabled={saving} icon={Pencil}>
             {saving ? "保存中..." : "保存"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

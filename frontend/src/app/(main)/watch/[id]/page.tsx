@@ -40,6 +40,8 @@ import {
   ChevronDown,
   GraduationCap,
 } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Input";
 
 /** Human-readable labels for processing steps returned by the backend. */
 const STEP_LABELS: Record<string, string> = {
@@ -547,23 +549,20 @@ export default function WatchPage() {
                 <X size={16} />
               </button>
             </div>
-            <textarea
+            <Textarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="记录重点句型、生词或心得..."
               rows={3}
-              className="input-field resize-none mb-3"
+              className="resize-none mb-3"
             />
             <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={clearNote}
-                className="btn-outline !py-2 !text-xs"
-              >
+              <Button variant="outline" size="sm" onClick={clearNote}>
                 清空
-              </button>
-              <button onClick={saveNote} className="btn-primary !py-2 !text-xs">
+              </Button>
+              <Button size="sm" onClick={saveNote}>
                 保存
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -723,18 +722,12 @@ export default function WatchPage() {
                         )}
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button
-                          className="btn-outline !py-2 !text-xs"
-                          onClick={reRecord}
-                        >
+                        <Button variant="outline" size="sm" onClick={reRecord}>
                           重录
-                        </button>
-                        <button
-                          className="btn-primary !py-2 !text-xs"
-                          onClick={submitForFeedback}
-                        >
+                        </Button>
+                        <Button size="sm" onClick={submitForFeedback}>
                           提交
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -830,18 +823,12 @@ export default function WatchPage() {
                       )}
 
                       <div className="flex gap-2 justify-end">
-                        <button
-                          className="btn-outline !py-2 !text-xs"
-                          onClick={reRecord}
-                        >
+                        <Button variant="outline" size="sm" onClick={reRecord}>
                           再练一次
-                        </button>
-                        <button
-                          className="btn-primary !py-2 !text-xs"
-                          onClick={handleNextSubtitle}
-                        >
+                        </Button>
+                        <Button size="sm" onClick={handleNextSubtitle}>
                           下一句
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -1149,7 +1136,7 @@ function WordTooltipInline({
       )}
 
       <div className="flex gap-2">
-        <button onClick={onPronounce} className="btn-outline !py-1.5 !text-xs">
+        <Button variant="outline" size="sm" onClick={onPronounce}>
           <svg
             width="14"
             height="14"
@@ -1164,10 +1151,10 @@ function WordTooltipInline({
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
           </svg>
           发音
-        </button>
-        <button onClick={onSave} className="btn-primary !py-1.5 !text-xs">
+        </Button>
+        <Button size="sm" onClick={onSave}>
           <Bookmark size={14} /> 加入词汇本
-        </button>
+        </Button>
       </div>
     </div>
   );

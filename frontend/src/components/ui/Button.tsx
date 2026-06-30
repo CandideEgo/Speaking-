@@ -14,7 +14,7 @@ export type ButtonVariant =
   | "secondary"
   | "secondaryDark";
 
-export type ButtonSize = "xs" | "sm" | "md" | "nav" | "lg";
+export type ButtonSize = "xs" | "sm" | "compact" | "md" | "nav" | "lg";
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary:
@@ -36,6 +36,7 @@ const SIZE: Record<ButtonSize, string> = {
   // Base layout shared by all variants; size only swaps padding + text.
   xs: "gap-1 px-1.5 py-0.5 text-[10px]",
   sm: "gap-1.5 px-3 py-1.5 text-xs",
+  compact: "gap-1 px-2 py-1 text-[11px]",
   md: "gap-2 px-4 py-2.5 text-sm",
   nav: "gap-2 px-4 py-2 text-[13px]",
   lg: "gap-2 px-6 py-3 text-sm",
@@ -45,8 +46,9 @@ const SIZE: Record<ButtonSize, string> = {
  * Button primitive — replaces the `.btn-*` CSS `@apply` classes plus the
  * `!py-*`/`!px-*`/`!text-*` overrides that fought them. Variants mirror the
  * original classes (primary/dark/outline/ghost/text/destructive/secondary/
- * secondaryDark); sizes absorb the in-the-wild override combos (xs/sm/md/nav/
- * lg). `fullWidth` and a normalized disabled cursor round it out.
+ * secondaryDark); sizes absorb the in-the-wild override combos (xs/sm/compact/
+ * md/nav/lg — `compact` covers the common `!py-1 !px-2 text-[11px]` admin-row
+ * pattern). `fullWidth` and a normalized disabled cursor round it out.
  */
 export function Button({
   variant = "primary",
@@ -68,7 +70,13 @@ export function Button({
   children?: ReactNode;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
   const iconSize =
-    size === "xs" ? 10 : size === "sm" ? 12 : size === "lg" ? 16 : 14;
+    size === "xs"
+      ? 10
+      : size === "sm" || size === "compact"
+        ? 12
+        : size === "lg"
+          ? 16
+          : 14;
   return (
     <button
       className={cn(
