@@ -121,12 +121,7 @@
   }
 
   /* === Inputs === */
-  .input-field {
-    @apply w-full rounded-sm border border-hairline bg-surface-card px-3.5 py-2.5 text-sm text-ink
-           placeholder:text-muted-soft
-           focus:border-ink focus:bg-canvas focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)]
-           transition-colors duration-150;
-  }
+  /* (input-field removed — use <Input>/<Textarea>/<Select> components) */
 
   /* === Badges / Pills === */
   .badge-pill {

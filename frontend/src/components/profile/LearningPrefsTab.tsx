@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { api } from "@/lib/api";
 import type { UserPreferences } from "@/types";
 
@@ -76,7 +77,7 @@ export default function LearningPrefsTab({
             <label className="block text-sm font-medium text-ink mb-1">
               目标类型
             </label>
-            <select
+            <Select
               value={goalType}
               onChange={(e) => {
                 setGoalType(
@@ -87,14 +88,14 @@ export default function LearningPrefsTab({
                 else if (e.target.value === "minutes") setGoalValue(15);
                 else if (e.target.value === "words") setGoalValue(10);
               }}
-              className="input-field w-48"
+              className="w-48"
             >
               {Object.entries(goalTypeLabels).map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="block text-sm font-medium text-ink mb-1">
@@ -120,19 +121,19 @@ export default function LearningPrefsTab({
         <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
           默认字幕模式
         </h3>
-        <select
+        <Select
           value={subtitleMode}
           onChange={(e) =>
             setSubtitleMode(
               e.target.value as "bilingual" | "english" | "chinese",
             )
           }
-          className="input-field w-48"
+          className="w-48"
         >
           <option value="bilingual">双语字幕</option>
           <option value="english">仅英文</option>
           <option value="chinese">仅中文</option>
-        </select>
+        </Select>
       </div>
 
       {/* Preferred Difficulty */}
@@ -140,10 +141,10 @@ export default function LearningPrefsTab({
         <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
           偏好难度
         </h3>
-        <select
+        <Select
           value={preferredDifficulty}
           onChange={(e) => setPreferredDifficulty(e.target.value)}
-          className="input-field w-40"
+          className="w-40"
         >
           <option value="">不限</option>
           {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
@@ -151,7 +152,7 @@ export default function LearningPrefsTab({
               {l}
             </option>
           ))}
-        </select>
+        </Select>
         <p className="text-xs text-muted-foreground">用于推荐合适难度的视频</p>
       </div>
 

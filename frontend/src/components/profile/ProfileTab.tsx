@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { api } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -110,10 +111,10 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">
           英语等级
         </label>
-        <select
+        <Select
           value={level}
           onChange={(e) => setLevel(e.target.value)}
-          className="input-field w-40"
+          className="w-40"
         >
           <option value="">未设置</option>
           {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
@@ -121,7 +122,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
               {l}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Email (read-only) */}

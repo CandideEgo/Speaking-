@@ -7,7 +7,6 @@ import {
   Download,
   Loader2,
   Pencil,
-  Plus,
   RefreshCw,
   Captions,
   Trash2,
@@ -28,6 +27,7 @@ import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import type { VideoAdmin } from "@/types";
 import {
   approveReview,
@@ -36,8 +36,6 @@ import {
   listVideos,
   localizeVideo,
   rejectReview,
-  seedVideo,
-  seedVideoFull,
   updateVideo,
 } from "@/lib/adminData";
 
@@ -81,12 +79,6 @@ export default function VideoManager() {
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [seedUrl, setSeedUrl] = useState("");
-  const [seeding, setSeeding] = useState(false);
-  // One-click full flow: tracks the in-flight video + its progress text.
-  const [fullFlowId, setFullFlowId] = useState<string | null>(null);
-  const [fullFlowStep, setFullFlowStep] = useState<string>("");
-  const fullPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Expanded (editing) video id — null when no row is open.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,74 +104,6 @@ export default function VideoManager() {
   useEffect(() => {
     loadVideos();
   }, [loadVideos]);
-
-  async function handleSeed(e: React.FormEvent) {
-    e.preventDefault();
-    if (!seedUrl.trim()) return;
-    setSeeding(true);
-    try {
-      await seedVideo(seedUrl);
-      toast.success("视频已加入处理队列");
-      setSeedUrl("");
-      await loadVideos();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "种植失败");
-    } finally {
-      setSeeding(false);
-    }
-  }
-
-  /** One-click: ensure cookies → seed (auto_publish) → poll until ready/error. */
-  async function handleSeedFull(e: React.FormEvent) {
-    e.preventDefault();
-    if (!seedUrl.trim()) return;
-    setSeeding(true);
-    setFullFlowStep("检查 cookies…");
-    try {
-      const id = await seedVideoFull(seedUrl);
-      setFullFlowId(id);
-      setFullFlowStep("已种植，处理中…");
-      await loadVideos();
-      // Poll until ready or error. Unlike VideoDetailRow's poll (which stops at
-      // ready_subtitles), this keeps going through the whole seed pipeline.
-      fullPollRef.current = setInterval(async () => {
-        try {
-          const st = await getVideoStatus(id);
-          setFullFlowStep(
-            st.processing_step
-              ? `${st.processing_step}（${st.processing_progress ?? 0}%）`
-              : st.status,
-          );
-          if (st.status === "ready") {
-            if (fullPollRef.current) clearInterval(fullPollRef.current);
-            fullPollRef.current = null;
-            setFullFlowId(null);
-            toast.success("处理完成，已自动发布");
-            await loadVideos();
-          } else if (st.status === "error") {
-            if (fullPollRef.current) clearInterval(fullPollRef.current);
-            fullPollRef.current = null;
-            setFullFlowId(null);
-            toast.error("处理失败，请检查日志");
-          }
-        } catch {
-          // transient poll error — keep polling
-        }
-      }, 3000);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "一键种植失败");
-      setFullFlowId(null);
-    } finally {
-      setSeeding(false);
-    }
-  }
-
-  // Clean up the full-flow poll on unmount.
-  useEffect(() => {
-    return () => {
-      if (fullPollRef.current) clearInterval(fullPollRef.current);
-    };
-  }, []);
 
   // Delete-confirmation state (replaces native window.confirm).
   const [deleteTarget, setDeleteTarget] = useState<VideoAdmin | null>(null);
@@ -248,53 +172,6 @@ export default function VideoManager() {
 
   return (
     <div className="space-y-6">
-      {/* Seed form */}
-      <Card>
-        <h2 className="font-display text-2xl text-ink">种植官方视频</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          提交视频链接以为首页种植官方内容。
-        </p>
-        <form onSubmit={handleSeed} className="mt-4 flex gap-3 flex-wrap">
-          <Input
-            type="url"
-            value={seedUrl}
-            onChange={(e) => setSeedUrl(e.target.value)}
-            placeholder="YouTube 或 Bilibili 链接..."
-            className="flex-1 min-w-[240px]"
-            required
-          />
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={seeding}
-            className="whitespace-nowrap"
-            icon={Plus}
-          >
-            {seeding ? "处理中..." : "种植视频"}
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSeedFull}
-            disabled={seeding}
-            className="whitespace-nowrap"
-            title="自动检查 cookies → 种植 → 跑全流程 → 发布"
-          >
-            {seeding && fullFlowId ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Plus size={16} />
-            )}
-            一键全流程
-          </Button>
-        </form>
-        {fullFlowId && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 size={12} className="animate-spin" />
-            一键流程进行中：{fullFlowStep}
-          </div>
-        )}
-      </Card>
-
       {/* List + filters */}
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -579,6 +456,9 @@ function VideoDetailRow({
   const [isOfficial, setIsOfficial] = useState(video.is_official);
   const [isFeatured, setIsFeatured] = useState(video.is_featured);
   const [isPublished, setIsPublished] = useState(video.is_published);
+  const [showOnHomepage, setShowOnHomepage] = useState(
+    video.show_on_homepage ?? false,
+  );
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -626,6 +506,7 @@ function VideoDetailRow({
         is_official: isOfficial,
         is_featured: isFeatured,
         is_published: isPublished,
+        show_on_homepage: showOnHomepage,
         admin_notes: adminNotes || null,
       });
       patchVideo(video.id, updated);
@@ -781,10 +662,9 @@ function VideoDetailRow({
             <label className="block text-xs font-medium text-muted-foreground mb-1">
               难度
             </label>
-            <select
+            <Select
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value)}
-              className="input-field"
             >
               <option value="">-</option>
               {DIFFICULTY_OPTIONS.map((d) => (
@@ -792,7 +672,7 @@ function VideoDetailRow({
                   {d}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -840,6 +720,15 @@ function VideoDetailRow({
                 （需 ready）
               </span>
             )}
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnHomepage}
+              onChange={(e) => setShowOnHomepage(e.target.checked)}
+              className="h-4 w-4 rounded-sm border-hairline"
+            />
+            首页展示
           </label>
         </div>
 

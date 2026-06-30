@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import type { User } from "@/types";
 
 interface SettingsTabProps {
@@ -151,17 +152,17 @@ function TimezoneSection({ user }: { user: User }) {
       <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
         时区
       </h3>
-      <select
+      <Select
         value={timezone}
         onChange={(e) => setTimezone(e.target.value)}
-        className="input-field w-64"
+        className="w-64"
       >
         {COMMON_TIMEZONES.map((tz) => (
           <option key={tz} value={tz}>
             {tz}
           </option>
         ))}
-      </select>
+      </Select>
       <p className="text-xs text-muted-foreground">
         影响每日活动统计的时间划分
       </p>

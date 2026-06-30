@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -482,17 +483,17 @@ function PracticeEditor({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">考级</span>
-          <select
+          <Select
             value={level}
             onChange={(e) => setLevel(e.target.value)}
-            className="input-field w-32"
+            className="w-32"
           >
             {TARGET_LEVEL_OPTIONS.map((l) => (
               <option key={l.key} value={l.key}>
                 {l.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <Button
           onClick={handleRegenerate}
@@ -518,7 +519,7 @@ function PracticeEditor({
           {questions.map((q, i) => (
             <Card key={i} padding={3} className="space-y-2">
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   value={q.type}
                   onChange={(e) => {
                     const newType = e.target.value as PracticeQuestion["type"];
@@ -530,14 +531,14 @@ function PracticeEditor({
                       patch.tokens = [];
                     updateQuestion(i, patch);
                   }}
-                  className="input-field w-32 text-xs"
+                  className="w-32 text-xs"
                   disabled={!editable}
                 >
                   <option value="qa">问答</option>
                   <option value="fill_blank">填空</option>
                   <option value="reading">阅读</option>
                   <option value="sentence_building">组句</option>
-                </select>
+                </Select>
                 <span className="text-xs text-muted-foreground ml-auto">
                   第 {i + 1} 题
                 </span>
