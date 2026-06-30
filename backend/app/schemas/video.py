@@ -34,6 +34,10 @@ class VideoResponse(BaseModel):
     # UGC review lifecycle (draft/pending_review/published/rejected). Exposed so
     # the owner's "my videos" list and the admin queue can badge status.
     review_status: str = "draft"
+    # Admin's rejection reason (set when review_status == rejected). Visible to
+    # the owner so they can fix and resubmit; null for everyone else. The
+    # service layer zeroes it out for non-owner detail reads.
+    rejection_reason: str | None = None
     video_url_480p: str | None = None
     video_url_720p: str | None = None
     video_url_1080p: str | None = None
