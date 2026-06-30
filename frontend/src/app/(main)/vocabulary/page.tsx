@@ -18,6 +18,7 @@ interface VocabWord {
   created_at: string;
   part_of_speech?: string | null;
   definition?: string | null;
+  translation?: string | null;
   mastery_level?: string | null;
 }
 
@@ -325,7 +326,8 @@ export default function VocabularyPage() {
                         </p>
                       )}
                       <p className="text-[13px] text-body leading-relaxed mt-1.5">
-                        {w.definition ||
+                        {w.translation ||
+                          w.definition ||
                           (w.context_sentence
                             ? `"${w.context_sentence}"`
                             : "—")}

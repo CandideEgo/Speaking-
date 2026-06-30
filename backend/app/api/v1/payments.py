@@ -178,6 +178,10 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"status": "success", "message": "Already processed"}
 
+    if order.status != OrderStatus.pending:
+        logger.warning("alipay callback: order not pending", order_number=order_number, status=order.status)
+        return {"status": "error", "message": f"Order is {order.status.value}, cannot process"}
+
     await _process_successful_payment(db, order)
     return {"status": "success", "message": "OK"}
 
@@ -203,6 +207,10 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
     if order.status == OrderStatus.paid:
         return {"code": "SUCCESS", "message": "Already processed"}
+
+    if order.status != OrderStatus.pending:
+        logger.warning("wechat callback: order not pending", order_number=order_number, status=order.status)
+        return {"code": "FAIL", "message": f"Order is {order.status.value}, cannot process"}
 
     await _process_successful_payment(db, order)
     return {"code": "SUCCESS", "message": "OK"}

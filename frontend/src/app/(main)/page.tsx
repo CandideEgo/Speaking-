@@ -37,7 +37,7 @@ export default function HomePage() {
     longest_streak: number;
     goal_type: string;
     goal_value: number;
-    today_progress: number;
+    today_progress: Record<string, number>;
   } | null>(null);
   const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
     [],
@@ -52,7 +52,7 @@ export default function HomePage() {
             longest_streak: number;
             goal_type: string;
             goal_value: number;
-            today_progress: number;
+            today_progress: Record<string, number>;
           }>("/api/v1/users/me/streak").catch(() => null),
           api<{ records: LearningRecord[] }>(
             "/api/v1/learning/records?page=1&page_size=4&completed=false",
@@ -77,7 +77,7 @@ export default function HomePage() {
   const longestStreak = streakInfo?.longest_streak ?? 0;
   const goalType = streakInfo?.goal_type ?? "speaking_attempts";
   const goalValue = streakInfo?.goal_value ?? 5;
-  const todayProgress = streakInfo?.today_progress ?? 0;
+  const todayProgress = streakInfo?.today_progress?.[goalType] ?? 0;
   const goalMet = todayProgress >= goalValue;
   const goalUnit =
     goalType === "minutes" ? "分钟" : goalType === "words" ? "单词" : "次练习";

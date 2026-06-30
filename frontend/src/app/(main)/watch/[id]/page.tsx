@@ -385,6 +385,9 @@ export default function WatchPage() {
     if (!video?.subtitles) return;
     if (currentSubtitleIndex < video.subtitles.length - 1) {
       const next = video.subtitles[currentSubtitleIndex + 1];
+      // Reset speaking state before advancing — otherwise the user is stuck
+      // in the result view of the old sentence.
+      if (speakingActive) reRecord();
       setCurrentSubtitleIndex(currentSubtitleIndex + 1);
       seekTo(next.start_time);
     }

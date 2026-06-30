@@ -601,11 +601,28 @@ async def list_admin_posts(
 
 
 async def admin_delete_post(db: AsyncSession, post_id: str) -> None:
-    """Force-delete a post (admin override, no ownership check)."""
+    """Force-delete a post (admin override, no ownership check).
+
+    Cascades: deletes all comments, comment likes, and comment reports
+    before the post to avoid FK constraint errors (UserComment.post_id
+    has no ondelete cascade).
+    """
     result = await db.execute(select(Post).where(Post.id == post_id))
     post = result.scalar_one_or_none()
     if not post:
         raise ValueError("Post not found")
+
+    # Delete comment reports and likes first (they reference comments)
+    comment_ids_stmt = select(UserComment.id).where(UserComment.post_id == post_id)
+    from app.models.community import CommentLike, CommentReport, PostLike
+
+    await db.execute(CommentReport.__table__.delete().where(CommentReport.comment_id.in_(comment_ids_stmt)))
+    await db.execute(CommentLike.__table__.delete().where(CommentLike.comment_id.in_(comment_ids_stmt)))
+    # Delete all comments on the post
+    await db.execute(UserComment.__table__.delete().where(UserComment.post_id == post_id))
+    # Delete post likes
+    await db.execute(PostLike.__table__.delete().where(PostLike.post_id == post_id))
+    # Finally delete the post itself
     await db.delete(post)
     await db.commit()
 

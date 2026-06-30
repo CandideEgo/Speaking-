@@ -299,7 +299,10 @@ class CommentService:
         video = video_result.scalar_one_or_none()
         if video:
             video.comment_quality_score = overall_score
-            video.comment_count = len(comments)
+            # Note: do NOT overwrite video.comment_count here — that column
+            # tracks community comments and is managed by community_service.
+            # The YouTube comment count is len(comments) but is not stored
+            # separately at this time.
 
         await db.commit()
         await db.refresh(stats)

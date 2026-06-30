@@ -55,11 +55,17 @@ async def record_speaking_activity(
 
     activity.speaking_attempts += 1
 
-    # Recompute averages including this attempt
+    # Recompute averages including this attempt.
+    # Only incorporate non-None values so that free-speaking (which
+    # lacks accuracy/completeness) doesn't bias the running average
+    # by inflating the denominator without contributing data.
     count = activity.speaking_attempts
-    activity.avg_accuracy = _update_avg(activity.avg_accuracy, accuracy, count)
-    activity.avg_fluency = _update_avg(activity.avg_fluency, fluency, count)
-    activity.avg_completeness = _update_avg(activity.avg_completeness, completeness, count)
+    if accuracy is not None:
+        activity.avg_accuracy = _update_avg(activity.avg_accuracy, accuracy, count)
+    if fluency is not None:
+        activity.avg_fluency = _update_avg(activity.avg_fluency, fluency, count)
+    if completeness is not None:
+        activity.avg_completeness = _update_avg(activity.avg_completeness, completeness, count)
 
     await _check_goal_met(db, user_id, activity)
     await db.flush()

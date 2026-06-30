@@ -15,9 +15,24 @@ const LEVELS = [
 ];
 
 const GOALS = [
-  { value: "speaking_attempts", label: "每天开口说", description: "每日练习次数", target: 5 },
-  { value: "minutes", label: "每天学 X 分钟", description: "累计学习时长", target: 15 },
-  { value: "words", label: "每天记 X 个词", description: "新增词汇量", target: 10 },
+  {
+    value: "speaking_attempts",
+    label: "每天开口说",
+    description: "每日练习次数",
+    target: 5,
+  },
+  {
+    value: "minutes",
+    label: "每天学 X 分钟",
+    description: "累计学习时长",
+    target: 15,
+  },
+  {
+    value: "words",
+    label: "每天记 X 个词",
+    description: "新增词汇量",
+    target: 10,
+  },
 ];
 
 export default function OnboardingPage() {
@@ -32,8 +47,11 @@ export default function OnboardingPage() {
   async function handleComplete() {
     setSaving(true);
     try {
-      // Save level and goal preferences
-      await Promise.allSettled([
+      // Save level, goal preferences, and mark onboarding completed.
+      // Use Promise.all (not allSettled) so any failure is caught —
+      // otherwise the user gets stuck in a redirect loop if the server
+      // POST fails while localStorage is set.
+      await Promise.all([
         api("/api/v1/users/me", {
           method: "PATCH",
           body: JSON.stringify({ level }),
@@ -98,7 +116,9 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">你的英语水平</h2>
+              <h2 className="font-display text-2xl text-ink mb-1">
+                你的英语水平
+              </h2>
               <p className="text-sm text-muted-foreground">选择最接近的级别</p>
             </div>
             <div className="space-y-2">
@@ -113,12 +133,17 @@ export default function OnboardingPage() {
                   }`}
                 >
                   <span className="font-medium">{l.label}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">{l.description}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {l.description}
+                  </span>
                 </button>
               ))}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(0)} className="btn-secondary-dark flex-1">
+              <button
+                onClick={() => setStep(0)}
+                className="btn-secondary-dark flex-1"
+              >
                 上一步
               </button>
               <button
@@ -136,8 +161,12 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">每日学习目标</h2>
-              <p className="text-sm text-muted-foreground">养成每天练习的习惯</p>
+              <h2 className="font-display text-2xl text-ink mb-1">
+                每日学习目标
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                养成每天练习的习惯
+              </p>
             </div>
             <div className="space-y-2">
               {GOALS.map((g) => (
@@ -154,12 +183,16 @@ export default function OnboardingPage() {
                   }`}
                 >
                   <span className="font-medium">{g.label}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">{g.description}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {g.description}
+                  </span>
                 </button>
               ))}
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-1">目标值: {goalValue}</label>
+              <label className="block text-sm font-medium text-ink mb-1">
+                目标值: {goalValue}
+              </label>
               <input
                 type="range"
                 min={1}
@@ -170,10 +203,17 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="btn-secondary-dark flex-1">
+              <button
+                onClick={() => setStep(1)}
+                className="btn-secondary-dark flex-1"
+              >
                 上一步
               </button>
-              <button onClick={handleComplete} disabled={saving} className="btn-primary flex-1">
+              <button
+                onClick={handleComplete}
+                disabled={saving}
+                className="btn-primary flex-1"
+              >
                 {saving ? "保存中..." : "开始学习"}
               </button>
             </div>
