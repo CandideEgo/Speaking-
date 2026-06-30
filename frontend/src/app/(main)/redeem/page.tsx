@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles, Loader2, CheckCircle2, Gift } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function RedeemPage() {
   const router = useRouter();
@@ -98,18 +99,14 @@ export default function RedeemPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || !code.trim()}
-              className="btn-primary w-full justify-center"
-            >
+            <Button type="submit" fullWidth disabled={loading || !code.trim()}>
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <Sparkles size={16} />
               )}
               {loading ? "兑换中..." : "激活 Pro"}
-            </button>
+            </Button>
           </form>
         )}
 

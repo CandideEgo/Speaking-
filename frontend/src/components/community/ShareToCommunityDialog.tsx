@@ -6,6 +6,7 @@ import { Loader2, Share2 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { Modal } from "@/components/common/Modal";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Share-to-community dialog. POSTs a community post with the right post_type
@@ -82,23 +83,25 @@ export function ShareToCommunityDialog({
       }
       footer={
         <>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onClose}
             disabled={submitting}
-            className="btn-outline !py-1.5 !px-3 text-xs"
           >
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="sm"
             onClick={handleSubmit}
             disabled={submitting}
-            className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
           >
             {submitting && <Loader2 size={13} className="animate-spin" />}
             发布
-          </button>
+          </Button>
         </>
       }
     >

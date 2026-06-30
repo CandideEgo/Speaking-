@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { Card } from "@/components/ui/Card";
 import type { LearningRecord } from "@/types";
 
 interface RecentActivityTimelineProps {
   records: LearningRecord[];
 }
 
-export default function RecentActivityTimeline({ records }: RecentActivityTimelineProps) {
+export default function RecentActivityTimeline({
+  records,
+}: RecentActivityTimelineProps) {
   if (records.length === 0) {
     return (
-      <div className="card-outline !p-6 text-center">
+      <Card className="text-center">
         <p className="text-sm text-muted-foreground">
           还没有学习记录。去{" "}
           <Link href="/browse" className="text-coral hover:underline">
@@ -19,7 +22,7 @@ export default function RecentActivityTimeline({ records }: RecentActivityTimeli
           </Link>{" "}
           开始学习吧！
         </p>
-      </div>
+      </Card>
     );
   }
 
@@ -34,7 +37,11 @@ export default function RecentActivityTimeline({ records }: RecentActivityTimeli
           {/* Thumbnail */}
           <div className="h-10 w-14 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
             {record.video?.thumbnail_url ? (
-              <img src={record.video.thumbnail_url} alt="" className="h-full w-full object-cover" />
+              <img
+                src={record.video.thumbnail_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
                 🎬
@@ -49,7 +56,9 @@ export default function RecentActivityTimeline({ records }: RecentActivityTimeli
             </p>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
               <span>{record.speaking_attempts} 次跟读</span>
-              {record.quiz_score !== null && <span>测验 {Math.round(record.quiz_score)} 分</span>}
+              {record.quiz_score !== null && (
+                <span>测验 {Math.round(record.quiz_score)} 分</span>
+              )}
               {record.progress_percentage > 0 && (
                 <span>进度 {Math.round(record.progress_percentage)}%</span>
               )}
@@ -61,7 +70,9 @@ export default function RecentActivityTimeline({ records }: RecentActivityTimeli
             <div className="h-1.5 rounded-full bg-cream-card">
               <div
                 className="h-full rounded-full bg-coral transition-all"
-                style={{ width: `${Math.min(record.progress_percentage, 100)}%` }}
+                style={{
+                  width: `${Math.min(record.progress_percentage, 100)}%`,
+                }}
               />
             </div>
           </div>

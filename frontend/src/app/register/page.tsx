@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -151,13 +152,14 @@ export default function RegisterPage() {
             </span>
           </label>
 
-          <button
+          <Button
             type="submit"
+            fullWidth
             disabled={loading || !agreed}
-            className="btn-primary w-full justify-center mt-2"
+            className="mt-2"
           >
             {loading ? "注册中..." : "注册"}
-          </button>
+          </Button>
         </form>
       </div>
     </main>

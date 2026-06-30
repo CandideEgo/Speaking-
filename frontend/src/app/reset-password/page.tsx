@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
 
 function ResetPasswordForm() {
@@ -110,13 +111,9 @@ function ResetPasswordForm() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary w-full justify-center mt-2"
-        >
+        <Button type="submit" fullWidth disabled={loading} className="mt-2">
           {loading ? "重置中..." : "重置密码"}
-        </button>
+        </Button>
 
         <div className="text-center">
           <Link

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,10 +44,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await api<{ token: string; refresh_token: string }>("/api/v1/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await api<{ token: string; refresh_token: string }>(
+        "/api/v1/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        },
+      );
       login(res.token, res.refresh_token);
       router.push("/dashboard");
     } catch (err) {
@@ -68,7 +72,10 @@ export default function LoginPage() {
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             还没有账号？{" "}
-            <Link href="/register" className="text-brand-500 hover:underline font-medium">
+            <Link
+              href="/register"
+              className="text-brand-500 hover:underline font-medium"
+            >
               注册
             </Link>
           </p>
@@ -107,13 +114,9 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full justify-center mt-2"
-          >
+          <Button type="submit" fullWidth disabled={loading} className="mt-2">
             {loading ? "登录中..." : "登录"}
-          </button>
+          </Button>
         </form>
       </div>
     </main>

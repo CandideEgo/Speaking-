@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ShoppingBag, Gift, ShieldCheck, ArrowLeft } from "lucide-react";
 import { siteConfig } from "@/lib/siteConfig";
+import { Button } from "@/components/ui/Button";
 
 export default function UpgradePage() {
   const { miniStoreUrl } = siteConfig;
@@ -43,13 +44,9 @@ export default function UpgradePage() {
           {/* 小商店入口 */}
           <div className="mt-6">
             {miniStoreUrl ? (
-              <button
-                onClick={openMiniStore}
-                className="btn-primary w-full justify-center"
-              >
-                <ShoppingBag size={16} />
+              <Button fullWidth onClick={openMiniStore} icon={ShoppingBag}>
                 前往微信小商店购买
-              </button>
+              </Button>
             ) : (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3.5 text-center text-[13px] leading-relaxed text-amber-800">
                 微信小商店即将开通，暂未开放购买。

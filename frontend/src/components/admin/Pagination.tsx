@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 
 export function Pagination({
   page,
@@ -20,26 +20,25 @@ export function Pagination({
     <div className="mt-4 flex items-center justify-between">
       <span className="text-xs text-muted-foreground">第 {page} 页</span>
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onPrev}
           disabled={page <= 1 || loading}
-          className={cn(
-            "btn-secondary !py-1.5 !px-3 text-xs",
-            (page <= 1 || loading) && "opacity-50",
-          )}
+          icon={ChevronLeft}
         >
-          <ChevronLeft size={12} /> 上一页
-        </button>
-        <button
+          上一页
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onNext}
           disabled={!hasMore || loading}
-          className={cn(
-            "btn-secondary !py-1.5 !px-3 text-xs",
-            (!hasMore || loading) && "opacity-50",
-          )}
+          iconRight
+          icon={ChevronRight}
         >
-          下一页 <ChevronRight size={12} />
-        </button>
+          下一页
+        </Button>
       </div>
     </div>
   );

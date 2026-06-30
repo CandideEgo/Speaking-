@@ -2,8 +2,8 @@
 
 import { type ReactNode } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Modal } from "./Modal";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Controlled confirmation dialog built on `Modal`. Replaces native
@@ -53,26 +53,25 @@ export function ConfirmDialog({
       }
       footer={
         <>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onClose}
             disabled={busy}
-            className="btn-outline !py-1.5 !px-3 text-xs"
           >
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={tone === "danger" ? "destructive" : "primary"}
+            size="sm"
             onClick={onConfirm}
             disabled={busy}
-            className={cn(
-              "btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1",
-              tone === "danger" && "!bg-red-600 hover:!bg-red-700",
-            )}
           >
             {busy && <Loader2 size={13} className="animate-spin" />}
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >

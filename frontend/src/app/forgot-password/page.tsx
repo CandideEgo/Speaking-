@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/Button";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -38,9 +39,13 @@ export default function ForgotPasswordPage() {
             重置密码
           </h1>
           {sent ? (
-            <p className="mt-2 text-sm text-muted-foreground">重置链接已发送到您的邮箱</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              重置链接已发送到您的邮箱
+            </p>
           ) : (
-            <p className="mt-2 text-sm text-muted-foreground">输入您的邮箱，我们将发送重置链接</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              输入您的邮箱，我们将发送重置链接
+            </p>
           )}
         </div>
 
@@ -73,13 +78,9 @@ export default function ForgotPasswordPage() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full justify-center mt-2"
-            >
+            <Button type="submit" fullWidth disabled={loading} className="mt-2">
               {loading ? "发送中..." : "发送重置链接"}
-            </button>
+            </Button>
 
             <div className="text-center">
               <Link

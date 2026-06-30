@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Lock, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 import type {
   PracticeQuestion,
   VocabDrillItem,
@@ -255,11 +256,13 @@ function CheckButton({
   grading?: boolean;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       onClick={onClick}
       disabled={disabled}
-      className="btn-outline !py-1 !px-3 !text-xs mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="mt-2"
     >
       {grading ? (
         <span className="flex items-center gap-1">
@@ -268,7 +271,7 @@ function CheckButton({
       ) : (
         "检查答案"
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -496,12 +499,9 @@ function PracticeBody({
     return (
       <div className="py-4">
         <p className="text-sm text-ink/70 mb-2">{session.error}</p>
-        <button
-          onClick={() => session.refetch()}
-          className="btn-outline !py-1.5 !text-xs"
-        >
+        <Button variant="outline" size="sm" onClick={() => session.refetch()}>
           重试
-        </button>
+        </Button>
       </div>
     );
   if (session.items.length === 0)
@@ -673,13 +673,13 @@ function QuizBody({
           </QuestionCard>
         );
       })}
-      <button
+      <Button
+        fullWidth
         onClick={session.recordScore}
         disabled={!session.allGraded}
-        className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
       >
         完成测验
-      </button>
+      </Button>
     </>
   );
 }

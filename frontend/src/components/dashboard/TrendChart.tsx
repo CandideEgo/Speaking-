@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { Card } from "@/components/ui/Card";
 import type { UserStats } from "@/types";
 
 interface TrendChartProps {
@@ -34,12 +35,15 @@ export default function TrendChart({ stats }: TrendChartProps) {
   }
 
   return (
-    <div className="card-outline !p-5">
+    <Card padding={5}>
       <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground mb-4">
         本周趋势
       </h3>
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#e6dfd8" />
           <XAxis
             dataKey="date"
@@ -87,6 +91,6 @@ export default function TrendChart({ stats }: TrendChartProps) {
           />
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </Card>
   );
 }
