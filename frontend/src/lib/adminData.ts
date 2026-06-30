@@ -281,6 +281,9 @@ export interface SubtitlePatch {
   end_time?: number;
   grammar_note?: string | null;
   speaker?: string;
+  /** Keep existing word_levels overrides when text_en changes (default false
+   * resets them to the ECDICT baseline). */
+  preserve_word_levels?: boolean;
 }
 
 export async function updateSubtitle(

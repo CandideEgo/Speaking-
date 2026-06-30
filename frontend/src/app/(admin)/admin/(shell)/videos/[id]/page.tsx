@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
@@ -10,8 +10,10 @@ import {
   recomputeWordLevels,
   updateSubtitle,
   updateVideo,
+  updateWordLevels,
 } from "@/lib/adminData";
-import { WordLevelsEditor } from "./WordLevelsEditor";
+import { mediaUrl } from "@/lib/api";
+import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import type { Subtitle, VideoWithSubtitles } from "@/types";
 
@@ -21,6 +23,7 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +55,14 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
     }
   }, [params.id]);
 
+  const seekTo = useCallback((time: number) => {
+    const el = videoElRef.current;
+    if (el) {
+      el.currentTime = time;
+      el.play().catch(() => {});
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground">
@@ -64,6 +75,22 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
       <div className="py-20 text-center text-muted-foreground">视频未找到</div>
     );
   }
+
+  const hasLocalVideo = Boolean(
+    video.video_url_720p || video.video_url_480p || video.video_url_1080p,
+  );
+
+  const handleSubtitleSaved = (updated: Subtitle) =>
+    setVideo((v) =>
+      v
+        ? {
+            ...v,
+            subtitles: v.subtitles.map((s) =>
+              s.id === updated.id ? updated : s,
+            ),
+          }
+        : v,
+    );
 
   return (
     <div className="space-y-6">
@@ -81,39 +108,74 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
 
       <MetadataForm video={video} onChanged={setVideo} />
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">字幕编辑</h2>
-        <button
-          onClick={handleRecomputeAll}
-          className="btn-secondary !py-1 !px-2 text-xs inline-flex items-center gap-1"
-          title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
-        >
-          <RefreshCw size={12} />
-          重算全部高亮
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {video.subtitles.length === 0 && (
-          <div className="text-center text-muted-foreground py-8 text-sm">
-            暂无字幕（视频可能仍在处理中）
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] gap-6 items-start">
+        {/* Player preview (sticky) — solves "timing typed blind": click a
+            subtitle's # to jump, or use the ● capture buttons to set start/end
+            from the current playback time. */}
+        <div className="lg:sticky lg:top-6 space-y-2">
+          <div className="aspect-video w-full overflow-hidden rounded-sm bg-ink/5 flex items-center justify-center">
+            {hasLocalVideo && video.video_url_720p ? (
+              <video
+                ref={videoElRef}
+                src={mediaUrl(video.video_url_720p)}
+                controls
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <div className="text-center p-4 text-xs text-muted-foreground">
+                无本地视频文件，无法预览时间轴
+              </div>
+            )}
           </div>
-        )}
-        {video.subtitles.map((sub) => (
-          <SubtitleEditRow
-            key={sub.id}
-            videoId={video.id}
-            subtitle={sub}
-            onChanged={(updated) =>
-              setVideo({
-                ...video,
-                subtitles: video.subtitles.map((s) =>
-                  s.id === updated.id ? updated : s,
-                ),
-              })
-            }
-          />
-        ))}
+          <p className="text-[11px] text-muted-foreground">
+            点击字幕序号跳转到该句；编辑时间轴时点 ● 取当前播放时间。
+          </p>
+        </div>
+
+        {/* Subtitle list */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">字幕编辑</h2>
+            <button
+              onClick={handleRecomputeAll}
+              className="btn-secondary !py-1 !px-2 text-xs inline-flex items-center gap-1"
+              title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
+            >
+              <RefreshCw size={12} />
+              重算全部高亮
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {video.subtitles.length === 0 && (
+              <div className="text-center text-muted-foreground py-8 text-sm">
+                暂无字幕（视频可能仍在处理中）
+              </div>
+            )}
+            {video.subtitles.map((sub) => (
+              <SubtitleEditor
+                key={sub.id}
+                subtitle={sub}
+                videoRef={videoElRef}
+                onSeekTo={seekTo}
+                onSave={(patch) =>
+                  updateSubtitle(video.id, sub.id, patch).then((updated) => {
+                    handleSubtitleSaved(updated);
+                    return updated;
+                  })
+                }
+                onSaveWordLevels={(wordLevels) =>
+                  updateWordLevels(video.id, sub.id, wordLevels).then(
+                    (updated) => {
+                      handleSubtitleSaved(updated);
+                      return updated;
+                    },
+                  )
+                }
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -271,147 +333,5 @@ function MetadataForm({
         </button>
       </div>
     </form>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Subtitle row — inline edit of text/timing + word_levels editor
-// ---------------------------------------------------------------------------
-
-function SubtitleEditRow({
-  videoId,
-  subtitle,
-  onChanged,
-}: {
-  videoId: string;
-  subtitle: Subtitle;
-  onChanged: (s: Subtitle) => void;
-}) {
-  const [textEn, setTextEn] = useState(subtitle.text_en);
-  const [textZh, setTextZh] = useState(subtitle.text_zh || "");
-  const [startTime, setStartTime] = useState(String(subtitle.start_time));
-  const [endTime, setEndTime] = useState(String(subtitle.end_time));
-  const [grammarNote, setGrammarNote] = useState(subtitle.grammar_note || "");
-  const [saving, setSaving] = useState(false);
-  const [editingLevels, setEditingLevels] = useState(false);
-
-  const dirty =
-    textEn !== subtitle.text_en ||
-    textZh !== (subtitle.text_zh || "") ||
-    startTime !== String(subtitle.start_time) ||
-    endTime !== String(subtitle.end_time) ||
-    grammarNote !== (subtitle.grammar_note || "");
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const start = parseFloat(startTime);
-      const end = parseFloat(endTime);
-      const updated = await updateSubtitle(videoId, subtitle.id, {
-        text_en: textEn,
-        text_zh: textZh || null,
-        start_time: Number.isFinite(start) ? start : undefined,
-        end_time: Number.isFinite(end) ? end : undefined,
-        grammar_note: grammarNote || null,
-      });
-      onChanged(updated);
-      // text_en may have triggered a word_levels recompute — sync local fields.
-      setTextEn(updated.text_en);
-      setTextZh(updated.text_zh || "");
-      setStartTime(String(updated.start_time));
-      setEndTime(String(updated.end_time));
-      setGrammarNote(updated.grammar_note || "");
-      toast.success("已保存");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="card-outline p-3 space-y-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>#{subtitle.sentence_index + 1}</span>
-        <span>
-          · {subtitle.start_time.toFixed(1)}s – {subtitle.end_time.toFixed(1)}s
-        </span>
-        <button
-          type="button"
-          onClick={() => setEditingLevels((v) => !v)}
-          className="btn-outline !py-0.5 !px-1.5 text-[10px] ml-auto"
-        >
-          {editingLevels ? "收起高亮" : "编辑高亮"}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <input
-          type="text"
-          value={textEn}
-          onChange={(e) => setTextEn(e.target.value)}
-          placeholder="英文"
-          className="input-field"
-        />
-        <input
-          type="text"
-          value={textZh}
-          onChange={(e) => setTextZh(e.target.value)}
-          placeholder="中文"
-          className="input-field"
-        />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <input
-          type="number"
-          step="0.1"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          placeholder="开始"
-          className="input-field"
-        />
-        <input
-          type="number"
-          step="0.1"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          placeholder="结束"
-          className="input-field"
-        />
-        <input
-          type="text"
-          value={grammarNote}
-          onChange={(e) => setGrammarNote(e.target.value)}
-          placeholder="语法点"
-          className="input-field"
-        />
-      </div>
-
-      {dirty && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary !py-1 !px-3 text-xs inline-flex items-center gap-1"
-          >
-            {saving ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Save size={12} />
-            )}
-            保存字幕
-          </button>
-        </div>
-      )}
-
-      {editingLevels && (
-        <WordLevelsEditor
-          videoId={videoId}
-          subtitle={subtitle}
-          onChanged={onChanged}
-        />
-      )}
-    </div>
   );
 }
