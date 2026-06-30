@@ -17,6 +17,7 @@ import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import type { Subtitle, VideoWithSubtitles } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -240,11 +241,10 @@ function MetadataForm({
           <label className="block text-xs font-medium text-muted-foreground mb-1">
             标题
           </label>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="input-field"
           />
         </div>
         <div>
@@ -268,23 +268,21 @@ function MetadataForm({
           <label className="block text-xs font-medium text-muted-foreground mb-1">
             标签
           </label>
-          <input
+          <Input
             type="text"
             value={topicTags}
             onChange={(e) => setTopicTags(e.target.value)}
             placeholder="逗号分隔"
-            className="input-field"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">
             备注
           </label>
-          <input
+          <Input
             type="text"
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}
-            className="input-field"
           />
         </div>
       </div>

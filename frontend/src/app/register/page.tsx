@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -91,34 +92,34 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink">昵称</label>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="input-field mt-1.5"
+              className="mt-1.5"
               placeholder="选填"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink">邮箱</label>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="input-field mt-1.5"
+              className="mt-1.5"
               placeholder="you@example.com"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink">密码</label>
-            <input
+            <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="input-field mt-1.5"
+              className="mt-1.5"
               placeholder="至少 8 位，含大小写字母、数字及特殊字符"
             />
           </div>

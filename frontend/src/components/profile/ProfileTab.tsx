@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/Input";
 import { api } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -61,12 +62,12 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             )}
           </div>
           <div className="flex-1">
-            <input
+            <Input
               type="url"
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
               placeholder="输入头像图片 URL"
-              className="input-field w-full"
+              className="w-full"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               支持任意图片链接
@@ -78,26 +79,26 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       {/* Name */}
       <div>
         <label className="block text-sm font-medium text-ink mb-2">昵称</label>
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="你的昵称"
           maxLength={100}
-          className="input-field w-full"
+          className="w-full"
         />
       </div>
 
       {/* Bio */}
       <div>
         <label className="block text-sm font-medium text-ink mb-2">简介</label>
-        <textarea
+        <Textarea
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           placeholder="介绍一下自己..."
           maxLength={300}
           rows={3}
-          className="input-field w-full resize-none"
+          className="w-full resize-none"
         />
         <p className="mt-1 text-xs text-muted-foreground text-right">
           {bio.length}/300

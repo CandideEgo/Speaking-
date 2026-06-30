@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { toast } from "sonner";
 
 function ResetPasswordForm() {
@@ -86,25 +87,25 @@ function ResetPasswordForm() {
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
         <div>
           <label className="block text-sm font-medium text-ink">新密码</label>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className="input-field mt-1.5"
+            className="mt-1.5"
             placeholder="至少 8 位，含大小写字母、数字及特殊字符"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-ink">确认密码</label>
-          <input
+          <Input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             minLength={8}
-            className="input-field mt-1.5"
+            className="mt-1.5"
             placeholder="至少 8 位，含大小写字母、数字及特殊字符"
           />
         </div>

@@ -7,6 +7,7 @@ import { Loader2, Share2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/common/Modal";
 import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Input";
 
 /**
  * Share-to-community dialog. POSTs a community post with the right post_type
@@ -109,13 +110,13 @@ export function ShareToCommunityDialog({
         将{subject}分享到社区，让同学看到你的学习。
       </p>
 
-      <textarea
+      <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         rows={3}
         autoFocus
         placeholder={`说点什么（可留空，将默认填入"分享了${subject}"）`}
-        className="input-field resize-none"
+        className="resize-none"
       />
     </Modal>
   );

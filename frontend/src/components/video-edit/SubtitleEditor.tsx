@@ -7,6 +7,7 @@ import { Loader2, Save } from "lucide-react";
 import { WordLevelsEditor } from "./WordLevelsEditor";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import type { Subtitle } from "@/types";
 import type { SubtitlePatch } from "@/lib/creatorData";
 
@@ -111,30 +112,27 @@ export function SubtitleEditor({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <input
+        <Input
           type="text"
           value={textEn}
           onChange={(e) => setTextEn(e.target.value)}
           placeholder="英文"
-          className="input-field"
         />
-        <input
+        <Input
           type="text"
           value={textZh}
           onChange={(e) => setTextZh(e.target.value)}
           placeholder="中文"
-          className="input-field"
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         <div className="flex gap-1">
-          <input
+          <Input
             type="number"
             step="0.1"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             placeholder="开始"
-            className="input-field"
           />
           {videoRef && (
             <Button
@@ -152,13 +150,12 @@ export function SubtitleEditor({
           )}
         </div>
         <div className="flex gap-1">
-          <input
+          <Input
             type="number"
             step="0.1"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             placeholder="结束"
-            className="input-field"
           />
           {videoRef && (
             <Button
@@ -175,12 +172,11 @@ export function SubtitleEditor({
             </Button>
           )}
         </div>
-        <input
+        <Input
           type="text"
           value={grammarNote}
           onChange={(e) => setGrammarNote(e.target.value)}
           placeholder="语法点"
-          className="input-field"
         />
       </div>
 

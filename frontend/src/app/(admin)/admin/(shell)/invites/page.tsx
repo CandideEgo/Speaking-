@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/admin/SectionCard";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { InviteCode } from "@/types";
 import {
   exportInviteCsv,
@@ -83,38 +84,35 @@ export default function AdminInvitesPage() {
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                 数量
               </label>
-              <input
+              <Input
                 type="number"
                 value={codeCount}
                 onChange={(e) => setCodeCount(Number(e.target.value))}
                 min={1}
                 max={500}
-                className="input-field"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                 有效期（天）
               </label>
-              <input
+              <Input
                 type="number"
                 value={codeDuration}
                 onChange={(e) => setCodeDuration(Number(e.target.value))}
                 min={1}
                 max={3650}
-                className="input-field"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                 批次标签
               </label>
-              <input
+              <Input
                 type="text"
                 value={codeLabel}
                 onChange={(e) => setCodeLabel(e.target.value)}
                 placeholder="例: batch-2026Q1"
-                className="input-field"
               />
             </div>
           </div>

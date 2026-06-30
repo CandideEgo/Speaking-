@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { User } from "@/types";
 
 interface SettingsTabProps {
@@ -71,38 +72,38 @@ function PasswordChangeForm() {
         <label className="block text-sm font-medium text-ink mb-1">
           当前密码
         </label>
-        <input
+        <Input
           type="password"
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
           required
-          className="input-field w-full max-w-md"
+          className="w-full max-w-md"
         />
       </div>
       <div>
         <label className="block text-sm font-medium text-ink mb-1">
           新密码
         </label>
-        <input
+        <Input
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           required
           minLength={8}
-          className="input-field w-full max-w-md"
+          className="w-full max-w-md"
         />
       </div>
       <div>
         <label className="block text-sm font-medium text-ink mb-1">
           确认新密码
         </label>
-        <input
+        <Input
           type="password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
           minLength={8}
-          className="input-field w-full max-w-md"
+          className="w-full max-w-md"
         />
       </div>
       <Button type="submit" disabled={saving}>

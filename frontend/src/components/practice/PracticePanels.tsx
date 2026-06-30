@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Lock, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/Input";
 import { LinkButton } from "@/components/ui/LinkButton";
 import type {
   PracticeQuestion,
@@ -445,13 +446,13 @@ function VocabBody({ session }: { session: SessionLike<VocabDrillItem> }) {
               hint={`写出英文单词：${it.translation || "（无译文）"}`}
               graded={g}
             >
-              <input
+              <Input
                 type="text"
                 placeholder="输入英文单词..."
                 value={session.answers[i] || ""}
                 onChange={(e) => session.setAnswer(i, e.target.value)}
                 disabled={locked}
-                className="input-field mt-1"
+                className="mt-1"
               />
               {!locked && (
                 <CheckButton
@@ -546,13 +547,13 @@ function PracticeBody({
         } else if (q.type === "fill_blank") {
           input = (
             <>
-              <input
+              <Input
                 type="text"
                 placeholder="输入答案..."
                 value={session.answers[i] || ""}
                 onChange={(e) => session.setAnswer(i, e.target.value)}
                 disabled={locked}
-                className="input-field mt-1"
+                className="mt-1"
               />
               {!locked && (
                 <CheckButton
@@ -566,13 +567,13 @@ function PracticeBody({
         } else {
           input = (
             <>
-              <textarea
+              <Textarea
                 placeholder="输入你的答案..."
                 value={session.answers[i] || ""}
                 onChange={(e) => session.setAnswer(i, e.target.value)}
                 disabled={locked}
                 rows={2}
-                className="input-field mt-1"
+                className="mt-1"
               />
               {!locked && (
                 <CheckButton
@@ -631,13 +632,13 @@ function QuizBody({
         } else if (q.type === "fill_blank") {
           input = (
             <>
-              <input
+              <Input
                 type="text"
                 placeholder="输入答案..."
                 value={session.answers[i] || ""}
                 onChange={(e) => session.setAnswer(i, e.target.value)}
                 disabled={locked}
-                className="input-field mt-1"
+                className="mt-1"
               />
               {!locked && (
                 <CheckButton
@@ -650,13 +651,13 @@ function QuizBody({
         } else {
           input = (
             <>
-              <textarea
+              <Textarea
                 placeholder="写出你听到的内容..."
                 value={session.answers[i] || ""}
                 onChange={(e) => session.setAnswer(i, e.target.value)}
                 disabled={locked}
                 rows={2}
-                className="input-field mt-1"
+                className="mt-1"
               />
               {!locked && (
                 <CheckButton

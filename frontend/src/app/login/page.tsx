@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -84,23 +85,23 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink">邮箱</label>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="input-field mt-1.5"
+              className="mt-1.5"
               placeholder="you@example.com"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink">密码</label>
-            <input
+            <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="input-field mt-1.5"
+              className="mt-1.5"
             />
             <div className="mt-1.5 text-right">
               <Link

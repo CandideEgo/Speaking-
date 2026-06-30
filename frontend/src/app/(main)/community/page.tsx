@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
@@ -562,7 +563,7 @@ export default function CommunityPage() {
                         <div className="mt-4 pt-4 border-t border-hairline animate-fade-in">
                           {/* Add comment */}
                           <div className="flex gap-2 mb-4">
-                            <input
+                            <Input
                               type="text"
                               value={commentDraft[post.id] || ""}
                               onChange={(e) =>
@@ -576,7 +577,7 @@ export default function CommunityPage() {
                                   handleAddComment(post.id);
                               }}
                               placeholder="写下你的评论..."
-                              className="input-field flex-1"
+                              className="flex-1"
                             />
                             <Button
                               onClick={() => handleAddComment(post.id)}

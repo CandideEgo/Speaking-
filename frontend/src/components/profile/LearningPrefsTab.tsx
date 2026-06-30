@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { api } from "@/lib/api";
 import type { UserPreferences } from "@/types";
 
@@ -99,13 +100,13 @@ export default function LearningPrefsTab({
             <label className="block text-sm font-medium text-ink mb-1">
               目标数值
             </label>
-            <input
+            <Input
               type="number"
               min={1}
               max={100}
               value={goalValue}
               onChange={(e) => setGoalValue(parseInt(e.target.value) || 1)}
-              className="input-field w-24"
+              className="w-24"
             />
           </div>
         </div>

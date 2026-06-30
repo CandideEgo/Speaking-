@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -68,12 +69,12 @@ export default function ForgotPasswordPage() {
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div>
               <label className="block text-sm font-medium text-ink">邮箱</label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="input-field mt-1.5"
+                className="mt-1.5"
                 placeholder="you@example.com"
               />
             </div>

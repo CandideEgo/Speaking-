@@ -36,6 +36,7 @@ import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
+import { Input, Textarea } from "@/components/ui/Input";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -550,18 +551,17 @@ function PracticeEditor({
                   </button>
                 )}
               </div>
-              <input
+              <Input
                 type="text"
                 value={q.question}
                 onChange={(e) =>
                   updateQuestion(i, { question: e.target.value })
                 }
                 placeholder="题干"
-                className="input-field"
                 disabled={!editable}
               />
               {q.type === "reading" && (
-                <textarea
+                <Textarea
                   value={q.passage ?? ""}
                   onChange={(e) =>
                     updateQuestion(i, {
@@ -569,14 +569,14 @@ function PracticeEditor({
                     })
                   }
                   placeholder="阅读段落（学生需阅读此段落后回答问题）"
-                  className="input-field min-h-[80px]"
+                  className="min-h-[80px]"
                   rows={3}
                   disabled={!editable}
                 />
               )}
               {q.type === "sentence_building" ? (
                 <div className="space-y-2">
-                  <input
+                  <Input
                     type="text"
                     value={q.answer}
                     onChange={(e) => {
@@ -590,7 +590,6 @@ function PracticeEditor({
                       });
                     }}
                     placeholder="输入正确句子（空格分词，系统自动生成乱序词块）"
-                    className="input-field"
                     disabled={!editable}
                   />
                   {q.tokens && q.tokens.length > 0 && (
@@ -610,14 +609,13 @@ function PracticeEditor({
                   )}
                 </div>
               ) : (
-                <input
+                <Input
                   type="text"
                   value={q.answer}
                   onChange={(e) =>
                     updateQuestion(i, { answer: e.target.value })
                   }
                   placeholder="答案"
-                  className="input-field"
                   disabled={!editable}
                 />
               )}

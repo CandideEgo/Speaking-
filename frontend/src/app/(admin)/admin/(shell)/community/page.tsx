@@ -21,6 +21,7 @@ import { DataTable } from "@/components/admin/DataTable";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type {
   AdminComment,
   AdminPost,
@@ -373,7 +374,7 @@ function PostsManager() {
       }
     >
       <div className="mb-4 flex justify-end">
-        <input
+        <Input
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
@@ -381,7 +382,7 @@ function PostsManager() {
             if (e.key === "Enter") load();
           }}
           placeholder="搜索内容/作者..."
-          className="input-field !py-1.5 max-w-xs"
+          className="!py-1.5 max-w-xs"
         />
       </div>
 

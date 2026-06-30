@@ -19,6 +19,7 @@ import { Pagination } from "@/components/admin/Pagination";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
 import {
@@ -197,7 +198,7 @@ export default function AdminUsersPage() {
           value={planFilter}
           onChange={setPlanFilter}
         />
-        <input
+        <Input
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
@@ -205,7 +206,7 @@ export default function AdminUsersPage() {
             if (e.key === "Enter") load();
           }}
           placeholder="搜索姓名/邮箱..."
-          className="input-field !py-1.5 max-w-xs ml-auto"
+          className="!py-1.5 max-w-xs ml-auto"
         />
       </div>
 
@@ -374,13 +375,13 @@ function UserDetailRow({
             <label className="block text-[11px] text-muted-foreground mb-1">
               赠送天数
             </label>
-            <input
+            <Input
               type="number"
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
               min={1}
               max={3650}
-              className="input-field !py-1.5 w-28"
+              className="!py-1.5 w-28"
             />
           </div>
           <Button onClick={() => onGrantPro(user, days)} icon={Crown} size="sm">

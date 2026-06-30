@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles, Loader2, CheckCircle2, Gift } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export default function RedeemPage() {
   const router = useRouter();
@@ -77,14 +78,14 @@ export default function RedeemPage() {
               <label className="block text-sm font-medium text-ink">
                 兑换码
               </label>
-              <input
+              <Input
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="XXXX-XXXX-XX"
                 maxLength={12}
                 required
-                className="input-field mt-1.5 text-center text-lg tracking-widest font-mono"
+                className="mt-1.5 text-center text-lg tracking-widest font-mono"
               />
             </div>
 
