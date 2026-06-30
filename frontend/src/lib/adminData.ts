@@ -170,6 +170,7 @@ export function listVideos(
     page?: number;
     page_size?: number;
     status?: string;
+    review_status?: string;
     keyword?: string;
   } = {},
 ): Promise<Paginated<VideoAdmin>> {
@@ -177,6 +178,7 @@ export function listVideos(
   if (opts.page) params.set("page", String(opts.page));
   if (opts.page_size) params.set("page_size", String(opts.page_size));
   if (opts.status) params.set("status", opts.status);
+  if (opts.review_status) params.set("review_status", opts.review_status);
   if (opts.keyword) params.set("keyword", opts.keyword);
   const qs = params.toString();
   return adminApi<Paginated<VideoAdmin>>(
@@ -239,6 +241,27 @@ export async function deleteVideo(id: string): Promise<void> {
 export async function localizeVideo(id: string): Promise<VideoAdmin> {
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/localize`, {
     method: "POST",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// UGC review (admin approve / reject) — Phase 2A
+// ---------------------------------------------------------------------------
+
+/** Approve a UGC video pending review: freezes live subtitles + practice as
+ * the public version and marks it published. */
+export function approveReview(id: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/review/approve`, {
+    method: "POST",
+  });
+}
+
+/** Reject a UGC video pending review with a reason. The public keeps the last
+ * approved snapshot (if any); the owner can edit & resubmit. */
+export function rejectReview(id: string, reason: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/review/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
 

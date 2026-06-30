@@ -46,6 +46,10 @@ export interface VideoAdmin extends Video {
   admin_notes: string | null;
   error_message: string | null;
   processing_progress: number;
+  /** UGC review audit fields (admin sees why/when a video was rejected). */
+  rejection_reason: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
 }
 
 export interface Paginated<T> {

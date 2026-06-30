@@ -13,6 +13,8 @@ import {
   Trash2,
   Video as VideoIcon,
   X,
+  Check,
+  XCircle,
 } from "lucide-react";
 
 import { mediaUrl } from "@/lib/api";
@@ -21,10 +23,12 @@ import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
 import type { VideoAdmin } from "@/types";
 import {
+  approveReview,
   deleteVideo,
   getVideoStatus,
   listVideos,
   localizeVideo,
+  rejectReview,
   seedVideo,
   seedVideoFull,
   updateVideo,
@@ -37,6 +41,21 @@ const STATUS_FILTERS = [
   { key: "ready", label: "就绪" },
   { key: "error", label: "错误" },
 ];
+
+const REVIEW_FILTERS = [
+  { key: "", label: "全部" },
+  { key: "pending_review", label: "待审核" },
+  { key: "draft", label: "草稿" },
+  { key: "published", label: "已发布" },
+  { key: "rejected", label: "已驳回" },
+];
+
+const REVIEW_BADGE: Record<string, { label: string; cls: string }> = {
+  draft: { label: "草稿", cls: "bg-surface-soft text-muted-foreground" },
+  pending_review: { label: "待审核", cls: "bg-orange-50 text-orange-700" },
+  published: { label: "已发布", cls: "bg-green-50 text-green-700" },
+  rejected: { label: "已驳回", cls: "bg-red-50 text-red-700" },
+};
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -53,6 +72,7 @@ export default function VideoManager() {
   const [videos, setVideos] = useState<VideoAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [reviewStatusFilter, setReviewStatusFilter] = useState("");
   const [keyword, setKeyword] = useState("");
   const [seedUrl, setSeedUrl] = useState("");
   const [seeding, setSeeding] = useState(false);
@@ -71,6 +91,7 @@ export default function VideoManager() {
         page: 1,
         page_size: 50,
         status: statusFilter,
+        review_status: reviewStatusFilter,
         keyword,
       });
       setVideos(data.items);
@@ -79,7 +100,7 @@ export default function VideoManager() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, keyword]);
+  }, [statusFilter, reviewStatusFilter, keyword]);
 
   useEffect(() => {
     loadVideos();
@@ -187,6 +208,40 @@ export default function VideoManager() {
     );
   }, []);
 
+  // Reject dialog state.
+  const [rejectTarget, setRejectTarget] = useState<VideoAdmin | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+
+  async function handleApprove(video: VideoAdmin) {
+    setReviewBusy(true);
+    try {
+      const updated = await approveReview(video.id);
+      patchVideo(video.id, updated);
+      toast.success("已批准并发布");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "批准失败");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  async function handleConfirmReject() {
+    if (!rejectTarget) return;
+    setReviewBusy(true);
+    try {
+      const updated = await rejectReview(rejectTarget.id, rejectReason);
+      patchVideo(rejectTarget.id, updated);
+      toast.success("已驳回");
+      setRejectTarget(null);
+      setRejectReason("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "驳回失败");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Seed form */}
@@ -255,6 +310,12 @@ export default function VideoManager() {
             options={STATUS_FILTERS}
             value={statusFilter}
             onChange={setStatusFilter}
+          />
+          <span className="text-xs text-muted-foreground">审核：</span>
+          <FilterPills
+            options={REVIEW_FILTERS}
+            value={reviewStatusFilter}
+            onChange={setReviewStatusFilter}
           />
           <input
             type="text"
@@ -350,6 +411,18 @@ export default function VideoManager() {
                             官方
                           </span>
                         )}
+                        {!v.is_official &&
+                          v.review_status &&
+                          REVIEW_BADGE[v.review_status] && (
+                            <span
+                              className={cn(
+                                "inline-flex w-fit rounded-sm px-2 py-0.5 text-[10px] font-medium",
+                                REVIEW_BADGE[v.review_status].cls,
+                              )}
+                            >
+                              {REVIEW_BADGE[v.review_status].label}
+                            </span>
+                          )}
                         {v.is_official && !v.is_published && (
                           <span className="inline-flex w-fit rounded-sm bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700">
                             待审
@@ -400,6 +473,14 @@ export default function VideoManager() {
                           onSaved={loadVideos}
                           onLocalize={handleLocalize}
                           onDelete={handleDelete}
+                          onApprove={handleApprove}
+                          onReject={(vid) => {
+                            setRejectTarget(
+                              videos.find((x) => x.id === vid) ?? null,
+                            );
+                            setRejectReason("");
+                          }}
+                          reviewBusy={reviewBusy}
                           onEditSubtitles={(id) =>
                             router.push(`/admin/videos/${id}`)
                           }
@@ -413,6 +494,53 @@ export default function VideoManager() {
           </table>
         </div>
       </div>
+
+      {/* Reject dialog */}
+      {rejectTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            if (!reviewBusy) setRejectTarget(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-canvas border border-hairline p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold">驳回视频</h3>
+            <p className="text-xs text-muted-foreground">
+              驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder="请填写驳回原因（将展示给创作者）"
+              className="input-field resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRejectTarget(null)}
+                disabled={reviewBusy}
+                className="btn-outline !py-1.5 !px-3 text-xs"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={reviewBusy || !rejectReason.trim()}
+                className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                {reviewBusy && <Loader2 size={13} className="animate-spin" />}
+                确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -427,6 +555,9 @@ interface DetailRowProps {
   onSaved: () => void;
   onLocalize: (v: VideoAdmin) => void;
   onDelete: (v: VideoAdmin) => void;
+  onApprove: (v: VideoAdmin) => void;
+  onReject: (id: string) => void;
+  reviewBusy: boolean;
   onEditSubtitles: (id: string) => void;
 }
 
@@ -437,6 +568,9 @@ function VideoDetailRow({
   onEditSubtitles,
   onLocalize,
   onDelete,
+  onApprove,
+  onReject,
+  reviewBusy,
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
   const hasLocal = Boolean(
@@ -593,6 +727,45 @@ function VideoDetailRow({
             字幕 / 高亮
           </button>
         </div>
+
+        {/* UGC review actions (pending_review only) */}
+        {video.review_status === "pending_review" && !video.is_official && (
+          <div className="rounded-sm border border-orange-200 bg-orange-50/50 p-3 space-y-2">
+            <div className="text-xs font-medium text-orange-800">
+              待审核 · 提交于{" "}
+              {video.submitted_at
+                ? new Date(video.submitted_at).toLocaleString()
+                : "未知时间"}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onApprove(video)}
+                disabled={reviewBusy}
+                className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Check size={13} />
+                批准并发布
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject(video.id)}
+                disabled={reviewBusy}
+                className="btn-outline !py-1.5 !px-3 text-xs inline-flex items-center gap-1 !text-red-600 !border-red-300"
+              >
+                <XCircle size={13} />
+                驳回
+              </button>
+            </div>
+          </div>
+        )}
+        {video.review_status === "rejected" &&
+          !video.is_official &&
+          video.rejection_reason && (
+            <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 text-xs text-red-700">
+              已驳回：{video.rejection_reason}
+            </div>
+          )}
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">
