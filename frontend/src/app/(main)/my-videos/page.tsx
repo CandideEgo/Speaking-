@@ -268,6 +268,11 @@ export default function MyVideosPage() {
                             ? v.error_message || "处理失败"
                             : ""}
                     </p>
+                    {s === "rejected" && v.rejection_reason && (
+                      <p className="text-xs text-red-500 mt-0.5 line-clamp-1">
+                        驳回原因：{v.rejection_reason}
+                      </p>
+                    )}
                   </div>
                 </Link>
               );

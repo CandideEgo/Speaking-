@@ -126,11 +126,15 @@ export function withdrawSubmission(videoId: string): Promise<Video> {
 // ---------------------------------------------------------------------------
 
 export interface PracticeQuestion {
-  type: string; // "qa" | "fill_blank"
+  type: "qa" | "fill_blank" | "reading" | "sentence_building";
   question: string;
   answer: string;
   options: string[] | null;
   cet_words: string[];
+  /** reading: comprehension passage */
+  passage?: string | null;
+  /** sentence_building: shuffled word tokens; answer = correct sentence */
+  tokens?: string[] | null;
 }
 
 export interface PracticeSet {

@@ -32,6 +32,8 @@ export interface Video {
    * (draft/pending_review/published/rejected). Official videos mirror
    * is_published here for consistency. */
   review_status: "draft" | "pending_review" | "published" | "rejected";
+  /** Admin's rejection reason — only populated for the video owner (service-layer gate). */
+  rejection_reason: string | null;
   video_url_480p: string | null;
   video_url_720p: string | null;
   video_url_1080p: string | null;
@@ -46,8 +48,7 @@ export interface VideoAdmin extends Video {
   admin_notes: string | null;
   error_message: string | null;
   processing_progress: number;
-  /** UGC review audit fields (admin sees why/when a video was rejected). */
-  rejection_reason: string | null;
+  /** UGC review audit fields (admin sees when a video was submitted/reviewed). */
   submitted_at: string | null;
   reviewed_at: string | null;
 }

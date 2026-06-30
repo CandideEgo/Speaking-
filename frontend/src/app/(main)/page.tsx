@@ -100,6 +100,7 @@ export default function HomePage() {
             is_official: true,
             is_published: true,
             review_status: "published" as const,
+            rejection_reason: null,
             video_url_480p: null,
             video_url_720p: null,
             video_url_1080p: null,

@@ -220,9 +220,7 @@ export default function MyVideoEditorPage() {
             />
             {video.review_status === "rejected" && (
               <p className="text-xs text-red mt-2">
-                驳回原因：
-                {(video as VideoWithSubtitles & { rejection_reason?: string })
-                  .rejection_reason ?? "未提供"}
+                驳回原因：{video.rejection_reason ?? "未提供"}
               </p>
             )}
           </div>
@@ -416,11 +414,22 @@ function PracticeEditor({
     );
   };
 
-  const addQuestion = () => {
-    setQuestions((prev) => [
-      ...prev,
-      { type: "qa", question: "", answer: "", options: null, cet_words: [] },
-    ]);
+  const addQuestion = (type?: PracticeQuestion["type"]) => {
+    const t = type ?? "qa";
+    const base = {
+      type: t,
+      question: "",
+      answer: "",
+      options: null,
+      cet_words: [],
+    } satisfies PracticeQuestion;
+    if (t === "reading") {
+      setQuestions((prev) => [...prev, { ...base, passage: "" }]);
+    } else if (t === "sentence_building") {
+      setQuestions((prev) => [...prev, { ...base, tokens: [], answer: "" }]);
+    } else {
+      setQuestions((prev) => [...prev, base]);
+    }
   };
 
   const removeQuestion = (i: number) => {
@@ -499,12 +508,23 @@ function PracticeEditor({
               <div className="flex items-center gap-2">
                 <select
                   value={q.type}
-                  onChange={(e) => updateQuestion(i, { type: e.target.value })}
-                  className="input-field w-28 text-xs"
+                  onChange={(e) => {
+                    const newType = e.target.value as PracticeQuestion["type"];
+                    const patch: Partial<PracticeQuestion> = {
+                      type: newType,
+                    };
+                    if (newType === "reading" && !q.passage) patch.passage = "";
+                    if (newType === "sentence_building" && !q.tokens)
+                      patch.tokens = [];
+                    updateQuestion(i, patch);
+                  }}
+                  className="input-field w-32 text-xs"
                   disabled={!editable}
                 >
                   <option value="qa">问答</option>
                   <option value="fill_blank">填空</option>
+                  <option value="reading">阅读</option>
+                  <option value="sentence_building">组句</option>
                 </select>
                 <span className="text-xs text-muted-foreground ml-auto">
                   第 {i + 1} 题
@@ -529,14 +549,67 @@ function PracticeEditor({
                 className="input-field"
                 disabled={!editable}
               />
-              <input
-                type="text"
-                value={q.answer}
-                onChange={(e) => updateQuestion(i, { answer: e.target.value })}
-                placeholder="答案"
-                className="input-field"
-                disabled={!editable}
-              />
+              {q.type === "reading" && (
+                <textarea
+                  value={q.passage ?? ""}
+                  onChange={(e) =>
+                    updateQuestion(i, {
+                      passage: e.target.value || null,
+                    })
+                  }
+                  placeholder="阅读段落（学生需阅读此段落后回答问题）"
+                  className="input-field min-h-[80px]"
+                  rows={3}
+                  disabled={!editable}
+                />
+              )}
+              {q.type === "sentence_building" ? (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={q.answer}
+                    onChange={(e) => {
+                      const sentence = e.target.value;
+                      const tokens = sentence
+                        .split(/\s+/)
+                        .filter((t) => t.length > 0);
+                      updateQuestion(i, {
+                        answer: sentence,
+                        tokens: tokens.length > 0 ? tokens : null,
+                      });
+                    }}
+                    placeholder="输入正确句子（空格分词，系统自动生成乱序词块）"
+                    className="input-field"
+                    disabled={!editable}
+                  />
+                  {q.tokens && q.tokens.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        词块预览：
+                      </span>
+                      {q.tokens.map((token, ti) => (
+                        <span
+                          key={ti}
+                          className="px-1.5 py-0.5 rounded bg-surface-soft border border-hairline text-xs"
+                        >
+                          {token}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={q.answer}
+                  onChange={(e) =>
+                    updateQuestion(i, { answer: e.target.value })
+                  }
+                  placeholder="答案"
+                  className="input-field"
+                  disabled={!editable}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -545,7 +618,7 @@ function PracticeEditor({
       {editable && (
         <div className="flex gap-2">
           <button
-            onClick={addQuestion}
+            onClick={() => addQuestion()}
             className="btn-outline inline-flex items-center gap-1 text-sm"
           >
             <Plus size={14} /> 添加题目
