@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -48,7 +49,11 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <div className="flex items-center gap-4">
           <div className="h-20 w-20 rounded-full bg-cream-card border border-hairline overflow-hidden flex items-center justify-center">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="头像" className="h-full w-full object-cover" />
+              <img
+                src={avatarUrl}
+                alt="头像"
+                className="h-full w-full object-cover"
+              />
             ) : (
               <span className="text-2xl font-display text-muted-foreground">
                 {(user.name || user.email)[0].toUpperCase()}
@@ -63,7 +68,9 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
               placeholder="输入头像图片 URL"
               className="input-field w-full"
             />
-            <p className="mt-1 text-xs text-muted-foreground">支持任意图片链接</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              支持任意图片链接
+            </p>
           </div>
         </div>
       </div>
@@ -92,12 +99,16 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
           rows={3}
           className="input-field w-full resize-none"
         />
-        <p className="mt-1 text-xs text-muted-foreground text-right">{bio.length}/300</p>
+        <p className="mt-1 text-xs text-muted-foreground text-right">
+          {bio.length}/300
+        </p>
       </div>
 
       {/* Level */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">英语等级</label>
+        <label className="block text-sm font-medium text-ink mb-2">
+          英语等级
+        </label>
         <select
           value={level}
           onChange={(e) => setLevel(e.target.value)}
@@ -123,7 +134,9 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">会员</label>
         <span
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium ${
-            isPro ? "bg-coral/10 text-coral" : "bg-cream-card text-muted-foreground"
+            isPro
+              ? "bg-coral/10 text-coral"
+              : "bg-cream-card text-muted-foreground"
           }`}
         >
           {isPro ? "Pro 会员" : "免费用户"}
@@ -137,16 +150,18 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
 
       {/* Member since */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">注册时间</label>
+        <label className="block text-sm font-medium text-ink mb-2">
+          注册时间
+        </label>
         <p className="text-sm text-muted-foreground">
           {new Date(user.created_at).toLocaleDateString("zh-CN")}
         </p>
       </div>
 
       {/* Save */}
-      <button onClick={handleSave} disabled={saving} className="btn-primary">
+      <Button onClick={handleSave} disabled={saving}>
         {saving ? "保存中..." : "保存修改"}
-      </button>
+      </Button>
     </div>
   );
 }

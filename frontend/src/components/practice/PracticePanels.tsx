@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Lock, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import type {
   PracticeQuestion,
   VocabDrillItem,
@@ -285,12 +286,9 @@ function ProUpsell({ levelLabel }: { levelLabel: string }) {
       <p className="mt-1 text-xs text-muted">
         基于本视频字幕 AI 生成 {levelLabel} 练习题，逐题判分与解析。
       </p>
-      <a
-        href="/pricing"
-        className="btn-primary !py-1.5 !text-xs mt-3 inline-block"
-      >
+      <LinkButton href="/pricing" variant="primary" size="sm" className="mt-3">
         升级 Pro
-      </a>
+      </LinkButton>
     </div>
   );
 }
@@ -366,15 +364,17 @@ export function UnifiedPracticePanel({
                   : ""}
             </span>
           )}
-          <button
+          <Button
             type="button"
             onClick={active.reset}
             disabled={active.answeredCount === 0}
             title="收拾重做"
-            className="btn-ghost !p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            variant="ghost"
+            size="icon"
+            className="!w-auto !h-auto !p-1.5"
           >
             <RotateCcw size={15} />
-          </button>
+          </Button>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import {
 import { mediaUrl } from "@/lib/api";
 import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
+import { Button } from "@/components/ui/Button";
 import type { Subtitle, VideoWithSubtitles } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -95,13 +96,14 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <button
+        <Button
           onClick={() => router.push("/admin/videos")}
-          className="btn-outline !py-1 !px-2 text-xs inline-flex items-center gap-1"
+          variant="outline"
+          size="compact"
+          icon={ArrowLeft}
         >
-          <ArrowLeft size={12} />
           返回列表
-        </button>
+        </Button>
         <h1 className="text-lg font-semibold truncate">{video.title}</h1>
         <VideoStatusBadge status={video.status} />
       </div>
@@ -136,14 +138,15 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">字幕编辑</h2>
-            <button
+            <Button
               onClick={handleRecomputeAll}
-              className="btn-secondary !py-1 !px-2 text-xs inline-flex items-center gap-1"
+              variant="secondary"
+              size="compact"
+              icon={RefreshCw}
               title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
             >
-              <RefreshCw size={12} />
               重算全部高亮
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-3">
@@ -319,18 +322,14 @@ function MetadataForm({
       </div>
 
       <div className="flex justify-end">
-        <button
+        <Button
           type="submit"
           disabled={saving}
-          className="btn-primary !py-2 !px-4 text-xs inline-flex items-center gap-1"
+          size="sm"
+          icon={saving ? Loader2 : Save}
         >
-          {saving ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Save size={12} />
-          )}
           保存元数据
-        </button>
+        </Button>
       </div>
     </form>
   );

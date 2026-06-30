@@ -1,3 +1,8 @@
+"use client";
+
+import { ArrowRight } from "lucide-react";
+import { LinkButton } from "@/components/ui/LinkButton";
+
 export function HeroSection() {
   return (
     <section className="pt-32 pb-20 lg:pt-24 lg:pb-20">
@@ -19,36 +24,35 @@ export function HeroSection() {
               自动生成双语字幕、口语评测和理解测验。看真实的人怎么说话，然后开口说。
             </p>
             <div className="flex gap-3 flex-wrap">
-              <a href="/register" className="btn-primary !py-3 !px-6">
+              <LinkButton
+                href="/register"
+                size="lg"
+                icon={ArrowRight}
+                iconRight
+              >
                 进入应用
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </a>
-              <a href="/browse" className="btn-outline !py-3 !px-6">
+              </LinkButton>
+              <LinkButton href="/browse" variant="outline" size="lg">
                 浏览视频内容
-              </a>
+              </LinkButton>
             </div>
             <div className="flex gap-9 mt-12 pt-7 border-t border-hairline">
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">12,400+</div>
+                <div className="text-[28px] font-extrabold tracking-display-md">
+                  12,400+
+                </div>
                 <div className="text-[13px] text-muted mt-0.5">精选视频</div>
               </div>
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">98%</div>
+                <div className="text-[28px] font-extrabold tracking-display-md">
+                  98%
+                </div>
                 <div className="text-[13px] text-muted mt-0.5">字幕准确率</div>
               </div>
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">4.9 ★</div>
+                <div className="text-[28px] font-extrabold tracking-display-md">
+                  4.9 ★
+                </div>
                 <div className="text-[13px] text-muted mt-0.5">用户评分</div>
               </div>
             </div>
@@ -67,7 +71,13 @@ export function HeroSection() {
               />
               {/* Play button */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[66px] h-[66px] rounded-full bg-white/96 flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="#0a0a0a" stroke="none">
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="#0a0a0a"
+                  stroke="none"
+                >
                   <path d="M6 4l14 8-14 8V4Z" />
                 </svg>
               </div>

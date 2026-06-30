@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
+import { Button } from "@/components/ui/Button";
 import type { User } from "@/types";
 
 interface SettingsTabProps {
@@ -63,9 +64,13 @@ function PasswordChangeForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">修改密码</h3>
+      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
+        修改密码
+      </h3>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">当前密码</label>
+        <label className="block text-sm font-medium text-ink mb-1">
+          当前密码
+        </label>
         <input
           type="password"
           value={currentPassword}
@@ -75,7 +80,9 @@ function PasswordChangeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">新密码</label>
+        <label className="block text-sm font-medium text-ink mb-1">
+          新密码
+        </label>
         <input
           type="password"
           value={newPassword}
@@ -86,7 +93,9 @@ function PasswordChangeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">确认新密码</label>
+        <label className="block text-sm font-medium text-ink mb-1">
+          确认新密码
+        </label>
         <input
           type="password"
           value={confirmPassword}
@@ -96,9 +105,9 @@ function PasswordChangeForm() {
           className="input-field w-full max-w-md"
         />
       </div>
-      <button type="submit" disabled={saving} className="btn-primary">
+      <Button type="submit" disabled={saving}>
         {saving ? "修改中..." : "修改密码"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -138,7 +147,9 @@ function TimezoneSection({ user }: { user: User }) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">时区</h3>
+      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
+        时区
+      </h3>
       <select
         value={timezone}
         onChange={(e) => setTimezone(e.target.value)}
@@ -150,10 +161,12 @@ function TimezoneSection({ user }: { user: User }) {
           </option>
         ))}
       </select>
-      <p className="text-xs text-muted-foreground">影响每日活动统计的时间划分</p>
-      <button onClick={handleSave} disabled={saving} className="btn-primary">
+      <p className="text-xs text-muted-foreground">
+        影响每日活动统计的时间划分
+      </p>
+      <Button onClick={handleSave} disabled={saving}>
         {saving ? "保存中..." : "保存时区"}
-      </button>
+      </Button>
     </div>
   );
 }

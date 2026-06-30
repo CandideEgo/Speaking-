@@ -1,10 +1,7 @@
-import Link from "next/link";
-import { ShoppingBag, Gift, ArrowLeft } from "lucide-react";
-import type { Metadata } from "next";
+"use client";
 
-export const metadata: Metadata = {
-  title: "开通会员 — Speaking",
-};
+import { ShoppingBag, Gift, ArrowLeft } from "lucide-react";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 export default function CheckoutPage() {
   return (
@@ -23,23 +20,27 @@ export default function CheckoutPage() {
         </p>
 
         <div className="mt-6 flex flex-col gap-2.5">
-          <Link href="/upgrade" className="btn-primary justify-center">
-            <ShoppingBag size={16} />
+          <LinkButton href="/upgrade" icon={ShoppingBag} fullWidth>
             前往微信小商店
-          </Link>
-          <Link href="/redeem" className="btn-secondary-dark justify-center">
-            <Gift size={16} />
+          </LinkButton>
+          <LinkButton
+            href="/redeem"
+            variant="secondaryDark"
+            icon={Gift}
+            fullWidth
+          >
             使用兑换码激活
-          </Link>
+          </LinkButton>
         </div>
 
-        <Link
+        <LinkButton
           href="/pricing"
-          className="mt-6 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+          variant="text"
+          icon={ArrowLeft}
+          className="mt-6"
         >
-          <ArrowLeft size={14} />
           返回定价页
-        </Link>
+        </LinkButton>
       </div>
     </main>
   );

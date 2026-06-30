@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ShoppingBag, Gift, ShieldCheck, ArrowLeft } from "lucide-react";
 import { siteConfig } from "@/lib/siteConfig";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 export default function UpgradePage() {
   const { miniStoreUrl } = siteConfig;
@@ -58,13 +59,14 @@ export default function UpgradePage() {
 
           {/* 兑换码入口 */}
           <div className="mt-3.5">
-            <Link
+            <LinkButton
               href="/redeem"
-              className="btn-secondary-dark w-full justify-center"
+              variant="secondaryDark"
+              icon={Gift}
+              fullWidth
             >
-              <Gift size={16} />
               已购买？使用兑换码激活
-            </Link>
+            </LinkButton>
           </div>
 
           <div className="mt-5 flex items-center justify-center gap-3 text-xs text-muted-soft">

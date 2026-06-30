@@ -1,4 +1,7 @@
-import Link from "next/link";
+"use client";
+
+import { ArrowRight } from "lucide-react";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 export function FinalCTA() {
   return (
@@ -21,27 +24,18 @@ export function FinalCTA() {
               免费注册，无需信用卡。12,400+ 精选视频等着你。
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <Link href="/register" className="btn-primary !py-3 !px-7">
-                免费试用
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </Link>
-              <Link
-                href="/browse"
-                className="inline-flex items-center gap-2 rounded-sm px-7 py-3 text-sm font-semibold bg-white/10 text-on-dark border border-white/20 hover:bg-white/20 transition-colors duration-150"
+              <LinkButton
+                href="/register"
+                variant="dark"
+                size="lg"
+                icon={ArrowRight}
+                iconRight
               >
+                免费试用
+              </LinkButton>
+              <LinkButton href="/browse" variant="ghostDark" size="lg">
                 浏览视频内容
-              </Link>
+              </LinkButton>
             </div>
           </div>
         </div>

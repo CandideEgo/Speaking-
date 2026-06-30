@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { formatDuration } from "@/lib/format";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -38,7 +39,9 @@ export default function BrowsePage() {
         <div className="page-head">
           <div className="page-crumb">发现</div>
           <h1 className="page-title">浏览视频</h1>
-          <p className="page-desc">探索精选英语学习内容,按分类和难度筛选。点击任意视频开始学习。</p>
+          <p className="page-desc">
+            探索精选英语学习内容,按分类和难度筛选。点击任意视频开始学习。
+          </p>
         </div>
 
         {/* Sticky filter bar */}
@@ -75,9 +78,9 @@ export default function BrowsePage() {
         {error && (
           <div className="text-center py-8">
             <p className="text-sm text-red-500 mb-2">{error}</p>
-            <button onClick={retry} className="btn-outline">
+            <Button onClick={retry} variant="outline">
               重试
-            </button>
+            </Button>
           </div>
         )}
 
@@ -104,11 +107,21 @@ export default function BrowsePage() {
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <span className="thumb-lv">{video.difficulty_level || "B1"}</span>
-                  <span className="thumb-dur">{formatDuration(video.duration)}</span>
+                  <span className="thumb-lv">
+                    {video.difficulty_level || "B1"}
+                  </span>
+                  <span className="thumb-dur">
+                    {formatDuration(video.duration)}
+                  </span>
                   <div className="thumb-play">
                     <div className="thumb-play-btn">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="#fff"
+                        stroke="none"
+                      >
                         <path d="M6 4l14 8-14 8V4Z" />
                       </svg>
                     </div>
@@ -119,7 +132,9 @@ export default function BrowsePage() {
                   <div className="vfoot">
                     <span>{video.channel_title || "Speaking"}</span>
                     <span className="vdot" />
-                    <span className="chip">{video.topic_tags?.split(",")[0] || "综合"}</span>
+                    <span className="chip">
+                      {video.topic_tags?.split(",")[0] || "综合"}
+                    </span>
                   </div>
                 </div>
               </Link>
@@ -145,7 +160,9 @@ export default function BrowsePage() {
         {/* Empty state */}
         {!loading && videos.length === 0 && !error && (
           <div className="text-center py-16">
-            <p className="text-sm text-muted">该分类下暂无视频,请尝试其他筛选条件</p>
+            <p className="text-sm text-muted">
+              该分类下暂无视频,请尝试其他筛选条件
+            </p>
           </div>
         )}
 
@@ -155,8 +172,9 @@ export default function BrowsePage() {
             <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
           )}
           {!loading && hasMore && videos.length > 0 && (
-            <button
-              className="btn-outline mx-auto block"
+            <Button
+              variant="outline"
+              className="mx-auto block"
               onClick={() => {
                 const el = loaderRef.current;
                 if (el) {
@@ -165,9 +183,11 @@ export default function BrowsePage() {
               }}
             >
               加载更多
-            </button>
+            </Button>
           )}
-          {!hasMore && videos.length > 0 && <p className="text-sm text-muted">已加载全部内容</p>}
+          {!hasMore && videos.length > 0 && (
+            <p className="text-sm text-muted">已加载全部内容</p>
+          )}
         </div>
       </main>
     </PageTransition>

@@ -6,8 +6,18 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2, Heart, MessageCircle, Share2, Send } from "lucide-react";
+import {
+  Loader2,
+  Heart,
+  MessageCircle,
+  Share2,
+  Send,
+  Bookmark,
+  Play,
+} from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
 
@@ -54,6 +64,17 @@ interface Comment {
   replies: Comment[];
 }
 
+interface CommunityVideo {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  duration: number | null;
+  difficulty_level: string | null;
+  like_count: number;
+  favorite_count: number;
+  user?: PostUser | null;
+}
+
 // --- Helpers ---
 
 function timeAgo(dateStr: string): string {
@@ -98,6 +119,7 @@ const TABS = [
   { key: "feed", label: "Feed" },
   { key: "following", label: "Following" },
   { key: "trending", label: "Trending" },
+  { key: "videos", label: "视频" },
 ];
 
 // --- Page ---
@@ -110,6 +132,7 @@ export default function CommunityPage() {
 
   const [activeTab, setActiveTab] = useState("feed");
   const [posts, setPosts] = useState<Post[]>([]);
+  const [communityVideos, setCommunityVideos] = useState<CommunityVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState("");
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -127,7 +150,11 @@ export default function CommunityPage() {
       router.push("/login");
       return;
     }
-    loadPosts();
+    if (activeTab === "videos") {
+      loadCommunityVideos();
+    } else {
+      loadPosts();
+    }
   }, [activeTab, isLoading, isAuthenticated]);
 
   async function loadPosts() {
@@ -144,6 +171,38 @@ export default function CommunityPage() {
       setPosts([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadCommunityVideos() {
+    setLoading(true);
+    try {
+      const data = await api<CommunityVideo[]>("/api/v1/community/videos");
+      setCommunityVideos(data);
+    } catch {
+      setCommunityVideos([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVideoLike(videoId: string) {
+    try {
+      const res = await toggleVideoLike(videoId);
+      setCommunityVideos((prev) =>
+        prev.map((v) =>
+          v.id === videoId
+            ? {
+                ...v,
+                like_count: res.liked
+                  ? v.like_count + 1
+                  : Math.max(0, v.like_count - 1),
+              }
+            : v,
+        ),
+      );
+    } catch {
+      toast.error("操作失败");
     }
   }
 
@@ -283,267 +342,337 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        {/* 2-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
-          {/* Posts column */}
+        {/* Videos tab content */}
+        {activeTab === "videos" && (
           <div>
-            {/* Create post */}
-            <div className="create-post">
-              <div className="flex gap-3 items-center">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-[13px] flex items-center justify-center flex-shrink-0">
-                  {currentUserInitial}
-                </div>
-                <textarea
-                  placeholder="分享你的学习心得..."
-                  value={newPost}
-                  onChange={(e) => setNewPost(e.target.value)}
-                  className="flex-1 border-0 bg-surface-soft rounded-lg px-3.5 py-2.5 text-sm font-sans resize-none h-[42px] text-ink focus:bg-canvas focus:shadow-[0_0_0_2px_rgba(10,10,10,0.06)] focus:outline-none transition-colors"
-                />
-              </div>
-              <div className="flex justify-between items-center mt-3">
-                <span className="text-xs text-muted-soft">
-                  支持添加视频和图片
-                </span>
-                <button
-                  onClick={handleCreatePost}
-                  className="btn-primary !py-[7px] !px-3.5 !text-[13px]"
-                >
-                  发布
-                </button>
-              </div>
-            </div>
-
-            {/* Posts list */}
             {loading ? (
-              <div className="flex justify-center py-12">
+              <div className="flex justify-center py-20">
                 <Loader2 size={24} className="animate-spin text-brand-500" />
               </div>
-            ) : posts.length === 0 ? (
+            ) : communityVideos.length === 0 ? (
               <div className="py-20 text-center">
-                <p className="text-muted">还没有帖子，来发布第一条吧！</p>
+                <Play size={48} className="mx-auto text-muted" />
+                <p className="mt-4 text-muted">暂无社区视频</p>
               </div>
             ) : (
-              posts.map((post) => {
-                const tag = POST_TYPE_TAGS[post.post_type];
-                return (
-                  <div key={post.id} className="post-card">
-                    {/* Author header */}
-                    <div className="flex items-center gap-2.5 mb-3">
-                      {post.user.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {communityVideos.map((v) => (
+                  <Link
+                    key={v.id}
+                    href={`/watch/${v.id}`}
+                    className="block bg-canvas border border-hairline rounded-lg overflow-hidden hover:border-ink hover:shadow-soft transition-all duration-150"
+                  >
+                    <div className="relative aspect-video bg-surface-card">
+                      {v.thumbnail_url ? (
                         <img
-                          src={post.user.avatar_url}
-                          alt={post.user.name ?? "用户"}
-                          className="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"
+                          src={v.thumbnail_url}
+                          alt=""
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div
-                          className={cn(
-                            "w-[38px] h-[38px] rounded-full flex items-center justify-center font-bold text-[14px] text-on-primary flex-shrink-0",
-                            avatarColor(post.user.id),
-                          )}
-                        >
-                          {userInitial(post.user)}
+                        <div className="flex items-center justify-center h-full">
+                          <Play size={24} className="text-muted" />
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold">
-                          {post.user.name ?? "用户"}
-                        </div>
-                        <div className="text-xs text-muted">
-                          {timeAgo(post.created_at)}
-                        </div>
-                      </div>
-                      {tag && (
-                        <span
-                          className={cn(
-                            "text-[11px] font-bold px-2.5 py-1 rounded-pill",
-                            tag.color,
-                          )}
-                        >
-                          {tag.label}
+                      {v.difficulty_level && (
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-black/55 text-white">
+                          {v.difficulty_level}
                         </span>
                       )}
                     </div>
-
-                    {/* Content */}
-                    <p className="text-sm text-body leading-relaxed mb-3.5">
-                      {post.content}
-                    </p>
-
-                    {/* Video preview */}
-                    {post.video && (
-                      <Link
-                        href={`/watch/${post.video.id}`}
-                        className="flex gap-3 items-center bg-surface-soft border border-hairline rounded-lg px-3 py-3 mb-3.5 hover:bg-canvas hover:border-ink transition-colors"
-                      >
-                        <div className="w-[84px] h-[48px] rounded-lg bg-ink flex-shrink-0 relative overflow-hidden">
-                          <div
-                            className="absolute inset-0"
-                            style={{
-                              background:
-                                "radial-gradient(80% 80% at 60% 40%, rgba(255,90,31,0.4), transparent)",
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <div className="text-[13px] font-semibold leading-snug">
-                            {post.video.title || "视频"}
-                          </div>
-                          <div className="text-[11px] text-muted mt-[3px]">
-                            {post.video.difficulty_level || "B2"}
-                          </div>
-                        </div>
-                      </Link>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex gap-[18px]">
-                      <button
-                        onClick={() => handleLike(post.id)}
-                        className={cn(
-                          "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
-                          post.is_liked
-                            ? "text-brand-500"
-                            : "text-muted hover:text-ink",
-                        )}
-                      >
-                        <Heart
-                          size={16}
-                          className={post.is_liked ? "fill-brand-500" : ""}
-                        />
-                        {post.like_count}
-                      </button>
-                      <button
-                        onClick={() => toggleComments(post.id)}
-                        className={cn(
-                          "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
-                          expandedPostId === post.id
-                            ? "text-brand-500"
-                            : "text-muted hover:text-ink",
-                        )}
-                      >
-                        <MessageCircle size={16} />
-                        {post.comment_count}
-                      </button>
-                      <button
-                        onClick={() => handleSharePost(post)}
-                        className="flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink cursor-pointer transition-colors"
-                      >
-                        <Share2 size={16} />
-                        分享
-                      </button>
-                    </div>
-
-                    {/* Comments section */}
-                    {expandedPostId === post.id && (
-                      <div className="mt-4 pt-4 border-t border-hairline animate-fade-in">
-                        {/* Add comment */}
-                        <div className="flex gap-2 mb-4">
-                          <input
-                            type="text"
-                            value={commentDraft[post.id] || ""}
-                            onChange={(e) =>
-                              setCommentDraft((prev) => ({
-                                ...prev,
-                                [post.id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleAddComment(post.id);
-                            }}
-                            placeholder="写下你的评论..."
-                            className="input-field flex-1"
-                          />
-                          <button
-                            onClick={() => handleAddComment(post.id)}
-                            disabled={!commentDraft[post.id]?.trim()}
-                            className="btn-primary !px-3 disabled:opacity-50"
-                          >
-                            <Send size={16} />
-                          </button>
-                        </div>
-
-                        {/* Comments list */}
-                        {commentLoading[post.id] ? (
-                          <div className="flex justify-center py-4">
-                            <Loader2
-                              size={20}
-                              className="animate-spin text-brand-500"
-                            />
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {(commentsByPost[post.id] || []).length === 0 ? (
-                              <p className="text-xs text-muted text-center py-2">
-                                暂无评论，来抢沙发吧
-                              </p>
-                            ) : (
-                              (commentsByPost[post.id] || []).map((comment) => (
-                                <div key={comment.id} className="flex gap-2.5">
-                                  <div className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-[11px] font-bold text-muted flex-shrink-0">
-                                    {(
-                                      comment.user?.name?.[0] || "U"
-                                    ).toUpperCase()}
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-semibold">
-                                        {comment.user?.name || "用户"}
-                                      </span>
-                                      <span className="text-[11px] text-muted-soft">
-                                        {timeAgo(comment.created_at)}
-                                      </span>
-                                    </div>
-                                    <p className="text-[13px] text-body leading-relaxed mt-0.5">
-                                      {comment.content}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
+                    <div className="p-3">
+                      <p className="text-sm font-semibold text-ink truncate">
+                        {v.title}
+                      </p>
+                      {v.user && (
+                        <p className="text-xs text-muted mt-1 truncate">
+                          {v.user.name}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted">
+                        <span className="inline-flex items-center gap-0.5">
+                          <Heart size={12} />
+                          {v.like_count}
+                        </span>
+                        <span className="inline-flex items-center gap-0.5">
+                          <Bookmark size={12} />
+                          {v.favorite_count}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                );
-              })
+                    </div>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="side-panel hidden lg:block">
-            <div className="side-card">
-              <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
-                社区指南
-              </h4>
-              <ul className="space-y-2 text-[13px] text-muted">
-                <li className="flex items-start gap-2">
-                  <span className="text-brand-500">·</span>
-                  <span>分享学习心得、口语技巧或好视频</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-brand-500">·</span>
-                  <span>给感兴趣的帖子点赞、评论</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-brand-500">·</span>
-                  <span>友善交流，共同进步</span>
-                </li>
-              </ul>
+        {/* 2-column layout (non-videos tabs) */}
+        {activeTab !== "videos" && (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+            {/* Posts column */}
+            <div>
+              {/* Create post */}
+              <div className="create-post">
+                <div className="flex gap-3 items-center">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-[13px] flex items-center justify-center flex-shrink-0">
+                    {currentUserInitial}
+                  </div>
+                  <textarea
+                    placeholder="分享你的学习心得..."
+                    value={newPost}
+                    onChange={(e) => setNewPost(e.target.value)}
+                    className="flex-1 border-0 bg-surface-soft rounded-lg px-3.5 py-2.5 text-sm font-sans resize-none h-[42px] text-ink focus:bg-canvas focus:shadow-[0_0_0_2px_rgba(10,10,10,0.06)] focus:outline-none transition-colors"
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-3">
+                  <span className="text-xs text-muted-soft">
+                    支持添加视频和图片
+                  </span>
+                  <Button onClick={handleCreatePost} size="sm">
+                    发布
+                  </Button>
+                </div>
+              </div>
+
+              {/* Posts list */}
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 size={24} className="animate-spin text-brand-500" />
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="py-20 text-center">
+                  <p className="text-muted">还没有帖子，来发布第一条吧！</p>
+                </div>
+              ) : (
+                posts.map((post) => {
+                  const tag = POST_TYPE_TAGS[post.post_type];
+                  return (
+                    <div key={post.id} className="post-card">
+                      {/* Author header */}
+                      <div className="flex items-center gap-2.5 mb-3">
+                        {post.user.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={post.user.avatar_url}
+                            alt={post.user.name ?? "用户"}
+                            className="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              "w-[38px] h-[38px] rounded-full flex items-center justify-center font-bold text-[14px] text-on-primary flex-shrink-0",
+                              avatarColor(post.user.id),
+                            )}
+                          >
+                            {userInitial(post.user)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold">
+                            {post.user.name ?? "用户"}
+                          </div>
+                          <div className="text-xs text-muted">
+                            {timeAgo(post.created_at)}
+                          </div>
+                        </div>
+                        {tag && (
+                          <span
+                            className={cn(
+                              "text-[11px] font-bold px-2.5 py-1 rounded-pill",
+                              tag.color,
+                            )}
+                          >
+                            {tag.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <p className="text-sm text-body leading-relaxed mb-3.5">
+                        {post.content}
+                      </p>
+
+                      {/* Video preview */}
+                      {post.video && (
+                        <Link
+                          href={`/watch/${post.video.id}`}
+                          className="flex gap-3 items-center bg-surface-soft border border-hairline rounded-lg px-3 py-3 mb-3.5 hover:bg-canvas hover:border-ink transition-colors"
+                        >
+                          <div className="w-[84px] h-[48px] rounded-lg bg-ink flex-shrink-0 relative overflow-hidden">
+                            <div
+                              className="absolute inset-0"
+                              style={{
+                                background:
+                                  "radial-gradient(80% 80% at 60% 40%, rgba(255,90,31,0.4), transparent)",
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-semibold leading-snug">
+                              {post.video.title || "视频"}
+                            </div>
+                            <div className="text-[11px] text-muted mt-[3px]">
+                              {post.video.difficulty_level || "B2"}
+                            </div>
+                          </div>
+                        </Link>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-[18px]">
+                        <button
+                          onClick={() => handleLike(post.id)}
+                          className={cn(
+                            "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
+                            post.is_liked
+                              ? "text-brand-500"
+                              : "text-muted hover:text-ink",
+                          )}
+                        >
+                          <Heart
+                            size={16}
+                            className={post.is_liked ? "fill-brand-500" : ""}
+                          />
+                          {post.like_count}
+                        </button>
+                        <button
+                          onClick={() => toggleComments(post.id)}
+                          className={cn(
+                            "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
+                            expandedPostId === post.id
+                              ? "text-brand-500"
+                              : "text-muted hover:text-ink",
+                          )}
+                        >
+                          <MessageCircle size={16} />
+                          {post.comment_count}
+                        </button>
+                        <button
+                          onClick={() => handleSharePost(post)}
+                          className="flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink cursor-pointer transition-colors"
+                        >
+                          <Share2 size={16} />
+                          分享
+                        </button>
+                      </div>
+
+                      {/* Comments section */}
+                      {expandedPostId === post.id && (
+                        <div className="mt-4 pt-4 border-t border-hairline animate-fade-in">
+                          {/* Add comment */}
+                          <div className="flex gap-2 mb-4">
+                            <input
+                              type="text"
+                              value={commentDraft[post.id] || ""}
+                              onChange={(e) =>
+                                setCommentDraft((prev) => ({
+                                  ...prev,
+                                  [post.id]: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter")
+                                  handleAddComment(post.id);
+                              }}
+                              placeholder="写下你的评论..."
+                              className="input-field flex-1"
+                            />
+                            <Button
+                              onClick={() => handleAddComment(post.id)}
+                              disabled={!commentDraft[post.id]?.trim()}
+                              size="sm"
+                              icon={Send}
+                              className="disabled:opacity-50"
+                            />
+                          </div>
+
+                          {/* Comments list */}
+                          {commentLoading[post.id] ? (
+                            <div className="flex justify-center py-4">
+                              <Loader2
+                                size={20}
+                                className="animate-spin text-brand-500"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {(commentsByPost[post.id] || []).length === 0 ? (
+                                <p className="text-xs text-muted text-center py-2">
+                                  暂无评论，来抢沙发吧
+                                </p>
+                              ) : (
+                                (commentsByPost[post.id] || []).map(
+                                  (comment) => (
+                                    <div
+                                      key={comment.id}
+                                      className="flex gap-2.5"
+                                    >
+                                      <div className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-[11px] font-bold text-muted flex-shrink-0">
+                                        {(
+                                          comment.user?.name?.[0] || "U"
+                                        ).toUpperCase()}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-semibold">
+                                            {comment.user?.name || "用户"}
+                                          </span>
+                                          <span className="text-[11px] text-muted-soft">
+                                            {timeAgo(comment.created_at)}
+                                          </span>
+                                        </div>
+                                        <p className="text-[13px] text-body leading-relaxed mt-0.5">
+                                          {comment.content}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ),
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
 
-            <div className="side-card">
-              <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
-                热门话题
-              </h4>
-              <p className="text-[13px] text-muted">
-                话题榜即将上线，敬请期待。
-              </p>
+            {/* Sidebar */}
+            <div className="side-panel hidden lg:block">
+              <div className="side-card">
+                <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
+                  社区指南
+                </h4>
+                <ul className="space-y-2 text-[13px] text-muted">
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-500">·</span>
+                    <span>分享学习心得、口语技巧或好视频</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-500">·</span>
+                    <span>给感兴趣的帖子点赞、评论</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-500">·</span>
+                    <span>友善交流，共同进步</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="side-card">
+                <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
+                  热门话题
+                </h4>
+                <p className="text-[13px] text-muted">
+                  话题榜即将上线，敬请期待。
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );

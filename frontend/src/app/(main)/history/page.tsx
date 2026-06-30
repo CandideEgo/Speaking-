@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/common/Icons";
+import { Button } from "@/components/ui/Button";
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "@/components/common/Icons";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import type { ActivityCalendar, LearningRecord } from "@/types";
 
@@ -20,7 +25,8 @@ export default function HistoryPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const [activityCalendar, setActivityCalendar] = useState<ActivityCalendar | null>(null);
+  const [activityCalendar, setActivityCalendar] =
+    useState<ActivityCalendar | null>(null);
   const [records, setRecords] = useState<LearningRecord[]>([]);
   const [recordsPage, setRecordsPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -38,7 +44,7 @@ export default function HistoryPage() {
     (async () => {
       try {
         const data = await api<ActivityCalendar>(
-          `/api/v1/users/me/activity?year=${year}&month=${month}`
+          `/api/v1/users/me/activity?year=${year}&month=${month}`,
         );
         setActivityCalendar(data);
       } catch {
@@ -53,7 +59,7 @@ export default function HistoryPage() {
       setLoading(true);
       try {
         const data = await api<{ records: LearningRecord[]; total: number }>(
-          `/api/v1/learning/records?page=${recordsPage}&page_size=20`
+          `/api/v1/learning/records?page=${recordsPage}&page_size=20`,
         );
         setRecords(data.records);
         setHasMore(data.total > recordsPage * 20);
@@ -106,7 +112,9 @@ export default function HistoryPage() {
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
             <CalendarIcon className="h-[18px] w-[18px]" />
-            <span className="text-xs font-semibold tracking-caption-wide uppercase">学习历史</span>
+            <span className="text-xs font-semibold tracking-caption-wide uppercase">
+              学习历史
+            </span>
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">
             学习记录
@@ -140,7 +148,11 @@ export default function HistoryPage() {
             </div>
           </div>
           {activityCalendar ? (
-            <ActivityHeatmap activities={activityCalendar.activities} year={year} month={month} />
+            <ActivityHeatmap
+              activities={activityCalendar.activities}
+              year={year}
+              month={month}
+            />
           ) : (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coral" />
@@ -197,7 +209,9 @@ export default function HistoryPage() {
                       {record.quiz_score !== null && (
                         <span>测验 {Math.round(record.quiz_score)} 分</span>
                       )}
-                      {record.completed && <span className="text-green-600">✓ 已完成</span>}
+                      {record.completed && (
+                        <span className="text-green-600">✓ 已完成</span>
+                      )}
                     </div>
                   </div>
 
@@ -207,7 +221,9 @@ export default function HistoryPage() {
                       <div className="h-1.5 rounded-full bg-cream-card">
                         <div
                           className="h-full rounded-full bg-coral transition-all"
-                          style={{ width: `${Math.min(record.progress_percentage, 100)}%` }}
+                          style={{
+                            width: `${Math.min(record.progress_percentage, 100)}%`,
+                          }}
                         />
                       </div>
                     </div>
@@ -221,20 +237,22 @@ export default function HistoryPage() {
               {/* Pagination */}
               <div className="flex justify-center gap-3 pt-4">
                 {recordsPage > 1 && (
-                  <button
+                  <Button
                     onClick={() => setRecordsPage(recordsPage - 1)}
-                    className="btn-secondary text-sm"
+                    variant="secondary"
+                    size="sm"
                   >
                     上一页
-                  </button>
+                  </Button>
                 )}
                 {hasMore && (
-                  <button
+                  <Button
                     onClick={() => setRecordsPage(recordsPage + 1)}
-                    className="btn-secondary text-sm"
+                    variant="secondary"
+                    size="sm"
                   >
                     下一页
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

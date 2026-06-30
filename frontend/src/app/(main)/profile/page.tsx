@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { UserIcon, SettingsIcon, BookOpenIcon } from "@/components/common/Icons";
+import { Button } from "@/components/ui/Button";
+import {
+  UserIcon,
+  SettingsIcon,
+  BookOpenIcon,
+} from "@/components/common/Icons";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import LearningPrefsTab from "@/components/profile/LearningPrefsTab";
@@ -76,9 +81,7 @@ export default function ProfilePage() {
       <main className="flex min-h-screen items-center justify-center bg-canvas">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">加载账户信息失败</p>
-          <button onClick={() => window.location.reload()} className="btn-primary">
-            重试
-          </button>
+          <Button onClick={() => window.location.reload()}>重试</Button>
         </div>
       </main>
     );
@@ -91,7 +94,9 @@ export default function ProfilePage() {
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
             <UserIcon className="h-[18px] w-[18px]" />
-            <span className="text-xs font-semibold tracking-caption-wide uppercase">个人设置</span>
+            <span className="text-xs font-semibold tracking-caption-wide uppercase">
+              个人设置
+            </span>
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">
             账户管理
@@ -119,10 +124,15 @@ export default function ProfilePage() {
         </div>
 
         {/* Tab content */}
-        {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
+        {activeTab === "profile" && (
+          <ProfileTab user={user} onUpdate={setUser} />
+        )}
         {activeTab === "settings" && <SettingsTab user={user} />}
         {activeTab === "learning" && (
-          <LearningPrefsTab preferences={preferences} onUpdate={setPreferences} />
+          <LearningPrefsTab
+            preferences={preferences}
+            onUpdate={setPreferences}
+          />
         )}
       </section>
     </main>

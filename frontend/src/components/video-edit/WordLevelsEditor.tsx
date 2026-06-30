@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 import {
   EXAM_LEVELS,
@@ -119,19 +120,16 @@ export function WordLevelsEditor({
 
       {dirty && (
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="btn-primary !py-1 !px-3 text-xs inline-flex items-center gap-1"
+            size="sm"
+            icon={saving ? Loader2 : Save}
+            className={saving ? "[&_svg]:animate-spin" : ""}
           >
-            {saving ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Save size={12} />
-            )}
             保存高亮
-          </button>
+          </Button>
         </div>
       )}
     </div>

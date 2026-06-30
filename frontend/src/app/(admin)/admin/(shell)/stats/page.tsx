@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { StatCard } from "@/components/admin/StatCard";
+import { Button } from "@/components/ui/Button";
 import type { AdminStats, RecentActivityType } from "@/types";
 import { getAdminStats } from "@/lib/adminData";
 
@@ -126,14 +127,16 @@ export default function AdminStatsPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
+        <Button
           onClick={load}
           disabled={loading}
-          className="btn-secondary !py-2 !px-3 text-xs"
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
+          className={loading ? "[&_svg]:animate-spin" : ""}
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           刷新
-        </button>
+        </Button>
       </div>
 
       {/* KPI grid */}

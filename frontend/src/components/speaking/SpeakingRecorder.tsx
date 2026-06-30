@@ -2,23 +2,15 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { Mic, MicOff, RotateCcw, Loader2 } from "lucide-react";
+import { Mic, MicOff, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { AudioWaveform } from "./AudioWaveform";
 
-interface FreePracticeResult {
-  id: string;
-  transcript: string;
-  fluency: number;
-  feedback: string;
-  audio_duration: number | null;
-  mode: string;
-}
-
 export default function SpeakingRecorder() {
-  const [state, setState] = useState<"idle" | "recording" | "analyzing" | "result">("idle");
-  const [result, setResult] = useState<FreePracticeResult | null>(null);
+  const [state, setState] = useState<"idle" | "recording" | "reviewing">(
+    "idle",
+  );
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -34,8 +26,11 @@ export default function SpeakingRecorder() {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
     };
-  }, []);
+  }, [audioUrl]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -58,7 +53,7 @@ export default function SpeakingRecorder() {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         // Stop timer
         if (timerRef.current) {
           clearInterval(timerRef.current);
@@ -68,33 +63,10 @@ export default function SpeakingRecorder() {
         stream.getTracks().forEach((t) => t.stop());
         liveStreamRef.current = null;
 
-        setState("analyzing");
-
-        try {
-          const blob = new Blob(chunksRef.current, { type: mimeType });
-          const form = new FormData();
-          form.append("audio", blob, "recording.webm");
-          form.append("mode", "free_speaking");
-
-          const res = await api<FreePracticeResult>("/api/v1/speaking/free-practice", {
-            method: "POST",
-            body: form,
-            headers: {} as Record<string, string>,
-          });
-
-          setResult({
-            id: res.id,
-            transcript: res.transcript,
-            fluency: res.fluency,
-            feedback: res.feedback,
-            audio_duration: res.audio_duration,
-            mode: res.mode,
-          });
-          setState("result");
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "提交失败");
-          setState("idle");
-        }
+        // Create playback URL instead of submitting to API
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        setAudioUrl(URL.createObjectURL(blob));
+        setState("reviewing");
       };
 
       recorder.start();
@@ -115,7 +87,10 @@ export default function SpeakingRecorder() {
   }
 
   function restart() {
-    setResult(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
     setState("idle");
     setSeconds(0);
   }
@@ -125,14 +100,6 @@ export default function SpeakingRecorder() {
     const sec = s % 60;
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
-
-  // Fluency score color
-  const fluencyColor =
-    result && result.fluency >= 80
-      ? "text-emerald-600"
-      : result && result.fluency >= 60
-        ? "text-amber-500"
-        : "text-coral";
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
@@ -144,7 +111,10 @@ export default function SpeakingRecorder() {
             className="group relative flex h-24 w-24 items-center justify-center rounded-full bg-coral text-white shadow-lg shadow-coral/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-coral/30 active:scale-95"
             aria-label="开始录音"
           >
-            <Mic size={36} className="transition-transform group-hover:scale-110" />
+            <Mic
+              size={36}
+              className="transition-transform group-hover:scale-110"
+            />
           </button>
           <p className="text-sm text-muted-foreground">点击开始自由口语练习</p>
         </>
@@ -176,60 +146,23 @@ export default function SpeakingRecorder() {
         </>
       )}
 
-      {state === "analyzing" && (
+      {state === "reviewing" && (
         <>
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-cream-soft">
-            <Loader2 size={36} className="animate-spin text-coral" />
-          </div>
-          <p className="text-sm text-muted-foreground">分析中...</p>
-        </>
-      )}
-
-      {state === "result" && result && (
-        <>
-          {/* Fluency score */}
-          <div className="flex flex-col items-center gap-2">
+          {/* Playback */}
+          <div className="flex flex-col items-center gap-4">
             <div className="flex h-24 w-24 items-center justify-center rounded-full bg-cream-soft">
-              <span className={cn("text-3xl font-display font-semibold", fluencyColor)}>
-                {Math.round(result.fluency)}
-              </span>
+              <Mic size={36} className="text-brand-500" />
             </div>
-            <span className="text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground">
-              流利度
-            </span>
+            <p className="text-sm text-ink">录音完成，回放听自己的发音</p>
+            {audioUrl && (
+              <audio src={audioUrl} controls className="w-full max-w-md" />
+            )}
           </div>
-
-          {/* Transcript */}
-          {result.transcript && (
-            <div className="w-full max-w-md rounded-lg border border-hairline bg-canvas p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground">
-                你的表达
-              </p>
-              <p className="text-sm text-ink leading-relaxed">{result.transcript}</p>
-            </div>
-          )}
-
-          {/* Feedback */}
-          {result.feedback && (
-            <div className="w-full max-w-md rounded-lg border border-hairline bg-canvas p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground">
-                AI 反馈
-              </p>
-              <p className="text-sm text-ink leading-relaxed">{result.feedback}</p>
-            </div>
-          )}
-
-          {/* Duration */}
-          {result.audio_duration && (
-            <p className="text-xs text-muted-foreground">
-              录音时长 {Math.round(result.audio_duration)} 秒
-            </p>
-          )}
 
           {/* Restart button */}
-          <button onClick={restart} className="btn-secondary">
-            <RotateCcw size={16} /> 再试一次
-          </button>
+          <Button onClick={restart} variant="secondary" icon={RotateCcw}>
+            再试一次
+          </Button>
         </>
       )}
     </div>

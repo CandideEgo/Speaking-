@@ -20,6 +20,7 @@ import { Pagination } from "@/components/admin/Pagination";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { Button } from "@/components/ui/Button";
 import type {
   AdminComment,
   AdminPost,
@@ -125,14 +126,16 @@ function ReportQueue() {
       title="举报队列"
       description="用户举报的评论，审核后可删除评论或驳回举报。"
       actions={
-        <button
+        <Button
           onClick={load}
           disabled={loading}
-          className="btn-secondary !py-2 !px-3 text-xs"
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
+          className={loading ? "[&_svg]:animate-spin" : ""}
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           刷新
-        </button>
+        </Button>
       }
     >
       <FilterPills
@@ -357,14 +360,16 @@ function PostsManager() {
       title="帖子管理"
       description="强制删除违规帖子及其评论。"
       actions={
-        <button
+        <Button
           onClick={load}
           disabled={loading}
-          className="btn-secondary !py-2 !px-3 text-xs"
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
+          className={loading ? "[&_svg]:animate-spin" : ""}
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           刷新
-        </button>
+        </Button>
       }
     >
       <div className="mb-4 flex justify-end">

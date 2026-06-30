@@ -1,6 +1,16 @@
-import Link from "next/link";
+import { LinkButton } from "@/components/ui/LinkButton";
+import type { ButtonVariant } from "@/components/ui/Button";
 
-const plans = [
+const plans: {
+  name: string;
+  price: string;
+  period: string;
+  desc: string;
+  features: string[];
+  cta: string;
+  ctaVariant: ButtonVariant;
+  popular: boolean;
+}[] = [
   {
     name: "Free",
     price: "¥0",
@@ -8,7 +18,7 @@ const plans = [
     desc: "体验核心功能",
     features: ["每天 3 个视频", "双语字幕阅读", "基础词汇本"],
     cta: "免费开始",
-    ctaClass: "btn-outline",
+    ctaVariant: "outline",
     popular: false,
   },
   {
@@ -23,7 +33,7 @@ const plans = [
       "每日学习总结",
     ],
     cta: "升级 Pro",
-    ctaClass: "btn-primary",
+    ctaVariant: "primary",
     popular: true,
   },
   {
@@ -33,7 +43,7 @@ const plans = [
     desc: "省 ¥169 · 月均 ¥24.9",
     features: ["Pro 月度全部功能", "优先客服支持", "优先新功能体验"],
     cta: "选择年度",
-    ctaClass: "btn-dark",
+    ctaVariant: "dark",
     popular: false,
   },
 ];
@@ -91,12 +101,14 @@ export function PricingSection() {
                   </li>
                 ))}
               </ul>
-              <Link
+              <LinkButton
                 href="/register"
-                className={`${p.ctaClass} w-full justify-center !py-2.5 text-sm block text-center`}
+                variant={p.ctaVariant}
+                fullWidth
+                size="nav"
               >
                 {p.cta}
-              </Link>
+              </LinkButton>
             </div>
           ))}
         </div>

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Heart, MessageCircle, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Loader2, ArrowRight } from "lucide-react";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -80,21 +81,16 @@ export function CommunityFeedWidget() {
     <section>
       <div className="sec-head">
         <h2 className="sec-title">社区动态</h2>
-        <Link href="/community" className="sec-link">
+        <LinkButton
+          href="/community"
+          variant="text"
+          size="sm"
+          icon={ArrowRight}
+          iconRight
+          className="sec-link"
+        >
           查看全部
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-        </Link>
+        </LinkButton>
       </div>
 
       {loading ? (
@@ -104,12 +100,9 @@ export function CommunityFeedWidget() {
       ) : posts.length === 0 ? (
         <div className="bg-canvas border border-hairline rounded-lg p-6 text-center">
           <p className="text-sm text-muted">社区还没有动态，来发布第一条吧！</p>
-          <Link
-            href="/community"
-            className="btn-primary mt-3 inline-flex text-xs"
-          >
+          <LinkButton href="/community" size="sm" className="mt-3">
             去社区
-          </Link>
+          </LinkButton>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

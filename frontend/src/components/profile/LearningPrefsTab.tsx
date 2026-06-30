@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import type { UserPreferences } from "@/types";
 
@@ -154,9 +155,9 @@ export default function LearningPrefsTab({
       </div>
 
       {/* Save */}
-      <button onClick={handleSave} disabled={saving} className="btn-primary">
+      <Button onClick={handleSave} disabled={saving}>
         {saving ? "保存中..." : "保存偏好"}
-      </button>
+      </Button>
     </div>
   );
 }

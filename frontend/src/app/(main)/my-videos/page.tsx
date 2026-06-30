@@ -12,11 +12,14 @@ import {
   CheckCircle2,
   AlertCircle,
   FileEdit,
+  Link2,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { Button } from "@/components/ui/Button";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
+import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
 import type { Video } from "@/types";
 
 type ReviewStatus = Video["review_status"];
@@ -74,6 +77,7 @@ export default function MyVideosPage() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -181,28 +185,34 @@ export default function MyVideosPage() {
           <div>
             <div className="text-sm font-semibold">上传新视频</div>
             <div className="text-xs text-muted mt-0.5">
-              支持 mp4 / webm / mov，系统自动转录翻译并生成练习题
+              本地上传或从链接导入，系统自动转录翻译并生成练习题
             </div>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
-            onChange={handleUpload}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="btn-primary inline-flex items-center gap-1.5"
-          >
-            {uploading ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Upload size={15} />
-            )}
-            {uploading ? "上传中…" : "选择视频上传"}
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
+              onChange={handleUpload}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              variant="outline"
+              icon={uploading ? Loader2 : Upload}
+              className={uploading ? "[&_svg]:animate-spin" : ""}
+            >
+              {uploading ? "上传中…" : "本地上传"}
+            </Button>
+            <Button
+              onClick={() => setLinkDialogOpen(true)}
+              disabled={uploading}
+              icon={Link2}
+            >
+              链接导入
+            </Button>
+          </div>
         </div>
 
         {/* List */}
@@ -280,6 +290,13 @@ export default function MyVideosPage() {
           </div>
         )}
       </div>
+
+      {/* Link import dialog */}
+      <LinkUploadDialog
+        open={linkDialogOpen}
+        onClose={() => setLinkDialogOpen(false)}
+        onImported={load}
+      />
     </main>
   );
 }
