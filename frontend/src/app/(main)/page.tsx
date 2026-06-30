@@ -10,6 +10,7 @@ import { formatDuration } from "@/lib/format";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
+import { CommunityFeedWidget } from "@/components/community/CommunityFeedWidget";
 import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
@@ -250,6 +251,9 @@ export default function HomePage() {
             </div>
           </section>
         )}
+
+        {/* ── 社区动态 ── */}
+        <CommunityFeedWidget />
 
         {/* ── 分类视觉化大卡 ── */}
         <section>

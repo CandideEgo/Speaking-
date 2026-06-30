@@ -14,6 +14,7 @@ import {
   VocabDrillPanel,
   SentenceBuilderInput,
 } from "@/components/practice/PracticePanels";
+import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
 import { api, mediaUrl } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
@@ -65,6 +66,7 @@ export default function WatchPage() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
   const [speakingResult, setSpeakingResult] = useState<{
     accuracy: number;
     fluency: number;
@@ -236,21 +238,9 @@ export default function WatchPage() {
     }
   }
 
-  async function handleShare() {
-    const url = window.location.href;
-    const title = video?.title || "Speaking 英语学习视频";
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-        toast.success("链接已复制到剪贴板");
-      } else {
-        toast.error("当前浏览器不支持分享");
-      }
-    } catch {
-      // user cancelled share
-    }
+  function handleShare() {
+    // Open the share-to-community dialog (POSTs a video_share post).
+    requireAuth() && setShareOpen(true);
   }
 
   async function saveNote() {
@@ -1069,6 +1059,14 @@ export default function WatchPage() {
           onSave={saveToVocabulary}
         />
       )}
+
+      {/* Share-to-community dialog */}
+      <ShareToCommunityDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        videoId={video.id}
+        videoTitle={video.title}
+      />
     </div>
   );
 }
