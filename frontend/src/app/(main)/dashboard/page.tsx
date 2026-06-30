@@ -15,7 +15,7 @@ import {
 import { RotateCcw, Play } from "lucide-react";
 import Link from "next/link";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
-import type { DailyActivity } from "@/types";
+import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
 
@@ -48,11 +48,6 @@ interface LearningRecord {
   completed: boolean;
   created_at: string;
   last_accessed_at: string | null;
-}
-
-interface StreakInfo {
-  current_streak: number;
-  longest_streak: number;
 }
 
 interface DashboardData {
@@ -161,6 +156,10 @@ export default function DashboardPage() {
         api<StreakInfo>("/api/v1/users/me/streak").catch(() => ({
           current_streak: 0,
           longest_streak: 0,
+          last_active_at: null,
+          goal_type: null,
+          goal_value: 0,
+          today_progress: {},
         })),
       ]);
 

@@ -116,9 +116,9 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               className="input-field mt-1.5"
-              placeholder="至少 6 位"
+              placeholder="至少 8 位，含大小写字母、数字及特殊字符"
             />
           </div>
 

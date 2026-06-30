@@ -58,7 +58,7 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
     """Shared logic for processing a successful payment.
 
     - Upgrades the user to Pro
-    - Sets plan_expires_at based on the plan's duration
+    - Extends plan_expires_at by the plan's duration (even for active Pro users)
     - Marks the order as paid
 
     Must be called within a transaction where the order row is locked
@@ -66,14 +66,16 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
     """
     user_result = await db.execute(select(User).where(User.id == order.user_id).with_for_update())
     user = user_result.scalar_one_or_none()
-    if user and (
-        user.plan != PlanType.pro or user.plan_expires_at is None or _to_aware_utc(user.plan_expires_at) < _utcnow()
-    ):
+    if user:
         user.plan = PlanType.pro
-        # Critical fix: set plan_expires_at based on plan duration
+        # Always extend plan_expires_at by the plan duration.
+        # If the current subscription is still active, extend from its expiry;
+        # otherwise, start from now.
         duration_days = PLAN_DURATIONS.get(order.plan, 30)
-        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else _utcnow()
-        user.plan_expires_at = max(current_expires, _utcnow()) + timedelta(days=duration_days)
+        now = datetime.now(UTC)
+        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+        base = max(current_expires, now)
+        user.plan_expires_at = base + timedelta(days=duration_days)
         logger.info(
             "user_upgraded_to_pro",
             user_id=user.id,

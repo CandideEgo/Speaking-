@@ -24,11 +24,14 @@ interface Post {
   content: string;
   post_type: string;
   media_url?: string | null;
-  video_id?: string;
-  video_title?: string;
-  video_channel?: string;
-  video_level?: string;
-  video_duration?: number;
+  video?: {
+    id: string;
+    title: string;
+    thumbnail_url: string | null;
+    duration: number | null;
+    difficulty_level: string | null;
+    video_url_720p: string | null;
+  } | null;
   like_count: number;
   comment_count: number;
   created_at: string;
@@ -130,9 +133,14 @@ export default function CommunityPage() {
   async function loadPosts() {
     setLoading(true);
     try {
-      const data = await api<PostsResponse>(
-        `/api/v1/community/feed?page=1&page_size=20`,
-      );
+      let endpoint: string;
+      if (activeTab === "following") {
+        endpoint = "/api/v1/community/following?page=1&page_size=20";
+      } else {
+        const typeParam = activeTab === "trending" ? "&type=trending" : "";
+        endpoint = `/api/v1/community/feed?page=1&page_size=20${typeParam}`;
+      }
+      const data = await api<PostsResponse>(endpoint);
       setPosts(data.items);
     } catch {
       // Show empty state
@@ -367,9 +375,9 @@ export default function CommunityPage() {
                     </p>
 
                     {/* Video preview */}
-                    {post.video_id && (
+                    {post.video && (
                       <Link
-                        href={`/watch/${post.video_id}`}
+                        href={`/watch/${post.video.id}`}
                         className="flex gap-3 items-center bg-surface-soft border border-hairline rounded-lg px-3 py-3 mb-3.5 hover:bg-canvas hover:border-ink transition-colors"
                       >
                         <div className="w-[84px] h-[48px] rounded-lg bg-ink flex-shrink-0 relative overflow-hidden">
@@ -383,10 +391,10 @@ export default function CommunityPage() {
                         </div>
                         <div>
                           <div className="text-[13px] font-semibold leading-snug">
-                            {post.video_title || "视频"}
+                            {post.video.title || "视频"}
                           </div>
                           <div className="text-[11px] text-muted mt-[3px]">
-                            {post.video_channel} · {post.video_level || "B2"}
+                            {post.video.difficulty_level || "B2"}
                           </div>
                         </div>
                       </Link>

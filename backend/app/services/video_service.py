@@ -369,18 +369,6 @@ async def get_video_detail(
     current_user: User | None,
 ) -> VideoDetailResponse:
     """Get video detail with subtitles. Creates a LearningRecord on first view."""
-    # Create LearningRecord on first view for authenticated users
-    # (done before cache check so it always fires)
-    if current_user:
-        lr_result = await db.execute(
-            select(LearningRecord).where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.video_id == video_id,
-            )
-        )
-        if not lr_result.scalar_one_or_none():
-            db.add(LearningRecord(user_id=current_user.id, video_id=video_id))
-            await db.commit()
 
     # Check cache for official videos (user-owned videos are never cached)
     from app.core.cache import cache_get, cache_set
@@ -400,6 +388,18 @@ async def get_video_detail(
     # Access control: official videos are public; user-owned require auth
     if not check_video_access(video, current_user):
         return None
+
+    # Create LearningRecord on first view for authenticated users (after access check)
+    if current_user:
+        lr_result = await db.execute(
+            select(LearningRecord).where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.video_id == video_id,
+            )
+        )
+        if not lr_result.scalar_one_or_none():
+            db.add(LearningRecord(user_id=current_user.id, video_id=video_id))
+            await db.commit()
 
     # Decide which subtitles the viewer sees. The owner always sees their live
     # (draft) subtitles. A non-owner viewing a UGC video under re-review
@@ -443,6 +443,9 @@ async def get_video_detail(
         is_official=video.is_official,
         is_published=video.is_published,
         review_status=video.review_status,
+        # Only the owner sees the rejection reason; a public/snapshot viewer
+        # never learns why an unpublished draft was rejected.
+        rejection_reason=video.rejection_reason if is_video_owner(video, current_user) else None,
         video_url_480p=video.video_url_480p,
         video_url_720p=video.video_url_720p,
         video_url_1080p=video.video_url_1080p,

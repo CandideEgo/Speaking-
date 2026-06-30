@@ -192,15 +192,23 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
   async startQuiz(type: QuizType = "multiple_choice") {
     set({ isLoading: true, quizType: type, quizAnswers: {}, quizResult: null });
     try {
-      const data = await api<QuizSession>(
-        `/api/v1/vocabulary/quiz?quiz_type=${type}`,
+      const questions = await api<VocabQuizQuestion[]>(
+        "/api/v1/vocabulary/quiz",
+        {
+          method: "POST",
+          body: JSON.stringify({ quiz_type: type, count: 10, due_only: false }),
+        },
       );
+      const session: QuizSession = {
+        questions,
+        total_questions: questions.length,
+      };
       set({
-        quizSession: data,
+        quizSession: session,
         isQuizActive: true,
         isLoading: false,
         // Also populate simple quiz fields for the vocabulary page
-        quizQuestions: data.questions.map((q, i) => ({
+        quizQuestions: questions.map((q) => ({
           id: q.id,
           word: q.word,
           options: q.options ?? [],
