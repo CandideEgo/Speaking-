@@ -6,27 +6,22 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
-import {
-  SparklesIcon,
-  CompassIcon,
-  MicIcon,
-  BookOpenIcon,
-  UsersIcon,
-} from "@/components/common/Icons";
+import type { LucideIcon } from "lucide-react";
+import { Sparkles, Compass, Mic, BookOpen, Users } from "lucide-react";
 
 interface TabItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   showBadge?: boolean;
 }
 
 const TABS: TabItem[] = [
-  { label: "首页", href: "/", icon: SparklesIcon },
-  { label: "浏览", href: "/browse", icon: CompassIcon },
-  { label: "口语", href: "/speaking", icon: MicIcon },
-  { label: "词汇", href: "/vocabulary", icon: BookOpenIcon, showBadge: true },
-  { label: "社区", href: "/community", icon: UsersIcon },
+  { label: "首页", href: "/", icon: Sparkles },
+  { label: "浏览", href: "/browse", icon: Compass },
+  { label: "口语", href: "/speaking", icon: Mic },
+  { label: "词汇", href: "/vocabulary", icon: BookOpen, showBadge: true },
+  { label: "社区", href: "/community", icon: Users },
 ];
 
 export function MobileTabBar() {
@@ -65,11 +60,11 @@ export function MobileTabBar() {
               href={tab.href}
               className={cn(
                 "relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[44px] transition-colors",
-                active ? "text-brand-500" : "text-muted hover:text-ink"
+                active ? "text-brand-500" : "text-muted hover:text-ink",
               )}
             >
               <div className="relative">
-                <tab.icon className="h-5 w-5" />
+                <tab.icon size={20} />
                 {tab.showBadge && mounted && dueCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
                     {dueCount > 99 ? "99+" : dueCount}

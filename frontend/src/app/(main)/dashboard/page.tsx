@@ -6,13 +6,14 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import {
-  FlameIcon,
-  MicIcon,
-  BookOpenIcon,
-  ZapIcon,
-  BarChart3Icon,
-} from "@/components/common/Icons";
-import { RotateCcw, Play } from "lucide-react";
+  Flame,
+  Mic,
+  BookOpen,
+  Zap,
+  BarChart3,
+  RotateCcw,
+  Play,
+} from "lucide-react";
 import Link from "next/link";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import { Button } from "@/components/ui/Button";
@@ -94,10 +95,10 @@ const ACTIVITY_COLORS: Record<string, string> = {
 };
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
-  speaking: <MicIcon className="h-[15px] w-[15px] text-on-primary" />,
-  vocabulary: <BookOpenIcon className="h-[15px] w-[15px] text-on-primary" />,
-  quiz: <ZapIcon className="h-[15px] w-[15px] text-on-primary" />,
-  watching: <BarChart3Icon className="h-[15px] w-[15px] text-on-primary" />,
+  speaking: <Mic size={15} className="text-on-primary" />,
+  vocabulary: <BookOpen size={15} className="text-on-primary" />,
+  quiz: <Zap size={15} className="text-on-primary" />,
+  watching: <BarChart3 size={15} className="text-on-primary" />,
 };
 
 // --- Page ---
@@ -269,7 +270,7 @@ export default function DashboardPage() {
           </div>
         ) : error ? (
           <div className="py-20 text-center">
-            <BarChart3Icon className="h-12 w-12 mx-auto text-muted mb-4" />
+            <BarChart3 size={48} className="mx-auto text-muted mb-4" />
             <p className="text-muted">加载数据失败，请稍后重试</p>
             <Button onClick={loadData} className="mt-4">
               重试
@@ -282,7 +283,7 @@ export default function DashboardPage() {
               <div className="dash-stat">
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="dash-stat-icon bg-brand-50 text-brand-500">
-                    <FlameIcon className="h-[19px] w-[19px]" />
+                    <Flame size={19} />
                   </div>
                 </div>
                 <div className="dash-stat-num">
@@ -293,7 +294,7 @@ export default function DashboardPage() {
               <div className="dash-stat">
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="dash-stat-icon bg-indigo-soft text-indigo">
-                    <MicIcon className="h-[19px] w-[19px]" />
+                    <Mic size={19} />
                   </div>
                 </div>
                 <div className="dash-stat-num">
@@ -304,7 +305,7 @@ export default function DashboardPage() {
               <div className="dash-stat">
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="dash-stat-icon bg-success-soft text-success">
-                    <BookOpenIcon className="h-[19px] w-[19px]" />
+                    <BookOpen size={19} />
                   </div>
                 </div>
                 <div className="dash-stat-num">{data.vocabStats.total}</div>
@@ -313,7 +314,7 @@ export default function DashboardPage() {
               <div className="dash-stat">
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="dash-stat-icon bg-warning-soft text-warning">
-                    <ZapIcon className="h-[19px] w-[19px]" />
+                    <Zap size={19} />
                   </div>
                 </div>
                 <div className="dash-stat-num">
@@ -381,7 +382,7 @@ export default function DashboardPage() {
                           : "watching";
                     const color = ACTIVITY_COLORS[activityType] || "bg-muted";
                     const icon = ACTIVITY_ICONS[activityType] || (
-                      <ZapIcon className="h-[15px] w-[15px] text-on-primary" />
+                      <Zap size={15} className="text-on-primary" />
                     );
                     return (
                       <div key={record.id} className="tl-item">
@@ -443,7 +444,7 @@ export default function DashboardPage() {
                           />
                         ) : (
                           <div className="w-full h-full bg-surface-card flex items-center justify-center">
-                            <Play className="h-8 w-8 text-muted-soft" />
+                            <Play size={32} className="text-muted-soft" />
                           </div>
                         )}
                         <span className="thumb-dur">
@@ -485,7 +486,7 @@ export default function DashboardPage() {
           </>
         ) : (
           <div className="py-20 text-center">
-            <BarChart3Icon className="h-12 w-12 mx-auto text-muted mb-4" />
+            <BarChart3 size={48} className="mx-auto text-muted mb-4" />
             <p className="text-muted">暂无学习数据，开始你的第一次练习吧！</p>
             <LinkButton href="/browse" className="mt-4">
               浏览视频

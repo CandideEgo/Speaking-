@@ -13,13 +13,7 @@ import {
 } from "@/components/search/SearchDropdown";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
-import {
-  SearchIcon,
-  BellIcon,
-  SunIcon,
-  MoonIcon,
-  SparklesIcon,
-} from "@/components/common/Icons";
+import { Search, Bell, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 
@@ -194,7 +188,7 @@ export function TopBar() {
               size="icon"
               aria-label="搜索"
             >
-              <SearchIcon className="h-[17px] w-[17px]" />
+              <Search size={17} />
             </LinkButton>
           </div>
           {/* Desktop: search input */}
@@ -217,7 +211,10 @@ export function TopBar() {
                          focus:bg-canvas focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)]
                          transition-colors duration-150"
             />
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-[17px] w-[17px] text-muted-soft" />
+            <Search
+              size={17}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
+            />
             <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-soft bg-canvas border border-hairline px-1.5 py-0.5 rounded-md font-mono">
               ⌘K
             </kbd>
@@ -244,11 +241,7 @@ export function TopBar() {
             size="icon"
             aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           >
-            {theme === "dark" ? (
-              <SunIcon className="h-[18px] w-[18px]" />
-            ) : (
-              <MoonIcon className="h-[18px] w-[18px]" />
-            )}
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </Button>
         )}
 
@@ -271,7 +264,7 @@ export function TopBar() {
                 size="icon"
                 aria-label="通知"
               >
-                <BellIcon className="h-[18px] w-[18px]" />
+                <Bell size={18} />
                 {unreadCount > 0 && (
                   <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
                 )}

@@ -1,13 +1,7 @@
 ﻿"use client";
 
-import {
-  MicIcon,
-  TargetIcon,
-  WindIcon,
-  CheckCircleIcon,
-  BookOpenIcon,
-  PlayIcon,
-} from "@/components/common/Icons";
+import type { LucideIcon } from "lucide-react";
+import { Mic, Target, Wind, CheckCircle, BookOpen, Play } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import type { UserStats } from "@/types";
 
@@ -18,7 +12,7 @@ interface StatsGridProps {
 const STAT_CARDS: {
   key: keyof UserStats;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   color: string;
   bg: string;
   suffix?: string;
@@ -26,14 +20,14 @@ const STAT_CARDS: {
   {
     key: "total_speaking_attempts",
     label: "跟读次数",
-    icon: MicIcon,
+    icon: Mic,
     color: "text-coral",
     bg: "bg-coral/10",
   },
   {
     key: "average_accuracy",
     label: "准确度",
-    icon: TargetIcon,
+    icon: Target,
     color: "text-coral",
     bg: "bg-coral/10",
     suffix: "%",
@@ -41,7 +35,7 @@ const STAT_CARDS: {
   {
     key: "average_fluency",
     label: "流利度",
-    icon: WindIcon,
+    icon: Wind,
     color: "text-teal",
     bg: "bg-teal/10",
     suffix: "%",
@@ -49,7 +43,7 @@ const STAT_CARDS: {
   {
     key: "average_completeness",
     label: "完整度",
-    icon: CheckCircleIcon,
+    icon: CheckCircle,
     color: "text-amber-600",
     bg: "bg-amber-50",
     suffix: "%",
@@ -57,14 +51,14 @@ const STAT_CARDS: {
   {
     key: "total_vocabulary",
     label: "词汇量",
-    icon: BookOpenIcon,
+    icon: BookOpen,
     color: "text-purple-600",
     bg: "bg-purple-50",
   },
   {
     key: "total_videos_watched",
     label: "视频数",
-    icon: PlayIcon,
+    icon: Play,
     color: "text-blue-600",
     bg: "bg-blue-50",
   },
@@ -86,7 +80,7 @@ export default function StatsGrid({ stats }: StatsGridProps) {
             <div
               className={`h-9 w-9 rounded-lg ${card.bg} flex items-center justify-center mb-2`}
             >
-              <card.icon className={`h-4.5 w-4.5 ${card.color}`} />
+              <card.icon size={18} className={card.color} />
             </div>
             <span className="font-display text-2xl text-ink">
               {value}

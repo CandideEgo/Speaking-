@@ -7,11 +7,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import {
-  CalendarIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from "@/components/common/Icons";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import type { ActivityCalendar, LearningRecord } from "@/types";
 
@@ -112,7 +108,7 @@ export default function HistoryPage() {
       <section className="border-b border-hairline bg-canvas">
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
-            <CalendarIcon className="h-[18px] w-[18px]" />
+            <Calendar size={18} />
             <span className="text-xs font-semibold tracking-caption-wide uppercase">
               学习历史
             </span>
@@ -135,7 +131,7 @@ export default function HistoryPage() {
                 onClick={prevMonth}
                 className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-cream-soft transition-colors"
               >
-                <ChevronLeftIcon className="h-4 w-4 text-ink" />
+                <ChevronLeft size={16} className="text-ink" />
               </button>
               <span className="text-sm font-medium text-ink min-w-[100px] text-center">
                 {year} 年 {monthNames[month]}
@@ -144,7 +140,7 @@ export default function HistoryPage() {
                 onClick={nextMonth}
                 className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-cream-soft transition-colors"
               >
-                <ChevronRightIcon className="h-4 w-4 text-ink" />
+                <ChevronRight size={16} className="text-ink" />
               </button>
             </div>
           </div>
@@ -173,7 +169,7 @@ export default function HistoryPage() {
             </div>
           ) : records.length === 0 ? (
             <div className="py-12 text-center">
-              <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground" />
+              <Calendar size={48} className="mx-auto text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">暂无学习记录</p>
             </div>
           ) : (

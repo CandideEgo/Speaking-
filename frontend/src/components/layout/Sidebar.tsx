@@ -7,23 +7,24 @@ import { useSidebar } from "@/components/layout/SidebarProvider";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { DURATIONS, EASES, MEDIA, motionDuration } from "@/lib/animations";
+import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboardIcon,
-  BookOpenIcon,
-  SparklesIcon,
-  UsersIcon,
-  CompassIcon,
-  MicIcon,
-  CrownIcon,
-  UploadIcon,
-} from "@/components/common/Icons";
+  LayoutDashboard,
+  BookOpen,
+  Sparkles,
+  Users,
+  Compass,
+  Mic,
+  Crown,
+  Upload,
+} from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   badge?: string;
 }
 
@@ -36,29 +37,29 @@ const navigation: NavSection[] = [
   {
     title: "主菜单",
     items: [
-      { label: "首页", href: "/", icon: SparklesIcon },
-      { label: "浏览视频", href: "/browse", icon: CompassIcon },
-      { label: "口语练习", href: "/speaking", icon: MicIcon, badge: "AI" },
+      { label: "首页", href: "/", icon: Sparkles },
+      { label: "浏览视频", href: "/browse", icon: Compass },
+      { label: "口语练习", href: "/speaking", icon: Mic, badge: "AI" },
     ],
   },
   {
     title: "社区",
-    items: [{ label: "社区精选", href: "/community", icon: UsersIcon }],
+    items: [{ label: "社区精选", href: "/community", icon: Users }],
   },
   {
     title: "学习",
     items: [
-      { label: "学习面板", href: "/dashboard", icon: LayoutDashboardIcon },
-      { label: "词汇本", href: "/vocabulary", icon: BookOpenIcon },
+      { label: "学习面板", href: "/dashboard", icon: LayoutDashboard },
+      { label: "词汇本", href: "/vocabulary", icon: BookOpen },
     ],
   },
   {
     title: "创作",
-    items: [{ label: "创作者中心", href: "/my-videos", icon: UploadIcon }],
+    items: [{ label: "创作者中心", href: "/my-videos", icon: Upload }],
   },
   {
     title: "账户",
-    items: [{ label: "Pro 会员", href: "/pricing", icon: CrownIcon }],
+    items: [{ label: "Pro 会员", href: "/pricing", icon: Crown }],
   },
 ];
 
@@ -89,10 +90,8 @@ function NavLink({
       )}
     >
       <item.icon
-        className={cn(
-          "h-[18px] w-[18px] flex-shrink-0",
-          isActive && "text-on-primary",
-        )}
+        size={18}
+        className={cn("flex-shrink-0", isActive && "text-on-primary")}
       />
       <span className="nav-label truncate">{item.label}</span>
       {item.badge && !collapsed && (
@@ -176,7 +175,7 @@ function SidebarNavContent({
             className="flex items-center justify-center w-10 h-10 mx-auto rounded-sm bg-ink text-on-primary hover:bg-black transition-colors duration-150"
             aria-label="升级 Pro"
           >
-            <CrownIcon className="h-4 w-4" />
+            <Crown size={16} />
           </Link>
         )}
         {!collapsed && <ComplianceInfo className="mt-2.5 text-center" />}

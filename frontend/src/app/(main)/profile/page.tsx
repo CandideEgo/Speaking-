@@ -6,11 +6,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
-import {
-  UserIcon,
-  SettingsIcon,
-  BookOpenIcon,
-} from "@/components/common/Icons";
+import { User as UserIcon, Settings, BookOpen } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import LearningPrefsTab from "@/components/profile/LearningPrefsTab";
@@ -18,8 +14,8 @@ import type { User, UserPreferences } from "@/types";
 
 const TABS = [
   { key: "profile", label: "个人资料", icon: UserIcon },
-  { key: "settings", label: "账户设置", icon: SettingsIcon },
-  { key: "learning", label: "学习偏好", icon: BookOpenIcon },
+  { key: "settings", label: "账户设置", icon: Settings },
+  { key: "learning", label: "学习偏好", icon: BookOpen },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -93,7 +89,7 @@ export default function ProfilePage() {
       <section className="border-b border-hairline bg-canvas">
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
-            <UserIcon className="h-[18px] w-[18px]" />
+            <UserIcon size={18} />
             <span className="text-xs font-semibold tracking-caption-wide uppercase">
               个人设置
             </span>
@@ -117,7 +113,7 @@ export default function ProfilePage() {
                   : "border-transparent text-muted-foreground hover:text-ink"
               }`}
             >
-              <tab.icon className="h-4 w-4" />
+              <tab.icon size={16} />
               {tab.label}
             </button>
           ))}

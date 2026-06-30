@@ -103,67 +103,8 @@
     @apply max-w-page mx-auto px-4 sm:px-7;
   }
 
-  /* === Buttons === */
-  .btn-primary {
-    @apply inline-flex items-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold
-           bg-brand-500 text-on-primary shadow-brand
-           hover:bg-brand-600 hover:-translate-y-0.5
-           disabled:bg-surface-card disabled:text-muted-foreground
-           transition-all duration-150;
-  }
-
-  .btn-dark {
-    @apply inline-flex items-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold
-           bg-ink text-on-dark
-           hover:bg-black hover:-translate-y-0.5
-           disabled:opacity-50
-           transition-all duration-150;
-  }
-
-  .btn-outline {
-    @apply inline-flex items-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold
-           bg-canvas text-ink border border-hairline
-           hover:border-ink hover:bg-surface-soft
-           disabled:opacity-50
-           transition-colors duration-150;
-  }
-
-  .btn-ghost {
-    @apply inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-body
-           hover:bg-surface-card
-           transition-colors duration-150;
-  }
-
-  .btn-text {
-    @apply inline-flex items-center gap-1.5 text-sm font-medium text-body
-           hover:text-ink
-           transition-colors duration-150;
-  }
-
-  .btn-icon {
-    @apply inline-flex items-center justify-center w-10 h-10 rounded-sm
-           text-body hover:bg-surface-card
-           transition-colors duration-150;
-  }
-
   /* === Cards === */
-  .card-outline {
-    @apply bg-canvas rounded-lg p-6 border border-hairline
-           hover:shadow-lift hover:border-transparent hover:-translate-y-0.5
-           transition-all duration-150;
-  }
-
-  .card-soft {
-    @apply bg-surface-soft rounded-lg p-6 border border-hairline;
-  }
-
-  .card-dark {
-    @apply bg-surface-dark rounded-lg p-6 text-on-dark;
-  }
-
-  .card-code {
-    @apply bg-surface-dark rounded-lg p-6;
-  }
+  /* (card-outline/card-soft/card-dark/card-code removed — use <Card> component) */
 
   /* === Stat cards === */
   .stat-card {
@@ -533,21 +474,6 @@
     @apply bg-cream-card text-ink;
   }
 
-  /* === Legacy buttons (backward compat) === */
-  .btn-secondary {
-    @apply btn-outline;
-  }
-  .btn-secondary-dark {
-    @apply inline-flex items-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold
-           bg-surface-dark-elevated text-on-dark
-           hover:bg-surface-dark-soft
-           disabled:opacity-50
-           transition-colors duration-150;
-  }
-  .card-cream {
-    @apply bg-surface-card rounded-lg p-8;
-  }
-
   /* ============================================================
      HOME — bento 首屏 (variant 03)
      独立于现有 .greet/.cat-card/.vcard，仅首页使用，不影响其它页面
@@ -584,19 +510,6 @@
   }
   .b-hero-cta {
     @apply flex gap-2.5 mt-5;
-  }
-  .btn-go {
-    @apply inline-flex items-center gap-2 px-[18px] py-[11px] rounded-sm text-sm font-semibold
-           bg-brand-500 text-on-primary shadow-brand
-           hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-150;
-  }
-  .btn-ghost-d {
-    @apply inline-flex items-center gap-1.5 px-4 py-[11px] rounded-sm text-sm font-semibold border
-           text-on-dark hover:bg-surface-dark-soft transition-colors duration-150;
-    border-color: #2c2c2c;
-  }
-  .btn-ghost-d:hover {
-    border-color: #4a4a4a;
   }
   /* 右侧栈 — 连胜 + 目标，占 2 列 */
   .b-stack {
