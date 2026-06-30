@@ -20,22 +20,18 @@ def analyze_video_comments(self, video_id: str):
     async def _process():
         async with async_session() as db:
             service = CommentService()
-            try:
-                # Analyze existing stored comments
-                stats = await service.analyze_video_comments(db, video_id)
-                if stats:
-                    logger.info(
-                        "Comment analysis complete for video",
-                        video_id=video_id,
-                        overall_quality_score=stats.overall_quality_score,
-                    )
-                else:
-                    logger.warning(
-                        "Comment analysis produced no stats for video (no stored comments)",
-                        video_id=video_id,
-                    )
-            except Exception as e:
-                logger.exception("Comment analysis failed for video", video_id=video_id)
-                raise self.retry(exc=e) from e
+            # Analyze existing stored comments
+            stats = await service.analyze_video_comments(db, video_id)
+            if stats:
+                logger.info(
+                    "Comment analysis complete for video",
+                    video_id=video_id,
+                    overall_quality_score=stats.overall_quality_score,
+                )
+            else:
+                logger.warning(
+                    "Comment analysis produced no stats for video (no stored comments)",
+                    video_id=video_id,
+                )
 
     run_async(_process())

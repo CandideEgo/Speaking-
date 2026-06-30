@@ -52,9 +52,10 @@ const STATUS_LABEL: Record<ReportStatus, { label: string; className: string }> =
 
 const POST_TYPE_LABEL: Record<string, string> = {
   text: "文本",
-  progress: "学习打卡",
-  vocabulary: "词汇分享",
-  speaking: "口语分享",
+  progress_share: "学习打卡",
+  vocabulary_share: "词汇分享",
+  speaking_share: "口语分享",
+  video_share: "视频分享",
 };
 
 export default function AdminCommunityPage() {

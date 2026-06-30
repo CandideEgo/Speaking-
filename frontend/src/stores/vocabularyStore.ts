@@ -19,9 +19,14 @@ interface QuizSession {
 }
 
 interface QuizResult {
-  correct: number;
+  score: number;
   total: number;
-  details: { correct: boolean; user_answer: string; correct_answer: string }[];
+  results: {
+    question_id: string;
+    correct: boolean;
+    user_answer: string;
+    correct_answer: string;
+  }[];
 }
 
 interface QuizQuestionSimple {
@@ -222,12 +227,14 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
 
     set({ isQuizSubmitting: true });
     try {
-      const answers = Object.entries(state.quizAnswers).map(
-        ([idx, answer]) => ({
-          question_index: Number(idx),
+      const questions = state.quizSession?.questions ?? state.quizQuestions;
+      const answers = Object.entries(state.quizAnswers).map(([idx, answer]) => {
+        const q = questions[Number(idx)];
+        return {
+          question_id: q?.id ?? "",
           answer,
-        }),
-      );
+        };
+      });
 
       const result = await api<QuizResult>("/api/v1/vocabulary/quiz/submit", {
         method: "POST",
@@ -238,7 +245,7 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
         quizResult: result,
         isQuizSubmitting: false,
         quizCompleted: true,
-        quizScore: result.correct,
+        quizScore: result.score,
       });
     } catch {
       set({ isQuizSubmitting: false });

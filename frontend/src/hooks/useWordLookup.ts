@@ -55,7 +55,9 @@ export function useWordLookup({
       speakWord(clean);
       try {
         const subtitles = getSubtitles();
-        const ctx = subtitles?.find((s) => s.text_en.includes(clean));
+        // Use word-boundary regex to avoid substring matches (e.g. "act" in "actually")
+        const wordRe = new RegExp(`\\b${clean}\\b`, "i");
+        const ctx = subtitles?.find((s) => wordRe.test(s.text_en));
         const params = new URLSearchParams({ word: clean });
         if (ctx?.text_en) params.set("context_sentence", ctx.text_en);
         if (videoId) params.set("video_id", videoId);
@@ -74,7 +76,8 @@ export function useWordLookup({
   const saveToVocabulary = useCallback(async () => {
     if (!selectedWord || !requireAuth()) return;
     const subtitles = getSubtitles();
-    const ctx = subtitles?.find((s) => s.text_en.includes(selectedWord));
+    const wordRe = new RegExp(`\\b${selectedWord}\\b`, "i");
+    const ctx = subtitles?.find((s) => wordRe.test(s.text_en));
     try {
       const params = new URLSearchParams({ word: selectedWord });
       if (ctx?.text_en) params.set("context_sentence", ctx.text_en);

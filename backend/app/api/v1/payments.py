@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import _to_aware_utc, get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
@@ -66,11 +66,14 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
     """
     user_result = await db.execute(select(User).where(User.id == order.user_id).with_for_update())
     user = user_result.scalar_one_or_none()
-    if user and (user.plan != PlanType.pro or user.plan_expires_at is None or user.plan_expires_at < _utcnow()):
+    if user and (
+        user.plan != PlanType.pro or user.plan_expires_at is None or _to_aware_utc(user.plan_expires_at) < _utcnow()
+    ):
         user.plan = PlanType.pro
         # Critical fix: set plan_expires_at based on plan duration
         duration_days = PLAN_DURATIONS.get(order.plan, 30)
-        user.plan_expires_at = max(user.plan_expires_at or _utcnow(), _utcnow()) + timedelta(days=duration_days)
+        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else _utcnow()
+        user.plan_expires_at = max(current_expires, _utcnow()) + timedelta(days=duration_days)
         logger.info(
             "user_upgraded_to_pro",
             user_id=user.id,

@@ -159,14 +159,19 @@ export default function CommunityPage() {
 
   async function handleLike(postId: string) {
     try {
-      await api(`/api/v1/community/posts/${postId}/like`, { method: "POST" });
+      const res = await api<{ liked: boolean }>(
+        `/api/v1/community/posts/${postId}/like`,
+        { method: "POST" },
+      );
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
             ? {
                 ...p,
-                is_liked: !p.is_liked,
-                like_count: p.is_liked ? p.like_count - 1 : p.like_count + 1,
+                is_liked: res.liked,
+                like_count: res.liked
+                  ? p.like_count + 1
+                  : Math.max(0, p.like_count - 1),
               }
             : p,
         ),

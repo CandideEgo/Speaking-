@@ -138,8 +138,14 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>(
       });
       // If expired, attempt a background refresh; the shell guard will redirect
       // to /admin/login if the refresh also fails.
-      if (isTokenExpired(token) && refreshToken) {
-        get().refreshAccessToken();
+      if (isTokenExpired(token)) {
+        if (refreshToken) {
+          get().refreshAccessToken();
+        } else {
+          // No refresh token available — clear stale state so the shell guard
+          // redirects to /admin/login instead of showing a blank/loading page.
+          get().logout();
+        }
       }
     },
 

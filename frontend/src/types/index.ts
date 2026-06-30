@@ -158,9 +158,14 @@ export interface VocabularyWord {
   mastery_level: MasteryLevel;
   review_count: number;
   definition: string | null;
-  definition_zh: string | null;
+  translation: string | null;
   example_sentences: string[] | null;
+  collocations: string[] | null;
+  difficulty_level: string | null;
+  context_sentence: string | null;
+  video_id: string | null;
   next_review_at: string | null;
+  created_at: string;
 }
 
 export type QuizType =
@@ -195,9 +200,20 @@ export interface Post {
   is_liked: boolean;
   like_count: number;
   comment_count: number;
-  user_name: string;
-  user_avatar_url: string | null;
-  user_level: string | null;
+  user: {
+    id: string;
+    name: string | null;
+    avatar_url: string | null;
+    level: string | null;
+  };
+  video?: {
+    id: string;
+    title: string;
+    thumbnail_url: string | null;
+    duration: number | null;
+    difficulty_level: string | null;
+    video_url_720p: string | null;
+  } | null;
   created_at: string;
 }
 
@@ -267,11 +283,20 @@ export interface AdminUser extends User {
   posts_count: number;
 }
 
-export interface AdminPost extends Post {
+export interface AdminPost {
+  id: string;
+  content: string;
+  post_type: PostType;
+  like_count: number;
+  comment_count: number;
+  user_name: string | null;
+  user_avatar_url: string | null;
+  user_level: string | null;
   user_id: string;
-  author_email: string;
+  author_email: string | null;
   is_pinned: boolean;
   report_count: number;
+  created_at: string;
 }
 
 export interface AdminComment {
