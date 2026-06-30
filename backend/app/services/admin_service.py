@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import _to_aware_utc
 from app.models.community import CommentReport, Post, UserComment
 from app.models.daily_activity import DailyActivity
 from app.models.learning import SpeakingAttempt
@@ -381,7 +382,8 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
     user.plan = PlanType(plan)
     if plan == "pro":
         now = datetime.now(UTC)
-        base = max(user.plan_expires_at or now, now)
+        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+        base = max(current_expires, now)
         user.plan_expires_at = base + timedelta(days=duration_days)
     else:
         user.plan_expires_at = None

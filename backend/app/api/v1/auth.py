@@ -68,6 +68,9 @@ async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(ge
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
+    if user.is_banned:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已被封禁")
+
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
     return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))

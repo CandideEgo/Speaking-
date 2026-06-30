@@ -133,7 +133,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const body = currentRefreshToken
         ? JSON.stringify({ refresh_token: currentRefreshToken })
         : "{}";
-      fetch("/api/v1/auth/logout", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      fetch(`${apiUrl}/api/v1/auth/logout`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${currentToken}`,

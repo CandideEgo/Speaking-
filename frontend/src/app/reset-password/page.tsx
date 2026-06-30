@@ -26,7 +26,9 @@ function ResetPasswordForm() {
         <h1 className="mt-4 font-display text-3xl font-normal text-ink tracking-display-md">
           链接无效
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">该重置链接无效或已过期，请重新申请。</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          该重置链接无效或已过期，请重新申请。
+        </p>
         <Link
           href="/forgot-password"
           className="mt-6 inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
@@ -41,8 +43,8 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("密码至少需要 6 位");
+    if (password.length < 8) {
+      setError("密码至少需要 8 位，含大小写字母、数字及特殊字符");
       return;
     }
     if (password !== confirmPassword) {
@@ -88,9 +90,9 @@ function ResetPasswordForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             className="input-field mt-1.5"
-            placeholder="至少 6 位"
+            placeholder="至少 8 位，含大小写字母、数字及特殊字符"
           />
         </div>
         <div>
@@ -100,15 +102,19 @@ function ResetPasswordForm() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             className="input-field mt-1.5"
-            placeholder="再次输入新密码"
+            placeholder="至少 8 位，含大小写字母、数字及特殊字符"
           />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full justify-center mt-2"
+        >
           {loading ? "重置中..." : "重置密码"}
         </button>
 
@@ -131,7 +137,9 @@ export default function ResetPasswordPage() {
     <main className="flex min-h-screen items-center justify-center px-4 bg-canvas">
       <Suspense
         fallback={
-          <div className="w-full max-w-sm text-center text-sm text-muted-foreground">加载中...</div>
+          <div className="w-full max-w-sm text-center text-sm text-muted-foreground">
+            加载中...
+          </div>
         }
       >
         <ResetPasswordForm />

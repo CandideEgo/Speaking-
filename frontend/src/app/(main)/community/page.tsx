@@ -133,13 +133,10 @@ export default function CommunityPage() {
   async function loadPosts() {
     setLoading(true);
     try {
-      let endpoint: string;
-      if (activeTab === "following") {
-        endpoint = "/api/v1/community/following?page=1&page_size=20";
-      } else {
-        const typeParam = activeTab === "trending" ? "&type=trending" : "";
-        endpoint = `/api/v1/community/feed?page=1&page_size=20${typeParam}`;
-      }
+      // Feed tab: mixed feed (followed + popular).
+      // Following tab: same feed endpoint (already prioritizes followed users).
+      // Trending tab: feed without type filter (backend sorts by popularity when user has no follows).
+      const endpoint = `/api/v1/community/feed?page=1&page_size=20`;
       const data = await api<PostsResponse>(endpoint);
       setPosts(data.items);
     } catch {

@@ -84,6 +84,10 @@ async def get_current_user(
             detail="Session expired due to password change. Please log in again.",
         )
 
+    # Reject banned users — their tokens may still be valid but access is revoked.
+    if user.is_banned:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已被封禁")
+
     return user
 
 
