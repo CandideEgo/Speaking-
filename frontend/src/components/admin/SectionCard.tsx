@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 
 export function SectionCard({
   title,
@@ -16,7 +17,7 @@ export function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={cn("card-outline", className)}>
+    <Card as="section" className={cn(className)}>
       {(title || actions) && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -33,6 +34,6 @@ export function SectionCard({
         </div>
       )}
       <div className={title ? "mt-4" : undefined}>{children}</div>
-    </section>
+    </Card>
   );
 }

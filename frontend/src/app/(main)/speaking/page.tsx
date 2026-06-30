@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import SpeakingRecorder from "@/components/speaking/SpeakingRecorder";
 import { Button } from "@/components/ui/Button";
 import type { ButtonVariant } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { BookOpen, Mic, ArrowRight } from "lucide-react";
 
 // --- Mode cards data ---
@@ -103,7 +104,7 @@ export default function SpeakingPage() {
 
         {/* Free speaking recorder */}
         {showRecorder && (
-          <div className="card-outline mb-8 animate-fade-in">
+          <Card className="mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Mic size={18} className="text-brand-500" />
@@ -118,7 +119,7 @@ export default function SpeakingPage() {
               </Button>
             </div>
             <SpeakingRecorder />
-          </div>
+          </Card>
         )}
 
         {/* Mode cards */}

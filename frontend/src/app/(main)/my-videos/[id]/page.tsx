@@ -35,6 +35,7 @@ import {
 import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { Card } from "@/components/ui/Card";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -514,7 +515,7 @@ function PracticeEditor({
       ) : (
         <div className="space-y-3">
           {questions.map((q, i) => (
-            <div key={i} className="card-outline p-3 space-y-2">
+            <Card key={i} padding={3} className="space-y-2">
               <div className="flex items-center gap-2">
                 <select
                   value={q.type}
@@ -620,7 +621,7 @@ function PracticeEditor({
                   disabled={!editable}
                 />
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

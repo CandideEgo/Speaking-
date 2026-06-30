@@ -16,6 +16,7 @@ import { mediaUrl } from "@/lib/api";
 import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import type { Subtitle, VideoWithSubtitles } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -233,7 +234,7 @@ function MetadataForm({
   };
 
   return (
-    <form onSubmit={handleSave} className="card-outline p-4 space-y-4">
+    <Card as="form" padding={4} className="space-y-4" onSubmit={handleSave}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -331,6 +332,6 @@ function MetadataForm({
           保存元数据
         </Button>
       </div>
-    </form>
+    </Card>
   );
 }

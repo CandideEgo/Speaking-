@@ -25,7 +25,7 @@ const PADDING: Record<CardPadding, string> = {
  * `@apply` classes plus the `!p-*` padding overrides that fought them. The
  * `padding` prop (default 6) absorbs the p-3/p-4/p-5/p-6 overrides seen across
  * dashboard widgets and editors. Polymorphic via `as` for semantic tags
- * (section/article/div).
+ * (section/article/div/form).
  */
 export function Card({
   variant = "outline",
@@ -33,13 +33,17 @@ export function Card({
   as: Tag = "div",
   className,
   children,
+  ...props
 }: {
   variant?: CardVariant;
   padding?: CardPadding;
   as?: ElementType;
   className?: string;
   children: ReactNode;
-}) {
+} & Omit<
+  React.ComponentPropsWithoutRef<ElementType>,
+  "className" | "children"
+>) {
   return (
     <Tag
       className={cn(
@@ -48,6 +52,7 @@ export function Card({
         PADDING[padding],
         className,
       )}
+      {...props}
     >
       {children}
     </Tag>

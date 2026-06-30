@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import {
   CalendarIcon,
   ChevronLeftIcon,
@@ -124,7 +125,7 @@ export default function HistoryPage() {
 
       <div className="container-page py-8 space-y-8">
         {/* Month navigator + Activity heatmap */}
-        <div className="card-outline !p-5">
+        <Card padding={5}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground">
               学习日历
@@ -158,7 +159,7 @@ export default function HistoryPage() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coral" />
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Learning records list */}
         <div>

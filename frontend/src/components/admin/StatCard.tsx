@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 
 export function StatCard({
   icon: Icon,
@@ -24,7 +25,7 @@ export function StatCard({
   }[tone];
 
   return (
-    <div className="card-outline">
+    <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -44,6 +45,6 @@ export function StatCard({
           <Icon size={18} />
         </span>
       </div>
-    </div>
+    </Card>
   );
 }

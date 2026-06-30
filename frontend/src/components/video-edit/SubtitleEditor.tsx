@@ -6,6 +6,7 @@ import { Loader2, Save } from "lucide-react";
 
 import { WordLevelsEditor } from "./WordLevelsEditor";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import type { Subtitle } from "@/types";
 import type { SubtitlePatch } from "@/lib/creatorData";
 
@@ -85,7 +86,7 @@ export function SubtitleEditor({
   };
 
   return (
-    <div className="card-outline p-3 space-y-2">
+    <Card padding={3} className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <button
           type="button"
@@ -212,6 +213,6 @@ export function SubtitleEditor({
       {editingLevels && (
         <WordLevelsEditor subtitle={subtitle} onSave={onSaveWordLevels} />
       )}
-    </div>
+    </Card>
   );
 }
