@@ -362,15 +362,35 @@ export interface WordGloss {
 
 /** A practice question generated from a video's subtitles (GET /videos/{id}/practice). */
 export interface PracticeQuestion {
-  type: "qa" | "fill_blank";
+  type: "qa" | "fill_blank" | "reading" | "sentence_building";
   question: string;
   answer: string;
   options: string[] | null;
   cet_words: string[];
+  /** reading: the comprehension passage the question refers to. */
+  passage?: string | null;
+  /** sentence_building: the scrambled tokens; answer is the correct order. */
+  tokens?: string[] | null;
 }
 
 export interface PracticeSet {
   video_id: string;
   exam_level: string;
   questions: PracticeQuestion[];
+}
+
+/** One vocabulary drill item (GET /videos/{id}/vocabulary-drill). */
+export interface VocabDrillItem {
+  kind: "spelling" | "meaning_choice";
+  word: string;
+  translation: string;
+  answer: string;
+  options: string[] | null;
+  cet_words: string[];
+}
+
+export interface VocabDrillSet {
+  video_id: string;
+  exam_level: string;
+  items: VocabDrillItem[];
 }

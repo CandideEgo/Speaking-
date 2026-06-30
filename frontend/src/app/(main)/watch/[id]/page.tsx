@@ -9,6 +9,11 @@ import { useVideoPlayer } from "@/hooks/useVideoPlayer";
 import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePracticeMode } from "@/hooks/usePracticeMode";
+import { useVocabDrill } from "@/hooks/useVocabDrill";
+import {
+  VocabDrillPanel,
+  SentenceBuilderInput,
+} from "@/components/practice/PracticePanels";
 import { api, mediaUrl } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
@@ -152,17 +157,27 @@ export default function WatchPage() {
   const [practiceOpen, setPracticeOpen] = useState(true);
   const practice = usePracticeMode({ videoId: id, level: selectedExamLevel });
 
-  // Load the user's target exam level from preferences on mount (defaults to cet4).
+  // --- Vocabulary drill (free-tier, deterministic, per-level) ---
+  const [vocabOpen, setVocabOpen] = useState(true);
+  const vocabDrill = useVocabDrill({ videoId: id, level: selectedExamLevel });
+
+  // Whether the current user is Pro (for gating reading/sentence_building
+  // client-side; the practice endpoint still enforces server-side via 403).
+  const [isPro, setIsPro] = useState(false);
+
+  // Load the user's target exam level + plan from preferences/me on mount.
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
     (async () => {
       try {
-        const prefs = await api<{ target_exam: string | null }>(
-          "/api/v1/users/me/preferences",
-        );
+        const [prefs, me] = await Promise.all([
+          api<{ target_exam: string | null }>("/api/v1/users/me/preferences"),
+          api<{ plan: string }>("/api/v1/users/me").catch(() => null),
+        ]);
         if (cancelled) return;
         setSelectedExamLevel(prefs.target_exam ?? "cet4");
+        if (me) setIsPro(me.plan === "pro");
       } catch {
         if (!cancelled) setSelectedExamLevel("cet4");
       }
@@ -933,12 +948,22 @@ export default function WatchPage() {
 
       {/* ===== 练习区（可扩展容器，后续可加阅读题等其他题型） ===== */}
       <div className="mt-6">
-        <PracticeSection
-          open={practiceOpen}
-          onToggle={() => setPracticeOpen((o) => !o)}
+        <VocabDrillPanel
+          open={vocabOpen}
+          onToggle={() => setVocabOpen((o) => !o)}
           levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-          practice={practice}
+          drill={vocabDrill}
         />
+
+        <div className="mt-4">
+          <PracticeSection
+            open={practiceOpen}
+            onToggle={() => setPracticeOpen((o) => !o)}
+            levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
+            practice={practice}
+            isPro={isPro}
+          />
+        </div>
 
         {/* Quiz block */}
         {quizQuestions.length > 0 && (
@@ -1327,11 +1352,13 @@ function PracticeSection({
   onToggle,
   levelLabel,
   practice,
+  isPro,
 }: {
   open: boolean;
   onToggle: () => void;
   levelLabel: string;
   practice: ReturnType<typeof usePracticeMode>;
+  isPro: boolean;
 }) {
   const {
     loading,
@@ -1359,6 +1386,11 @@ function PracticeSection({
           <span className="text-[11px] font-normal text-muted">
             · 基于本视频字幕 AI 生成 · {levelLabel}
           </span>
+          {!isPro && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+              Pro
+            </span>
+          )}
         </span>
         <ChevronDown
           size={16}
@@ -1421,7 +1453,18 @@ function PracticeSection({
                   <p className="text-[14px] font-semibold mb-2 text-ink">
                     {qi + 1}. {q.question}
                   </p>
-                  {q.options ? (
+                  {q.type === "reading" && q.passage ? (
+                    <p className="text-[13px] text-body leading-relaxed bg-surface-soft rounded-lg p-3 mb-2">
+                      {q.passage}
+                    </p>
+                  ) : null}
+                  {q.type === "sentence_building" && q.tokens ? (
+                    <SentenceBuilderInput
+                      tokens={q.tokens}
+                      value={answers[qi] || ""}
+                      onChange={(v) => setAnswer(qi, v)}
+                    />
+                  ) : q.options ? (
                     <div>
                       {q.options.map((opt, oi) => (
                         <label
