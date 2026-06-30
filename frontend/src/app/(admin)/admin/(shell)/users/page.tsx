@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { Pagination } from "@/components/admin/Pagination";
+import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
@@ -206,140 +207,112 @@ export default function AdminUsersPage() {
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-hairline text-left text-xs text-muted-foreground uppercase tracking-wider">
-              <th className="pb-2 font-medium">用户</th>
-              <th className="pb-2 font-medium">角色</th>
-              <th className="pb-2 font-medium">方案</th>
-              <th className="pb-2 font-medium">状态</th>
-              <th className="pb-2 font-medium">注册时间</th>
-              <th className="pb-2 font-medium">最后活跃</th>
-              <th className="pb-2 font-medium text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-hairline">
-            {users.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="py-8 text-center text-muted-foreground"
+      <DataTable
+        columns={[
+          { label: "用户" },
+          { label: "角色" },
+          { label: "方案" },
+          { label: "状态" },
+          { label: "注册时间" },
+          { label: "最后活跃" },
+          { label: "操作", align: "right" },
+        ]}
+        rows={users}
+        rowKey={(u) => u.id}
+        loading={loading}
+        emptyText="暂无用户"
+        expandedId={expandedId}
+        renderRow={(u, isExpanded) => (
+          <tr className="text-xs align-top">
+            <td className="py-3 pr-4">
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : u.id)}
+                className="flex items-center gap-2 text-left"
+              >
+                {isExpanded ? (
+                  <ChevronDown size={12} className="text-muted-foreground" />
+                ) : (
+                  <ChevronRight size={12} className="text-muted-foreground" />
+                )}
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
+                  {(u.name || u.email).slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-medium text-ink truncate max-w-[160px]">
+                    {u.name || "未命名"}
+                  </div>
+                  <div className="text-muted-foreground truncate max-w-[160px]">
+                    {u.email}
+                  </div>
+                </div>
+              </button>
+            </td>
+            <td className="py-3 pr-4">
+              {(u.role || "user") === "admin" ? (
+                <Badge tone="brand" icon={Shield}>
+                  管理员
+                </Badge>
+              ) : (
+                <span className="text-muted-foreground">普通用户</span>
+              )}
+            </td>
+            <td className="py-3 pr-4">
+              {u.plan === "pro" ? (
+                <Badge tone="amber" icon={Crown}>
+                  Pro
+                </Badge>
+              ) : (
+                <span className="text-muted-foreground">Free</span>
+              )}
+            </td>
+            <td className="py-3 pr-4">
+              {u.is_banned ? (
+                <Badge tone="red">已封禁</Badge>
+              ) : (
+                <span className="text-muted-foreground">正常</span>
+              )}
+            </td>
+            <td className="py-3 pr-4 text-muted-foreground">
+              {new Date(u.created_at).toLocaleDateString()}
+            </td>
+            <td className="py-3 pr-4 text-muted-foreground">
+              {u.last_active_at
+                ? new Date(u.last_active_at).toLocaleDateString()
+                : "-"}
+            </td>
+            <td className="py-3 text-right">
+              <div className="inline-flex gap-1">
+                <button
+                  onClick={() => handleBan(u)}
+                  title={u.is_banned ? "解封" : "封禁"}
+                  className={cn(
+                    "btn-secondary !py-1 !px-2 text-[11px]",
+                    u.is_banned && "text-green-600",
+                  )}
                 >
-                  {loading ? "加载中..." : "暂无用户"}
-                </td>
-              </tr>
-            ) : (
-              users.flatMap((u) => [
-                <tr key={u.id} className="text-xs align-top">
-                  <td className="py-3 pr-4">
-                    <button
-                      onClick={() =>
-                        setExpandedId(expandedId === u.id ? null : u.id)
-                      }
-                      className="flex items-center gap-2 text-left"
-                    >
-                      {expandedId === u.id ? (
-                        <ChevronDown
-                          size={12}
-                          className="text-muted-foreground"
-                        />
-                      ) : (
-                        <ChevronRight
-                          size={12}
-                          className="text-muted-foreground"
-                        />
-                      )}
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
-                        {(u.name || u.email).slice(0, 1).toUpperCase()}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-ink truncate max-w-[160px]">
-                          {u.name || "未命名"}
-                        </div>
-                        <div className="text-muted-foreground truncate max-w-[160px]">
-                          {u.email}
-                        </div>
-                      </div>
-                    </button>
-                  </td>
-                  <td className="py-3 pr-4">
-                    {(u.role || "user") === "admin" ? (
-                      <Badge tone="brand" icon={Shield}>
-                        管理员
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">普通用户</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
-                    {u.plan === "pro" ? (
-                      <Badge tone="amber" icon={Crown}>
-                        Pro
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">Free</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
-                    {u.is_banned ? (
-                      <Badge tone="red">已封禁</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">正常</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4 text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="py-3 pr-4 text-muted-foreground">
-                    {u.last_active_at
-                      ? new Date(u.last_active_at).toLocaleDateString()
-                      : "-"}
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="inline-flex gap-1">
-                      <button
-                        onClick={() => handleBan(u)}
-                        title={u.is_banned ? "解封" : "封禁"}
-                        className={cn(
-                          "btn-secondary !py-1 !px-2 text-[11px]",
-                          u.is_banned && "text-green-600",
-                        )}
-                      >
-                        {u.is_banned ? (
-                          <ShieldOff size={11} />
-                        ) : (
-                          <Shield size={11} />
-                        )}
-                        {u.is_banned ? "解封" : "封禁"}
-                      </button>
-                      <button
-                        onClick={() => handlePromote(u)}
-                        title="切换管理员角色"
-                        className="btn-secondary !py-1 !px-2 text-[11px]"
-                      >
-                        <UserCog size={11} />
-                        {(u.role || "user") === "admin" ? "降级" : "提升"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>,
-                expandedId === u.id && (
-                  <tr key={`${u.id}-detail`} className="bg-surface-soft/40">
-                    <td colSpan={7} className="p-4">
-                      <UserDetailRow
-                        user={u}
-                        onGrantPro={handleGrantPro}
-                        onRevokePro={handleRevokePro}
-                      />
-                    </td>
-                  </tr>
-                ),
-              ])
-            )}
-          </tbody>
-        </table>
-      </div>
+                  {u.is_banned ? <ShieldOff size={11} /> : <Shield size={11} />}
+                  {u.is_banned ? "解封" : "封禁"}
+                </button>
+                <button
+                  onClick={() => handlePromote(u)}
+                  title="切换管理员角色"
+                  className="btn-secondary !py-1 !px-2 text-[11px]"
+                >
+                  <UserCog size={11} />
+                  {(u.role || "user") === "admin" ? "降级" : "提升"}
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+        renderDetail={(u) => (
+          <UserDetailRow
+            user={u}
+            onGrantPro={handleGrantPro}
+            onRevokePro={handleRevokePro}
+          />
+        )}
+      />
 
       <Pagination
         page={page}

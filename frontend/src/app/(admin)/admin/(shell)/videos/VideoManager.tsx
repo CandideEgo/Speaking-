@@ -21,6 +21,7 @@ import { mediaUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
+import { DataTable } from "@/components/admin/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
@@ -330,167 +331,142 @@ export default function VideoManager() {
         </div>
 
         {/* Table */}
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-hairline text-left text-xs text-muted-foreground uppercase tracking-wider">
-                <th className="pb-2 font-medium">视频</th>
-                <th className="pb-2 font-medium">状态</th>
-                <th className="pb-2 font-medium">难度</th>
-                <th className="pb-2 font-medium">标记</th>
-                <th className="pb-2 font-medium">创建时间</th>
-                <th className="pb-2 font-medium text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hairline">
-              {videos.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="py-8 text-center text-muted-foreground"
+        <DataTable
+          className="mt-4"
+          columns={[
+            { label: "视频" },
+            { label: "状态" },
+            { label: "难度" },
+            { label: "标记" },
+            { label: "创建时间" },
+            { label: "操作", align: "right" },
+          ]}
+          rows={videos}
+          rowKey={(v) => v.id}
+          loading={loading}
+          emptyText="暂无视频"
+          expandedId={editingId}
+          renderRow={(v, isExpanded) => (
+            <tr className="text-xs align-top">
+              <td className="py-3 pr-4">
+                <div className="flex items-start gap-3">
+                  {v.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={v.thumbnail_url}
+                      alt=""
+                      className="h-12 w-20 rounded-sm object-cover bg-surface-soft flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-20 rounded-sm bg-surface-soft flex items-center justify-center flex-shrink-0">
+                      <VideoIcon size={16} className="text-muted-soft" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div
+                      className="font-medium text-ink truncate max-w-[280px]"
+                      title={v.title}
+                    >
+                      {v.title}
+                    </div>
+                    <div
+                      className="text-muted-foreground truncate max-w-[280px]"
+                      title={v.source_url}
+                    >
+                      {v.source_url}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td className="py-3 pr-4">
+                <VideoStatusBadge status={v.status} />
+                {v.status === "processing" && v.processing_step && (
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    {v.processing_step}
+                  </div>
+                )}
+                {v.status === "error" && v.error_message && (
+                  <div
+                    className="mt-1 text-[10px] text-red-600 truncate max-w-[180px]"
+                    title={v.error_message}
                   >
-                    {loading ? "加载中..." : "暂无视频"}
-                  </td>
-                </tr>
-              ) : (
-                videos.flatMap((v) => [
-                  <tr key={v.id} className="text-xs align-top">
-                    <td className="py-3 pr-4">
-                      <div className="flex items-start gap-3">
-                        {v.thumbnail_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={v.thumbnail_url}
-                            alt=""
-                            className="h-12 w-20 rounded-sm object-cover bg-surface-soft flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="h-12 w-20 rounded-sm bg-surface-soft flex items-center justify-center flex-shrink-0">
-                            <VideoIcon size={16} className="text-muted-soft" />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div
-                            className="font-medium text-ink truncate max-w-[280px]"
-                            title={v.title}
-                          >
-                            {v.title}
-                          </div>
-                          <div
-                            className="text-muted-foreground truncate max-w-[280px]"
-                            title={v.source_url}
-                          >
-                            {v.source_url}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <VideoStatusBadge status={v.status} />
-                      {v.status === "processing" && v.processing_step && (
-                        <div className="mt-1 text-[10px] text-muted-foreground">
-                          {v.processing_step}
-                        </div>
-                      )}
-                      {v.status === "error" && v.error_message && (
-                        <div
-                          className="mt-1 text-[10px] text-red-600 truncate max-w-[180px]"
-                          title={v.error_message}
-                        >
-                          {v.error_message}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {v.difficulty_level || "-"}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <div className="flex flex-col gap-1">
-                        {v.is_official && (
-                          <Badge tone="brand" className="w-fit">
-                            官方
-                          </Badge>
-                        )}
-                        {!v.is_official &&
-                          v.review_status &&
-                          REVIEW_BADGE[v.review_status] && (
-                            <Badge
-                              tone={REVIEW_BADGE[v.review_status].tone}
-                              className="w-fit"
-                            >
-                              {REVIEW_BADGE[v.review_status].label}
-                            </Badge>
-                          )}
-                        {v.is_official && !v.is_published && (
-                          <Badge tone="orange" className="w-fit">
-                            待审
-                          </Badge>
-                        )}
-                        {v.is_published && (
-                          <Badge tone="green" className="w-fit">
-                            已发布
-                          </Badge>
-                        )}
-                        {v.is_featured && (
-                          <Badge tone="amber" className="w-fit">
-                            精选
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {new Date(v.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="inline-flex gap-1">
-                        <button
-                          onClick={() =>
-                            setEditingId(editingId === v.id ? null : v.id)
-                          }
-                          className={cn(
-                            "btn-secondary !py-1 !px-2 text-[11px]",
-                            editingId === v.id && "border-ink",
-                          )}
-                        >
-                          {editingId === v.id ? (
-                            <X size={12} />
-                          ) : (
-                            <Pencil size={12} />
-                          )}
-                          {editingId === v.id ? "关闭" : "编辑"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>,
-                  editingId === v.id && (
-                    <tr key={`${v.id}-detail`} className="bg-surface-soft/40">
-                      <td colSpan={6} className="p-4">
-                        <VideoDetailRow
-                          video={v}
-                          patchVideo={patchVideo}
-                          onSaved={loadVideos}
-                          onLocalize={handleLocalize}
-                          onDelete={(vid) => setDeleteTarget(vid)}
-                          onApprove={handleApprove}
-                          onReject={(vid) => {
-                            setRejectTarget(
-                              videos.find((x) => x.id === vid) ?? null,
-                            );
-                            setRejectReason("");
-                          }}
-                          reviewBusy={reviewBusy}
-                          onEditSubtitles={(id) =>
-                            router.push(`/admin/videos/${id}`)
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ),
-                ])
-              )}
-            </tbody>
-          </table>
-        </div>
+                    {v.error_message}
+                  </div>
+                )}
+              </td>
+              <td className="py-3 pr-4 text-muted-foreground">
+                {v.difficulty_level || "-"}
+              </td>
+              <td className="py-3 pr-4">
+                <div className="flex flex-col gap-1">
+                  {v.is_official && (
+                    <Badge tone="brand" className="w-fit">
+                      官方
+                    </Badge>
+                  )}
+                  {!v.is_official &&
+                    v.review_status &&
+                    REVIEW_BADGE[v.review_status] && (
+                      <Badge
+                        tone={REVIEW_BADGE[v.review_status].tone}
+                        className="w-fit"
+                      >
+                        {REVIEW_BADGE[v.review_status].label}
+                      </Badge>
+                    )}
+                  {v.is_official && !v.is_published && (
+                    <Badge tone="orange" className="w-fit">
+                      待审
+                    </Badge>
+                  )}
+                  {v.is_published && (
+                    <Badge tone="green" className="w-fit">
+                      已发布
+                    </Badge>
+                  )}
+                  {v.is_featured && (
+                    <Badge tone="amber" className="w-fit">
+                      精选
+                    </Badge>
+                  )}
+                </div>
+              </td>
+              <td className="py-3 pr-4 text-muted-foreground">
+                {new Date(v.created_at).toLocaleDateString()}
+              </td>
+              <td className="py-3 text-right">
+                <div className="inline-flex gap-1">
+                  <button
+                    onClick={() => setEditingId(isExpanded ? null : v.id)}
+                    className={cn(
+                      "btn-secondary !py-1 !px-2 text-[11px]",
+                      isExpanded && "border-ink",
+                    )}
+                  >
+                    {isExpanded ? <X size={12} /> : <Pencil size={12} />}
+                    {isExpanded ? "关闭" : "编辑"}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          )}
+          renderDetail={(v) => (
+            <VideoDetailRow
+              video={v}
+              patchVideo={patchVideo}
+              onSaved={loadVideos}
+              onLocalize={handleLocalize}
+              onDelete={(vid) => setDeleteTarget(vid)}
+              onApprove={handleApprove}
+              onReject={(vid) => {
+                setRejectTarget(videos.find((x) => x.id === vid) ?? null);
+                setRejectReason("");
+              }}
+              reviewBusy={reviewBusy}
+              onEditSubtitles={(id) => router.push(`/admin/videos/${id}`)}
+            />
+          )}
+        />
       </div>
 
       {/* Reject dialog */}

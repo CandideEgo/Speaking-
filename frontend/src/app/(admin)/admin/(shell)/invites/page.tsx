@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Download, RefreshCw, Ticket } from "lucide-react";
 
 import { SectionCard } from "@/components/admin/SectionCard";
+import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import type { InviteCode } from "@/types";
 import {
@@ -148,53 +149,40 @@ export default function AdminInvitesPage() {
           </div>
         }
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-hairline text-left text-xs text-muted-foreground uppercase tracking-wider">
-                <th className="pb-2 font-medium">兑换码</th>
-                <th className="pb-2 font-medium">方案</th>
-                <th className="pb-2 font-medium">有效期</th>
-                <th className="pb-2 font-medium">批次</th>
-                <th className="pb-2 font-medium">状态</th>
-                <th className="pb-2 font-medium">使用者</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hairline">
-              {codes.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="py-8 text-center text-muted-foreground"
-                  >
-                    {loadingCodes ? "加载中..." : "暂无兑换码"}
-                  </td>
-                </tr>
-              ) : (
-                codes.map((c) => (
-                  <tr key={c.id} className="text-xs">
-                    <td className="py-2 font-mono text-ink">{c.code}</td>
-                    <td className="py-2 text-muted-foreground">{c.plan}</td>
-                    <td className="py-2 text-muted-foreground">
-                      {c.duration_days}天
-                    </td>
-                    <td className="py-2 text-muted-foreground">
-                      {c.batch_label || "-"}
-                    </td>
-                    <td className="py-2">
-                      <Badge tone={c.is_used ? "neutral" : "green"}>
-                        {c.is_used ? "已使用" : "可用"}
-                      </Badge>
-                    </td>
-                    <td className="py-2 text-muted-foreground font-mono">
-                      {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[
+            { label: "兑换码" },
+            { label: "方案" },
+            { label: "有效期" },
+            { label: "批次" },
+            { label: "状态" },
+            { label: "使用者" },
+          ]}
+          rows={codes}
+          rowKey={(c) => c.id}
+          loading={loadingCodes}
+          emptyText="暂无兑换码"
+          renderRow={(c) => (
+            <tr className="text-xs">
+              <td className="py-2 font-mono text-ink">{c.code}</td>
+              <td className="py-2 text-muted-foreground">{c.plan}</td>
+              <td className="py-2 text-muted-foreground">
+                {c.duration_days}天
+              </td>
+              <td className="py-2 text-muted-foreground">
+                {c.batch_label || "-"}
+              </td>
+              <td className="py-2">
+                <Badge tone={c.is_used ? "neutral" : "green"}>
+                  {c.is_used ? "已使用" : "可用"}
+                </Badge>
+              </td>
+              <td className="py-2 text-muted-foreground font-mono">
+                {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
+              </td>
+            </tr>
+          )}
+        />
       </SectionCard>
     </div>
   );
