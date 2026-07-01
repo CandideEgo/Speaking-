@@ -175,18 +175,25 @@ async def get_feed(
     # Batch-load authors + attached videos for the page.
     videos_by_id = await _attach_videos(db, page_posts)
 
-    # Load users for posts
+    # Batch-load users for all page posts (1 query instead of N)
+    user_ids = list({p.user_id for p in page_posts if p.user_id})
+    users_by_id: dict[str, User] = {}
+    if user_ids:
+        user_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        users_by_id = {u.id: u for u in user_result.scalars().all()}
+
+    # Batch-load like status for current user (1 query instead of N)
+    liked_post_ids: set[str] = set()
+    if user_id and page_posts:
+        post_ids = [p.id for p in page_posts]
+        like_result = await db.execute(
+            select(PostLike.post_id).where(PostLike.user_id == user_id, PostLike.post_id.in_(post_ids))
+        )
+        liked_post_ids = {row[0] for row in like_result.all()}
+
     items = []
     for post in page_posts:
-        user_result = await db.execute(select(User).where(User.id == post.user_id))
-        post_user = user_result.scalar_one_or_none()
-
-        is_liked = False
-        if user_id:
-            like_result = await db.execute(
-                select(PostLike).where(PostLike.user_id == user_id, PostLike.post_id == post.id)
-            )
-            is_liked = like_result.scalar_one_or_none() is not None
+        post_user = users_by_id.get(post.user_id)
 
         items.append(
             {
@@ -199,7 +206,7 @@ async def get_feed(
                 "media_url": post.media_url,
                 "like_count": post.like_count,
                 "comment_count": post.comment_count,
-                "is_liked": is_liked,
+                "is_liked": post.id in liked_post_ids,
                 "created_at": post.created_at,
                 "video": videos_by_id.get(post.video_id) if post.post_type == "video_share" else None,
             }
@@ -500,10 +507,16 @@ async def get_followers(db: AsyncSession, user_id: str, page: int = 1, page_size
     )
     follows = result.scalars().all()
 
+    # Batch-load follower users (1 query instead of N)
+    follower_ids = list({f.follower_id for f in follows})
+    users_by_id: dict[str, User] = {}
+    if follower_ids:
+        user_result = await db.execute(select(User).where(User.id.in_(follower_ids)))
+        users_by_id = {u.id: u for u in user_result.scalars().all()}
+
     items = []
     for f in follows:
-        user_result = await db.execute(select(User).where(User.id == f.follower_id))
-        follower_user = user_result.scalar_one_or_none()
+        follower_user = users_by_id.get(f.follower_id)
         items.append(
             {
                 "id": f.id,
@@ -534,10 +547,16 @@ async def get_following(db: AsyncSession, user_id: str, page: int = 1, page_size
     )
     follows = result.scalars().all()
 
+    # Batch-load followee users (1 query instead of N)
+    followee_ids = list({f.followee_id for f in follows})
+    users_by_id: dict[str, User] = {}
+    if followee_ids:
+        user_result = await db.execute(select(User).where(User.id.in_(followee_ids)))
+        users_by_id = {u.id: u for u in user_result.scalars().all()}
+
     items = []
     for f in follows:
-        user_result = await db.execute(select(User).where(User.id == f.followee_id))
-        followee_user = user_result.scalar_one_or_none()
+        followee_user = users_by_id.get(f.followee_id)
         items.append(
             {
                 "id": f.id,
