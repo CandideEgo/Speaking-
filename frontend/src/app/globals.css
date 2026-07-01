@@ -628,18 +628,6 @@
   animation: fade-in 0.25s ease-out forwards;
 }
 
-@keyframes slide-in-left {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-.animate-slide-in {
-  animation: slide-in-left 200ms ease-out;
-}
-
 /* === Wave animation (speaking) === */
 @keyframes wave-bar {
   0%,
@@ -649,20 +637,4 @@
   50% {
     transform: scaleY(1);
   }
-}
-
-/* === Channel-specific styles === */
-.douyin-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.douyin-scrollbar::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 2px;
-}
-
-.bili-blue {
-  @apply text-indigo;
-}
-.bili-blue-bg {
-  @apply bg-indigo-soft;
 }

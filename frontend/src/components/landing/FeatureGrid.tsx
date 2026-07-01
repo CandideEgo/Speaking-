@@ -1,22 +1,8 @@
-import { Mic, Star } from "lucide-react";
+import { Mic, Star, ListFilter } from "lucide-react";
 
 const features = [
   {
-    icon: (
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M4 6h16M4 12h10M4 18h7" />
-        <circle cx="19" cy="17" r="2" />
-      </svg>
-    ),
+    icon: <ListFilter size={24} />,
     title: "智能双语字幕",
     desc: "逐句中英对照，生词点击即查，长按看语法解析。跟读字幕还能高亮当前句，学得更准。",
     color: "bg-brand-500",
