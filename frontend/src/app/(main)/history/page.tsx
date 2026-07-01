@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Button } from "@/components/ui/Button";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { Pagination } from "@/components/admin/Pagination";
 import { Card } from "@/components/ui/Card";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
@@ -13,7 +14,6 @@ import type { ActivityCalendar, LearningRecord } from "@/types";
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-  const [loading, setLoading] = useState(true);
 
   // Month navigation
   const now = new Date();
@@ -22,9 +22,28 @@ export default function HistoryPage() {
 
   const [activityCalendar, setActivityCalendar] =
     useState<ActivityCalendar | null>(null);
-  const [records, setRecords] = useState<LearningRecord[]>([]);
-  const [recordsPage, setRecordsPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+
+  const {
+    items: records,
+    page: recordsPage,
+    setPage: setRecordsPage,
+    hasMore,
+    loading,
+  } = usePaginatedList<LearningRecord>({
+    fetcher: async (pg) => {
+      const data = await api<{ records: LearningRecord[]; total: number }>(
+        `/api/v1/learning/records?page=${pg}&page_size=20`,
+      );
+      return {
+        items: data.records,
+        has_more: data.total > pg * 20,
+        total: data.total,
+      };
+    },
+    mode: "replace",
+    filters: [],
+    enabled: isAuthenticated && !isLoading,
+  });
 
   // Fetch activity calendar (guarded on auth)
   useEffect(() => {
@@ -40,25 +59,6 @@ export default function HistoryPage() {
       }
     })();
   }, [year, month, isAuthenticated, isLoading]);
-
-  // Fetch learning records (guarded on auth)
-  useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await api<{ records: LearningRecord[]; total: number }>(
-          `/api/v1/learning/records?page=${recordsPage}&page_size=20`,
-        );
-        setRecords(data.records);
-        setHasMore(data.total > recordsPage * 20);
-      } catch {
-        toast.error("加载学习记录失败");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [recordsPage, isAuthenticated, isLoading]);
 
   function prevMonth() {
     if (month === 1) {
@@ -225,26 +225,13 @@ export default function HistoryPage() {
               ))}
 
               {/* Pagination */}
-              <div className="flex justify-center gap-3 pt-4">
-                {recordsPage > 1 && (
-                  <Button
-                    onClick={() => setRecordsPage(recordsPage - 1)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    上一页
-                  </Button>
-                )}
-                {hasMore && (
-                  <Button
-                    onClick={() => setRecordsPage(recordsPage + 1)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    下一页
-                  </Button>
-                )}
-              </div>
+              <Pagination
+                page={recordsPage}
+                hasMore={hasMore}
+                loading={loading}
+                onPrev={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                onNext={() => setRecordsPage((p) => p + 1)}
+              />
             </div>
           )}
         </div>

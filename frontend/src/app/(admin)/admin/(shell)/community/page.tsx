@@ -38,6 +38,7 @@ import {
   resolveReport,
 } from "@/lib/adminData";
 import { POST_TYPE_META } from "@/lib/community";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
 
 const REPORT_FILTERS = [
   { key: "", label: "全部" },
@@ -66,11 +67,7 @@ export default function AdminCommunityPage() {
 // ---------------------------------------------------------------------------
 
 function ReportQueue() {
-  const [reports, setReports] = useState<CommentReport[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Confirmation state for resolve actions (replaces native window.confirm).
   const [resolvePrompt, setResolvePrompt] = useState<{
@@ -78,30 +75,20 @@ function ReportQueue() {
     action: "remove" | "dismiss";
   } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listReports({
-        page,
-        page_size: 20,
-        status: statusFilter,
-      });
-      setReports(data.items);
-      setHasMore(data.has_more);
-    } catch {
-      toast.error("加载举报列表失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [statusFilter]);
+  const {
+    items: reports,
+    setItems: setReports,
+    page,
+    setPage,
+    hasMore,
+    loading,
+    reload,
+  } = usePaginatedList<CommentReport>({
+    fetcher: (pg) =>
+      listReports({ page: pg, page_size: 20, status: statusFilter }),
+    mode: "replace",
+    filters: [statusFilter],
+  });
 
   async function handleResolve(
     report: CommentReport,
@@ -122,7 +109,7 @@ function ReportQueue() {
       description="用户举报的评论，审核后可删除评论或驳回举报。"
       actions={
         <Button
-          onClick={load}
+          onClick={reload}
           disabled={loading}
           variant="secondary"
           size="sm"

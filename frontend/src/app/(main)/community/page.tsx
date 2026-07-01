@@ -6,6 +6,7 @@ import { timeAgo } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
 import { POST_TYPE_META } from "@/lib/community";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -100,11 +101,8 @@ export default function CommunityPage() {
   const user = useAuthStore((s) => s.user);
 
   const [activeTab, setActiveTab] = useState("feed");
-  const [posts, setPosts] = useState<Post[]>([]);
   const [communityVideos, setCommunityVideos] = useState<CommunityVideo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+  const [videosLoading, setVideosLoading] = useState(false);
   const [newPost, setNewPost] = useState("");
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
@@ -115,47 +113,42 @@ export default function CommunityPage() {
     {},
   );
 
-  useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
-    if (activeTab === "videos") {
-      loadCommunityVideos();
-    } else {
-      loadPosts();
-    }
-  }, [activeTab, isLoading, isAuthenticated]);
-
-  async function loadPosts(nextPage = 1) {
-    if (nextPage === 1) setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(nextPage),
-        page_size: "20",
-      });
+  const {
+    items: posts,
+    setItems: setPosts,
+    loading,
+    hasMore,
+    loadMore,
+    reload: reloadPosts,
+  } = usePaginatedList<Post>({
+    fetcher: async (pg) => {
+      const params = new URLSearchParams({ page: String(pg), page_size: "20" });
       if (activeTab === "trending") params.set("sort", "trending");
-      const data = await api<PostsResponse>(`/api/v1/community/feed?${params}`);
-      setPosts((prev) =>
-        nextPage === 1 ? data.items : [...prev, ...data.items],
-      );
-      setPage(nextPage);
-      setHasMore(data.has_more);
-    } catch {
-      if (nextPage === 1) setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+      return api<PostsResponse>(`/api/v1/community/feed?${params}`);
+    },
+    mode: "append",
+    filters: [activeTab],
+    enabled: isAuthenticated && !isLoading && activeTab !== "videos",
+  });
 
-  async function loadCommunityVideos() {
-    setLoading(true);
-    try {
-      const data = await api<CommunityVideo[]>("/api/v1/community/videos");
-      setCommunityVideos(data);
-    } catch {
-      setCommunityVideos([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || activeTab !== "videos") return;
+    let cancelled = false;
+    setVideosLoading(true);
+    api<CommunityVideo[]>("/api/v1/community/videos")
+      .then((data) => {
+        if (!cancelled) setCommunityVideos(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCommunityVideos([]);
+      })
+      .finally(() => {
+        if (!cancelled) setVideosLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isLoading, isAuthenticated]);
 
   async function handleVideoLike(videoId: string) {
     try {
@@ -186,7 +179,7 @@ export default function CommunityPage() {
         body: JSON.stringify({ content: draft, post_type: "text" }),
       });
       setNewPost("");
-      loadPosts();
+      reloadPosts();
     } catch (err) {
       toastApiError(err, "发布失败");
     }
@@ -308,7 +301,7 @@ export default function CommunityPage() {
         {/* Videos tab content */}
         {activeTab === "videos" && (
           <div>
-            {loading ? (
+            {videosLoading ? (
               <InlineSpinner />
             ) : communityVideos.length === 0 ? (
               <EmptyState icon={Play} title="暂无社区视频" />
@@ -600,7 +593,7 @@ export default function CommunityPage() {
               {hasMore && !loading && (
                 <Button
                   variant="secondary"
-                  onClick={() => loadPosts(page + 1)}
+                  onClick={loadMore}
                   className="w-full mt-2"
                 >
                   加载更多

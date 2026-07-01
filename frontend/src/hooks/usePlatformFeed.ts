@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { toastApiError, apiErrorMessage } from "@/lib/errors";
+import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
 
 interface UsePlatformFeedOptions {
@@ -41,27 +42,38 @@ export function usePlatformFeed({
   initialLevel = "all",
 }: UsePlatformFeedOptions) {
   const router = useRouter();
-  const loaderRef = useRef<HTMLDivElement>(null);
-  const fetchIdRef = useRef(0); // guard against stale fetches
 
   const [categories, setCategories] = useState<Category[]>(
     FALLBACK_CATEGORIES[platform] || [],
   );
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [activeLevel, setActiveLevel] = useState(initialLevel);
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
 
-  // Stable ref for activeCategory to avoid re-creating fetchFeed
-  const activeCategoryRef = useRef(activeCategory);
-  activeCategoryRef.current = activeCategory;
-  const activeLevelRef = useRef(activeLevel);
-  activeLevelRef.current = activeLevel;
+  const {
+    items: videos,
+    hasMore,
+    total,
+    loading,
+    error,
+    reload,
+    loaderRef,
+  } = usePaginatedList<VideoItem>({
+    fetcher: async (pg) => {
+      const params = new URLSearchParams({
+        category: activeCategory,
+        page: String(pg),
+      });
+      if (activeLevel && activeLevel !== "all")
+        params.set("level", activeLevel);
+      const data = await api<FeedResponse & { total?: number }>(
+        `/api/v1/${platform}/feed?${params.toString()}`,
+      );
+      return { items: data.items, has_more: data.has_more, total: data.total };
+    },
+    mode: "append",
+    filters: [activeCategory, activeLevel],
+  });
 
   // Fetch categories on mount — only once
   useEffect(() => {
@@ -74,7 +86,6 @@ export function usePlatformFeed({
         if (!cancelled && data.categories?.length) {
           setCategories(data.categories);
         }
-        setError(null);
       } catch {
         // Use fallback categories — don't show error for categories
         // The feed fetch will show error if backend is unreachable
@@ -85,78 +96,6 @@ export function usePlatformFeed({
       cancelled = true;
     };
   }, [platform]);
-
-  // Fetch feed — stable reference, reads activeCategory from ref
-  const fetchFeed = useCallback(
-    async (cat: string, pg: number, level?: string) => {
-      const fetchId = ++fetchIdRef.current;
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({ category: cat, page: String(pg) });
-        if (level && level !== "all") {
-          params.set("level", level);
-        }
-        const data = await api<FeedResponse & { total?: number }>(
-          `/api/v1/${platform}/feed?${params.toString()}`,
-        );
-        // Only apply if this is still the latest fetch
-        if (fetchId !== fetchIdRef.current) return;
-        if (pg === 1) {
-          setVideos(data.items);
-        } else {
-          setVideos((prev) => [...prev, ...data.items]);
-        }
-        setHasMore(data.has_more);
-        if (data.total !== undefined) {
-          setTotal(data.total);
-        }
-      } catch (err) {
-        if (fetchId !== fetchIdRef.current) return;
-        toastApiError(err, "加载失败");
-        setError(apiErrorMessage(err, "加载失败"));
-      } finally {
-        if (fetchId === fetchIdRef.current) {
-          setLoading(false);
-        }
-      }
-    },
-    [platform],
-  );
-
-  // Reset and fetch when category or level changes
-  useEffect(() => {
-    setPage(1);
-    setVideos([]);
-    setHasMore(true);
-    setError(null);
-    setTotal(0);
-    fetchFeed(activeCategory, 1, activeLevel);
-  }, [activeCategory, activeLevel, fetchFeed]);
-
-  // Infinite scroll via IntersectionObserver
-  useEffect(() => {
-    const el = loaderRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          const nextPage = page + 1;
-          setPage(nextPage);
-          fetchFeed(
-            activeCategoryRef.current,
-            nextPage,
-            activeLevelRef.current,
-          );
-        }
-      },
-      { threshold: 0.1 },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, loading, page, fetchFeed]);
 
   // Start learning: add video then navigate
   // For browse videos (already in DB with `id`), navigate directly
@@ -182,11 +121,6 @@ export function usePlatformFeed({
     [router],
   );
 
-  // Retry feed fetch
-  const retry = useCallback(() => {
-    fetchFeed(activeCategory, 1, activeLevel);
-  }, [activeCategory, activeLevel, fetchFeed]);
-
   return {
     categories,
     activeCategory,
@@ -198,7 +132,7 @@ export function usePlatformFeed({
     hasMore,
     total,
     error,
-    retry,
+    retry: reload,
     loaderRef,
     addingId,
     startLearning,

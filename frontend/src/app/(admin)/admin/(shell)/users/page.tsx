@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
 import {
   ChevronDown,
   ChevronRight,
@@ -43,16 +44,10 @@ const PLAN_FILTERS = [
 ];
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Confirmation state for destructive/role-change actions (replaces native
-  // window.confirm).
   const [confirmPrompt, setConfirmPrompt] = useState<{
     title: string;
     message: string;
@@ -61,32 +56,26 @@ export default function AdminUsersPage() {
     onConfirm: () => void;
   } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listUsers({
-        page,
+  const {
+    items: users,
+    setItems: setUsers,
+    page,
+    setPage,
+    hasMore,
+    loading,
+    reload,
+  } = usePaginatedList<AdminUser>({
+    fetcher: (pg) =>
+      listUsers({
+        page: pg,
         page_size: 20,
         role: roleFilter,
         plan: planFilter,
         keyword,
-      });
-      setUsers(data.items);
-      setHasMore(data.has_more);
-    } catch {
-      toast.error("加载用户列表失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, roleFilter, planFilter, keyword]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [roleFilter, planFilter, keyword]);
+      }),
+    mode: "replace",
+    filters: [roleFilter, planFilter, keyword],
+  });
 
   function patchUser(id: string, patch: Partial<AdminUser>) {
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
@@ -177,7 +166,7 @@ export default function AdminUsersPage() {
       description="管理用户角色、封禁状态与 Pro 会员。"
       actions={
         <Button
-          onClick={load}
+          onClick={reload}
           disabled={loading}
           variant="secondary"
           icon={RefreshCw}
@@ -204,7 +193,7 @@ export default function AdminUsersPage() {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") load();
+            if (e.key === "Enter") reload();
           }}
           placeholder="搜索姓名/邮箱..."
           className="!py-1.5 max-w-xs ml-auto"
