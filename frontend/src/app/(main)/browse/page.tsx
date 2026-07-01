@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { TabPills } from "@/components/ui/TabPills";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { formatDuration } from "@/lib/format";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -49,28 +50,32 @@ export default function BrowsePage() {
           {/* Category row */}
           <div className="filter-row">
             <span className="filter-label">分类</span>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`fchip ${activeCategory === cat.id ? "fchip-on" : ""}`}
-              >
-                {cat.label}
-              </button>
-            ))}
+            <TabPills
+              tabs={categories.map((cat) => ({
+                key: cat.id,
+                label: cat.label,
+              }))}
+              activeKey={activeCategory}
+              onChange={setActiveCategory}
+              variant="ghost"
+              activeStyle="dark"
+              size="sm"
+            />
           </div>
           {/* Difficulty row */}
           <div className="filter-row">
             <span className="filter-label">难度</span>
-            {DIFFICULTY_LEVELS.map((lv) => (
-              <button
-                key={lv.id}
-                onClick={() => setActiveLevel(lv.id)}
-                className={`fchip ${activeLevel === lv.id ? "fchip-brand-on" : ""}`}
-              >
-                {lv.label}
-              </button>
-            ))}
+            <TabPills
+              tabs={DIFFICULTY_LEVELS.map((lv) => ({
+                key: lv.id,
+                label: lv.label,
+              }))}
+              activeKey={activeLevel}
+              onChange={setActiveLevel}
+              variant="ghost"
+              activeStyle="brand"
+              size="sm"
+            />
           </div>
         </div>
 

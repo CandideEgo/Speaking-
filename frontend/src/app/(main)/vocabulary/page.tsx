@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { BookOpen, Trash2, Volume2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TabPills } from "@/components/ui/TabPills";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -263,26 +264,16 @@ export default function VocabularyPage() {
         {/* Section header */}
         <div className="sec-head !mt-0">
           <h2 className="sec-title">全部单词</h2>
-          <div className="tab-container !p-0 !bg-transparent">
-            <button
-              onClick={() => setDueOnly(false)}
-              className={cn(
-                "tab-pill !rounded-sm",
-                !dueOnly && "tab-pill-active",
-              )}
-            >
-              全部
-            </button>
-            <button
-              onClick={() => setDueOnly(true)}
-              className={cn(
-                "tab-pill !rounded-sm",
-                dueOnly && "tab-pill-active",
-              )}
-            >
-              待复习
-            </button>
-          </div>
+          <TabPills
+            tabs={[
+              { key: "all", label: "全部" },
+              { key: "due", label: "待复习" },
+            ]}
+            activeKey={dueOnly ? "due" : "all"}
+            onChange={(key) => setDueOnly(key === "due")}
+            variant="ghost"
+            shape="rect"
+          />
         </div>
 
         {/* Word grid */}

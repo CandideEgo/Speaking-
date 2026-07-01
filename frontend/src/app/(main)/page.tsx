@@ -13,6 +13,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { CommunityFeedWidget } from "@/components/community/CommunityFeedWidget";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { TabPills } from "@/components/ui/TabPills";
 import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
@@ -319,20 +320,12 @@ export default function HomePage() {
           </div>
 
           {/* Difficulty pill tabs */}
-          <div className="tab-container mb-6">
-            {DIFFICULTY_GROUPS.map((group) => {
-              const isActive = activeGroup === group.id;
-              return (
-                <button
-                  key={group.id}
-                  className={`tab-pill ${isActive ? "tab-pill-active" : ""}`}
-                  onClick={() => setActiveGroup(group.id)}
-                >
-                  {group.label}
-                </button>
-              );
-            })}
-          </div>
+          <TabPills
+            tabs={DIFFICULTY_GROUPS.map((g) => ({ key: g.id, label: g.label }))}
+            activeKey={activeGroup}
+            onChange={setActiveGroup}
+            className="mb-6"
+          />
 
           {/* Video grid */}
           {loading ? (

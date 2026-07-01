@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TabPills } from "@/components/ui/TabPills";
 import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
@@ -328,20 +329,12 @@ export default function CommunityPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="tab-container mb-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "tab-pill",
-                activeTab === tab.key && "tab-pill-active",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <TabPills
+          tabs={TABS}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          className="mb-6"
+        />
 
         {/* Videos tab content */}
         {activeTab === "videos" && (

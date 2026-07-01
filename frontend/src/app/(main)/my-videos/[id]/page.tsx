@@ -38,6 +38,7 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { TabPills } from "@/components/ui/TabPills";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -305,20 +306,15 @@ export default function MyVideoEditorPage() {
           {/* Editor */}
           <div>
             {/* Tabs */}
-            <div className="tab-container mb-4">
-              <button
-                className={`tab-pill ${activeTab === "subtitles" ? "tab-pill-active" : ""}`}
-                onClick={() => setActiveTab("subtitles")}
-              >
-                字幕
-              </button>
-              <button
-                className={`tab-pill ${activeTab === "practice" ? "tab-pill-active" : ""}`}
-                onClick={() => setActiveTab("practice")}
-              >
-                练习题
-              </button>
-            </div>
+            <TabPills
+              tabs={[
+                { key: "subtitles", label: "字幕" },
+                { key: "practice", label: "练习题" },
+              ]}
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              className="mb-4"
+            />
 
             {isPublished && (
               <div className="bg-warning-soft text-warning rounded-lg p-3 mb-4 text-xs">
