@@ -208,10 +208,10 @@ async def test_get_practice_rejects_invalid_level(client, admin_headers):
 @pytest.mark.asyncio
 async def test_get_practice_caches_after_generation(client, admin_headers, monkeypatch):
     """First call generates + caches; second call returns the cache without AI."""
-    from app.api.v1 import practice as practice_mod
     from app.models.subtitle import Subtitle
     from app.models.video import Video, VideoStatus
     from app.services import ecdict
+    from app.services import practice_service as practice_service_mod
     from tests.conftest import TestSessionLocal
 
     # A subtitle with a target-level word.
@@ -242,7 +242,7 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
     canned = [{"type": "qa", "question": "Q?", "answer": "A", "options": None, "cet_words": []}]
     gen_mock = AsyncMock(return_value=canned)
     monkeypatch.setattr(
-        practice_mod,
+        practice_service_mod,
         "get_ai_service",
         lambda: type("FakeAI", (), {"generate_practice_questions": gen_mock})(),
     )
@@ -270,14 +270,16 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
 
 @pytest.mark.asyncio
 async def test_grade_endpoint(client, admin_headers, monkeypatch):
-    from app.api.v1 import practice as practice_mod
+    from app.services import practice_service as practice_service_mod
 
-    async def _fake_get_ready(db, vid, current_user=None):
+    async def _fake_get_accessible(db, vid, current_user=None):
         return object()
 
-    monkeypatch.setattr(practice_mod, "_get_ready_video_or_404", _fake_get_ready)
+    monkeypatch.setattr(practice_service_mod, "get_accessible_video", _fake_get_accessible)
     grade_mock = AsyncMock(return_value={"correct": True, "explanation": "对"})
-    monkeypatch.setattr(practice_mod, "get_ai_service", lambda: type("FakeAI", (), {"grade_answer": grade_mock})())
+    monkeypatch.setattr(
+        practice_service_mod, "get_ai_service", lambda: type("FakeAI", (), {"grade_answer": grade_mock})()
+    )
 
     resp = await client.post(
         "/api/v1/videos/vid/practice/grade",
@@ -426,9 +428,9 @@ async def _make_other_headers() -> dict:
 
 @pytest.mark.asyncio
 async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
-    from app.api.v1 import practice as practice_mod
     from app.models.subtitle import Subtitle
     from app.services import ecdict
+    from app.services import practice_service as practice_service_mod
     from tests.conftest import TestSessionLocal
 
     monkeypatch.setattr(
@@ -439,7 +441,7 @@ async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
     canned = [{"type": "qa", "question": "Fresh Q?", "answer": "A", "options": None, "cet_words": []}]
     gen_mock = AsyncMock(return_value=canned)
     monkeypatch.setattr(
-        practice_mod,
+        practice_service_mod,
         "get_ai_service",
         lambda: type("FakeAI", (), {"generate_practice_questions": gen_mock})(),
     )

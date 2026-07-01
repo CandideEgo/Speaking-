@@ -15,24 +15,15 @@ Pro-gated: practice is a Pro feature (annotation/highlighting stays free).
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import (
-    check_video_access,
-    get_current_user,
-    is_video_owner,
-    require_pro_user,
-    require_video_owner,
-)
+from app.api.dependencies import get_current_user, require_pro_user
 from app.core.database import get_db
-from app.core.exam_levels import EXAM_LEVEL_KEYS, level_order, max_level, should_display
+from app.core.exam_levels import EXAM_LEVEL_KEYS
 from app.core.limiter import rate_limit
-from app.models.practice import VideoPracticeQuestion
 from app.models.user import User
-from app.models.video import Video, VideoReviewStatus, VideoStatus
-from app.services import ecdict, exam_corpus
-from app.services.ai_service import get_ai_service
+from app.services import practice_service
+from app.services.ai_service import AIServiceError
 
 router = APIRouter(prefix="/videos", tags=["practice"])
 
@@ -86,59 +77,28 @@ class PracticeQuestionEdit(BaseModel):
     questions: list[PracticeQuestionItem] = Field(default_factory=list)
 
 
-async def _get_ready_video_or_404(db: AsyncSession, video_id: str, current_user: User | None = None) -> Video:
-    video = (await db.execute(select(Video).where(Video.id == video_id))).scalar_one_or_none()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    if not check_video_access(video, current_user):
-        raise HTTPException(status_code=403, detail="无权访问该视频")
-    return video
+# ---------------------------------------------------------------------------
+# Helpers: map service-layer exceptions → HTTP
+# ---------------------------------------------------------------------------
 
 
-def _snapshot_practice(snapshot: dict | None, level: str) -> list[dict] | None:
-    """Return the frozen practice questions for ``level`` from a published
-    snapshot, or None if the snapshot has none for this level."""
-    if not snapshot:
-        return None
-    by_level = snapshot.get("practice")
-    if not by_level:
-        return None
-    return by_level.get(level)
+def _raise_for_value_error(exc: ValueError) -> None:
+    """Map ValueError from the service layer to the appropriate HTTP error."""
+    if "not found" in str(exc):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def _should_use_snapshot(video: Video, current_user: User | None) -> bool:
-    """A non-owner viewing a UGC video under re-review sees the frozen approved
-    snapshot instead of the owner's live draft (mirrors get_video_detail)."""
-    return (
-        not video.is_official
-        and not is_video_owner(video, current_user)
-        and video.review_status in (VideoReviewStatus.pending_review.value, VideoReviewStatus.rejected.value)
-        and video.published_snapshot is not None
-    )
+def _raise_for_permission_error(exc: PermissionError) -> None:
+    """Map PermissionError from the service layer to the appropriate HTTP error."""
+    if "无权" in str(exc):
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def _collect_target_words(subtitles, target_level: str) -> list[dict]:
-    """Collect {word, translation} for words whose highest level >= target,
-    drawn from the subtitles' word_levels annotations. Returns the ECDICT
-    translation for each so the prompt has Chinese context."""
-    seen: dict[str, list[str]] = {}
-    for sub in subtitles:
-        if not sub.word_levels:
-            continue
-        for surface, levels in sub.word_levels.items():
-            if should_display(levels, target_level) and surface not in seen:
-                seen[surface] = levels
-    words: list[dict] = []
-    for surface, _levels in seen.items():
-        entry = ecdict.lookup(surface)
-        words.append({"word": surface, "translation": entry["translation"] if entry else ""})
-        if len(words) >= 30:
-            break
-    return words
-
-
-def _transcript(subtitles) -> str:
-    return " ".join(s.text_en for s in subtitles if s.text_en)
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 
 @router.get("/{video_id}/practice", response_model=PracticeSet)
@@ -155,115 +115,23 @@ async def get_practice(
     if level not in EXAM_LEVEL_KEYS:
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
 
-    video = await _get_ready_video_or_404(db, video_id, current_user)
-
-    # While a UGC video is under re-review, non-owners read the frozen snapshot
-    # (last approved version), not the owner's in-progress draft.
-    if _should_use_snapshot(video, current_user):
-        snap_qs = _snapshot_practice(video.published_snapshot, level)
-        if snap_qs is not None:
-            return PracticeSet(
-                video_id=video_id,
-                exam_level=level,
-                questions=[PracticeQuestion(**q) for q in snap_qs],
-            )
-        # No snapshot for this level (e.g. owner never generated it before the
-        # first approval) → fall through and treat as unavailable.
-        raise HTTPException(status_code=409, detail="该等级练习题暂不可用")
-
-    # Cached? (lock row to prevent concurrent generation + duplicate IntegrityError)
-    cached = (
-        await db.execute(
-            select(VideoPracticeQuestion)
-            .where(
-                VideoPracticeQuestion.video_id == video_id,
-                VideoPracticeQuestion.exam_level == level,
-            )
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
-    if cached:
-        return PracticeSet(
-            video_id=video_id,
-            exam_level=level,
-            questions=[PracticeQuestion(**q) for q in cached.questions],
-        )
-
-    # Generate from the video's subtitles + target-level words.
-    from app.models.subtitle import Subtitle
-
-    sub_result = await db.execute(
-        select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index)
-    )
-    subtitles = list(sub_result.scalars().all())
-    if not subtitles:
-        raise HTTPException(status_code=409, detail="字幕尚未就绪，无法生成练习题")
-
-    cet_words = _collect_target_words(subtitles, level)
-    transcript = _transcript(subtitles)
-
-    # Source layer: pull 真题 sentences containing the target words to seed
-    # authentic fill-in-the-blank questions. Non-fatal if corpus is empty.
-    exam_examples: list[str] = []
     try:
-        exam_examples = await exam_corpus.example_sentences_for_words(
-            db, [w["word"] for w in cet_words], level, limit=5
-        )
-    except Exception:
-        pass
+        questions = await practice_service.get_or_generate_practice(db, video_id, level, count, current_user)
+    except ValueError as e:
+        _raise_for_value_error(e)
+    except PermissionError as e:
+        _raise_for_permission_error(e)
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=f"练习题生成失败：{e}") from e
 
-    try:
-        ai = get_ai_service()
-        questions = await ai.generate_practice_questions(
-            transcript, cet_words, level, count, exam_examples=exam_examples
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"练习题生成失败：{exc}") from exc
-
-    if not questions:
-        raise HTTPException(status_code=502, detail="练习题生成失败，请稍后重试")
-
-    record = VideoPracticeQuestion(
-        video_id=video_id,
-        exam_level=level,
-        questions=questions,
-        question_count=len(questions),
-    )
-    db.add(record)
-    try:
-        await db.commit()
-    except Exception as exc:
-        await db.rollback()
-        if "uq_video_practice_video_level" in str(exc):
-            # Concurrent request already generated and committed the questions
-            cached_retry = (
-                await db.execute(
-                    select(VideoPracticeQuestion).where(
-                        VideoPracticeQuestion.video_id == video_id,
-                        VideoPracticeQuestion.exam_level == level,
-                    )
-                )
-            ).scalar_one_or_none()
-            if cached_retry:
-                return PracticeSet(
-                    video_id=video_id,
-                    exam_level=level,
-                    questions=[PracticeQuestion(**q) for q in cached_retry.questions],
-                )
-        raise
-
-    return PracticeSet(
-        video_id=video_id,
-        exam_level=level,
-        questions=[PracticeQuestion(**q) for q in questions],
-    )
+    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in questions])
 
 
 # ---------------------------------------------------------------------------
 # Vocabulary drill (Phase 4) — deterministic, free-tier, no AI.
 #
 # Generates spelling + meaning-choice items from the video's target-level
-# words (drawn from subtitle word_levels via _collect_target_words, same
+# words (drawn from subtitle word_levels via collect_target_words, same
 # primitive the AI practice set uses). Distractors come from other target
 # words' translations, so it stays fully local (ECDICT only) and engages the
 # learner with the video's own vocabulary.
@@ -312,72 +180,14 @@ async def get_vocabulary_drill(
     if level not in EXAM_LEVEL_KEYS:
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
 
-    # Validate the video exists + is ready (raises 404 on miss).
-    await _get_ready_video_or_404(db, video_id, current_user)
+    try:
+        items = await practice_service.build_vocabulary_drill(db, video_id, level)
+    except ValueError as e:
+        _raise_for_value_error(e)
+    except PermissionError as e:
+        _raise_for_permission_error(e)
 
-    from app.models.subtitle import Subtitle
-
-    sub_result = await db.execute(
-        select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index)
-    )
-    subtitles = list(sub_result.scalars().all())
-    if not subtitles:
-        raise HTTPException(status_code=409, detail="字幕尚未就绪，无法生成词汇练习")
-
-    target_words = _collect_target_words(subtitles, level)
-    if not target_words:
-        raise HTTPException(status_code=409, detail="该视频暂无目标等级词汇，无法生成练习")
-
-    # Pool of translations for meaning-choice distractors.
-    all_translations = [w["translation"] for w in target_words if w["translation"]]
-
-    items: list[VocabDrillItem] = []
-    for w in target_words:
-        word = w["word"]
-        translation = w["translation"] or ""
-
-        # Spelling item: show translation, type the word.
-        items.append(
-            VocabDrillItem(
-                kind="spelling",
-                word=word,
-                translation=translation,
-                answer=word,
-                cet_words=[word],
-            )
-        )
-
-        # Meaning-choice item: pick the translation for `word`. Distractors are
-        # other target words' translations (deduped, up to 3).
-        if translation:
-            distractors = [t for t in all_translations if t and t != translation]
-            # Shuffle deterministically-ish by set ordering is fine for a drill.
-            distractor_pool = list(dict.fromkeys(distractors))[:3]
-            if len(distractor_pool) >= 2:  # need at least 2 distractors to be worthwhile
-                options = [*distractor_pool, translation]
-                # simple in-place shuffle to avoid the answer always being last
-                _shuffle_options(options)
-                items.append(
-                    VocabDrillItem(
-                        kind="meaning_choice",
-                        word=word,
-                        translation=translation,
-                        answer=translation,
-                        options=options,
-                        cet_words=[word],
-                    )
-                )
-
-    return VocabDrillSet(video_id=video_id, exam_level=level, items=items)
-
-
-def _shuffle_options(options: list[str]) -> None:
-    """Shuffle options in place so the correct answer position is random."""
-    if len(options) < 2:
-        return
-    import random
-
-    random.shuffle(options)
+    return VocabDrillSet(video_id=video_id, exam_level=level, items=[VocabDrillItem(**i) for i in items])
 
 
 @router.post("/{video_id}/practice/grade", response_model=GradeResponse)
@@ -390,12 +200,18 @@ async def grade_practice_answer(
     db: AsyncSession = Depends(get_db),
 ):
     """Grade a single practice-question answer."""
-    await _get_ready_video_or_404(db, video_id, current_user)
     try:
-        ai = get_ai_service()
-        result = await ai.grade_answer(body.question.model_dump(), body.user_answer)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"判分失败：{exc}") from exc
+        await practice_service.get_accessible_video(db, video_id, current_user)
+    except ValueError as e:
+        _raise_for_value_error(e)
+    except PermissionError as e:
+        _raise_for_permission_error(e)
+
+    try:
+        result = await practice_service.grade_answer(body.question.model_dump(), body.user_answer)
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=f"判分失败：{e}") from e
+
     return GradeResponse(correct=result["correct"], explanation=result["explanation"])
 
 
@@ -406,17 +222,6 @@ async def grade_practice_answer(
 # published video is blocked until begin-edit (which freezes the approved
 # version, incl. practice, to published_snapshot).
 # ---------------------------------------------------------------------------
-
-
-async def _require_editable_own_video(video_id: str, current_user: User, db: AsyncSession) -> Video:
-    """Fetch a video owned by the caller; 404 if not owned, 409 if published."""
-    video = await require_video_owner(video_id, current_user, db)
-    if video.review_status == VideoReviewStatus.published.value:
-        raise HTTPException(
-            status_code=409,
-            detail="视频已发布，请先调用 begin-edit 触发重新审核后再编辑",
-        )
-    return video
 
 
 @router.patch("/{video_id}/practice", response_model=PracticeSet)
@@ -437,35 +242,17 @@ async def edit_practice(
     """
     if level not in EXAM_LEVEL_KEYS:
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
-    await _require_editable_own_video(video_id, current_user, db)
+
+    try:
+        await practice_service.require_editable_own_video(db, video_id, current_user)
+    except PermissionError as e:
+        _raise_for_permission_error(e)
+    except ValueError as e:
+        _raise_for_value_error(e)
 
     questions_json = [q.model_dump() for q in payload.questions]
-    cached = (
-        await db.execute(
-            select(VideoPracticeQuestion).where(
-                VideoPracticeQuestion.video_id == video_id,
-                VideoPracticeQuestion.exam_level == level,
-            )
-        )
-    ).scalar_one_or_none()
-    if cached is None:
-        cached = VideoPracticeQuestion(
-            video_id=video_id,
-            exam_level=level,
-            questions=questions_json,
-            question_count=len(questions_json),
-        )
-        db.add(cached)
-    else:
-        cached.questions = questions_json
-        cached.question_count = len(questions_json)
-    await db.commit()
-    await db.refresh(cached)
-    return PracticeSet(
-        video_id=video_id,
-        exam_level=level,
-        questions=[PracticeQuestion(**q) for q in cached.questions],
-    )
+    persisted = await practice_service.update_practice_set(db, video_id, level, questions_json)
+    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in persisted])
 
 
 @router.post("/{video_id}/practice/regenerate", response_model=PracticeSet)
@@ -486,64 +273,14 @@ async def regenerate_practice(
     """
     if level not in EXAM_LEVEL_KEYS:
         raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
-    video = await _require_editable_own_video(video_id, current_user, db)
-    if video.status != VideoStatus.ready:
-        raise HTTPException(status_code=409, detail="视频仍在处理中，暂无法生成练习题")
-
-    from app.models.subtitle import Subtitle
-
-    sub_result = await db.execute(
-        select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index)
-    )
-    subtitles = list(sub_result.scalars().all())
-    if not subtitles:
-        raise HTTPException(status_code=409, detail="字幕尚未就绪，无法生成练习题")
-
-    cet_words = _collect_target_words(subtitles, level)
-    transcript = _transcript(subtitles)
-
-    exam_examples: list[str] = []
-    try:
-        exam_examples = await exam_corpus.example_sentences_for_words(
-            db, [w["word"] for w in cet_words], level, limit=5
-        )
-    except Exception:
-        pass
 
     try:
-        ai = get_ai_service()
-        questions = await ai.generate_practice_questions(
-            transcript, cet_words, level, count, exam_examples=exam_examples
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"练习题生成失败：{exc}") from exc
+        questions = await practice_service.regenerate_practice_questions(db, video_id, level, count, current_user)
+    except ValueError as e:
+        _raise_for_value_error(e)
+    except PermissionError as e:
+        _raise_for_permission_error(e)
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=f"练习题生成失败：{e}") from e
 
-    if not questions:
-        raise HTTPException(status_code=502, detail="练习题生成失败，请稍后重试")
-
-    cached = (
-        await db.execute(
-            select(VideoPracticeQuestion).where(
-                VideoPracticeQuestion.video_id == video_id,
-                VideoPracticeQuestion.exam_level == level,
-            )
-        )
-    ).scalar_one_or_none()
-    if cached is None:
-        cached = VideoPracticeQuestion(
-            video_id=video_id,
-            exam_level=level,
-            questions=questions,
-            question_count=len(questions),
-        )
-        db.add(cached)
-    else:
-        cached.questions = questions
-        cached.question_count = len(questions)
-    await db.commit()
-    await db.refresh(cached)
-    return PracticeSet(
-        video_id=video_id,
-        exam_level=level,
-        questions=[PracticeQuestion(**q) for q in cached.questions],
-    )
+    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in questions])
