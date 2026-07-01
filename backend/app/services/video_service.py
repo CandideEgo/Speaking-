@@ -500,6 +500,7 @@ async def get_video_detail(
         review_status=video.review_status,
         # Only the owner sees the rejection reason; a public/snapshot viewer
         # never learns why an unpublished draft was rejected.
+        # Cached responses (anonymous/free) must never include it.
         rejection_reason=video.rejection_reason if is_video_owner(video, current_user) else None,
         video_url_480p=video.video_url_480p,
         video_url_720p=video.video_url_720p,
@@ -511,8 +512,10 @@ async def get_video_detail(
         subtitles=subtitle_responses,
     )
 
-    # Cache official video details for 5 minutes
-    if video.is_official:
+    # Cache official video details for 5 minutes.
+    # Only cache if rejection_reason is None (non-owner view) to prevent
+    # leaking owner-only data to anonymous/free users via the shared cache.
+    if video.is_official and detail.rejection_reason is None:
         await cache_set(cache_key, detail.model_dump_json(), ttl=300)
 
     return detail
