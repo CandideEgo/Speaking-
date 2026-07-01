@@ -144,12 +144,15 @@ export function useVideoPlayer({
     [seekTo],
   );
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (skip when focus is on interactive elements)
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (
         e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLButtonElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLAnchorElement
       )
         return;
       switch (e.key) {
