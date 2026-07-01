@@ -41,6 +41,7 @@ import {
   ChevronDown,
   GraduationCap,
   Volume2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -86,6 +87,7 @@ export default function WatchPage() {
     setCurrentSubtitleIndex,
     videoRef,
     seekTo,
+    retry,
   } = useVideoPlayer({
     videoId: id,
     setVideoAspectRatio,
@@ -336,6 +338,7 @@ export default function WatchPage() {
     if (!video?.subtitles) return;
     if (currentSubtitleIndex < video.subtitles.length - 1) {
       const next = video.subtitles[currentSubtitleIndex + 1];
+      if (!next) return;
       // Reset speaking state before advancing — otherwise the user is stuck
       // in the result view of the old sentence.
       if (speakingActive) reRecord();
@@ -362,6 +365,23 @@ export default function WatchPage() {
   }
 
   // --- Loading / Error states ---
+  if (!video && playbackMode !== "error") return <FullPageSpinner />;
+
+  if (playbackMode === "error") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-canvas">
+        <div className="text-center">
+          <AlertCircle size={48} className="mx-auto text-muted mb-4" />
+          <p className="text-ink">加载视频失败</p>
+          <p className="mt-1 text-sm text-muted">请检查网络连接后重试</p>
+          <Button onClick={retry} className="mt-4">
+            重新加载
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
   if (!video) return <FullPageSpinner />;
 
   if (playbackMode === "processing") {

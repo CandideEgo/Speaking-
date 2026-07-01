@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { VideoWithSubtitles } from "@/types";
 
-export type PlaybackMode = "ready" | "processing" | "loading";
+export type PlaybackMode = "ready" | "processing" | "loading" | "error";
 
 interface UseVideoPlayerOptions {
   videoId: string;
@@ -23,6 +23,7 @@ interface UseVideoPlayerReturn {
   seekBy: (delta: number) => void;
   seekTo: (time: number) => void;
   navigateSubtitle: (delta: number) => void;
+  retry: () => void;
 }
 
 /**
@@ -51,7 +52,8 @@ export function useVideoPlayer({
   }, []);
 
   // Load video data
-  useEffect(() => {
+  const loadVideo = useCallback(() => {
+    setPlaybackMode("loading");
     api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
@@ -60,8 +62,15 @@ export function useVideoPlayer({
           setPlaybackMode("processing");
         else setPlaybackMode("loading");
       })
-      .catch(() => toast.error("加载视频失败"));
+      .catch(() => {
+        setPlaybackMode("error");
+        toast.error("加载视频失败");
+      });
   }, [videoId]);
+
+  useEffect(() => {
+    loadVideo();
+  }, [loadVideo]);
 
   // Poll for video status when processing
   useEffect(() => {
@@ -172,5 +181,6 @@ export function useVideoPlayer({
     seekBy,
     seekTo,
     navigateSubtitle,
+    retry: loadVideo,
   };
 }
