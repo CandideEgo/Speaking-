@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import check_video_access, is_video_owner
+from app.core.database import commit_refresh
 from app.core.exam_levels import should_display
 from app.models.practice import VideoPracticeQuestion
 from app.models.subtitle import Subtitle
@@ -190,8 +191,7 @@ async def generate_and_cache_practice_questions(
     else:
         cached.questions = questions
         cached.question_count = len(questions)
-    await db.commit()
-    await db.refresh(cached)
+    await commit_refresh(db, cached)
     return cached.questions
 
 
@@ -296,8 +296,7 @@ async def update_practice_set(
     else:
         cached.questions = questions_json
         cached.question_count = len(questions_json)
-    await db.commit()
-    await db.refresh(cached)
+    await commit_refresh(db, cached)
     return cached.questions
 
 

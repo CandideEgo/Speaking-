@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
-from app.core.database import get_db
+from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.user import (
@@ -43,8 +43,7 @@ async def update_me(
         current_user.bio = data.bio
     if data.timezone is not None:
         current_user.timezone = data.timezone
-    await db.commit()
-    await db.refresh(current_user)
+    await commit_refresh(db, current_user)
     return UserResponse.model_validate(current_user)
 
 
@@ -125,8 +124,7 @@ async def update_preferences(
         if hasattr(pref, key):
             setattr(pref, key, value)
 
-    await db.commit()
-    await db.refresh(pref)
+    await commit_refresh(db, pref)
 
     return UserPreferencesResponse(
         daily_goal_type=pref.daily_goal_type or "speaking_attempts",

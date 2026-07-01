@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
-from app.core.database import get_db
+from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.learning import Vocabulary
 from app.models.user import User
@@ -163,8 +163,7 @@ async def add_word(
         video_id=video_id,
     )
     db.add(vocab)
-    await db.commit()
-    await db.refresh(vocab)
+    await commit_refresh(db, vocab)
 
     return {
         "id": vocab.id,

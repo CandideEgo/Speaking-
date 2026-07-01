@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
-from app.core.database import get_db
+from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord
 from app.models.user import User
@@ -189,8 +189,7 @@ async def save_watch_progress(
     if video and video.duration and video.duration > 0:
         record.progress_percentage = round(min(100, (body.position_seconds / video.duration) * 100), 1)
 
-    await db.commit()
-    await db.refresh(record)
+    await commit_refresh(db, record)
 
     return SaveProgressResponse(
         position_seconds=record.position_seconds or 0.0,

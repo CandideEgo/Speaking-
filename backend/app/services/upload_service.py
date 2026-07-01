@@ -5,6 +5,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.database import commit_refresh
 from app.models.user import User
 from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.video import VideoResponse
@@ -54,8 +55,7 @@ async def handle_video_upload(
         status=VideoStatus.processing,
     )
     db.add(video)
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     # Dispatch to Celery
     from app.tasks.video_processing import process_video

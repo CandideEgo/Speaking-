@@ -11,6 +11,7 @@ from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import _to_aware_utc
+from app.core.database import commit_refresh
 from app.models.community import CommentReport, Post, UserComment
 from app.models.daily_activity import DailyActivity
 from app.models.learning import SpeakingAttempt
@@ -357,8 +358,7 @@ async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_i
         raise ValueError("Cannot ban yourself")
     user = await _get_user_or_raise(db, user_id)
     user.is_banned = is_banned
-    await db.commit()
-    await db.refresh(user)
+    await commit_refresh(db, user)
     return user
 
 
@@ -367,8 +367,7 @@ async def change_user_role(db: AsyncSession, user_id: str, role: str, admin_user
         raise ValueError("Cannot change your own role")
     user = await _get_user_or_raise(db, user_id)
     user.role = RoleType(role)
-    await db.commit()
-    await db.refresh(user)
+    await commit_refresh(db, user)
     return user
 
 
@@ -386,8 +385,7 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
         user.plan_expires_at = base + timedelta(days=duration_days)
     else:
         user.plan_expires_at = None
-    await db.commit()
-    await db.refresh(user)
+    await commit_refresh(db, user)
     return user
 
 
@@ -518,8 +516,7 @@ async def resolve_report(db: AsyncSession, report_id: str, action: str) -> Comme
     else:
         raise ValueError(f"Invalid action: {action}")
 
-    await db.commit()
-    await db.refresh(report)
+    await commit_refresh(db, report)
     return report
 
 

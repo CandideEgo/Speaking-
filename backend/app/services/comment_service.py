@@ -5,6 +5,7 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import commit_refresh
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.video import Video
 
@@ -239,9 +240,7 @@ class CommentService:
             db.add(comment)
             stored.append(comment)
 
-        await db.commit()
-        for c in stored:
-            await db.refresh(c)
+        await commit_refresh(db, *stored)
 
         logger.info(
             "stored comments for video",
@@ -304,8 +303,7 @@ class CommentService:
             # The YouTube comment count is len(comments) but is not stored
             # separately at this time.
 
-        await db.commit()
-        await db.refresh(stats)
+        await commit_refresh(db, stats)
 
         logger.info(
             "analyzed comments for video",

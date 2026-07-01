@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import check_video_access, is_video_owner
+from app.core.database import commit_refresh
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
@@ -82,8 +83,7 @@ async def submit_video(
             status=existing.status,
         )
         db.add(user_video)
-        await db.commit()
-        await db.refresh(user_video)
+        await commit_refresh(db, user_video)
         return VideoResponse.model_validate(user_video)
 
     # New video -- queue for processing
@@ -95,8 +95,7 @@ async def submit_video(
         status=VideoStatus.processing,
     )
     db.add(video)
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     # Dispatch to Celery — all platforms use full processing (download + transcode)
     from app.tasks.video_processing import process_video
@@ -144,8 +143,7 @@ async def seed_video(
         auto_publish=auto_publish,
     )
     db.add(video)
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     from app.tasks.video_processing import process_video
 
@@ -183,8 +181,7 @@ async def seed_user_video(
         auto_publish=auto_publish,
     )
     db.add(video)
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     from app.tasks.video_processing import process_video
 
@@ -340,8 +337,7 @@ async def begin_edit(db: AsyncSession, video: Video) -> Video:
     video.published_snapshot = await _build_snapshot(db, video)
     video.review_status = VideoReviewStatus.pending_review.value
     video.submitted_at = None
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
     await _invalidate_video_detail_cache(video.id)
     return video
 
@@ -366,8 +362,7 @@ async def submit_for_review(db: AsyncSession, video: Video) -> Video:
     video.review_status = VideoReviewStatus.pending_review.value
     video.submitted_at = datetime.now(UTC)
     video.rejection_reason = None
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
     await _invalidate_video_detail_cache(video.id)
     return video
 
@@ -378,8 +373,7 @@ async def withdraw_submission(db: AsyncSession, video: Video) -> Video:
         raise ValueError("仅待审核状态可撤回")
     video.review_status = VideoReviewStatus.draft.value
     video.submitted_at = None
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
     await _invalidate_video_detail_cache(video.id)
     return video
 
@@ -396,16 +390,8 @@ async def approve_review(db: AsyncSession, video: Video, admin: User) -> Video:
     video.reviewed_by = admin.id
     video.reviewed_at = datetime.now(UTC)
     video.rejection_reason = None
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
     await _invalidate_video_detail_cache(video.id)
-    # Published UGC may now surface in the community feed.
-    try:
-        from app.api.v1.browse import invalidate_browse_cache
-
-        await invalidate_browse_cache()
-    except Exception:
-        pass
     return video
 
 
@@ -419,8 +405,7 @@ async def reject_review(db: AsyncSession, video: Video, admin: User, reason: str
     video.reviewed_by = admin.id
     video.reviewed_at = datetime.now(UTC)
     video.rejection_reason = reason
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
     await _invalidate_video_detail_cache(video.id)
     return video
 
@@ -837,8 +822,7 @@ async def update_video(
         else:
             video.review_status = VideoReviewStatus.draft.value
 
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     # Best-effort cache invalidation so the next read reflects new metadata.
     try:
@@ -913,8 +897,7 @@ async def update_subtitle(
         levels = annotate_text(subtitle.text_en)
         subtitle.word_levels = levels or None
 
-    await db.commit()
-    await db.refresh(subtitle)
+    await commit_refresh(db, subtitle)
     await _invalidate_video_detail_cache(video_id)
     return SubtitleResponse.model_validate(subtitle)
 
@@ -984,8 +967,7 @@ async def update_word_levels(
         raise ValueError("Subtitle does not belong to this video")
 
     subtitle.word_levels = payload.word_levels  # None clears all annotations
-    await db.commit()
-    await db.refresh(subtitle)
+    await commit_refresh(db, subtitle)
     await _invalidate_video_detail_cache(video_id)
     return SubtitleResponse.model_validate(subtitle)
 
@@ -1117,8 +1099,7 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
     video.processing_step = "downloading"
     video.processing_progress = STEP_PROGRESS_DOWNLOADING
     video.status = VideoStatus.processing
-    await db.commit()
-    await db.refresh(video)
+    await commit_refresh(db, video)
 
     from app.tasks.video_processing import localize_video
 

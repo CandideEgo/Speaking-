@@ -15,6 +15,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import commit_refresh
 from app.models.learning import LearningRecord, SpeakingAttempt
 from app.models.subtitle import Subtitle
 from app.models.user import User
@@ -309,8 +310,7 @@ async def evaluate_speaking(
         await update_streak(db, user_id)
 
         # Single atomic commit: attempt + activity + streak all together
-        await db.commit()
-        await db.refresh(attempt)
+        await commit_refresh(db, attempt)
 
         return SpeakingEvalResult(
             attempt=attempt,
@@ -382,8 +382,7 @@ async def evaluate_free_speaking(
         await update_streak(db, user_id)
 
         # Single atomic commit: attempt + activity + streak all together
-        await db.commit()
-        await db.refresh(attempt)
+        await commit_refresh(db, attempt)
 
         return attempt
 

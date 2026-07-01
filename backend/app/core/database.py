@@ -58,3 +58,25 @@ async def get_db() -> AsyncSession:
             yield session
         finally:
             await session.close()
+
+
+async def commit_refresh(db: AsyncSession, *objs: object) -> None:
+    """Commit the current transaction and refresh the given ORM instances.
+
+    A thin wrapper around the extremely common ``await db.commit();
+    await db.refresh(obj)`` pattern.  On commit failure the session is
+    rolled back before re-raising so the caller never ends up in a
+    dirty-session limbo.
+
+    Args:
+        db: The async session to commit.
+        *objs: Zero or more ORM instances to refresh after commit.
+            If none are given, only ``commit()`` is called.
+    """
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    for obj in objs:
+        await db.refresh(obj)

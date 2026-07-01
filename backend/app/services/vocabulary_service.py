@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import commit_refresh
 from app.models.learning import Vocabulary
 from app.services.ai_service import get_ai_service
 from app.services.sr_service import calculate_next_review
@@ -58,8 +59,7 @@ async def enrich_word(db: AsyncSession, vocabulary_id: str, user_id: str) -> Voc
     vocab.collocations = enriched.get("collocations", [])
     vocab.difficulty_level = enriched.get("difficulty_level", "B1")
 
-    await db.commit()
-    await db.refresh(vocab)
+    await commit_refresh(db, vocab)
     return vocab
 
 
