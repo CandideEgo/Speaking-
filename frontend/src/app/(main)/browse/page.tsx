@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
-import { formatDuration } from "@/lib/format";
 import { PageTransition } from "@/components/common/PageTransition";
 
 const DIFFICULTY_LEVELS = [
@@ -99,49 +98,7 @@ export default function BrowsePage() {
         {!error && (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {videos.map((video) => (
-              <Link
-                key={video.id || video.video_id}
-                href={`/watch/${video.id || video.video_id}`}
-                className="vcard group"
-              >
-                <div className="thumb">
-                  <img
-                    src={video.thumbnail_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <span className="thumb-lv">
-                    {video.difficulty_level || "B1"}
-                  </span>
-                  <span className="thumb-dur">
-                    {formatDuration(video.duration)}
-                  </span>
-                  <div className="thumb-play">
-                    <div className="thumb-play-btn">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="#fff"
-                        stroke="none"
-                      >
-                        <path d="M6 4l14 8-14 8V4Z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="vmeta">
-                  <p className="vtitle">{video.title}</p>
-                  <div className="vfoot">
-                    <span>{video.channel_title || "Speaking"}</span>
-                    <span className="vdot" />
-                    <span className="chip">
-                      {video.topic_tags?.split(",")[0] || "综合"}
-                    </span>
-                  </div>
-                </div>
-              </Link>
+              <VideoCard key={video.id || video.video_id} video={video} />
             ))}
           </div>
         )}
@@ -150,13 +107,7 @@ export default function BrowsePage() {
         {loading && videos.length === 0 && (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="vcard animate-pulse">
-                <div className="thumb bg-surface-card" />
-                <div className="vmeta">
-                  <div className="h-4 bg-surface-card rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-surface-card rounded w-1/2" />
-                </div>
-              </div>
+              <VideoCardSkeleton key={i} />
             ))}
           </div>
         )}

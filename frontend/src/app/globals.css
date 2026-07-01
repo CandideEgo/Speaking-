@@ -150,11 +150,7 @@
   .thumb {
     @apply relative aspect-video bg-surface-card overflow-hidden;
   }
-  .thumb-lv {
-    @apply absolute left-2 top-2 backdrop-blur-sm text-[11px] font-bold text-ink
-           px-2 py-1 rounded-pill;
-    background: rgba(255, 255, 255, 0.92);
-  }
+  /* (thumb-lv removed — inlined in VideoCard component) */
   .thumb-dur {
     @apply absolute right-2 bottom-2 text-white text-[11px] font-semibold
            font-mono px-1.5 py-0.5 rounded-[5px];
@@ -479,9 +475,7 @@
   .vcard-feat .vtitle {
     @apply text-lg min-h-[50px];
   }
-  .vprog-tag {
-    @apply text-[11px] font-semibold font-mono text-brand-500;
-  }
+  /* (vprog-tag removed — inlined in VideoCard component) */
   /* 分类视觉化大卡 */
   .cat-feat {
     @apply grid gap-4;

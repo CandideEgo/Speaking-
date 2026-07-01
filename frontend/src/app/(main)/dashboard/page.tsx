@@ -451,15 +451,11 @@ export default function DashboardPage() {
                         </span>
                         <div className="thumb-play">
                           <div className="thumb-play-btn">
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 24 24"
+                            <Play
+                              size={20}
                               fill="#fff"
-                              stroke="none"
-                            >
-                              <path d="M6 4l14 8-14 8V4Z" />
-                            </svg>
+                              className="text-white ml-0.5"
+                            />
                           </div>
                         </div>
                       </div>

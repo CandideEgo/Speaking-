@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { TabPills } from "@/components/ui/TabPills";
 import { SectionHeader, SectionLink } from "@/components/ui/SectionHeader";
+import { VideoCard } from "@/components/ui/VideoCard";
 import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
@@ -247,6 +248,7 @@ export default function HomePage() {
                   video={item.video}
                   feat={i === 0}
                   progress={item.progress}
+                  className={i === 0 ? "vcard-feat" : undefined}
                 />
               ))}
             </div>
@@ -373,73 +375,3 @@ const CATEGORIES_WITH_META = CATEGORIES.map((c) => ({
               ? "B2–C1"
               : "A1–C2",
 }));
-
-/* ── Video card (vcard pattern, 支持 feat 主推大卡 + progress 进度标记) ── */
-function VideoCard({
-  video,
-  feat = false,
-  progress,
-}: {
-  video: Video;
-  feat?: boolean;
-  progress?: number;
-}) {
-  const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
-
-  return (
-    <Link
-      href={`/watch/${video.id}`}
-      className={`vcard group ${feat ? "vcard-feat" : ""}`}
-    >
-      <div className="thumb">
-        {video.thumbnail_url ? (
-          <img
-            src={video.thumbnail_url}
-            alt=""
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full bg-surface-card flex items-center justify-center">
-            <span className="text-2xl font-bold text-muted-soft">
-              {video.title.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
-        {video.difficulty_level && (
-          <span className="thumb-lv">{video.difficulty_level}</span>
-        )}
-        {video.duration && video.duration > 0 && (
-          <span className="thumb-dur">{formatDuration(video.duration)}</span>
-        )}
-        <div className="thumb-play">
-          <div className="thumb-play-btn">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="#fff"
-              stroke="none"
-            >
-              <path d="M6 4l14 8-14 8V4Z" />
-            </svg>
-          </div>
-        </div>
-      </div>
-      <div className="vmeta">
-        <p className="vtitle">{video.title}</p>
-        <div className="vfoot">
-          <span>Speaking</span>
-          <span className="vdot" />
-          <span className="chip">{category}</span>
-          {feat && progress !== undefined && (
-            <>
-              <span className="vdot" />
-              <span className="vprog-tag">{progress}% 已观看</span>
-            </>
-          )}
-        </div>
-      </div>
-    </Link>
-  );
-}
