@@ -70,6 +70,7 @@
 | 52 | `470846d` | 法律页降级 | privacy/terms 页主体名称占位从「待补充」改中性「本站运营方」 |
 | 53 | `3d02c3c` | stale tests | 修 6 个 stale tests（分页 shape/show_on_homepage/mock 签名/访问控制），全量 317 passed |
 | 54 | `b4f2757` | 架构:分页统一 | paginated() helper 统一 9 处手建分页 envelope（P1，结构债审计） |
+| 55 | `ca8031d` | 安全 | 密码重置 token O(n) bcrypt 全表扫描 → O(1) 索引查找（token_lookup SHA-256 列+迁移） |
 
 ## 主题汇总
 
