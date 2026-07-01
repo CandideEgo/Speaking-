@@ -1,9 +1,10 @@
 import logging
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import commit_refresh
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.user import User
 from app.models.video import Video
@@ -68,17 +69,35 @@ async def create_post(
         vocabulary_id=vocabulary_id,
     )
     db.add(post)
-    await db.commit()
-    await db.refresh(post)
+    await commit_refresh(db, post)
     return post
 
 
 async def _attach_videos(db: AsyncSession, posts: list[Post]) -> dict[str, dict]:
-    """Batch-load VideoBriefs for every video_share post in ``posts``."""
+    """Batch-load VideoBriefs for every video_share post in ``posts``.
+
+    Only returns videos that are publicly accessible (official or published UGC).
+    Videos in processing/error state or unpublished UGC are filtered out.
+    """
     video_ids = {p.video_id for p in posts if p.post_type == "video_share" and p.video_id}
     if not video_ids:
         return {}
-    result = await db.execute(select(Video).where(Video.id.in_(video_ids)))
+    from app.models.video import VideoReviewStatus, VideoStatus
+
+    result = await db.execute(
+        select(Video).where(
+            Video.id.in_(video_ids),
+            Video.status == VideoStatus.ready,
+            or_(
+                Video.is_official == True,
+                Video.review_status == VideoReviewStatus.published.value,
+                and_(
+                    Video.review_status.in_((VideoReviewStatus.pending_review.value, VideoReviewStatus.rejected.value)),
+                    Video.published_snapshot.isnot(None),
+                ),
+            ),
+        )
+    )
     return {v.id: VideoBrief.from_model(v) for v in result.scalars().all()}
 
 
@@ -335,8 +354,7 @@ async def add_comment(
             related_url=f"/community?post={post_id}",
         )
 
-    await db.commit()
-    await db.refresh(comment)
+    await commit_refresh(db, comment)
     return comment
 
 
@@ -431,13 +449,11 @@ async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, re
     report = CommentReport(reporter_id=reporter_id, comment_id=comment_id, reason=reason)
     db.add(report)
     try:
-        await db.commit()
+        await commit_refresh(db, report)
     except IntegrityError as exc:
-        await db.rollback()
         if "uq_comment_report" in str(exc):
             raise ValueError("Already reported this comment") from exc
         raise
-    await db.refresh(report)
     return report
 
 

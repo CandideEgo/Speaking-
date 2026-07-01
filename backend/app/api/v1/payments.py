@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import _to_aware_utc, get_current_user
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
 from app.models.user import PlanType, User
@@ -38,13 +38,14 @@ PAYMENTS_DISABLED_MESSAGE = (
 
 
 def _utcnow() -> datetime:
-    """Return current UTC time as a naive datetime for DB compatibility.
+    """Return current UTC time as a timezone-aware datetime.
 
-    PostgreSQL stores timezone-aware datetimes, but SQLite (used in tests)
-    stores naive datetimes. Using naive UTC consistently avoids comparison
-    errors across backends.
+    All DB DateTime columns use timezone=True; using aware datetimes
+    avoids naive-vs-aware comparison errors on PostgreSQL.
+    For values read back from SQLite (which drops tzinfo), use
+    _to_aware_utc() to restore the timezone.
     """
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(UTC)
 
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -110,7 +111,11 @@ async def create_order(
     # Accept both JSON body and query param for backward compat
     plan = body.plan if body else request.query_params.get("plan", "pro_monthly")
 
-    if current_user.plan == PlanType.pro and current_user.plan_expires_at and current_user.plan_expires_at > _utcnow():
+    if (
+        current_user.plan == PlanType.pro
+        and current_user.plan_expires_at
+        and _to_aware_utc(current_user.plan_expires_at) > _utcnow()
+    ):
         raise HTTPException(status_code=400, detail="Already a Pro member")
 
     # Validate plan against registry
@@ -133,8 +138,7 @@ async def create_order(
         status=OrderStatus.pending,
     )
     db.add(order)
-    await db.commit()
-    await db.refresh(order)
+    await commit_refresh(db, order)
 
     # Get payment URL from the configured provider
     provider = get_payment_provider()
@@ -160,6 +164,9 @@ async def create_order(
 @rate_limit("30/minute")
 async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Alipay payment callback handler."""
+    if not settings.payments_enabled:
+        return JSONResponse(status_code=451, content={"status": "error", "message": PAYMENTS_DISABLED_MESSAGE})
+
     from app.services.alipay_payment import AlipayPaymentProvider
 
     provider = AlipayPaymentProvider()
@@ -190,6 +197,9 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
 @rate_limit("30/minute")
 async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """WeChat Pay v3 callback handler."""
+    if not settings.payments_enabled:
+        return JSONResponse(status_code=451, content={"code": "FAIL", "message": PAYMENTS_DISABLED_MESSAGE})
+
     from app.services.wechat_payment import WechatPaymentProvider
 
     provider = WechatPaymentProvider()

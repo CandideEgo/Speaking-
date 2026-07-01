@@ -73,12 +73,12 @@ class TestAIAssistantRecommend:
 
 
 class TestListRubrics:
-    async def test_list_empty(self, client: AsyncClient):
-        resp = await client.get("/api/v1/rubrics")
+    async def test_list_empty(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.get("/api/v1/rubrics", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_list_returns_rubrics(self, client: AsyncClient):
+    async def test_list_returns_rubrics(self, client: AsyncClient, auth_headers: dict):
         async with TestSessionLocal() as db:
             r = SpeakingRubric(name="Default", description="d", is_default=True)
             db.add(r)
@@ -86,15 +86,15 @@ class TestListRubrics:
             db.add(RubricCriterion(rubric_id=r.id, name="Accuracy", description="acc", weight=0.5, sort_order=1))
             await db.commit()
 
-        resp = await client.get("/api/v1/rubrics")
+        resp = await client.get("/api/v1/rubrics", headers=auth_headers)
         items = resp.json()
         assert len(items) == 1
         assert items[0]["name"] == "Default"
         assert items[0]["is_default"] is True
         assert len(items[0]["criteria"]) == 1
 
-    async def test_get_default_rubric_none(self, client: AsyncClient):
-        resp = await client.get("/api/v1/rubrics/default")
+    async def test_get_default_rubric_none(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.get("/api/v1/rubrics/default", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json() is None
 

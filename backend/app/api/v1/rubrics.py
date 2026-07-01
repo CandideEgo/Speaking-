@@ -77,7 +77,11 @@ async def _invalidate_rubric_cache():
 
 @router.get("")
 @rate_limit("30/minute")
-async def list_rubrics(request: Request, db: AsyncSession = Depends(get_db)):
+async def list_rubrics(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(SpeakingRubric).options(selectinload(SpeakingRubric.criteria)).order_by(SpeakingRubric.is_default.desc())
     )
@@ -96,7 +100,11 @@ async def list_rubrics(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/default")
 @rate_limit("30/minute")
-async def get_default_rubric(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_default_rubric(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(SpeakingRubric).options(selectinload(SpeakingRubric.criteria)).where(SpeakingRubric.is_default == True)
     )

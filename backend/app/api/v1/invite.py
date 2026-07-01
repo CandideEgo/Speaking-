@@ -19,8 +19,8 @@ from app.schemas.pagination import has_more, paginated
 
 
 def _utcnow() -> datetime:
-    """Return current UTC time as a naive datetime for DB compatibility."""
-    return datetime.now(UTC).replace(tzinfo=None)
+    """Return current UTC time as a timezone-aware datetime."""
+    return datetime.now(UTC)
 
 
 router = APIRouter(prefix="/invite-codes", tags=["invite-codes"])
@@ -37,19 +37,11 @@ async def generate_codes(
     """Admin: generate a batch of invite codes."""
     codes = []
     for _ in range(data.count):
-        from app.models.invite import generate_code
-
         code = InviteCode(
             plan=data.plan,
             duration_days=data.duration_days,
             batch_label=data.batch_label,
         )
-        # ensure uniqueness
-        while True:
-            existing = await db.execute(select(InviteCode).where(InviteCode.code == code.code))
-            if not existing.scalar_one_or_none():
-                break
-            code.code = generate_code()
         db.add(code)
         codes.append(code)
 

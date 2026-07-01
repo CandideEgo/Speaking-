@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.core.security import decode_token
 from app.core.token_blacklist import is_token_blacklisted
@@ -100,6 +100,16 @@ async def notification_websocket(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    # Check if user is banned (same as get_current_user)
+    from app.core.database import get_session_maker
+
+    async with get_session_maker()() as db:
+        result = await db.execute(select(User).where(User.id == user_id))
+        ws_user = result.scalar_one_or_none()
+    if not ws_user or ws_user.is_banned:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     await ws_manager.connect(user_id, websocket)
     try:
         # Send initial unread count
@@ -169,8 +179,7 @@ async def mark_as_read(
     if notification.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your notification")
     notification.is_read = True
-    await db.commit()
-    await db.refresh(notification)
+    await commit_refresh(db, notification)
     return notification
 
 
@@ -250,7 +259,6 @@ async def update_notification_preferences(
     current.update(update_data)
     pref.notification_preferences = current
 
-    await db.commit()
-    await db.refresh(pref)
+    await commit_refresh(db, pref)
 
     return current
