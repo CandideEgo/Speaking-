@@ -68,6 +68,7 @@
 | 50 | `03b84e9` | 后端原子性 | speaking 消除 double-commit、user-seed-full auto_publish、修 videos/like-status 导入崩溃 |
 | 51 | `9c1c1d7` | 上线阻塞 | 容器 entrypoint 自动跑 alembic 迁移 + create_admin 引导脚本 |
 | 52 | `470846d` | 法律页降级 | privacy/terms 页主体名称占位从「待补充」改中性「本站运营方」 |
+| 53 | `3d02c3c` | stale tests | 修 6 个 stale tests（分页 shape/show_on_homepage/mock 签名/访问控制），全量 317 passed |
 
 ## 主题汇总
 
