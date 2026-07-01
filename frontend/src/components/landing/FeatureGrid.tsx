@@ -1,3 +1,5 @@
+import { Mic, Star } from "lucide-react";
+
 const features = [
   {
     icon: (
@@ -20,40 +22,13 @@ const features = [
     color: "bg-brand-500",
   },
   {
-    icon: (
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="9" y="3" width="6" height="12" rx="3" />
-        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-      </svg>
-    ),
+    icon: <Mic size={24} />,
     title: "AI 口语评测",
     desc: "实时给出发音、流利度、完整度三项分数，标出读不准的音节，精准反馈帮你快速提升。",
     color: "bg-indigo",
   },
   {
-    icon: (
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="m12 3 1.9 5.8H20l-5 3.7 2 6L12 15l-5 3.5 2-6-5-3.7h6.1L12 3Z" />
-      </svg>
-    ),
+    icon: <Star size={24} />,
     title: "理解力测验",
     desc: "填空、听写、翻译多模式切换，巩固每段视频。错题自动加入复习，记忆更牢固。",
     color: "bg-success",
@@ -72,7 +47,8 @@ export function FeatureGrid() {
             看 · 说 · 懂，三位一体
           </h2>
           <p className="text-[17px] text-muted leading-relaxed">
-            沉浸式双语字幕阅读，AI 实时评测发音，智能理解测验——一段视频，完整学习闭环。
+            沉浸式双语字幕阅读，AI
+            实时评测发音，智能理解测验——一段视频，完整学习闭环。
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
@@ -86,7 +62,9 @@ export function FeatureGrid() {
               >
                 {f.icon}
               </div>
-              <h3 className="!text-[19px] !font-bold !tracking-tight mb-2">{f.title}</h3>
+              <h3 className="!text-[19px] !font-bold !tracking-tight mb-2">
+                {f.title}
+              </h3>
               <p className="text-muted text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}

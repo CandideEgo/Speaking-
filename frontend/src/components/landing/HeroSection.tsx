@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play, Check, Zap } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 
 export function HeroSection() {
@@ -71,15 +71,7 @@ export function HeroSection() {
               />
               {/* Play button */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[66px] h-[66px] rounded-full bg-white/96 flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
-                <svg
-                  width="26"
-                  height="26"
-                  viewBox="0 0 24 24"
-                  fill="#0a0a0a"
-                  stroke="none"
-                >
-                  <path d="M6 4l14 8-14 8V4Z" />
-                </svg>
+                <Play size={26} fill="#0a0a0a" stroke="none" />
               </div>
               {/* Subtitle bar */}
               <div className="absolute left-3.5 right-3.5 bottom-3.5 bg-white/10 backdrop-blur-[10px] border border-white/15 rounded-lg p-3 text-white">
@@ -96,18 +88,7 @@ export function HeroSection() {
             {/* Float card 1 */}
             <div className="absolute -right-4 top-[16%] bg-canvas rounded-lg shadow-lift p-3 flex items-center gap-2.5 text-[13px] hidden md:flex">
               <div className="w-[34px] h-[34px] rounded-[9px] bg-success-soft text-success flex items-center justify-center flex-shrink-0">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
+                <Check size={17} />
               </div>
               <div>
                 <div className="font-semibold leading-tight">发音 92 分</div>
@@ -118,18 +99,7 @@ export function HeroSection() {
             {/* Float card 2 */}
             <div className="absolute -left-[18px] bottom-[14%] bg-canvas rounded-lg shadow-lift p-3 flex items-center gap-2.5 text-[13px] hidden md:flex">
               <div className="w-[34px] h-[34px] rounded-[9px] bg-brand-50 text-brand-500 flex items-center justify-center flex-shrink-0">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />
-                </svg>
+                <Zap size={17} />
               </div>
               <div>
                 <div className="font-semibold leading-tight">连续 14 天</div>
