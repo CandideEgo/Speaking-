@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { BookOpen, Trash2, Volume2, Loader2 } from "lucide-react";
+import {
+  BookOpen,
+  Trash2,
+  Volume2,
+  Loader2,
+  Target,
+  CheckCircle2,
+  Flame,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -171,21 +179,7 @@ export default function VocabularyPage() {
           </div>
           <div className="stat-card !border-brand-100">
             <div className="flex items-center gap-2 text-xs font-semibold text-brand-500 mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <circle cx="12" cy="12" r="5" />
-                <circle cx="12" cy="12" r="1" />
-              </svg>{" "}
-              待复习
+              <Target size={14} /> 待复习
             </div>
             <div className="text-[28px] font-extrabold tracking-display-md text-brand-500">
               {stats.due}
@@ -193,19 +187,7 @@ export default function VocabularyPage() {
           </div>
           <div className="stat-card !border-success-soft">
             <div className="flex items-center gap-2 text-xs font-semibold text-success mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>{" "}
-              已掌握
+              <CheckCircle2 size={14} /> 已掌握
             </div>
             <div className="text-[28px] font-extrabold tracking-display-md text-success">
               {stats.mastered}
@@ -213,19 +195,7 @@ export default function VocabularyPage() {
           </div>
           <div className="stat-card !border-warning-soft">
             <div className="flex items-center gap-2 text-xs font-semibold text-warning mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2C8 6 6 8 6 12a6 6 0 0 0 12 0c0-2-2-4-3-6-1 2-3 2-3-4Z" />
-              </svg>{" "}
-              学习中
+              <Flame size={14} /> 学习中
             </div>
             <div className="text-[28px] font-extrabold tracking-display-md text-warning">
               {stats.learning}

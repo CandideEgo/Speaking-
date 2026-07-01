@@ -40,6 +40,7 @@ import {
   X,
   ChevronDown,
   GraduationCap,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -936,18 +937,7 @@ function WordTooltipInline({
           className="text-muted hover:text-ink transition-colors shrink-0"
           aria-label="关闭"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <X size={16} />
         </button>
       </div>
 
@@ -1006,19 +996,7 @@ function WordTooltipInline({
 
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={onPronounce}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M11 5 6 9H2v6h4l5 4V5Z" />
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-          </svg>
+          <Volume2 size={14} />
           发音
         </Button>
         <Button size="sm" onClick={onSave}>
