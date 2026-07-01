@@ -83,7 +83,6 @@ async def add_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     """Bookmark a video (idempotent). Increments favorite_count on the video."""
-    video = await _get_owned_video_or_404(db, video_id)
     existing = (
         await db.execute(
             select(UserFavorite).where(
@@ -93,8 +92,12 @@ async def add_favorite(
         )
     ).scalar_one_or_none()
     if not existing:
+        # Lock the video row to serialize concurrent counter updates.
+        video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
+        if not video:
+            raise HTTPException(status_code=404, detail="Video not found")
         db.add(UserFavorite(user_id=current_user.id, video_id=video_id))
-        video.favorite_count += 1
+        video.favorite_count = (video.favorite_count or 0) + 1
         # Auto-feature check
         from app.services.community_service import FEATURE_THRESHOLD
 
@@ -112,8 +115,7 @@ async def remove_favorite(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a video bookmark (idempotent). Decrements favorite_count."""
-    video = await _get_owned_video_or_404(db, video_id)
+    """Remove a video bookmark (idempotent). Decrements favorite_count atomically."""
     existing = (
         await db.execute(
             select(UserFavorite).where(
@@ -123,8 +125,11 @@ async def remove_favorite(
         )
     ).scalar_one_or_none()
     if existing:
+        # Lock the video row to serialize concurrent counter updates.
+        video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
+        if video:
+            video.favorite_count = max(0, video.favorite_count - 1)
         await db.delete(existing)
-        video.favorite_count = max(0, video.favorite_count - 1)
         await db.commit()
     return FavoriteStatus(is_favorited=False)
 

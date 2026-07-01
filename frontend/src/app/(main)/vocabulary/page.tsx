@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { useSpeech } from "@/hooks/useSpeech";
 
@@ -84,6 +85,7 @@ export default function VocabularyPage() {
   });
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VocabWord | null>(null);
   const { speak } = useSpeech();
 
   const nextDueWord = words.find(
@@ -298,13 +300,7 @@ export default function VocabularyPage() {
                         {badge.text}
                       </span>
                       <button
-                        onClick={() => {
-                          if (
-                            window.confirm(`确定要删除单词 "${w.word}" 吗？`)
-                          ) {
-                            handleDelete(w.id);
-                          }
-                        }}
+                        onClick={() => setDeleteTarget(w)}
                         className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-red-500 hover:text-white transition-colors duration-100 cursor-pointer"
                         aria-label={`删除 ${w.word}`}
                       >
@@ -337,6 +333,23 @@ export default function VocabularyPage() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        tone="danger"
+        title="删除单词"
+        confirmLabel="确认删除"
+        message={
+          deleteTarget ? `确定要删除单词「${deleteTarget.word}」吗？` : ""
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          if (target) handleDelete(target.id);
+        }}
+      />
     </main>
   );
 }

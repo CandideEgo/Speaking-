@@ -225,11 +225,16 @@ async def get_feed(
 
 
 async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict:
-    """Toggle like on a post. Returns {"liked": bool}."""
+    """Toggle like on a post. Returns {"liked": bool}.
+
+    Uses row-level locking + atomic SQL increment/decrement to prevent
+    race conditions when multiple users like the same post concurrently.
+    """
     result = await db.execute(select(PostLike).where(PostLike.user_id == user_id, PostLike.post_id == post_id))
     existing = result.scalar_one_or_none()
 
-    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    # Lock the post row to serialize concurrent counter updates.
+    post_result = await db.execute(select(Post).where(Post.id == post_id).with_for_update())
     post = post_result.scalar_one_or_none()
     if post is None:
         raise ValueError("Post not found")
@@ -242,7 +247,7 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
     else:
         like = PostLike(user_id=user_id, post_id=post_id)
         db.add(like)
-        post.like_count += 1
+        post.like_count = (post.like_count or 0) + 1
         # Notify the post owner (never self) of the new like.
         if post.user_id != user_id:
             actor_name = await _user_name(db, user_id)
@@ -283,8 +288,8 @@ async def add_comment(
     content: str,
     parent_id: str | None = None,
 ) -> UserComment:
-    """Add a comment to a post. Increments post.comment_count."""
-    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    """Add a comment to a post. Increments post.comment_count atomically."""
+    post_result = await db.execute(select(Post).where(Post.id == post_id).with_for_update())
     post = post_result.scalar_one_or_none()
     if post is None:
         raise ValueError("Post not found")
@@ -300,7 +305,7 @@ async def add_comment(
 
     comment = UserComment(user_id=user_id, post_id=post_id, content=content, parent_id=parent_id)
     db.add(comment)
-    post.comment_count += 1
+    post.comment_count = (post.comment_count or 0) + 1
 
     # Notify relevant users (never self) of the new comment.
     actor_name = await _user_name(db, user_id)
@@ -332,7 +337,7 @@ async def add_comment(
 
 
 async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> None:
-    """Delete a comment. Verifies ownership. Decrements post.comment_count."""
+    """Delete a comment. Verifies ownership. Decrements post.comment_count atomically."""
     result = await db.execute(select(UserComment).where(UserComment.id == comment_id))
     comment = result.scalar_one_or_none()
     if comment is None:
@@ -340,8 +345,8 @@ async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> Non
     if comment.user_id != user_id:
         raise PermissionError("Not your comment")
 
-    # Decrement post comment count
-    post_result = await db.execute(select(Post).where(Post.id == comment.post_id))
+    # Decrement post comment count atomically
+    post_result = await db.execute(select(Post).where(Post.id == comment.post_id).with_for_update())
     post = post_result.scalar_one_or_none()
     if post:
         post.comment_count = max(0, post.comment_count - 1)
@@ -351,13 +356,17 @@ async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> Non
 
 
 async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -> dict:
-    """Toggle like on a comment. Returns {"liked": bool}."""
+    """Toggle like on a comment. Returns {"liked": bool}.
+
+    Uses row-level locking + atomic SQL increment/decrement to prevent
+    race conditions when multiple users like the same comment concurrently.
+    """
     result = await db.execute(
         select(CommentLike).where(CommentLike.user_id == user_id, CommentLike.comment_id == comment_id)
     )
     existing = result.scalar_one_or_none()
 
-    comment_result = await db.execute(select(UserComment).where(UserComment.id == comment_id))
+    comment_result = await db.execute(select(UserComment).where(UserComment.id == comment_id).with_for_update())
     comment = comment_result.scalar_one_or_none()
     if comment is None:
         raise ValueError("Comment not found")
@@ -370,7 +379,7 @@ async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -
     else:
         like = CommentLike(user_id=user_id, comment_id=comment_id)
         db.add(like)
-        comment.like_count += 1
+        comment.like_count = (comment.like_count or 0) + 1
         await db.commit()
         return {"liked": True}
 
@@ -589,12 +598,13 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
     """Toggle like on a video. Returns {"liked": bool}.
 
     Auto-features the video if like_count or favorite_count reaches
-    FEATURE_THRESHOLD.
+    FEATURE_THRESHOLD. Uses row-level locking + atomic SQL increment/decrement
+    to prevent race conditions.
     """
     result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
     existing = result.scalar_one_or_none()
 
-    video_result = await db.execute(select(Video).where(Video.id == video_id))
+    video_result = await db.execute(select(Video).where(Video.id == video_id).with_for_update())
     video = video_result.scalar_one_or_none()
     if video is None:
         raise ValueError("Video not found")

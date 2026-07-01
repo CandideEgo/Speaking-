@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
+import { POST_TYPE_META } from "@/lib/community";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -83,14 +84,6 @@ interface CommunityVideo {
 }
 
 // --- Helpers ---
-
-const POST_TYPE_TAGS: Record<string, { label: string; color: string }> = {
-  text: { label: "讨论", color: "bg-brand-50 text-brand-500" },
-  progress_share: { label: "学习进展", color: "bg-success-soft text-success" },
-  vocabulary_share: { label: "词汇", color: "bg-indigo-soft text-indigo" },
-  speaking_share: { label: "口语", color: "bg-warning-soft text-warning" },
-  video_share: { label: "视频", color: "bg-sky-soft text-sky" },
-};
 
 const TABS = [
   { key: "feed", label: "Feed" },
@@ -404,7 +397,7 @@ export default function CommunityPage() {
                 <EmptyState title="还没有帖子，来发布第一条吧！" />
               ) : (
                 posts.map((post) => {
-                  const tag = POST_TYPE_TAGS[post.post_type];
+                  const tag = POST_TYPE_META[post.post_type];
                   return (
                     <div
                       key={post.id}

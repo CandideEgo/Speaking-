@@ -36,6 +36,7 @@ import {
   listReports,
   resolveReport,
 } from "@/lib/adminData";
+import { POST_TYPE_META } from "@/lib/community";
 
 const REPORT_FILTERS = [
   { key: "", label: "全部" },
@@ -48,14 +49,6 @@ const STATUS_LABEL: Record<ReportStatus, { label: string; tone: BadgeTone }> = {
   pending: { label: "待处理", tone: "amber" },
   reviewed: { label: "已处理", tone: "green" },
   dismissed: { label: "已驳回", tone: "neutral" },
-};
-
-const POST_TYPE_LABEL: Record<string, string> = {
-  text: "文本",
-  progress_share: "学习打卡",
-  vocabulary_share: "词汇分享",
-  speaking_share: "口语分享",
-  video_share: "视频分享",
 };
 
 export default function AdminCommunityPage() {
@@ -435,7 +428,7 @@ function PostsManager() {
               </div>
             </td>
             <td className="py-3 pr-4 text-muted-foreground">
-              {POST_TYPE_LABEL[p.post_type] || p.post_type}
+              {POST_TYPE_META[p.post_type]?.labelFull || p.post_type}
             </td>
             <td className="py-3 pr-4 text-muted-foreground">
               <span className="inline-flex items-center gap-2">
