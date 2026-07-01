@@ -6,7 +6,7 @@ password-reset token flow.
 
 from httpx import AsyncClient
 
-from app.core.security import create_token, decode_token
+from app.core.security import create_token, decode_token, token_lookup_hash
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 from tests.conftest import TestSessionLocal, hash_password
@@ -160,6 +160,7 @@ class TestForgotResetPassword:
                 PasswordResetToken(
                     user_id=user.id,
                     token_hash=hp(raw_token),
+                    token_lookup=token_lookup_hash(raw_token),
                     expires_at=datetime.now(UTC) + timedelta(minutes=30),
                 )
             )
@@ -294,6 +295,7 @@ class TestSessionInvalidation:
                 PasswordResetToken(
                     user_id=user.id,
                     token_hash=hp(raw_token),
+                    token_lookup=token_lookup_hash(raw_token),
                     expires_at=datetime.now(UTC) + timedelta(minutes=30),
                 )
             )

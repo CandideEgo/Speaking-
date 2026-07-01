@@ -11,7 +11,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
-from app.core.security import create_token, decode_token, hash_password, verify_password
+from app.core.security import create_token, decode_token, hash_password, token_lookup_hash, verify_password
 from app.core.token_blacklist import blacklist_token, is_token_blacklisted
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
@@ -167,11 +167,15 @@ async def forgot_password(
         # Generate a cryptographically secure random token
         raw_token = secrets.token_urlsafe(32)
         token_hash = hash_password(raw_token)
+        # Deterministic lookup key — indexed so reset can find the candidate
+        # row in O(1) instead of bcrypt-verifying every unexpired token.
+        lookup = token_lookup_hash(raw_token)
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_expire_minutes)
 
         reset_token = PasswordResetToken(
             user_id=user.id,
             token_hash=token_hash,
+            token_lookup=lookup,
             expires_at=expires_at,
         )
         db.add(reset_token)
@@ -201,22 +205,41 @@ async def reset_password(
     """Reset a user's password using a valid reset token."""
     now = datetime.now(UTC)
 
-    # Find all unexpired, unused tokens
+    # Indexed lookup by the token's deterministic hash — O(1) query + a single
+    # bcrypt verify, instead of loading every unexpired token and bcrypt-checking
+    # each (O(n) slow + timing leak).
+    lookup = token_lookup_hash(data.token)
     result = await db.execute(
         select(PasswordResetToken).where(
+            PasswordResetToken.token_lookup == lookup,
             PasswordResetToken.used_at.is_(None),
             PasswordResetToken.expires_at > now,
         )
     )
-    tokens = result.scalars().all()
+    matched_token = result.scalar_one_or_none()
 
-    matched_token = None
-    for t in tokens:
-        if verify_password(data.token, t.token_hash):
-            matched_token = t
-            break
+    if matched_token is not None:
+        # Candidate found by index — confirm with the authoritative bcrypt check.
+        if not verify_password(data.token, matched_token.token_hash):
+            matched_token = None
+    else:
+        # Legacy fallback: tokens without a token_lookup (created before this
+        # column existed) can't be found by index. Scan unexpired tokens lacking
+        # a lookup. Empty for fresh deployments; disappears once old tokens
+        # expire (password_reset_expire_minutes, default 30).
+        legacy_result = await db.execute(
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_lookup.is_(None),
+                PasswordResetToken.used_at.is_(None),
+                PasswordResetToken.expires_at > now,
+            )
+        )
+        for t in legacy_result.scalars().all():
+            if verify_password(data.token, t.token_hash):
+                matched_token = t
+                break
 
-    if not matched_token:
+    if matched_token is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",

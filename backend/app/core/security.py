@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -15,6 +16,17 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def token_lookup_hash(raw_token: str) -> str:
+    """Deterministic SHA-256 hex digest of a raw token, for indexed DB lookup.
+
+    Used by the password-reset flow to find the candidate token row in O(1)
+    (by indexed token_lookup) instead of bcrypt-verifying every unexpired
+    token (O(n) slow + timing leak). The raw token is never stored; the
+    bcrypt token_hash remains the authoritative verification.
+    """
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
 def create_token(user_id: str, token_type: str = "access") -> str:
