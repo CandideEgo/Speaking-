@@ -104,6 +104,8 @@ export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [communityVideos, setCommunityVideos] = useState<CommunityVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [newPost, setNewPost] = useState("");
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
@@ -127,16 +129,22 @@ export default function CommunityPage() {
     }
   }, [activeTab, isLoading, isAuthenticated]);
 
-  async function loadPosts() {
-    setLoading(true);
+  async function loadPosts(nextPage = 1) {
+    if (nextPage === 1) setLoading(true);
     try {
-      const params = new URLSearchParams({ page: "1", page_size: "20" });
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        page_size: "20",
+      });
       if (activeTab === "trending") params.set("sort", "trending");
       const data = await api<PostsResponse>(`/api/v1/community/feed?${params}`);
-      setPosts(data.items);
+      setPosts((prev) =>
+        nextPage === 1 ? data.items : [...prev, ...data.items],
+      );
+      setPage(nextPage);
+      setHasMore(data.has_more);
     } catch {
-      // Show empty state
-      setPosts([]);
+      if (nextPage === 1) setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -591,6 +599,17 @@ export default function CommunityPage() {
                     </div>
                   );
                 })
+              )}
+
+              {/* Load more */}
+              {hasMore && !loading && (
+                <Button
+                  variant="secondary"
+                  onClick={() => loadPosts(page + 1)}
+                  className="w-full mt-2"
+                >
+                  加载更多
+                </Button>
               )}
             </div>
 

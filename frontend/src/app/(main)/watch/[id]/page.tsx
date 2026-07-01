@@ -10,6 +10,7 @@ import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePracticeMode } from "@/hooks/usePracticeMode";
 import { useVocabDrill } from "@/hooks/useVocabDrill";
+import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
 import { api, mediaUrl } from "@/lib/api";
@@ -17,11 +18,11 @@ import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs from "@/components/subtitle/SubtitleModeTabs";
+import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
+import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import {
-  TARGET_LEVEL_OPTIONS,
   levelMeta,
-  levelDotClass,
   shouldDisplay,
   wordHighlightClass,
   cleanToken,
@@ -38,16 +39,12 @@ import {
   BookOpen,
   Pencil,
   X,
-  ChevronDown,
-  GraduationCap,
-  Volume2,
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
-import { toggleVideoLike, getVideoLikeStatus } from "@/lib/creatorData";
 
 /** Human-readable labels for processing steps returned by the backend. */
 const STEP_LABELS: Record<string, string> = {
@@ -68,10 +65,7 @@ export default function WatchPage() {
     "idle" | "listening" | "reviewing"
   >("idle");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [noteDraft, setNoteDraft] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
     null,
@@ -111,6 +105,16 @@ export default function WatchPage() {
   }, [currentSubtitleIndex]);
 
   const quiz = useQuiz({ videoId: id });
+  const {
+    isFavorited,
+    isLiked,
+    noteDraft,
+    setNoteDraft,
+    toggleFavorite,
+    toggleLike,
+    saveNote,
+    clearNote,
+  } = useVideoMeta(id);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const requireAuth = (): boolean => {
@@ -184,90 +188,10 @@ export default function WatchPage() {
     }
   }
 
-  // --- Account-scoped favorite, like & note (server-backed) ---
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const [meta, likeStatus] = await Promise.all([
-          api<{ is_favorited: boolean; note: string }>(
-            `/api/v1/videos/${id}/watch-meta`,
-          ),
-          getVideoLikeStatus(id).catch(() => ({ is_liked: false })),
-        ]);
-        if (cancelled) return;
-        setIsFavorited(meta.is_favorited);
-        setNoteDraft(meta.note || "");
-        setIsLiked(likeStatus.is_liked);
-      } catch {
-        // non-fatal: favorite/note/like UI just stays at defaults
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  async function toggleFavorite() {
-    if (!id) return;
-    const wasFavorited = isFavorited;
-    setIsFavorited(!wasFavorited); // optimistic
-    try {
-      await api(`/api/v1/videos/${id}/favorite`, {
-        method: wasFavorited ? "DELETE" : "POST",
-      });
-      toast.success(wasFavorited ? "已取消收藏" : "已收藏视频");
-    } catch {
-      setIsFavorited(wasFavorited); // rollback
-      toast.error("操作失败，请重试");
-    }
-  }
-
-  async function toggleLike() {
-    if (!id) return;
-    const wasLiked = isLiked;
-    setIsLiked(!wasLiked); // optimistic
-    try {
-      const res = await toggleVideoLike(id);
-      setIsLiked(res.liked);
-      toast.success(res.liked ? "已点赞" : "已取消点赞");
-    } catch {
-      setIsLiked(wasLiked); // rollback
-      toast.error("操作失败，请重试");
-    }
-  }
-
   function handleShare() {
-    // Open the share-to-community dialog (POSTs a video_share post).
     requireAuth() && setShareOpen(true);
   }
 
-  async function saveNote() {
-    if (!id) return;
-    try {
-      await api(`/api/v1/videos/${id}/note`, {
-        method: "PUT",
-        body: JSON.stringify({ content: noteDraft.trim() }),
-      });
-      toast.success("笔记已保存");
-    } catch {
-      toast.error("笔记保存失败，请重试");
-    }
-  }
-
-  async function clearNote() {
-    if (!id) return;
-    setNoteDraft("");
-    try {
-      await api(`/api/v1/videos/${id}/note`, { method: "DELETE" });
-      toast.success("笔记已清空");
-    } catch {
-      toast.error("清空失败，请重试");
-    }
-  }
-
-  // --- Speaking functions (inline, replaces SpeakingPanel component) ---
   function stopSpeaking() {
     if (mediaRecorderRef.current?.state === "recording")
       mediaRecorderRef.current.stop();
@@ -828,256 +752,6 @@ export default function WatchPage() {
         videoId={video.id}
         videoTitle={video.title}
       />
-    </div>
-  );
-}
-
-/** Inline word tooltip — rich gloss (ECDICT static + AI contextual notes).
- *  可拖动浮动卡：默认停泊右下角，pointer 拖动改位置，边界自动夹紧。 */
-function WordTooltipInline({
-  word,
-  gloss,
-  onClose,
-  onPronounce,
-  onSave,
-}: {
-  word: string;
-  gloss: WordGloss | null;
-  onClose: () => void;
-  onPronounce: () => void;
-  onSave: () => Promise<void>;
-}) {
-  const loading = !gloss;
-  const cardRef = useRef<HTMLDivElement>(null);
-  // pos 为 null 时使用默认停泊位（右下角）；拖动后切换为 left/top 定位。
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const dragOffset = useRef<{ dx: number; dy: number } | null>(null);
-
-  function onPointerDown(e: React.PointerEvent) {
-    // 从按钮上发起的按压不触发拖动
-    if ((e.target as HTMLElement).closest("button")) return;
-    const card = cardRef.current;
-    if (!card) return;
-    const rect = card.getBoundingClientRect();
-    dragOffset.current = {
-      dx: e.clientX - rect.left,
-      dy: e.clientY - rect.top,
-    };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragOffset.current) return;
-    const card = cardRef.current;
-    const w = card?.offsetWidth ?? 360;
-    const h = card?.offsetHeight ?? 220;
-    const maxX = window.innerWidth - w - 8;
-    const maxY = window.innerHeight - h - 8;
-    const x = Math.max(8, Math.min(e.clientX - dragOffset.current.dx, maxX));
-    const y = Math.max(8, Math.min(e.clientY - dragOffset.current.dy, maxY));
-    setPos({ x, y });
-  }
-
-  function onPointerUp(e: React.PointerEvent) {
-    dragOffset.current = null;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // pointerId may already be released
-    }
-  }
-
-  const style: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { right: 24, bottom: 24, left: "auto", top: "auto" };
-
-  return (
-    <div
-      ref={cardRef}
-      style={style}
-      className="fixed z-50 bg-canvas border border-hairline rounded-lg shadow-lift p-4 w-[min(92vw,360px)] touch-none"
-    >
-      <div
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        className="flex items-start justify-between mb-2 cursor-grab active:cursor-grabbing select-none"
-      >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-base font-bold text-ink">
-              {gloss?.lemma || word}
-            </span>
-            {gloss?.phonetic && (
-              <span className="text-xs text-muted">/{gloss.phonetic}/</span>
-            )}
-            {gloss?.pos && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-soft text-muted">
-                {gloss.pos}
-              </span>
-            )}
-          </div>
-          {gloss && gloss.levels.length > 0 && (
-            <div className="flex items-center gap-1 mt-1 flex-wrap">
-              {gloss.levels.map((lv) => {
-                const meta = levelMeta(lv);
-                if (!meta) return null;
-                return (
-                  <span
-                    key={lv}
-                    className={cn(
-                      "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded",
-                      wordHighlightClass([lv]),
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        levelDotClass(meta.color),
-                      )}
-                    />
-                    {meta.label}
-                  </span>
-                );
-              })}
-              {gloss?.is_high_freq && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">
-                  <GraduationCap size={10} /> 真题高频
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <button
-          onClick={onClose}
-          className="text-muted hover:text-ink transition-colors shrink-0"
-          aria-label="关闭"
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-muted mb-3">查询中...</p>
-      ) : (
-        <div className="mb-3 space-y-1.5">
-          {gloss?.definition && (
-            <p className="text-xs text-muted leading-relaxed">
-              {gloss.definition}
-            </p>
-          )}
-          {gloss?.translation && (
-            <p className="text-sm text-ink leading-relaxed">
-              {gloss.translation}
-            </p>
-          )}
-          {gloss?.contextual_note && (
-            <p className="text-xs text-ink/80 leading-relaxed">
-              <span className="text-muted">语境释义：</span>
-              {gloss.contextual_note}
-            </p>
-          )}
-          {gloss?.pitfalls && (
-            <p className="text-xs text-orange-700/90 leading-relaxed">
-              <span className="text-muted">易错点：</span>
-              {gloss.pitfalls}
-            </p>
-          )}
-          {gloss?.knowledge && (
-            <p className="text-xs text-brand-600/90 leading-relaxed">
-              <span className="text-muted">拓展：</span>
-              {gloss.knowledge}
-            </p>
-          )}
-          {gloss?.example_sentence && (
-            <div className="text-xs leading-relaxed border-l-2 border-amber-300 pl-2">
-              <p className="text-ink/80 italic">{gloss.example_sentence}</p>
-              {gloss.example_sentence_zh && (
-                <p className="text-muted mt-0.5">{gloss.example_sentence_zh}</p>
-              )}
-              {gloss.example_source && (
-                <p className="text-[10px] text-muted/70 mt-0.5">
-                  — {gloss.example_source}
-                </p>
-              )}
-            </div>
-          )}
-          {!gloss?.definition &&
-            !gloss?.translation &&
-            !gloss?.contextual_note && (
-              <p className="text-sm text-muted">暂无释义</p>
-            )}
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onPronounce}>
-          <Volume2 size={14} />
-          发音
-        </Button>
-        <Button size="sm" onClick={onSave}>
-          <Bookmark size={14} /> 加入词汇本
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** 考试目标层级选择器：播放器右上角收起药丸，点开下拉，不干扰观看。 */
-function ExamLevelSelector({
-  level,
-  onChange,
-}: {
-  level: string | null;
-  onChange: (level: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = levelMeta(level ?? "cet4") ?? TARGET_LEVEL_OPTIONS[0];
-  return (
-    <div className="absolute top-3 right-3 z-20">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-black/55 backdrop-blur text-white text-xs font-medium hover:bg-black/70 transition-colors cursor-pointer"
-      >
-        <span
-          className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))}
-        />
-        {current.label}
-        <ChevronDown
-          size={13}
-          className={cn("transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 z-20 bg-canvas border border-hairline rounded-lg shadow-lift p-1 min-w-[120px]">
-            {TARGET_LEVEL_OPTIONS.map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => {
-                  onChange(opt.key);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left cursor-pointer transition-colors",
-                  opt.key === current.key
-                    ? "bg-brand-50 text-brand-600 font-semibold"
-                    : "text-ink hover:bg-surface-soft",
-                )}
-              >
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    levelDotClass(opt.color),
-                  )}
-                />
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }

@@ -38,12 +38,23 @@ const GOALS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { setOnboardingCompleted } = useAuthStore();
+  const {
+    isAuthenticated,
+    isLoading: authLoading,
+    setOnboardingCompleted,
+  } = useAuthStore();
   const [step, setStep] = useState(0);
   const [level, setLevel] = useState<string | null>(null);
   const [goalType, setGoalType] = useState<string>("speaking_attempts");
   const [goalValue, setGoalValue] = useState(5);
   const [saving, setSaving] = useState(false);
+
+  // Auth guard — redirect unauthenticated users to login
+  if (authLoading) return null;
+  if (!isAuthenticated) {
+    router.replace("/login");
+    return null;
+  }
 
   async function handleComplete() {
     setSaving(true);

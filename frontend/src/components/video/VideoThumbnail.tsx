@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef, memo } from "react";
 import { Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format";
+import { mediaUrl } from "@/lib/api";
 
 interface VideoThumbnailProps {
   url: string | null;
@@ -39,7 +40,9 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   aspectClass,
   hoverOverlay,
 }: VideoThumbnailProps) {
-  const [status, setStatus] = useState<"loading" | "error" | "loaded">("loading");
+  const [status, setStatus] = useState<"loading" | "error" | "loaded">(
+    "loading",
+  );
   const imgRef = useRef<HTMLImageElement>(null);
 
   const showPlaceholder = !url || status === "error";
@@ -58,15 +61,21 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   const aspect = aspectClass || "aspect-video";
 
   return (
-    <div className={cn("relative overflow-hidden bg-cream-soft", aspect, className)}>
+    <div
+      className={cn(
+        "relative overflow-hidden bg-cream-soft",
+        aspect,
+        className,
+      )}
+    >
       {url && status !== "error" && (
         <img
           ref={imgRef}
-          src={url}
+          src={url ? mediaUrl(url) : undefined}
           alt={title}
           className={cn(
             "h-full w-full object-cover transition-opacity duration-300",
-            status === "loaded" ? "opacity-100" : "opacity-0"
+            status === "loaded" ? "opacity-100" : "opacity-0",
           )}
           loading="lazy"
           onLoad={() => setStatus("loaded")}
