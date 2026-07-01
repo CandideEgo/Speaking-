@@ -124,61 +124,10 @@
   /* (input-field removed — use <Input>/<Textarea>/<Select> components) */
 
   /* === Badges / Pills === */
-  .badge-pill {
-    @apply inline-flex items-center rounded-pill bg-surface-card px-3 py-1 text-[13px] font-medium text-muted;
-  }
-
-  .badge-coral {
-    @apply inline-flex items-center rounded-pill bg-brand-500 px-3 py-1 text-xs font-medium tracking-caption-wide uppercase text-on-primary;
-  }
-
-  .pill {
-    @apply inline-flex items-center gap-2 px-3.5 py-2 rounded-pill text-[13px] font-semibold
-           border border-hairline bg-canvas;
-  }
-  .pill-flame-on {
-    @apply bg-brand-50 text-brand-500 border-transparent;
-  }
-  .pill-goal-done {
-    @apply bg-success-soft text-success border-transparent;
-  }
-
-  /* === Filter chips === */
-  .fchip {
-    @apply inline-flex items-center px-3.5 py-1.5 rounded-pill text-[13px] font-semibold text-muted
-           hover:bg-surface-card hover:text-ink
-           transition-colors duration-150 cursor-pointer;
-  }
-  .fchip-on {
-    @apply bg-ink text-on-primary;
-  }
-  .fchip-brand-on {
-    @apply bg-brand-500 text-on-primary;
-  }
-
-  /* === Tabs (pill style) === */
-  .tab-container {
-    @apply inline-flex gap-1 bg-surface-card p-1 rounded-pill;
-  }
-  .tab-pill {
-    @apply px-4 py-2 rounded-pill text-[13px] font-semibold text-muted
-           hover:text-ink
-           transition-colors duration-150 cursor-pointer;
-  }
-  .tab-pill-active {
-    @apply bg-canvas text-ink shadow-soft;
-  }
+  /* (badge-pill/badge-coral/pill/pill-flame-on/pill-goal-done removed — unused) */
 
   /* === Action pills === */
-  .act {
-    @apply inline-flex items-center gap-1.5 bg-canvas border border-hairline
-           px-3.5 py-2 rounded-pill text-[13px] font-semibold text-body
-           hover:border-ink
-           transition-colors duration-150 cursor-pointer;
-  }
-  .act-active {
-    @apply bg-brand-50 text-brand-500 border-transparent;
-  }
+  /* (act/act-active removed — unused) */
 
   /* === Section headings === */
   .page-head {
@@ -209,21 +158,10 @@
   }
 
   /* === Greeting bar === */
-  .greet {
-    @apply flex flex-col sm:flex-row sm:items-center items-start justify-between gap-4
-           py-6 border-b border-hairline mb-2;
-  }
+  /* (greet removed — unused) */
 
   /* === Category quick band === */
-  .cat-band {
-    @apply flex gap-2.5 overflow-x-auto pb-1.5 -mx-4 sm:-mx-7 px-4 sm:px-7;
-  }
-  .cat-card {
-    @apply flex flex-col items-center gap-2 min-w-[108px] py-[18px] px-2.5
-           bg-surface-soft border border-hairline rounded-lg
-           hover:bg-canvas hover:border-ink hover:-translate-y-0.5 hover:shadow-soft
-           transition-all duration-150 cursor-pointer;
-  }
+  /* (cat-band/cat-card removed — unused) */
 
   /* === Video card === */
   .vcard {
@@ -302,17 +240,7 @@
   }
 
   /* === Speaking block === */
-  .speak-block {
-    @apply mt-[18px] rounded-xl p-[26px] text-on-dark
-           bg-gradient-to-br from-brand-500 to-brand-400 shadow-brand;
-  }
-  .speak-meter {
-    @apply flex items-center gap-3.5 flex-wrap bg-black/20 rounded-lg p-3.5;
-  }
-  .mic-btn {
-    @apply w-12 h-12 rounded-full flex-shrink-0 bg-canvas text-brand-500
-           flex items-center justify-center shadow-[0_4px_14px_rgba(0,0,0,.2)] cursor-pointer;
-  }
+  /* (speak-block/speak-meter/mic-btn removed — unused) */
 
   /* === Quiz block === */
   .quiz {
@@ -341,12 +269,7 @@
   .dash-stat-label {
     @apply text-[13px] text-muted mt-1;
   }
-  .trend-up {
-    @apply text-[12px] font-bold px-2 py-1 rounded-pill text-success bg-success-soft;
-  }
-  .trend-down {
-    @apply text-[12px] font-bold px-2 py-1 rounded-pill text-danger bg-red-50;
-  }
+  /* (trend-up/trend-down removed — unused) */
 
   /* === Bar chart === */
   .bar-chart {
@@ -372,27 +295,7 @@
   }
 
   /* === Heatmap === */
-  .heat-grid {
-    @apply grid grid-cols-7 gap-1.5;
-  }
-  .heat-cell {
-    @apply aspect-square rounded-[5px] bg-surface-card;
-  }
-  .heat-l1 {
-    @apply bg-brand-50;
-  }
-  .heat-l2 {
-    @apply bg-brand-100;
-  }
-  .heat-l3 {
-    @apply bg-brand-200;
-  }
-  .heat-l4 {
-    @apply bg-brand-500;
-  }
-  .heat-legend {
-    @apply flex items-center gap-1.5 mt-3.5 text-[11px] text-muted;
-  }
+  /* (heat-grid/heat-cell/heat-l1-l4/heat-legend removed — unused) */
 
   /* === Timeline === */
   .tl-item {
@@ -434,9 +337,7 @@
   .side-card {
     @apply bg-canvas border border-hairline rounded-lg p-[18px];
   }
-  .trend-item {
-    @apply flex items-center gap-2.5 py-[7px] cursor-pointer;
-  }
+  /* (trend-item removed — unused) */
 
   /* === Pricing === */
   .price-card {
@@ -461,17 +362,11 @@
   }
 
   /* === Legacy category tabs (backward compat) === */
-  .tab-category {
-    @apply rounded-sm px-3.5 py-2 text-sm font-medium text-muted-foreground
-           hover:text-ink transition-colors duration-150;
-  }
-  .tab-category-active {
-    @apply bg-cream-card text-ink;
-  }
+  /* (tab-category/tab-category-active removed — unused) */
 
   /* ============================================================
      HOME — bento 首屏 (variant 03)
-     独立于现有 .greet/.cat-card/.vcard，仅首页使用，不影响其它页面
+     独立于现有 .vcard，仅首页使用，不影响其它页面
      ============================================================ */
   .bento {
     @apply grid gap-4 mb-2;
