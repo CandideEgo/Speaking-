@@ -33,6 +33,12 @@ from app.services.community_service import (
 from app.services.community_service import (
     toggle_video_like as _toggle_video_like,
 )
+from app.services.search_service import (
+    search_subtitles as _search_subtitles,
+)
+from app.services.search_service import (
+    search_videos as _search_videos,
+)
 from app.services.upload_service import handle_video_upload
 from app.services.video_service import (
     approve_review as _approve_review,
@@ -69,12 +75,6 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     reject_review as _reject_review,
-)
-from app.services.video_service import (
-    search_subtitles as _search_subtitles,
-)
-from app.services.video_service import (
-    search_videos as _search_videos,
 )
 from app.services.video_service import (
     seed_user_video as _seed_user_video,
@@ -585,6 +585,24 @@ async def seed_video(
     return await _seed_video(db, data.source_url)
 
 
+async def _require_valid_cookies(source_url: str):
+    """Ensure YouTube cookies are valid; raise HTTPException if not."""
+    from app.services.youtube_cookies_service import ensure_cookies
+
+    cookies_status = await ensure_cookies(source_url)
+    if cookies_status == "need_manual_login":
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="YouTube cookies 需重新登录：请在服务器上运行 playwright-cli open "
+            "https://www.youtube.com --persistent 并登录后重试",
+        )
+    if cookies_status == "error":
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
+        )
+
+
 @router.post("/seed-full", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit("3/minute")
 async def seed_video_full(
@@ -601,20 +619,7 @@ async def seed_video_full(
     video is seeded with auto_publish=True so finalize_video publishes it once
     ready — the frontend just polls /status.
     """
-    from app.services.youtube_cookies_service import ensure_cookies
-
-    cookies_status = await ensure_cookies(data.source_url)
-    if cookies_status == "need_manual_login":
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail="YouTube cookies 需重新登录：请在服务器上运行 playwright-cli open "
-            "https://www.youtube.com --persistent 并登录后重试",
-        )
-    if cookies_status == "error":
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
-        )
+    await _require_valid_cookies(data.source_url)
     return await _seed_video(db, data.source_url, auto_publish=True)
 
 
@@ -650,20 +655,7 @@ async def user_seed_video_full(
     auto_publish=True so it auto-publishes once ready, but still needs
     admin review before appearing in the community.
     """
-    from app.services.youtube_cookies_service import ensure_cookies
-
-    cookies_status = await ensure_cookies(data.source_url)
-    if cookies_status == "need_manual_login":
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail="YouTube cookies 需重新登录：请在服务器上运行 playwright-cli open "
-            "https://www.youtube.com --persistent 并登录后重试",
-        )
-    if cookies_status == "error":
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
-        )
+    await _require_valid_cookies(data.source_url)
     return await _seed_user_video(db, data.source_url, current_user, auto_publish=True)
 
 
