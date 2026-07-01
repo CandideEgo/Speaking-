@@ -33,6 +33,7 @@ import {
   Play,
   Mic,
   Bookmark,
+  Heart,
   Share2,
   BookOpen,
   Pencil,
@@ -42,6 +43,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
+import { toggleVideoLike, getVideoLikeStatus } from "@/lib/creatorData";
 
 /** Human-readable labels for processing steps returned by the backend. */
 const STEP_LABELS: Record<string, string> = {
@@ -59,28 +61,14 @@ export default function WatchPage() {
   const router = useRouter();
   const [speakingActive, setSpeakingActive] = useState(false);
   const [speakingState, setSpeakingState] = useState<
-    "idle" | "listening" | "reviewing" | "submitting" | "result"
+    "idle" | "listening" | "reviewing"
   >("idle");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
-  const [speakingResult, setSpeakingResult] = useState<{
-    accuracy: number;
-    fluency: number;
-    completeness: number;
-    feedback: string;
-    transcript: string;
-    word_scores?: { word: string; score: number; status: string }[];
-    criteria_scores?: {
-      name: string;
-      score: number;
-      feedback?: string | null;
-      weight: number;
-    }[];
-    overall_score?: number | null;
-  } | null>(null);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
     null,
   );
@@ -191,20 +179,24 @@ export default function WatchPage() {
     }
   }
 
-  // --- Account-scoped favorite & note (server-backed) ---
+  // --- Account-scoped favorite, like & note (server-backed) ---
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     (async () => {
       try {
-        const meta = await api<{ is_favorited: boolean; note: string }>(
-          `/api/v1/videos/${id}/watch-meta`,
-        );
+        const [meta, likeStatus] = await Promise.all([
+          api<{ is_favorited: boolean; note: string }>(
+            `/api/v1/videos/${id}/watch-meta`,
+          ),
+          getVideoLikeStatus(id).catch(() => ({ is_liked: false })),
+        ]);
         if (cancelled) return;
         setIsFavorited(meta.is_favorited);
         setNoteDraft(meta.note || "");
+        setIsLiked(likeStatus.is_liked);
       } catch {
-        // non-fatal: favorite/note UI just stays at defaults
+        // non-fatal: favorite/note/like UI just stays at defaults
       }
     })();
     return () => {
@@ -223,6 +215,20 @@ export default function WatchPage() {
       toast.success(wasFavorited ? "已取消收藏" : "已收藏视频");
     } catch {
       setIsFavorited(wasFavorited); // rollback
+      toast.error("操作失败，请重试");
+    }
+  }
+
+  async function toggleLike() {
+    if (!id) return;
+    const wasLiked = isLiked;
+    setIsLiked(!wasLiked); // optimistic
+    try {
+      const res = await toggleVideoLike(id);
+      setIsLiked(res.liked);
+      toast.success(res.liked ? "已点赞" : "已取消点赞");
+    } catch {
+      setIsLiked(wasLiked); // rollback
       toast.error("操作失败，请重试");
     }
   }
@@ -263,7 +269,6 @@ export default function WatchPage() {
     recordingStream?.getTracks().forEach((t) => t.stop());
     setRecordingStream(null);
     setSpeakingState("idle");
-    setSpeakingResult(null);
     setSpeakingActive(false);
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
@@ -316,58 +321,12 @@ export default function WatchPage() {
     mediaRecorderRef.current?.stop();
   }
 
-  async function submitForFeedback() {
-    if (!audioUrl || !video?.subtitles[currentSubtitleIndex]) return;
-    setSpeakingState("submitting");
-    // 评分含 Whisper+对齐+LLM，可能耗时数十秒；120s 超时兜底，避免无限转圈
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
-    try {
-      const blob = await fetch(audioUrl).then((r) => r.blob());
-      const form = new FormData();
-      form.append("audio", blob, "recording.webm");
-      form.append("subtitle_id", video.subtitles[currentSubtitleIndex].id);
-      const result = await api<{
-        accuracy: number;
-        fluency: number;
-        completeness: number;
-        feedback: string;
-        transcript: string;
-        word_scores?: { word: string; score: number; status: string }[];
-        criteria_scores?: {
-          name: string;
-          score: number;
-          feedback?: string | null;
-          weight: number;
-        }[];
-        overall_score?: number | null;
-      }>("/api/v1/speaking/practice", {
-        method: "POST",
-        body: form,
-        headers: {} as Record<string, string>,
-        signal: controller.signal,
-      });
-      setSpeakingResult(result);
-      setSpeakingState("result");
-    } catch (e) {
-      setSpeakingState("reviewing");
-      if (e instanceof DOMException && e.name === "AbortError") {
-        toast.error("评分超时，请稍后重试");
-      } else {
-        toast.error("评分失败，请重试");
-      }
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
   function reRecord() {
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
     }
     setSpeakingState("idle");
-    setSpeakingResult(null);
   }
 
   function handleNextSubtitle() {
@@ -397,22 +356,6 @@ export default function WatchPage() {
   function isSelectedWord(word: string): boolean {
     if (!selectedWord) return false;
     return selectedWord === cleanToken(word);
-  }
-
-  // 逐词发音着色：correct 绿 / partial 黄 / missing 红删除线 / extra 灰
-  function wordScoreClass(status: string): string {
-    switch (status) {
-      case "correct":
-        return "text-success font-medium";
-      case "partial":
-        return "text-amber-600";
-      case "missing":
-        return "text-red-500 line-through";
-      case "extra":
-        return "text-muted";
-      default:
-        return "text-ink";
-    }
   }
 
   // --- Loading / Error states ---
@@ -486,6 +429,17 @@ export default function WatchPage() {
           <div className="flex items-center gap-1 shrink-0">
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+              onClick={toggleLike}
+              aria-label={isLiked ? "取消点赞" : "点赞"}
+              title={isLiked ? "取消点赞" : "点赞"}
+            >
+              <Heart
+                size={18}
+                className={cn(isLiked && "fill-current text-red-500")}
+              />
+            </button>
+            <button
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
               onClick={toggleFavorite}
               aria-label={isFavorited ? "取消收藏" : "收藏视频"}
               title={isFavorited ? "取消收藏" : "收藏"}
@@ -534,6 +488,22 @@ export default function WatchPage() {
           <span>{video.difficulty_level || "B2"}</span>
           <span>·</span>
           <span>{formatDuration(video.duration)}</span>
+          <span>·</span>
+          <span className="inline-flex items-center gap-0.5">
+            <Heart
+              size={11}
+              className={cn(isLiked && "fill-current text-red-500")}
+            />
+            {video.like_count}
+          </span>
+          <span>·</span>
+          <span className="inline-flex items-center gap-0.5">
+            <Bookmark
+              size={11}
+              className={cn(isFavorited && "fill-current text-brand-500")}
+            />
+            {video.favorite_count}
+          </span>
         </div>
 
         {/* 笔记抽屉 */}
@@ -711,7 +681,7 @@ export default function WatchPage() {
                     <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] text-ink mb-2">
-                          录音完成，点击提交获取评分
+                          录音完成，回放听自己的发音
                         </p>
                         {audioUrl && (
                           <audio
@@ -724,107 +694,6 @@ export default function WatchPage() {
                       <div className="flex gap-2 shrink-0">
                         <Button variant="outline" size="sm" onClick={reRecord}>
                           重录
-                        </Button>
-                        <Button size="sm" onClick={submitForFeedback}>
-                          提交
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {speakingState === "submitting" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <Loader2
-                        size={20}
-                        className="animate-spin text-brand-500"
-                      />
-                      <p className="text-[13px] font-semibold text-ink">
-                        AI 评分中…
-                      </p>
-                    </div>
-                  )}
-
-                  {speakingResult && speakingState === "result" && (
-                    <div className="bg-surface-soft rounded-lg p-3 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-full bg-success-soft text-success flex items-center justify-center font-bold text-sm shrink-0">
-                          {Math.round(
-                            speakingResult.overall_score ??
-                              (speakingResult.accuracy +
-                                speakingResult.fluency +
-                                speakingResult.completeness) /
-                                3,
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          {(
-                            speakingResult.criteria_scores ?? [
-                              {
-                                name: "发音",
-                                score: speakingResult.accuracy,
-                                weight: 1,
-                              },
-                              {
-                                name: "流利度",
-                                score: speakingResult.fluency,
-                                weight: 1,
-                              },
-                              {
-                                name: "完整度",
-                                score: speakingResult.completeness,
-                                weight: 1,
-                              },
-                            ]
-                          ).map((c) => (
-                            <div
-                              key={c.name}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="w-14 text-[11px] text-muted shrink-0">
-                                {c.name}
-                              </span>
-                              <div className="flex-1 h-1.5 bg-hairline rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-brand-500 rounded-full"
-                                  style={{
-                                    width: `${Math.max(0, Math.min(100, c.score))}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-[11px] font-semibold text-ink w-7 text-right">
-                                {Math.round(c.score)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {speakingResult.word_scores &&
-                        speakingResult.word_scores.length > 0 && (
-                          <div className="flex flex-wrap gap-x-1.5 gap-y-1 leading-relaxed">
-                            {speakingResult.word_scores.map((w, i) => (
-                              <span
-                                key={i}
-                                className={cn(
-                                  "text-[13px]",
-                                  wordScoreClass(w.status),
-                                )}
-                              >
-                                {w.word}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                      {speakingResult.feedback && (
-                        <p className="text-xs text-muted">
-                          {speakingResult.feedback}
-                        </p>
-                      )}
-
-                      <div className="flex gap-2 justify-end">
-                        <Button variant="outline" size="sm" onClick={reRecord}>
-                          再练一次
                         </Button>
                         <Button size="sm" onClick={handleNextSubtitle}>
                           下一句

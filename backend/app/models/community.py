@@ -107,6 +107,24 @@ class CommentLike(Base):
     user = relationship("User")
 
 
+class VideoLike(Base):
+    __tablename__ = "video_likes"
+    __table_args__ = (UniqueConstraint("video_id", "user_id", name="uq_video_like"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    video_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    # relationships
+    video = relationship("Video", back_populates="likes")
+    user = relationship("User")
+
+
 class CommentReport(Base):
     __tablename__ = "comment_reports"
 

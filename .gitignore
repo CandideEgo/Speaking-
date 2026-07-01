@@ -83,6 +83,7 @@ whisper-sentence-segmentation-*.md
 .gsd/
 .claude/worktrees/
 .claude/model_audit_output.json
+.claude/loop-state.local.md
 
 # Orphaned cookie-acquisition script (youtube platform module removed)
 frontend/yt_cookies.mjs

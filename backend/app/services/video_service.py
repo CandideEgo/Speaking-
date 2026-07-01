@@ -153,6 +153,39 @@ async def seed_video(
     return VideoResponse.model_validate(video)
 
 
+async def seed_user_video(
+    db: AsyncSession,
+    source_url: str,
+    current_user: User,
+) -> VideoResponse:
+    """Seed a video from a URL on behalf of a regular (non-admin) user.
+
+    Similar to seed_video but creates a UGC video (is_official=False)
+    owned by the submitting user, starting in draft review status.
+    """
+    platform = _detect_platform(source_url)
+
+    video = Video(
+        title="Processing...",
+        source_url=source_url,
+        video_source=platform,
+        status=VideoStatus.processing,
+        user_id=current_user.id,
+        is_official=False,
+        is_published=False,
+        review_status=VideoReviewStatus.draft.value,
+    )
+    db.add(video)
+    await db.commit()
+    await db.refresh(video)
+
+    from app.tasks.video_processing import process_video
+
+    process_video.delay(video.id)
+
+    return VideoResponse.model_validate(video)
+
+
 async def list_public_videos(db: AsyncSession) -> list[VideoResponse]:
     """List official public videos for the homepage."""
     result = await db.execute(
@@ -741,6 +774,7 @@ async def update_video(
         "is_official",
         "is_featured",
         "is_published",
+        "show_on_homepage",
         "admin_notes",
     ):
         value = getattr(payload, field)

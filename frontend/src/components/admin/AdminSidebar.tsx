@@ -21,7 +21,7 @@ interface NavItem {
 const NAV: { title: string; items: NavItem[] }[] = [
   {
     title: "内容",
-    items: [{ label: "视频内容", href: "/admin/videos", icon: Video }],
+    items: [{ label: "视频审核", href: "/admin/videos", icon: Video }],
   },
   {
     title: "运营",

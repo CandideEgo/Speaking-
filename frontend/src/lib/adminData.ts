@@ -226,6 +226,8 @@ export async function updateVideo(
   if (patch.is_official !== undefined) body.is_official = patch.is_official;
   if (patch.is_featured !== undefined) body.is_featured = patch.is_featured;
   if (patch.is_published !== undefined) body.is_published = patch.is_published;
+  if (patch.show_on_homepage !== undefined)
+    body.show_on_homepage = patch.show_on_homepage;
   if (patch.admin_notes !== undefined) body.admin_notes = patch.admin_notes;
 
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}`, {

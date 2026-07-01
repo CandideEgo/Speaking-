@@ -107,6 +107,13 @@ class Video(Base):
     comment_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     comment_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Denormalized social counts
+    like_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    favorite_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
+    # Admin-curated homepage visibility (distinct from is_featured which is auto-set)
+    show_on_homepage: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships
@@ -120,4 +127,5 @@ class Video(Base):
     comment_stats = relationship("VideoCommentStats", back_populates="video", uselist=False)
     favorites = relationship("UserFavorite", back_populates="video", cascade="all, delete-orphan")
     notes = relationship("UserNote", back_populates="video", cascade="all, delete-orphan")
+    likes = relationship("VideoLike", back_populates="video", cascade="all, delete-orphan")
     practice_questions = relationship("VideoPracticeQuestion", back_populates="video", cascade="all, delete-orphan")

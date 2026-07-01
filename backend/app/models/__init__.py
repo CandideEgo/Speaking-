@@ -1,6 +1,6 @@
 # Import all models in dependency order so SQLAlchemy can resolve relationships
 from app.models.comment import VideoComment, VideoCommentStats
-from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment
+from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.daily_activity import DailyActivity
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote

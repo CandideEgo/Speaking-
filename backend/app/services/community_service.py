@@ -3,12 +3,15 @@ import logging
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment
+from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.user import User
 from app.models.video import Video
 from app.services.notification_service import create_notification
 
 logger = logging.getLogger(__name__)
+
+# Videos whose like_count OR favorite_count >= this threshold are auto-featured.
+FEATURE_THRESHOLD = 10
 
 
 def _user_brief(user: User) -> dict:
@@ -542,3 +545,45 @@ async def get_following(db: AsyncSession, user_id: str, page: int = 1, page_size
 
     has_more = total > offset + page_size
     return {"items": items, "has_more": has_more, "total": total}
+
+
+# ---------------------------------------------------------------------------
+# Video likes
+# ---------------------------------------------------------------------------
+
+
+async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> dict:
+    """Toggle like on a video. Returns {"liked": bool}.
+
+    Auto-features the video if like_count or favorite_count reaches
+    FEATURE_THRESHOLD.
+    """
+    result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
+    existing = result.scalar_one_or_none()
+
+    video_result = await db.execute(select(Video).where(Video.id == video_id))
+    video = video_result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Video not found")
+
+    if existing:
+        await db.delete(existing)
+        video.like_count = max(0, video.like_count - 1)
+        await db.commit()
+        return {"liked": False}
+    else:
+        like = VideoLike(user_id=user_id, video_id=video_id)
+        db.add(like)
+        video.like_count += 1
+        # Auto-feature check
+        if video.like_count >= FEATURE_THRESHOLD or video.favorite_count >= FEATURE_THRESHOLD:
+            video.is_featured = True
+        await db.commit()
+        return {"liked": True}
+
+
+async def get_video_like_status(db: AsyncSession, user_id: str, video_id: str) -> dict:
+    """Check if the current user has liked a video. Returns {"is_liked": bool}."""
+    result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
+    existing = result.scalar_one_or_none()
+    return {"is_liked": existing is not None}

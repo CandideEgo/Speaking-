@@ -43,6 +43,8 @@ class VideoResponse(BaseModel):
     video_url_1080p: str | None = None
     processing_mode: str | None = None
     processing_step: str | None = None
+    like_count: int = 0
+    favorite_count: int = 0
     created_at: str
 
     model_config = {"from_attributes": True}
@@ -79,6 +81,7 @@ class VideoAdminResponse(VideoResponse):
     that the public ``VideoResponse`` intentionally hides."""
 
     is_featured: bool
+    show_on_homepage: bool = False
     admin_notes: str | None = None
     error_message: str | None = None
     processing_progress: int = 0
@@ -110,6 +113,7 @@ class VideoAdminUpdate(BaseModel):
     is_official: bool | None = None
     is_featured: bool | None = None
     is_published: bool | None = None
+    show_on_homepage: bool | None = None
     admin_notes: str | None = None
 
     @field_validator("difficulty_level")

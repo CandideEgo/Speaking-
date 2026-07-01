@@ -30,6 +30,24 @@ export async function uploadVideo(file: File, title: string): Promise<Video> {
   return api<Video>("/api/v1/videos/upload", { method: "POST", body: form });
 }
 
+/** Seed a video from a URL (YouTube/Bilibili) as a UGC video.
+ * The video is created as draft and owned by the current user. */
+export async function seedFromUrl(source_url: string): Promise<Video> {
+  return api<Video>("/api/v1/videos/user-seed", {
+    method: "POST",
+    body: JSON.stringify({ source_url }),
+  });
+}
+
+/** One-click seed from URL: ensures cookies, runs full pipeline.
+ * Returns the video ID for progress polling. */
+export async function seedFromUrlFull(source_url: string): Promise<Video> {
+  return api<Video>("/api/v1/videos/user-seed-full", {
+    method: "POST",
+    body: JSON.stringify({ source_url }),
+  });
+}
+
 /** List the current user's own videos (any status/processing state). */
 export function listMyVideos(): Promise<Video[]> {
   return api<Video[]>("/api/v1/videos");
@@ -104,6 +122,22 @@ export async function updateWordLevels(
 // ---------------------------------------------------------------------------
 // Review lifecycle
 // ---------------------------------------------------------------------------
+
+/** Toggle like on a video. Returns {liked: bool}. */
+export async function toggleVideoLike(
+  videoId: string,
+): Promise<{ liked: boolean }> {
+  return api<{ liked: boolean }>(`/api/v1/videos/${videoId}/like`, {
+    method: "POST",
+  });
+}
+
+/** Check if the current user has liked a video. */
+export async function getVideoLikeStatus(
+  videoId: string,
+): Promise<{ is_liked: boolean }> {
+  return api<{ is_liked: boolean }>(`/api/v1/videos/${videoId}/like-status`);
+}
 
 /** Freeze the approved version + flip to pending_review so the owner can edit a
  * published video. */

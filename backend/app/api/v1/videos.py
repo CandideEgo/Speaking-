@@ -27,6 +27,12 @@ from app.schemas.video import (
     VideoStatusResponse,
     WordLevelsUpdate,
 )
+from app.services.community_service import (
+    get_video_like_status as _get_video_like_status,
+)
+from app.services.community_service import (
+    toggle_video_like as _toggle_video_like,
+)
 from app.services.upload_service import handle_video_upload
 from app.services.video_service import (
     approve_review as _approve_review,
@@ -69,6 +75,9 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     search_videos as _search_videos,
+)
+from app.services.video_service import (
+    seed_user_video as _seed_user_video,
 )
 from app.services.video_service import (
     seed_video as _seed_video,
@@ -603,3 +612,82 @@ async def seed_video_full(
             detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
         )
     return await _seed_video(db, data.source_url, auto_publish=True)
+
+
+@router.post("/user-seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("3/minute")
+async def user_seed_video(
+    request: Request,
+    data: VideoCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Seed a video from URL on behalf of a regular user (UGC pipeline).
+
+    Creates a non-official video owned by the user, starting in draft
+    review status. The user must edit subtitles and submit for review
+    before the video becomes publicly visible.
+    """
+    return await _seed_user_video(db, data.source_url, current_user)
+
+
+@router.post("/user-seed-full", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("3/minute")
+async def user_seed_video_full(
+    request: Request,
+    data: VideoCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """One-click user seed: ensure cookies, seed, run full pipeline.
+
+    Like user-seed but also ensures YouTube cookies are valid before
+    processing. The video is created as UGC (is_official=False) with
+    auto_publish=True so it auto-publishes once ready, but still needs
+    admin review before appearing in the community.
+    """
+    from app.services.youtube_cookies_service import ensure_cookies
+
+    cookies_status = await ensure_cookies(data.source_url)
+    if cookies_status == "need_manual_login":
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="YouTube cookies 需重新登录：请在服务器上运行 playwright-cli open "
+            "https://www.youtube.com --persistent 并登录后重试",
+        )
+    if cookies_status == "error":
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
+        )
+    return await _seed_user_video(db, data.source_url, current_user)
+
+
+# ---------------------------------------------------------------------------
+# Video likes
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{video_id}/like")
+@rate_limit("30/minute")
+async def toggle_video_like(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle like on a video. Returns {"liked": bool}."""
+    try:
+        return await _toggle_video_like(db, current_user.id, video_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+
+
+@router.get("/{video_id}/like-status")
+async def video_like_status(
+    video_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Check if the current user has liked a video."""
+    return await _get_video_like_status(db, current_user.id, video_id)

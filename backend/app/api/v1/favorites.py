@@ -77,8 +77,8 @@ async def add_favorite(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Bookmark a video (idempotent)."""
-    await _get_owned_video_or_404(db, video_id)
+    """Bookmark a video (idempotent). Increments favorite_count on the video."""
+    video = await _get_owned_video_or_404(db, video_id)
     existing = (
         await db.execute(
             select(UserFavorite).where(
@@ -89,6 +89,12 @@ async def add_favorite(
     ).scalar_one_or_none()
     if not existing:
         db.add(UserFavorite(user_id=current_user.id, video_id=video_id))
+        video.favorite_count += 1
+        # Auto-feature check
+        from app.services.community_service import FEATURE_THRESHOLD
+
+        if video.like_count >= FEATURE_THRESHOLD or video.favorite_count >= FEATURE_THRESHOLD:
+            video.is_featured = True
         await db.commit()
     return FavoriteStatus(is_favorited=True)
 
@@ -99,7 +105,8 @@ async def remove_favorite(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a video bookmark (idempotent)."""
+    """Remove a video bookmark (idempotent). Decrements favorite_count."""
+    video = await _get_owned_video_or_404(db, video_id)
     existing = (
         await db.execute(
             select(UserFavorite).where(
@@ -110,6 +117,7 @@ async def remove_favorite(
     ).scalar_one_or_none()
     if existing:
         await db.delete(existing)
+        video.favorite_count = max(0, video.favorite_count - 1)
         await db.commit()
     return FavoriteStatus(is_favorited=False)
 

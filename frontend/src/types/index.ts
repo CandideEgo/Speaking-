@@ -39,12 +39,15 @@ export interface Video {
   video_url_1080p: string | null;
   processing_mode: string | null;
   processing_step: string | null;
+  like_count: number;
+  favorite_count: number;
   created_at: string;
 }
 
 export interface VideoAdmin extends Video {
   /** Admin-only fields exposed by GET /admin/videos. */
   is_featured: boolean;
+  show_on_homepage: boolean;
   admin_notes: string | null;
   error_message: string | null;
   processing_progress: number;

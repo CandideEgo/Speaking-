@@ -116,7 +116,7 @@ async def browse_featured(
     stmt = (
         select(Video)
         .where(
-            Video.is_official == True,
+            Video.show_on_homepage == True,
             Video.is_published == True,
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         )
