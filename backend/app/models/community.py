@@ -133,6 +133,7 @@ class VideoLike(Base):
 
 class CommentReport(Base):
     __tablename__ = "comment_reports"
+    __table_args__ = (UniqueConstraint("comment_id", "reporter_id", name="uq_comment_report_comment_reporter"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     comment_id: Mapped[str] = mapped_column(

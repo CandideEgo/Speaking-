@@ -1,6 +1,7 @@
 import logging
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
@@ -274,7 +275,12 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
 
 
 async def delete_post(db: AsyncSession, user_id: str, post_id: str) -> None:
-    """Delete a post. Verifies ownership."""
+    """Delete a post. Verifies ownership.
+
+    Cascades: deletes all comments, comment likes, and comment reports
+    before the post to avoid FK constraint errors (UserComment.post_id
+    has no ondelete cascade).
+    """
     result = await db.execute(select(Post).where(Post.id == post_id))
     post = result.scalar_one_or_none()
     if post is None:
@@ -282,6 +288,17 @@ async def delete_post(db: AsyncSession, user_id: str, post_id: str) -> None:
     if post.user_id != user_id:
         raise PermissionError("Not your post")
 
+    # Delete comment reports and likes first (they reference comments)
+    comment_ids_stmt = select(UserComment.id).where(UserComment.post_id == post_id)
+    from app.models.community import CommentLike, CommentReport, PostLike
+
+    await db.execute(CommentReport.__table__.delete().where(CommentReport.comment_id.in_(comment_ids_stmt)))
+    await db.execute(CommentLike.__table__.delete().where(CommentLike.comment_id.in_(comment_ids_stmt)))
+    # Delete all comments on the post
+    await db.execute(UserComment.__table__.delete().where(UserComment.post_id == post_id))
+    # Delete post likes
+    await db.execute(PostLike.__table__.delete().where(PostLike.post_id == post_id))
+    # Finally delete the post itself
     await db.delete(post)
     await db.commit()
 
@@ -347,7 +364,11 @@ async def add_comment(
 
 
 async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> None:
-    """Delete a comment. Verifies ownership. Decrements post.comment_count atomically."""
+    """Delete a comment. Verifies ownership. Decrements post.comment_count atomically.
+
+    Cascades: deletes comment likes and reports before the comment to
+    avoid FK constraint errors.
+    """
     result = await db.execute(select(UserComment).where(UserComment.id == comment_id))
     comment = result.scalar_one_or_none()
     if comment is None:
@@ -360,6 +381,12 @@ async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> Non
     post = post_result.scalar_one_or_none()
     if post:
         post.comment_count = max(0, post.comment_count - 1)
+
+    # Delete child rows first to avoid FK constraint errors
+    from app.models.community import CommentLike, CommentReport
+
+    await db.execute(CommentLike.__table__.delete().where(CommentLike.comment_id == comment_id))
+    await db.execute(CommentReport.__table__.delete().where(CommentReport.comment_id == comment_id))
 
     await db.delete(comment)
     await db.commit()
@@ -402,7 +429,13 @@ async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -
 
 
 async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, reason: str) -> CommentReport:
-    """Report a comment. Prevents duplicate reports by same user."""
+    """Report a comment. Prevents duplicate reports by same user.
+
+    The ``uq_comment_report_comment_reporter`` unique constraint is the
+    final safety net — if two concurrent requests both pass the SELECT
+    check, the duplicate INSERT raises IntegrityError which we convert
+    to a clean "already reported" error instead of a 500.
+    """
     # Check for existing report
     existing = await db.execute(
         select(CommentReport).where(
@@ -420,7 +453,13 @@ async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, re
 
     report = CommentReport(reporter_id=reporter_id, comment_id=comment_id, reason=reason)
     db.add(report)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if "uq_comment_report" in str(exc):
+            raise ValueError("Already reported this comment") from exc
+        raise
     await db.refresh(report)
     return report
 

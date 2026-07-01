@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PriceCard } from "@/components/ui/PriceCard";
+import { api, isProUser } from "@/lib/api";
 
 const PLANS = [
   {
@@ -60,8 +62,17 @@ function CheckOrDash({ value }: { value: boolean | string }) {
 }
 
 export default function PricingPage() {
-  const user = useAuthStore((s) => s.user);
-  const isPro = user?.plan === "pro";
+  const { user, isAuthenticated } = useAuthStore();
+  // AuthUser (from JWT) lacks plan/plan_expires_at, so fetch /payments/status
+  // which returns the backend's authoritative is_pro computation.
+  const [isPro, setIsPro] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    api<{ is_pro: boolean }>("/api/v1/payments/status")
+      .then((data) => setIsPro(data.is_pro))
+      .catch(() => setIsPro(false));
+  }, [isAuthenticated]);
 
   return (
     <main className="min-h-full bg-canvas">

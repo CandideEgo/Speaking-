@@ -13,7 +13,7 @@ import { useVocabDrill } from "@/hooks/useVocabDrill";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
-import { api, mediaUrl } from "@/lib/api";
+import { api, mediaUrl, isProUser } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -160,11 +160,13 @@ export default function WatchPage() {
       try {
         const [prefs, me] = await Promise.all([
           api<{ target_exam: string | null }>("/api/v1/users/me/preferences"),
-          api<{ plan: string }>("/api/v1/users/me").catch(() => null),
+          api<{ plan: string; plan_expires_at: string | null }>(
+            "/api/v1/users/me",
+          ).catch(() => null),
         ]);
         if (cancelled) return;
         setSelectedExamLevel(prefs.target_exam ?? "cet4");
-        if (me) setIsPro(me.plan === "pro");
+        if (me) setIsPro(isProUser(me));
       } catch {
         if (!cancelled) setSelectedExamLevel("cet4");
       }

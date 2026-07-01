@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { api } from "@/lib/api";
+import { api, isProUser } from "@/lib/api";
 import type { User } from "@/types";
 
 interface ProfileTabProps {
@@ -41,7 +41,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     }
   }
 
-  const isPro = user.plan === "pro";
+  const isPro = isProUser(user);
 
   return (
     <div className="max-w-2xl space-y-8">

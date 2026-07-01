@@ -7,6 +7,7 @@ Routes are video-scoped (prefix ``/videos``) so they read naturally as
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -82,7 +83,18 @@ async def add_favorite(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Bookmark a video (idempotent). Increments favorite_count on the video."""
+    """Bookmark a video (idempotent). Increments favorite_count on the video.
+
+    Race-safe: locks the video row first, then checks for an existing
+    favorite.  If two concurrent requests both pass the check, the
+    ``uq_user_favorite_user_video`` constraint rejects the duplicate INSERT
+    and we treat it as already-favorited (no counter over-increment).
+    """
+    # Lock the video row FIRST to serialize concurrent counter updates.
+    video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
     existing = (
         await db.execute(
             select(UserFavorite).where(
@@ -92,10 +104,6 @@ async def add_favorite(
         )
     ).scalar_one_or_none()
     if not existing:
-        # Lock the video row to serialize concurrent counter updates.
-        video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
-        if not video:
-            raise HTTPException(status_code=404, detail="Video not found")
         db.add(UserFavorite(user_id=current_user.id, video_id=video_id))
         video.favorite_count = (video.favorite_count or 0) + 1
         # Auto-feature check
@@ -103,7 +111,11 @@ async def add_favorite(
 
         if video.like_count >= FEATURE_THRESHOLD or video.favorite_count >= FEATURE_THRESHOLD:
             video.is_featured = True
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Duplicate favorite from a race — treat as already favorited
+            await db.rollback()
     return FavoriteStatus(is_favorited=True)
 
 
@@ -115,18 +127,26 @@ async def remove_favorite(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a video bookmark (idempotent). Decrements favorite_count atomically."""
+    """Remove a video bookmark (idempotent). Decrements favorite_count atomically.
+
+    Race-safe: locks the video row first, then fetches the existing
+    favorite with ``with_for_update`` so that two concurrent removes
+    cannot both see the same row and double-decrement the counter.
+    """
+    # Lock the video row FIRST to serialize concurrent counter updates.
+    video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
+
     existing = (
         await db.execute(
-            select(UserFavorite).where(
+            select(UserFavorite)
+            .where(
                 UserFavorite.user_id == current_user.id,
                 UserFavorite.video_id == video_id,
             )
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if existing:
-        # Lock the video row to serialize concurrent counter updates.
-        video = (await db.execute(select(Video).where(Video.id == video_id).with_for_update())).scalar_one_or_none()
         if video:
             video.favorite_count = max(0, video.favorite_count - 1)
         await db.delete(existing)

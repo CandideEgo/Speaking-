@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.daily_activity import DailyActivity
@@ -25,7 +26,15 @@ logger = structlog.get_logger()
 
 
 async def get_or_create_daily_activity(db: AsyncSession, user_id: str, target_date: date) -> DailyActivity:
-    """Get the DailyActivity row for a user+date, creating one if missing."""
+    """Get the DailyActivity row for a user+date, creating one if missing.
+
+    Race-safe: if two concurrent requests both see no existing row and
+    both try to INSERT, the ``uq_daily_activity_user_date`` constraint
+    rejects the duplicate.  We catch the IntegrityError inside a
+    savepoint (nested transaction) so the outer transaction is preserved,
+    then re-fetch the row that the winner created — so the caller's
+    counter updates are never lost.
+    """
     result = await db.execute(
         select(DailyActivity).where(
             DailyActivity.user_id == user_id,
@@ -36,9 +45,27 @@ async def get_or_create_daily_activity(db: AsyncSession, user_id: str, target_da
     if activity:
         return activity
 
-    activity = DailyActivity(user_id=user_id, date=target_date)
-    db.add(activity)
-    await db.flush()
+    # Use a savepoint so a failed INSERT doesn't roll back the outer
+    # transaction (which may contain unflushed work from the caller,
+    # e.g. a SpeakingAttempt row in speaking_service).
+    async with db.begin_nested():
+        activity = DailyActivity(user_id=user_id, date=target_date)
+        db.add(activity)
+        try:
+            await db.flush()
+        except IntegrityError:
+            # Concurrent insert won — the savepoint rolls back automatically.
+            # Re-fetch the row that the other request created.
+            result = await db.execute(
+                select(DailyActivity).where(
+                    DailyActivity.user_id == user_id,
+                    DailyActivity.date == target_date,
+                )
+            )
+            activity = result.scalar_one_or_none()
+            if activity is None:
+                # Should never happen, but don't crash
+                raise
     return activity
 
 
