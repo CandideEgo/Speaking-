@@ -664,7 +664,7 @@ async def user_seed_video_full(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="cookies 探测/刷新失败，请检查网络或 yt-dlp 配置",
         )
-    return await _seed_user_video(db, data.source_url, current_user)
+    return await _seed_user_video(db, data.source_url, current_user, auto_publish=True)
 
 
 # ---------------------------------------------------------------------------
@@ -690,6 +690,7 @@ async def toggle_video_like(
 @router.get("/{video_id}/like-status")
 @rate_limit("5/minute")
 async def video_like_status(
+    request: Request,
     video_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

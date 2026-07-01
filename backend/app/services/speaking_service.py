@@ -179,6 +179,8 @@ async def evaluate_speaking(
     subtitle_id: str,
     audio_data: bytes,
     original_text: str,
+    mode: str = "read_aloud",
+    rubric_id: str | None = None,
 ) -> SpeakingEvalResult:
     """Process a speaking attempt: save audio, transcribe, align, score, return feedback.
 
@@ -285,6 +287,8 @@ async def evaluate_speaking(
             feedback=overall_feedback,
             word_scores=word_scores,
             audio_duration=audio_duration,
+            mode=mode,
+            rubric_id=rubric_id,
         )
         db.add(attempt)
 

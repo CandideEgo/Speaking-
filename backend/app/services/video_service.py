@@ -157,11 +157,16 @@ async def seed_user_video(
     db: AsyncSession,
     source_url: str,
     current_user: User,
+    *,
+    auto_publish: bool = False,
 ) -> VideoResponse:
     """Seed a video from a URL on behalf of a regular (non-admin) user.
 
     Similar to seed_video but creates a UGC video (is_official=False)
     owned by the submitting user, starting in draft review status.
+    When ``auto_publish=True`` (the one-click flow), the video is
+    auto-published once the pipeline completes, but still needs admin
+    review before appearing in the community feed.
     """
     platform = _detect_platform(source_url)
 
@@ -174,6 +179,7 @@ async def seed_user_video(
         is_official=False,
         is_published=False,
         review_status=VideoReviewStatus.draft.value,
+        auto_publish=auto_publish,
     )
     db.add(video)
     await db.commit()

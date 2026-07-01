@@ -88,9 +88,12 @@ async def submit_speaking(
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
 
-    # Evaluate speaking attempt
+    # Evaluate speaking attempt (mode + rubric_id set inside the service so the
+    # single atomic commit captures them — no second commit here).
     try:
-        eval_result = await evaluate_speaking(db, current_user.id, subtitle_id, audio_data, text_en)
+        eval_result = await evaluate_speaking(
+            db, current_user.id, subtitle_id, audio_data, text_en, mode=mode, rubric_id=rubric_id
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except AIServiceError as e:
@@ -100,13 +103,6 @@ async def submit_speaking(
         ) from e
 
     attempt = eval_result.attempt
-
-    # Set mode and rubric_id on the attempt
-    attempt.mode = mode
-    if rubric_id:
-        attempt.rubric_id = rubric_id
-    await db.commit()
-    await db.refresh(attempt)
 
     # Build criteria_scores from the per-attempt evaluation result. (Not persisted
     # to SpeakingAttemptScore in this pass — criteria_scores are returned only for
