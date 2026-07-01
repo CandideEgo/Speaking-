@@ -12,12 +12,12 @@ from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video
+from app.schemas.community import VideoBrief
 from app.schemas.learning import (
     LearningRecordListResponse,
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,
-    VideoInfoInRecord,
 )
 
 router = APIRouter(prefix="/learning", tags=["learning"])
@@ -59,12 +59,7 @@ async def list_learning_records(
 
     records = []
     for lr, video in result.all():
-        video_info = VideoInfoInRecord(
-            id=video.id,
-            title=video.title,
-            thumbnail_url=video.thumbnail_url,
-            difficulty=video.difficulty_level,
-        )
+        video_info = VideoBrief.model_validate(video)
         record_resp = LearningRecordResponse(
             id=lr.id,
             video_id=lr.video_id,
@@ -116,12 +111,7 @@ async def get_learning_record(
 
     video_info = None
     if video:
-        video_info = VideoInfoInRecord(
-            id=video.id,
-            title=video.title,
-            thumbnail_url=video.thumbnail_url,
-            difficulty=video.difficulty_level,
-        )
+        video_info = VideoBrief.model_validate(video)
 
     return LearningRecordResponse(
         id=record.id,

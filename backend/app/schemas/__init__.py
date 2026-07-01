@@ -40,7 +40,6 @@ from app.schemas.learning import (
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,
-    VideoInfoInRecord,
 )
 
 # ── 通知 ──

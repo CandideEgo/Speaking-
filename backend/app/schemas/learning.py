@@ -2,14 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_serializer
 
-
-class VideoInfoInRecord(BaseModel):
-    """Minimal video info embedded in learning record responses."""
-
-    id: str
-    title: str
-    thumbnail_url: str | None = None
-    difficulty: str | None = None
+from app.schemas.community import VideoBrief
 
 
 class LearningRecordResponse(BaseModel):
@@ -24,7 +17,7 @@ class LearningRecordResponse(BaseModel):
     progress_percentage: float = 0.0
     position_seconds: float | None = None
     created_at: datetime
-    video: VideoInfoInRecord | None = None
+    video: VideoBrief | None = None
 
     @field_serializer("last_accessed_at", "created_at")
     def serialize_datetime(self, v: datetime | None) -> str | None:

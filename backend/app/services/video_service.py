@@ -16,6 +16,7 @@ from app.api.dependencies import check_video_access, is_video_owner
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
+from app.schemas.community import UserProfileBrief
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
@@ -256,7 +257,7 @@ async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: 
     items = []
     for v in rows[:page_size]:
         item = VideoResponse.model_validate(v).model_dump()
-        item["user"] = {"id": v.user.id, "name": v.user.name, "avatar_url": v.user.avatar_url} if v.user else None
+        item["user"] = UserProfileBrief.from_model(v.user) if v.user else None
         items.append(item)
     return {"items": items, "has_more": has_more, "total": total}
 

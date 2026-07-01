@@ -15,6 +15,8 @@ from app.schemas.community import (
     PostCreate,
     PostResponse,
     ReportCreate,
+    UserProfileBrief,
+    VideoBrief,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services import community_service
@@ -102,17 +104,12 @@ async def create_post(
         from app.models.video import Video
 
         v = (await db.execute(select(Video).where(Video.id == post.video_id))).scalar_one_or_none()
-        video_brief = community_service._video_brief(v)
+        video_brief = VideoBrief.from_model(v)
 
     # Build response with user info
     return {
         "id": post.id,
-        "user": {
-            "id": current_user.id,
-            "name": current_user.name,
-            "avatar_url": current_user.avatar_url,
-            "level": current_user.level,
-        },
+        "user": UserProfileBrief.from_model(current_user),
         "post_type": post.post_type,
         "content": post.content,
         "media_url": post.media_url,
@@ -197,12 +194,7 @@ async def add_comment(
 
     return {
         "id": comment.id,
-        "user": {
-            "id": current_user.id,
-            "name": current_user.name,
-            "avatar_url": current_user.avatar_url,
-            "level": current_user.level,
-        },
+        "user": UserProfileBrief.from_model(current_user),
         "content": comment.content,
         "parent_id": comment.parent_id,
         "like_count": comment.like_count,

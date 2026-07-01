@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.user import User
 from app.models.video import Video
+from app.schemas.community import UserProfileBrief, VideoBrief
 from app.schemas.pagination import paginated
 from app.services.notification_service import create_notification
 
@@ -14,16 +15,6 @@ logger = logging.getLogger(__name__)
 
 # Videos whose like_count OR favorite_count >= this threshold are auto-featured.
 FEATURE_THRESHOLD = 10
-
-
-def _user_brief(user: User) -> dict:
-    """Build a UserProfileBrief dict from a User model."""
-    return {
-        "id": user.id,
-        "name": user.name,
-        "avatar_url": user.avatar_url,
-        "level": user.level,
-    }
 
 
 async def _user_name(db: AsyncSession, user_id: str) -> str | None:
@@ -82,27 +73,13 @@ async def create_post(
     return post
 
 
-def _video_brief(video: Video | None) -> dict | None:
-    """Build a VideoBrief dict from a Video model, or None."""
-    if video is None:
-        return None
-    return {
-        "id": video.id,
-        "title": video.title,
-        "thumbnail_url": video.thumbnail_url,
-        "duration": video.duration,
-        "difficulty_level": video.difficulty_level,
-        "video_url_720p": video.video_url_720p,
-    }
-
-
 async def _attach_videos(db: AsyncSession, posts: list[Post]) -> dict[str, dict]:
     """Batch-load VideoBriefs for every video_share post in ``posts``."""
     video_ids = {p.video_id for p in posts if p.post_type == "video_share" and p.video_id}
     if not video_ids:
         return {}
     result = await db.execute(select(Video).where(Video.id.in_(video_ids)))
-    return {v.id: _video_brief(v) for v in result.scalars().all()}
+    return {v.id: VideoBrief.from_model(v) for v in result.scalars().all()}
 
 
 async def get_feed(
@@ -209,7 +186,7 @@ async def get_feed(
         items.append(
             {
                 "id": post.id,
-                "user": _user_brief(post_user)
+                "user": UserProfileBrief.from_model(post_user)
                 if post_user
                 else {"id": post.user_id, "name": None, "avatar_url": None, "level": None},
                 "post_type": post.post_type,
@@ -501,7 +478,7 @@ async def get_post_comments(
         u = users_map.get(c.user_id)
         return {
             "id": c.id,
-            "user": _user_brief(u) if u else {"id": c.user_id, "name": None, "avatar_url": None, "level": None},
+            "user": UserProfileBrief.from_model(u) if u else UserProfileBrief(id=c.user_id, name=None).model_dump(),
             "content": c.content,
             "parent_id": c.parent_id,
             "like_count": c.like_count,
@@ -604,7 +581,7 @@ async def get_followers(db: AsyncSession, user_id: str, page: int = 1, page_size
         items.append(
             {
                 "id": f.id,
-                "user": _user_brief(follower_user)
+                "user": UserProfileBrief.from_model(follower_user)
                 if follower_user
                 else {"id": f.follower_id, "name": None, "avatar_url": None, "level": None},
                 "created_at": f.created_at,
@@ -644,7 +621,7 @@ async def get_following(db: AsyncSession, user_id: str, page: int = 1, page_size
         items.append(
             {
                 "id": f.id,
-                "user": _user_brief(followee_user)
+                "user": UserProfileBrief.from_model(followee_user)
                 if followee_user
                 else {"id": f.followee_id, "name": None, "avatar_url": None, "level": None},
                 "created_at": f.created_at,
