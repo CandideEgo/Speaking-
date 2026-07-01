@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { InlineSpinner } from "@/components/common/Spinner";
 import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
@@ -341,9 +342,7 @@ export default function CommunityPage() {
         {activeTab === "videos" && (
           <div>
             {loading ? (
-              <div className="flex justify-center py-20">
-                <Loader2 size={24} className="animate-spin text-brand-500" />
-              </div>
+              <InlineSpinner />
             ) : communityVideos.length === 0 ? (
               <div className="py-20 text-center">
                 <Play size={48} className="mx-auto text-muted" />
@@ -432,9 +431,7 @@ export default function CommunityPage() {
 
               {/* Posts list */}
               {loading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 size={24} className="animate-spin text-brand-500" />
-                </div>
+                <InlineSpinner className="py-12" />
               ) : posts.length === 0 ? (
                 <div className="py-20 text-center">
                   <p className="text-muted">还没有帖子，来发布第一条吧！</p>

@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
 import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
 import type { Video } from "@/types";
@@ -164,11 +165,7 @@ export default function MyVideosPage() {
   };
 
   if (isLoading || !isAuthenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   return (
@@ -217,9 +214,7 @@ export default function MyVideosPage() {
 
         {/* List */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 size={24} className="animate-spin text-brand-500" />
-          </div>
+          <InlineSpinner />
         ) : videos.length === 0 ? (
           <div className="py-20 text-center">
             <Plus size={48} className="mx-auto text-muted" />

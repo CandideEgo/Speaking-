@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { Select } from "@/components/ui/Select";
 import { TabPills } from "@/components/ui/TabPills";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
@@ -122,19 +123,11 @@ export default function MyVideoEditorPage() {
   }, []);
 
   if (isLoading || !isAuthenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <Loader2 size={24} className="animate-spin text-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   if (error || !video) {
@@ -503,9 +496,7 @@ function PracticeEditor({
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 size={20} className="animate-spin text-brand-500" />
-        </div>
+        <InlineSpinner className="py-8" size={20} />
       ) : questions.length === 0 ? (
         <p className="text-sm text-muted py-8 text-center">
           该考级暂无练习题。点击“AI 重新生成”创建一组。

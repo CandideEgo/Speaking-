@@ -5,16 +5,9 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
+import { FullPageSpinner } from "@/components/common/Spinner";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
-
-function FullPageSpinner() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-canvas">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-    </div>
-  );
-}
 
 export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();

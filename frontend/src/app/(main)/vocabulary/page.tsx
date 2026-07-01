@@ -9,7 +9,6 @@ import {
   BookOpen,
   Trash2,
   Volume2,
-  Loader2,
   Target,
   CheckCircle2,
   Flame,
@@ -18,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -150,11 +150,7 @@ export default function VocabularyPage() {
   }
 
   if (isLoading || !isAuthenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   return (
@@ -251,9 +247,7 @@ export default function VocabularyPage() {
 
         {/* Word grid */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 size={24} className="animate-spin text-brand-500" />
-          </div>
+          <InlineSpinner />
         ) : words.length === 0 ? (
           <div className="py-20 text-center">
             <BookOpen size={48} className="mx-auto text-muted" />

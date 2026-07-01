@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { FullPageSpinner } from "@/components/common/Spinner";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -30,11 +31,7 @@ export default function RegisterPage() {
 
   // Show spinner while auth state is initializing
   if (isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   // Don't show register form if already authenticated

@@ -8,6 +8,7 @@ import SpeakingRecorder from "@/components/speaking/SpeakingRecorder";
 import { Button } from "@/components/ui/Button";
 import type { ButtonVariant } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { FullPageSpinner } from "@/components/common/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BookOpen, Mic, ArrowRight } from "lucide-react";
 
@@ -84,11 +85,7 @@ export default function SpeakingPage() {
   }
 
   if (isLoading || !isAuthenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   return (

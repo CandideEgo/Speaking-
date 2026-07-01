@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
+import { FullPageSpinner } from "@/components/common/Spinner";
 import { toggleVideoLike, getVideoLikeStatus } from "@/lib/creatorData";
 
 /** Human-readable labels for processing steps returned by the backend. */
@@ -360,12 +361,7 @@ export default function WatchPage() {
   }
 
   // --- Loading / Error states ---
-  if (!video)
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <Loader2 size={24} className="animate-spin text-brand-500" />
-      </main>
-    );
+  if (!video) return <FullPageSpinner />;
 
   if (playbackMode === "processing") {
     const stepLabel = video.processing_step

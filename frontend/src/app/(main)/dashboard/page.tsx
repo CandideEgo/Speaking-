@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { VideoCard } from "@/components/ui/VideoCard";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -226,11 +227,7 @@ export default function DashboardPage() {
   }, []);
 
   if (isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-      </main>
-    );
+    return <FullPageSpinner />;
   }
 
   const userName = user?.name || "学习者";
@@ -267,9 +264,7 @@ export default function DashboardPage() {
         </div>
 
         {loading && !data ? (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-          </div>
+          <InlineSpinner />
         ) : error ? (
           <div className="py-20 text-center">
             <BarChart3 size={48} className="mx-auto text-muted mb-4" />
