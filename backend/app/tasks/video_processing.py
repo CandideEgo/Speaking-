@@ -6,7 +6,7 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.services import ecdict
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_service as _get_ai_service
 from app.services.transcription.audio_extractor import get_video_duration
 from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
@@ -38,12 +38,21 @@ _LOCK_TTL_SECONDS = 30 * 60  # 30 minutes (per-task only; not held across the GP
 _STEPS_TTL_SECONDS = 60 * 60  # 1 hour (cleared on completion anyway)
 
 
-def _get_redis():
-    """Get a Redis client using the configured URL."""
-    import redis as redis_lib
+# Module-level sync Redis singleton — avoids creating a new TCP connection
+# on every progress/lock call. Celery tasks are synchronous so we use the
+# sync redis client, but share one connection across the module.
+_sync_redis = None
 
-    settings = get_settings()
-    return redis_lib.from_url(settings.redis_url, decode_responses=True)
+
+def _get_redis():
+    """Get a shared sync Redis client (module-level singleton)."""
+    global _sync_redis
+    if _sync_redis is None:
+        import redis as redis_lib
+
+        settings = get_settings()
+        _sync_redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
+    return _sync_redis
 
 
 async def _update_progress(video_id: str, step: str, extra: dict | None = None) -> None:
@@ -124,16 +133,6 @@ def _find_local_raw(video_id: str) -> str | None:
         if f.stem == f"{video_id}_raw":
             return str(f)
     return None
-
-
-_ai_service: AIService | None = None
-
-
-def _get_ai_service() -> AIService:
-    global _ai_service
-    if _ai_service is None:
-        _ai_service = AIService()
-    return _ai_service
 
 
 async def _translate_subtitles(texts: list[str]) -> list[str | None]:
