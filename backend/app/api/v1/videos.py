@@ -73,6 +73,15 @@ from app.services.video_review_service import (
 from app.services.video_review_service import (
     withdraw_submission as _withdraw_submission,
 )
+from app.services.video_seed_service import (
+    seed_user_video as _seed_user_video,
+)
+from app.services.video_seed_service import (
+    seed_video as _seed_video,
+)
+from app.services.video_seed_service import (
+    submit_video as _submit_video,
+)
 from app.services.video_service import (
     delete_video as _delete_video,
 )
@@ -93,15 +102,6 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     localize_video_admin as _localize_video_admin,
-)
-from app.services.video_service import (
-    seed_user_video as _seed_user_video,
-)
-from app.services.video_service import (
-    seed_video as _seed_video,
-)
-from app.services.video_service import (
-    submit_video as _submit_video,
 )
 from app.services.video_service import (
     update_video as _update_video,
