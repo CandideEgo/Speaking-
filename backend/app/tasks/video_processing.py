@@ -277,9 +277,16 @@ def process_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s head processing failed", video_id)
-                video.status = VideoStatus.error
-                video.error_message = str(e)
-                await db.commit()
+                try:
+                    video.status = VideoStatus.error
+                    video.error_message = str(e)
+                    await db.commit()
+                except Exception:
+                    logger.exception("Video %s: failed to commit error state", video_id)
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        logger.exception("Video %s: rollback also failed", video_id)
                 if self.request.retries >= self.max_retries:
                     _release_lock_and_steps(video_id)
                 raise self.retry(exc=e) from e
@@ -602,9 +609,16 @@ def finalize_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s finalize failed", video_id)
-                video.status = VideoStatus.error
-                video.error_message = str(e)
-                await db.commit()
+                try:
+                    video.status = VideoStatus.error
+                    video.error_message = str(e)
+                    await db.commit()
+                except Exception:
+                    logger.exception("Video %s: failed to commit error state", video_id)
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        logger.exception("Video %s: rollback also failed", video_id)
                 if self.request.retries >= self.max_retries:
                     _release_lock_and_steps(video_id)
                 raise self.retry(exc=e) from e
@@ -936,9 +950,16 @@ def localize_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s localize failed", video_id)
-                video.status = VideoStatus.error
-                video.error_message = str(e)
-                await db.commit()
+                try:
+                    video.status = VideoStatus.error
+                    video.error_message = str(e)
+                    await db.commit()
+                except Exception:
+                    logger.exception("Video %s: failed to commit error state", video_id)
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        logger.exception("Video %s: rollback also failed", video_id)
                 if self.request.retries >= self.max_retries:
                     logger.error("Video %s: max retries reached, releasing lock", video_id)
                     _release_lock_and_steps(video_id)

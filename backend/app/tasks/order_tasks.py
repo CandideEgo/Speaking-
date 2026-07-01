@@ -40,4 +40,8 @@ def expire_pending_orders():
             logger.info("expired_pending_orders", count=count)
             return count
 
-    return run_async(_process())
+    try:
+        return run_async(_process())
+    except Exception:
+        logger.exception("expire_pending_orders failed")
+        return 0
