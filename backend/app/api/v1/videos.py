@@ -45,6 +45,18 @@ from app.services.search_service import (
 from app.services.search_service import (
     search_videos as _search_videos,
 )
+from app.services.subtitle_edit_service import (
+    recompute_word_levels as _recompute_word_levels,
+)
+from app.services.subtitle_edit_service import (
+    update_subtitle as _update_subtitle,
+)
+from app.services.subtitle_edit_service import (
+    update_subtitles_batch as _update_subtitles_batch,
+)
+from app.services.subtitle_edit_service import (
+    update_word_levels as _update_word_levels,
+)
 from app.services.upload_service import handle_video_upload
 from app.services.video_service import (
     approve_review as _approve_review,
@@ -74,9 +86,6 @@ from app.services.video_service import (
     localize_video_admin as _localize_video_admin,
 )
 from app.services.video_service import (
-    recompute_word_levels as _recompute_word_levels,
-)
-from app.services.video_service import (
     reject_review as _reject_review,
 )
 from app.services.video_service import (
@@ -92,16 +101,7 @@ from app.services.video_service import (
     submit_video as _submit_video,
 )
 from app.services.video_service import (
-    update_subtitle as _update_subtitle,
-)
-from app.services.video_service import (
-    update_subtitles_batch as _update_subtitles_batch,
-)
-from app.services.video_service import (
     update_video as _update_video,
-)
-from app.services.video_service import (
-    update_word_levels as _update_word_levels,
 )
 from app.services.video_service import (
     withdraw_submission as _withdraw_submission,
