@@ -171,13 +171,15 @@ async def get_practice(
         # first approval) → fall through and treat as unavailable.
         raise HTTPException(status_code=409, detail="该等级练习题暂不可用")
 
-    # Cached?
+    # Cached? (lock row to prevent concurrent generation + duplicate IntegrityError)
     cached = (
         await db.execute(
-            select(VideoPracticeQuestion).where(
+            select(VideoPracticeQuestion)
+            .where(
                 VideoPracticeQuestion.video_id == video_id,
                 VideoPracticeQuestion.exam_level == level,
             )
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if cached:
@@ -228,7 +230,27 @@ async def get_practice(
         question_count=len(questions),
     )
     db.add(record)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        if "uq_video_practice_video_level" in str(exc):
+            # Concurrent request already generated and committed the questions
+            cached_retry = (
+                await db.execute(
+                    select(VideoPracticeQuestion).where(
+                        VideoPracticeQuestion.video_id == video_id,
+                        VideoPracticeQuestion.exam_level == level,
+                    )
+                )
+            ).scalar_one_or_none()
+            if cached_retry:
+                return PracticeSet(
+                    video_id=video_id,
+                    exam_level=level,
+                    questions=[PracticeQuestion(**q) for q in cached_retry.questions],
+                )
+        raise
 
     return PracticeSet(
         video_id=video_id,
