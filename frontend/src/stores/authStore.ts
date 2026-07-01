@@ -156,6 +156,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       user: null,
       isAuthenticated: false,
     });
+    // Reset sibling stores to avoid stale user data after logout.
+    // Dynamic imports prevent circular dependency issues.
+    import("@/stores/watchStore").then((m) =>
+      m.useWatchStore.getState().reset(),
+    );
+    import("@/stores/vocabularyStore").then((m) =>
+      m.useVocabularyStore.getState().reset(),
+    );
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }

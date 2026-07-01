@@ -69,13 +69,15 @@ interface VocabularyActions {
   startQuiz: (type?: QuizType) => Promise<void>;
   answerQuestion: (index: number, answer: string) => void;
   submitQuiz: () => Promise<void>;
+  /** Reset all state to initial values (called on logout) */
+  reset: () => void;
 }
 
 type VocabularyStore = VocabularyState & VocabularyActions;
 
 // ── Store ────────────────────────────────────────────────────────────────
 
-export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
+const INITIAL_STATE: VocabularyState = {
   words: [],
   stats: {
     total: 0,
@@ -100,6 +102,10 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
   isQuizActive: false,
   isQuizSubmitting: false,
   isLoading: false,
+};
+
+export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
+  ...INITIAL_STATE,
 
   async fetchWords(dueOnly = false) {
     set({ loading: true });
@@ -258,5 +264,9 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     } catch {
       set({ isQuizSubmitting: false });
     }
+  },
+
+  reset() {
+    set(INITIAL_STATE);
   },
 }));

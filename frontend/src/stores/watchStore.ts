@@ -17,17 +17,24 @@ interface WatchStore {
    *  null 表示尚未从用户偏好加载。 */
   selectedExamLevel: string | null;
   setSelectedExamLevel: (level: string | null) => void;
+  /** Reset all state to initial values (called on logout) */
+  reset: () => void;
 }
 
-export const useWatchStore = create<WatchStore>((set) => ({
-  subtitleMode: "bilingual",
-  setSubtitleMode: (mode) => set({ subtitleMode: mode }),
+const INITIAL_STATE = {
+  subtitleMode: "bilingual" as SubtitleMode,
   panelCollapsed: false,
-  setPanelCollapsed: (collapsed) => set({ panelCollapsed: collapsed }),
   leftPanelWidth: 58,
-  setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   videoAspectRatio: 16 / 9,
+  selectedExamLevel: null as string | null,
+};
+
+export const useWatchStore = create<WatchStore>((set) => ({
+  ...INITIAL_STATE,
+  setSubtitleMode: (mode) => set({ subtitleMode: mode }),
+  setPanelCollapsed: (collapsed) => set({ panelCollapsed: collapsed }),
+  setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setVideoAspectRatio: (ratio) => set({ videoAspectRatio: ratio }),
-  selectedExamLevel: null,
   setSelectedExamLevel: (level) => set({ selectedExamLevel: level }),
+  reset: () => set(INITIAL_STATE),
 }));
