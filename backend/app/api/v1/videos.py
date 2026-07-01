@@ -33,6 +33,12 @@ from app.services.community_service import (
 from app.services.community_service import (
     toggle_video_like as _toggle_video_like,
 )
+from app.services.quiz_service import (
+    get_video_quiz as _get_video_quiz,
+)
+from app.services.quiz_service import (
+    submit_quiz_result as _submit_quiz_result,
+)
 from app.services.search_service import (
     search_subtitles as _search_subtitles,
 )
@@ -51,9 +57,6 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     get_video_detail as _get_video_detail,
-)
-from app.services.video_service import (
-    get_video_quiz as _get_video_quiz,
 )
 from app.services.video_service import (
     get_video_status as _get_video_status,
@@ -84,9 +87,6 @@ from app.services.video_service import (
 )
 from app.services.video_service import (
     submit_for_review as _submit_for_review,
-)
-from app.services.video_service import (
-    submit_quiz_result as _submit_quiz_result,
 )
 from app.services.video_service import (
     submit_video as _submit_video,
