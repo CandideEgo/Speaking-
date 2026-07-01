@@ -51,7 +51,15 @@ async def register(request: Request, data: UserCreate, db: AsyncSession = Depend
         name=data.name,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:
+        # Concurrent registration with the same email can race past the check
+        # above and hit the unique constraint — convert to a clean 409.
+        await db.rollback()
+        if "uq_users_email" in str(exc) or "unique" in str(exc).lower():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from exc
+        raise
     await db.refresh(user)
 
     token = create_token(user.id)
@@ -208,13 +216,17 @@ async def reset_password(
     # Indexed lookup by the token's deterministic hash — O(1) query + a single
     # bcrypt verify, instead of loading every unexpired token and bcrypt-checking
     # each (O(n) slow + timing leak).
+    # Lock the token row to prevent double-use race (two concurrent reset
+    # requests with the same token could both pass the used_at check).
     lookup = token_lookup_hash(data.token)
     result = await db.execute(
-        select(PasswordResetToken).where(
+        select(PasswordResetToken)
+        .where(
             PasswordResetToken.token_lookup == lookup,
             PasswordResetToken.used_at.is_(None),
             PasswordResetToken.expires_at > now,
         )
+        .with_for_update()
     )
     matched_token = result.scalar_one_or_none()
 
@@ -245,8 +257,8 @@ async def reset_password(
             detail="Invalid or expired reset token",
         )
 
-    # Look up the user
-    result = await db.execute(select(User).where(User.id == matched_token.user_id))
+    # Look up the user (lock row to serialize concurrent password changes)
+    result = await db.execute(select(User).where(User.id == matched_token.user_id).with_for_update())
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(
