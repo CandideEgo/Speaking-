@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Bell } from "lucide-react";
 import { api, getApiUrl } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -42,11 +43,16 @@ function timeAgo(dateStr: string): string {
  */
 function buildWsUrl(token: string): string {
   const apiUrl = getApiUrl();
-  const wsBase = apiUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://");
+  const wsBase = apiUrl
+    .replace(/^http:\/\//, "ws://")
+    .replace(/^https:\/\//, "wss://");
   return `${wsBase}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
 }
 
-export function NotificationDropdown({ onClose, onUnreadCountChange }: NotificationDropdownProps) {
+export function NotificationDropdown({
+  onClose,
+  onUnreadCountChange,
+}: NotificationDropdownProps) {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -72,7 +78,9 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   // Fetch unread count and propagate to parent
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
+      const data = await api<{ count: number }>(
+        "/api/v1/notifications/unread-count",
+      );
       onUnreadCountChange(data.count);
     } catch {
       // Silently fail
@@ -192,7 +200,10 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   // Click-away and Escape to close
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         onClose();
       }
     }
@@ -211,16 +222,20 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     async (notification: Notification) => {
       if (notification.is_read) return;
       try {
-        await api(`/api/v1/notifications/${notification.id}/read`, { method: "PATCH" });
+        await api(`/api/v1/notifications/${notification.id}/read`, {
+          method: "PATCH",
+        });
         setNotifications((prev) =>
-          prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
+          prev.map((n) =>
+            n.id === notification.id ? { ...n, is_read: true } : n,
+          ),
         );
         await fetchUnreadCount();
       } catch {
         // Silently fail
       }
     },
-    [fetchUnreadCount]
+    [fetchUnreadCount],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -244,7 +259,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
         router.push(notification.related_url);
       }
     },
-    [markAsRead, onClose, router]
+    [markAsRead, onClose, router],
   );
 
   const hasUnread = notifications.some((n) => !n.is_read);
@@ -285,18 +300,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <svg
-              className="h-8 w-8 mb-2 opacity-40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
+            <Bell size={32} className="mb-2 opacity-40" />
             <span className="text-sm">暂无通知</span>
           </div>
         ) : (
@@ -314,7 +318,9 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
                     {!notification.is_read && (
                       <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-coral" />
                     )}
-                    <div className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}>
+                    <div
+                      className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}
+                    >
                       <p
                         className={`text-sm ${notification.is_read ? "text-muted-foreground" : "text-ink font-medium"}`}
                       >

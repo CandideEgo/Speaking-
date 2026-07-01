@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FileEdit,
+  PlayCircle,
   Link2,
 } from "lucide-react";
 
@@ -301,17 +302,5 @@ export default function MyVideosPage() {
 }
 
 function PlayPlaceholder() {
-  return (
-    <svg
-      width="40"
-      height="40"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none" />
-    </svg>
-  );
+  return <PlayCircle size={40} strokeWidth={1.5} />;
 }

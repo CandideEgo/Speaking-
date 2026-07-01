@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import type { ButtonVariant } from "@/components/ui/Button";
 
@@ -84,19 +85,10 @@ export function PricingSection() {
                     key={f}
                     className="flex gap-2 items-start text-sm text-body"
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                    <Check
+                      size={16}
                       className="text-success mt-0.5 flex-shrink-0"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
+                    />
                     {f}
                   </li>
                 ))}
