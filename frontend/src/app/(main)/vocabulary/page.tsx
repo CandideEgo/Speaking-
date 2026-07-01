@@ -9,6 +9,7 @@ import { BookOpen, Trash2, Volume2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -261,19 +262,22 @@ export default function VocabularyPage() {
         )}
 
         {/* Section header */}
-        <div className="sec-head !mt-0">
-          <h2 className="sec-title">全部单词</h2>
-          <TabPills
-            tabs={[
-              { key: "all", label: "全部" },
-              { key: "due", label: "待复习" },
-            ]}
-            activeKey={dueOnly ? "due" : "all"}
-            onChange={(key) => setDueOnly(key === "due")}
-            variant="ghost"
-            shape="rect"
-          />
-        </div>
+        <SectionHeader
+          title="全部单词"
+          action={
+            <TabPills
+              tabs={[
+                { key: "all", label: "全部" },
+                { key: "due", label: "待复习" },
+              ]}
+              activeKey={dueOnly ? "due" : "all"}
+              onChange={(key) => setDueOnly(key === "due")}
+              variant="ghost"
+              shape="rect"
+            />
+          }
+          className="!mt-0"
+        />
 
         {/* Word grid */}
         {loading ? (

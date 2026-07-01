@@ -18,6 +18,7 @@ import Link from "next/link";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -424,9 +425,7 @@ export default function DashboardPage() {
             {/* Continue learning */}
             {data.recentRecords.length > 0 && (
               <>
-                <div className="sec-head">
-                  <h2 className="sec-title">继续学习</h2>
-                </div>
+                <SectionHeader title="继续学习" />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-[22px]">
                   {data.recentRecords.slice(0, 4).map((record) => (
                     <Link

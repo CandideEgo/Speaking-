@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Heart, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -79,19 +80,20 @@ export function CommunityFeedWidget() {
 
   return (
     <section>
-      <div className="sec-head">
-        <h2 className="sec-title">社区动态</h2>
-        <LinkButton
-          href="/community"
-          variant="text"
-          size="sm"
-          icon={ArrowRight}
-          iconRight
-          className="sec-link"
-        >
-          查看全部
-        </LinkButton>
-      </div>
+      <SectionHeader
+        title="社区动态"
+        action={
+          <LinkButton
+            href="/community"
+            variant="text"
+            size="sm"
+            icon={ArrowRight}
+            iconRight
+          >
+            查看全部
+          </LinkButton>
+        }
+      />
 
       {loading ? (
         <div className="flex justify-center py-8">

@@ -133,16 +133,7 @@
   /* (page-head/page-crumb/page-title/page-desc removed — use <PageHeader> component) */
 
   /* === Section headings === */
-  .sec-head {
-    @apply flex items-end justify-between mt-10 mb-5;
-  }
-  .sec-title {
-    @apply text-[26px] font-bold tracking-display-md;
-  }
-  .sec-link {
-    @apply text-sm font-medium text-muted inline-flex items-center gap-1
-           hover:text-ink transition-colors duration-150 cursor-pointer;
-  }
+  /* (sec-head/sec-title/sec-link removed — use <SectionHeader>/<SectionLink> components) */
 
   /* === Greeting bar === */
   /* (greet removed — unused) */

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { Play, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useHomeFeed, DIFFICULTY_GROUPS } from "@/hooks/useHomeFeed";
 import { api } from "@/lib/api";
@@ -14,6 +14,7 @@ import { CommunityFeedWidget } from "@/components/community/CommunityFeedWidget"
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { TabPills } from "@/components/ui/TabPills";
+import { SectionHeader, SectionLink } from "@/components/ui/SectionHeader";
 import type { Video, LearningRecord } from "@/types";
 
 /* ── Category data ── */
@@ -231,12 +232,14 @@ export default function HomePage() {
         {/* ── 继续观看：主推大卡 + 不对称网格 ── */}
         {continueWatching.length > 0 && (
           <section>
-            <div className="sec-head">
-              <h2 className="sec-title">继续观看</h2>
-              <span className="text-xs text-muted font-mono">
-                {continueWatching.length} 个进行中
-              </span>
-            </div>
+            <SectionHeader
+              title="继续观看"
+              action={
+                <span className="text-xs text-muted font-mono">
+                  {continueWatching.length} 个进行中
+                </span>
+              }
+            />
             <div className="feat-grid">
               {continueWatching.map((item, i) => (
                 <VideoCard
@@ -255,24 +258,17 @@ export default function HomePage() {
 
         {/* ── 分类视觉化大卡 ── */}
         <section>
-          <div className="sec-head">
-            <h2 className="sec-title">按分类浏览</h2>
-            <Link href="/browse" className="sec-link">
-              查看全部
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </Link>
-          </div>
+          <SectionHeader
+            title="按分类浏览"
+            action={
+              <Link href="/browse">
+                <SectionLink>
+                  查看全部
+                  <ArrowRight size={15} />
+                </SectionLink>
+              </Link>
+            }
+          />
           <div className="cat-feat">
             {CATEGORIES_WITH_META.map((cat) => {
               const count = categoryCounts[cat.tag];
@@ -300,24 +296,17 @@ export default function HomePage() {
 
         {/* ── 按难度精选 ── */}
         <section>
-          <div className="sec-head">
-            <h2 className="sec-title">按难度精选</h2>
-            <Link href="/browse" className="sec-link">
-              更多
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </Link>
-          </div>
+          <SectionHeader
+            title="按难度精选"
+            action={
+              <Link href="/browse">
+                <SectionLink>
+                  更多
+                  <ArrowRight size={15} />
+                </SectionLink>
+              </Link>
+            }
+          />
 
           {/* Difficulty pill tabs */}
           <TabPills
