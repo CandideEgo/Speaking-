@@ -1,109 +1,34 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { toast } from "sonner";
 import { Mic, MicOff, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AudioWaveform } from "./AudioWaveform";
+import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 
+/** Standalone free-speaking recorder (no auth gate, no video context).
+ *
+ * Delegates the entire recording lifecycle to useSpeakingRecorder
+ * and only renders the UI. Uses the timer option to show elapsed seconds.
+ */
 export default function SpeakingRecorder() {
-  const [state, setState] = useState<"idle" | "recording" | "reviewing">(
-    "idle",
-  );
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [seconds, setSeconds] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const liveStreamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (liveStreamRef.current) {
-        liveStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [audioUrl]);
-
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
-      liveStreamRef.current = stream;
-
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "";
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        // Stop timer
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        // Stop live stream
-        stream.getTracks().forEach((t) => t.stop());
-        liveStreamRef.current = null;
-
-        // Create playback URL instead of submitting to API
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        setAudioUrl(URL.createObjectURL(blob));
-        setState("reviewing");
-      };
-
-      recorder.start();
-      setState("recording");
-      setSeconds(0);
-
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setSeconds((s) => s + 1);
-      }, 1000);
-    } catch {
-      toast.error("无法访问麦克风，请检查权限");
-    }
-  }, []);
-
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-  }
-
-  function restart() {
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-    setState("idle");
-    setSeconds(0);
-  }
+  const {
+    speakingState,
+    audioUrl,
+    recordingStream,
+    seconds,
+    startRecording,
+    stopRecording,
+    reRecord,
+  } = useSpeakingRecorder(() => true, { timer: true });
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
+
+  // Map hook state names to UI state names
+  const state = speakingState;
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
@@ -124,11 +49,11 @@ export default function SpeakingRecorder() {
         </>
       )}
 
-      {state === "recording" && (
+      {state === "listening" && (
         <>
           {/* Waveform */}
           <div className="flex items-center justify-center h-10">
-            <AudioWaveform stream={liveStreamRef.current} barCount={40} />
+            <AudioWaveform stream={recordingStream} barCount={40} />
           </div>
 
           {/* Timer */}
@@ -164,7 +89,7 @@ export default function SpeakingRecorder() {
           </div>
 
           {/* Restart button */}
-          <Button onClick={restart} variant="secondary" icon={RotateCcw}>
+          <Button onClick={reRecord} variant="secondary" icon={RotateCcw}>
             再试一次
           </Button>
         </>
