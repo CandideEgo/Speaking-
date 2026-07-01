@@ -1,12 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_admin_user, get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.rubric import RubricCriterion, SpeakingRubric
 from app.models.user import RoleType, User
 from app.schemas.rubric import RubricCreate, RubricCriterionResponse, RubricResponse, RubricUpdate
@@ -79,7 +80,8 @@ async def _invalidate_rubric_cache():
 
 
 @router.get("")
-async def list_rubrics(db: AsyncSession = Depends(get_db)):
+@rate_limit("30/minute")
+async def list_rubrics(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SpeakingRubric).options(selectinload(SpeakingRubric.criteria)).order_by(SpeakingRubric.is_default.desc())
     )
@@ -97,7 +99,8 @@ async def list_rubrics(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/default")
-async def get_default_rubric(db: AsyncSession = Depends(get_db)):
+@rate_limit("30/minute")
+async def get_default_rubric(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SpeakingRubric).options(selectinload(SpeakingRubric.criteria)).where(SpeakingRubric.is_default == True)
     )
@@ -114,7 +117,9 @@ async def get_default_rubric(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=RubricResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("10/minute")
 async def create_rubric(
+    request: Request,
     body: RubricCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
@@ -145,7 +150,9 @@ async def create_rubric(
 
 
 @router.put("/{rubric_id}", response_model=RubricResponse)
+@rate_limit("10/minute")
 async def update_rubric(
+    request: Request,
     rubric_id: str,
     body: RubricUpdate,
     db: AsyncSession = Depends(get_db),
@@ -188,7 +195,9 @@ async def update_rubric(
 
 
 @router.delete("/{rubric_id}", status_code=status.HTTP_204_NO_CONTENT)
+@rate_limit("10/minute")
 async def delete_rubric(
+    request: Request,
     rubric_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
@@ -210,7 +219,9 @@ async def delete_rubric(
 
 
 @router.post("/{rubric_id}/set-default", response_model=RubricResponse)
+@rate_limit("10/minute")
 async def set_default_rubric(
+    request: Request,
     rubric_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),

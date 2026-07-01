@@ -104,33 +104,24 @@
   }
 
   /* === Cards === */
-  /* (card-outline/card-soft/card-dark/card-code removed — use <Card> component) */
 
   /* === Filter bar === */
 
   /* === Inputs === */
-  /* (input-field removed — use <Input>/<Textarea>/<Select> components) */
 
   /* === Badges / Pills === */
-  /* (badge-pill/badge-coral/pill/pill-flame-on/pill-goal-done removed — unused) */
 
   /* === Action pills === */
-  /* (act/act-active removed — unused) */
 
   /* === Page header === */
-  /* (page-head/page-crumb/page-title/page-desc removed — use <PageHeader> component) */
 
   /* === Section headings === */
-  /* (sec-head/sec-title/sec-link removed — use <SectionHeader>/<SectionLink> components) */
 
   /* === Greeting bar === */
-  /* (greet removed — unused) */
 
   /* === Category quick band === */
-  /* (cat-band/cat-card removed — unused) */
 
   /* === Video card === */
-  /* (vcard/thumb/thumb-dur/thumb-play/thumb-play-btn/vmeta/vtitle/vfoot/vdot/chip removed — use <VideoCard> component) */
 
   /* === Filter bar (browse) === */
   .filter-bar {
@@ -155,7 +146,6 @@
   }
 
   /* === Speaking block === */
-  /* (speak-block/speak-meter/mic-btn removed — unused) */
 
   /* === Quiz block === */
   .q-opt {
@@ -168,7 +158,6 @@
   }
 
   /* === Dashboard stat === */
-  /* (trend-up/trend-down removed — unused) */
 
   /* === Bar chart === */
   .bar-chart {
@@ -194,20 +183,14 @@
   }
 
   /* === Heatmap === */
-  /* (heat-grid/heat-cell/heat-l1-l4/heat-legend removed — unused) */
 
   /* === Timeline === */
-  /* (tl-* classes removed — use <TimelineItem> component) */
 
   /* === Community === */
-  /* (create-post/post-card/side-panel/side-card inlined as Tailwind utilities) */
-  /* (trend-item removed — unused) */
 
   /* === Pricing === */
-  /* (price-card/price-pop/price-ribbon removed — use <PriceCard> component) */
 
   /* === Legacy category tabs (backward compat) === */
-  /* (tab-category/tab-category-active removed — unused) */
 
   /* ============================================================
      HOME — bento 首屏 (variant 03)
@@ -340,8 +323,6 @@
     grid-column: span 1 / span 1;
     grid-row: span 2 / span 2;
   }
-  /* (vcard-feat .thumb and .vcard-feat .vtitle removed — inlined in VideoCard feat mode) */
-  /* (vprog-tag removed — inlined in VideoCard component) */
   /* 分类视觉化大卡 */
   .cat-feat {
     @apply grid gap-4;

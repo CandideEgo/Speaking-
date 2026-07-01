@@ -2,13 +2,16 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.core.security import decode_token
+from app.core.token_blacklist import is_token_blacklisted
 from app.models.notification import Notification
 from app.models.preferences import UserPreferences
 from app.models.user import User
@@ -91,6 +94,12 @@ async def notification_websocket(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    # Check token blacklist (same as get_current_user)
+    settings = get_settings()
+    if settings.jwt_blacklist_enabled and await is_token_blacklisted(payload.get("jti")):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     await ws_manager.connect(user_id, websocket)
     try:
         # Send initial unread count
@@ -110,7 +119,9 @@ async def notification_websocket(
 
 
 @router.get("", response_model=list[NotificationResponse])
+@rate_limit("30/minute")
 async def list_notifications(
+    request: Request,
     limit: int = 20,
     offset: int = 0,
     current_user: User = Depends(get_current_user),
@@ -128,7 +139,9 @@ async def list_notifications(
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
+@rate_limit("30/minute")
 async def unread_count(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -141,7 +154,9 @@ async def unread_count(
 
 
 @router.patch("/{notification_id}/read", response_model=NotificationResponse)
+@rate_limit("30/minute")
 async def mark_as_read(
+    request: Request,
     notification_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -160,7 +175,9 @@ async def mark_as_read(
 
 
 @router.patch("/read-all", response_model=UnreadCountResponse)
+@rate_limit("10/minute")
 async def mark_all_as_read(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -189,7 +206,9 @@ DEFAULT_PREFS = {
 
 
 @router.get("/preferences")
+@rate_limit("20/minute")
 async def get_notification_preferences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -208,7 +227,9 @@ async def get_notification_preferences(
 
 
 @router.put("/preferences")
+@rate_limit("10/minute")
 async def update_notification_preferences(
+    request: Request,
     data: NotificationPreferencesUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

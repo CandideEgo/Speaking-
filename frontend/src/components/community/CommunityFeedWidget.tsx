@@ -7,6 +7,8 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { api } from "@/lib/api";
+import { timeAgo } from "@/lib/format";
+import { avatarColor } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
 /** Compact community post for the homepage widget. Mirrors the community page
@@ -25,29 +27,6 @@ interface FeedPost {
   comment_count: number;
   created_at: string;
   video?: { id: string; title: string; thumbnail_url: string | null } | null;
-}
-
-function timeAgo(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 60) return `${minutes}分钟前`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}小时前`;
-  const days = Math.floor(hours / 24);
-  return `${days}天前`;
-}
-
-const AVATAR_COLORS = [
-  "bg-gradient-to-br from-brand-500 to-brand-400",
-  "bg-gradient-to-br from-indigo-500 to-indigo-400",
-  "bg-gradient-to-br from-emerald-500 to-emerald-400",
-  "bg-gradient-to-br from-amber-500 to-amber-400",
-];
-function avatarColor(seed: string | null | undefined): string {
-  const s = seed || "?";
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 /**

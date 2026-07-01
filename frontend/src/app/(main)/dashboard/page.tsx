@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { timeAgo } from "@/lib/format";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import {
@@ -70,16 +71,6 @@ interface DashboardData {
 }
 
 // --- Helpers ---
-
-function timeAgo(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 60) return `${minutes} 分钟前`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  const days = Math.floor(hours / 24);
-  return `${days} 天前`;
-}
 
 function getPastWeekLabels(): string[] {
   const labels = ["一", "二", "三", "四", "五", "六", "日"];

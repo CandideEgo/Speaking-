@@ -72,10 +72,16 @@ async def assistant_recommend(
     # Build richer history summary with video titles instead of raw IDs
     from app.models.video import Video
 
+    # Batch-fetch video titles (fixes N+1 — was one query per record)
+    video_ids = [r.video_id for r in records[:5]]
+    video_map: dict[str, str] = {}
+    if video_ids:
+        vid_result = await db.execute(select(Video.id, Video.title).where(Video.id.in_(video_ids)))
+        video_map = {vid: title for vid, title in vid_result.all()}
+
     history_parts = []
     for r in records[:5]:
-        video_result = await db.execute(select(Video.title).where(Video.id == r.video_id))
-        title = video_result.scalar() or f"video-{r.video_id[:8]}"
+        title = video_map.get(r.video_id) or f"video-{r.video_id[:8]}"
         progress = f"{r.speaking_attempts} attempts, {round(r.progress_percentage)}% done"
         history_parts.append(f"{title} ({progress})")
 

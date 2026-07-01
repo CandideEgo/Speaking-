@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
 from app.core.config import get_settings
+from app.core.limiter import rate_limit
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -27,6 +28,7 @@ _CHUNK = 64 * 1024
 
 @router.get("/{file_path:path}")
 @router.head("/{file_path:path}")
+@rate_limit("60/minute")
 async def serve_media(file_path: str, request: Request):
     base = Path(get_settings().local_media_path).resolve()
     # Resolve safely — reject paths that escape the media directory.

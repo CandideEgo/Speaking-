@@ -13,6 +13,7 @@ import {
 } from "@/components/search/SearchDropdown";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
+import { userInitial } from "@/lib/avatar";
 import { Search, Bell, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -169,11 +170,7 @@ export function TopBar() {
   }
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
-  const userInitial = (
-    user?.name?.[0] ||
-    user?.email?.[0] ||
-    "?"
-  ).toUpperCase();
+  const initial = userInitial(user);
 
   return (
     <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-white/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
@@ -283,7 +280,7 @@ export function TopBar() {
               className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-sm flex items-center justify-center ml-1.5"
               aria-label="个人中心"
             >
-              {userInitial}
+              {initial}
             </Link>
           </>
         )}

@@ -149,17 +149,20 @@ async def update_streak(db: AsyncSession, user_id: str) -> int:
         # Today not met yet — start counting from yesterday
         check_date -= timedelta(days=1)
 
-    # Continue backward counting consecutive goal_met days
-    for _ in range(365):  # safety limit
-        day_result = await db.execute(
-            select(DailyActivity).where(
-                DailyActivity.user_id == user_id,
-                DailyActivity.date == check_date,
-            )
+    # Batch-fetch all DailyActivity rows for the past year and scan in memory
+    # instead of one query per day (fixes N+1 — was up to 365 queries).
+    start_date = check_date - timedelta(days=365)
+    past_result = await db.execute(
+        select(DailyActivity.date, DailyActivity.goal_met).where(
+            DailyActivity.user_id == user_id,
+            DailyActivity.date >= start_date,
+            DailyActivity.date <= check_date,
         )
-        day_activity = day_result.scalar_one_or_none()
+    )
+    met_dates = {row.date for row in past_result if row.goal_met}
 
-        if day_activity and day_activity.goal_met:
+    for _ in range(365):  # safety limit
+        if check_date in met_dates:
             streak += 1
             check_date -= timedelta(days=1)
         else:

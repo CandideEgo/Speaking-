@@ -4,13 +4,14 @@ Routes are video-scoped (prefix ``/videos``) so they read naturally as
 ``/videos/{video_id}/favorite`` etc. Authenticated only.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.favorite import UserFavorite, UserNote
 from app.models.user import User
 from app.models.video import Video
@@ -45,7 +46,9 @@ async def _get_owned_video_or_404(db: AsyncSession, video_id: str) -> Video:
 
 
 @router.get("/{video_id}/watch-meta", response_model=WatchMeta)
+@rate_limit("30/minute")
 async def get_watch_meta(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -72,7 +75,9 @@ async def get_watch_meta(
 
 
 @router.post("/{video_id}/favorite", response_model=FavoriteStatus)
+@rate_limit("20/minute")
 async def add_favorite(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -100,7 +105,9 @@ async def add_favorite(
 
 
 @router.delete("/{video_id}/favorite", response_model=FavoriteStatus)
+@rate_limit("20/minute")
 async def remove_favorite(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -123,7 +130,9 @@ async def remove_favorite(
 
 
 @router.get("/{video_id}/note", response_model=NoteResponse)
+@rate_limit("30/minute")
 async def get_note(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -141,7 +150,9 @@ async def get_note(
 
 
 @router.put("/{video_id}/note", response_model=NoteResponse)
+@rate_limit("10/minute")
 async def upsert_note(
+    request: Request,
     video_id: str,
     data: NoteUpdate,
     current_user: User = Depends(get_current_user),
@@ -167,7 +178,9 @@ async def upsert_note(
 
 
 @router.delete("/{video_id}/note", response_model=NoteResponse)
+@rate_limit("20/minute")
 async def delete_note(
+    request: Request,
     video_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
