@@ -126,25 +126,32 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   logout() {
     // Fire-and-forget server-side token blacklist request.
     // We capture the token *before* clearing state so the header is valid.
-    // If it fails, the token still expires naturally — no need to await or block.
+    // We await the fetch so the request completes before the hard redirect
+    // (window.location.href aborts all in-flight JS).
     const currentToken = get().token;
     const currentRefreshToken = get().refreshToken;
-    if (currentToken && typeof window !== "undefined") {
-      const body = currentRefreshToken
-        ? JSON.stringify({ refresh_token: currentRefreshToken })
-        : "{}";
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      fetch(`${apiUrl}/api/v1/auth/logout`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${currentToken}`,
-          "Content-Type": "application/json",
-        },
-        body,
-      }).catch(() => {
-        /* ignore — token will expire naturally */
-      });
-    }
+    const blacklistPromise =
+      currentToken && typeof window !== "undefined"
+        ? (async () => {
+            const body = currentRefreshToken
+              ? JSON.stringify({ refresh_token: currentRefreshToken })
+              : "{}";
+            const apiUrl =
+              process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            try {
+              await fetch(`${apiUrl}/api/v1/auth/logout`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${currentToken}`,
+                  "Content-Type": "application/json",
+                },
+                body,
+              });
+            } catch {
+              /* ignore — token will expire naturally */
+            }
+          })()
+        : Promise.resolve();
 
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_KEY);
@@ -158,15 +165,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     });
     // Reset sibling stores to avoid stale user data after logout.
     // Dynamic imports prevent circular dependency issues.
-    import("@/stores/watchStore").then((m) =>
-      m.useWatchStore.getState().reset(),
-    );
-    import("@/stores/vocabularyStore").then((m) =>
-      m.useVocabularyStore.getState().reset(),
-    );
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    const resetPromise = Promise.all([
+      import("@/stores/watchStore").then((m) =>
+        m.useWatchStore.getState().reset(),
+      ),
+      import("@/stores/vocabularyStore").then((m) =>
+        m.useVocabularyStore.getState().reset(),
+      ),
+    ]);
+
+    // Wait for blacklist + store resets, then navigate.
+    // Using window.location is correct here because the Zustand store
+    // operates outside the React component tree where useRouter is unavailable.
+    Promise.all([blacklistPromise, resetPromise]).then(() => {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+    });
   },
 
   initialize() {
