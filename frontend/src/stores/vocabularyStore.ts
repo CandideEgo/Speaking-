@@ -29,24 +29,12 @@ interface QuizResult {
   }[];
 }
 
-interface QuizQuestionSimple {
-  id: string;
-  word: string;
-  options: string[];
-  correct_answer_index: number;
-}
-
 interface VocabularyState {
   words: VocabularyWord[];
   stats: VocabStats;
   loading: boolean;
-  activeTab: "all" | "due" | "quiz";
-  // Quiz state (simple quiz used by vocabulary page)
-  quizQuestions: QuizQuestionSimple[];
-  quizIndex: number;
-  quizScore: number;
-  quizCompleted: boolean;
-  // Advanced quiz state (used by VocabQuizPanel component)
+  activeTab: "all" | "due";
+  // Quiz state
   quizSession: QuizSession | null;
   quizAnswers: Record<number, string>;
   quizResult: QuizResult | null;
@@ -61,14 +49,12 @@ interface VocabularyActions {
   fetchStats: () => Promise<void>;
   deleteWord: (wordId: string) => Promise<void>;
   reviewWord: (wordId: string, quality: number) => Promise<void>;
-  setActiveTab: (tab: "all" | "due" | "quiz") => void;
-  // Simple quiz (vocabulary page)
-  answerQuiz: (questionId: string, answerIndex: number) => void;
-  resetQuiz: () => void;
-  // Advanced quiz (VocabQuizPanel)
+  setActiveTab: (tab: "all" | "due") => void;
+  // Quiz
   startQuiz: (type?: QuizType) => Promise<void>;
   answerQuestion: (index: number, answer: string) => void;
   submitQuiz: () => Promise<void>;
+  resetQuiz: () => void;
   /** Reset all state to initial values (called on logout) */
   reset: () => void;
 }
@@ -89,12 +75,6 @@ const INITIAL_STATE: VocabularyState = {
   },
   loading: false,
   activeTab: "all",
-  // Simple quiz
-  quizQuestions: [],
-  quizIndex: 0,
-  quizScore: 0,
-  quizCompleted: false,
-  // Advanced quiz
   quizSession: null,
   quizAnswers: {},
   quizResult: null,
@@ -153,47 +133,11 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     }
   },
 
-  setActiveTab(tab: "all" | "due" | "quiz") {
+  setActiveTab(tab: "all" | "due") {
     set({ activeTab: tab });
-    if (tab === "quiz" && get().quizQuestions.length === 0) {
-      get().startQuiz();
-    }
   },
 
-  // ── Simple quiz (vocabulary page) ────────────────────────────────────
-
-  answerQuiz(questionId: string, answerIndex: number) {
-    const state = get();
-    const question = state.quizQuestions[state.quizIndex];
-    if (!question) return;
-
-    const isCorrect = answerIndex === question.correct_answer_index;
-    const newIndex = state.quizIndex + 1;
-    const newScore = state.quizScore + (isCorrect ? 1 : 0);
-    const completed = newIndex >= state.quizQuestions.length;
-
-    set({
-      quizIndex: newIndex,
-      quizScore: newScore,
-      quizCompleted: completed,
-    });
-  },
-
-  resetQuiz() {
-    set({
-      quizQuestions: [],
-      quizIndex: 0,
-      quizScore: 0,
-      quizCompleted: false,
-      quizSession: null,
-      quizAnswers: {},
-      quizResult: null,
-      isQuizActive: false,
-      isQuizSubmitting: false,
-    });
-  },
-
-  // ── Advanced quiz (VocabQuizPanel) ───────────────────────────────────
+  // ── Quiz ───────────────────────────────────────────────────────────────
 
   async startQuiz(type: QuizType = "multiple_choice") {
     set({ isLoading: true, quizType: type, quizAnswers: {}, quizResult: null });
@@ -213,16 +157,6 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
         quizSession: session,
         isQuizActive: true,
         isLoading: false,
-        // Also populate simple quiz fields for the vocabulary page
-        quizQuestions: questions.map((q) => ({
-          id: q.id,
-          word: q.word,
-          options: q.options ?? [],
-          correct_answer_index: q.correct_answer_index ?? 0,
-        })),
-        quizIndex: 0,
-        quizScore: 0,
-        quizCompleted: false,
       });
     } catch {
       set({ isLoading: false });
@@ -241,7 +175,7 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
 
     set({ isQuizSubmitting: true });
     try {
-      const questions = state.quizSession?.questions ?? state.quizQuestions;
+      const questions = state.quizSession.questions;
       const answers = Object.entries(state.quizAnswers).map(([idx, answer]) => {
         const q = questions[Number(idx)];
         return {
@@ -258,12 +192,20 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
       set({
         quizResult: result,
         isQuizSubmitting: false,
-        quizCompleted: true,
-        quizScore: result.score,
       });
     } catch {
       set({ isQuizSubmitting: false });
     }
+  },
+
+  resetQuiz() {
+    set({
+      quizSession: null,
+      quizAnswers: {},
+      quizResult: null,
+      isQuizActive: false,
+      isQuizSubmitting: false,
+    });
   },
 
   reset() {
