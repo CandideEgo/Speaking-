@@ -163,11 +163,11 @@ async def save_watch_progress(
         )
         db.add(record)
         try:
-            await db.flush()
+            async with db.begin_nested():
+                await db.flush()
         except Exception as exc:
-            await db.rollback()
             if "uq_learning_record_user_video" in str(exc):
-                # Concurrent request created it — re-fetch
+                # Concurrent request created it — re-fetch (outer txn still valid)
                 result = await db.execute(
                     select(LearningRecord).where(
                         LearningRecord.user_id == current_user.id,

@@ -42,7 +42,9 @@ class PostLike(Base):
     __table_args__ = (UniqueConstraint("post_id", "user_id", name="uq_post_like"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    post_id: Mapped[str] = mapped_column(String(36), ForeignKey("posts.id"), nullable=False, index=True)
+    post_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -75,7 +77,9 @@ class UserComment(Base):
     __tablename__ = "user_comments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    post_id: Mapped[str] = mapped_column(String(36), ForeignKey("posts.id"), nullable=False, index=True)
+    post_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )

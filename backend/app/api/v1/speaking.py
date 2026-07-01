@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import check_video_access, get_current_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord, SpeakingAttempt
@@ -81,6 +81,14 @@ async def submit_speaking(
     # Validate subtitle exists and get text
     text_en, video_id = await get_subtitle_text(db, subtitle_id)
     if text_en is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtitle not found")
+
+    # Verify the user can access the video this subtitle belongs to
+    from app.models.video import Video
+
+    video_result = await db.execute(select(Video).where(Video.id == video_id))
+    video = video_result.scalar_one_or_none()
+    if not video or not check_video_access(video, current_user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtitle not found")
 
     # Check free-tier daily limit

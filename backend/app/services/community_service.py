@@ -548,16 +548,6 @@ async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) ->
     else:
         follow = Follow(follower_id=follower_id, followee_id=followee_id)
         db.add(follow)
-        # Notify the followee of the new follower.
-        actor_name = await _user_name(db, follower_id)
-        await create_notification(
-            user_id=followee_id,
-            type="social_follow",
-            title="新的关注",
-            message=f"{actor_name or '有人'} 关注了你",
-            db=db,
-            related_url="/community",
-        )
         try:
             await db.commit()
         except Exception as exc:
@@ -565,6 +555,20 @@ async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) ->
             if "uq_follow" in str(exc):
                 return {"following": True}
             raise
+        # Notify the followee only after the Follow row is committed.
+        try:
+            actor_name = await _user_name(db, follower_id)
+            await create_notification(
+                user_id=followee_id,
+                type="social_follow",
+                title="新的关注",
+                message=f"{actor_name or '有人'} 关注了你",
+                db=db,
+                related_url="/community",
+            )
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to send follow notification", exc_info=True)
         return {"following": True}
 
 
