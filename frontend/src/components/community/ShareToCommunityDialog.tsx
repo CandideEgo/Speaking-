@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Loader2, Share2 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -66,7 +67,7 @@ export function ShareToCommunityDialog({
       setContent("");
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "分享失败");
+      toastApiError(err, "分享失败");
     } finally {
       setSubmitting(false);
     }

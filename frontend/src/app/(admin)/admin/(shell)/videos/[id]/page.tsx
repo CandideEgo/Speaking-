@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 
 import {
@@ -36,7 +37,7 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
         const v = await getVideoDetail(params.id);
         if (!cancelled) setVideo(v);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "加载视频失败");
+        toastApiError(err, "加载视频失败");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -55,7 +56,7 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
       const v = await getVideoDetail(params.id);
       setVideo(v);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "重算失败");
+      toastApiError(err, "重算失败");
     }
   }, [params.id]);
 
@@ -233,7 +234,7 @@ function MetadataForm({
       onChanged({ ...video, ...updated, subtitles: video.subtitles });
       toast.success("已保存");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }

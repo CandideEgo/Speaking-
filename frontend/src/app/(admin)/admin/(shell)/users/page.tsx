@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import {
   ChevronDown,
   ChevronRight,
@@ -113,7 +114,7 @@ export default function AdminUsersPage() {
       patchUser(user.id, { is_banned: next });
       toast.success(next ? "已封禁" : "已解封");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err);
     }
   }
 
@@ -136,7 +137,7 @@ export default function AdminUsersPage() {
       patchUser(user.id, { role: next });
       toast.success("已更新角色");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err);
     }
   }
 
@@ -146,7 +147,7 @@ export default function AdminUsersPage() {
       patchUser(user.id, updated);
       toast.success(`已赠送 Pro ${days} 天`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err);
     }
   }
 
@@ -166,7 +167,7 @@ export default function AdminUsersPage() {
       patchUser(user.id, updated);
       toast.success("已撤销 Pro");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err);
     }
   }
 

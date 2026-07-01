@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { toast } from "sonner";
+import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import { api } from "@/lib/api";
 import type { Video } from "@/types";
 
@@ -37,9 +37,8 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
       }
     } catch (err) {
       if (!cancelledRef.current) {
-        const message = err instanceof Error ? err.message : "加载视频失败";
-        setError(message);
-        toast.error(message);
+        toastApiError(err, "加载视频失败");
+        setError(apiErrorMessage(err, "加载视频失败"));
       }
     } finally {
       if (!cancelledRef.current) {

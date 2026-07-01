@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Loader2, Link2, Upload } from "lucide-react";
 import { seedFromUrlFull, getMyVideoStatus } from "@/lib/creatorData";
 import { Button } from "@/components/ui/Button";
@@ -91,7 +92,7 @@ export function LinkUploadDialog({
     } catch (err) {
       setSeeding(false);
       setProgressText("");
-      toast.error(err instanceof Error ? err.message : "导入失败，请检查链接");
+      toastApiError(err, "导入失败，请检查链接");
     }
   }
 

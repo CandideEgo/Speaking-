@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { type LucideIcon, Bell, Save, Loader2 } from "lucide-react";
@@ -116,7 +117,7 @@ export function NotificationPreferences() {
       });
       toast.success("Notification preferences saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save preferences");
+      toastApiError(err, "Failed to save preferences");
     } finally {
       setSaving(false);
     }
@@ -133,7 +134,9 @@ export function NotificationPreferences() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl text-ink">Notification Preferences</h2>
+        <h2 className="font-display text-2xl text-ink">
+          Notification Preferences
+        </h2>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -141,37 +144,49 @@ export function NotificationPreferences() {
             "inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-colors",
             saving
               ? "bg-coral-disabled text-muted-foreground cursor-not-allowed"
-              : "bg-coral text-white hover:bg-coral-active"
+              : "bg-coral text-white hover:bg-coral-active",
           )}
         >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Save size={16} />
+          )}
           Save
         </button>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Choose which notifications you want to receive. You can update these at any time.
+        Choose which notifications you want to receive. You can update these at
+        any time.
       </p>
 
       <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas">
         {NOTIFICATION_TYPES.map((type) => {
           const enabled = preferences[type.id] !== false;
           return (
-            <div key={type.id} className="flex items-center justify-between px-5 py-4">
+            <div
+              key={type.id}
+              className="flex items-center justify-between px-5 py-4"
+            >
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-cream-soft">
                   <type.icon className="h-4 w-4 text-coral" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-ink">{type.label}</div>
-                  <div className="text-xs text-muted-foreground">{type.description}</div>
+                  <div className="text-sm font-medium text-ink">
+                    {type.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {type.description}
+                  </div>
                 </div>
               </div>
               <button
                 onClick={() => togglePreference(type.id)}
                 className={cn(
                   "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-coral/15 focus:ring-offset-2",
-                  enabled ? "bg-coral" : "bg-hairline"
+                  enabled ? "bg-coral" : "bg-hairline",
                 )}
                 role="switch"
                 aria-checked={enabled}
@@ -179,7 +194,7 @@ export function NotificationPreferences() {
                 <span
                   className={cn(
                     "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                    enabled ? "translate-x-5" : "translate-x-0"
+                    enabled ? "translate-x-5" : "translate-x-0",
                   )}
                 />
               </button>

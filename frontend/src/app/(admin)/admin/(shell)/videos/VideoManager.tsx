@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import {
   Download,
   Loader2,
@@ -115,7 +116,7 @@ export default function VideoManager() {
       setVideos((prev) => prev.filter((v) => v.id !== video.id));
       if (editingId === video.id) setEditingId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
+      toastApiError(err, "删除失败");
     }
   }
 
@@ -125,7 +126,7 @@ export default function VideoManager() {
       setVideos((prev) => prev.map((v) => (v.id === video.id ? updated : v)));
       toast.success("已开始搬运到本地，进度将自动更新");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "搬运失败");
+      toastApiError(err, "搬运失败");
     }
   }
 
@@ -148,7 +149,7 @@ export default function VideoManager() {
       patchVideo(video.id, updated);
       toast.success("已批准并发布");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "批准失败");
+      toastApiError(err, "批准失败");
     } finally {
       setReviewBusy(false);
     }
@@ -164,7 +165,7 @@ export default function VideoManager() {
       setRejectTarget(null);
       setRejectReason("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "驳回失败");
+      toastApiError(err, "驳回失败");
     } finally {
       setReviewBusy(false);
     }
@@ -512,7 +513,7 @@ function VideoDetailRow({
       patchVideo(video.id, updated);
       toast.success("已保存");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }

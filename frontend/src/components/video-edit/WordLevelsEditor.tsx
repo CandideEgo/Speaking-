@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
@@ -54,7 +55,7 @@ export function WordLevelsEditor({
       await onSave(levels);
       toast.success("高亮已保存");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }

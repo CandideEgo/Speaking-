@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { Sparkles } from "lucide-react";
@@ -52,7 +53,7 @@ export default function RegisterPage() {
       login(res.token, res.refresh_token);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "注册失败，请重试");
+      setError(apiErrorMessage(err, "注册失败，请重试"));
     } finally {
       setLoading(false);
     }

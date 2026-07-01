@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/authStore";
 import { Sparkles, Loader2, CheckCircle2, Gift } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -36,7 +37,7 @@ export default function RedeemPage() {
     } catch (err) {
       setResult({
         success: false,
-        message: err instanceof Error ? err.message : "兑换失败",
+        message: apiErrorMessage(err, "兑换失败"),
       });
     } finally {
       setLoading(false);

@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import {
   Loader2,
   Heart,
@@ -187,7 +188,7 @@ export default function CommunityPage() {
       setNewPost("");
       loadPosts();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "发布失败");
+      toastApiError(err, "发布失败");
     }
   }
 
@@ -211,7 +212,7 @@ export default function CommunityPage() {
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err, "操作失败");
     }
   }
 

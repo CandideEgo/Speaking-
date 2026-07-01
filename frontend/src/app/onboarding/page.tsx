@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
@@ -80,7 +80,7 @@ export default function OnboardingPage() {
       setOnboardingCompleted();
       router.replace("/");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败，请重试");
+      toastApiError(err, "保存失败，请重试");
     } finally {
       setSaving(false);
     }

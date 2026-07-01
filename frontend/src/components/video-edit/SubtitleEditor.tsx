@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Loader2, Save } from "lucide-react";
 
 import { WordLevelsEditor } from "./WordLevelsEditor";
@@ -80,7 +81,7 @@ export function SubtitleEditor({
       setGrammarNote(updated.grammar_note || "");
       toast.success("已保存");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }

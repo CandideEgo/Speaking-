@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import {
   Loader2,
   Upload,
@@ -151,7 +152,7 @@ export default function MyVideosPage() {
       toast.success("上传成功，正在处理…");
       setVideos((prev) => [v, ...prev]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "上传失败");
+      toastApiError(err, "上传失败");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

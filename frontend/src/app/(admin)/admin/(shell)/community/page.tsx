@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import {
   Check,
   ChevronDown,
@@ -111,7 +112,7 @@ function ReportQueue() {
       toast.success(action === "remove" ? "已删除评论" : "已驳回举报");
       setReports((prev) => prev.filter((r) => r.id !== report.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toastApiError(err);
     }
   }
 
@@ -332,7 +333,7 @@ function PostsManager() {
       toast.success("帖子已删除");
       setPosts((prev) => prev.filter((p) => p.id !== post.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
+      toastApiError(err, "删除失败");
     }
   }
 
@@ -345,7 +346,7 @@ function PostsManager() {
         [postId]: (prev[postId] || []).filter((c) => c.id !== comment.id),
       }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
+      toastApiError(err, "删除失败");
     }
   }
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
-import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
       });
       setSent(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "发送失败，请重试");
+      toastApiError(err, "发送失败，请重试");
     } finally {
       setLoading(false);
     }

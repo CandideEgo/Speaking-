@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Sparkles, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
+import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { toast } from "sonner";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -64,9 +65,8 @@ function ResetPasswordForm() {
       toast.success("密码重置成功，请重新登录");
       router.push("/login");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "重置失败，请重试";
-      setError(msg);
-      toast.error(msg);
+      setError(apiErrorMessage(err, "重置失败，请重试"));
+      toastApiError(err, "重置失败，请重试");
     } finally {
       setLoading(false);
     }

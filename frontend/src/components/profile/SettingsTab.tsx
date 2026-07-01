@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { Button } from "@/components/ui/Button";
@@ -58,7 +59,7 @@ function PasswordChangeForm() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "修改失败");
+      toastApiError(err, "修改失败");
     } finally {
       setSaving(false);
     }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/errors";
 import { Download, RefreshCw, Ticket } from "lucide-react";
 
 import { SectionCard } from "@/components/admin/SectionCard";
@@ -53,7 +54,7 @@ export default function AdminInvitesPage() {
       toast.success(`已生成 ${generated.length} 个兑换码`);
       setCodes((prev) => [...generated, ...prev]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "生成失败");
+      toastApiError(err, "生成失败");
     } finally {
       setGenerating(false);
     }

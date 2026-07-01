@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import { api } from "@/lib/api";
 import type { Category, VideoItem } from "@/types/platform";
 
@@ -113,9 +113,8 @@ export function usePlatformFeed({
         }
       } catch (err) {
         if (fetchId !== fetchIdRef.current) return;
-        const message = err instanceof Error ? err.message : "加载失败";
-        setError(message);
-        toast.error(message);
+        toastApiError(err, "加载失败");
+        setError(apiErrorMessage(err, "加载失败"));
       } finally {
         if (fetchId === fetchIdRef.current) {
           setLoading(false);
@@ -176,7 +175,7 @@ export function usePlatformFeed({
         });
         router.push(`/watch/${video.id}`);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "添加失败");
+        toastApiError(err, "添加失败");
         setAddingId(null);
       }
     },

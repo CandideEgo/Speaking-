@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import {
   ArrowLeft,
   Loader2,
@@ -62,7 +63,7 @@ export default function MyVideoEditorPage() {
       setVideo(await getMyVideoDetail(videoId));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(apiErrorMessage(err, "加载失败"));
     } finally {
       setLoading(false);
     }
@@ -159,7 +160,7 @@ export default function MyVideoEditorPage() {
         );
         return updated;
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "保存字幕失败");
+        toastApiError(err, "保存字幕失败");
         throw err;
       }
     };
@@ -181,7 +182,7 @@ export default function MyVideoEditorPage() {
         );
         return updated;
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "保存词级标注失败");
+        toastApiError(err, "保存词级标注失败");
         throw err;
       }
     };
@@ -195,7 +196,7 @@ export default function MyVideoEditorPage() {
       setVideo((v) => (v ? { ...v, ...updated } : v));
       toast.success(`${label}成功`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `${label}失败`);
+      toastApiError(err, `${label}失败`);
     }
   };
 
@@ -442,7 +443,7 @@ function PracticeEditor({
       setQuestions(set.questions);
       toast.success("练习题已保存");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }
@@ -455,7 +456,7 @@ function PracticeEditor({
       setQuestions(set.questions);
       toast.success("已重新生成练习题");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "生成失败");
+      toastApiError(err, "生成失败");
     } finally {
       setRegenerating(false);
     }
