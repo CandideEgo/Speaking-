@@ -221,10 +221,11 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
         lambda token: {"lemma": "run", "translation": "跑"} if token.lower() in ("run", "runs") else None,
     )
 
-    # Seed a real ready video + subtitle owned by the admin user.
+    # Seed a real ready official video + subtitle (official => any authed user
+    # can access it via check_video_access; admin is pro so the Pro gate passes).
     async with TestSessionLocal() as db:
         vid = "vid-practice-test"
-        db.add(Video(id=vid, title="t", source_url="x", status=VideoStatus.ready))
+        db.add(Video(id=vid, title="t", source_url="x", status=VideoStatus.ready, is_official=True, is_published=True))
         db.add(
             Subtitle(
                 id="s1",
@@ -271,7 +272,7 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
 async def test_grade_endpoint(client, admin_headers, monkeypatch):
     from app.api.v1 import practice as practice_mod
 
-    async def _fake_get_ready(db, vid):
+    async def _fake_get_ready(db, vid, current_user=None):
         return object()
 
     monkeypatch.setattr(practice_mod, "_get_ready_video_or_404", _fake_get_ready)

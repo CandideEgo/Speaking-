@@ -49,15 +49,22 @@ class TestListVideos:
         )
         resp = await client.get("/api/v1/videos", headers=auth_headers)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
-        assert len(resp.json()) >= 1
+        data = resp.json()
+        # Paginated response shape: {items, page, page_size, has_more}
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert len(data["items"]) >= 1
 
 
 class TestPublicVideos:
     async def test_list_public_videos(self, client: AsyncClient):
         resp = await client.get("/api/v1/videos/public")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        data = resp.json()
+        # Paginated response shape: {items, page, page_size, has_more}
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert isinstance(data["items"], list)
 
 
 class TestSeedVideo:
@@ -272,7 +279,8 @@ class TestPublishGate:
 
         # Public homepage lists only the published one.
         public = (await client.get("/api/v1/videos/public")).json()
-        titles = [item["title"] for item in public]
+        # Paginated response shape: {items, page, page_size, has_more}
+        titles = [item["title"] for item in public["items"]]
         assert "Published" in titles
         assert "Draft" not in titles
 

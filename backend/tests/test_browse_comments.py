@@ -13,6 +13,7 @@ async def _seed_official_video(
     topic_tags: str | None = None,
     difficulty: str | None = None,
     comment_quality_score: float | None = None,
+    show_on_homepage: bool = False,
 ) -> str:
     async with TestSessionLocal() as db:
         v = Video(
@@ -25,6 +26,7 @@ async def _seed_official_video(
             topic_tags=topic_tags,
             difficulty_level=difficulty,
             comment_quality_score=comment_quality_score,
+            show_on_homepage=show_on_homepage,
         )
         db.add(v)
         await db.commit()
@@ -84,7 +86,8 @@ class TestBrowseFeed:
 
 class TestBrowseFeatured:
     async def test_featured_returns_videos(self, client: AsyncClient):
-        await _seed_official_video("Featured 1")
+        # Featured endpoint filters on show_on_homepage=True.
+        await _seed_official_video("Featured 1", show_on_homepage=True)
         resp = await client.get("/api/v1/browse/featured?limit=6")
         assert resp.status_code == 200
         assert "items" in resp.json()
