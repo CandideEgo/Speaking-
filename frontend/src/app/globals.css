@@ -197,30 +197,7 @@
   /* (heat-grid/heat-cell/heat-l1-l4/heat-legend removed — unused) */
 
   /* === Timeline === */
-  .tl-item {
-    @apply flex gap-3.5 items-start;
-  }
-  .tl-dot-line {
-    @apply flex flex-col items-center flex-shrink-0;
-  }
-  .tl-dot {
-    @apply w-8 h-8 rounded-full flex items-center justify-center text-[13px];
-  }
-  .tl-line {
-    @apply w-0.5 flex-1 bg-hairline min-h-6 my-1;
-  }
-  .tl-body {
-    @apply flex-1 pb-1;
-  }
-  .tl-title {
-    @apply text-sm font-semibold;
-  }
-  .tl-desc {
-    @apply text-[13px] text-muted mt-0.5;
-  }
-  .tl-time {
-    @apply text-xs text-muted-soft mt-1;
-  }
+  /* (tl-* classes removed — use <TimelineItem> component) */
 
   /* === Community === */
   /* (create-post/post-card/side-panel/side-card inlined as Tailwind utilities) */

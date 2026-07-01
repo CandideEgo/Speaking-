@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Eyebrow } from "@/components/ui/Eyebrow";
+import { TimelineItem } from "@/components/ui/TimelineItem";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -364,21 +365,20 @@ export default function DashboardPage() {
                       <Zap size={15} className="text-on-primary" />
                     );
                     return (
-                      <div key={record.id} className="tl-item">
-                        <div className="tl-dot-line">
-                          <div className={cn("tl-dot", color)}>{icon}</div>
-                          {i < data.recentRecords.length - 1 && (
-                            <div className="tl-line" />
-                          )}
-                        </div>
-                        <div className="tl-body">
+                      <TimelineItem
+                        key={record.id}
+                        dot={icon}
+                        dotColor={color}
+                        title={
                           <Link
                             href={`/watch/${record.video_id}`}
-                            className="tl-title hover:text-brand-500"
+                            className="text-sm font-semibold hover:text-brand-500"
                           >
                             {record.video?.title || "未知视频"}
                           </Link>
-                          <div className="tl-desc">
+                        }
+                        description={
+                          <>
                             {record.speaking_attempts > 0 &&
                               `${record.speaking_attempts} 次跟读 `}
                             {record.words_learned > 0 &&
@@ -386,14 +386,13 @@ export default function DashboardPage() {
                             {record.completed && (
                               <span className="text-success">· 已完成</span>
                             )}
-                          </div>
-                          <div className="tl-time">
-                            {timeAgo(
-                              record.last_accessed_at || record.created_at,
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                          </>
+                        }
+                        time={timeAgo(
+                          record.last_accessed_at || record.created_at,
+                        )}
+                        isLast={i === data.recentRecords.length - 1}
+                      />
                     );
                   })}
                 </div>
