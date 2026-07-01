@@ -403,7 +403,7 @@ export default function CommunityPage() {
             {/* Posts column */}
             <div>
               {/* Create post */}
-              <div className="create-post">
+              <div className="bg-canvas border border-hairline rounded-lg p-4 mb-[18px]">
                 <div className="flex gap-3 items-center">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-[13px] flex items-center justify-center flex-shrink-0">
                     {currentUserInitial}
@@ -434,7 +434,10 @@ export default function CommunityPage() {
                 posts.map((post) => {
                   const tag = POST_TYPE_TAGS[post.post_type];
                   return (
-                    <div key={post.id} className="post-card">
+                    <div
+                      key={post.id}
+                      className="bg-canvas border border-hairline rounded-lg p-[18px] mb-3.5 hover:border-surface-cream-strong transition-colors duration-150"
+                    >
                       {/* Author header */}
                       <div className="flex items-center gap-2.5 mb-3">
                         {post.user.avatar_url ? (
@@ -627,8 +630,8 @@ export default function CommunityPage() {
             </div>
 
             {/* Sidebar */}
-            <div className="side-panel hidden lg:block">
-              <div className="side-card">
+            <div className="sticky top-[88px] flex flex-col gap-4 hidden lg:block">
+              <div className="bg-canvas border border-hairline rounded-lg p-[18px]">
                 <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
                   社区指南
                 </h4>
@@ -648,7 +651,7 @@ export default function CommunityPage() {
                 </ul>
               </div>
 
-              <div className="side-card">
+              <div className="bg-canvas border border-hairline rounded-lg p-[18px]">
                 <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
                   热门话题
                 </h4>

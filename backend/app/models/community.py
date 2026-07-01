@@ -19,7 +19,7 @@ class Post(Base):
     )  # text, progress_share, vocabulary_share, speaking_share
     content: Mapped[str] = mapped_column(Text, nullable=False)
     media_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    video_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("videos.id"), nullable=True)
+    video_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("videos.id"), nullable=True, index=True)
     speaking_attempt_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("speaking_attempts.id"), nullable=True
     )
@@ -77,7 +77,7 @@ class UserComment(Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("user_comments.id"), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("user_comments.id"), nullable=True, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, default=0)
     is_reported: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -132,7 +132,7 @@ class CommentReport(Base):
     comment_id: Mapped[str] = mapped_column(String(36), ForeignKey("user_comments.id"), nullable=False, index=True)
     reporter_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     reason: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending / reviewed / dismissed
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending / reviewed / dismissed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships

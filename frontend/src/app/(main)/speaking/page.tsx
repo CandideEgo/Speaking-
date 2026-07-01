@@ -126,7 +126,7 @@ export default function SpeakingPage() {
               return (
                 <div
                   key={card.key}
-                  className="mode-card"
+                  className="bg-canvas rounded-lg p-7 border border-hairline cursor-pointer hover:-translate-y-1 hover:shadow-lift hover:border-transparent transition-all duration-150"
                   onClick={() => handleModeClick(card)}
                 >
                   <div className="flex items-start justify-between mb-[18px]">

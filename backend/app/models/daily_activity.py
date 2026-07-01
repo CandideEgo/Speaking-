@@ -21,7 +21,7 @@ class DailyActivity(Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
 
     # Activity counts
     speaking_attempts: Mapped[int] = mapped_column(Integer, default=0)

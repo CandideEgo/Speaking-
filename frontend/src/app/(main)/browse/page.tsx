@@ -47,8 +47,10 @@ export default function BrowsePage() {
         {/* Sticky filter bar */}
         <div className="filter-bar">
           {/* Category row */}
-          <div className="filter-row">
-            <span className="filter-label">分类</span>
+          <div className="flex gap-1.5 overflow-x-auto items-center">
+            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">
+              分类
+            </span>
             <TabPills
               tabs={categories.map((cat) => ({
                 key: cat.id,
@@ -62,8 +64,10 @@ export default function BrowsePage() {
             />
           </div>
           {/* Difficulty row */}
-          <div className="filter-row">
-            <span className="filter-label">难度</span>
+          <div className="flex gap-1.5 overflow-x-auto items-center">
+            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">
+              难度
+            </span>
             <TabPills
               tabs={DIFFICULTY_LEVELS.map((lv) => ({
                 key: lv.id,

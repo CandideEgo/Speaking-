@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,6 +45,7 @@ class VideoReviewStatus(str, enum.Enum):
 
 class Video(Base):
     __tablename__ = "videos"
+    __table_args__ = (Index("ix_videos_homepage_status", "show_on_homepage", "is_published", "status"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
