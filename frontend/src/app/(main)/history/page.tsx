@@ -26,8 +26,9 @@ export default function HistoryPage() {
   const [recordsPage, setRecordsPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
-  // Fetch activity calendar
+  // Fetch activity calendar (guarded on auth)
   useEffect(() => {
+    if (isLoading || !isAuthenticated) return;
     (async () => {
       try {
         const data = await api<ActivityCalendar>(
@@ -38,10 +39,11 @@ export default function HistoryPage() {
         toast.error("加载活动数据失败");
       }
     })();
-  }, [year, month]);
+  }, [year, month, isAuthenticated, isLoading]);
 
-  // Fetch learning records
+  // Fetch learning records (guarded on auth)
   useEffect(() => {
+    if (isLoading || !isAuthenticated) return;
     (async () => {
       setLoading(true);
       try {
@@ -56,7 +58,7 @@ export default function HistoryPage() {
         setLoading(false);
       }
     })();
-  }, [recordsPage]);
+  }, [recordsPage, isAuthenticated, isLoading]);
 
   function prevMonth() {
     if (month === 1) {

@@ -82,6 +82,9 @@ export default function MyVideosPage() {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep a live ref so the polling interval always reads the latest state
+  const videosRef = useRef<Video[]>(videos);
+  videosRef.current = videos;
 
   const load = useCallback(async () => {
     try {
@@ -100,7 +103,8 @@ export default function MyVideosPage() {
 
   // Poll processing videos until they're ready/error.
   useEffect(() => {
-    const hasProcessing = videos.some(
+    const currentVideos = videosRef.current;
+    const hasProcessing = currentVideos.some(
       (v) => v.status === "processing" || v.status === "ready_subtitles",
     );
     if (!hasProcessing) {
@@ -109,8 +113,9 @@ export default function MyVideosPage() {
     }
     pollRef.current = setInterval(async () => {
       try {
+        const liveVideos = videosRef.current;
         const updated: Video[] = [];
-        for (const v of videos) {
+        for (const v of liveVideos) {
           if (v.status === "processing" || v.status === "ready_subtitles") {
             const st = await getMyVideoStatus(v.id);
             updated.push({
@@ -140,8 +145,7 @@ export default function MyVideosPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videos]);
+  }, [videos, load]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
