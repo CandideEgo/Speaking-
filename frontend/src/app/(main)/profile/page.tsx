@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/common/ErrorState";
 import { User as UserIcon, Settings, BookOpen } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
@@ -74,12 +75,11 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">加载账户信息失败</p>
-          <Button onClick={() => window.location.reload()}>重试</Button>
-        </div>
-      </main>
+      <ErrorState
+        title="加载账户信息失败"
+        onRetry={() => window.location.reload()}
+        fullPage
+      />
     );
   }
 

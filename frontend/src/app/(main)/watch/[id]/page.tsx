@@ -45,6 +45,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
+import { ErrorState } from "@/components/common/ErrorState";
 import { toggleVideoLike, getVideoLikeStatus } from "@/lib/creatorData";
 
 /** Human-readable labels for processing steps returned by the backend. */
@@ -387,20 +388,19 @@ export default function WatchPage() {
 
   if (video.status === "error")
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="text-center">
-          <p className="text-ink font-bold">处理失败</p>
-          <p className="mt-1 text-sm text-error">
-            {video.error_message || "未知错误"}
-          </p>
+      <ErrorState
+        title="处理失败"
+        message={video.error_message || "未知错误"}
+        action={
           <button
             onClick={() => router.push("/browse")}
             className="mt-4 text-sm text-brand-500 hover:underline"
           >
             返回浏览
           </button>
-        </div>
-      </main>
+        }
+        fullPage
+      />
     );
 
   const currentSubtitle = video.subtitles[currentSubtitleIndex];

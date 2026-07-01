@@ -33,6 +33,7 @@ router = APIRouter(prefix="/community", tags=["community"])
 async def get_feed(
     request: Request,
     type: str | None = Query(None, alias="type"),
+    sort: str | None = Query(None, description="Sort mode: 'trending' for global popular"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
     current_user: User | None = Depends(get_optional_user),
@@ -40,9 +41,12 @@ async def get_feed(
 ):
     """Get community feed. Authenticated users see posts from followed users + popular.
     Anonymous users see trending posts. ``type`` filters by post type
-    (incl. ``video_share`` for UGC videos surfaced to the community)."""
+    (incl. ``video_share`` for UGC videos surfaced to the community).
+    ``sort=trending`` returns globally popular posts regardless of follows."""
     user_id = current_user.id if current_user else None
-    return await community_service.get_feed(db, user_id=user_id, post_type=type, page=page, page_size=page_size)
+    return await community_service.get_feed(
+        db, user_id=user_id, post_type=type, sort=sort, page=page, page_size=page_size
+    )
 
 
 @router.get("/videos")

@@ -214,22 +214,31 @@ async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: 
 
     Per the UGC design, approved UGC surfaces only in the community feed (the
     homepage/browse feed stays official-curated). Returns ``{items, has_more}``.
+    Each item includes a ``user`` brief (id, name, avatar_url) for attribution.
     """
     page = max(1, page)
     page_size = max(1, min(page_size, 50))
     offset = (page - 1) * page_size
 
-    base = select(Video).where(
-        Video.is_official == False,
-        Video.review_status == VideoReviewStatus.published.value,
-        Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+    base = (
+        select(Video)
+        .where(
+            Video.is_official == False,
+            Video.review_status == VideoReviewStatus.published.value,
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+        )
+        .options(selectinload(Video.user))
     )
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
     rows = result.scalars().all()
     has_more = len(rows) > page_size
-    items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
+    items = []
+    for v in rows[:page_size]:
+        item = VideoResponse.model_validate(v).model_dump()
+        item["user"] = {"id": v.user.id, "name": v.user.name, "avatar_url": v.user.avatar_url} if v.user else None
+        items.append(item)
     return {"items": items, "has_more": has_more, "total": total}
 
 

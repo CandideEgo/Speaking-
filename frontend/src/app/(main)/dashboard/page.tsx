@@ -22,6 +22,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { VideoCard } from "@/components/ui/VideoCard";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState } from "@/components/common/ErrorState";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -267,13 +268,11 @@ export default function DashboardPage() {
         {loading && !data ? (
           <InlineSpinner />
         ) : error ? (
-          <div className="py-20 text-center">
-            <BarChart3 size={48} className="mx-auto text-muted mb-4" />
-            <p className="text-muted">加载数据失败，请稍后重试</p>
-            <Button onClick={loadData} className="mt-4">
-              重试
-            </Button>
-          </div>
+          <ErrorState
+            icon={BarChart3}
+            title="加载数据失败，请稍后重试"
+            onRetry={loadData}
+          />
         ) : data ? (
           <>
             {/* Stat cards */}

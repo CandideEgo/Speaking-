@@ -107,28 +107,33 @@ async def get_feed(
     db: AsyncSession,
     user_id: str | None,
     post_type: str | None = None,
+    sort: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
     """Return a mixed feed: posts from followed users + popular posts from all users.
 
     If the user has no follows yet, fall back to trending (most-liked) posts.
+    ``sort="trending"`` forces global trending order regardless of follows.
     """
     offset = (page - 1) * page_size
 
-    # Determine followed user IDs
-    followed_ids: list[str] = []
-    if user_id:
-        result = await db.execute(select(Follow.followee_id).where(Follow.follower_id == user_id))
-        followed_ids = [row[0] for row in result.all()]
-
-    # Base query filter
-    conditions = []
-    if post_type:
-        conditions.append(Post.post_type == post_type)
-
-    # If user follows others, show their posts first, then fill with popular
-    if followed_ids:
+    # Trending: always sort by like_count globally
+    if sort == "trending":
+        conditions = []
+        if post_type:
+            conditions.append(Post.post_type == post_type)
+        stmt = select(Post)
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+        stmt = stmt.order_by(Post.like_count.desc(), Post.created_at.desc())
+        result = await db.execute(stmt)
+        all_posts = list(result.scalars().all())
+    elif followed_ids := (
+        [row[0] for row in (await db.execute(select(Follow.followee_id).where(Follow.follower_id == user_id))).all()]
+        if user_id
+        else []
+    ):
         # Priority: followed users' posts
         followed_conditions = [Post.user_id.in_(followed_ids), *conditions]
         stmt_followed = select(Post).where(and_(*followed_conditions)).order_by(Post.created_at.desc())

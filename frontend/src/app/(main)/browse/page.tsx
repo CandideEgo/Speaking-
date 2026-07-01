@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
+import { ErrorState } from "@/components/common/ErrorState";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { PageTransition } from "@/components/common/PageTransition";
 
@@ -78,14 +79,7 @@ export default function BrowsePage() {
         </div>
 
         {/* Error state */}
-        {error && (
-          <div className="text-center py-8">
-            <p className="text-sm text-red-500 mb-2">{error}</p>
-            <Button onClick={retry} variant="outline">
-              重试
-            </Button>
-          </div>
-        )}
+        {error && <ErrorState title={error} onRetry={retry} className="py-8" />}
 
         {/* Results meta */}
         {!error && videos.length > 0 && (
