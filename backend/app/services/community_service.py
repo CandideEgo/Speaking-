@@ -230,15 +230,17 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
 
     Uses row-level locking + atomic SQL increment/decrement to prevent
     race conditions when multiple users like the same post concurrently.
+    Lock the Post row FIRST, then check for existing like — this serializes
+    double-clicks from the same user so the second sees the first's row.
     """
-    result = await db.execute(select(PostLike).where(PostLike.user_id == user_id, PostLike.post_id == post_id))
-    existing = result.scalar_one_or_none()
-
     # Lock the post row to serialize concurrent counter updates.
     post_result = await db.execute(select(Post).where(Post.id == post_id).with_for_update())
     post = post_result.scalar_one_or_none()
     if post is None:
         raise ValueError("Post not found")
+
+    result = await db.execute(select(PostLike).where(PostLike.user_id == user_id, PostLike.post_id == post_id))
+    existing = result.scalar_one_or_none()
 
     if existing:
         await db.delete(existing)
@@ -260,7 +262,14 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
                 db=db,
                 related_url=f"/community?post={post_id}",
             )
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_post_like" in str(exc):
+                # Duplicate like from a race — treat as already liked
+                return {"liked": True}
+            raise
         return {"liked": True}
 
 
@@ -361,16 +370,17 @@ async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -
 
     Uses row-level locking + atomic SQL increment/decrement to prevent
     race conditions when multiple users like the same comment concurrently.
+    Lock the comment row FIRST, then check for existing like.
     """
-    result = await db.execute(
-        select(CommentLike).where(CommentLike.user_id == user_id, CommentLike.comment_id == comment_id)
-    )
-    existing = result.scalar_one_or_none()
-
     comment_result = await db.execute(select(UserComment).where(UserComment.id == comment_id).with_for_update())
     comment = comment_result.scalar_one_or_none()
     if comment is None:
         raise ValueError("Comment not found")
+
+    result = await db.execute(
+        select(CommentLike).where(CommentLike.user_id == user_id, CommentLike.comment_id == comment_id)
+    )
+    existing = result.scalar_one_or_none()
 
     if existing:
         await db.delete(existing)
@@ -381,7 +391,13 @@ async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -
         like = CommentLike(user_id=user_id, comment_id=comment_id)
         db.add(like)
         comment.like_count = (comment.like_count or 0) + 1
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_comment_like" in str(exc):
+                return {"liked": True}
+            raise
         return {"liked": True}
 
 
@@ -475,12 +491,16 @@ async def get_post_comments(
 
 
 async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) -> dict:
-    """Toggle follow/unfollow. Returns {"following": bool}."""
+    """Toggle follow/unfollow. Returns {"following": bool}.
+
+    Locks the followee User row to serialize concurrent follow toggles from
+    the same follower, preventing duplicate Follow rows.
+    """
     if follower_id == followee_id:
         raise ValueError("Cannot follow yourself")
 
-    # Verify followee exists
-    followee_result = await db.execute(select(User).where(User.id == followee_id))
+    # Lock the followee row to serialize concurrent toggles
+    followee_result = await db.execute(select(User).where(User.id == followee_id).with_for_update())
     if followee_result.scalar_one_or_none() is None:
         raise ValueError("User not found")
 
@@ -506,7 +526,13 @@ async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) ->
             db=db,
             related_url="/community",
         )
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_follow" in str(exc):
+                return {"following": True}
+            raise
         return {"following": True}
 
 
@@ -600,15 +626,15 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
 
     Auto-features the video if like_count or favorite_count reaches
     FEATURE_THRESHOLD. Uses row-level locking + atomic SQL increment/decrement
-    to prevent race conditions.
+    to prevent race conditions. Lock the Video row FIRST, then check like.
     """
-    result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
-    existing = result.scalar_one_or_none()
-
     video_result = await db.execute(select(Video).where(Video.id == video_id).with_for_update())
     video = video_result.scalar_one_or_none()
     if video is None:
         raise ValueError("Video not found")
+
+    result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
+    existing = result.scalar_one_or_none()
 
     if existing:
         await db.delete(existing)
@@ -622,7 +648,13 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
         # Auto-feature check
         if video.like_count >= FEATURE_THRESHOLD or video.favorite_count >= FEATURE_THRESHOLD:
             video.is_featured = True
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_video_like" in str(exc):
+                return {"liked": True}
+            raise
         return {"liked": True}
 
 
