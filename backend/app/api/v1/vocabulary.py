@@ -114,18 +114,16 @@ async def submit_quiz(
     if not quiz_data:
         raise HTTPException(status_code=400, detail="No active quiz found. Please generate a quiz first.")
 
-    # Collect stored questions using server-stored correct answers
-    questions = []
-    for ans in body.answers:
-        q = quiz_data.get(ans.question_id)
-        if q:
-            questions.append(q)
+    # Pass ALL stored questions to the service — unanswered questions are scored
+    # as incorrect. Passing only answered questions would let users strategically
+    # skip hard questions to inflate their score.
+    all_questions = list(quiz_data.values())
 
     result = await vocabulary_service.submit_quiz(
         db=db,
         user_id=current_user.id,
         answers=[a.model_dump() for a in body.answers],
-        questions=questions,
+        questions=all_questions,
     )
 
     # Clean up stored quiz from Redis

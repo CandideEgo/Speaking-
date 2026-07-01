@@ -136,42 +136,30 @@ async def submit_quiz(
     Returns:
         QuizSubmitResponse dict: {score, total, results}
     """
-    # Build lookup: question_id -> question data
-    question_map = {q["id"]: q for q in questions}
+    # Build lookup: question_id -> user answer
+    answer_map = {ans["question_id"]: ans["answer"] for ans in answers}
 
     score = 0
     results = []
     now = datetime.now(UTC)
 
-    for ans in answers:
-        qid = ans["question_id"]
-        user_answer = ans["answer"]
-        q = question_map.get(qid)
-
-        if not q:
-            results.append(
-                {
-                    "question_id": qid,
-                    "correct": False,
-                    "correct_answer": "unknown",
-                    "user_answer": user_answer,
-                }
-            )
-            continue
-
+    # Iterate ALL stored questions so unanswered ones count as incorrect
+    # (prevents score inflation by skipping hard questions).
+    for q in questions:
+        qid = q["id"]
         quiz_type = q["quiz_type"]
         word = q["word"]
+        user_answer = answer_map.get(qid)
 
         # Determine correct answer based on quiz type
         if quiz_type == "multiple_choice" or quiz_type == "translation" or quiz_type == "context_fill":
             correct_index = q.get("correct_answer_index", 0)
             options = q.get("options", [])
             correct_answer = options[correct_index] if options and correct_index < len(options) else ""
-            # For multiple choice, user_answer is the selected option text
-            is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
+            is_correct = user_answer is not None and user_answer.strip().lower() == correct_answer.strip().lower()
         elif quiz_type == "spelling":
             correct_answer = word
-            is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
+            is_correct = user_answer is not None and user_answer.strip().lower() == correct_answer.strip().lower()
         else:
             correct_answer = ""
             is_correct = False
@@ -184,11 +172,11 @@ async def submit_quiz(
                 "question_id": qid,
                 "correct": is_correct,
                 "correct_answer": correct_answer,
-                "user_answer": user_answer,
+                "user_answer": user_answer if user_answer is not None else "",
             }
         )
 
-        # Update SM-2 review for this word
+        # Update SM-2 review for this word (unanswered -> quality 2, same as wrong)
         quality = 5 if is_correct else 2
         await _update_word_review(db, user_id, word, quality, now)
 
@@ -196,7 +184,7 @@ async def submit_quiz(
 
     return {
         "score": score,
-        "total": len(answers),
+        "total": len(questions),
         "results": results,
     }
 
