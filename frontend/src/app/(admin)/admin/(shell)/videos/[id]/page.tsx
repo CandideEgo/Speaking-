@@ -205,6 +205,9 @@ function MetadataForm({
   const [isFeatured, setIsFeatured] = useState(
     "is_featured" in video ? (video.is_featured as boolean) : false,
   );
+  const [showOnHomepage, setShowOnHomepage] = useState(
+    "show_on_homepage" in video ? (video.show_on_homepage as boolean) : false,
+  );
   const [isPublished, setIsPublished] = useState(video.is_published);
   const [adminNotes, setAdminNotes] = useState(
     "admin_notes" in video ? ((video.admin_notes as string | null) ?? "") : "",
@@ -223,6 +226,7 @@ function MetadataForm({
         topic_tags: topicTags || null,
         is_official: isOfficial,
         is_featured: isFeatured,
+        show_on_homepage: showOnHomepage,
         is_published: isPublished,
         admin_notes: adminNotes || null,
       });
@@ -303,6 +307,14 @@ function MetadataForm({
             onChange={(e) => setIsFeatured(e.target.checked)}
           />
           精选
+        </label>
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={showOnHomepage}
+            onChange={(e) => setShowOnHomepage(e.target.checked)}
+          />
+          首页展示
         </label>
         <label className="inline-flex items-center gap-2">
           <input
