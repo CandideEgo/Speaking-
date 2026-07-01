@@ -58,11 +58,20 @@ from app.services.subtitle_edit_service import (
     update_word_levels as _update_word_levels,
 )
 from app.services.upload_service import handle_video_upload
-from app.services.video_service import (
+from app.services.video_review_service import (
     approve_review as _approve_review,
 )
-from app.services.video_service import (
+from app.services.video_review_service import (
     begin_edit as _begin_edit,
+)
+from app.services.video_review_service import (
+    reject_review as _reject_review,
+)
+from app.services.video_review_service import (
+    submit_for_review as _submit_for_review,
+)
+from app.services.video_review_service import (
+    withdraw_submission as _withdraw_submission,
 )
 from app.services.video_service import (
     delete_video as _delete_video,
@@ -86,25 +95,16 @@ from app.services.video_service import (
     localize_video_admin as _localize_video_admin,
 )
 from app.services.video_service import (
-    reject_review as _reject_review,
-)
-from app.services.video_service import (
     seed_user_video as _seed_user_video,
 )
 from app.services.video_service import (
     seed_video as _seed_video,
 )
 from app.services.video_service import (
-    submit_for_review as _submit_for_review,
-)
-from app.services.video_service import (
     submit_video as _submit_video,
 )
 from app.services.video_service import (
     update_video as _update_video,
-)
-from app.services.video_service import (
-    withdraw_submission as _withdraw_submission,
 )
 
 router = APIRouter(prefix="/videos", tags=["videos"])
