@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import {
@@ -103,9 +103,7 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
 // --- Page ---
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const user = useAuthStore((s) => s.user);
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -186,13 +184,9 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
     loadData();
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading]);
 
   // Weekly activity from the daily-activity snapshots (last 7 days).
   const weeklyActivity = useMemo(() => {

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
 import { POST_TYPE_META } from "@/lib/community";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -95,9 +95,7 @@ const TABS = [
 // --- Page ---
 
 export default function CommunityPage() {
-  const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const user = useAuthStore((s) => s.user);
 
   const [activeTab, setActiveTab] = useState("feed");
@@ -117,11 +115,7 @@ export default function CommunityPage() {
   );
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
     if (activeTab === "videos") {
       loadCommunityVideos();
     } else {

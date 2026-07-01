@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { cn } from "@/lib/utils";
 import SpeakingRecorder from "@/components/speaking/SpeakingRecorder";
 import { Button } from "@/components/ui/Button";
@@ -64,17 +64,8 @@ const MODE_CARDS: {
 
 export default function SpeakingPage() {
   const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const [showRecorder, setShowRecorder] = useState(false);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   function handleModeClick(card: (typeof MODE_CARDS)[number]) {
     if (card.key === "free_speaking") {

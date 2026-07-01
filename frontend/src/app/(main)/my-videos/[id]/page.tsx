@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import {
   beginEdit,
@@ -43,11 +43,9 @@ import { TabPills } from "@/components/ui/TabPills";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
-  const router = useRouter();
   const params = useParams<{ id: string }>();
   const videoId = params.id;
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
 
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,13 +69,9 @@ export default function MyVideoEditorPage() {
   }, [videoId]);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
     load();
-  }, [isAuthenticated, isLoading, router, load]);
+  }, [isAuthenticated, isLoading, load]);
 
   // Poll while processing.
   useEffect(() => {

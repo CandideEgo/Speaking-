@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 
@@ -38,23 +39,19 @@ const GOALS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const {
-    isAuthenticated,
-    isLoading: authLoading,
-    setOnboardingCompleted,
-  } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth({
+    replace: true,
+  });
+  const { setOnboardingCompleted } = useAuthStore();
   const [step, setStep] = useState(0);
   const [level, setLevel] = useState<string | null>(null);
   const [goalType, setGoalType] = useState<string>("speaking_attempts");
   const [goalValue, setGoalValue] = useState(5);
   const [saving, setSaving] = useState(false);
 
-  // Auth guard — redirect unauthenticated users to login
+  // Auth guard handled by useRequireAuth hook (redirects to /login)
   if (authLoading) return null;
-  if (!isAuthenticated) {
-    router.replace("/login");
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   async function handleComplete() {
     setSaving(true);

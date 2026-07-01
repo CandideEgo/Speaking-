@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
+import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { TrustStrip } from "@/components/landing/TrustStrip";
@@ -14,14 +12,7 @@ import { FinalCTA } from "@/components/landing/FinalCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export default function LandingPage() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuthStore();
-
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace("/dashboard");
-    }
-  }, [isLoading, isAuthenticated, router]);
+  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated();
 
   if (isLoading) {
     return (

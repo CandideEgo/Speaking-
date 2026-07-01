@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/common/ErrorState";
 import { User as UserIcon, Settings, BookOpen } from "lucide-react";
@@ -23,8 +23,7 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export default function ProfilePage() {
   const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -32,11 +31,7 @@ export default function ProfilePage() {
 
   // Fetch user + preferences once auth is initialized
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
 
     let cancelled = false;
     setLoading(true);

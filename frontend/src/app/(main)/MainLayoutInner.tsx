@@ -6,20 +6,13 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { FullPageSpinner } from "@/components/common/Spinner";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { api } from "@/lib/api";
 
 export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading } = useRequireAuth({ replace: true });
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
-
-  // Auth guard: redirect unauthenticated users to login page
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [isLoading, isAuthenticated, router]);
 
   // 锁住 <html> 滚动：(main) 布局是单页式，由内部 <main> 负责滚动。
   // 不锁的话，<main> 内容溢出会泄漏到 <html>，产生额外的浏览器滚动条

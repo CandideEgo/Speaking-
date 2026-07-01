@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -17,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
@@ -74,9 +73,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export default function MyVideosPage() {
-  const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
 
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,13 +93,9 @@ export default function MyVideosPage() {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
     load();
-  }, [isAuthenticated, isLoading, router, load]);
+  }, [isAuthenticated, isLoading, load]);
 
   // Poll processing videos until they're ready/error.
   useEffect(() => {

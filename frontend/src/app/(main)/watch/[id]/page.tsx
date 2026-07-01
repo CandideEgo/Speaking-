@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWatchStore } from "@/stores/watchStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVideoPlayer } from "@/hooks/useVideoPlayer";
 import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -115,8 +115,7 @@ export default function WatchPage() {
     saveNote,
     clearNote,
   } = useVideoMeta(id);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const requireAuth = (): boolean => {
     if (isLoading || !isAuthenticated) {
       router.push("/login");

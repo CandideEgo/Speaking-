@@ -1,10 +1,9 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
@@ -13,9 +12,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import type { ActivityCalendar, LearningRecord } from "@/types";
 
 export default function HistoryPage() {
-  const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const [loading, setLoading] = useState(true);
 
   // Month navigation
@@ -28,14 +25,6 @@ export default function HistoryPage() {
   const [records, setRecords] = useState<LearningRecord[]>([]);
   const [recordsPage, setRecordsPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   // Fetch activity calendar
   useEffect(() => {

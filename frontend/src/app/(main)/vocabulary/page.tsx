@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   BookOpen,
   Trash2,
@@ -73,9 +72,7 @@ function getLevelBadge(level: string | null | undefined) {
 }
 
 export default function VocabularyPage() {
-  const router = useRouter();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const { isAuthenticated, isLoading } = useRequireAuth();
   const [words, setWords] = useState<VocabWord[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -93,11 +90,7 @@ export default function VocabularyPage() {
   );
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    if (isLoading || !isAuthenticated) return;
     loadWords();
     loadStats();
   }, [dueOnly, isLoading, isAuthenticated]);
