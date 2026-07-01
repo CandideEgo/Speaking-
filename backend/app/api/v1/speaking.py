@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -252,7 +252,7 @@ async def list_attempts(
 @rate_limit("30/minute")
 async def speaking_stats(
     request: Request,
-    period: str = "all",
+    period: str = Query("all", pattern="^(today|week|month|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

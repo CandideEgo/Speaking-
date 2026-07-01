@@ -617,14 +617,17 @@ async def search_videos(
         return []
 
     limit = max(1, min(limit, 50))
-    pattern = f"%{query.strip()}%"
+    q = query.strip()
+    # Escape LIKE wildcards to prevent injection (e.g. searching "%" matches everything)
+    escaped_q = q.replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped_q}%"
 
     # Full-text search query (handles special chars safely)
     ts_query = func.plainto_tsquery("english", query.strip())
 
     # Relevance: ts_rank for FTS + small ILIKE bonus for partial matches
     relevance = func.ts_rank(Video.search_vector, ts_query) + case(
-        (Video.title.ilike(pattern), 0.5),
+        (Video.title.ilike(pattern, escape="\\"), 0.5),
         else_=0,
     )
 
@@ -640,8 +643,8 @@ async def search_videos(
     # Match via tsvector OR ILIKE fallback (for partial/non-English queries)
     match_filter = or_(
         Video.search_vector.op("@@")(ts_query),
-        Video.title.ilike(pattern),
-        Video.topic_tags.ilike(pattern),
+        Video.title.ilike(pattern, escape="\\"),
+        Video.topic_tags.ilike(pattern, escape="\\"),
     )
 
     stmt = (
@@ -673,8 +676,10 @@ async def search_subtitles(
     from app.models.subtitle import Subtitle
 
     limit = max(1, min(limit, 30))
-    pattern = f"%{query.strip()}%"
-    ts_query = func.plainto_tsquery("english", query.strip())
+    q = query.strip()
+    escaped_q = q.replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped_q}%"
+    ts_query = func.plainto_tsquery("english", q)
 
     # Find subtitles matching the query, join to video for access control
     stmt = (
@@ -684,7 +689,7 @@ async def search_subtitles(
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
             or_(and_(Video.is_official == True, Video.is_published == True), Video.user_id == user_id),
             or_(
-                Subtitle.text_en.ilike(pattern),
+                Subtitle.text_en.ilike(pattern, escape="\\"),
                 Subtitle.text_en.op("@@")(ts_query),
             ),
         )
@@ -756,8 +761,9 @@ async def list_all_videos(
     if review_status:
         stmt = stmt.where(Video.review_status == review_status)
     if keyword and keyword.strip():
-        pattern = f"%{keyword.strip()}%"
-        stmt = stmt.where(or_(Video.title.ilike(pattern), Video.topic_tags.ilike(pattern)))
+        escaped_kw = keyword.strip().replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_kw}%"
+        stmt = stmt.where(or_(Video.title.ilike(pattern, escape="\\"), Video.topic_tags.ilike(pattern, escape="\\")))
 
     # total count for has_more
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
