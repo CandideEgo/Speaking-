@@ -14,7 +14,9 @@ class SpeakingAttempt(Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    subtitle_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("subtitles.id"), nullable=True)
+    subtitle_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("subtitles.id", ondelete="SET NULL"), nullable=True
+    )
     audio_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -40,7 +42,9 @@ class LearningRecord(Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    video_id: Mapped[str] = mapped_column(String(36), ForeignKey("videos.id"), nullable=False, index=True)
+    video_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     words_learned: Mapped[int] = mapped_column(Integer, default=0)
     speaking_attempts: Mapped[int] = mapped_column(Integer, default=0)
     quiz_score: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -76,7 +80,9 @@ class Vocabulary(Base):
     difficulty_level: Mapped[str | None] = mapped_column(String(5), nullable=True)  # A1-C2
     mastery_level: Mapped[str] = mapped_column(String(20), default="new")  # new/learning/reviewing/mastered
     context_sentence: Mapped[str | None] = mapped_column(Text, nullable=True)
-    video_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("videos.id"), nullable=True, index=True)
+    video_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     review_count: Mapped[int] = mapped_column(Integer, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
