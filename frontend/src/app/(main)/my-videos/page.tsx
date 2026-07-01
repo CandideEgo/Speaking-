@@ -21,6 +21,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
 import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
 import type { Video } from "@/types";
@@ -216,10 +217,7 @@ export default function MyVideosPage() {
         {loading ? (
           <InlineSpinner />
         ) : videos.length === 0 ? (
-          <div className="py-20 text-center">
-            <Plus size={48} className="mx-auto text-muted" />
-            <p className="mt-4 text-muted">还没有上传过视频。</p>
-          </div>
+          <EmptyState icon={Plus} title="还没有上传过视频。" />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {videos.map((v) => {

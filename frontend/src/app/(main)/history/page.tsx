@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
+import { EmptyState } from "@/components/common/EmptyState";
 import type { ActivityCalendar, LearningRecord } from "@/types";
 
 export default function HistoryPage() {
@@ -168,10 +169,11 @@ export default function HistoryPage() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coral" />
             </div>
           ) : records.length === 0 ? (
-            <div className="py-12 text-center">
-              <Calendar size={48} className="mx-auto text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">暂无学习记录</p>
-            </div>
+            <EmptyState
+              icon={Calendar}
+              title="暂无学习记录"
+              className="py-12"
+            />
           ) : (
             <div className="space-y-2">
               {records.map((record) => (

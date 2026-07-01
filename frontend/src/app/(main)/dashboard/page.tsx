@@ -21,6 +21,7 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { VideoCard } from "@/components/ui/VideoCard";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -451,13 +452,11 @@ export default function DashboardPage() {
             )}
           </>
         ) : (
-          <div className="py-20 text-center">
-            <BarChart3 size={48} className="mx-auto text-muted mb-4" />
-            <p className="text-muted">暂无学习数据，开始你的第一次练习吧！</p>
-            <LinkButton href="/browse" className="mt-4">
-              浏览视频
-            </LinkButton>
-          </div>
+          <EmptyState
+            icon={BarChart3}
+            title="暂无学习数据，开始你的第一次练习吧！"
+            action={<LinkButton href="/browse">浏览视频</LinkButton>}
+          />
         )}
       </div>
     </main>

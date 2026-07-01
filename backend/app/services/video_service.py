@@ -482,6 +482,8 @@ async def get_video_detail(
         video_url_480p=video.video_url_480p,
         video_url_720p=video.video_url_720p,
         video_url_1080p=video.video_url_1080p,
+        like_count=video.like_count,
+        favorite_count=video.favorite_count,
         processing_mode=video.processing_mode,
         created_at=video.created_at.isoformat(),
         subtitles=subtitle_responses,

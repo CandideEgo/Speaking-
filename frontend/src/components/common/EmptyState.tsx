@@ -8,14 +8,21 @@ import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
 interface EmptyStateProps {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   title: string;
   description?: string;
   action?: React.ReactNode;
+  /** Override padding — default "py-20" */
   className?: string;
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+}: EmptyStateProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -36,22 +43,22 @@ export function EmptyState({ icon: Icon, title, description, action, className }
       });
       return () => mm.revert();
     },
-    { scope: ref }
+    { scope: ref },
   );
 
   return (
     <div
       ref={ref}
       className={cn(
-        "flex flex-col items-center justify-center py-16 text-center animate-fade-in",
-        className
+        "flex flex-col items-center justify-center py-20 text-center animate-fade-in",
+        className,
       )}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cream-soft text-olive">
-        <Icon size={24} strokeWidth={1.5} />
-      </div>
-      <p className="mt-4 text-sm font-medium text-ink">{title}</p>
-      {description && <p className="mt-1 text-xs text-olive max-w-xs">{description}</p>}
+      {Icon && <Icon size={48} className="mx-auto text-muted mb-4" />}
+      <p className="text-muted">{title}</p>
+      {description && (
+        <p className="mt-1 text-xs text-muted max-w-xs">{description}</p>
+      )}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );

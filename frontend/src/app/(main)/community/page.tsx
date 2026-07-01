@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/Input";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { InlineSpinner } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
@@ -344,10 +345,7 @@ export default function CommunityPage() {
             {loading ? (
               <InlineSpinner />
             ) : communityVideos.length === 0 ? (
-              <div className="py-20 text-center">
-                <Play size={48} className="mx-auto text-muted" />
-                <p className="mt-4 text-muted">暂无社区视频</p>
-              </div>
+              <EmptyState icon={Play} title="暂无社区视频" />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {communityVideos.map((v) => (
@@ -433,9 +431,7 @@ export default function CommunityPage() {
               {loading ? (
                 <InlineSpinner className="py-12" />
               ) : posts.length === 0 ? (
-                <div className="py-20 text-center">
-                  <p className="text-muted">还没有帖子，来发布第一条吧！</p>
-                </div>
+                <EmptyState title="还没有帖子，来发布第一条吧！" />
               ) : (
                 posts.map((post) => {
                   const tag = POST_TYPE_TAGS[post.post_type];

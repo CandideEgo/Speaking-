@@ -5,9 +5,27 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "sans-serif",
+        ],
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          "sans-serif",
+        ],
+        mono: [
+          '"JetBrains Mono"',
+          "ui-monospace",
+          "SFMono-Regular",
+          "monospace",
+        ],
       },
       colors: {
         // Brand primary (vivid orange)
@@ -55,7 +73,7 @@ const config: Config = {
         "cream-soft": "#fafafa",
         "cream-card": "#f4f4f5",
         "cream-strong": "#ededed",
-        "cream": "#f4f4f5",
+        cream: "#f4f4f5",
         parchment: "#fafafa",
         navy: "#0a0a0a",
         "navy-elevated": "#161616",
@@ -97,6 +115,14 @@ const config: Config = {
         },
         error: "#dc2626",
         danger: "#dc2626",
+
+        // Soft-background pairs for tags/badges
+        sky: {
+          soft: "#f0f9ff",
+        },
+        red: {
+          soft: "#fef2f2",
+        },
 
         // Teal / amber (legacy)
         teal: "#10b981",

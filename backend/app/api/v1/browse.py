@@ -146,6 +146,9 @@ def _video_to_dict(v: Video) -> dict:
         "difficulty_level": v.difficulty_level,
         "topic_tags": v.topic_tags,
         "is_official": v.is_official,
+        "video_source": v.video_source.value if v.video_source else None,
+        "like_count": v.like_count,
+        "favorite_count": v.favorite_count,
         "status": v.status.value if v.status else None,
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }

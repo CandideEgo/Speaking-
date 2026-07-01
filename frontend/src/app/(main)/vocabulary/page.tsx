@@ -18,6 +18,7 @@ import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -249,14 +250,14 @@ export default function VocabularyPage() {
         {loading ? (
           <InlineSpinner />
         ) : words.length === 0 ? (
-          <div className="py-20 text-center">
-            <BookOpen size={48} className="mx-auto text-muted" />
-            <p className="mt-4 text-muted">
-              {dueOnly
+          <EmptyState
+            icon={BookOpen}
+            title={
+              dueOnly
                 ? "今天没有需要复习的单词！"
-                : "词汇本为空。观看视频时点击单词即可收藏。"}
-            </p>
-          </div>
+                : "词汇本为空。观看视频时点击单词即可收藏。"
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {words.map((w) => {
