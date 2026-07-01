@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.user import (
     MessageResponse,
@@ -19,12 +20,15 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+@rate_limit("30/minute")
+async def get_me(request: Request, current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 
 
 @router.patch("/me", response_model=UserResponse)
+@rate_limit("10/minute")
 async def update_me(
+    request: Request,
     data: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -45,7 +49,9 @@ async def update_me(
 
 
 @router.post("/me/onboarding", response_model=MessageResponse)
+@rate_limit("5/minute")
 async def complete_onboarding(
+    request: Request,
     data: OnboardingRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -57,7 +63,9 @@ async def complete_onboarding(
 
 
 @router.get("/me/preferences", response_model=UserPreferencesResponse)
+@rate_limit("30/minute")
 async def get_preferences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -90,7 +98,9 @@ async def get_preferences(
 
 
 @router.put("/me/preferences", response_model=UserPreferencesResponse)
+@rate_limit("10/minute")
 async def update_preferences(
+    request: Request,
     data: UserPreferencesUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -132,7 +142,9 @@ async def update_preferences(
 
 
 @router.get("/me/activity")
+@rate_limit("30/minute")
 async def get_my_activity(
+    request: Request,
     year: int = Query(..., ge=1900, le=2100),
     month: int = Query(..., ge=1, le=12),
     current_user: User = Depends(get_current_user),
@@ -148,7 +160,9 @@ async def get_my_activity(
 
 
 @router.get("/me/streak")
+@rate_limit("30/minute")
 async def get_my_streak(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -161,7 +175,9 @@ async def get_my_streak(
 
 
 @router.get("/me/stats")
+@rate_limit("30/minute")
 async def get_my_stats(
+    request: Request,
     period: str = Query("all", pattern="^(today|week|month|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

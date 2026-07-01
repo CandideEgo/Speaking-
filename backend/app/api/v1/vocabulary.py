@@ -1,12 +1,13 @@
 import json
 from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.learning import Vocabulary
 from app.models.user import User
 from app.schemas.vocabulary import (
@@ -53,7 +54,9 @@ async def _delete_quiz(user_id: str):
 
 
 @router.get("/stats", response_model=VocabularyStatsResponse)
+@rate_limit("30/minute")
 async def vocabulary_stats(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,7 +65,9 @@ async def vocabulary_stats(
 
 
 @router.post("/quiz", response_model=list[QuizQuestionResponse])
+@rate_limit("5/minute")
 async def generate_quiz(
+    request: Request,
     body: QuizGenerateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -96,7 +101,9 @@ async def generate_quiz(
 
 
 @router.post("/quiz/submit", response_model=QuizSubmitResponse)
+@rate_limit("10/minute")
 async def submit_quiz(
+    request: Request,
     body: QuizSubmitRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -131,7 +138,9 @@ async def submit_quiz(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@rate_limit("20/minute")
 async def add_word(
+    request: Request,
     word: str,
     context_sentence: str | None = None,
     video_id: str | None = None,
@@ -168,7 +177,9 @@ async def add_word(
 
 
 @router.get("")
+@rate_limit("30/minute")
 async def list_vocabulary(
+    request: Request,
     due_only: bool = Query(False, description="Only show words due for review"),
     limit: int = Query(50, le=200),
     current_user: User = Depends(get_current_user),
@@ -226,7 +237,9 @@ async def list_vocabulary(
 
 
 @router.get("/{word_id}/enrich", response_model=VocabularyEnrichResponse)
+@rate_limit("5/minute")
 async def enrich_word(
+    request: Request,
     word_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -244,7 +257,9 @@ async def enrich_word(
 
 
 @router.post("/{word_id}/review")
+@rate_limit("20/minute")
 async def review_word(
+    request: Request,
     word_id: str,
     quality: int = Query(..., ge=0, le=5, description="Self-assessment 0-5"),
     current_user: User = Depends(get_current_user),
@@ -298,7 +313,9 @@ async def review_word(
 
 
 @router.delete("/{word_id}")
+@rate_limit("20/minute")
 async def remove_word(
+    request: Request,
     word_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

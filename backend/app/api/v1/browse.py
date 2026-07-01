@@ -105,7 +105,7 @@ async def browse_feed(
 async def browse_featured(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(6, ge=1, le=12),
+    limit: int = Query(6, ge=1, le=100),
 ):
     """Return featured/highlighted videos for homepage hero section."""
     cache_key = f"browse:featured:{limit}"

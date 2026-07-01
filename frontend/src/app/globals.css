@@ -151,9 +151,6 @@
   }
 
   /* === Current subtitle display === */
-  .now-sub {
-    @apply mt-[18px] bg-surface-soft border border-hairline rounded-lg p-[22px] text-center;
-  }
   .now-sub-en {
     @apply text-lg font-semibold text-ink leading-relaxed;
   }

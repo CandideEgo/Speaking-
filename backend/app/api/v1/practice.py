@@ -13,7 +13,7 @@ POST /api/v1/videos/{video_id}/practice/grade
 Pro-gated: practice is a Pro feature (annotation/highlighting stays free).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,7 @@ from app.api.dependencies import (
 )
 from app.core.database import get_db
 from app.core.exam_levels import EXAM_LEVEL_KEYS, level_order, max_level, should_display
+from app.core.limiter import rate_limit
 from app.models.practice import VideoPracticeQuestion
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
@@ -141,7 +142,9 @@ def _transcript(subtitles) -> str:
 
 
 @router.get("/{video_id}/practice", response_model=PracticeSet)
+@rate_limit("10/minute")
 async def get_practice(
+    request: Request,
     video_id: str,
     level: str = Query(..., description="Target exam level key"),
     count: int = Query(DEFAULT_COUNT, ge=1, le=12),
@@ -270,7 +273,9 @@ class VocabDrillSet(BaseModel):
 
 
 @router.get("/{video_id}/vocabulary-drill", response_model=VocabDrillSet)
+@rate_limit("10/minute")
 async def get_vocabulary_drill(
+    request: Request,
     video_id: str,
     level: str = Query(..., description="Target exam level key"),
     current_user: User = Depends(get_current_user),
@@ -354,7 +359,9 @@ def _shuffle_options(options: list[str]) -> None:
 
 
 @router.post("/{video_id}/practice/grade", response_model=GradeResponse)
+@rate_limit("20/minute")
 async def grade_practice_answer(
+    request: Request,
     video_id: str,
     body: GradeRequest,
     current_user: User = Depends(require_pro_user),
@@ -391,7 +398,9 @@ async def _require_editable_own_video(video_id: str, current_user: User, db: Asy
 
 
 @router.patch("/{video_id}/practice", response_model=PracticeSet)
+@rate_limit("10/minute")
 async def edit_practice(
+    request: Request,
     video_id: str,
     payload: PracticeQuestionEdit,
     level: str = Query(..., description="Target exam level key"),
@@ -438,7 +447,9 @@ async def edit_practice(
 
 
 @router.post("/{video_id}/practice/regenerate", response_model=PracticeSet)
+@rate_limit("5/minute")
 async def regenerate_practice(
+    request: Request,
     video_id: str,
     level: str = Query(..., description="Target exam level key"),
     count: int = Query(DEFAULT_COUNT, ge=1, le=12),

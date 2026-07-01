@@ -8,12 +8,13 @@ lookup is instant), and 真题 (past-paper) example sentences + high-frequency
 badge from the exam corpus.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.user import User
 from app.services import ecdict, exam_corpus, word_notes
 from app.services.ai_service import get_ai_service
@@ -39,7 +40,9 @@ class WordGloss(BaseModel):
 
 
 @router.get("/gloss", response_model=WordGloss)
+@rate_limit("30/minute")
 async def gloss_word(
+    request: Request,
     word: str = Query(..., min_length=1, max_length=100),
     context_sentence: str = Query(default="", max_length=2000),
     video_id: str | None = Query(default=None),
