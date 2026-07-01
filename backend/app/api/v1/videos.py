@@ -688,6 +688,7 @@ async def toggle_video_like(
 
 
 @router.get("/{video_id}/like-status")
+@rate_limit("5/minute")
 async def video_like_status(
     video_id: str,
     db: AsyncSession = Depends(get_db),

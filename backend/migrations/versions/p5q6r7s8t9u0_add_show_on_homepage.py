@@ -12,7 +12,6 @@ the homepage by toggling this field.
 """
 
 from collections.abc import Sequence
-from typing import Union
 
 import sqlalchemy as sa
 from alembic import op

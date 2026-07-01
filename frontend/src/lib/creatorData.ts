@@ -9,13 +9,16 @@
  */
 
 import { api } from "@/lib/api";
-import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
+import type {
+  PracticeQuestion,
+  PracticeSet,
+  Subtitle,
+  Video,
+  VideoWithSubtitles,
+} from "@/types";
 
-export type ReviewStatus =
-  | "draft"
-  | "pending_review"
-  | "published"
-  | "rejected";
+// Re-export types that consumers already import from here
+export type { PracticeQuestion, PracticeSet };
 
 // ---------------------------------------------------------------------------
 // Upload + list
@@ -28,15 +31,6 @@ export async function uploadVideo(file: File, title: string): Promise<Video> {
   form.append("file", file);
   form.append("title", title);
   return api<Video>("/api/v1/videos/upload", { method: "POST", body: form });
-}
-
-/** Seed a video from a URL (YouTube/Bilibili) as a UGC video.
- * The video is created as draft and owned by the current user. */
-export async function seedFromUrl(source_url: string): Promise<Video> {
-  return api<Video>("/api/v1/videos/user-seed", {
-    method: "POST",
-    body: JSON.stringify({ source_url }),
-  });
 }
 
 /** One-click seed from URL: ensures cookies, runs full pipeline.
@@ -96,16 +90,6 @@ export async function updateSubtitle(
   });
 }
 
-export async function updateSubtitlesBatch(
-  videoId: string,
-  updates: (SubtitlePatch & { id: string })[],
-): Promise<Subtitle[]> {
-  return api<Subtitle[]>(`/api/v1/videos/${videoId}/subtitles`, {
-    method: "PATCH",
-    body: JSON.stringify({ updates }),
-  });
-}
-
 export async function updateWordLevels(
   videoId: string,
   subtitleId: string,
@@ -159,31 +143,6 @@ export function withdrawSubmission(videoId: string): Promise<Video> {
 // ---------------------------------------------------------------------------
 // Practice question editing (owner green channel — not Pro-gated)
 // ---------------------------------------------------------------------------
-
-export interface PracticeQuestion {
-  type: "qa" | "fill_blank" | "reading" | "sentence_building";
-  question: string;
-  answer: string;
-  options: string[] | null;
-  cet_words: string[];
-  /** reading: comprehension passage */
-  passage?: string | null;
-  /** sentence_building: shuffled word tokens; answer = correct sentence */
-  tokens?: string[] | null;
-}
-
-export interface PracticeSet {
-  video_id: string;
-  exam_level: string;
-  questions: PracticeQuestion[];
-}
-
-export function getPractice(
-  videoId: string,
-  level: string,
-): Promise<PracticeSet> {
-  return api<PracticeSet>(`/api/v1/videos/${videoId}/practice?level=${level}`);
-}
 
 export function editPractice(
   videoId: string,

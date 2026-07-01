@@ -16,7 +16,6 @@ like_count starts at 0 (no VideoLike rows exist yet).
 """
 
 from collections.abc import Sequence
-from typing import Union
 
 import sqlalchemy as sa
 from alembic import op

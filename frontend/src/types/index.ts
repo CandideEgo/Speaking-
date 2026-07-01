@@ -49,7 +49,6 @@ export interface VideoAdmin extends Video {
   is_featured: boolean;
   show_on_homepage: boolean;
   admin_notes: string | null;
-  error_message: string | null;
   processing_progress: number;
   /** UGC review audit fields (admin sees when a video was submitted/reviewed). */
   submitted_at: string | null;
