@@ -20,12 +20,12 @@ def expire_pending_orders():
     from app.models.order import Order, OrderStatus
 
     async def _process():
+        from sqlalchemy import select
+
         cutoff = datetime.now(UTC) - timedelta(minutes=30)
         async with async_session() as db:
             result = await db.execute(
-                __import__("sqlalchemy")
-                .select(Order)
-                .where(
+                select(Order).where(
                     Order.status == OrderStatus.pending,
                     Order.created_at < cutoff,
                 )

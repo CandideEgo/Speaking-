@@ -65,16 +65,12 @@ async def _reload_rubric(db: AsyncSession, rubric_id: str) -> SpeakingRubric:
 
 
 async def _invalidate_rubric_cache():
-    """Delete rubric cache keys from Redis."""
+    """Delete rubric cache keys from Redis using the shared async client."""
     try:
-        import redis
+        from app.core.redis import get_redis
 
-        from app.core.config import get_settings
-
-        s = get_settings()
-        r = redis.from_url(s.redis_url)
-        r.delete("rubrics:all", "rubrics:default")
-        r.close()
+        r = await get_redis()
+        await r.delete("rubrics:all", "rubrics:default")
     except Exception:
         logger.warning("Failed to invalidate rubric cache", exc_info=True)
 
