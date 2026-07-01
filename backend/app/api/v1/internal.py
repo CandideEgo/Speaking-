@@ -7,12 +7,13 @@ off the pipeline tail. Authenticated by a shared secret (no JWT).
 
 import secrets
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.video import TranscriptionCallbackRequest
@@ -21,7 +22,9 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 @router.post("/transcription/callback")
+@rate_limit("30/minute")
 async def transcription_callback(
+    request: Request,
     payload: TranscriptionCallbackRequest,
     x_callback_secret: str = Header(default="", alias="X-Callback-Secret"),
     db: AsyncSession = Depends(get_db),

@@ -2,6 +2,7 @@
 
 import { ArrowRight, Play, Check, Zap } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 
 export function HeroSection() {
   return (
@@ -10,10 +11,7 @@ export function HeroSection() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-14 items-center">
           {/* Copy */}
           <div>
-            <span className="eyebrow">
-              <span className="eyebrow-pip" />
-              用真实视频学英语 · AI 驱动
-            </span>
+            <Eyebrow>用真实视频学英语 · AI 驱动</Eyebrow>
             <h1 className="!text-[36px] sm:!text-[52px] lg:!text-[68px] !font-black !tracking-[-0.04em] !leading-none mt-6 mb-6">
               Learn English
               <br />

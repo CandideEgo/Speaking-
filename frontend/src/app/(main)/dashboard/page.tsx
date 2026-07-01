@@ -24,6 +24,7 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -242,10 +243,7 @@ export default function DashboardPage() {
         {/* Hero greeting */}
         <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <span className="eyebrow">
-              <span className="eyebrow-pip" />
-              本周学习
-            </span>
+            <Eyebrow>本周学习</Eyebrow>
             <h1 className="!text-[36px] !font-extrabold !tracking-display-lg !mt-2">
               你好,{userName} 👋
             </h1>

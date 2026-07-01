@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { PriceCard } from "@/components/ui/PriceCard";
 import type { ButtonVariant } from "@/components/ui/Button";
 
 const plans: {

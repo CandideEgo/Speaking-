@@ -146,6 +146,12 @@ class Settings(BaseSettings):
                 raise RuntimeError("JWT_SECRET must be set in production")
             if not self.database_url:
                 raise RuntimeError("DATABASE_URL must be set in production")
+            if not self.openai_api_key:
+                raise RuntimeError("OPENAI_API_KEY must be set in production")
+            if not self.redis_url:
+                raise RuntimeError("REDIS_URL must be set in production")
+            if not self.transcription_callback_secret:
+                raise RuntimeError("TRANSCRIPTION_CALLBACK_SECRET must be set in production")
 
 
 @lru_cache

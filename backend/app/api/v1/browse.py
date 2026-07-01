@@ -66,7 +66,9 @@ async def browse_feed(
 
     # Filter by category (topic_tags stores comma-separated values)
     if category and category != "all":
-        stmt = stmt.where(Video.topic_tags.ilike(f"%{category}%"))
+        # Escape LIKE wildcards to prevent injection of % and _ patterns
+        escaped = category.replace("%", "\\%").replace("_", "\\_")
+        stmt = stmt.where(Video.topic_tags.ilike(f"%{escaped}%", escape="\\"))
 
     # Filter by difficulty level
     if level:
