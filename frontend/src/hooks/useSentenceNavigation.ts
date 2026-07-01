@@ -35,16 +35,26 @@ export function useSentenceNavigation({
       setSelectedIndex(index);
       onChange?.(index);
     },
-    [totalSentences, onChange]
+    [totalSentences, onChange],
   );
 
   const nextSentence = useCallback(() => {
-    goToSentence(selectedIndex + 1);
-  }, [selectedIndex, goToSentence]);
+    setSelectedIndex((prev) => {
+      const next = prev + 1;
+      if (next >= totalSentences) return prev;
+      onChange?.(next);
+      return next;
+    });
+  }, [totalSentences, onChange]);
 
   const prevSentence = useCallback(() => {
-    goToSentence(selectedIndex - 1);
-  }, [selectedIndex, goToSentence]);
+    setSelectedIndex((prev) => {
+      const next = prev - 1;
+      if (next < 0) return prev;
+      onChange?.(next);
+      return next;
+    });
+  }, [totalSentences, onChange]);
 
   const randomSentence = useCallback(() => {
     const randomIndex = Math.floor(Math.random() * totalSentences);

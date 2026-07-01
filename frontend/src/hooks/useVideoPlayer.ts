@@ -46,6 +46,13 @@ export function useVideoPlayer({
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
 
+  // Keep a ref in sync so callbacks (navigateSubtitle) can read the latest
+  // video data without stale closures or putting side effects in updaters.
+  const videoDataRef = useRef<VideoWithSubtitles | null>(null);
+  useEffect(() => {
+    videoDataRef.current = video;
+  }, [video]);
+
   // Detect desktop layout
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
@@ -128,18 +135,21 @@ export function useVideoPlayer({
 
   const navigateSubtitle = useCallback(
     (delta: number) => {
-      setVideo((prev) => {
-        if (!prev?.subtitles) return prev;
-        setCurrentSubtitleIndex((prevIdx) => {
-          const newIndex = Math.max(
-            0,
-            Math.min(prev.subtitles.length - 1, prevIdx + delta),
-          );
-          seekTo(prev.subtitles[newIndex].start_time);
-          return newIndex;
-        });
-        return prev;
+      const vd = videoDataRef.current;
+      if (!vd?.subtitles) return;
+      // Use functional update to get the latest index (avoids stale closure).
+      // The state updater is pure — the seekTo side effect runs outside it.
+      let newTime: number | null = null;
+      setCurrentSubtitleIndex((prevIdx) => {
+        const newIndex = Math.max(
+          0,
+          Math.min(vd.subtitles!.length - 1, prevIdx + delta),
+        );
+        newTime = vd.subtitles![newIndex].start_time;
+        return newIndex;
       });
+      // Side effect: seek the video player (must be outside the updater)
+      if (newTime !== null) seekTo(newTime);
     },
     [seekTo],
   );

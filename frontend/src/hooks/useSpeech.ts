@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface UseSpeechOptions {
   lang?: string;
@@ -18,7 +18,9 @@ interface UseSpeechReturn {
  * Hook for SpeechSynthesis boilerplate.
  * Handles creating utterance, speaking, stopping, and isPlaying state.
  */
-export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechReturn {
+export function useSpeech(
+  defaultOptions: UseSpeechOptions = {},
+): UseSpeechReturn {
   const { lang = "en-US", rate = 0.9, onEnd } = defaultOptions;
   const [isPlaying, setIsPlaying] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -46,12 +48,19 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
       utteranceRef.current = u;
       speechSynthesis.speak(u);
     },
-    [lang, rate, onEnd]
+    [lang, rate, onEnd],
   );
 
   const stop = useCallback(() => {
     speechSynthesis.cancel();
     setIsPlaying(false);
+  }, []);
+
+  // Stop speech on unmount to prevent audio playing after navigating away
+  useEffect(() => {
+    return () => {
+      speechSynthesis.cancel();
+    };
   }, []);
 
   return { isPlaying, speak, stop };

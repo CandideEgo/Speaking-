@@ -82,11 +82,13 @@ export function useVideoMeta(videoId: string | undefined) {
 
   async function clearNote() {
     if (!videoId) return;
+    const saved = noteDraft;
     setNoteDraft("");
     try {
       await api(`/api/v1/videos/${videoId}/note`, { method: "DELETE" });
       toast.success("笔记已清空");
     } catch {
+      setNoteDraft(saved); // rollback on failure
       toast.error("清空失败，请重试");
     }
   }

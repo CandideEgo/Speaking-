@@ -118,12 +118,14 @@ export function createApiClient(options: CreateApiClientOptions) {
 
     // Token + pre-request expiry check
     let token = auth.getToken();
+    let alreadyRefreshed = false;
     if (token) {
       const { isTokenExpired } = await import("./jwt");
       if (isTokenExpired(token)) {
         const refreshed = await auth.refreshToken();
         if (refreshed) {
           token = auth.getToken();
+          alreadyRefreshed = true;
         } else {
           throw new ErrorClass("登录已过期，请重新登录", 401);
         }
@@ -159,8 +161,10 @@ export function createApiClient(options: CreateApiClientOptions) {
         throw lastError;
       }
 
-      // 401 → refresh token and retry (only once per request)
-      if (res.status === 401 && attempt === 0) {
+      // 401 → refresh token and retry (only once per request, and only if
+      // we haven't already refreshed in the pre-request check — with rotating
+      // refresh tokens, a second refresh would fail and cause unexpected logout)
+      if (res.status === 401 && attempt === 0 && !alreadyRefreshed) {
         const refreshed = await auth.refreshToken();
         if (refreshed) {
           const newToken = auth.getToken();

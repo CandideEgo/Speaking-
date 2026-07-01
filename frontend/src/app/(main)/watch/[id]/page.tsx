@@ -65,6 +65,18 @@ export default function WatchPage() {
     "idle" | "listening" | "reviewing"
   >("idle");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  // Track the current audioUrl in a ref so the unmount cleanup can revoke
+  // the latest blob URL (prevents memory leaks when navigating away mid-recording).
+  const audioUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    audioUrlRef.current = audioUrl;
+  }, [audioUrl]);
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    };
+  }, []);
   const [noteOpen, setNoteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
