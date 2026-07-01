@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PriceCard } from "@/components/ui/PriceCard";
 
 const PLANS = [
   {
@@ -97,11 +98,7 @@ export default function PricingPage() {
         {/* Plan cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[820px] mx-auto mt-9">
           {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className={cn("price-card", plan.popular && "price-pop")}
-            >
-              {plan.popular && <div className="price-ribbon">最受欢迎</div>}
+            <PriceCard key={plan.id} popular={plan.popular}>
               <div className="text-[15px] font-bold text-muted">
                 {plan.name}
               </div>
@@ -153,7 +150,7 @@ export default function PricingPage() {
                   前往小商店购买
                 </Link>
               )}
-            </div>
+            </PriceCard>
           ))}
         </div>
 

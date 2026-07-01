@@ -227,26 +227,7 @@
   /* (trend-item removed — unused) */
 
   /* === Pricing === */
-  .price-card {
-    @apply bg-canvas border border-hairline rounded-lg p-[30px] flex flex-col;
-  }
-  .price-pop {
-    @apply border-ink border-2 relative;
-  }
-  .price-ribbon {
-    @apply absolute -top-[13px] left-1/2 -translate-x-1/2
-           bg-ink text-on-primary text-[11px] font-bold
-           px-3 py-1 rounded-pill tracking-caption-wide;
-  }
-
-  /* === Eyebrow === */
-  .eyebrow {
-    @apply inline-flex items-center gap-2 text-[13px] font-semibold text-brand-500
-           bg-brand-50 px-3.5 py-1.5 rounded-pill mb-6;
-  }
-  .eyebrow-pip {
-    @apply w-1.5 h-1.5 rounded-full bg-brand-500;
-  }
+  /* (price-card/price-pop/price-ribbon removed — use <PriceCard> component) */
 
   /* === Legacy category tabs (backward compat) === */
   /* (tab-category/tab-category-active removed — unused) */

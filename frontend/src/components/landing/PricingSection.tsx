@@ -67,11 +67,7 @@ export function PricingSection() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px] max-w-[980px] mx-auto">
           {plans.map((p) => (
-            <div
-              key={p.name}
-              className={`price-card ${p.popular ? "price-pop" : ""}`}
-            >
-              {p.popular && <div className="price-ribbon">最受欢迎</div>}
+            <PriceCard key={p.name} popular={p.popular}>
               <div className="text-[15px] font-bold text-muted">{p.name}</div>
               <div className="text-[42px] font-extrabold tracking-display-lg mt-2.5 mb-1">
                 {p.price}
@@ -102,7 +98,7 @@ export function PricingSection() {
               >
                 {p.cta}
               </LinkButton>
-            </div>
+            </PriceCard>
           ))}
         </div>
 
