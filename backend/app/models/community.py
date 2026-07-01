@@ -26,8 +26,8 @@ class Post(Base):
         String(36), ForeignKey("speaking_attempts.id"), nullable=True
     )
     vocabulary_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("vocabulary.id"), nullable=True)
-    like_count: Mapped[int] = mapped_column(Integer, default=0)
-    comment_count: Mapped[int] = mapped_column(Integer, default=0)
+    like_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    comment_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships
@@ -83,7 +83,7 @@ class UserComment(Base):
         String(36), ForeignKey("user_comments.id", ondelete="CASCADE"), nullable=True, index=True
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    like_count: Mapped[int] = mapped_column(Integer, default=0)
+    like_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     is_reported: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
