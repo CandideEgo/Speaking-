@@ -8,6 +8,7 @@ import SpeakingRecorder from "@/components/speaking/SpeakingRecorder";
 import { Button } from "@/components/ui/Button";
 import type { ButtonVariant } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { BookOpen, Mic, ArrowRight } from "lucide-react";
 
 // --- Mode cards data ---
@@ -94,13 +95,11 @@ export default function SpeakingPage() {
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
         {/* Page header */}
-        <div className="page-head">
-          <div className="page-crumb">口语练习</div>
-          <h1 className="page-title">选择模式，开始练习</h1>
-          <p className="page-desc">
-            录下自己的发音，回放对比，逐步提升你的英语口语。
-          </p>
-        </div>
+        <PageHeader
+          crumb="口语练习"
+          title="选择模式，开始练习"
+          description="录下自己的发音，回放对比，逐步提升你的英语口语。"
+        />
 
         {/* Free speaking recorder */}
         {showRecorder && (

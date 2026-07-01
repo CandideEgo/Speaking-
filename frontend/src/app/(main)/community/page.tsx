@@ -19,6 +19,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TabPills } from "@/components/ui/TabPills";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { toggleVideoLike } from "@/lib/creatorData";
 
 // --- Types ---
@@ -322,11 +323,11 @@ export default function CommunityPage() {
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
         {/* Page header */}
-        <div className="page-head">
-          <div className="page-crumb">社区</div>
-          <h1 className="page-title">社区精选</h1>
-          <p className="page-desc">分享学习心得,发现好内容,和同学一起进步。</p>
-        </div>
+        <PageHeader
+          crumb="社区"
+          title="社区精选"
+          description="分享学习心得,发现好内容,和同学一起进步。"
+        />
 
         {/* Tab bar */}
         <TabPills

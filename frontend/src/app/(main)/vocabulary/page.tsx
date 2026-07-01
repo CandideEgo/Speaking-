@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { BookOpen, Trash2, Volume2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TabPills } from "@/components/ui/TabPills";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -151,13 +152,11 @@ export default function VocabularyPage() {
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
         {/* Page header */}
-        <div className="page-head">
-          <div className="page-crumb">学习</div>
-          <h1 className="page-title">词汇本</h1>
-          <p className="page-desc">
-            收藏的生词在这里,用间隔复习算法帮你长期记忆。
-          </p>
-        </div>
+        <PageHeader
+          crumb="学习"
+          title="词汇本"
+          description="收藏的生词在这里,用间隔复习算法帮你长期记忆。"
+        />
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">

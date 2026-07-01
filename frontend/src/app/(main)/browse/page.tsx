@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { TabPills } from "@/components/ui/TabPills";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { formatDuration } from "@/lib/format";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -37,13 +38,11 @@ export default function BrowsePage() {
     <PageTransition>
       <main className="container-page py-16 sm:py-24">
         {/* Page header */}
-        <div className="page-head">
-          <div className="page-crumb">发现</div>
-          <h1 className="page-title">浏览视频</h1>
-          <p className="page-desc">
-            探索精选英语学习内容,按分类和难度筛选。点击任意视频开始学习。
-          </p>
-        </div>
+        <PageHeader
+          crumb="发现"
+          title="浏览视频"
+          description="探索精选英语学习内容,按分类和难度筛选。点击任意视频开始学习。"
+        />
 
         {/* Sticky filter bar */}
         <div className="filter-bar">

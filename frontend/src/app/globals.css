@@ -129,23 +129,10 @@
   /* === Action pills === */
   /* (act/act-active removed — unused) */
 
+  /* === Page header === */
+  /* (page-head/page-crumb/page-title/page-desc removed — use <PageHeader> component) */
+
   /* === Section headings === */
-  .page-head {
-    @apply pt-2 pb-5;
-  }
-
-  .page-crumb {
-    @apply text-xs font-semibold text-muted uppercase tracking-caption-wide mb-2.5;
-  }
-
-  .page-title {
-    @apply text-[34px] font-extrabold tracking-display-lg;
-  }
-
-  .page-desc {
-    @apply text-[15px] text-muted mt-2;
-  }
-
   .sec-head {
     @apply flex items-end justify-between mt-10 mb-5;
   }

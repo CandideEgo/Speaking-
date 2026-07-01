@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const PLANS = [
   {
@@ -65,13 +66,12 @@ export default function PricingPage() {
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
         {/* Page header */}
-        <div className="text-center">
-          <div className="page-crumb">升级</div>
-          <h1 className="page-title">选择适合你的计划</h1>
-          <p className="page-desc">
-            免费开始,需要更多 AI 功能再升级。已订阅可随时取消。
-          </p>
-        </div>
+        <PageHeader
+          crumb="升级"
+          title="选择适合你的计划"
+          description="免费开始,需要更多 AI 功能再升级。已订阅可随时取消。"
+          centered
+        />
 
         {/* 合规提示 */}
         <div className="mt-6 max-w-[820px] mx-auto rounded-lg border border-hairline bg-surface-card p-4 text-center text-[13px] leading-relaxed text-muted">

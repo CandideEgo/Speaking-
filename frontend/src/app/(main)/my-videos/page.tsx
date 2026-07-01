@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
 import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
 import type { Video } from "@/types";
@@ -172,13 +173,11 @@ export default function MyVideosPage() {
   return (
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
-        <div className="page-head">
-          <div className="page-crumb">创作</div>
-          <h1 className="page-title">创作者中心</h1>
-          <p className="page-desc">
-            上传你的视频，编辑字幕与练习题，提交审核后发布到社区。
-          </p>
-        </div>
+        <PageHeader
+          crumb="创作"
+          title="创作者中心"
+          description="上传你的视频，编辑字幕与练习题，提交审核后发布到社区。"
+        />
 
         {/* Upload */}
         <div className="bg-canvas border border-hairline rounded-lg p-5 mb-6 flex items-center justify-between gap-4 flex-wrap">
