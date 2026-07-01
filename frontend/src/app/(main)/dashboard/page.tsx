@@ -19,6 +19,7 @@ import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { VideoCard } from "@/components/ui/VideoCard";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -428,52 +429,27 @@ export default function DashboardPage() {
                 <SectionHeader title="继续学习" />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-[22px]">
                   {data.recentRecords.slice(0, 4).map((record) => (
-                    <Link
+                    <VideoCard
                       key={record.id}
-                      href={`/watch/${record.video_id}`}
-                      className="vcard group"
-                    >
-                      <div className="thumb">
-                        {record.video?.thumbnail_url ? (
-                          <img
-                            src={record.video.thumbnail_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-surface-card flex items-center justify-center">
-                            <Play size={32} className="text-muted-soft" />
-                          </div>
-                        )}
-                        <span className="thumb-dur">
-                          {record.completed ? "已完成" : "继续"}
-                        </span>
-                        <div className="thumb-play">
-                          <div className="thumb-play-btn">
-                            <Play
-                              size={20}
-                              fill="#fff"
-                              className="text-white ml-0.5"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="vmeta">
-                        <p className="vtitle">
-                          {record.video?.title || "未知视频"}
-                        </p>
-                        <div className="vfoot">
+                      video={{
+                        id: record.video_id,
+                        title: record.video?.title || "未知视频",
+                        thumbnail_url: record.video?.thumbnail_url ?? null,
+                        duration: null,
+                      }}
+                      durationLabel={record.completed ? "已完成" : "继续"}
+                      footer={
+                        <div className="flex items-center gap-2 text-xs text-muted">
                           <span>Speaking</span>
-                          <span className="vdot" />
-                          <span className="chip">
+                          <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
+                          <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
                             {record.speaking_attempts > 0
                               ? `${record.speaking_attempts} 次跟读`
                               : "推荐"}
                           </span>
                         </div>
-                      </div>
-                    </Link>
+                      }
+                    />
                   ))}
                 </div>
               </>

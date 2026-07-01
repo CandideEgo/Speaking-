@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
@@ -24,6 +25,10 @@ export interface VideoCardProps {
   feat?: boolean;
   /** Watch progress percentage (0-100). Shown only in feat mode. */
   progress?: number;
+  /** Label shown in the duration badge (bottom-right of thumbnail). Overrides duration display. */
+  durationLabel?: string;
+  /** Custom footer content. Replaces the default channel + category footer. */
+  footer?: ReactNode;
   /** Additional className for the outer link. */
   className?: string;
 }
@@ -32,6 +37,8 @@ export function VideoCard({
   video,
   feat = false,
   progress,
+  durationLabel,
+  footer,
   className,
 }: VideoCardProps) {
   const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
@@ -45,7 +52,12 @@ export function VideoCard({
       )}
     >
       {/* Thumbnail */}
-      <div className="relative aspect-video bg-surface-card overflow-hidden">
+      <div
+        className={cn(
+          "relative aspect-video bg-surface-card overflow-hidden",
+          feat && "aspect-[16/10]",
+        )}
+      >
         {video.thumbnail_url ? (
           <img
             src={video.thumbnail_url}
@@ -55,28 +67,35 @@ export function VideoCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-muted-soft">
-              {video.title.charAt(0).toUpperCase()}
-            </span>
+            <Play size={32} className="text-muted-soft" />
           </div>
         )}
         {video.difficulty_level && (
           <span
-            className={cn(
-              "absolute left-2 top-2 backdrop-blur-sm text-[11px] font-bold text-ink px-2 py-1 rounded-pill",
-            )}
+            className="absolute left-2 top-2 backdrop-blur-sm text-[11px] font-bold text-ink px-2 py-1 rounded-pill"
             style={{ background: "rgba(255, 255, 255, 0.92)" }}
           >
             {video.difficulty_level}
           </span>
         )}
-        {video.duration != null && video.duration > 0 && (
+        {/* Duration badge */}
+        {durationLabel ? (
           <span
             className="absolute right-2 bottom-2 text-white text-[11px] font-semibold font-mono px-1.5 py-0.5 rounded-[5px]"
             style={{ background: "rgba(10, 10, 10, 0.78)" }}
           >
-            {formatDuration(video.duration)}
+            {durationLabel}
           </span>
+        ) : (
+          video.duration != null &&
+          video.duration > 0 && (
+            <span
+              className="absolute right-2 bottom-2 text-white text-[11px] font-semibold font-mono px-1.5 py-0.5 rounded-[5px]"
+              style={{ background: "rgba(10, 10, 10, 0.78)" }}
+            >
+              {formatDuration(video.duration)}
+            </span>
+          )
         )}
         <div
           className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150"
@@ -90,24 +109,31 @@ export function VideoCard({
 
       {/* Meta */}
       <div className="p-3.5">
-        <p className="text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight">
+        <p
+          className={cn(
+            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight",
+            feat && "text-lg min-h-[50px]",
+          )}
+        >
           {video.title}
         </p>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span>{video.channel_title || "Speaking"}</span>
-          <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-          <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
-            {category}
-          </span>
-          {feat && progress !== undefined && (
-            <>
-              <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-              <span className="text-[11px] font-semibold font-mono text-brand-500">
-                {progress}% 已观看
-              </span>
-            </>
-          )}
-        </div>
+        {footer ?? (
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span>{video.channel_title || "Speaking"}</span>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
+            <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
+              {category}
+            </span>
+            {feat && progress !== undefined && (
+              <>
+                <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
+                <span className="text-[11px] font-semibold font-mono text-brand-500">
+                  {progress}% 已观看
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </Link>
   );

@@ -142,45 +142,7 @@
   /* (cat-band/cat-card removed — unused) */
 
   /* === Video card === */
-  .vcard {
-    @apply bg-canvas border border-hairline rounded-lg overflow-hidden cursor-pointer
-           hover:-translate-y-1 hover:shadow-lift hover:border-transparent
-           transition-all duration-150;
-  }
-  .thumb {
-    @apply relative aspect-video bg-surface-card overflow-hidden;
-  }
-  /* (thumb-lv removed — inlined in VideoCard component) */
-  .thumb-dur {
-    @apply absolute right-2 bottom-2 text-white text-[11px] font-semibold
-           font-mono px-1.5 py-0.5 rounded-[5px];
-    background: rgba(10, 10, 10, 0.78);
-  }
-  .thumb-play {
-    @apply absolute inset-0 flex items-center justify-center opacity-0
-           group-hover:opacity-100 transition-opacity duration-150;
-    background: rgba(10, 10, 10, 0.32);
-  }
-  .thumb-play-btn {
-    @apply w-12 h-12 rounded-full bg-brand-500 flex items-center justify-center shadow-brand
-           scale-[0.9] group-hover:scale-100 transition-transform duration-150;
-  }
-  .vmeta {
-    @apply p-3.5;
-  }
-  .vtitle {
-    @apply text-sm font-semibold leading-snug text-ink
-           line-clamp-2 mb-2 tracking-tight;
-  }
-  .vfoot {
-    @apply flex items-center gap-2 text-xs text-muted;
-  }
-  .vdot {
-    @apply w-[3px] h-[3px] rounded-full bg-muted-soft;
-  }
-  .chip {
-    @apply text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill;
-  }
+  /* (vcard/thumb/thumb-dur/thumb-play/thumb-play-btn/vmeta/vtitle/vfoot/vdot/chip removed — use <VideoCard> component) */
 
   /* === Filter bar (browse) === */
   .filter-bar {
@@ -469,12 +431,7 @@
     grid-column: span 1 / span 1;
     grid-row: span 2 / span 2;
   }
-  .vcard-feat .thumb {
-    @apply aspect-[16/10];
-  }
-  .vcard-feat .vtitle {
-    @apply text-lg min-h-[50px];
-  }
+  /* (vcard-feat .thumb and .vcard-feat .vtitle removed — inlined in VideoCard feat mode) */
   /* (vprog-tag removed — inlined in VideoCard component) */
   /* 分类视觉化大卡 */
   .cat-feat {
