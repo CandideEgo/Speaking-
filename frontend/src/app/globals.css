@@ -106,13 +106,6 @@
   /* === Cards === */
   /* (card-outline/card-soft/card-dark/card-code removed — use <Card> component) */
 
-  /* === Stat cards === */
-  .stat-card {
-    @apply bg-canvas rounded-lg p-5 border border-hairline
-           hover:shadow-soft
-           transition-all duration-150;
-  }
-
   /* === Mode cards === */
   .mode-card {
     @apply bg-canvas rounded-lg p-7 border border-hairline cursor-pointer
@@ -192,19 +185,6 @@
   }
 
   /* === Dashboard stat === */
-  .dash-stat {
-    @apply bg-canvas border border-hairline rounded-lg p-[22px]
-           hover:shadow-soft transition-all duration-150;
-  }
-  .dash-stat-icon {
-    @apply w-[38px] h-[38px] rounded-[10px] flex items-center justify-center;
-  }
-  .dash-stat-num {
-    @apply text-[30px] font-extrabold tracking-display-lg leading-none;
-  }
-  .dash-stat-label {
-    @apply text-[13px] text-muted mt-1;
-  }
   /* (trend-up/trend-down removed — unused) */
 
   /* === Bar chart === */
