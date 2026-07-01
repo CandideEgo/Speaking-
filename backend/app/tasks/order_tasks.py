@@ -25,14 +25,20 @@ def expire_pending_orders():
         cutoff = datetime.now(UTC) - timedelta(minutes=30)
         async with async_session() as db:
             result = await db.execute(
-                select(Order).where(
+                select(Order)
+                .where(
                     Order.status == OrderStatus.pending,
                     Order.created_at < cutoff,
                 )
+                .with_for_update(skip_locked=True)
             )
             orders = result.scalars().all()
             count = 0
             for order in orders:
+                # Re-check status — a concurrent payment callback may have
+                # changed it to paid while we waited for the row lock.
+                if order.status != OrderStatus.pending:
+                    continue
                 order.status = OrderStatus.expired
                 count += 1
             if count:

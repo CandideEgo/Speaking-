@@ -373,7 +373,11 @@ async def change_user_role(db: AsyncSession, user_id: str, role: str, admin_user
 
 
 async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_days: int) -> User:
-    user = await _get_user_or_raise(db, user_id)
+    # Lock the User row to prevent race with concurrent payment callback
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    user = result.scalar_one_or_none()
+    if not user:
+        raise ValueError("User not found")
     user.plan = PlanType(plan)
     if plan == "pro":
         now = datetime.now(UTC)
