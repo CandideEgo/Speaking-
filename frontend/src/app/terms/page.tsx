@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   description: "Speaking 用户协议",
 };
 
-const operatorName = siteConfig.companyName || "（个体工商户名称待补充）";
+// 主体名称：已配置则显示具体名称，未配置时用中性表述（上线可用，
+// 避免向最终用户暴露"待补充"这类开发态文案）。
+const operatorName = siteConfig.companyName || "本站运营方";
 const uscc = siteConfig.companyUscc;
 
 export default function TermsPage() {
