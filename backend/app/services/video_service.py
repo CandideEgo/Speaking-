@@ -453,14 +453,21 @@ async def get_video_detail(
     # Create LearningRecord on first view for authenticated users (after access check)
     if current_user:
         lr_result = await db.execute(
-            select(LearningRecord).where(
+            select(LearningRecord)
+            .where(
                 LearningRecord.user_id == current_user.id,
                 LearningRecord.video_id == video_id,
             )
+            .with_for_update()
         )
         if not lr_result.scalar_one_or_none():
             db.add(LearningRecord(user_id=current_user.id, video_id=video_id))
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as exc:
+                await db.rollback()
+                if "uq_learning_record_user_video" not in str(exc):
+                    raise
 
     # Decide which subtitles the viewer sees. The owner always sees their live
     # (draft) subtitles. A non-owner viewing a UGC video under re-review

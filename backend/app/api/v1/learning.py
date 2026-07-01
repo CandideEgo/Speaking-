@@ -153,12 +153,14 @@ async def save_watch_progress(
     current playback position. Also updates progress_percentage
     based on position vs video duration.
     """
-    # Find or create the learning record
+    # Find or create the learning record (lock to prevent duplicate creation)
     result = await db.execute(
-        select(LearningRecord).where(
+        select(LearningRecord)
+        .where(
             LearningRecord.user_id == current_user.id,
             LearningRecord.video_id == body.video_id,
         )
+        .with_for_update()
     )
     record = result.scalar_one_or_none()
 
@@ -170,6 +172,23 @@ async def save_watch_progress(
             last_accessed_at=datetime.now(UTC),
         )
         db.add(record)
+        try:
+            await db.flush()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_learning_record_user_video" in str(exc):
+                # Concurrent request created it — re-fetch
+                result = await db.execute(
+                    select(LearningRecord).where(
+                        LearningRecord.user_id == current_user.id,
+                        LearningRecord.video_id == body.video_id,
+                    )
+                )
+                record = result.scalar_one_or_none()
+                if not record:
+                    raise
+            else:
+                raise
     else:
         record.position_seconds = body.position_seconds
         record.last_accessed_at = datetime.now(UTC)
