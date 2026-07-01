@@ -144,10 +144,17 @@ def _assemble_criteria_scores_from_flat(
 async def check_daily_limit(db: AsyncSession, user: User) -> None:
     """Check if a free-tier user has exceeded their daily speaking limit.
 
+    Locks the User row to prevent concurrent requests from racing past
+    the count check (free users could otherwise exceed the 3-attempt
+    limit by sending overlapping requests).
+
     Raises PermissionError if the limit has been reached.
     """
     if user.plan.value != "free":
         return
+
+    # Lock the user row so concurrent requests serialize on this user
+    await db.execute(select(User).where(User.id == user.id).with_for_update())
 
     today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     count_result = await db.execute(
@@ -390,12 +397,18 @@ async def update_learning_record(
     user_id: str,
     video_id: str,
 ) -> None:
-    """Update LearningRecord: increment speaking_attempts, set timestamps, compute progress."""
+    """Update LearningRecord: increment speaking_attempts, set timestamps, compute progress.
+
+    Uses with_for_update() to prevent concurrent requests from creating
+    duplicate LearningRecord rows or losing counter increments.
+    """
     lr_result = await db.execute(
-        select(LearningRecord).where(
+        select(LearningRecord)
+        .where(
             LearningRecord.user_id == user_id,
             LearningRecord.video_id == video_id,
         )
+        .with_for_update()
     )
     record = lr_result.scalar_one_or_none()
     if record:
