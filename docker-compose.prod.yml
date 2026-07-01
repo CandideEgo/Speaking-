@@ -47,6 +47,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.cloud
+    # The image ENTRYPOINT runs `alembic upgrade head` first, then execs the
+    # command below. Keep the entrypoint so migrations run on every start.
     command: >
       gunicorn app.main:app
         -w 2

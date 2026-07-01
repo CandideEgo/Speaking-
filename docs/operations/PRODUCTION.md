@@ -324,6 +324,32 @@ docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
 
 ### 6.3 首次启动内容准备
 
+#### 首次创建管理员
+
+新部署的数据库没有任何 `role=admin` 的账号，管理后台和种子/兑换码接口都不可达。
+用 `scripts/create_admin.py` 引导第一个管理员（幂等，可重复执行）：
+
+```bash
+# 容器内（DATABASE_URL 已配置）：
+docker exec -it $(docker ps -qf "name=backend") python scripts/create_admin.py \
+  --email admin@example.com --password 'S3cret!change!me'
+
+# 或用环境变量（CI / docker-compose 友好）：
+docker exec -it $(docker ps -qf "name=backend") \
+  -e ADMIN_EMAIL=admin@example.com -e ADMIN_PASSWORD='S3cret!change!me' \
+  python scripts/create_admin.py
+
+# 已存在的账号提权为 admin（不改密码）：
+python scripts/create_admin.py --email existing@example.com
+
+# 重置某个 admin 的密码：
+python scripts/create_admin.py --email admin@example.com --password 'newpass' --reset-password
+```
+
+> 密码须满足强度要求（8+ 字符，含大小写、数字、特殊字符）。
+
+#### 种子官方视频
+
 上线前需要预先种子一批官方视频，确保首页有内容展示：
 
 ```bash
@@ -336,6 +362,10 @@ python seed_official_videos.py --dry-run
 ```
 
 建议准备 **10-20 个** 不同难度（A2-C1）和不同话题的精选视频。
+
+> **数据库迁移已自动化**：容器 entrypoint（`backend/entrypoint.sh`）在每次启动时
+> 跑 `alembic upgrade head`（幂等），无需手动执行。如需手动跑：
+> `docker exec -it $(docker ps -qf "name=backend") alembic upgrade head`
 
 ---
 
@@ -399,7 +429,7 @@ python seed_official_videos.py --dry-run
 - [ ] Pro/Free 权益隔离验证通过
 
 ### 部署
-- [ ] 数据库迁移已执行（alembic upgrade head）
+- [x] 数据库迁移自动执行（容器 entrypoint 启动时跑 `alembic upgrade head`，幂等）
 - [x] faster-whisper 模型已预下载（Docker 构建时缓存）
 - [x] media 目录 volume 挂载已配置
 - [x] nginx 反向代理已配置（SSL + 限流 + 缓存）
@@ -409,7 +439,7 @@ python seed_official_videos.py --dry-run
 - [x] Flower Celery 监控已配置
 
 ### 运营准备
-- [ ] 管理员账号已创建
+- [ ] 管理员账号已创建（见下方「首次创建管理员」）
 - [ ] 官方精选视频已种子（10-20 个）
 - [ ] 兑换码已预生成一批
 - [ ] 错误监控已接入 (Sentry)

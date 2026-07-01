@@ -66,6 +66,7 @@
 | 48 | `1777395` | watch hook 抽取 | 抽 `WordTooltipInline`/`ExamLevelSelector`/`useVideoMeta` hook |
 | 49 | `d095224` | 后端代码质量 | proper import、CASCADE、async Redis |
 | 50 | `03b84e9` | 后端原子性 | speaking 消除 double-commit、user-seed-full auto_publish、修 videos/like-status 导入崩溃 |
+| 51 | （本轮）| 上线阻塞 | 容器 entrypoint 自动跑 alembic 迁移 + create_admin 引导脚本 |
 
 ## 主题汇总
 

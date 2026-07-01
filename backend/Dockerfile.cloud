@@ -45,6 +45,14 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code (no model cache)
 COPY --from=builder /app /app
 
+# Entrypoint runs alembic migrations before the app server starts.
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 8000
 
+# Default to the migration entrypoint + uvicorn. docker-compose can override
+# the args to use gunicorn instead, but should keep the entrypoint so migrations
+# run on every container start.
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
