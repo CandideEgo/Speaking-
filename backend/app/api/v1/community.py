@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_optional_user
@@ -15,8 +14,6 @@ from app.schemas.community import (
     PostCreate,
     PostResponse,
     ReportCreate,
-    UserProfileBrief,
-    VideoBrief,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services import community_service
@@ -85,7 +82,7 @@ async def create_post(
 ):
     """Create a new community post."""
     try:
-        post = await community_service.create_post(
+        return await community_service.create_post(
             db,
             user_id=current_user.id,
             post_type=data.post_type,
@@ -97,28 +94,6 @@ async def create_post(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-    # Resolve the attached video brief for video_share posts.
-    video_brief = None
-    if post.post_type == "video_share" and post.video_id:
-        from app.models.video import Video
-
-        v = (await db.execute(select(Video).where(Video.id == post.video_id))).scalar_one_or_none()
-        video_brief = VideoBrief.from_model(v)
-
-    # Build response with user info
-    return {
-        "id": post.id,
-        "user": UserProfileBrief.from_model(current_user),
-        "post_type": post.post_type,
-        "content": post.content,
-        "media_url": post.media_url,
-        "like_count": post.like_count,
-        "comment_count": post.comment_count,
-        "is_liked": False,
-        "created_at": post.created_at,
-        "video": video_brief,
-    }
 
 
 @router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -182,7 +157,7 @@ async def add_comment(
 ):
     """Add a comment to a post."""
     try:
-        comment = await community_service.add_comment(
+        return await community_service.add_comment(
             db,
             user_id=current_user.id,
             post_id=post_id,
@@ -191,17 +166,6 @@ async def add_comment(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-    return {
-        "id": comment.id,
-        "user": UserProfileBrief.from_model(current_user),
-        "content": comment.content,
-        "parent_id": comment.parent_id,
-        "like_count": comment.like_count,
-        "is_liked": False,
-        "replies": [],
-        "created_at": comment.created_at,
-    }
 
 
 @router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -247,18 +211,11 @@ async def report_comment(
 ):
     """Report a comment for moderation."""
     try:
-        report = await community_service.report_comment(
+        return await community_service.report_comment(
             db, reporter_id=current_user.id, comment_id=comment_id, reason=data.reason
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-    return {
-        "id": report.id,
-        "comment_id": report.comment_id,
-        "reason": report.reason,
-        "created_at": report.created_at,
-    }
 
 
 # ---------------------------------------------------------------------------

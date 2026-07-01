@@ -11,23 +11,16 @@ import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import {
-  Loader2,
-  Heart,
-  MessageCircle,
-  Share2,
-  Send,
-  Bookmark,
-  Play,
-} from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, Play } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { toggleVideoLike } from "@/lib/creatorData";
+import { PostComposer } from "@/components/community/PostComposer";
+import { CommentThread } from "@/components/community/CommentThread";
 
 // --- Types ---
 
@@ -103,7 +96,6 @@ export default function CommunityPage() {
   const [activeTab, setActiveTab] = useState("feed");
   const [communityVideos, setCommunityVideos] = useState<CommunityVideo[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
-  const [newPost, setNewPost] = useState("");
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
     Record<string, Comment[]>
@@ -170,21 +162,6 @@ export default function CommunityPage() {
     }
   }
 
-  async function handleCreatePost() {
-    if (!newPost.trim()) return;
-    const draft = newPost;
-    try {
-      await api("/api/v1/community/posts", {
-        method: "POST",
-        body: JSON.stringify({ content: draft, post_type: "text" }),
-      });
-      setNewPost("");
-      reloadPosts();
-    } catch (err) {
-      toastApiError(err, "发布失败");
-    }
-  }
-
   async function handleLike(postId: string) {
     try {
       const res = await api<{ liked: boolean }>(
@@ -234,31 +211,17 @@ export default function CommunityPage() {
     }
   }
 
-  async function handleAddComment(postId: string) {
-    const content = commentDraft[postId]?.trim();
-    if (!content) return;
-    try {
-      const created = await api<Comment>(
-        `/api/v1/community/posts/${postId}/comments`,
-        {
-          method: "POST",
-          body: JSON.stringify({ content }),
-        },
-      );
-      setCommentsByPost((prev) => ({
-        ...prev,
-        [postId]: [created, ...(prev[postId] || [])],
-      }));
-      setCommentDraft((prev) => ({ ...prev, [postId]: "" }));
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
-        ),
-      );
-      toast.success("评论已发布");
-    } catch {
-      toast.error("评论发布失败");
-    }
+  function handleCommentAdded(postId: string, comment: Comment) {
+    setCommentsByPost((prev) => ({
+      ...prev,
+      [postId]: [comment, ...(prev[postId] || [])],
+    }));
+    setCommentDraft((prev) => ({ ...prev, [postId]: "" }));
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
+      ),
+    );
   }
 
   async function handleSharePost(post: Post) {
@@ -363,28 +326,10 @@ export default function CommunityPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
             {/* Posts column */}
             <div>
-              {/* Create post */}
-              <div className="bg-canvas border border-hairline rounded-lg p-4 mb-[18px]">
-                <div className="flex gap-3 items-center">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-[13px] flex items-center justify-center flex-shrink-0">
-                    {currentUserInitial}
-                  </div>
-                  <textarea
-                    placeholder="分享你的学习心得..."
-                    value={newPost}
-                    onChange={(e) => setNewPost(e.target.value)}
-                    className="flex-1 border-0 bg-surface-soft rounded-lg px-3.5 py-2.5 text-sm font-sans resize-none h-[42px] text-ink focus:bg-canvas focus:shadow-[0_0_0_2px_rgba(10,10,10,0.06)] focus:outline-none transition-colors"
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-3">
-                  <span className="text-xs text-muted-soft">
-                    支持添加视频和图片
-                  </span>
-                  <Button onClick={handleCreatePost} size="sm">
-                    发布
-                  </Button>
-                </div>
-              </div>
+              <PostComposer
+                userInitial={currentUserInitial}
+                onCreated={reloadPosts}
+              />
 
               {/* Posts list */}
               {loading ? (
@@ -509,80 +454,21 @@ export default function CommunityPage() {
 
                       {/* Comments section */}
                       {expandedPostId === post.id && (
-                        <div className="mt-4 pt-4 border-t border-hairline animate-fade-in">
-                          {/* Add comment */}
-                          <div className="flex gap-2 mb-4">
-                            <Input
-                              type="text"
-                              value={commentDraft[post.id] || ""}
-                              onChange={(e) =>
-                                setCommentDraft((prev) => ({
-                                  ...prev,
-                                  [post.id]: e.target.value,
-                                }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  handleAddComment(post.id);
-                              }}
-                              placeholder="写下你的评论..."
-                              className="flex-1"
-                            />
-                            <Button
-                              onClick={() => handleAddComment(post.id)}
-                              disabled={!commentDraft[post.id]?.trim()}
-                              size="sm"
-                              icon={Send}
-                              className="disabled:opacity-50"
-                            />
-                          </div>
-
-                          {/* Comments list */}
-                          {commentLoading[post.id] ? (
-                            <div className="flex justify-center py-4">
-                              <Loader2
-                                size={20}
-                                className="animate-spin text-brand-500"
-                              />
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {(commentsByPost[post.id] || []).length === 0 ? (
-                                <p className="text-xs text-muted text-center py-2">
-                                  暂无评论，来抢沙发吧
-                                </p>
-                              ) : (
-                                (commentsByPost[post.id] || []).map(
-                                  (comment) => (
-                                    <div
-                                      key={comment.id}
-                                      className="flex gap-2.5"
-                                    >
-                                      <div className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-[11px] font-bold text-muted flex-shrink-0">
-                                        {(
-                                          comment.user?.name?.[0] || "U"
-                                        ).toUpperCase()}
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold">
-                                            {comment.user?.name || "用户"}
-                                          </span>
-                                          <span className="text-[11px] text-muted-soft">
-                                            {timeAgo(comment.created_at)}
-                                          </span>
-                                        </div>
-                                        <p className="text-[13px] text-body leading-relaxed mt-0.5">
-                                          {comment.content}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  ),
-                                )
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <CommentThread
+                          postId={post.id}
+                          comments={commentsByPost[post.id] || []}
+                          loading={!!commentLoading[post.id]}
+                          draft={commentDraft[post.id] || ""}
+                          onDraftChange={(value) =>
+                            setCommentDraft((prev) => ({
+                              ...prev,
+                              [post.id]: value,
+                            }))
+                          }
+                          onCommentAdded={(comment) =>
+                            handleCommentAdded(post.id, comment)
+                          }
+                        />
                       )}
                     </div>
                   );

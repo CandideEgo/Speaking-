@@ -38,7 +38,12 @@ async def create_post(
     video_id: str | None = None,
     speaking_attempt_id: str | None = None,
     vocabulary_id: str | None = None,
-) -> Post:
+) -> dict:
+    """Create a community post and return the full response dict.
+
+    Validates video share rules, persists the post, and resolves the
+    attached video brief — so the route handler only does HTTP concerns.
+    """
     # A video_share post must reference a video the poster is allowed to surface:
     # their own published video, or an official published video. This stops a
     # user from attaching another user's private/unpublished video to a public post.
@@ -70,7 +75,32 @@ async def create_post(
     )
     db.add(post)
     await commit_refresh(db, post)
-    return post
+
+    # Resolve the attached video brief for video_share posts.
+    video_brief = None
+    if post.post_type == "video_share" and post.video_id:
+        v_result = await db.execute(select(Video).where(Video.id == post.video_id))
+        v = v_result.scalar_one_or_none()
+        video_brief = VideoBrief.from_model(v)
+
+    # Resolve the author's UserProfileBrief.
+    author_result = await db.execute(select(User).where(User.id == user_id))
+    author = author_result.scalar_one_or_none()
+
+    return {
+        "id": post.id,
+        "user": UserProfileBrief.from_model(author)
+        if author
+        else {"id": user_id, "name": None, "avatar_url": None, "level": None},
+        "post_type": post.post_type,
+        "content": post.content,
+        "media_url": post.media_url,
+        "like_count": post.like_count,
+        "comment_count": post.comment_count,
+        "is_liked": False,
+        "created_at": post.created_at,
+        "video": video_brief,
+    }
 
 
 async def _attach_videos(db: AsyncSession, posts: list[Post]) -> dict[str, dict]:
@@ -310,8 +340,11 @@ async def add_comment(
     post_id: str,
     content: str,
     parent_id: str | None = None,
-) -> UserComment:
-    """Add a comment to a post. Increments post.comment_count atomically."""
+) -> dict:
+    """Add a comment to a post. Increments post.comment_count atomically.
+
+    Returns the full response dict so the route handler only does HTTP concerns.
+    """
     post_result = await db.execute(select(Post).where(Post.id == post_id).with_for_update())
     post = post_result.scalar_one_or_none()
     if post is None:
@@ -355,7 +388,23 @@ async def add_comment(
         )
 
     await commit_refresh(db, comment)
-    return comment
+
+    # Resolve the author's UserProfileBrief.
+    author_result = await db.execute(select(User).where(User.id == user_id))
+    author = author_result.scalar_one_or_none()
+
+    return {
+        "id": comment.id,
+        "user": UserProfileBrief.from_model(author)
+        if author
+        else {"id": user_id, "name": None, "avatar_url": None, "level": None},
+        "content": comment.content,
+        "parent_id": comment.parent_id,
+        "like_count": comment.like_count,
+        "is_liked": False,
+        "replies": [],
+        "created_at": comment.created_at,
+    }
 
 
 async def delete_comment(db: AsyncSession, user_id: str, comment_id: str) -> None:
@@ -423,13 +472,15 @@ async def toggle_comment_like(db: AsyncSession, user_id: str, comment_id: str) -
         return {"liked": True}
 
 
-async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, reason: str) -> CommentReport:
+async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, reason: str) -> dict:
     """Report a comment. Prevents duplicate reports by same user.
 
     The ``uq_comment_report_comment_reporter`` unique constraint is the
     final safety net — if two concurrent requests both pass the SELECT
     check, the duplicate INSERT raises IntegrityError which we convert
     to a clean "already reported" error instead of a 500.
+
+    Returns the full response dict so the route handler only does HTTP concerns.
     """
     # Check for existing report
     existing = await db.execute(
@@ -454,7 +505,12 @@ async def report_comment(db: AsyncSession, reporter_id: str, comment_id: str, re
         if "uq_comment_report" in str(exc):
             raise ValueError("Already reported this comment") from exc
         raise
-    return report
+    return {
+        "id": report.id,
+        "comment_id": report.comment_id,
+        "reason": report.reason,
+        "created_at": report.created_at,
+    }
 
 
 async def get_post_comments(

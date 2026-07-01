@@ -1,13 +1,11 @@
 """Browse channel — browse local video library by category and difficulty."""
 
-import json
-
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import cache_delete, cache_get, cache_set
+from app.core.cache import cache_delete, cached
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.video import Video, VideoStatus
@@ -36,23 +34,17 @@ async def list_categories(request: Request):
     return {"categories": CATEGORIES}
 
 
-@router.get("/feed")
-@rate_limit("30/minute")
-async def browse_feed(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    category: str = Query("all"),
-    level: str | None = Query(None, max_length=2),
-    page: int = Query(1, ge=1, le=100),
-    page_size: int = Query(20, ge=4, le=50),
-):
-    """Paginated content feed — browse local video library by category and difficulty."""
-    # Check cache first
-    cache_key = f"browse:feed:{category}:{level or 'all'}:{page}:{page_size}"
-    cached = await cache_get(cache_key)
-    if cached:
-        return json.loads(cached)
-
+@cached(ttl=300, key="browse:feed:{category}:{level_key}:{page}:{page_size}")
+async def _browse_feed_query(
+    *,
+    db: AsyncSession,
+    category: str,
+    level: str | None,
+    level_key: str,
+    page: int,
+    page_size: int,
+) -> dict:
+    """DB query for browse feed, cached by @cached."""
     # Base query: official, published, ready videos
     stmt = (
         select(Video)
@@ -70,7 +62,7 @@ async def browse_feed(
         escaped = category.replace("%", "\\%").replace("_", "\\_")
         stmt = stmt.where(Video.topic_tags.ilike(f"%{escaped}%", escape="\\"))
 
-    # Filter by difficulty level
+    # Filter by difficulty level (only when a specific level is requested)
     if level:
         stmt = stmt.where(Video.difficulty_level == level)
 
@@ -88,7 +80,7 @@ async def browse_feed(
 
     cat = next((c for c in CATEGORIES if c["id"] == category), CATEGORIES[0])
 
-    response = {
+    return {
         "items": [_video_to_dict(v) for v in videos],
         "category": cat,
         "page": page,
@@ -97,24 +89,31 @@ async def browse_feed(
         "has_more": total > page * page_size,
     }
 
-    # Cache for 5 minutes
-    await cache_set(cache_key, json.dumps(response, ensure_ascii=False), ttl=300)
-    return response
 
-
-@router.get("/featured")
+@router.get("/feed")
 @rate_limit("30/minute")
-async def browse_featured(
+async def browse_feed(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(6, ge=1, le=100),
+    category: str = Query("all"),
+    level: str | None = Query(None, max_length=2),
+    page: int = Query(1, ge=1, le=100),
+    page_size: int = Query(20, ge=4, le=50),
 ):
-    """Return featured/highlighted videos for homepage hero section."""
-    cache_key = f"browse:featured:{limit}"
-    cached = await cache_get(cache_key)
-    if cached:
-        return json.loads(cached)
+    """Paginated content feed — browse local video library by category and difficulty."""
+    return await _browse_feed_query(
+        db=db,
+        category=category,
+        level=level,
+        level_key=level or "all",
+        page=page,
+        page_size=page_size,
+    )
 
+
+@cached(ttl=300, key="browse:featured:{limit}")
+async def _browse_featured_query(*, db: AsyncSession, limit: int) -> dict:
+    """DB query for featured videos, cached by @cached."""
     stmt = (
         select(Video)
         .where(
@@ -129,13 +128,20 @@ async def browse_featured(
     result = await db.execute(stmt)
     videos = result.scalars().all()
 
-    response = {
+    return {
         "items": [_video_to_dict(v) for v in videos],
     }
 
-    # Cache for 5 minutes
-    await cache_set(cache_key, json.dumps(response, ensure_ascii=False), ttl=300)
-    return response
+
+@router.get("/featured")
+@rate_limit("30/minute")
+async def browse_featured(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(6, ge=1, le=100),
+):
+    """Return featured/highlighted videos for homepage hero section."""
+    return await _browse_featured_query(db=db, limit=limit)
 
 
 def _video_to_dict(v: Video) -> dict:
