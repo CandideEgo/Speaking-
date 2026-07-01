@@ -186,27 +186,40 @@ async def seed_user_video(
     return VideoResponse.model_validate(video)
 
 
-async def list_public_videos(db: AsyncSession) -> list[VideoResponse]:
-    """List official public videos for the homepage."""
-    result = await db.execute(
-        select(Video)
-        .where(
-            Video.is_official == True,
-            Video.is_published == True,
-            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
-        )
-        .order_by(Video.created_at.desc())
-        .limit(50)
+async def list_public_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:
+    """List official public videos for the homepage. Paginated."""
+    page = max(1, page)
+    page_size = max(1, min(page_size, 50))
+    offset = (page - 1) * page_size
+
+    base = select(Video).where(
+        Video.is_official == True,
+        Video.is_published == True,
+        Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
     )
-    videos = result.scalars().all()
-    return [VideoResponse.model_validate(v) for v in videos]
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+
+    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
+    rows = result.scalars().all()
+    has_more = len(rows) > page_size
+    items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
+    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
 
 
-async def list_user_videos(db: AsyncSession, user_id: str) -> list[VideoResponse]:
-    """List videos belonging to a specific user."""
-    result = await db.execute(select(Video).where(Video.user_id == user_id).order_by(Video.created_at.desc()).limit(50))
-    videos = result.scalars().all()
-    return [VideoResponse.model_validate(v) for v in videos]
+async def list_user_videos(db: AsyncSession, user_id: str, page: int = 1, page_size: int = 20) -> dict:
+    """List videos belonging to a specific user. Paginated."""
+    page = max(1, page)
+    page_size = max(1, min(page_size, 50))
+    offset = (page - 1) * page_size
+
+    base = select(Video).where(Video.user_id == user_id)
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+
+    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
+    rows = result.scalars().all()
+    has_more = len(rows) > page_size
+    items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
+    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
 
 
 async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:

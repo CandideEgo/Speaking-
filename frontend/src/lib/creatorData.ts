@@ -49,8 +49,9 @@ export async function seedFromUrlFull(source_url: string): Promise<Video> {
 }
 
 /** List the current user's own videos (any status/processing state). */
-export function listMyVideos(): Promise<Video[]> {
-  return api<Video[]>("/api/v1/videos");
+export async function listMyVideos(): Promise<Video[]> {
+  const data = await api<{ items: Video[] }>("/api/v1/videos");
+  return data.items;
 }
 
 /** Fetch video detail with subtitles (owner sees their live draft). */

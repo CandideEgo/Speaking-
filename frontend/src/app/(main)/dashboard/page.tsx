@@ -23,6 +23,7 @@ import { VideoCard } from "@/components/ui/VideoCard";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import { MetricCard } from "@/components/ui/MetricCard";
 import type { DailyActivity, StreakInfo } from "@/types";
 
 // --- Types ---
@@ -277,48 +278,31 @@ export default function DashboardPage() {
           <>
             {/* Stat cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-[18px] mb-6">
-              <div className="dash-stat">
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="dash-stat-icon bg-brand-50 text-brand-500">
-                    <Flame size={19} />
-                  </div>
-                </div>
-                <div className="dash-stat-num">
-                  {data.speakingStats.total_speaking_attempts}
-                </div>
-                <div className="dash-stat-label">口语练习次数</div>
-              </div>
-              <div className="dash-stat">
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="dash-stat-icon bg-indigo-soft text-indigo">
-                    <Mic size={19} />
-                  </div>
-                </div>
-                <div className="dash-stat-num">
-                  {Math.round(data.speakingStats.average_accuracy)}%
-                </div>
-                <div className="dash-stat-label">平均准确度</div>
-              </div>
-              <div className="dash-stat">
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="dash-stat-icon bg-success-soft text-success">
-                    <BookOpen size={19} />
-                  </div>
-                </div>
-                <div className="dash-stat-num">{data.vocabStats.total}</div>
-                <div className="dash-stat-label">新增词汇</div>
-              </div>
-              <div className="dash-stat">
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="dash-stat-icon bg-warning-soft text-warning">
-                    <Zap size={19} />
-                  </div>
-                </div>
-                <div className="dash-stat-num">
-                  {data.speakingStats.total_videos_watched}
-                </div>
-                <div className="dash-stat-label">已学视频</div>
-              </div>
+              <MetricCard
+                icon={Flame}
+                label="口语练习次数"
+                value={data.speakingStats.total_speaking_attempts}
+                tone="brand"
+              />
+              <MetricCard
+                icon={Mic}
+                label="平均准确度"
+                value={Math.round(data.speakingStats.average_accuracy)}
+                suffix="%"
+                tone="indigo"
+              />
+              <MetricCard
+                icon={BookOpen}
+                label="新增词汇"
+                value={data.vocabStats.total}
+                tone="success"
+              />
+              <MetricCard
+                icon={Zap}
+                label="已学视频"
+                value={data.speakingStats.total_videos_watched}
+                tone="warning"
+              />
             </div>
 
             {/* Bar chart + Heatmap row */}

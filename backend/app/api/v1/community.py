@@ -16,6 +16,7 @@ from app.schemas.community import (
     PostResponse,
     ReportCreate,
 )
+from app.schemas.pagination import PaginatedResponse
 from app.services import community_service
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/community", tags=["community"])
 # ---------------------------------------------------------------------------
 
 
-@router.get("/feed")
+@router.get("/feed", response_model=PaginatedResponse[PostResponse])
 @rate_limit("30/minute")
 async def get_feed(
     request: Request,
@@ -72,7 +73,7 @@ async def list_community_videos(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/posts", status_code=status.HTTP_201_CREATED)
+@router.post("/posts", status_code=status.HTTP_201_CREATED, response_model=PostResponse)
 @rate_limit("10/minute")
 async def create_post(
     request: Request,
@@ -140,7 +141,7 @@ async def delete_post(
         raise HTTPException(status_code=403, detail="Not your post") from None
 
 
-@router.post("/posts/{post_id}/like")
+@router.post("/posts/{post_id}/like", response_model=dict)
 @rate_limit("30/minute")
 async def toggle_post_like(
     request: Request,
@@ -173,7 +174,7 @@ async def get_post_comments(
     return await community_service.get_post_comments(db, post_id=post_id, user_id=user_id)
 
 
-@router.post("/posts/{post_id}/comments", status_code=status.HTTP_201_CREATED)
+@router.post("/posts/{post_id}/comments", status_code=status.HTTP_201_CREATED, response_model=CommentResponse)
 @rate_limit("10/minute")
 async def add_comment(
     request: Request,
@@ -228,7 +229,7 @@ async def delete_comment(
         raise HTTPException(status_code=403, detail="Not your comment") from None
 
 
-@router.post("/comments/{comment_id}/like")
+@router.post("/comments/{comment_id}/like", response_model=dict)
 @rate_limit("30/minute")
 async def toggle_comment_like(
     request: Request,
@@ -273,7 +274,7 @@ async def report_comment(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/follow/{user_id}")
+@router.post("/follow/{user_id}", response_model=dict)
 @rate_limit("20/minute")
 async def toggle_follow(
     request: Request,
@@ -288,7 +289,7 @@ async def toggle_follow(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/followers")
+@router.get("/followers", response_model=PaginatedResponse[FollowResponse])
 @rate_limit("30/minute")
 async def get_followers(
     request: Request,
@@ -301,7 +302,7 @@ async def get_followers(
     return await community_service.get_followers(db, user_id=current_user.id, page=page, page_size=page_size)
 
 
-@router.get("/following")
+@router.get("/following", response_model=PaginatedResponse[FollowResponse])
 @rate_limit("30/minute")
 async def get_following(
     request: Request,

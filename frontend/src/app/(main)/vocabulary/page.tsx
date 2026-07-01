@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { MetricCard } from "@/components/ui/MetricCard";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -166,38 +167,33 @@ export default function VocabularyPage() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-          <div className="stat-card">
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted mb-2">
-              <BookOpen size={14} /> 总计
-            </div>
-            <div className="text-[28px] font-extrabold tracking-display-md">
-              {stats.total}
-            </div>
-          </div>
-          <div className="stat-card !border-brand-100">
-            <div className="flex items-center gap-2 text-xs font-semibold text-brand-500 mb-2">
-              <Target size={14} /> 待复习
-            </div>
-            <div className="text-[28px] font-extrabold tracking-display-md text-brand-500">
-              {stats.due}
-            </div>
-          </div>
-          <div className="stat-card !border-success-soft">
-            <div className="flex items-center gap-2 text-xs font-semibold text-success mb-2">
-              <CheckCircle2 size={14} /> 已掌握
-            </div>
-            <div className="text-[28px] font-extrabold tracking-display-md text-success">
-              {stats.mastered}
-            </div>
-          </div>
-          <div className="stat-card !border-warning-soft">
-            <div className="flex items-center gap-2 text-xs font-semibold text-warning mb-2">
-              <Flame size={14} /> 学习中
-            </div>
-            <div className="text-[28px] font-extrabold tracking-display-md text-warning">
-              {stats.learning}
-            </div>
-          </div>
+          <MetricCard
+            icon={BookOpen}
+            label="总计"
+            value={stats.total}
+            variant="label-top"
+          />
+          <MetricCard
+            icon={Target}
+            label="待复习"
+            value={stats.due}
+            tone="brand"
+            variant="label-top"
+          />
+          <MetricCard
+            icon={CheckCircle2}
+            label="已掌握"
+            value={stats.mastered}
+            tone="success"
+            variant="label-top"
+          />
+          <MetricCard
+            icon={Flame}
+            label="学习中"
+            value={stats.learning}
+            tone="warning"
+            variant="label-top"
+          />
         </div>
 
         {/* Review bar */}

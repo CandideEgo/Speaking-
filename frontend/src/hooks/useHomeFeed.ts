@@ -29,9 +29,9 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<Video[]>("/api/v1/videos/public");
+      const data = await api<{ items: Video[] }>("/api/v1/videos/public");
       if (!cancelledRef.current) {
-        setVideos(data);
+        setVideos(data.items);
       }
     } catch (err) {
       if (!cancelledRef.current) {

@@ -121,13 +121,15 @@ async def submit_video(
     return await _submit_video(db, data.source_url, current_user)
 
 
-@router.get("/public", response_model=list[VideoResponse])
+@router.get("/public", response_model=PaginatedResponse[VideoResponse])
 @rate_limit("30/minute")
 async def list_public_videos(
     request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    return await _list_public_videos(db)
+    return await _list_public_videos(db, page=page, page_size=page_size)
 
 
 @router.get("/search", response_model=list[VideoResponse])
@@ -431,14 +433,16 @@ async def submit_quiz_result(
     return result
 
 
-@router.get("", response_model=list[VideoResponse])
+@router.get("", response_model=PaginatedResponse[VideoResponse])
 @rate_limit("30/minute")
 async def list_videos(
     request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await _list_user_videos(db, current_user.id)
+    return await _list_user_videos(db, current_user.id, page=page, page_size=page_size)
 
 
 @router.post("/upload", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
