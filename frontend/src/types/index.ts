@@ -9,6 +9,10 @@ export interface User {
   plan_expires_at: string | null;
   timezone: string | null;
   role?: "user" | "admin";
+  streak_count: number;
+  longest_streak: number;
+  last_active_at: string | null;
+  onboarding_completed: boolean;
   created_at: string;
 }
 
@@ -71,7 +75,9 @@ export interface Subtitle {
   text_zh: string | null;
   sentence_index: number;
   grammar_note: string | null;
-  difficulty_words: string | null;
+  /** Legacy AI-extracted difficulty words — not in API response, but used
+   *  locally by SubtitleList. Always null from the backend. */
+  difficulty_words?: string | null;
   /** Exam-level word annotations: lowercased surface token -> exam level keys.
    * Computed once at ingest from ECDICT; see lib/examLevels.ts. */
   word_levels: Record<string, string[]> | null;
@@ -191,9 +197,7 @@ export interface VocabQuizQuestion {
   word: string;
   question: string;
   options: string[] | null;
-  correct_answer: string;
   correct_answer_index: number | null;
-  context: string | null;
 }
 
 /* ── Community ── */
@@ -231,10 +235,15 @@ export interface Post {
 export interface UserComment {
   id: string;
   content: string;
-  user_name: string;
-  user_avatar_url: string | null;
+  user: {
+    id: string;
+    name: string | null;
+    avatar_url: string | null;
+    level: string | null;
+  };
   is_liked: boolean;
   like_count: number;
+  parent_id: string | null;
   created_at: string;
   replies: UserComment[];
 }
@@ -267,6 +276,14 @@ export interface StreakInfo {
 export interface DailyActivity {
   date: string;
   speaking_attempts: number;
+  words_reviewed: number;
+  words_added: number;
+  videos_watched: number;
+  quizzes_taken: number;
+  avg_accuracy: number | null;
+  avg_fluency: number | null;
+  avg_completeness: number | null;
+  time_spent_seconds: number;
   goal_met: boolean;
 }
 
@@ -379,6 +396,10 @@ export interface AdminStats {
 export interface UserPreferences {
   daily_goal_type: "speaking_attempts" | "minutes" | "words";
   daily_goal_value: number;
+  reminder_enabled: boolean;
+  reminder_time: string | null;
+  reminder_timezone: string | null;
+  auto_play_next_subtitle: boolean;
   subtitle_mode_default: "bilingual" | "english" | "chinese";
   preferred_difficulty: string | null;
   /** User's target exam level (canonical key from lib/examLevels.ts, e.g. "cet4"). */
