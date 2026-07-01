@@ -117,16 +117,19 @@ async def get_feed(
     ``sort="trending"`` forces global trending order regardless of follows.
     """
     offset = (page - 1) * page_size
+    # Fetch one extra row to detect has_more without an extra COUNT query.
+    fetch_size = page_size + 1
+
+    conditions = []
+    if post_type:
+        conditions.append(Post.post_type == post_type)
 
     # Trending: always sort by like_count globally
     if sort == "trending":
-        conditions = []
-        if post_type:
-            conditions.append(Post.post_type == post_type)
         stmt = select(Post)
         if conditions:
             stmt = stmt.where(and_(*conditions))
-        stmt = stmt.order_by(Post.like_count.desc(), Post.created_at.desc())
+        stmt = stmt.order_by(Post.like_count.desc(), Post.created_at.desc()).offset(offset).limit(fetch_size)
         result = await db.execute(stmt)
         all_posts = list(result.scalars().all())
     elif followed_ids := (
@@ -136,11 +139,18 @@ async def get_feed(
     ):
         # Priority: followed users' posts
         followed_conditions = [Post.user_id.in_(followed_ids), *conditions]
-        stmt_followed = select(Post).where(and_(*followed_conditions)).order_by(Post.created_at.desc())
+        stmt_followed = (
+            select(Post).where(and_(*followed_conditions)).order_by(Post.created_at.desc()).limit(fetch_size)
+        )
 
         # Fill: popular posts from non-followed users
         fill_conditions = [~Post.user_id.in_(followed_ids), *conditions]
-        stmt_fill = select(Post).where(and_(*fill_conditions)).order_by(Post.like_count.desc(), Post.created_at.desc())
+        stmt_fill = (
+            select(Post)
+            .where(and_(*fill_conditions))
+            .order_by(Post.like_count.desc(), Post.created_at.desc())
+            .limit(fetch_size)
+        )
 
         # Execute both and merge
         result_followed = await db.execute(stmt_followed)
@@ -149,9 +159,8 @@ async def get_feed(
         result_fill = await db.execute(stmt_fill)
         fill_posts = list(result_fill.scalars().all())
 
-        # Interleave: followed first, then fill
+        # Interleave: followed first, then fill; deduplicate by id.
         all_posts = followed_posts + fill_posts
-        # Deduplicate by id
         seen = set()
         unique_posts = []
         for p in all_posts:
@@ -164,13 +173,13 @@ async def get_feed(
         stmt = select(Post)
         if conditions:
             stmt = stmt.where(and_(*conditions))
-        stmt = stmt.order_by(Post.like_count.desc(), Post.created_at.desc())
+        stmt = stmt.order_by(Post.like_count.desc(), Post.created_at.desc()).offset(offset).limit(fetch_size)
         result = await db.execute(stmt)
         all_posts = list(result.scalars().all())
 
-    # Paginate
-    page_posts = all_posts[offset : offset + page_size]
-    has_more = len(all_posts) > offset + page_size
+    # Detect has_more: we fetched fetch_size = page_size+1 rows.
+    has_more = len(all_posts) > page_size
+    page_posts = all_posts[:page_size]
 
     # Batch-load authors + attached videos for the page.
     videos_by_id = await _attach_videos(db, page_posts)
