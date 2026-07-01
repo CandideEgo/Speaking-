@@ -7,7 +7,7 @@ instances that the route handler serialises via Pydantic schemas.
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import _to_aware_utc
@@ -503,7 +503,12 @@ async def resolve_report(db: AsyncSession, report_id: str, action: str) -> Comme
             await db.execute(
                 Post.__table__.update()
                 .where(Post.id == comment.post_id)
-                .values(comment_count=func.greatest(Post.comment_count - 1, 0))
+                .values(
+                    comment_count=case(
+                        (Post.comment_count - 1 < 0, 0),
+                        else_=Post.comment_count - 1,
+                    )
+                )
             )
             await db.delete(comment)
 
@@ -651,11 +656,16 @@ async def admin_delete_comment(db: AsyncSession, comment_id: str) -> None:
     if not comment:
         raise ValueError("Comment not found")
 
-    # Decrement post comment count
+    # Decrement post comment count (use CASE instead of GREATEST for SQLite compat)
     await db.execute(
         Post.__table__.update()
         .where(Post.id == comment.post_id)
-        .values(comment_count=func.greatest(Post.comment_count - 1, 0))
+        .values(
+            comment_count=case(
+                (Post.comment_count - 1 < 0, 0),
+                else_=Post.comment_count - 1,
+            )
+        )
     )
 
     await db.delete(comment)
