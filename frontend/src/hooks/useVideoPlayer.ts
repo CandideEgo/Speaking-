@@ -7,6 +7,11 @@ import type { VideoWithSubtitles } from "@/types";
 
 export type PlaybackMode = "ready" | "processing" | "loading" | "error";
 
+/** Pick the best available video URL (1080p > 720p > 480p). */
+export function bestVideoUrl(v: VideoWithSubtitles): string | null {
+  return v.video_url_1080p || v.video_url_720p || v.video_url_480p || null;
+}
+
 interface UseVideoPlayerOptions {
   videoId: string;
   setVideoAspectRatio: (ratio: number) => void;
@@ -57,7 +62,7 @@ export function useVideoPlayer({
     api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
-        if (v.status === "ready" && v.video_url_720p) setPlaybackMode("ready");
+        if (v.status === "ready" && bestVideoUrl(v)) setPlaybackMode("ready");
         else if (v.status === "ready_subtitles" || v.status === "processing")
           setPlaybackMode("processing");
         else setPlaybackMode("loading");
@@ -85,7 +90,7 @@ export function useVideoPlayer({
           `/api/v1/videos/${videoId}`,
         );
         setVideo(updated);
-        if (updated.status === "ready" && updated.video_url_720p)
+        if (updated.status === "ready" && bestVideoUrl(updated))
           setPlaybackMode("ready");
         else if (
           updated.status === "ready_subtitles" ||

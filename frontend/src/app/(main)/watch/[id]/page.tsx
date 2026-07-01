@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWatchStore } from "@/stores/watchStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useVideoPlayer } from "@/hooks/useVideoPlayer";
+import { useVideoPlayer, bestVideoUrl } from "@/hooks/useVideoPlayer";
 import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePracticeMode } from "@/hooks/usePracticeMode";
@@ -491,10 +491,10 @@ export default function WatchPage() {
         <div className="min-w-0">
           {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏） */}
           <div className="relative w-full aspect-video bg-ink rounded-xl overflow-hidden shadow-lift">
-            {playbackMode === "ready" && video.video_url_720p ? (
+            {playbackMode === "ready" && bestVideoUrl(video) ? (
               <video
                 ref={videoRef}
-                src={mediaUrl(video.video_url_720p)}
+                src={mediaUrl(bestVideoUrl(video)!)}
                 controls
                 className="h-full w-full object-contain"
                 onTimeUpdate={(e) => {
