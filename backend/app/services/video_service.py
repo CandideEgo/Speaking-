@@ -16,7 +16,7 @@ from app.api.dependencies import check_video_access, is_video_owner
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
-from app.schemas.pagination import PaginatedResponse
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
     RecomputeWordLevelsRequest,
@@ -209,7 +209,7 @@ async def list_public_videos(db: AsyncSession, page: int = 1, page_size: int = 2
     rows = result.scalars().all()
     has_more = len(rows) > page_size
     items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
-    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
+    return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 
 async def list_user_videos(db: AsyncSession, user_id: str, page: int = 1, page_size: int = 20) -> dict:
@@ -225,7 +225,7 @@ async def list_user_videos(db: AsyncSession, user_id: str, page: int = 1, page_s
     rows = result.scalars().all()
     has_more = len(rows) > page_size
     items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
-    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
+    return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 
 async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:

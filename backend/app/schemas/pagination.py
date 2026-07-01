@@ -4,13 +4,15 @@ All paginated endpoints should accept `page` (1-based) and `page_size`
 query parameters and return the standard PaginatedResponse envelope.
 
 Usage in route handlers:
-    from app.schemas.pagination import PaginationParams, PaginatedResponse
+    from app.schemas.pagination import PaginationParams, paginated
 
     @router.get("")
     async def list_items(pagination: PaginationParams = Depends()):
         ...
-        return PaginatedResponse(items=items, page=pagination.page,
-                                  page_size=pagination.page_size, has_more=has_more)
+        return paginated(items, pagination, total=total)
+
+Or, when total isn't known (fetch-size trick):
+    return paginated(items, pagination, has_more=len(items) > page_size)
 """
 
 from typing import Generic, TypeVar
@@ -49,7 +51,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     """Standard paginated response envelope.
 
     All paginated endpoints should return this shape:
-        { items: [...], page: int, page_size: int, has_more: bool }
+        { items: [...], page: int, page_size: int, has_more: bool, total?: int }
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -58,8 +60,49 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     page_size: int
     has_more: bool
+    total: int | None = None
 
 
 def has_more(total_count: int, page: int, page_size: int) -> bool:
     """Determine whether there are more results beyond the current page."""
     return total_count > page * page_size
+
+
+def paginated(
+    items: list,
+    pagination: PaginationParams | None = None,
+    *,
+    page: int | None = None,
+    page_size: int | None = None,
+    total: int | None = None,
+    has_more: bool | None = None,
+) -> dict:
+    """Build the standard pagination envelope dict.
+
+    Pass either ``pagination`` (a PaginationParams from a route dep) or
+    explicit ``page``/``page_size`` (e.g. from a service that received ints).
+
+    Either pass ``total`` (a full count; has_more is derived from it) or
+    pass ``has_more`` directly (e.g. when using the fetch-size trick and
+    the full count isn't known). ``total`` is included in the response
+    only when provided.
+    """
+    if pagination is not None:
+        p, ps = pagination.page, pagination.page_size
+    elif page is not None and page_size is not None:
+        p, ps = page, page_size
+    else:
+        raise ValueError("paginated() requires either pagination or page+page_size")
+    if has_more is None:
+        if total is None:
+            raise ValueError("paginated() requires either total or has_more")
+        has_more = total > p * ps
+    envelope: dict = {
+        "items": items,
+        "page": p,
+        "page_size": ps,
+        "has_more": has_more,
+    }
+    if total is not None:
+        envelope["total"] = total
+    return envelope

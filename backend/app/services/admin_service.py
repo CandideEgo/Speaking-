@@ -17,7 +17,7 @@ from app.models.learning import SpeakingAttempt
 from app.models.order import Order
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
-from app.schemas.pagination import has_more
+from app.schemas.pagination import has_more, paginated
 
 logger = logging.getLogger(__name__)
 
@@ -341,12 +341,7 @@ async def list_admin_users(
             }
         )
 
-    return {
-        "items": items,
-        "page": page,
-        "page_size": page_size,
-        "has_more": has_more(total, page, page_size),
-    }
+    return paginated(items, page=page, page_size=page_size, has_more=has_more(total, page, page_size))
 
 
 async def _get_user_or_raise(db: AsyncSession, user_id: str) -> User:
@@ -482,12 +477,7 @@ async def list_admin_reports(
             }
         )
 
-    return {
-        "items": items,
-        "page": page,
-        "page_size": page_size,
-        "has_more": has_more(total, page, page_size),
-    }
+    return paginated(items, page=page, page_size=page_size, has_more=has_more(total, page, page_size))
 
 
 async def resolve_report(db: AsyncSession, report_id: str, action: str) -> CommentReport:
@@ -594,12 +584,7 @@ async def list_admin_posts(
             }
         )
 
-    return {
-        "items": items,
-        "page": page,
-        "page_size": page_size,
-        "has_more": has_more(total, page, page_size),
-    }
+    return paginated(items, page=page, page_size=page_size, has_more=has_more(total, page, page_size))
 
 
 async def admin_delete_post(db: AsyncSession, post_id: str) -> None:
@@ -712,9 +697,4 @@ async def list_admin_orders(
             }
         )
 
-    return {
-        "items": items,
-        "page": page,
-        "page_size": page_size,
-        "has_more": has_more(total, page, page_size),
-    }
+    return paginated(items, page=page, page_size=page_size, has_more=has_more(total, page, page_size))

@@ -9,6 +9,7 @@ from app.models.comment import VideoComment, VideoCommentStats
 from app.models.user import User
 from app.models.video import Video
 from app.schemas.comment import CommentResponse, CommentStatsResponse, VideoWithCommentScoreResponse
+from app.schemas.pagination import paginated
 
 router = APIRouter(prefix="/comments", tags=["comments"])
 
@@ -65,12 +66,12 @@ async def get_top_videos_by_comment_quality(
     total_result = await db.execute(count_stmt)
     total = total_result.scalar_one()
 
-    return {
-        "items": [VideoWithCommentScoreResponse.model_validate(v).model_dump() for v in videos],
-        "page": page,
-        "page_size": page_size,
-        "has_more": total > page * page_size,
-    }
+    return paginated(
+        [VideoWithCommentScoreResponse.model_validate(v).model_dump() for v in videos],
+        page=page,
+        page_size=page_size,
+        has_more=total > page * page_size,
+    )
 
 
 @router.post("/analyze")
@@ -124,13 +125,12 @@ async def get_video_comments(
     )
     total = count_result.scalar_one()
 
-    return {
-        "items": [CommentResponse.model_validate(c).model_dump() for c in comments],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "has_more": total > page * page_size,
-    }
+    return paginated(
+        [CommentResponse.model_validate(c).model_dump() for c in comments],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
 @router.get("/{video_id}/stats")

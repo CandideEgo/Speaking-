@@ -8,6 +8,7 @@ from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord, SpeakingAttempt
 from app.models.subtitle import Subtitle
 from app.models.user import User
+from app.schemas.pagination import paginated
 from app.schemas.speaking import (
     CriterionScore,
     FreePracticeResponse,
@@ -236,12 +237,12 @@ async def list_attempts(
     )
     total = count_result.scalar_one()
 
-    return {
-        "items": [SpeakingAttemptResponse.model_validate(a) for a in attempts],
-        "page": page,
-        "page_size": page_size,
-        "has_more": total > page * page_size,
-    }
+    return paginated(
+        [SpeakingAttemptResponse.model_validate(a) for a in attempts],
+        page=page,
+        page_size=page_size,
+        has_more=total > page * page_size,
+    )
 
 
 @router.get("/stats")

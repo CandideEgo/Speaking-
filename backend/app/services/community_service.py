@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.user import User
 from app.models.video import Video
+from app.schemas.pagination import paginated
 from app.services.notification_service import create_notification
 
 logger = logging.getLogger(__name__)
@@ -221,7 +222,7 @@ async def get_feed(
             }
         )
 
-    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more}
+    return paginated(items, page=page, page_size=page_size, has_more=has_more)
 
 
 async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict:
@@ -546,7 +547,7 @@ async def get_followers(db: AsyncSession, user_id: str, page: int = 1, page_size
         )
 
     has_more = total > offset + page_size
-    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
+    return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 
 async def get_following(db: AsyncSession, user_id: str, page: int = 1, page_size: int = 20) -> dict:
@@ -586,7 +587,7 @@ async def get_following(db: AsyncSession, user_id: str, page: int = 1, page_size
         )
 
     has_more = total > offset + page_size
-    return {"items": items, "page": page, "page_size": page_size, "has_more": has_more, "total": total}
+    return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 
 # ---------------------------------------------------------------------------

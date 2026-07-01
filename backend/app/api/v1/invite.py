@@ -15,7 +15,7 @@ from app.schemas.invite import (
     InviteCodeResponse,
     RedeemResponse,
 )
-from app.schemas.pagination import has_more
+from app.schemas.pagination import has_more, paginated
 
 
 def _utcnow() -> datetime:
@@ -117,12 +117,12 @@ async def list_codes(
     total_result = await db.execute(count_stmt)
     total = total_result.scalar_one()
 
-    return {
-        "items": [InviteCodeResponse.model_validate(c) for c in items],
-        "page": page,
-        "page_size": page_size,
-        "has_more": has_more(total, page, page_size),
-    }
+    return paginated(
+        [InviteCodeResponse.model_validate(c) for c in items],
+        page=page,
+        page_size=page_size,
+        has_more=has_more(total, page, page_size),
+    )
 
 
 @router.post("/redeem", response_model=RedeemResponse)
