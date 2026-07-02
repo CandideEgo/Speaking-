@@ -34,6 +34,13 @@ celery_app.conf.update(
             "task": "app.tasks.order_tasks.expire_pending_orders",
             "schedule": 300,  # every 5 minutes
         },
+        # Reconcile orders whose callback may have been lost — query the
+        # payment provider for authoritative status and upgrade the user
+        # if the platform reports the order paid.
+        "reconcile-pending-orders": {
+            "task": "app.tasks.order_tasks.reconcile_pending_orders",
+            "schedule": 900,  # every 15 minutes
+        },
         # Mark videos stuck in "transcribing" as failed when the GPU worker is
         # offline for longer than ``video_transcribe_timeout``.
         "watchdog-stale-transcriptions": {

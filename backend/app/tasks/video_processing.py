@@ -442,7 +442,7 @@ def finalize_video(self, video_id: str):
                     video.review_status = VideoReviewStatus.published.value
                     await db.commit()
                     try:
-                        from app.api.v1.browse import invalidate_browse_cache
+                        from app.services.video_cache import invalidate_browse_cache
 
                         await invalidate_browse_cache()
                     except Exception:

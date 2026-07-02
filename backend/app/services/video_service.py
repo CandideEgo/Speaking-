@@ -12,7 +12,6 @@ from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies import check_video_access, is_video_owner
 from app.core.database import commit_refresh
 from app.models.learning import LearningRecord
 from app.models.user import User
@@ -31,6 +30,11 @@ from app.schemas.video import (
     VideoResponse,
     VideoStatusResponse,
     WordLevelsUpdate,
+)
+from app.services.video_access import (
+    check_video_access,
+    is_video_owner,
+    should_use_snapshot,
 )
 
 
@@ -104,7 +108,11 @@ async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: 
 
 
 async def _invalidate_video_detail_cache(video_id: str) -> None:
-    """Backward-compat wrapper — delegates to shared video_cache module."""
+    """Backward-compat wrapper — delegates to shared video_cache module.
+
+    Retained for any external callers importing the private name; new code
+    should import invalidate_video_detail_cache from app.services.video_cache.
+    """
     from app.services.video_cache import invalidate_video_detail_cache
 
     await invalidate_video_detail_cache(video_id)
@@ -159,12 +167,7 @@ async def get_video_detail(
     # (draft) subtitles. A non-owner viewing a UGC video under re-review
     # (pending/rejected) sees the frozen approved snapshot instead of the live
     # draft the owner is editing.
-    use_snapshot = (
-        not is_video_owner(video, current_user)
-        and not video.is_official
-        and video.review_status in (VideoReviewStatus.pending_review.value, VideoReviewStatus.rejected.value)
-        and video.published_snapshot is not None
-    )
+    use_snapshot = should_use_snapshot(video, current_user)
 
     if use_snapshot:
         from app.services.video_review_service import subtitles_from_snapshot
@@ -358,18 +361,11 @@ async def update_video(
     # — invalidate those caches too. (Subtitle edits don't need this; browse only
     # caches video metadata.)
     if publish_changed:
-        from app.api.v1.browse import invalidate_browse_cache
+        from app.services.video_cache import invalidate_browse_cache
 
         await invalidate_browse_cache()
 
     return VideoAdminResponse.model_validate(video)
-
-
-async def _invalidate_video_detail_cache(video_id: str) -> None:
-    """Backward-compat wrapper — delegates to shared video_cache module."""
-    from app.services.video_cache import invalidate_video_detail_cache
-
-    await invalidate_video_detail_cache(video_id)
 
 
 async def delete_video(db: AsyncSession, video_id: str) -> bool:

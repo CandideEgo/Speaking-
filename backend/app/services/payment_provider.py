@@ -72,11 +72,24 @@ def get_payment_provider(provider_name: str | None = None) -> PaymentProvider:
 
     If ``provider_name`` is None, falls back to the
     ``default_payment_provider`` setting.
+
+    In production, the mock provider is rejected: a misconfigured
+    ``default_payment_provider`` (typo, missing env var) would otherwise
+    silently route real orders through MockPaymentProvider — no actual
+    charge, but Pro access granted.  Fail loudly instead.
     """
     from app.core.config import get_settings
 
     settings = get_settings()
     name = provider_name or settings.default_payment_provider
+
+    # Production guard: mock provider must never be selected by default in prod.
+    is_production = getattr(settings, "env", "").lower() in ("prod", "production")
+    if is_production and name not in ("alipay", "wechat"):
+        raise RuntimeError(
+            f"Mock/unknown payment provider {name!r} selected in production. "
+            f"Set DEFAULT_PAYMENT_PROVIDER to 'alipay' or 'wechat'."
+        )
 
     # Lazy imports to avoid circular dependencies and unnecessary loads
     if name == "alipay":

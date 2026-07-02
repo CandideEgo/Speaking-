@@ -210,9 +210,17 @@ async def _update_word_review(db: AsyncSession, user_id: str, word: str, quality
     # Use persisted ease_factor (default 2.5 for new words)
     current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
 
-    # Calculate current interval from persisted value
-    if vocab.review_count > 0 and vocab.last_reviewed_at and vocab.next_review_at:
-        interval_days = max((vocab.next_review_at - vocab.last_reviewed_at).days, 1)
+    # Prefer the persisted interval_days column as the SM-2 input — it's the
+    # authoritative value written on the last review.  Fall back to deriving
+    # it from timestamps only for legacy rows where interval_days is 0 but
+    # the word has been reviewed (pre-dating the column or a missed write).
+    if vocab.review_count > 0:
+        if vocab.interval_days and vocab.interval_days > 0:
+            interval_days = vocab.interval_days
+        elif vocab.last_reviewed_at and vocab.next_review_at:
+            interval_days = max((vocab.next_review_at - vocab.last_reviewed_at).days, 1)
+        else:
+            interval_days = 0
     else:
         interval_days = 0
 

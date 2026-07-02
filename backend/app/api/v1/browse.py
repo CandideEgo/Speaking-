@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import cache_delete, cached
+from app.core.cache import cached
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.video import Video, VideoStatus
@@ -165,7 +165,10 @@ def _video_to_dict(v: Video) -> dict:
 async def invalidate_browse_cache() -> None:
     """Invalidate all browse feed caches.
 
-    Call this when videos are added/updated (e.g. seed script, video processing completion).
+    Thin pass-through to the service layer (app.services.video_cache) so the
+    authoritative implementation lives outside the API route module.  Service
+    and task layers should import from video_cache directly, not from here.
     """
-    await cache_delete("browse:feed:*")
-    await cache_delete("browse:featured:*")
+    from app.services.video_cache import invalidate_browse_cache as _invalidate
+
+    await _invalidate()

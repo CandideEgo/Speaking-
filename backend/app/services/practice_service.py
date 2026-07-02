@@ -11,7 +11,6 @@ import random
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import check_video_access, is_video_owner
 from app.core.database import commit_refresh
 from app.core.exam_levels import should_display
 from app.models.practice import VideoPracticeQuestion
@@ -20,6 +19,11 @@ from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
 from app.services import ecdict, exam_corpus
 from app.services.ai_service import AIServiceError, get_ai_service
+from app.services.video_access import (
+    check_video_access,
+    is_video_owner,
+    should_use_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +42,6 @@ def snapshot_practice(snapshot: dict | None, level: str) -> list[dict] | None:
     if not by_level:
         return None
     return by_level.get(level)
-
-
-def should_use_snapshot(video: Video, current_user: User | None) -> bool:
-    """A non-owner viewing a UGC video under re-review sees the frozen approved
-    snapshot instead of the owner's live draft (mirrors get_video_detail)."""
-    return (
-        not video.is_official
-        and not is_video_owner(video, current_user)
-        and video.review_status in (VideoReviewStatus.pending_review.value, VideoReviewStatus.rejected.value)
-        and video.published_snapshot is not None
-    )
 
 
 def collect_target_words(subtitles, target_level: str) -> list[dict]:

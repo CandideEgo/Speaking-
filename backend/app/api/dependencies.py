@@ -169,32 +169,23 @@ async def require_pro_user(
 def check_video_access(video: Video, current_user: User | None) -> bool:
     """Check whether a user can access a video.
 
-    Access rules:
-    - Official videos are public (anyone can access).
-    - User-uploaded (UGC) videos are public once ``review_status == published``.
-    - A UGC video under re-review (``pending_review``/``rejected``) stays public
-      if it has a ``published_snapshot`` (the public keeps watching the last
-      approved version); otherwise it is private.
-    - The owner can always access their own video (incl. drafts).
-
-    Returns True if access is allowed, False otherwise.
+    Thin pass-through to the domain module so route handlers that already
+    import from app.api.dependencies keep working. The authoritative
+    implementation lives in app.services.video_access.
     """
-    if video.is_official:
-        return True
-    if current_user is not None and video.user_id == current_user.id:
-        return True
-    review_status = getattr(video, "review_status", None)
-    if review_status == "published":
-        return True
-    # Under re-review with a frozen approved version: still publicly viewable.
-    if review_status in ("pending_review", "rejected") and getattr(video, "published_snapshot", None):
-        return True
-    return False
+    from app.services.video_access import check_video_access as _check
+
+    return _check(video, current_user)
 
 
 def is_video_owner(video: Video, current_user: User | None) -> bool:
-    """True if ``current_user`` owns ``video`` (UGC ownership check)."""
-    return current_user is not None and video.user_id == current_user.id
+    """True if ``current_user`` owns ``video`` (UGC ownership check).
+
+    Thin pass-through to the domain module.
+    """
+    from app.services.video_access import is_video_owner as _is_owner
+
+    return _is_owner(video, current_user)
 
 
 async def require_video_owner(
