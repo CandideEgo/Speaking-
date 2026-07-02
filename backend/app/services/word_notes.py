@@ -1,10 +1,12 @@
 """Pre-generated AI word notes: read / write helpers for the gloss endpoint.
 
 Provides:
-  * ``get_note``         — fetch a single (word, source) row
-  * ``get_best_note``   — video-specific first, then ``global`` fallback;
-                          returns a plain dict ready for the gloss response
-  * ``upsert_notes``    — write a batch of (word, level, source) rows
+  * ``get_note``              — fetch a single (word, source) row
+  * ``get_best_note``         — video-specific first, then ``global`` fallback;
+                               returns a plain dict ready for the gloss response
+  * ``upsert_notes``          — write a batch of (word, level, source) rows
+  * ``prewarm_video_notes``   — batch-generate AI notes for a video's exam-tagged
+                               words (called from the finalize pipeline step)
 """
 
 from __future__ import annotations
@@ -114,3 +116,71 @@ async def upsert_notes(db: AsyncSession, notes: list[dict]) -> int:
     # next query re-fetches from the DB.
     db.expire_all()
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# Prewarm: batch-generate AI notes for a video's exam-tagged words
+# ---------------------------------------------------------------------------
+
+# Priority ordering for exam levels (used to pick the "top" level per word)
+_EXAM_LEVEL_PRIORITY = {
+    "zhongkao": 1,
+    "gaoKao": 2,
+    "cet4": 3,
+    "cet6": 4,
+    "ky": 5,
+    "ielts": 6,
+    "toefl": 6,
+    "gre": 7,
+}
+
+
+async def prewarm_video_notes(db: AsyncSession, video_id: str) -> int:
+    """Batch-generate AI learning notes for a video's exam-tagged words.
+
+    Reads ``Subtitle.word_levels`` (populated by the annotating step),
+    builds a deduplicated batch of (word, level, context_sentence), calls
+    the AI service to generate notes in bulk, and upserts them as
+    ``video:{id}`` source rows.
+
+    Returns the number of notes generated.  Raises on AI failure so the
+    caller can decide whether to fail the pipeline or skip gracefully.
+    """
+    from sqlalchemy import select
+
+    from app.core.logging import get_logger
+    from app.models.subtitle import Subtitle
+    from app.services.ai_service import get_ai_service
+
+    logger = get_logger(__name__)
+
+    result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index))
+    subs = list(result.scalars().all())
+
+    # Build the (word, translation, context_sentence) batch from word_levels;
+    # one representative sentence per word, per its highest ECDICT level.
+    seen: dict[tuple[str, str], dict] = {}
+    for s in subs:
+        if not s.word_levels:
+            continue
+        for surface, levels in s.word_levels.items():
+            top = max(levels, key=lambda lv: _EXAM_LEVEL_PRIORITY.get(lv, 0)) if levels else "global"
+            key = (surface, top)
+            if key not in seen:
+                seen[key] = {
+                    "word": surface,
+                    "level": top,
+                    "context_sentence": s.text_en or "",
+                }
+
+    items = list(seen.values())
+    if not items:
+        logger.info("Video %s: no exam words to prewarm", video_id)
+        return 0
+
+    ai = get_ai_service()
+    source = _video_source(video_id)
+    notes = await ai.generate_word_notes_bulk(items, source=source)
+    await upsert_notes(db, notes)
+    logger.info("Video %s: prewarmed %d video-specific notes", video_id, len(notes))
+    return len(notes)

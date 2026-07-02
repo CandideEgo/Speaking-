@@ -20,6 +20,40 @@ from app.schemas.video import TranscriptionCallbackRequest
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
+# Redis-based dedup lock for the callback endpoint.  Two concurrent callbacks
+# (e.g. a Celery retry that fires a second POST before the first commits) can
+# both read ``status == processing`` and proceed, causing double subtitle
+# insert + double ``finalize_video.delay()``.  The lock serialises them.
+_CALLBACK_LOCK_TTL = 5 * 60  # 5 minutes — more than enough for the DB work
+
+
+def _acquire_callback_lock(video_id: str) -> bool:
+    """Try to acquire a Redis SETNX lock for the callback.  Returns True if
+    acquired, False if another callback is already in-flight."""
+    try:
+        import redis as redis_lib
+
+        settings = get_settings()
+        r = redis_lib.from_url(settings.redis_url, decode_responses=True)
+        lock_key = f"video:callback:{video_id}"
+        return bool(r.set(lock_key, "1", nx=True, ex=_CALLBACK_LOCK_TTL))
+    except Exception:
+        # If Redis is down, allow the callback through — the status check
+        # below still provides a basic idempotency guard.
+        return True
+
+
+def _release_callback_lock(video_id: str) -> None:
+    """Release the callback lock after successful processing."""
+    try:
+        import redis as redis_lib
+
+        settings = get_settings()
+        r = redis_lib.from_url(settings.redis_url, decode_responses=True)
+        r.delete(f"video:callback:{video_id}")
+    except Exception:
+        pass
+
 
 @router.post("/transcription/callback")
 @rate_limit("30/minute")
@@ -53,34 +87,44 @@ async def transcription_callback(
     if video.status != VideoStatus.processing:
         return {"acknowledged": True}
 
-    if payload.status == "error":
-        video.status = VideoStatus.error
-        video.error_message = payload.error or "Transcription failed"
-        video.processing_step = None
-        await db.commit()
+    # Acquire a Redis dedup lock to prevent two concurrent callbacks from both
+    # passing the status check and proceeding to double-insert subtitles.
+    if not _acquire_callback_lock(payload.video_id):
         return {"acknowledged": True}
 
-    # status == "ok": replace subtitles and hand off to the tail.
-    segments = payload.segments or []
-    await db.execute(delete(Subtitle).where(Subtitle.video_id == payload.video_id))
-    for i, seg in enumerate(segments):
-        db.add(
-            Subtitle(
-                video_id=video.id,
-                start_time=seg.start,
-                end_time=seg.end,
-                text_en=seg.text,
-                sentence_index=i,
+    try:
+        if payload.status == "error":
+            video.status = VideoStatus.error
+            video.error_message = payload.error or "Transcription failed"
+            video.processing_step = None
+            await db.commit()
+            return {"acknowledged": True}
+
+        # status == "ok": replace subtitles and hand off to the tail.
+        segments = payload.segments or []
+        await db.execute(delete(Subtitle).where(Subtitle.video_id == payload.video_id))
+        for i, seg in enumerate(segments):
+            db.add(
+                Subtitle(
+                    video_id=video.id,
+                    start_time=seg.start,
+                    end_time=seg.end,
+                    text_en=seg.text,
+                    sentence_index=i,
+                )
             )
-        )
-    video.status = VideoStatus.ready_subtitles
-    video.processing_step = "translating"
-    video.processing_progress = 70
-    await db.commit()
+        video.status = VideoStatus.ready_subtitles
+        video.processing_step = "translating"
+        video.processing_progress = 70
+        await db.commit()
 
-    # Enqueue the tail (translate → download → transcode). Imported here to
-    # avoid a circular import at module load.
-    from app.tasks.video_processing import finalize_video
+        # Enqueue the tail (translate → download → transcode). Imported here to
+        # avoid a circular import at module load.
+        from app.tasks.video_processing import finalize_video
 
-    finalize_video.delay(payload.video_id)
+        finalize_video.delay(payload.video_id)
+    finally:
+        # Release lock so a future retry (if needed) can proceed.
+        _release_callback_lock(payload.video_id)
+
     return {"acknowledged": True}

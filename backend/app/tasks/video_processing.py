@@ -1,15 +1,22 @@
 import asyncio
-import json
 import time
 from pathlib import Path
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.services import ecdict
-from app.services.ai_service import get_ai_service as _get_ai_service
 from app.services.transcription.audio_extractor import get_video_duration
-from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
+from app.tasks.pipeline_helpers import (
+    STEP_PROGRESS,
+    acquire_lock,
+    commit_error_state,
+    is_step_done,
+    release_lock,
+    release_lock_and_steps,
+    run_pipeline_task,
+    update_progress,
+)
 
 logger = get_logger(__name__)
 
@@ -19,109 +26,6 @@ TRANSCODE_PROFILES = {
     "720p": {"height": 720, "bitrate": "1500k"},
     "1080p": {"height": 1080, "bitrate": "3000k"},
 }
-
-# Processing step names and their progress percentages (monotonic with the
-# split pipeline: head → GPU transcribe → callback → tail).
-STEP_PROGRESS = {
-    "extracting": 10,
-    "transcribing": 30,
-    "translating": 70,
-    "annotating": 72,
-    "prewarm_notes": 74,
-    "downloading": 75,
-    "transcoding": 90,
-    "done": 100,
-}
-
-# Redis key TTLs
-_LOCK_TTL_SECONDS = 30 * 60  # 30 minutes (per-task only; not held across the GPU gap)
-_STEPS_TTL_SECONDS = 60 * 60  # 1 hour (cleared on completion anyway)
-
-
-# Module-level sync Redis singleton — avoids creating a new TCP connection
-# on every progress/lock call. Celery tasks are synchronous so we use the
-# sync redis client, but share one connection across the module.
-_sync_redis = None
-
-
-def _get_redis():
-    """Get a shared sync Redis client (module-level singleton)."""
-    global _sync_redis
-    if _sync_redis is None:
-        import redis as redis_lib
-
-        settings = get_settings()
-        _sync_redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
-    return _sync_redis
-
-
-async def _update_progress(video_id: str, step: str, extra: dict | None = None) -> None:
-    """Record a completed step in Redis and publish progress update.
-
-    - Adds step name to Redis set "video:steps:{video_id}" (used for resume)
-    - Publishes progress percentage to Redis channel "video:progress:{video_id}"
-
-    Note: the DB ``processing_step``/``processing_progress`` fields (which the
-    public ``/status`` endpoint reads) are written separately by each task.
-    """
-    progress = STEP_PROGRESS.get(step, 0)
-    try:
-        r = _get_redis()
-        steps_key = f"video:steps:{video_id}"
-        r.sadd(steps_key, step)
-        r.expire(steps_key, _STEPS_TTL_SECONDS)
-
-        payload = {"video_id": video_id, "step": step, "progress": progress}
-        if extra:
-            payload.update(extra)
-        r.publish(f"video:progress:{video_id}", json.dumps(payload))
-    except Exception:
-        logger.warning("Failed to update progress for video %s step %s", video_id, step, exc_info=True)
-
-
-async def _is_step_done(video_id: str, step: str) -> bool:
-    """Check if a step has already been completed (for resume)."""
-    try:
-        r = _get_redis()
-        return r.sismember(f"video:steps:{video_id}", step)
-    except Exception:
-        return False
-
-
-def _acquire_lock(video_id: str) -> bool:
-    """Try to acquire a Redis lock for processing this video. Returns True if acquired."""
-    try:
-        r = _get_redis()
-        lock_key = f"video:processing:{video_id}"
-        acquired = r.set(lock_key, "1", nx=True, ex=_LOCK_TTL_SECONDS)
-        return bool(acquired)
-    except Exception:
-        logger.warning("Failed to acquire lock for video %s", video_id, exc_info=True)
-        # If Redis is down, allow processing to proceed
-        return True
-
-
-def _release_lock(video_id: str) -> None:
-    """Release the processing lock, keeping the completed-step set intact.
-
-    Used by the pipeline head after enqueuing remote transcription: the lock is
-    not held across the head→GPU→tail gap (its 30-min TTL cannot span it), so
-    cross-task coordination relies on DB ``status``/``processing_step`` instead.
-    """
-    try:
-        r = _get_redis()
-        r.delete(f"video:processing:{video_id}")
-    except Exception:
-        logger.warning("Failed to release lock for video %s", video_id, exc_info=True)
-
-
-def _release_lock_and_steps(video_id: str) -> None:
-    """Release the processing lock and clear completed steps."""
-    try:
-        r = _get_redis()
-        r.delete(f"video:processing:{video_id}", f"video:steps:{video_id}")
-    except Exception:
-        logger.warning("Failed to release lock/steps for video %s", video_id, exc_info=True)
 
 
 def _find_local_raw(video_id: str) -> str | None:
@@ -136,14 +40,20 @@ def _find_local_raw(video_id: str) -> str | None:
 
 
 async def _translate_subtitles(texts: list[str]) -> list[str | None]:
-    """Translate subtitle texts in batches. Each batch is a separate LLM call for reliability."""
-    ai = _get_ai_service()
+    """Translate subtitle texts in batches using TranslationService.
+
+    Uses the pluggable TranslationService (with engine selection + fallback)
+    instead of AIService.translate_batch which has no fallback support.
+    """
+    from app.services.translation import get_translation_service
+
+    service = get_translation_service()
     results: list[str | None] = [None] * len(texts)
 
-    batch_size = 20
+    batch_size = service.batch_size
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        translations = await ai.translate_batch(batch)
+        translations = await service.translate_batch(batch)
         for j, t in enumerate(translations):
             results[i + j] = t
 
@@ -209,7 +119,7 @@ def process_video(self, video_id: str):
     once subtitles arrive. The lock is released before the gap — cross-task
     coordination uses DB ``status``/``processing_step``.
     """
-    if not _acquire_lock(video_id):
+    if not acquire_lock(video_id):
         logger.warning("Video %s is already being processed, skipping", video_id)
         return
 
@@ -224,7 +134,7 @@ def process_video(self, video_id: str):
             video = result.scalar_one_or_none()
             if not video:
                 logger.error("Video %s not found", video_id)
-                _release_lock_and_steps(video_id)
+                release_lock_and_steps(video_id)
                 return
 
             try:
@@ -245,7 +155,7 @@ def process_video(self, video_id: str):
                 video.processing_step = "extracting"
                 video.processing_progress = 10
                 await db.commit()
-                await _update_progress(video_id, "extracting")
+                await update_progress(video_id, "extracting")
 
                 # --- Stage media for the GPU worker ---
                 if video.video_source == VideoSource.imported:
@@ -262,7 +172,7 @@ def process_video(self, video_id: str):
                 video.processing_step = "transcribing"
                 video.processing_progress = 30
                 await db.commit()
-                await _update_progress(video_id, "transcribing")
+                await update_progress(video_id, "transcribing")
 
                 transcribe_video_gpu.apply_async(
                     args=[video.id, gpu_source, gpu_platform],
@@ -272,33 +182,16 @@ def process_video(self, video_id: str):
 
                 # Release the lock but keep the step-set; the gap to the tail is
                 # bridged by DB status, not a held lock.
-                _release_lock(video_id)
+                release_lock(video_id)
 
             except Exception as e:
                 logger.exception("Video %s head processing failed", video_id)
-                try:
-                    video.status = VideoStatus.error
-                    video.error_message = str(e)
-                    await db.commit()
-                except Exception:
-                    logger.exception("Video %s: failed to commit error state", video_id)
-                    try:
-                        await db.rollback()
-                    except Exception:
-                        logger.exception("Video %s: rollback also failed", video_id)
+                await commit_error_state(video, db, e)
                 if self.request.retries >= self.max_retries:
-                    _release_lock_and_steps(video_id)
+                    release_lock_and_steps(video_id)
                 raise self.retry(exc=e) from e
 
-    try:
-        run_async(_process())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_process())
-        finally:
-            loop.close()
+    run_pipeline_task(_process())
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +292,7 @@ def finalize_video(self, video_id: str):
     Triggered by the transcription callback endpoint once subtitles arrive from
     the GPU worker. Runs on the cloud (default ``celery`` queue).
     """
-    if not _acquire_lock(video_id):
+    if not acquire_lock(video_id):
         logger.warning("Video %s is already being processed, skipping finalize", video_id)
         return
 
@@ -415,12 +308,12 @@ def finalize_video(self, video_id: str):
             video = result.scalar_one_or_none()
             if not video:
                 logger.error("Video %s not found for finalize", video_id)
-                _release_lock_and_steps(video_id)
+                release_lock_and_steps(video_id)
                 return
 
             try:
                 # --- Step: translating ---
-                if not await _is_step_done(video_id, "translating"):
+                if not await is_step_done(video_id, "translating"):
                     sub_result = await db.execute(
                         select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
                     )
@@ -433,7 +326,7 @@ def finalize_video(self, video_id: str):
                     video.processing_step = "translating"
                     video.processing_progress = 70
                     await db.commit()
-                    await _update_progress(video_id, "translating")
+                    await update_progress(video_id, "translating")
                 else:
                     logger.info("Video %s: skipping translating (already done)", video_id)
 
@@ -442,7 +335,7 @@ def finalize_video(self, video_id: str):
                 # (lemma -> exam level keys) once, level-agnostic, so the watch
                 # page can filter by the user's target exam at display time.
                 # Skipped gracefully when the ECDICT db is absent (word_levels null).
-                if not await _is_step_done(video_id, "annotating"):
+                if not await is_step_done(video_id, "annotating"):
                     if ecdict.is_available():
                         ann_result = await db.execute(
                             select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
@@ -453,14 +346,14 @@ def finalize_video(self, video_id: str):
                         video.processing_step = "annotating"
                         video.processing_progress = 72
                         await db.commit()
-                        await _update_progress(video_id, "annotating")
+                        await update_progress(video_id, "annotating")
                     else:
                         logger.warning(
                             "Video %s: skipping annotating (ECDICT db missing at %s)",
                             video_id,
                             ecdict.DB_PATH,
                         )
-                        await _update_progress(video_id, "annotating")
+                        await update_progress(video_id, "annotating")
                 else:
                     logger.info("Video %s: skipping annotating (already done)", video_id)
 
@@ -468,81 +361,34 @@ def finalize_video(self, video_id: str):
                 # Batch-generate contextual_note / pitfalls / knowledge for the
                 # video's exam-tagged words, stored as video:{id} rows so the
                 # gloss endpoint can return <10ms responses. Resume-safe.
-                if not await _is_step_done(video_id, "prewarm_notes"):
+                if not await is_step_done(video_id, "prewarm_notes"):
                     if not ecdict.is_available():
                         logger.info(
                             "Video %s: skipping prewarm_notes (no ECDICT — no words to annotate)",
                             video_id,
                         )
-                        await _update_progress(video_id, "prewarm_notes")
+                        await update_progress(video_id, "prewarm_notes")
                     else:
                         try:
-                            from app.services import word_notes as _word_notes
+                            from app.services.word_notes import prewarm_video_notes
 
-                            ann_sub_result = await db.execute(
-                                select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
-                            )
-                            ann_subs = list(ann_sub_result.scalars().all())
-                            # Build the (word, translation, context_sentence)
-                            # batch from word_levels; one representative
-                            # sentence per word, per its highest ECDICT level.
-                            seen: dict[tuple[str, str], dict] = {}
-                            for s in ann_subs:
-                                if not s.word_levels:
-                                    continue
-                                for surface, levels in s.word_levels.items():
-                                    top = (
-                                        max(
-                                            levels,
-                                            key=lambda lv: {
-                                                "zhongkao": 1,
-                                                "gaoKao": 2,
-                                                "cet4": 3,
-                                                "cet6": 4,
-                                                "ky": 5,
-                                                "ielts": 6,
-                                                "toefl": 6,
-                                                "gre": 7,
-                                            }.get(lv, 0),
-                                        )
-                                        if levels
-                                        else "global"
-                                    )
-                                    key = (surface, top)
-                                    if key not in seen:
-                                        # Use the first subtitle sentence
-                                        # containing this surface as the
-                                        # context cue.
-                                        seen[key] = {
-                                            "word": surface,
-                                            "level": top,
-                                            "context_sentence": s.text_en or "",
-                                        }
-                            items = list(seen.values())
-                            if items:
-                                ai = _get_ai_service()
-                                source = f"video:{video.id}"
-                                notes = await ai.generate_word_notes_bulk(items, source=source)
-                                await _word_notes.upsert_notes(db, notes)
-                                logger.info("Video %s: prewarmed %d video-specific notes", video_id, len(notes))
-                            else:
-                                logger.info("Video %s: no exam words to prewarm", video_id)
+                            await prewarm_video_notes(db, video.id)
                             video.processing_step = "prewarm_notes"
                             video.processing_progress = 74
                             await db.commit()
-                            await _update_progress(video_id, "prewarm_notes")
+                            await update_progress(video_id, "prewarm_notes")
                         except Exception as exc:
                             # Prewarm is an enhancement; don't fail the
                             # pipeline if the LLM is down. The gloss endpoint
                             # will fall back to live AI / global notes.
                             logger.warning("Video %s: prewarm_notes skipped (%s)", video_id, exc)
-                            await _update_progress(video_id, "prewarm_notes")
+                            await update_progress(video_id, "prewarm_notes")
                 else:
                     logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
                 # --- Step: downloading ---
                 video_path = None
-                if not await _is_step_done(video_id, "downloading"):
+                if not await is_step_done(video_id, "downloading"):
                     if video.video_source == VideoSource.imported:
                         video_path = await _download_video(video.source_url, video.id)
                         if not video_path:
@@ -555,14 +401,14 @@ def finalize_video(self, video_id: str):
                     video.processing_step = "downloading"
                     video.processing_progress = 75
                     await db.commit()
-                    await _update_progress(video_id, "downloading")
+                    await update_progress(video_id, "downloading")
                 else:
                     logger.info("Video %s: skipping downloading (already done)", video_id)
                     if video.video_source != VideoSource.imported:
                         video_path = _find_local_raw(video.id)
 
                 # --- Step: transcoding ---
-                if not await _is_step_done(video_id, "transcoding"):
+                if not await is_step_done(video_id, "transcoding"):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
                         video.video_url_480p = urls.get("480p")
@@ -573,7 +419,7 @@ def finalize_video(self, video_id: str):
                     video.processing_step = "transcoding"
                     video.processing_progress = 90
                     await db.commit()
-                    await _update_progress(video_id, "transcoding")
+                    await update_progress(video_id, "transcoding")
                 else:
                     logger.info("Video %s: skipping transcoding (already done)", video_id)
 
@@ -582,14 +428,16 @@ def finalize_video(self, video_id: str):
                 video.processing_step = None
                 video.processing_progress = 100
                 await db.commit()
-                await _update_progress(video_id, "done")
-                _release_lock_and_steps(video_id)
+                await update_progress(video_id, "done")
+                release_lock_and_steps(video_id)
                 logger.info("Video %s finalized", video_id)
 
-                # One-click flow: auto-publish once ready. Safe here because we
-                # just set status=ready, satisfying the publish guard. Best-effort
-                # browse cache invalidation so the homepage reflects it promptly.
-                if video.auto_publish and not video.is_published:
+                # Auto-publish once ready. Only official videos may bypass
+                # admin review; UGC must always go through the review workflow
+                # regardless of the auto_publish flag.  For UGC, auto_publish
+                # means "auto-submit for review when ready" (handled by the
+                # review service), not "skip review entirely".
+                if video.auto_publish and not video.is_published and video.is_official:
                     video.is_published = True
                     video.review_status = VideoReviewStatus.published.value
                     await db.commit()
@@ -601,7 +449,13 @@ def finalize_video(self, video_id: str):
                         logger.warning(
                             "auto_publish browse cache invalidation failed", video_id=video_id, exc_info=True
                         )
-                    logger.info("Video %s auto-published", video_id)
+                    logger.info("Video %s auto-published (official)", video_id)
+                elif video.auto_publish and not video.is_published and not video.is_official:
+                    # UGC with auto_publish: mark as pending_review instead of
+                    # published so admin must approve before community visibility.
+                    video.review_status = VideoReviewStatus.pending_review.value
+                    await db.commit()
+                    logger.info("Video %s auto-submitted for review (UGC)", video_id)
 
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:
@@ -609,29 +463,12 @@ def finalize_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s finalize failed", video_id)
-                try:
-                    video.status = VideoStatus.error
-                    video.error_message = str(e)
-                    await db.commit()
-                except Exception:
-                    logger.exception("Video %s: failed to commit error state", video_id)
-                    try:
-                        await db.rollback()
-                    except Exception:
-                        logger.exception("Video %s: rollback also failed", video_id)
+                await commit_error_state(video, db, e)
                 if self.request.retries >= self.max_retries:
-                    _release_lock_and_steps(video_id)
+                    release_lock_and_steps(video_id)
                 raise self.retry(exc=e) from e
 
-    try:
-        run_async(_process())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_process())
-        finally:
-            loop.close()
+    run_pipeline_task(_process())
 
 
 async def _cleanup_oss_raw(video_id: str, source_url: str) -> None:
@@ -652,14 +489,14 @@ async def _cleanup_oss_raw(video_id: str, source_url: str) -> None:
 def watchdog_stale_transcriptions():
     """Mark videos stuck in "transcribing" as failed (GPU worker offline).
 
-    A video is created and immediately enqueued for transcription, so
-    ``created_at`` is a close proxy for when transcription started. If it has
-    been in ``transcribing`` longer than ``video_transcribe_timeout``, the GPU
-    worker is assumed lost and the video is failed so the user can re-submit.
+    Uses ``processing_started_at`` (set when processing actually begins) rather
+    than ``created_at`` to avoid prematurely killing videos where admin delayed
+    triggering ``start_processing``.  Falls back to ``created_at`` for rows
+    where ``processing_started_at`` is NULL (legacy data).
     """
     from datetime import UTC, datetime, timedelta
 
-    from sqlalchemy import select
+    from sqlalchemy import and_, or_, select
 
     from app.core.database import async_session
     from app.models.video import Video, VideoStatus
@@ -673,7 +510,12 @@ def watchdog_stale_transcriptions():
                 select(Video).where(
                     Video.processing_step == "transcribing",
                     Video.status == VideoStatus.processing,
-                    Video.created_at < cutoff,
+                    # Use processing_started_at when available; fall back to
+                    # created_at for legacy rows that predate the column.
+                    or_(
+                        Video.processing_started_at < cutoff,
+                        and_(Video.processing_started_at.is_(None), Video.created_at < cutoff),
+                    ),
                 )
             )
             stuck = list(result.scalars().all())
@@ -681,20 +523,12 @@ def watchdog_stale_transcriptions():
                 v.status = VideoStatus.error
                 v.error_message = "Transcription timed out (GPU worker offline?)"
                 v.processing_step = None
-                _release_lock_and_steps(v.id)
+                release_lock_and_steps(v.id)
                 logger.warning("Watchdog: marked stale transcription as failed", video_id=v.id)
             if stuck:
                 await db.commit()
 
-    try:
-        run_async(_run())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_run())
-        finally:
-            loop.close()
+    run_pipeline_task(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -900,7 +734,7 @@ def localize_video(self, video_id: str):
     Reuses ``_download_video`` + ``_transcode_video`` and the same Redis
     lock / progress reporting as the full pipeline.
     """
-    if not _acquire_lock(video_id):
+    if not acquire_lock(video_id):
         logger.warning("Video %s is already being processed, skipping localize", video_id)
         return
 
@@ -915,13 +749,13 @@ def localize_video(self, video_id: str):
             video = result.scalar_one_or_none()
             if not video:
                 logger.error("Video %s not found for localize", video_id)
-                _release_lock_and_steps(video_id)
+                release_lock_and_steps(video_id)
                 return
 
             try:
                 # --- Step: downloading ---
-                if not await _is_step_done(video_id, "downloading"):
-                    await _update_progress(video_id, "downloading")
+                if not await is_step_done(video_id, "downloading"):
+                    await update_progress(video_id, "downloading")
                     video_path = await _download_video(video.source_url, video.id)
                     if not video_path:
                         raise Exception(f"Failed to download video from {video.source_url}")
@@ -929,7 +763,7 @@ def localize_video(self, video_id: str):
                     video_path = _find_local_raw(video.id)
 
                 # --- Step: transcoding ---
-                if not await _is_step_done(video_id, "transcoding"):
+                if not await is_step_done(video_id, "transcoding"):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
                         video.video_url_480p = urls.get("480p")
@@ -938,39 +772,22 @@ def localize_video(self, video_id: str):
                         await db.commit()
                     else:
                         logger.warning("No video file to transcode for %s", video_id)
-                    await _update_progress(video_id, "transcoding")
+                    await update_progress(video_id, "transcoding")
 
                 # --- Step: done ---
                 video.status = VideoStatus.ready
                 video.processing_step = None
                 await db.commit()
-                await _update_progress(video_id, "done")
-                _release_lock_and_steps(video_id)
+                await update_progress(video_id, "done")
+                release_lock_and_steps(video_id)
                 logger.info("Video %s localized to local storage", video_id)
 
             except Exception as e:
                 logger.exception("Video %s localize failed", video_id)
-                try:
-                    video.status = VideoStatus.error
-                    video.error_message = str(e)
-                    await db.commit()
-                except Exception:
-                    logger.exception("Video %s: failed to commit error state", video_id)
-                    try:
-                        await db.rollback()
-                    except Exception:
-                        logger.exception("Video %s: rollback also failed", video_id)
+                await commit_error_state(video, db, e)
                 if self.request.retries >= self.max_retries:
                     logger.error("Video %s: max retries reached, releasing lock", video_id)
-                    _release_lock_and_steps(video_id)
+                    release_lock_and_steps(video_id)
                 raise self.retry(exc=e) from e
 
-    try:
-        run_async(_localize())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_localize())
-        finally:
-            loop.close()
+    run_pipeline_task(_localize())

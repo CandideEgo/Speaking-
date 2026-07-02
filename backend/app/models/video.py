@@ -120,6 +120,11 @@ class Video(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
+    # When processing actually started (set by start_processing or seed_video).
+    # Used by the watchdog to detect stale transcriptions — more accurate than
+    # created_at because admin may delay triggering start_processing.
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # relationships
     # foreign_keys disambiguates the two users FKs (user_id ownership vs
     # reviewed_by reviewer); this relationship tracks the owner.

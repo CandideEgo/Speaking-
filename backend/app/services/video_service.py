@@ -436,9 +436,11 @@ def _delete_media_files(video_id: str) -> None:
                 pass
 
 
-# Mirrors STEP_PROGRESS["downloading"] from app.tasks.video_processing to avoid
-# importing the task module at service load time.
-STEP_PROGRESS_DOWNLOADING = 10
+# Single source of truth: import from pipeline_helpers instead of
+# maintaining a separate constant that can drift out of sync.
+from app.tasks.pipeline_helpers import STEP_PROGRESS as _STEP_PROGRESS
+
+STEP_PROGRESS_DOWNLOADING = _STEP_PROGRESS["downloading"]
 
 
 async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminResponse:

@@ -12,6 +12,8 @@ Handles user submission, admin seed, and user-seed flows.
   dispatching the Celery task.
 """
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -125,6 +127,7 @@ async def seed_video(
         # automatically once ready; the manual flow leaves it False for review.
         is_published=False,
         auto_publish=auto_publish,
+        processing_started_at=datetime.now(UTC),
     )
     db.add(video)
     await commit_refresh(db, video)
@@ -147,9 +150,8 @@ async def seed_user_video(
 
     Similar to seed_video but creates a UGC video (is_official=False)
     owned by the submitting user, starting in draft review status.
-    When ``auto_publish=True`` (the one-click flow), the video is
-    auto-published once the pipeline completes, but still needs admin
-    review before appearing in the community feed.
+    UGC videos always require admin review before appearing in the
+    community feed, regardless of the ``auto_publish`` flag.
     """
     platform = _detect_platform(source_url)
 
@@ -162,7 +164,7 @@ async def seed_user_video(
         is_official=False,
         is_published=False,
         review_status=VideoReviewStatus.draft.value,
-        auto_publish=True,
+        auto_publish=auto_publish,
     )
     db.add(video)
     await commit_refresh(db, video)
@@ -211,6 +213,7 @@ async def start_processing(db: AsyncSession, video_id: str) -> VideoResponse:
 
     # Transition to processing and dispatch Celery task
     video.status = VideoStatus.processing
+    video.processing_started_at = datetime.now(UTC)
     await commit_refresh(db, video)
 
     from app.tasks.video_processing import process_video
