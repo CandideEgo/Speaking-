@@ -19,6 +19,7 @@ import {
 
 import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useVideoStatusPolling } from "@/hooks/useVideoStatusPolling";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import {
   beginEdit,
@@ -56,7 +57,6 @@ export default function MyVideoEditorPage() {
   );
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -74,40 +74,36 @@ export default function MyVideoEditorPage() {
     load();
   }, [isAuthenticated, isLoading, load]);
 
-  // Poll while processing.
-  useEffect(() => {
-    if (
-      !video ||
-      (video.status !== "processing" && video.status !== "ready_subtitles")
-    ) {
-      if (pollRef.current) clearInterval(pollRef.current);
-      return;
-    }
-    pollRef.current = setInterval(async () => {
-      try {
-        const st = await getMyVideoStatus(videoId);
-        if (st.status === "ready" || st.status === "error") {
-          if (pollRef.current) clearInterval(pollRef.current);
-          await load();
-        } else {
-          setVideo((v) =>
-            v
-              ? {
-                  ...v,
-                  status: st.status as VideoWithSubtitles["status"],
-                  processing_step: st.processing_step,
-                }
-              : v,
-          );
-        }
-      } catch {
-        /* swallow */
-      }
-    }, 3000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [video?.status, videoId, load]);
+  // Unified polling via useVideoStatusPolling. Fixes the bug where
+  // video_url_720p was not patched during polling (stale URL after
+  // transcoding).
+  useVideoStatusPolling(videoId, video?.status ?? "pending_processing", {
+    fetchStatus: async (id) => {
+      const st = await getMyVideoStatus(id);
+      return {
+        status: st.status as string,
+        processing_step: st.processing_step,
+        video_url_720p: st.video_url_720p ?? undefined,
+      };
+    },
+    onTerminal: () => {
+      // Reload full video detail on terminal states to pick up
+      // review_status, subtitles, and video URLs.
+      load();
+    },
+    onPatch: (patch) => {
+      setVideo((v) =>
+        v
+          ? {
+              ...v,
+              status: patch.status as VideoWithSubtitles["status"],
+              processing_step: patch.processing_step,
+              video_url_720p: patch.video_url_720p ?? v.video_url_720p,
+            }
+          : v,
+      );
+    },
+  });
 
   const seekTo = useCallback((time: number) => {
     const el = videoElRef.current;

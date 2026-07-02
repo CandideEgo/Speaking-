@@ -17,6 +17,7 @@ import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
 import {
   VIDEO_STATUS_CONFIG,
   STEP_LABELS_SHORT,
+  ACTIVE_POLLING_STATUSES,
   displayStatusOf,
   type StatusBadgeConfig,
 } from "@/lib/videoStatus";
@@ -55,13 +56,12 @@ export default function MyVideosPage() {
   }, [isAuthenticated, isLoading, load]);
 
   // Poll processing videos until they're ready/error.
+  // This is batch-style (multiple videos) so it doesn't use the single-video
+  // useVideoStatusPolling hook, but shares ACTIVE_POLLING_STATUSES.
   useEffect(() => {
     const currentVideos = videosRef.current;
-    const hasProcessing = currentVideos.some(
-      (v) =>
-        v.status === "pending_processing" ||
-        v.status === "processing" ||
-        v.status === "ready_subtitles",
+    const hasProcessing = currentVideos.some((v) =>
+      ACTIVE_POLLING_STATUSES.has(v.status),
     );
     if (!hasProcessing) {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -72,11 +72,7 @@ export default function MyVideosPage() {
         const liveVideos = videosRef.current;
         const updated: Video[] = [];
         for (const v of liveVideos) {
-          if (
-            v.status === "pending_processing" ||
-            v.status === "processing" ||
-            v.status === "ready_subtitles"
-          ) {
+          if (ACTIVE_POLLING_STATUSES.has(v.status)) {
             const st = await getMyVideoStatus(v.id);
             updated.push({
               ...v,
@@ -89,11 +85,7 @@ export default function MyVideosPage() {
           }
         }
         setVideos(updated);
-        if (
-          !updated.some(
-            (v) => v.status === "processing" || v.status === "ready_subtitles",
-          )
-        ) {
+        if (!updated.some((v) => ACTIVE_POLLING_STATUSES.has(v.status))) {
           if (pollRef.current) clearInterval(pollRef.current);
           toast.success("视频处理完成");
           load(); // refresh to pick up review_status / subtitles
