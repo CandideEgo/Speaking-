@@ -286,6 +286,122 @@ async def get_streak_info(db: AsyncSession, user_id: str) -> dict:
     }
 
 
+async def get_user_stats(db: AsyncSession, user_id: str, period: str = "all") -> dict:
+    """Aggregate learning stats for a given time period.
+
+    Relocated from ``speaking_service`` when AI speaking scoring was removed
+    (ADR-0002, 2026-07). Still returns speaking metrics (accuracy/fluency/
+    completeness) sourced from the **frozen** ``SpeakingAttempt`` table and
+    ``DailyActivity`` snapshots — no new speaking data is written, so these
+    numbers are historical only. Slated for rebuild in ADR-0003 (Phase 4) to
+    surface vocab/watch metrics instead of speaking.
+
+    Args:
+        period: "today" | "week" | "month" | "all"
+
+    Returns:
+        Dict with aggregate stats and optional trend data.
+    """
+    from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+
+    # Determine date range
+    now = datetime.now(UTC)
+    today = now.date()
+
+    if period == "today":
+        start_date = today
+    elif period == "week":
+        start_date = today - timedelta(days=6)  # 7 days including today
+    elif period == "month":
+        start_date = today - timedelta(days=29)  # 30 days including today
+    else:
+        start_date = None  # all time
+
+    # ── Aggregate from DailyActivity (fast, pre-computed) ──
+    if start_date is not None:
+        # Time-bounded query using daily_activities
+        da_stmt = select(DailyActivity).where(
+            DailyActivity.user_id == user_id,
+            DailyActivity.date >= start_date,
+        )
+    else:
+        da_stmt = select(DailyActivity).where(DailyActivity.user_id == user_id)
+
+    da_result = await db.execute(da_stmt.order_by(DailyActivity.date))
+    daily_activities = da_result.scalars().all()
+
+    total_speaking = sum(d.speaking_attempts for d in daily_activities)
+    total_vocab = 0  # Will query separately
+    total_videos = sum(1 for d in daily_activities if d.speaking_attempts > 0 or d.videos_watched > 0)
+
+    # Weighted averages from daily activities
+    if total_speaking > 0:
+        weighted_acc = sum(
+            (d.avg_accuracy or 0) * d.speaking_attempts for d in daily_activities if d.speaking_attempts > 0
+        )
+        weighted_flu = sum(
+            (d.avg_fluency or 0) * d.speaking_attempts for d in daily_activities if d.speaking_attempts > 0
+        )
+        weighted_comp = sum(
+            (d.avg_completeness or 0) * d.speaking_attempts for d in daily_activities if d.speaking_attempts > 0
+        )
+        avg_accuracy = round(weighted_acc / total_speaking, 1)
+        avg_fluency = round(weighted_flu / total_speaking, 1)
+        avg_completeness = round(weighted_comp / total_speaking, 1)
+    else:
+        # Fallback: query SpeakingAttempt directly (for "all" period or sparse data)
+        acc_result = await db.execute(
+            select(func.avg(SpeakingAttempt.accuracy)).where(
+                SpeakingAttempt.user_id == user_id,
+                SpeakingAttempt.accuracy.isnot(None),
+            )
+        )
+        flu_result = await db.execute(
+            select(func.avg(SpeakingAttempt.fluency)).where(
+                SpeakingAttempt.user_id == user_id,
+                SpeakingAttempt.fluency.isnot(None),
+            )
+        )
+        comp_result = await db.execute(
+            select(func.avg(SpeakingAttempt.completeness)).where(
+                SpeakingAttempt.user_id == user_id,
+                SpeakingAttempt.completeness.isnot(None),
+            )
+        )
+        avg_accuracy = round(float(acc_result.scalar() or 0), 1)
+        avg_fluency = round(float(flu_result.scalar() or 0), 1)
+        avg_completeness = round(float(comp_result.scalar() or 0), 1)
+
+    # Vocabulary count (separate query — not in DailyActivity aggregates)
+    vocab_result = await db.execute(select(func.count(Vocabulary.id)).where(Vocabulary.user_id == user_id))
+    total_vocab = vocab_result.scalar() or 0
+
+    # Videos watched count
+    videos_result = await db.execute(select(func.count(LearningRecord.id)).where(LearningRecord.user_id == user_id))
+    total_videos = videos_result.scalar() or 0
+
+    # ── Build trend data ──
+    trend = None
+    if period in ("week", "month") and daily_activities:
+        trend = {
+            "accuracy": [round(d.avg_accuracy or 0, 1) for d in daily_activities],
+            "fluency": [round(d.avg_fluency or 0, 1) for d in daily_activities],
+            "completeness": [round(d.avg_completeness or 0, 1) for d in daily_activities],
+            "dates": [d.date.isoformat() for d in daily_activities],
+        }
+
+    return {
+        "total_speaking_attempts": total_speaking,
+        "average_accuracy": avg_accuracy,
+        "average_fluency": avg_fluency,
+        "average_completeness": avg_completeness,
+        "total_vocabulary": total_vocab,
+        "total_videos_watched": total_videos,
+        "period": period,
+        "trend": trend,
+    }
+
+
 # ── Internal helpers ─────────────────────────────────────────────────
 
 

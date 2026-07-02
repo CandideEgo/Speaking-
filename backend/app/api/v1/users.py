@@ -13,8 +13,7 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from app.services.activity_service import get_activity_calendar, get_streak_info
-from app.services.speaking_service import get_user_stats
+from app.services.activity_service import get_activity_calendar, get_streak_info, get_user_stats
 
 router = APIRouter(prefix="/users", tags=["users"])
 

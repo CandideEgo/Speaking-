@@ -63,25 +63,6 @@ from app.schemas.payment import (
     OrderStatusResponse,
     PaymentStatusResponse,
 )
-
-# ── 评分标准 ──
-from app.schemas.rubric import (
-    CriterionScoreResponse,
-    RubricCreate,
-    RubricCriterionCreate,
-    RubricCriterionResponse,
-    RubricResponse,
-    RubricUpdate,
-)
-
-# ── 口语练习 ──
-from app.schemas.speaking import (
-    CriterionScore,
-    FreePracticeResponse,
-    SpeakingAttemptResponse,
-    SpeakingSubmitResponse,
-    WordScore,
-)
 from app.schemas.user import (
     ActivityCalendarResponse,
     ChangePasswordRequest,

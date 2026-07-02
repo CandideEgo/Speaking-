@@ -7,8 +7,8 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.user import User
+from app.services.activity_service import get_user_stats
 from app.services.ai_service import get_ai_service
-from app.services.speaking_service import get_user_stats
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 

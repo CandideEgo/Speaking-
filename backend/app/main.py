@@ -25,8 +25,6 @@ from app.api.v1 import (
     notifications,
     payments,
     practice,
-    rubrics,
-    speaking,
     users,
     videos,
     vocabulary,
@@ -171,7 +169,6 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(favorites.router, prefix="/api/v1")
-    app.include_router(speaking.router, prefix="/api/v1")
     app.include_router(ai.router, prefix="/api/v1")
     app.include_router(invite.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
@@ -185,7 +182,6 @@ def create_app() -> FastAPI:
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(community.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
-    app.include_router(rubrics.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")

@@ -16,7 +16,6 @@ import { Textarea } from "@/components/ui/Input";
  *
  * Supported shares:
  * - video_share:        { videoId }              → a watched/UGC video
- * - speaking_share:     { speakingAttemptId }    → a speaking attempt
  * - progress_share:     (no linked id)           → free-form progress note
  *
  * The caller controls visibility via `open`/`onClose`.
@@ -26,30 +25,20 @@ export function ShareToCommunityDialog({
   onClose,
   videoId,
   videoTitle,
-  speakingAttemptId,
 }: {
   open: boolean;
   onClose: () => void;
   videoId?: string | null;
   videoTitle?: string | null;
-  speakingAttemptId?: string | null;
 }) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   if (!open) return null;
 
-  const postType = speakingAttemptId
-    ? "speaking_share"
-    : videoId
-      ? "video_share"
-      : "progress_share";
+  const postType = videoId ? "video_share" : "progress_share";
 
-  const subject = videoTitle
-    ? `视频「${videoTitle}」`
-    : speakingAttemptId
-      ? "我的口语练习"
-      : "学习进展";
+  const subject = videoTitle ? `视频「${videoTitle}」` : "学习进展";
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -60,7 +49,6 @@ export function ShareToCommunityDialog({
           content: content.trim() || `分享了${subject}`,
           post_type: postType,
           video_id: videoId ?? null,
-          speaking_attempt_id: speakingAttemptId ?? null,
         }),
       });
       toast.success("已分享到社区");

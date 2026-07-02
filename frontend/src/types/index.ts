@@ -94,19 +94,6 @@ export interface VideoWithSubtitles extends Video {
   subtitles: Subtitle[];
 }
 
-export interface SpeakingAttempt {
-  id: string;
-  user_id: string;
-  subtitle_id: string;
-  audio_url: string | null;
-  transcript: string | null;
-  accuracy: number | null;
-  fluency: number | null;
-  completeness: number | null;
-  feedback: string | null;
-  created_at: string;
-}
-
 export interface LearningRecord {
   id: string;
   user_id: string;
@@ -138,14 +125,6 @@ export interface GradedResult {
   explanation: string | null;
   /** The correct answer, shown when the learner was wrong. */
   correctAnswer?: string;
-}
-
-export interface SpeakingResult {
-  accuracy: number;
-  fluency: number;
-  completeness: number;
-  feedback: string;
-  transcript: string;
 }
 
 export interface QuizResponse {

@@ -20,11 +20,15 @@
 
 ADR-0002。后端删 + 前端死组件清。
 
-- [ ] 后端删除：`speaking_service.py`、`speaking_alignment.py`、`speaking.py` 路由、`rubrics.py` 路由、`rubric.py` 模型、`schemas/speaking.py`、`ai_service.py` 三个评分方法、`main.py` 路由注册、相关测试。
-- [ ] 前端删死组件：`SpeakingRecorder.tsx`、首页"跟读/自由说"chip、`ShareToCommunityDialog` 的 `speaking_share`、`types/index.ts` 中 speaking 字段。
-- [ ] `SpeakingAttempt` 表保留（冻结），加注释说明停止写入。
-- [ ] 验证：`pytest tests/`、`npx tsc --noEmit`、`npm run lint`、`gitnexus_detect_changes()`。
-- [ ] **注意**：先查 `update_streak` / `record_speaking_activity` 的其他调用方——streak 是否还有 vocab/watch 来源（影响 ADR-0003）。
+- [x] 后端删除：`speaking_service.py`、`speaking_alignment.py`、`speaking.py` 路由、`rubrics.py` 路由、`rubric.py` 模型、`schemas/speaking.py`、`schemas/rubric.py`、`ai_service.py` 三个评分方法（`pronunciation_feedback` / `pronunciation_feedback_rubric` / `free_speaking_feedback`）、`main.py` 路由注册、`test_speaking_eval.py`、`test_speaking.py`。
+  - **偏差**：`get_user_stats` 未删——被 `users.py:get_my_stats` + `ai.py:assistant_summary` 共享，移到 `activity_service.py`（仍返回 frozen speaking 统计，Phase 4 按 ADR-0003 改建为 vocab/watch）。
+  - **偏差**：`test_ai_rubrics.py` 未整文件删——它是 AI + rubric 混合文件，仅删 rubric 测试类与 rubric 模型 import，保留 3 个 AI 测试类。
+  - **偏差**：`SpeakingAttempt.rubric_id` 的 `ForeignKey` 从模型移除（frozen 表 DB 约束保留），否则 `Base.metadata.create_all` 因 `speaking_rubrics` 表已不在 metadata 而抛 `NoReferencedTableError`，崩所有测试。
+- [x] 前端删死组件：`SpeakingRecorder.tsx` 删除；首页"跟读/自由说"chip 删除（保留"朗读"，标题改"选择视频，开始练习"）；`ShareToCommunityDialog` 移除 `speaking_share` 路径（`speakingAttemptId` prop 无调用方，死代码）；`types/index.ts` 删除已死的 `SpeakingAttempt` / `SpeakingResult` 接口。
+  - **保留**（ADR-0003 Phase 4/5 范围）：`PostType` union 的 `"speaking_share"`、`lib/community.ts` 的 `POST_TYPE_META.speaking_share`（历史帖渲染）、`LearningRecord/UserStats/DailyActivity/AdminUser/AdminStatsTrend/UserPreferences` 的 speaking 字段（dashboard/admin/profile/onboarding 仍用）。`useSpeakingRecorder.ts` + `AudioWaveform.tsx` + watch 录音面板按 ADR-0002 保留。
+- [x] `SpeakingAttempt` 表保留（冻结），加 docstring 说明停止写入；`scores` relationship 删除（`SpeakingAttemptScore` 模型已删）。
+- [x] 验证：`pytest tests/`（306 passed）、`npx tsc --noEmit`（exit 0）、`ruff check`（clean）、`gitnexus_detect_changes()`（仅 HomePage 流程受影响，无 speaking 评分流程残留）。`npm run lint` 跳过——ESLint 未配置（既有状态，tsc 为类型门禁）。
+- [x] **注意**：先查 `update_streak` / `record_speaking_activity` 的其他调用方——结论见 [streak-speaking-only-source](../../memory/streak-speaking-only-source.md)：`update_streak` 仅 speaking_service 调用（+ backfill 脚本），**无 vocab/watch 调用方**；Phase 1 后 streak 失活。`record_speaking_activity` 变孤儿死代码（留 activity_service，Phase 4 清）。**ADR-0003 Phase 4 必须补 vocab/watch → streak 写入，或 fallback 删 dashboard**。
 
 ## Phase 2 — UGC 管线跑通（1–2 天）
 

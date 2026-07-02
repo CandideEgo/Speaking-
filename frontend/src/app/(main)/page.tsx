@@ -211,20 +211,12 @@ export default function HomePage() {
           <div className="b-practice">
             <div>
               <div className="lbl">Quick Practice</div>
-              <div className="title">选择视频，开始跟读练习</div>
+              <div className="title">选择视频，开始练习</div>
             </div>
             <div className="b-practice-modes">
               <Link href="/browse" className="mode-chip">
                 <span className="dot r" />
                 朗读 <small>Read aloud</small>
-              </Link>
-              <Link href="/browse" className="mode-chip">
-                <span className="dot m" />
-                跟读 <small>Shadowing</small>
-              </Link>
-              <Link href="/browse" className="mode-chip">
-                <span className="dot f" />
-                自由说 <small>Free speaking</small>
               </Link>
             </div>
           </div>

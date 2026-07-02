@@ -11,7 +11,7 @@ import { toast } from "sonner";
  * @param requireAuth — callback that returns false if user is not authenticated
  *   (triggers redirect). The hook calls this before starting a recording.
  * @param options.timer — if true, track recording duration in seconds
- *   (used by the free-speaking SpeakingRecorder component).
+ *   (currently unused; the watch-page recording panel records without a timer).
  */
 export function useSpeakingRecorder(
   requireAuth: () => boolean,

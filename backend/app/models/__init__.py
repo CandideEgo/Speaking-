@@ -11,7 +11,6 @@ from app.models.order import Order
 from app.models.password_reset import PasswordResetToken
 from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
-from app.models.rubric import RubricCriterion, SpeakingAttemptScore, SpeakingRubric
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video

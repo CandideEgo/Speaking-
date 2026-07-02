@@ -8,6 +8,12 @@ from app.core.database import Base
 
 
 class SpeakingAttempt(Base):
+    """Frozen — AI speaking scoring was removed (ADR-0002, 2026-07). Kept for
+    historical data only; no new rows are written. Recording is now playback-
+    only with zero persistence. The ``rubric_id`` FK and the underlying
+    ``speaking_rubrics`` / ``rubric_criteria`` / ``speaking_attempt_scores``
+    tables are also frozen (their SQLAlchemy models were deleted)."""
+
     __tablename__ = "speaking_attempts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -26,12 +32,15 @@ class SpeakingAttempt(Base):
     word_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     mode: Mapped[str] = mapped_column(String(20), default="read_aloud")  # read_aloud/shadowing/free_speaking
-    rubric_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("speaking_rubrics.id"), nullable=True)
+    # Frozen historical column — the FK to speaking_rubrics was dropped from the
+    # model when the rubric models were deleted (ADR-0002). The DB table still
+    # holds the constraint; the model omits it so metadata.create_all doesn't
+    # require the frozen speaking_rubrics table to be present in the metadata.
+    rubric_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     user = relationship("User", back_populates="speaking_attempts")
     subtitle = relationship("Subtitle", back_populates="speaking_attempts")
-    scores = relationship("SpeakingAttemptScore", back_populates="attempt")
 
 
 class LearningRecord(Base):
