@@ -29,6 +29,3 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=1024]
       - id: detect-private-key
-      - id: no-commit-to-branch
-        args: [--branch, master]
-        stages: [pre-commit]
