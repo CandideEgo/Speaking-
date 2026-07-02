@@ -16,8 +16,11 @@ import {
   Compass,
   Crown,
   Upload,
+  User,
+  LogOut,
 } from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -57,7 +60,10 @@ const navigation: NavSection[] = [
   },
   {
     title: "账户",
-    items: [{ label: "Pro 会员", href: "/pricing", icon: Crown }],
+    items: [
+      { label: "个人中心", href: "/profile", icon: User },
+      { label: "Pro 会员", href: "/pricing", icon: Crown },
+    ],
   },
 ];
 
@@ -111,6 +117,8 @@ function SidebarNavContent({
   onNavClick?: () => void;
   pathname: string;
 }) {
+  const logout = useAuthStore((s) => s.logout);
+
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
@@ -177,6 +185,23 @@ function SidebarNavContent({
           </Link>
         )}
         {!collapsed && <ComplianceInfo className="mt-2.5 text-center" />}
+        {/* Logout */}
+        <button
+          onClick={() => {
+            logout();
+            onNavClick?.();
+          }}
+          className={cn(
+            "mt-2.5 flex items-center gap-3 rounded-sm text-sm font-medium text-olive hover:bg-surface-card hover:text-ink transition-colors duration-150",
+            collapsed
+              ? "justify-center w-10 h-10 mx-auto"
+              : "w-full px-3 py-2.5",
+          )}
+          aria-label="退出登录"
+        >
+          <LogOut size={18} className="flex-shrink-0" />
+          {!collapsed && <span>退出登录</span>}
+        </button>
       </div>
     </aside>
   );

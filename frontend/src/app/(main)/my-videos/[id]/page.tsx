@@ -138,7 +138,12 @@ export default function MyVideoEditorPage() {
     video.status === "processing" || video.status === "ready_subtitles";
   const isPublished = video.review_status === "published";
   const isPending = video.review_status === "pending_review";
-  const editable = video.status === "ready" && !isPublished;
+  // Editable only in draft / rejected review states (aligns with the list
+  // page). Previously `!isPublished` let pending_review show "提交审核" again,
+  // which errored on resubmit.
+  const editable =
+    video.status === "ready" &&
+    (video.review_status === "draft" || video.review_status === "rejected");
 
   const handleSaveSubtitle =
     (subtitleId: string) => async (patch: SubtitlePatch) => {

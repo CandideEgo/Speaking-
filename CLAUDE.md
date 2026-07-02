@@ -191,10 +191,10 @@ ECDICT dictionary annotations run locally (no AI) at ingest time, tagging each w
 
 ```bash
 cd backend
-python seed_official_videos.py              # create all videos
-python seed_official_videos.py --dry-run     # preview only
-python seed_official_videos.py --category ted
-python seed_official_videos.py --force       # re-fetch metadata + subtitles
+python scripts/seed_official_videos.py              # create all videos
+python scripts/seed_official_videos.py --dry-run     # preview only
+python scripts/seed_official_videos.py --category ted
+python scripts/seed_official_videos.py --force       # re-fetch metadata + subtitles
 ```
 
 Idempotent: skips by `source_url`. Incremental: add to `OFFICIAL_VIDEOS` list and re-run.

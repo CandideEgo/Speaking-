@@ -7,6 +7,7 @@ import { toastApiError } from "@/lib/errors";
 import {
   Loader2,
   Pencil,
+  Plus,
   RefreshCw,
   Video as VideoIcon,
   X,
@@ -32,6 +33,7 @@ import {
   localizeVideo,
   recoverVideo,
   rejectReview,
+  seedVideoFull,
   startProcessing,
 } from "@/lib/adminData";
 import { VideoDetailRow } from "./VideoDetailRow";
@@ -73,6 +75,11 @@ export default function VideoManager() {
 
   // GPU worker online status (refreshed every 30s).
   const [workerOnline, setWorkerOnline] = useState(false);
+
+  // "添加视频" dialog (one-click seed-full: transcribe + translate + publish).
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addUrl, setAddUrl] = useState("");
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -158,6 +165,23 @@ export default function VideoManager() {
     }
   }
 
+  async function handleAddVideo() {
+    const url = addUrl.trim();
+    if (!url) return;
+    setAdding(true);
+    try {
+      await seedVideoFull(url);
+      toast.success("已提交，处理进度将自动更新");
+      setAddDialogOpen(false);
+      setAddUrl("");
+      loadVideos();
+    } catch (err) {
+      toastApiError(err, "添加失败");
+    } finally {
+      setAdding(false);
+    }
+  }
+
   // Mutate a single video in the list (used by polling + edit-save).
   const patchVideo = useCallback((id: string, patch: Partial<VideoAdmin>) => {
     setVideos((prev) =>
@@ -216,15 +240,25 @@ export default function VideoManager() {
               GPU Worker: {workerOnline ? "在线" : "离线"}
             </div>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={loadVideos}
-            disabled={loading}
-          >
-            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => setAddDialogOpen(true)}
+            >
+              添加视频
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={loadVideos}
+              disabled={loading}
+            >
+              <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+              刷新
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -455,6 +489,54 @@ export default function VideoManager() {
           if (target) handleDelete(target);
         }}
       />
+
+      {/* Add-video dialog (one-click seed-full) */}
+      <Modal
+        open={addDialogOpen}
+        onClose={() => {
+          if (!adding) setAddDialogOpen(false);
+        }}
+        closeOnBackdrop={!adding}
+        title="添加官方视频"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAddDialogOpen(false)}
+              disabled={adding}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddVideo}
+              disabled={adding || !addUrl.trim()}
+            >
+              {adding && <Loader2 size={13} className="animate-spin" />}
+              开始处理
+            </Button>
+          </>
+        }
+      >
+        <p className="text-xs text-muted-foreground mb-3">
+          粘贴视频链接（YouTube /
+          Bilibili）。将自动转录、翻译并发布为官方视频，需 GPU Worker 在线。
+        </p>
+        <Input
+          type="url"
+          value={addUrl}
+          onChange={(e) => setAddUrl(e.target.value)}
+          placeholder="https://www.youtube.com/watch?v=..."
+          autoFocus
+          disabled={adding}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && addUrl.trim() && !adding) handleAddVideo();
+          }}
+        />
+      </Modal>
     </div>
   );
 }

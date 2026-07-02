@@ -6,7 +6,7 @@ import { Heart, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { avatarColor } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
@@ -97,7 +97,7 @@ export function CommunityFeedWidget() {
                 {p.user.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={p.user.avatar_url}
+                    src={mediaUrl(p.user.avatar_url)}
                     alt=""
                     className="w-7 h-7 rounded-full object-cover"
                   />

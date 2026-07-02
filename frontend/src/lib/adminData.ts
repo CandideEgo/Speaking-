@@ -170,6 +170,19 @@ export function getWorkerStatus(): Promise<{ worker_online: boolean }> {
   return adminApi<{ worker_online: boolean }>("/api/v1/admin/worker-status");
 }
 
+/** Count UGC videos awaiting admin action: pending_processing + pending_review. */
+export function getUgcPendingCount(): Promise<{
+  pending_processing: number;
+  pending_review: number;
+  total: number;
+}> {
+  return adminApi<{
+    pending_processing: number;
+    pending_review: number;
+    total: number;
+  }>("/api/v1/videos/admin/pending-count");
+}
+
 /** Trigger GPU processing for a pending video. Worker must be online. */
 export function startProcessing(id: string): Promise<VideoAdmin> {
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/start-processing`, {

@@ -12,7 +12,7 @@ import {
   type SubtitleSearchResult,
 } from "@/components/search/SearchDropdown";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { userInitial } from "@/lib/avatar";
 import { Search, Bell, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +40,10 @@ export function TopBar() {
   // Notification state
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Avatar URL — authStore.user is the decoded JWT (no avatar_url), so fetch
+  // the profile to render the user's avatar image.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Debounced search
   const performSearch = useCallback(async (query: string) => {
@@ -137,6 +141,25 @@ export function TopBar() {
     return () => {
       cancelled = true;
       clearInterval(interval);
+    };
+  }, [isAuthenticated]);
+
+  // Fetch the user's avatar URL (not present on the decoded JWT).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAvatarUrl(null);
+      return;
+    }
+    let cancelled = false;
+    api<{ avatar_url?: string | null }>("/api/v1/users/me")
+      .then((u) => {
+        if (!cancelled) setAvatarUrl(u.avatar_url ?? null);
+      })
+      .catch(() => {
+        /* silently fail — fallback to initial */
+      });
+    return () => {
+      cancelled = true;
     };
   }, [isAuthenticated]);
 
@@ -277,10 +300,19 @@ export function TopBar() {
             {/* Avatar */}
             <Link
               href="/profile"
-              className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-sm flex items-center justify-center ml-1.5"
+              className="w-[34px] h-[34px] rounded-full overflow-hidden bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-sm flex items-center justify-center ml-1.5 flex-shrink-0"
               aria-label="个人中心"
             >
-              {initial}
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={mediaUrl(avatarUrl)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                initial
+              )}
             </Link>
           </>
         )}

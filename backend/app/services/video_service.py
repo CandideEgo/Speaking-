@@ -300,6 +300,37 @@ async def list_all_videos(
     return PaginatedResponse(items=items, page=page, page_size=page_size, has_more=has_more)
 
 
+async def get_ugc_pending_counts(db: AsyncSession) -> dict:
+    """Count UGC (non-official) videos awaiting admin action.
+
+    Returns ``{pending_processing, pending_review, total}`` for the admin
+    top-bar badge. ``pending_processing`` = waiting for admin to start GPU
+    processing; ``pending_review`` = processed, waiting for admin approval.
+    Both counts are scoped to user-submitted (``is_official=False``) videos.
+    """
+    pending_processing = (
+        await db.execute(
+            select(func.count()).where(
+                Video.is_official == False,
+                Video.status == VideoStatus.pending_processing,
+            )
+        )
+    ).scalar_one()
+    pending_review = (
+        await db.execute(
+            select(func.count()).where(
+                Video.is_official == False,
+                Video.review_status == VideoReviewStatus.pending_review.value,
+            )
+        )
+    ).scalar_one()
+    return {
+        "pending_processing": pending_processing,
+        "pending_review": pending_review,
+        "total": pending_processing + pending_review,
+    }
+
+
 async def _get_video_or_404(db: AsyncSession, video_id: str) -> Video:
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()

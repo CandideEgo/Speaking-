@@ -86,6 +86,9 @@ from app.services.video_service import (
     delete_video as _delete_video,
 )
 from app.services.video_service import (
+    get_ugc_pending_counts as _get_ugc_pending_counts,
+)
+from app.services.video_service import (
     get_video_detail as _get_video_detail,
 )
 from app.services.video_service import (
@@ -198,6 +201,21 @@ async def list_admin_videos(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/admin/pending-count")
+@rate_limit("30/minute")
+async def get_admin_pending_count(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Count UGC videos awaiting admin action (badge for the admin top bar).
+
+    Returns ``{pending_processing, pending_review, total}`` for non-official
+    videos waiting to be processed or reviewed.
+    """
+    return await _get_ugc_pending_counts(db)
 
 
 @router.patch("/admin/{video_id}", response_model=VideoAdminResponse)

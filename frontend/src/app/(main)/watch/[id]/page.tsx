@@ -405,7 +405,7 @@ export default function WatchPage() {
         )}
       </div>
 
-      {/* ===== 双列：左视频+字幕+跟读，右字幕面板（可折叠） ===== */}
+      {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
       <div
         className={cn(
           "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
@@ -447,7 +447,7 @@ export default function WatchPage() {
             />
           </div>
 
-          {/* 字幕卡：紧贴视频正下方，跟读按钮行内（次要操作，按需展开） */}
+          {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
           {currentSubtitle && (
             <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
               <div className="flex items-start gap-4">
@@ -476,7 +476,7 @@ export default function WatchPage() {
                     )}
                 </div>
 
-                {/* 跟读：默认只一个小按钮，点击才展开录音 UI */}
+                {/* 录音：默认只一个小按钮，点击才展开录音 UI */}
                 <button
                   className={cn(
                     "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
@@ -490,11 +490,11 @@ export default function WatchPage() {
                   }}
                 >
                   <Mic size={15} />
-                  跟读
+                  录音
                 </button>
               </div>
 
-              {/* 跟读展开态：录音 / 评分 / 结果 */}
+              {/* 录音展开态：录音 / 回放 / 下一句 */}
               {speakingActive && (
                 <div className="mt-4 pt-4 border-t border-hairline">
                   {speakingState === "idle" && (

@@ -351,7 +351,7 @@ export default function CommunityPage() {
                         {post.user.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={post.user.avatar_url}
+                            src={mediaUrl(post.user.avatar_url)}
                             alt={post.user.name ?? "用户"}
                             className="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"
                           />
