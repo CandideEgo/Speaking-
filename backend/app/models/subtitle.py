@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import JSON, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -8,6 +8,7 @@ from app.core.database import Base
 
 class Subtitle(Base):
     __tablename__ = "subtitles"
+    __table_args__ = (Index("ix_subtitles_video_id_sentence_index", "video_id", "sentence_index"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     video_id: Mapped[str] = mapped_column(

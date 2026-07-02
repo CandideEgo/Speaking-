@@ -165,6 +165,26 @@ export async function deleteComment(id: string): Promise<void> {
 // Videos (existing admin endpoints in videos.py)
 // ---------------------------------------------------------------------------
 
+/** Check if the local GPU worker is online (heartbeat present in Redis). */
+export function getWorkerStatus(): Promise<{ worker_online: boolean }> {
+  return adminApi<{ worker_online: boolean }>("/api/v1/admin/worker-status");
+}
+
+/** Trigger GPU processing for a pending video. Worker must be online. */
+export function startProcessing(id: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/start-processing`, {
+    method: "POST",
+  });
+}
+
+/** Re-dispatch finalize for a video stuck mid-pipeline (processing / ready_subtitles).
+ * Clears the stale Redis lock and re-dispatches finalize_video (resume-safe). */
+export function recoverVideo(id: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/recover`, {
+    method: "POST",
+  });
+}
+
 export function listVideos(
   opts: {
     page?: number;

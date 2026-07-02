@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { Pagination } from "@/components/admin/Pagination";
@@ -177,7 +177,7 @@ export default function HistoryPage() {
                   <div className="h-12 w-20 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
                     {record.video?.thumbnail_url ? (
                       <img
-                        src={record.video.thumbnail_url}
+                        src={mediaUrl(record.video.thumbnail_url ?? "")}
                         alt=""
                         className="h-full w-full object-cover"
                       />

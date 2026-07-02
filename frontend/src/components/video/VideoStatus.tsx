@@ -1,9 +1,17 @@
 "use client";
 
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
+const STATUS_CONFIG: Record<
+  string,
+  { icon: React.ReactNode; label: string; className: string }
+> = {
+  pending_processing: {
+    icon: <Clock size={14} className="text-gray-500" />,
+    label: "待处理",
+    className: "bg-gray-50 text-gray-600",
+  },
   ready: {
     icon: <CheckCircle2 size={14} className="text-green-600" />,
     label: "就绪",
@@ -32,7 +40,7 @@ export function VideoStatusBadge({ status }: { status: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium",
-        config.className
+        config.className,
       )}
     >
       {config.icon} {config.label}

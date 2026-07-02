@@ -24,6 +24,15 @@ class UserLogin(BaseModel):
     password: str
 
 
+class SendSmsCodeRequest(BaseModel):
+    phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+
+
+class SmsLoginRequest(BaseModel):
+    phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
+
+
 class UserUpdate(BaseModel):
     name: str | None = None
     level: str | None = None
@@ -41,7 +50,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    email: str | None = None
+    phone: str | None = None
     name: str | None
     level: str | None
     plan: str

@@ -12,6 +12,8 @@ import {
   Video as VideoIcon,
   Check,
   XCircle,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import { useVideoPolling } from "@/hooks/useVideoPolling";
@@ -39,6 +41,9 @@ interface DetailRowProps {
   onDelete: (v: VideoAdmin) => void;
   onApprove: (v: VideoAdmin) => void;
   onReject: (id: string) => void;
+  onStartProcessing: (v: VideoAdmin) => void;
+  onRecover: (v: VideoAdmin) => void;
+  workerOnline: boolean;
   reviewBusy: boolean;
   onEditSubtitles: (id: string) => void;
 }
@@ -52,6 +57,9 @@ export function VideoDetailRow({
   onDelete,
   onApprove,
   onReject,
+  onStartProcessing,
+  onRecover,
+  workerOnline,
   reviewBusy,
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
@@ -216,6 +224,48 @@ export function VideoDetailRow({
                 驳回
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Pending-processing: admin can trigger GPU processing */}
+        {video.status === "pending_processing" && (
+          <div className="rounded-sm border border-blue-200 bg-blue-50/50 p-3 space-y-2">
+            <div className="text-xs font-medium text-blue-800">
+              视频等待处理 · {workerOnline ? "Worker 在线" : "Worker 离线"}
+            </div>
+            {!workerOnline && (
+              <div className="text-[11px] text-blue-600">
+                请先启动本地处理服务
+              </div>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onStartProcessing(video)}
+              disabled={!workerOnline}
+              icon={Play}
+            >
+              开始处理
+            </Button>
+          </div>
+        )}
+        {/* Stuck mid-pipeline (worker crash residue): re-dispatch finalize. */}
+        {(video.status === "processing" ||
+          video.status === "ready_subtitles") && (
+          <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+            <div className="text-xs font-medium text-amber-800">
+              视频处理中断 · 点击恢复继续
+              {video.processing_step ? `（卡在 ${video.processing_step}）` : ""}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onRecover(video)}
+              icon={RefreshCw}
+            >
+              恢复处理
+            </Button>
           </div>
         )}
         {video.review_status === "rejected" &&

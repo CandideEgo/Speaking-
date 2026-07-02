@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Loader2, RotateCcw, Lock, GraduationCap } from "lucide-react";
+import { Loader2, RotateCcw, Lock, GraduationCap, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -294,6 +294,48 @@ function ProUpsell({ levelLabel }: { levelLabel: string }) {
   );
 }
 
+/** Shown when all questions in a session have been answered. */
+function CompletionSummary({
+  total,
+  correct,
+  score,
+  accuracy,
+  onRetry,
+}: {
+  total: number;
+  correct: number;
+  score: number | null;
+  accuracy: number | null;
+  onRetry: () => void;
+}) {
+  const pct = accuracy ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
+  return (
+    <div className="mt-4 rounded-lg border border-hairline bg-surface-soft p-4 text-center animate-[fadeSlideIn_0.3s_ease-out]">
+      <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+        <Trophy size={20} />
+      </div>
+      <p className="text-sm font-semibold text-ink">练习完成！</p>
+      <div className="mt-2 flex items-center justify-center gap-4 text-xs text-muted">
+        <span>
+          正确 {correct}/{total}
+        </span>
+        <span>正确率 {pct}%</span>
+        {score !== null && <span>得分 {score}</span>}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onRetry}
+        className="mt-3"
+        icon={RotateCcw}
+      >
+        重新练习
+      </Button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // UnifiedPracticePanel — single panel hosting tabs for the three practice
 // modes. Merges the old VocabDrillPanel + inline PracticeSection + inline Quiz.
@@ -401,6 +443,18 @@ export function UnifiedPracticePanel({
           ))}
       </div>
 
+      {/* Progress bar */}
+      {active.items.length > 0 && (
+        <div className="h-1 bg-surface-soft">
+          <div
+            className="h-full bg-brand-500 transition-all duration-500 ease-out"
+            style={{
+              width: `${(active.answeredCount / active.items.length) * 100}%`,
+            }}
+          />
+        </div>
+      )}
+
       {/* Body */}
       <div className="px-4 pb-4 pt-1">
         {tab === "vocab" && <VocabBody session={vocab} />}
@@ -433,6 +487,7 @@ function VocabBody({ session }: { session: SessionLike<VocabDrillItem> }) {
         该视频暂无目标等级词汇可供练习。
       </p>
     );
+  const allDone = session.answeredCount === session.items.length;
   return (
     <>
       {session.items.map((it, i) => {
@@ -481,6 +536,15 @@ function VocabBody({ session }: { session: SessionLike<VocabDrillItem> }) {
           </QuestionCard>
         );
       })}
+      {allDone && (
+        <CompletionSummary
+          total={session.items.length}
+          correct={session.correctCount}
+          score={session.score}
+          accuracy={session.accuracy}
+          onRetry={session.reset}
+        />
+      )}
     </>
   );
 }
@@ -507,6 +571,7 @@ function PracticeBody({
     );
   if (session.items.length === 0)
     return <p className="py-4 text-sm text-muted">暂无练习题。</p>;
+  const allDone = session.answeredCount === session.items.length;
   return (
     <>
       {session.items.map((q, i) => {
@@ -597,6 +662,15 @@ function PracticeBody({
           </QuestionCard>
         );
       })}
+      {allDone && (
+        <CompletionSummary
+          total={session.items.length}
+          correct={session.correctCount}
+          score={session.score}
+          accuracy={session.accuracy}
+          onRetry={session.reset}
+        />
+      )}
     </>
   );
 }

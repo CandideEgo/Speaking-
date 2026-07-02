@@ -153,12 +153,12 @@ export default function HomePage() {
               </p>
               <div className="b-hero-cta">
                 <LinkButton
-                  href="/speaking"
+                  href="/browse"
                   variant="primary"
                   icon={Play}
                   size="nav"
                 >
-                  开始口语练习
+                  开始练习
                 </LinkButton>
                 <LinkButton href="/browse" variant="ghostDark" size="nav">
                   浏览视频库
@@ -211,18 +211,18 @@ export default function HomePage() {
           <div className="b-practice">
             <div>
               <div className="lbl">Quick Practice</div>
-              <div className="title">选择练习模式，60 秒开口说</div>
+              <div className="title">选择视频，开始跟读练习</div>
             </div>
             <div className="b-practice-modes">
-              <Link href="/speaking?mode=read_aloud" className="mode-chip">
+              <Link href="/browse" className="mode-chip">
                 <span className="dot r" />
                 朗读 <small>Read aloud</small>
               </Link>
-              <Link href="/speaking?mode=shadowing" className="mode-chip">
+              <Link href="/browse" className="mode-chip">
                 <span className="dot m" />
                 跟读 <small>Shadowing</small>
               </Link>
-              <Link href="/speaking?mode=free_speaking" className="mode-chip">
+              <Link href="/browse" className="mode-chip">
                 <span className="dot f" />
                 自由说 <small>Free speaking</small>
               </Link>

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,10 +21,29 @@ class RoleType(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        # Partial unique indexes: allow multiple NULLs (phone-only accounts have
+        # no email; email-only accounts have no phone) while still enforcing
+        # uniqueness among non-NULL values.
+        Index(
+            "uq_users_email_partial",
+            "email",
+            unique=True,
+            postgresql_where=text("email IS NOT NULL"),
+        ),
+        Index(
+            "uq_users_phone_partial",
+            "phone",
+            unique=True,
+            postgresql_where=text("phone IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Email + password are nullable to support phone-only (SMS) accounts.
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     level: Mapped[str | None] = mapped_column(String(10), nullable=True)  # A1-C2
     plan: Mapped[PlanType] = mapped_column(SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
 import { POST_TYPE_META } from "@/lib/community";
@@ -166,7 +166,9 @@ export default function CommunityPage() {
     try {
       const res = await api<{ liked: boolean }>(
         `/api/v1/community/posts/${postId}/like`,
-        { method: "POST" },
+        {
+          method: "POST",
+        },
       );
       setPosts((prev) =>
         prev.map((p) =>
@@ -279,7 +281,7 @@ export default function CommunityPage() {
                     <div className="relative aspect-video bg-surface-card">
                       {v.thumbnail_url ? (
                         <img
-                          src={v.thumbnail_url}
+                          src={mediaUrl(v.thumbnail_url ?? "")}
                           alt=""
                           className="h-full w-full object-cover"
                         />

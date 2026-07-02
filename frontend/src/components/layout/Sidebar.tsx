@@ -14,7 +14,6 @@ import {
   Sparkles,
   Users,
   Compass,
-  Mic,
   Crown,
   Upload,
 } from "lucide-react";
@@ -39,7 +38,6 @@ const navigation: NavSection[] = [
     items: [
       { label: "首页", href: "/", icon: Sparkles },
       { label: "浏览视频", href: "/browse", icon: Compass },
-      { label: "口语练习", href: "/speaking", icon: Mic, badge: "AI" },
     ],
   },
   {

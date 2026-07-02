@@ -30,8 +30,41 @@ export function getApiUrl() {
   return API_URL;
 }
 
+// Hostname suffixes whose thumbnail URLs we route through the backend image
+// proxy to bypass CDN hotlink protection (Referer) and mixed-content (http://
+// thumbnails on an https site). Keep in sync with the backend allowlist in
+// backend/app/api/v1/media.py (proxy_image).
+const PROXY_HOST_SUFFIXES = [
+  "ytimg.com",
+  "hdslb.com",
+  "biliimg.com",
+  "douyinpic.com",
+  "douyincdn.com",
+  "douyinstatic.com",
+  "aliyuncs.com",
+];
+
+function shouldProxyHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return PROXY_HOST_SUFFIXES.some((s) => h === s || h.endsWith("." + s));
+}
+
 export function mediaUrl(path: string): string {
-  if (path.startsWith("http")) return path;
+  if (!path) return "";
+  if (path.startsWith("http")) {
+    // Route known thumbnail CDN hosts through the backend proxy to dodge
+    // hotlink protection and http/https mixed-content issues.
+    try {
+      const host = new URL(path).hostname;
+      if (shouldProxyHost(host)) {
+        return `${API_URL}/api/v1/media/proxy?url=${encodeURIComponent(path)}`;
+      }
+    } catch {
+      // Malformed URL — fall through and return as-is.
+    }
+    // Best-effort: upgrade plain http to https to avoid mixed-content blocks.
+    return path.replace(/^http:\/\//, "https://");
+  }
   return `${API_URL}${path}`;
 }
 

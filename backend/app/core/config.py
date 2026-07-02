@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
     payments_enabled: bool = False
 
+    # Alibaba Cloud Dypnsapi — SMS verification code for phone login.
+    # When sms_login_enabled is False (or AK/SK missing), sms_service falls back
+    # to a dev fake that logs/accepts the fixed code "1234" — no Aliyun calls.
+    sms_login_enabled: bool = False
+    aliyun_sms_access_key: str = ""
+    aliyun_sms_secret_key: str = ""
+    aliyun_sms_sign_name: str = "速通互联验证码"
+    aliyun_sms_template_code: str = "100001"
+    aliyun_sms_endpoint: str = "dypnsapi.aliyuncs.com"
+
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt
@@ -121,6 +131,14 @@ class Settings(BaseSettings):
     translation_custom_base_url: str = ""
     translation_custom_model: str = ""
     translation_custom_api_key: str = ""
+
+    # Per-video AI word-notes prewarm (finalize_video.prewarm_notes step).
+    # Comma-separated list of engines to fan batches across concurrently.
+    # "agnes" uses OPENAI_*; others resolve via the translation engine
+    # registry (same creds as TRANSLATION_*_API_KEY). Set to "agnes" alone
+    # to keep the old single-engine sequential behavior.
+    prewarm_engines: str = "agnes,qwen"
+    prewarm_concurrency: int = 4  # max in-flight LLM calls per engine
 
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"

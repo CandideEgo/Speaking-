@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -49,6 +50,37 @@ class AIService:
             client_kwargs["base_url"] = settings.openai_base_url
         self.client = AsyncOpenAI(**client_kwargs)
         self.model = settings.openai_model
+        # Lazy cache of secondary-engine clients (qwen/hy_mt2/custom) used by
+        # generate_word_notes_bulk for dual-API concurrent prewarm. Maps engine
+        # name -> (AsyncOpenAI, model). "agnes" is NOT cached here; it reuses
+        # self.client/self.model.
+        self._engine_clients: dict[str, tuple[AsyncOpenAI, str]] = {}
+
+    def _get_engine_client(self, name: str) -> tuple[AsyncOpenAI, str]:
+        """Return ``(client, model)`` for an engine, creating it lazily.
+
+        ``agnes`` reuses this service's own client/model. Other names resolve
+        through the translation engine registry (``BUILTIN_ENGINES``) so they
+        share the same creds/base_url/model as subtitle translation — no
+        hardcoded keys. Raises ``AIServiceError`` if an engine is unconfigured.
+        """
+        if name == "agnes":
+            if self.client is None:
+                raise AIServiceError("OPENAI_API_KEY not configured (agnes engine)")
+            return self.client, self.model
+        cached = self._engine_clients.get(name)
+        if cached is not None:
+            return cached
+        # Imported here to avoid a circular import at module load time.
+        from app.services.translation import TranslationService
+
+        try:
+            cfg = TranslationService._resolve_engine(name, settings)
+            client = TranslationService._make_client(cfg)
+        except ValueError as exc:
+            raise AIServiceError(str(exc)) from exc
+        self._engine_clients[name] = (client, cfg.model)
+        return self._engine_clients[name]
 
     async def _chat(self, system: str, user: str, temperature: float = 0.3, response_format: dict | None = None) -> str:
         if self.client is None:
@@ -618,10 +650,44 @@ class AIService:
         # window. 15 fits comfortably with sentence context; bigger batches
         # get worse per-word quality.
         batch_size = 15
+        batches = [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
+
+        # Engines to fan out across concurrently (e.g. agnes + qwen). Each
+        # engine gets its own concurrency semaphore so we don't hammer one
+        # endpoint. Batches are round-robin assigned to engines; results are
+        # gathered and flattened in original batch order.
+        engines = [e.strip() for e in settings.prewarm_engines.split(",") if e.strip()] or ["agnes"]
+        # Per-engine in-flight limit. Shared dict so all batches for an engine
+        # funnel through the same gate.
+        semaphores: dict[str, asyncio.Semaphore] = {
+            e: asyncio.Semaphore(max(1, settings.prewarm_concurrency)) for e in engines
+        }
+
+        async def _run(idx: int, batch: list[dict], engine: str) -> tuple[int, list[dict]]:
+            # agnes goes through self._chat (so it stays mockable in tests and
+            # reuses the service's own client/model); secondary engines bypass
+            # _chat and call their own client directly.
+            if engine == "agnes":
+                client, model = None, None
+            else:
+                client, model = self._get_engine_client(engine)
+            async with semaphores[engine]:
+                notes = await self._generate_word_notes_one_batch(batch, source, level, client, model)
+            return idx, notes
+
+        tasks = [_run(idx, batch, engines[idx % len(engines)]) for idx, batch in enumerate(batches)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
         out: list[dict] = []
-        for batch_start in range(0, len(items), batch_size):
-            batch = items[batch_start : batch_start + batch_size]
-            out.extend(await self._generate_word_notes_one_batch(batch, source, level))
+        failures = 0
+        for r in results:
+            if isinstance(r, Exception):
+                failures += 1
+                logger.warning("word-notes batch failed (%s); skipping", r)
+                continue
+            out.extend(r[1])
+        if failures:
+            logger.warning("prewarm: %d/%d batches failed", failures, len(batches))
         return out
 
     async def _generate_word_notes_one_batch(
@@ -629,8 +695,15 @@ class AIService:
         batch: list[dict],
         source: str,
         level: str,
+        client: AsyncOpenAI | None = None,
+        model: str | None = None,
     ) -> list[dict]:
-        """One LLM round-trip for a single batch. See ``generate_word_notes_bulk``."""
+        """One LLM round-trip for a single batch. See ``generate_word_notes_bulk``.
+
+        ``client``/``model`` default to this service's agnes client so the
+        dual-engine fan-out in ``generate_word_notes_bulk`` can route a batch
+        to a secondary engine (qwen, ...) by passing them explicitly.
+        """
         word_block = "\n".join(
             f"{i + 1}. {w['word']} ({w.get('translation', '')})\n   Context: {w.get('context_sentence', '') or '(none)'}"
             for i, w in enumerate(batch)
@@ -655,7 +728,27 @@ class AIService:
         user = f"Source: {source}\nLevel: {level}\n{scope_line}\n\nWords:\n{word_block}"
 
         try:
-            result = await self._chat(system, user, response_format={"type": "json_object"})
+            if client is not None:
+                # Secondary engine (qwen, ...) — bypass self._chat and call
+                # the passed client directly so the call uses its own model
+                # and endpoint.
+                import time as _time
+
+                t0 = _time.monotonic()
+                resp = await client.chat.completions.create(
+                    model=model or self.model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"},
+                    timeout=LLM_TIMEOUT,
+                )
+                result = resp.choices[0].message.content or ""
+                logger.info("_chat ok model=%s elapsed=%.2fs", model, _time.monotonic() - t0)
+            else:
+                result = await self._chat(system, user, response_format={"type": "json_object"})
             parsed = json.loads(self._extract_json(result))
             notes = parsed.get("notes") if isinstance(parsed, dict) else None
             if not isinstance(notes, list):

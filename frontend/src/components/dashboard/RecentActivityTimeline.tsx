@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import type { LearningRecord } from "@/types";
@@ -39,7 +39,7 @@ export default function RecentActivityTimeline({
           <div className="h-10 w-14 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
             {record.video?.thumbnail_url ? (
               <img
-                src={record.video.thumbnail_url}
+                src={mediaUrl(record.video.thumbnail_url ?? "")}
                 alt=""
                 className="h-full w-full object-cover"
               />

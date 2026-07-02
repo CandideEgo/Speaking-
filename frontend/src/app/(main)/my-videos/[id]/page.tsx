@@ -17,7 +17,7 @@ import {
   Play,
 } from "lucide-react";
 
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import {
@@ -276,7 +276,7 @@ export default function MyVideoEditorPage() {
               {video.video_url_720p ? (
                 <video
                   ref={videoElRef}
-                  src={video.video_url_720p}
+                  src={mediaUrl(video.video_url_720p ?? "")}
                   controls
                   className="w-full h-full"
                 />

@@ -1,14 +1,22 @@
 """Video submission and seeding — create Video rows and dispatch Celery tasks.
 
-Handles user submission, admin seed, and user-seed flows. All share the
-pattern: detect platform, check for duplicates (or not), create Video,
-commit, dispatch process_video.delay().
+Handles user submission, admin seed, and user-seed flows.
+
+- Admin seed (seed_video): creates video in "processing" status and immediately
+  dispatches process_video.delay() — admin-seeded videos auto-process.
+- User submission (submit_video, seed_user_video, upload): creates video in
+  "pending_processing" status — waits for admin to trigger processing via
+  the start_processing() function. Auto-publishes when processing completes.
+- start_processing(): admin triggers GPU processing for a pending video.
+  Checks that the local GPU worker is online (via Redis heartbeat) before
+  dispatching the Celery task.
 """
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.redis import get_redis
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.schemas.video import VideoResponse
@@ -66,21 +74,17 @@ async def submit_video(
         await commit_refresh(db, user_video)
         return VideoResponse.model_validate(user_video)
 
-    # New video -- queue for processing
+    # New video -- wait for admin to trigger processing
     video = Video(
         user_id=current_user.id,
         title="Processing...",
         source_url=source_url,
         video_source=platform,
-        status=VideoStatus.processing,
+        status=VideoStatus.pending_processing,
+        auto_publish=True,
     )
     db.add(video)
     await commit_refresh(db, video)
-
-    # Dispatch to Celery — all platforms use full processing (download + transcode)
-    from app.tasks.video_processing import process_video
-
-    process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)
 
@@ -153,18 +157,110 @@ async def seed_user_video(
         title="Processing...",
         source_url=source_url,
         video_source=platform,
-        status=VideoStatus.processing,
+        status=VideoStatus.pending_processing,
         user_id=current_user.id,
         is_official=False,
         is_published=False,
         review_status=VideoReviewStatus.draft.value,
-        auto_publish=auto_publish,
+        auto_publish=True,
     )
     db.add(video)
+    await commit_refresh(db, video)
+
+    return VideoResponse.model_validate(video)
+
+
+# ---------------------------------------------------------------------------
+# Admin-triggered processing
+# ---------------------------------------------------------------------------
+
+_WORKER_HEARTBEAT_KEY = "worker:gpu:heartbeat"
+
+
+async def is_gpu_worker_online() -> bool:
+    """Check if the local GPU worker is online (heartbeat present in Redis)."""
+    try:
+        r = get_redis()
+        return bool(await r.exists(_WORKER_HEARTBEAT_KEY))
+    except Exception:
+        return False
+
+
+async def start_processing(db: AsyncSession, video_id: str) -> VideoResponse:
+    """Admin triggers GPU processing for a pending_processing video.
+
+    Only allowed when:
+    - The video exists and is in ``pending_processing`` status.
+    - The local GPU worker is confirmed online (Redis heartbeat key present).
+
+    Raises:
+        ValueError: If the video is not found, not in pending_processing status,
+                    or the GPU worker is offline.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Video not found")
+    if video.status != VideoStatus.pending_processing:
+        raise ValueError(f"Video is not in pending_processing state (current: {video.status.value})")
+
+    # Check GPU worker heartbeat
+    worker_online = await is_gpu_worker_online()
+    if not worker_online:
+        raise ValueError("GPU worker is offline — please start the local processing service first")
+
+    # Transition to processing and dispatch Celery task
+    video.status = VideoStatus.processing
     await commit_refresh(db, video)
 
     from app.tasks.video_processing import process_video
 
     process_video.delay(video.id)
+
+    return VideoResponse.model_validate(video)
+
+
+async def recover_processing(db: AsyncSession, video_id: str) -> VideoResponse:
+    """Re-dispatch ``finalize_video`` for a video stuck mid-pipeline.
+
+    When the cloud Celery worker dies during ``finalize_video`` (the most
+    common cause of a stuck video), the ``video:processing:{id}`` Redis lock
+    is left behind and ``finalize_video`` refuses to re-run ("already being
+    processed, skipping"). This clears that stale lock and re-dispatches
+    ``finalize_video``, which is resume-safe — each step checks
+    ``_is_step_done()`` and skips completed work (translating / annotating /
+    prewarm_notes / downloading).
+
+    Only allowed for the stuck statuses (``processing`` / ``ready_subtitles``).
+    A video still pending GPU trigger should use ``start_processing``; a
+    ``ready`` / ``error`` video needs no recovery. No worker-online gate:
+    finalize runs on the ``celery`` queue (cloud worker), not the GPU worker,
+    so the task simply queues until a cloud worker is up — standard Celery.
+
+    Raises:
+        ValueError: If the video is not found, or not in a recoverable status.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Video not found")
+    if video.status not in (VideoStatus.processing, VideoStatus.ready_subtitles):
+        raise ValueError(
+            f"Video is not in a recoverable state (current: {video.status.value}). "
+            f"Use start-processing for pending_processing; ready/error need no recovery."
+        )
+
+    # Clear the stale processing lock so finalize_video won't skip.
+    try:
+        r = get_redis()
+        await r.delete(f"video:processing:{video.id}")
+    except Exception:
+        # Fail-open Redis: if Redis is down, finalize_video's lock check also
+        # fails open, so recovery still proceeds.
+        pass
+
+    from app.tasks.video_processing import finalize_video
+
+    finalize_video.delay(str(video.id))
 
     return VideoResponse.model_validate(video)

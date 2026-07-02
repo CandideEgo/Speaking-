@@ -236,6 +236,60 @@ async def delete_admin_video(
     return None
 
 
+@router.post("/admin/{video_id}/start-processing", response_model=VideoResponse)
+@rate_limit("10/minute")
+async def start_processing_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger GPU processing for a pending video. Admin only.
+
+    The local GPU worker must be online (heartbeat present in Redis).
+    Returns 503 if the worker is offline, 400 if the video is not in
+    pending_processing status.
+    """
+    from app.services.video_seed_service import start_processing as _start_processing
+
+    try:
+        return await _start_processing(db, video_id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        if "offline" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/recover", response_model=VideoResponse)
+@rate_limit("10/minute")
+async def recover_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-dispatch finalize_video for a video stuck mid-pipeline. Admin only.
+
+    Clears the stale ``video:processing:{id}`` Redis lock left behind when the
+    cloud worker died during finalize, then re-dispatches ``finalize_video``
+    (resume-safe — skips completed steps). Use this for videos stuck in
+    ``processing`` / ``ready_subtitles``; use ``start-processing`` for a fresh
+    ``pending_processing`` video.
+    """
+    from app.services.video_seed_service import recover_processing as _recover_processing
+
+    try:
+        return await _recover_processing(db, video_id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
 @router.post("/admin/{video_id}/localize", response_model=VideoAdminResponse)
 @rate_limit("5/minute")
 async def localize_admin_video(

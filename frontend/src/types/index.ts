@@ -24,7 +24,12 @@ export interface Video {
   thumbnail_url: string | null;
   duration: number | null;
   difficulty_level: string | null;
-  status: "processing" | "ready_subtitles" | "ready" | "error";
+  status:
+    | "pending_processing"
+    | "processing"
+    | "ready_subtitles"
+    | "ready"
+    | "error";
   error_message: string | null;
   topic_tags: string | null;
   is_official: boolean;

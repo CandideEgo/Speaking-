@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
 import type { LucideIcon } from "lucide-react";
-import { Sparkles, Compass, Mic, BookOpen, Users } from "lucide-react";
+import { Sparkles, Compass, BookOpen, Users } from "lucide-react";
 
 interface TabItem {
   label: string;
@@ -19,7 +19,6 @@ interface TabItem {
 const TABS: TabItem[] = [
   { label: "首页", href: "/", icon: Sparkles },
   { label: "浏览", href: "/browse", icon: Compass },
-  { label: "口语", href: "/speaking", icon: Mic },
   { label: "词汇", href: "/vocabulary", icon: BookOpen, showBadge: true },
   { label: "社区", href: "/community", icon: Users },
 ];

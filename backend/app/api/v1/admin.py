@@ -30,6 +30,24 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 # ---------------------------------------------------------------------------
+# GPU worker status
+# ---------------------------------------------------------------------------
+
+
+@router.get("/worker-status")
+@rate_limit("30/minute")
+async def get_worker_status(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+):
+    """Check if the local GPU worker is online (heartbeat present in Redis)."""
+    from app.services.video_seed_service import is_gpu_worker_online
+
+    online = await is_gpu_worker_online()
+    return {"worker_online": online}
+
+
+# ---------------------------------------------------------------------------
 # Stats dashboard
 # ---------------------------------------------------------------------------
 

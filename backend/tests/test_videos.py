@@ -23,7 +23,7 @@ class TestSubmitVideo:
         data = resp.json()
         assert data["source_url"] == "https://www.youtube.com/watch?v=abcdefghijk"
         assert data["video_source"] == "imported"
-        assert data["status"] in ("processing", "ready_subtitles", "ready", "error")
+        assert data["status"] in ("pending_processing", "processing", "ready_subtitles", "ready", "error")
 
     async def test_submit_bilibili_video(self, client: AsyncClient, auth_headers: dict):
         resp = await client.post(

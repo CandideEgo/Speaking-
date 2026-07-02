@@ -8,10 +8,13 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_generate_word_notes_bulk_alignment(fake_redis):
+async def test_generate_word_notes_bulk_alignment(fake_redis, monkeypatch):
     """The returned notes align to the input order, with empty fields for missing entries."""
+    from app.core.config import get_settings
     from app.services.ai_service import AIService
 
+    # Single-engine (agnes only) so the test exercises the mockable _chat path.
+    monkeypatch.setattr(get_settings(), "prewarm_engines", "agnes")
     service = AIService()
     raw = (
         '{"notes": ['
@@ -48,10 +51,12 @@ async def test_generate_word_notes_bulk_empty_returns_empty(fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_generate_word_notes_bulk_batches_over_15(fake_redis):
+async def test_generate_word_notes_bulk_batches_over_15(fake_redis, monkeypatch):
     """20 items → 2 batches (15 + 5) → 2 LLM calls."""
+    from app.core.config import get_settings
     from app.services.ai_service import AIService
 
+    monkeypatch.setattr(get_settings(), "prewarm_engines", "agnes")
     service = AIService()
     items = [{"word": f"w{i}", "translation": ""} for i in range(20)]
 
@@ -65,6 +70,81 @@ async def test_generate_word_notes_bulk_batches_over_15(fake_redis):
         notes = await service.generate_word_notes_bulk(items, source="global", level="cet4")
     assert len(notes) == 20
     assert chat_mock.call_count == 2  # 15 + 5
+
+
+@pytest.mark.asyncio
+async def test_generate_word_notes_bulk_dual_engine_fans_out(fake_redis, monkeypatch):
+    """With agnes + a secondary engine, batches round-robin across both.
+
+    agnes batches go through ``_chat`` (mockable); secondary-engine batches go
+    through that engine's own client. Even-indexed batches → agnes, odd → secondary.
+    """
+    from app.core.config import get_settings
+    from app.services.ai_service import AIService
+
+    monkeypatch.setattr(get_settings(), "prewarm_engines", "agnes,secondary")
+    service = AIService()
+
+    # agnes _chat mock — returns one aligned note per input word.
+    async def fake_chat(system, user, temperature=0.3, response_format=None):
+        # Echo a note for each numbered word in the user prompt.
+        import re
+
+        words = re.findall(r"^\d+\. (\S+)", user, flags=re.MULTILINE)
+        notes = [{"word": w, "contextual_note": "agnes", "pitfalls": "", "knowledge": ""} for w in words]
+        import json
+
+        return json.dumps({"notes": notes})
+
+    chat_mock = AsyncMock(side_effect=fake_chat)
+
+    # Secondary-engine client mock — returns "secondary" notes.
+    secondary_resp = type(
+        "R",
+        (),
+        {"choices": [type("C", (), {"message": type("M", (), {"content": ""})()})()]},
+    )()
+
+    async def fake_create(**kwargs):
+        # Parse words from the user message, return secondary-tagged notes.
+        import json
+        import re
+
+        user_msg = next(m["content"] for m in kwargs["messages"] if m["role"] == "user")
+        words = re.findall(r"^\d+\. (\S+)", user_msg, flags=re.MULTILINE)
+        notes = [{"word": w, "contextual_note": "secondary", "pitfalls": "", "knowledge": ""} for w in words]
+        secondary_resp.choices[0].message.content = json.dumps({"notes": notes})
+        return secondary_resp
+
+    secondary_client = type(
+        "C",
+        (),
+        {
+            "chat": type(
+                "Chat", (), {"completions": type("Comp", (), {"create": AsyncMock(side_effect=fake_create)})()}
+            )()
+        },
+    )()
+
+    monkeypatch.setattr(
+        service,
+        "_get_engine_client",
+        lambda name: (secondary_client, "sec-model") if name == "secondary" else (None, None),
+    )
+
+    items = [
+        {"word": f"w{i}", "translation": ""} for i in range(4)
+    ]  # 4 batches of 1? No — batch_size=15 → 1 batch only
+    # With <15 items there's only 1 batch → all go to agnes (idx 0). Force 2 batches:
+    items = [{"word": f"w{i}", "translation": ""} for i in range(16)]  # 2 batches (15+1)
+
+    with patch.object(service, "_chat", new=chat_mock):
+        notes = await service.generate_word_notes_bulk(items, source="global")
+    assert len(notes) == 16
+    # Batch 0 (agnes, words w0..w14) → "agnes"; batch 1 (secondary, word w15) → "secondary".
+    assert notes[0]["contextual_note"] == "agnes"
+    assert notes[15]["contextual_note"] == "secondary"
+    assert chat_mock.call_count == 1  # only batch 0 went through _chat
 
 
 # --- word_notes service: upsert + get_best_note ---

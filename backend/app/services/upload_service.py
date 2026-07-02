@@ -46,20 +46,16 @@ async def handle_video_upload(
     with open(temp_path, "wb") as f:
         f.write(contents)
 
-    # Create Video record
+    # Create Video record — wait for admin to trigger processing
     video = Video(
         user_id=current_user.id,
         title=title or file.filename or "Uploaded Video",
         source_url=str(temp_path),
         video_source=VideoSource.local,
-        status=VideoStatus.processing,
+        status=VideoStatus.pending_processing,
+        auto_publish=True,
     )
     db.add(video)
     await commit_refresh(db, video)
-
-    # Dispatch to Celery
-    from app.tasks.video_processing import process_video
-
-    process_video.delay(video.id)
 
     return VideoResponse.model_validate(video)

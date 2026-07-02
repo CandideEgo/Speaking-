@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { mediaUrl } from "@/lib/api";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { DataTable } from "@/components/admin/DataTable";
@@ -26,14 +27,18 @@ import type { VideoAdmin } from "@/types";
 import {
   approveReview,
   deleteVideo,
+  getWorkerStatus,
   listVideos,
   localizeVideo,
+  recoverVideo,
   rejectReview,
+  startProcessing,
 } from "@/lib/adminData";
 import { VideoDetailRow } from "./VideoDetailRow";
 
 const STATUS_FILTERS = [
   { key: "", label: "全部" },
+  { key: "pending_processing", label: "待处理" },
   { key: "processing", label: "处理中" },
   { key: "ready_subtitles", label: "字幕就绪" },
   { key: "ready", label: "就绪" },
@@ -65,6 +70,27 @@ export default function VideoManager() {
 
   // Expanded (editing) video id — null when no row is open.
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // GPU worker online status (refreshed every 30s).
+  const [workerOnline, setWorkerOnline] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      try {
+        const { worker_online } = await getWorkerStatus();
+        if (mounted) setWorkerOnline(worker_online);
+      } catch {
+        /* swallow — redis may be unavailable */
+      }
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const loadVideos = useCallback(async () => {
     setLoading(true);
@@ -109,6 +135,26 @@ export default function VideoManager() {
       toast.success("已开始搬运到本地，进度将自动更新");
     } catch (err) {
       toastApiError(err, "搬运失败");
+    }
+  }
+
+  async function handleStartProcessing(video: VideoAdmin) {
+    try {
+      const updated = await startProcessing(video.id);
+      patchVideo(video.id, updated);
+      toast.success("已开始处理");
+    } catch (err) {
+      toastApiError(err, "启动处理失败");
+    }
+  }
+
+  async function handleRecover(video: VideoAdmin) {
+    try {
+      const updated = await recoverVideo(video.id);
+      patchVideo(video.id, updated);
+      toast.success("已重新派发，进度将自动更新");
+    } catch (err) {
+      toastApiError(err, "恢复处理失败");
     }
   }
 
@@ -158,7 +204,18 @@ export default function VideoManager() {
       {/* List + filters */}
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="font-display text-2xl text-ink">视频管理</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-display text-2xl text-ink">视频管理</h2>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span
+                className={cn(
+                  "w-2 h-2 rounded-full",
+                  workerOnline ? "bg-green-500" : "bg-red-400",
+                )}
+              />
+              GPU Worker: {workerOnline ? "在线" : "离线"}
+            </div>
+          </div>
           <Button
             variant="secondary"
             size="sm"
@@ -218,7 +275,7 @@ export default function VideoManager() {
                   {v.thumbnail_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={v.thumbnail_url}
+                      src={mediaUrl(v.thumbnail_url ?? "")}
                       alt=""
                       className="h-12 w-20 rounded-sm object-cover bg-surface-soft flex-shrink-0"
                     />
@@ -326,6 +383,9 @@ export default function VideoManager() {
                 setRejectTarget(videos.find((x) => x.id === vid) ?? null);
                 setRejectReason("");
               }}
+              onStartProcessing={handleStartProcessing}
+              onRecover={handleRecover}
+              workerOnline={workerOnline}
               reviewBusy={reviewBusy}
               onEditSubtitles={(id) => router.push(`/admin/videos/${id}`)}
             />

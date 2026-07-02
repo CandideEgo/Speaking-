@@ -76,7 +76,7 @@ export function LinkUploadDialog({
             setSeeding(false);
             setProgressText("");
             setUrl("");
-            toast.success("视频处理完成，请编辑字幕并提交审核");
+            toast.success("视频处理完成");
             onImported();
           } else if (st.status === "error") {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -84,6 +84,8 @@ export function LinkUploadDialog({
             setSeeding(false);
             setProgressText("");
             toast.error("视频处理失败，请检查链接或重试");
+          } else if (st.status === "pending_processing") {
+            setProgressText("等待管理员启动处理...");
           }
         } catch {
           // transient poll error — keep polling

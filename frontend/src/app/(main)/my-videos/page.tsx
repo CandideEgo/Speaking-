@@ -16,7 +16,7 @@ import {
   Link2,
 } from "lucide-react";
 
-import { api } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -29,9 +29,14 @@ import type { Video } from "@/types";
 type ReviewStatus = Video["review_status"];
 
 const STATUS_META: Record<
-  ReviewStatus | "processing" | "error",
+  ReviewStatus | "processing" | "pending_processing" | "error",
   { label: string; cls: string; icon: typeof Clock }
 > = {
+  pending_processing: {
+    label: "等待处理",
+    cls: "bg-gray-100 text-gray-600",
+    icon: Clock,
+  },
   draft: {
     label: "草稿",
     cls: "bg-surface-card text-muted-foreground",
@@ -56,7 +61,10 @@ const STATUS_META: Record<
   error: { label: "处理失败", cls: "bg-red-soft text-red", icon: AlertCircle },
 };
 
-function statusOf(v: Video): ReviewStatus | "processing" | "error" {
+function statusOf(
+  v: Video,
+): ReviewStatus | "processing" | "pending_processing" | "error" {
+  if (v.status === "pending_processing") return "pending_processing";
   if (v.status === "processing" || v.status === "ready_subtitles")
     return "processing";
   if (v.status === "error") return "error";
@@ -105,7 +113,10 @@ export default function MyVideosPage() {
   useEffect(() => {
     const currentVideos = videosRef.current;
     const hasProcessing = currentVideos.some(
-      (v) => v.status === "processing" || v.status === "ready_subtitles",
+      (v) =>
+        v.status === "pending_processing" ||
+        v.status === "processing" ||
+        v.status === "ready_subtitles",
     );
     if (!hasProcessing) {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -116,7 +127,11 @@ export default function MyVideosPage() {
         const liveVideos = videosRef.current;
         const updated: Video[] = [];
         for (const v of liveVideos) {
-          if (v.status === "processing" || v.status === "ready_subtitles") {
+          if (
+            v.status === "pending_processing" ||
+            v.status === "processing" ||
+            v.status === "ready_subtitles"
+          ) {
             const st = await getMyVideoStatus(v.id);
             updated.push({
               ...v,
@@ -235,7 +250,7 @@ export default function MyVideosPage() {
                     {v.thumbnail_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={v.thumbnail_url}
+                        src={mediaUrl(v.thumbnail_url ?? "")}
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -249,7 +264,11 @@ export default function MyVideosPage() {
                     >
                       <Icon
                         size={11}
-                        className={s === "processing" ? "animate-spin" : ""}
+                        className={
+                          s === "processing" || s === "pending_processing"
+                            ? "animate-spin"
+                            : ""
+                        }
                       />
                       {meta.label}
                     </span>
@@ -259,15 +278,17 @@ export default function MyVideosPage() {
                       {v.title}
                     </p>
                     <p className="text-xs text-muted mt-1">
-                      {s === "processing" && v.processing_step
-                        ? (STEP_LABELS[v.processing_step] ?? "处理中…")
-                        : v.status === "ready"
-                          ? editable
-                            ? "点击编辑并提交审核"
-                            : "等待审核结果"
-                          : v.status === "error"
-                            ? v.error_message || "处理失败"
-                            : ""}
+                      {s === "pending_processing"
+                        ? "等待管理员启动处理"
+                        : s === "processing" && v.processing_step
+                          ? (STEP_LABELS[v.processing_step] ?? "处理中…")
+                          : v.status === "ready"
+                            ? editable
+                              ? "点击编辑并提交审核"
+                              : "等待审核结果"
+                            : v.status === "error"
+                              ? v.error_message || "处理失败"
+                              : ""}
                     </p>
                     {s === "rejected" && v.rejection_reason && (
                       <p className="text-xs text-red-500 mt-0.5 line-clamp-1">

@@ -8,9 +8,10 @@ Manage the Speaking app services (start, stop, restart) on Windows.
 - `/dev-restart` — restart all services (stop + clean cache + start)
 
 ## Context
-This is a full-stack English speaking practice app with 3 runtime services:
+This is a full-stack English speaking practice app with 4 runtime services:
 - **Backend**: FastAPI via uvicorn on :8000
-- **Celery**: Background task worker (pool=solo for Windows)
+- **Cloud Celery**: background worker (pool=solo) on the `celery` queue — video head/tail, localize, orders, watchdog
+- **GPU Worker**: Celery worker (pool=solo, concurrency=1) on the `transcription_gpu` queue — WhisperX transcription on local GPU, with Redis heartbeat
 - **Frontend**: Next.js dev server on :3000
 - **Infra**: PostgreSQL + Redis via Docker containers (speaking-db-1, speaking-redis-1)
 
@@ -69,13 +70,21 @@ This is a full-stack English speaking practice app with 3 runtime services:
    ```
    Run in background with `run_in_background: true`.
 
-6. **Start Celery** worker (pool=solo for Windows):
+6. **Start cloud Celery worker** (pool=solo for Windows) — consumes **only** the `celery` queue:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery,transcription_gpu --loglevel=info
+   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
    ```
    Run in background with `run_in_background: true`.
 
-   The worker consumes **both** queues. Video transcription (`transcribe_video_gpu`) is routed to the dedicated `transcription_gpu` queue so it can run on a separate remote GPU worker in production; locally there is only one machine, so this worker drains both queues (head/tail/localize/orders/watchdog on `celery`, transcription on `transcription_gpu`). Without `-Q transcription_gpu`, transcription tasks would sit in the queue forever.
+   This worker runs the head/tail of the video pipeline (`process_video`, `finalize_video`), localize, orders, and watchdog — everything **except** transcription. It does NOT touch `transcription_gpu`, which is drained exclusively by the GPU worker (step 6b). This mirrors production topology (`docker-compose.prod.yml` cloud worker runs `-Q celery`); locally both workers run on the same machine but on separate queues, so they never contend for the same task. Without splitting queues, the cloud worker (no GPU) would steal transcription tasks and fall back to slow CPU Whisper.
+
+6b. **Start local GPU worker** — consumes `transcription_gpu` + emits Redis heartbeat:
+   ```bash
+   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe scripts/start_gpu_worker.py
+   ```
+   Run in background with `run_in_background: true`.
+
+   This is a Celery worker (concurrency=1, solo) that runs WhisperX transcription on the local GPU (RTX 3060 Ti). It sends a Redis heartbeat every 60s (key `worker:gpu:heartbeat`, TTL 90s) so the admin VideoManager page shows "Worker 在线". The backend `.venv` already has `whisperx` + `torch+CUDA` installed, so it uses the same venv as everything else — no separate Python312 needed. If this worker is not running, transcription tasks sit in `transcription_gpu` forever and the admin page shows "Worker 离线".
 
 7. **Start frontend** — clear .next cache first, then dev server:
    ```bash
@@ -89,14 +98,15 @@ This is a full-stack English speaking practice app with 3 runtime services:
    curl -s http://localhost:8000/health | head -1
    curl -s http://localhost:3000 | head -1
    ```
-   If backend returns `{"status":"ok"}` and frontend returns HTML, all good. Also confirm the Celery worker registered both queues (`celery` + `transcription_gpu`) and the 5 video tasks in its startup log.
+   If backend returns `{"status":"ok"}` and frontend returns HTML, all good. Also confirm in the startup logs: the cloud worker (step 6) registered only the `celery` queue, and the GPU worker (step 6b) registered `transcription_gpu` + printed `[heartbeat] started`. Both should list the 5 video tasks.
 
 9. **Report status**:
    ```
    === Speaking — all services started ===
-     Backend  → http://localhost:8000/docs
-     Frontend → http://localhost:3000
-     Celery   → pool=solo, queues: celery + transcription_gpu
+     Backend    → http://localhost:8000/docs
+     Frontend   → http://localhost:3000
+     Cloud Cel  → pool=solo, queue: celery (head/tail/localize/orders/watchdog)
+     GPU Worker → queue: transcription_gpu, heartbeat → admin shows 在线
    ```
 
 ### Stop (`/dev-stop`)
@@ -134,6 +144,6 @@ This is a full-stack English speaking practice app with 3 runtime services:
 - All services run natively on Windows (not in Docker containers)
 - Only infra (PostgreSQL + Redis) runs in Docker
 - Use `--pool=solo` for Celery on Windows (prefork not supported)
-- Celery must consume `-Q celery,transcription_gpu` (both queues) locally — see step 6.
-- The venv Python is at `backend/.venv/Scripts/python.exe`
+- **Queue split** — the cloud worker (step 6) consumes `-Q celery` only; the GPU worker (step 6b) consumes `transcription_gpu` only. This mirrors production (`docker-compose.prod.yml` cloud worker = `-Q celery`, remote GPU worker = `transcription_gpu`). Locally both run on one machine but never contend. Do NOT make the cloud worker consume both queues — it has no GPU and would steal transcription tasks.
+- The venv Python is at `backend/.venv/Scripts/python.exe` (has whisperx + torch+CUDA — GPU worker uses the same venv)
 - If frontend starts on 3001 instead of 3000, it means port 3000 is still occupied — the step-1 verify should have caught this; re-run the kill step.

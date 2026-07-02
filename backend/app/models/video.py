@@ -10,6 +10,7 @@ from app.core.database import Base
 
 
 class VideoStatus(str, enum.Enum):
+    pending_processing = "pending_processing"  # waiting for admin to trigger GPU processing
     processing = "processing"
     ready_subtitles = "ready_subtitles"  # subtitles + AI done, video not yet downloaded
     ready = "ready"
@@ -57,7 +58,9 @@ class Video(Base):
     thumbnail_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     difficulty_level: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    status: Mapped[VideoStatus] = mapped_column(SAEnum(VideoStatus), default=VideoStatus.processing, nullable=False)
+    status: Mapped[VideoStatus] = mapped_column(
+        SAEnum(VideoStatus), default=VideoStatus.pending_processing, nullable=False
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     processing_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "lightweight" or "full"

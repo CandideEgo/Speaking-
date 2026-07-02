@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
+import { mediaUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
@@ -60,7 +61,7 @@ export function VideoCard({
       >
         {video.thumbnail_url ? (
           <img
-            src={video.thumbnail_url}
+            src={mediaUrl(video.thumbnail_url ?? "")}
             alt=""
             className="w-full h-full object-cover"
             loading="lazy"

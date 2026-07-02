@@ -11,6 +11,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.core.redis import get_redis
 from app.core.security import create_token, decode_token, hash_password, token_lookup_hash, verify_password
 from app.core.token_blacklist import blacklist_token, is_token_blacklisted
 from app.models.password_reset import PasswordResetToken
@@ -23,12 +24,16 @@ from app.schemas.user import (
     RefreshRequest,
     RefreshResponse,
     ResetPasswordRequest,
+    SendSmsCodeRequest,
+    SmsLoginRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
 )
 from app.services.email_service import send_password_reset_email, send_verification_email
+from app.services.sms_service import send_verify_code
+from app.services.sms_service import verify_code as verify_sms_code
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -81,6 +86,83 @@ async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(ge
 
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
+    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
+
+
+# Per-phone send cooldown (seconds). Redis key sms:cooldown:{phone} is set on
+# send and its existence blocks resends. Aliyun also rate-limits server-side;
+# this is a local first line of defense against billing abuse.
+_SMS_COOLDOWN_SECONDS = 60
+
+
+@router.post("/sms/send-code", response_model=MessageResponse)
+@rate_limit("5/minute")
+async def sms_send_code(request: Request, data: SendSmsCodeRequest):
+    """Send an SMS verification code to the given phone number.
+
+    A 60s per-phone cooldown (Redis) prevents rapid resends. In dev-fake mode
+    (no Aliyun credentials) the code is logged instead of sent.
+    """
+    redis = get_redis()
+    cooldown_key = f"sms:cooldown:{data.phone}"
+    if await redis.exists(cooldown_key):
+        raise HTTPException(status_code=429, detail="发送过于频繁，请稍后再试")
+
+    try:
+        await send_verify_code(data.phone)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # Set the cooldown only after a successful send.
+    try:
+        await redis.setex(cooldown_key, _SMS_COOLDOWN_SECONDS, "1")
+    except Exception:
+        # Fail-open: Redis outage must not block login. Aliyun's own rate
+        # limit still protects us.
+        logger.warning("sms_cooldown_set_failed", phone=data.phone)
+
+    logger.info("sms_code_sent", phone=data.phone)
+    return MessageResponse(message="验证码已发送")
+
+
+@router.post("/sms/login", response_model=TokenResponse)
+@rate_limit("10/minute")
+async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Log in (or register) via phone number + SMS code.
+
+    Find-or-create: a phone with no existing account is created as a phone-only
+    user (email/password null, onboarding incomplete). Aliyun verifies the code
+    (or the dev-fake code is accepted locally).
+    """
+    if not await verify_sms_code(data.phone, data.code):
+        raise HTTPException(status_code=400, detail="验证码错误或已失效")
+
+    result = await db.execute(select(User).where(User.phone == data.phone))
+    user = result.scalar_one_or_none()
+    is_new_user = user is None
+
+    if user is None:
+        user = User(phone=data.phone, onboarding_completed=False)
+        db.add(user)
+        try:
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            if "uq_users_phone_partial" in str(exc) or "unique" in str(exc).lower():
+                # Race: another request created the same phone user first.
+                result = await db.execute(select(User).where(User.phone == data.phone))
+                user = result.scalar_one_or_none()
+                if user is None:
+                    raise HTTPException(status_code=409, detail="手机号注册冲突") from exc
+            else:
+                raise
+        await db.refresh(user)
+    elif user.is_banned:
+        raise HTTPException(status_code=403, detail="账户已被封禁")
+
+    token = create_token(user.id)
+    refresh_token = create_token(user.id, token_type="refresh")
+    logger.info("sms_login_success", user_id=user.id, phone=data.phone, new_user=is_new_user)
     return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
 
 

@@ -407,7 +407,7 @@ def finalize_video(self, video_id: str):
 
     from app.core.database import async_session
     from app.models.subtitle import Subtitle
-    from app.models.video import Video, VideoSource, VideoStatus
+    from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
     async def _process():
         async with async_session() as db:
@@ -591,6 +591,7 @@ def finalize_video(self, video_id: str):
                 # browse cache invalidation so the homepage reflects it promptly.
                 if video.auto_publish and not video.is_published:
                     video.is_published = True
+                    video.review_status = VideoReviewStatus.published.value
                     await db.commit()
                     try:
                         from app.api.v1.browse import invalidate_browse_cache

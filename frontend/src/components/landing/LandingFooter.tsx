@@ -4,7 +4,7 @@ import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 const footerLinks = {
   产品: [
     { label: "浏览视频", href: "/browse" },
-    { label: "口语练习", href: "/speaking" },
+    { label: "创作者中心", href: "/my-videos" },
     { label: "价格", href: "/landing#pricing" },
   ],
   学习: [
