@@ -1,41 +1,15 @@
 "use client";
 
-import { CheckCircle2, AlertCircle, Loader2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const STATUS_CONFIG: Record<
-  string,
-  { icon: React.ReactNode; label: string; className: string }
-> = {
-  pending_processing: {
-    icon: <Clock size={14} className="text-gray-500" />,
-    label: "待处理",
-    className: "bg-gray-50 text-gray-600",
-  },
-  ready: {
-    icon: <CheckCircle2 size={14} className="text-green-600" />,
-    label: "就绪",
-    className: "bg-green-50 text-green-700",
-  },
-  ready_subtitles: {
-    icon: <Loader2 size={14} className="animate-spin text-amber-500" />,
-    label: "视频处理中",
-    className: "bg-amber-50 text-amber-700",
-  },
-  error: {
-    icon: <AlertCircle size={14} className="text-red-500" />,
-    label: "失败",
-    className: "bg-red-50 text-red-700",
-  },
-  processing: {
-    icon: <Loader2 size={14} className="animate-spin text-amber-500" />,
-    label: "处理中",
-    className: "bg-amber-50 text-amber-700",
-  },
-};
+import {
+  PROCESSING_STATUS_CONFIG,
+  type StatusBadgeConfig,
+} from "@/lib/videoStatus";
 
 export function VideoStatusBadge({ status }: { status: string }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.processing;
+  const config: StatusBadgeConfig =
+    PROCESSING_STATUS_CONFIG[status] || PROCESSING_STATUS_CONFIG.processing;
+  const Icon = config.icon;
   return (
     <span
       className={cn(
@@ -43,7 +17,7 @@ export function VideoStatusBadge({ status }: { status: string }) {
         config.className,
       )}
     >
-      {config.icon} {config.label}
+      <Icon size={14} /> {config.label}
     </span>
   );
 }

@@ -4,17 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import {
-  Loader2,
-  Upload,
-  Plus,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  FileEdit,
-  PlayCircle,
-  Link2,
-} from "lucide-react";
+import { Loader2, Upload, Plus, PlayCircle, Link2 } from "lucide-react";
 
 import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -24,62 +14,17 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
 import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
+import {
+  VIDEO_STATUS_CONFIG,
+  STEP_LABELS_SHORT,
+  displayStatusOf,
+  type StatusBadgeConfig,
+} from "@/lib/videoStatus";
 import type { Video } from "@/types";
 
-type ReviewStatus = Video["review_status"];
-
-const STATUS_META: Record<
-  ReviewStatus | "processing" | "pending_processing" | "error",
-  { label: string; cls: string; icon: typeof Clock }
-> = {
-  pending_processing: {
-    label: "等待处理",
-    cls: "bg-gray-100 text-gray-600",
-    icon: Clock,
-  },
-  draft: {
-    label: "草稿",
-    cls: "bg-surface-card text-muted-foreground",
-    icon: FileEdit,
-  },
-  pending_review: {
-    label: "待审核",
-    cls: "bg-warning-soft text-warning",
-    icon: Clock,
-  },
-  published: {
-    label: "已发布",
-    cls: "bg-success-soft text-success",
-    icon: CheckCircle2,
-  },
-  rejected: { label: "已驳回", cls: "bg-red-soft text-red", icon: AlertCircle },
-  processing: {
-    label: "处理中",
-    cls: "bg-brand-50 text-brand-500",
-    icon: Loader2,
-  },
-  error: { label: "处理失败", cls: "bg-red-soft text-red", icon: AlertCircle },
-};
-
-function statusOf(
-  v: Video,
-): ReviewStatus | "processing" | "pending_processing" | "error" {
-  if (v.status === "pending_processing") return "pending_processing";
-  if (v.status === "processing" || v.status === "ready_subtitles")
-    return "processing";
-  if (v.status === "error") return "error";
-  return v.review_status;
-}
-
-const STEP_LABELS: Record<string, string> = {
-  extracting: "提取音频",
-  transcribing: "转录字幕",
-  translating: "翻译字幕",
-  annotating: "标注考级",
-  prewarm_notes: "预热笔记",
-  downloading: "下载视频",
-  transcoding: "转码",
-};
+// Resolve status display via the shared videoStatus module.
+// Uses short step labels for list/table context.
+const statusOf = displayStatusOf;
 
 export default function MyVideosPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
@@ -235,7 +180,8 @@ export default function MyVideosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {videos.map((v) => {
               const s = statusOf(v);
-              const meta = STATUS_META[s];
+              const meta: StatusBadgeConfig =
+                VIDEO_STATUS_CONFIG[s] || VIDEO_STATUS_CONFIG.processing;
               const Icon = meta.icon;
               const editable =
                 v.status === "ready" &&
@@ -260,7 +206,7 @@ export default function MyVideosPage() {
                       </div>
                     )}
                     <span
-                      className={`absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-pill inline-flex items-center gap-1 ${meta.cls}`}
+                      className={`absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-pill inline-flex items-center gap-1 ${meta.className}`}
                     >
                       <Icon
                         size={11}
@@ -281,7 +227,7 @@ export default function MyVideosPage() {
                       {s === "pending_processing"
                         ? "等待管理员启动处理"
                         : s === "processing" && v.processing_step
-                          ? (STEP_LABELS[v.processing_step] ?? "处理中…")
+                          ? (STEP_LABELS_SHORT[v.processing_step] ?? "处理中…")
                           : v.status === "ready"
                             ? editable
                               ? "点击编辑并提交审核"

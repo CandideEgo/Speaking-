@@ -46,17 +46,7 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
-
-/** Human-readable labels for processing steps returned by the backend. */
-const STEP_LABELS: Record<string, string> = {
-  extracting: "提取视频信息...",
-  transcribing: "语音转录中...",
-  splitting: "说话人识别中...",
-  translating: "字幕翻译中...",
-  annotating: "标注考试词汇中...",
-  downloading: "下载视频中...",
-  transcoding: "视频转码中...",
-};
+import { STEP_LABELS } from "@/lib/videoStatus";
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
