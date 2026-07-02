@@ -66,13 +66,13 @@ This is a full-stack English speaking practice app with 4 runtime services:
 
 5. **Start backend** (uvicorn on :8000):
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
    Run in background with `run_in_background: true`.
 
 6. **Start cloud Celery worker** (pool=solo for Windows) — consumes **only** the `celery` queue:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
+   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
    ```
    Run in background with `run_in_background: true`.
 
@@ -80,7 +80,7 @@ This is a full-stack English speaking practice app with 4 runtime services:
 
 6b. **Start local GPU worker** — consumes `transcription_gpu` + emits Redis heartbeat:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe scripts/start_gpu_worker.py
+   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe scripts/start_gpu_worker.py
    ```
    Run in background with `run_in_background: true`.
 
@@ -147,3 +147,4 @@ This is a full-stack English speaking practice app with 4 runtime services:
 - **Queue split** — the cloud worker (step 6) consumes `-Q celery` only; the GPU worker (step 6b) consumes `transcription_gpu` only. This mirrors production (`docker-compose.prod.yml` cloud worker = `-Q celery`, remote GPU worker = `transcription_gpu`). Locally both run on one machine but never contend. Do NOT make the cloud worker consume both queues — it has no GPU and would steal transcription tasks.
 - The venv Python is at `backend/.venv/Scripts/python.exe` (has whisperx + torch+CUDA — GPU worker uses the same venv)
 - If frontend starts on 3001 instead of 3000, it means port 3000 is still occupied — the step-1 verify should have caught this; re-run the kill step.
+- **`PYTHONUTF8=1` on every Python service (backend, celery, gpu)** — Windows Python defaults to the OS locale codec (GBK on a Chinese Windows) for `open()` calls that don't pass an explicit encoding. The app assumes UTF-8 (it runs on Linux in prod). Without `PYTHONUTF8=1` the backend crashes at startup: slowapi's `Limiter` reads `.env` via starlette `Config` with the locale codec and hits `UnicodeDecodeError: 'gbk' codec` on the UTF-8 em-dash in a comment and the Chinese `ALIYUN_SMS_SIGN_NAME` value. `PYTHONUTF8=1` (Python UTF-8 mode) makes `open()` default to UTF-8, matching Linux — the comprehensive fix. Celery/GPU don't crash (they don't import `app.core.limiter`) but it's set on all three for consistency and to guard against latent locale-encoding bugs in tasks.
