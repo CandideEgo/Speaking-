@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { api } from "@/lib/api";
+import { useSession } from "@/hooks/useSession";
 import type { VocabDrillItem, VocabDrillSet, GradedResult } from "@/types";
 
 interface UseVocabDrillOptions {
@@ -38,101 +39,60 @@ function normalizeWord(s: string): string {
 }
 
 /**
- * Vocabulary drill: fetches the deterministic spelling + meaning-choice items
- * for the current exam level (free-tier, no AI) and grades **immediately and
- * per-question**, client-side. Once graded, a question is locked; `reset()`
- * clears the attempt.
+ * Vocabulary drill — thin wrapper over useSession with a client-side grader.
+ *
+ * Fetches the deterministic spelling + meaning-choice items for the current
+ * exam level (free-tier, no AI) and grades **immediately and per-question**,
+ * client-side. Once graded, a question is locked; `reset()` clears the attempt.
  */
 export function useVocabDrill({
   videoId,
   level,
 }: UseVocabDrillOptions): UseVocabDrillReturn {
-  const [items, setItems] = useState<VocabDrillItem[]>([]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [graded, setGraded] = useState<Record<number, GradedResult>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDrill = useCallback(async () => {
-    if (!level) return;
-    setLoading(true);
-    setError(null);
-    setGraded({});
-    setAnswers({});
-    try {
-      const data = await api<VocabDrillSet>(
-        `/api/v1/videos/${videoId}/vocabulary-drill?level=${encodeURIComponent(level)}`,
-      );
-      setItems(data.items || []);
-    } catch {
-      // 409 (no target words) or load failure → empty state, not a hard error toast.
-      setItems([]);
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
+  const fetcher = useCallback(async () => {
+    if (!level) return [];
+    const data = await api<VocabDrillSet>(
+      `/api/v1/videos/${videoId}/vocabulary-drill?level=${encodeURIComponent(level)}`,
+    );
+    return data.items || [];
   }, [videoId, level]);
 
-  useEffect(() => {
-    fetchDrill();
-  }, [fetchDrill]);
-
-  const setAnswer = useCallback((index: number, answer: string) => {
-    setAnswers((prev) => ({ ...prev, [index]: answer }));
-  }, []);
-
-  const gradeAnswer = useCallback(
-    (index: number, answer?: string) => {
-      if (graded[index]) return;
-      const it = items[index];
-      if (!it) return;
-      const ua = answer !== undefined ? answer : answers[index] || "";
-      if (answer !== undefined) {
-        setAnswers((prev) => ({ ...prev, [index]: answer }));
-      }
+  const grader = useCallback(
+    (item: VocabDrillItem, userAnswer: string): GradedResult => {
       let correct = false;
-      if (it.kind === "spelling") {
-        correct = normalizeWord(ua) === normalizeWord(it.answer);
+      if (item.kind === "spelling") {
+        correct = normalizeWord(userAnswer) === normalizeWord(item.answer);
       } else {
         // meaning_choice: answer is the correct option string.
-        correct = (ua || "").trim() === (it.answer || "").trim();
+        correct = (userAnswer || "").trim() === (item.answer || "").trim();
       }
-      setGraded((prev) => ({
-        ...prev,
-        [index]: { correct, explanation: null, correctAnswer: it.answer },
-      }));
+      return { correct, explanation: null, correctAnswer: item.answer };
     },
-    [items, answers, graded],
+    [],
   );
 
-  const reset = useCallback(() => {
-    setGraded({});
-    setAnswers({});
-  }, []);
+  // 409 (no target words) or load failure → empty state, not a hard error.
+  const onError = useCallback(() => null, []);
 
-  const answeredCount = Object.keys(graded).length;
-  const correctCount = Object.values(graded).filter((g) => g.correct).length;
-  const score = items.length
-    ? Math.round((correctCount / items.length) * 100)
-    : null;
-  const accuracy = answeredCount
-    ? Math.round((correctCount / answeredCount) * 100)
-    : null;
+  const session = useSession<VocabDrillItem>({ fetcher, grader, onError });
 
+  // useVocabDrill's gradeAnswer is sync (returns void); adapt the async one.
   return {
-    loading,
-    error,
-    items,
-    answers,
-    graded,
-    grading: {},
-    answeredCount,
-    correctCount,
-    score,
-    accuracy,
-    setAnswer,
-    gradeAnswer,
-    reset,
-    refetch: fetchDrill,
+    loading: session.loading,
+    error: session.error,
+    items: session.items,
+    answers: session.answers,
+    graded: session.graded,
+    grading: session.grading,
+    answeredCount: session.answeredCount,
+    correctCount: session.correctCount,
+    score: session.score,
+    accuracy: session.accuracy,
+    setAnswer: session.setAnswer,
+    gradeAnswer: (index, answer) => {
+      void session.gradeAnswer(index, answer);
+    },
+    reset: session.reset,
+    refetch: session.refetch,
   };
 }

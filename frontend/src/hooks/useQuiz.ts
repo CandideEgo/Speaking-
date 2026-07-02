@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { api } from "@/lib/api";
+import { useSession } from "@/hooks/useSession";
 import type { QuizQuestion, GradedResult } from "@/types";
 
 interface UseQuizOptions {
@@ -31,71 +32,41 @@ export interface UseQuizReturn {
 }
 
 /**
- * Quiz/assessment state on the watch page. Grades **immediately and
- * per-question**, client-side. `recordScore()` preserves the legacy
- * `/quiz/submit` score-recording call once all questions are answered.
+ * Quiz/assessment state on the watch page — thin wrapper over useSession with
+ * a client-side grader.
+ *
+ * Grades **immediately and per-question**, client-side. `recordScore()`
+ * preserves the legacy `/quiz/submit` score-recording call once all questions
+ * are answered.
  */
 export function useQuiz({ videoId }: UseQuizOptions): UseQuizReturn {
-  const [items, setItems] = useState<QuizQuestion[]>([]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [graded, setGraded] = useState<Record<number, GradedResult>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchQuiz = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setGraded({});
-    setAnswers({});
-    try {
-      const data = await api<{ quiz: QuizQuestion[] }>(
-        `/api/v1/videos/${videoId}/quiz`,
-      );
-      setItems(data.quiz || []);
-    } catch {
-      // quiz not available → empty state, not a hard error
-      setItems([]);
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
+  const fetcher = useCallback(async () => {
+    const data = await api<{ quiz: QuizQuestion[] }>(
+      `/api/v1/videos/${videoId}/quiz`,
+    );
+    return data.quiz || [];
   }, [videoId]);
 
-  useEffect(() => {
-    fetchQuiz();
-  }, [fetchQuiz]);
-
-  const setAnswer = useCallback((index: number, answer: string) => {
-    setAnswers((prev) => ({ ...prev, [index]: answer }));
-  }, []);
-
-  const gradeAnswer = useCallback(
-    (index: number, answer?: string) => {
-      if (graded[index]) return;
-      const q = items[index];
-      if (!q) return;
-      const ua = answer !== undefined ? answer : answers[index] || "";
-      if (answer !== undefined) {
-        setAnswers((prev) => ({ ...prev, [index]: answer }));
-      }
-      const correct = ua.trim().toLowerCase() === q.answer.trim().toLowerCase();
-      setGraded((prev) => ({
-        ...prev,
-        [index]: { correct, explanation: null, correctAnswer: q.answer },
-      }));
+  const grader = useCallback(
+    (item: QuizQuestion, userAnswer: string): GradedResult => {
+      const correct =
+        userAnswer.trim().toLowerCase() === item.answer.trim().toLowerCase();
+      return { correct, explanation: null, correctAnswer: item.answer };
     },
-    [items, answers, graded],
+    [],
   );
 
-  const reset = useCallback(() => {
-    setGraded({});
-    setAnswers({});
-  }, []);
+  // quiz not available → empty state, not a hard error
+  const onError = useCallback(() => null, []);
+
+  const session = useSession<QuizQuestion>({ fetcher, grader, onError });
 
   const recordScore = useCallback(async () => {
-    const total = items.length;
+    const total = session.items.length;
     if (!total) return;
-    const correct = Object.values(graded).filter((g) => g.correct).length;
+    const correct = Object.values(session.graded).filter(
+      (g) => g.correct,
+    ).length;
     const sc = Math.round((correct / total) * 100);
     try {
       const form = new FormData();
@@ -108,34 +79,26 @@ export function useQuiz({ videoId }: UseQuizOptions): UseQuizReturn {
     } catch {
       /* ignore submission errors */
     }
-  }, [graded, items, videoId]);
-
-  const answeredCount = Object.keys(graded).length;
-  const correctCount = Object.values(graded).filter((g) => g.correct).length;
-  const allGraded = items.length > 0 && answeredCount === items.length;
-  const score = items.length
-    ? Math.round((correctCount / items.length) * 100)
-    : null;
-  const accuracy = answeredCount
-    ? Math.round((correctCount / answeredCount) * 100)
-    : null;
+  }, [session.graded, session.items, videoId]);
 
   return {
-    loading,
-    error,
-    items,
-    answers,
-    graded,
-    grading: {},
-    answeredCount,
-    correctCount,
-    allGraded,
-    score,
-    accuracy,
-    setAnswer,
-    gradeAnswer,
+    loading: session.loading,
+    error: session.error,
+    items: session.items,
+    answers: session.answers,
+    graded: session.graded,
+    grading: session.grading,
+    answeredCount: session.answeredCount,
+    correctCount: session.correctCount,
+    allGraded: session.allGraded,
+    score: session.score,
+    accuracy: session.accuracy,
+    setAnswer: session.setAnswer,
+    gradeAnswer: (index, answer) => {
+      void session.gradeAnswer(index, answer);
+    },
     recordScore,
-    reset,
-    refetch: fetchQuiz,
+    reset: session.reset,
+    refetch: session.refetch,
   };
 }
