@@ -60,9 +60,10 @@ class AIService:
         """Return ``(client, model)`` for an engine, creating it lazily.
 
         ``agnes`` reuses this service's own client/model. Other names resolve
-        through the translation engine registry (``BUILTIN_ENGINES``) so they
-        share the same creds/base_url/model as subtitle translation — no
-        hardcoded keys. Raises ``AIServiceError`` if an engine is unconfigured.
+        through the translation engine registry via the public
+        ``TranslationService.resolve_engine_client()`` method so they share
+        the same creds/base_url/model as subtitle translation — no hardcoded
+        keys. Raises ``AIServiceError`` if an engine is unconfigured.
         """
         if name == "agnes":
             if self.client is None:
@@ -75,11 +76,10 @@ class AIService:
         from app.services.translation import TranslationService
 
         try:
-            cfg = TranslationService._resolve_engine(name, settings)
-            client = TranslationService._make_client(cfg)
+            client, model = TranslationService.resolve_engine_client(name)
         except ValueError as exc:
             raise AIServiceError(str(exc)) from exc
-        self._engine_clients[name] = (client, cfg.model)
+        self._engine_clients[name] = (client, model)
         return self._engine_clients[name]
 
     async def _chat(self, system: str, user: str, temperature: float = 0.3, response_format: dict | None = None) -> str:
@@ -118,38 +118,6 @@ class AIService:
         except Exception as e:
             logger.error(f"Unexpected AI error: {e}")
             raise AIServiceError(f"AI service error: {e!s}") from e
-
-    async def translate_batch(self, texts: list[str]) -> list[str | None]:
-        if not texts:
-            return []
-
-        payload = json.dumps(texts, ensure_ascii=False)
-        system = (
-            "You are a translator. Translate each English sentence into natural Chinese. "
-            "Return a JSON array of strings. Keep the same order. If a sentence doesn't need "
-            "translation (e.g., it's just a sound), return empty string."
-        )
-        user = f"Translate:\n{payload}\nReturn JSON array only."
-
-        result = await self._chat(system, user)
-        try:
-            parsed = json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            parsed = []
-
-        # LLMs occasionally return fewer items than requested (truncation or
-        # merging adjacent sentences). Align to the input length and backfill
-        # any missing slots one-by-one so callers can index by position.
-        results: list[str | None] = [None] * len(texts)
-        for i, t in enumerate(parsed[: len(texts)]):
-            results[i] = t if isinstance(t, str) else None
-        for i in [idx for idx, v in enumerate(results) if v is None]:
-            try:
-                one = await self.translate_batch([texts[i]])
-                results[i] = one[0] if one else None
-            except AIServiceError:
-                results[i] = None
-        return results
 
     async def grammar_analyze_batch(self, texts: list[str]) -> list[str | None]:
         if not texts:

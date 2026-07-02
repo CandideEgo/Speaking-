@@ -2,7 +2,10 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.notification import Notification
+
+logger = get_logger(__name__)
 
 
 async def create_notification(
@@ -50,6 +53,7 @@ async def create_notification(
         )
     except Exception:
         # WebSocket push is best-effort; don't block notification creation
-        pass
+        # but log so push failures are observable rather than silently swallowed.
+        logger.warning("WebSocket push failed for user %s", user_id, exc_info=True)
 
     return notification

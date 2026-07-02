@@ -14,7 +14,13 @@ from app.services.sr_service import calculate_next_review
 
 logger = logging.getLogger(__name__)
 
-ai = get_ai_service()
+
+# Lazy AI access — matches the rest of the codebase. Module-level
+# get_ai_service() was triggering singleton init at import time, which
+# broke processes that don't need AI (GPU worker, tests without keys).
+def _get_ai():
+    return get_ai_service()
+
 
 # Mastery level thresholds
 MASTERY_NEW = "new"
@@ -48,7 +54,7 @@ async def enrich_word(db: AsyncSession, vocabulary_id: str, user_id: str) -> Voc
         return None
 
     # Call AI enrichment
-    enriched = await ai.enrich_vocabulary_word(vocab.word, vocab.context_sentence)
+    enriched = await _get_ai().enrich_vocabulary_word(vocab.word, vocab.context_sentence)
 
     # Persist enrichment results
     vocab.definition = enriched.get("definition", "")
@@ -115,7 +121,7 @@ async def generate_quiz(
         for w in selected
     ]
 
-    questions = await ai.generate_vocab_quiz(word_dicts, quiz_type)
+    questions = await _get_ai().generate_vocab_quiz(word_dicts, quiz_type)
     return questions
 
 

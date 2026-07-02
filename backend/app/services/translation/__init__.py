@@ -205,6 +205,18 @@ class TranslationService:
             kwargs["base_url"] = engine.base_url
         return AsyncOpenAI(**kwargs)
 
+    @staticmethod
+    def resolve_engine_client(name: str) -> tuple[AsyncOpenAI, str]:
+        """Public API: resolve an engine name to ``(client, model)``.
+
+        Used by AIService._get_engine_client to borrow translation-engine
+        clients for non-translation LLM calls (e.g. prewarm fan-out) without
+        reaching into private methods.
+        """
+        cfg = TranslationService._resolve_engine(name, get_settings())
+        client = TranslationService._make_client(cfg)
+        return client, cfg.model
+
 
 # ------------------------------------------------------------------
 # Thread-safe singleton (same pattern as get_ai_service)
