@@ -47,7 +47,13 @@ from app.services.search_service import (
     search_videos as _search_videos,
 )
 from app.services.subtitle_edit_service import (
+    list_subtitle_revisions as _list_subtitle_revisions,
+)
+from app.services.subtitle_edit_service import (
     recompute_word_levels as _recompute_word_levels,
+)
+from app.services.subtitle_edit_service import (
+    rollback_subtitle as _rollback_subtitle,
 )
 from app.services.subtitle_edit_service import (
     update_subtitle as _update_subtitle,
@@ -368,7 +374,7 @@ async def update_admin_subtitle(
     """Edit one subtitle's text/timing/grammar note. Editing text_en resets that
     line's word_levels to the ECDICT baseline. Admin only."""
     try:
-        return await _update_subtitle(db, video_id, subtitle_id, payload)
+        return await _update_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -388,7 +394,7 @@ async def update_admin_subtitles_batch(
 ):
     """Apply many subtitle edits in one transaction. All ids must belong to video_id. Admin only."""
     try:
-        return await _update_subtitles_batch(db, video_id, payload)
+        return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -428,6 +434,55 @@ async def recompute_admin_word_levels(
     """Recompute word_levels from ECDICT for selected subtitles (or the whole video). Admin only."""
     subtitle_ids = payload.subtitle_ids if payload else None
     return await _recompute_word_levels(db, video_id, subtitle_ids)
+
+
+@router.post("/admin/{video_id}/subtitles/{subtitle_id}/rollback/{revision_id}", response_model=SubtitleResponse)
+@rate_limit("30/minute")
+async def rollback_admin_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    revision_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Roll back a subtitle to the before-state of a prior edit. Admin only."""
+    try:
+        return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.get("/admin/{video_id}/subtitles/revisions")
+@rate_limit("30/minute")
+async def list_admin_subtitle_revisions(
+    request: Request,
+    video_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all subtitle edit revisions for a video (newest first). Admin only."""
+    return await _list_subtitle_revisions(db, video_id, page=page, page_size=page_size)
+
+
+@router.get("/admin/{video_id}/subtitles/{subtitle_id}/revisions")
+@rate_limit("30/minute")
+async def list_admin_subtitle_revisions_for_one(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List edit revisions for one subtitle. Admin only."""
+    return await _list_subtitle_revisions(db, video_id, subtitle_id=subtitle_id, page=page, page_size=page_size)
 
 
 @router.post("/admin/{video_id}/review/approve", response_model=VideoAdminResponse)
@@ -627,7 +682,7 @@ async def update_own_subtitle(
     """Edit one subtitle on your own video. Owner only; blocked while published."""
     await _require_editable_own_video(video_id, current_user, db)
     try:
-        return await _update_subtitle(db, video_id, subtitle_id, payload)
+        return await _update_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -647,7 +702,7 @@ async def update_own_subtitles_batch(
     """Apply many subtitle edits in one transaction to your own video. Owner only."""
     await _require_editable_own_video(video_id, current_user, db)
     try:
-        return await _update_subtitles_batch(db, video_id, payload)
+        return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():

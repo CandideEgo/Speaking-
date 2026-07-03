@@ -12,6 +12,7 @@ from app.models.password_reset import PasswordResetToken
 from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
+from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
 from app.models.video import Video
 from app.models.video_standard import VideoStandard
