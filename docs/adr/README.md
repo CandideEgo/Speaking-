@@ -12,6 +12,7 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0003](0003-remove-speaking-progress-dashboard-rebuild.md) | 移除口语进度追踪；dashboard 改建为非口语数据 | Accepted |
 | [0004](0004-ugc-pipeline-admin-triggered.md) | UGC 管线：管理员触发处理 + 通知 | Accepted |
 | [0005](0005-frontend-rebuild-unified-components.md) | 前端重做：统一组件库（保持现有色系），播放页为锚点 | Accepted |
+| [0006](0006-standard-version-fork-propose-back.md) | 标准版 + Fork + 提议回写：按 URL 去重与共享编辑模型 | Accepted |
 
 ## Companion docs
 

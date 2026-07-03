@@ -21,6 +21,7 @@ import { api, mediaUrl } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVideoStatusPolling } from "@/hooks/useVideoStatusPolling";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
+import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import {
   beginEdit,
   editPractice,
@@ -84,6 +85,8 @@ export default function MyVideoEditorPage() {
         status: st.status as string,
         processing_step: st.processing_step,
         video_url_720p: st.video_url_720p ?? undefined,
+        processing_progress: st.processing_progress,
+        error_message: st.error_message,
       };
     },
     onTerminal: () => {
@@ -98,6 +101,9 @@ export default function MyVideoEditorPage() {
               ...v,
               status: patch.status as VideoWithSubtitles["status"],
               processing_step: patch.processing_step,
+              processing_progress:
+                patch.processing_progress ?? v.processing_progress,
+              error_message: patch.error_message ?? v.error_message,
               video_url_720p: patch.video_url_720p ?? v.video_url_720p,
             }
           : v,
@@ -261,11 +267,47 @@ export default function MyVideoEditorPage() {
         </div>
 
         {isProcessing && (
-          <div className="bg-brand-50 text-brand-500 rounded-lg p-4 mb-6 text-sm flex items-center gap-2">
-            <Loader2 size={16} className="animate-spin" />
-            视频处理中
-            {video.processing_step ? `（${video.processing_step}）` : ""}
-            ，完成后即可编辑。
+          <div className="bg-brand-50 text-brand-500 rounded-lg p-4 mb-6 text-sm space-y-2">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              视频处理中
+              {video.processing_step
+                ? ` · ${STEP_LABELS_SHORT[video.processing_step] || video.processing_step}`
+                : ""}
+              {video.processing_progress
+                ? `（${video.processing_progress}%）`
+                : ""}
+              ，完成后即可编辑。
+            </div>
+            {video.processing_progress != null &&
+              video.processing_progress > 0 && (
+                <div className="h-1.5 w-full rounded-full bg-brand-500/20">
+                  <div
+                    className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(video.processing_progress, 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Error state */}
+        {video.status === "error" && (
+          <div className="bg-red-50 text-red-700 rounded-lg p-4 mb-6 space-y-2">
+            <div className="text-sm font-medium">
+              视频处理失败
+              {video.processing_step
+                ? ` · 卡在 ${STEP_LABELS_SHORT[video.processing_step] || video.processing_step}`
+                : ""}
+            </div>
+            {video.error_message && (
+              <div className="text-xs break-all">{video.error_message}</div>
+            )}
+            <div className="text-xs text-red-500">
+              请返回创作者中心重新提交该视频链接。
+            </div>
           </div>
         )}
 
@@ -355,7 +397,7 @@ function ReviewBadge({
   if (processing) {
     return (
       <span className="text-xs text-brand-500">
-        处理中{step ? ` · ${step}` : ""}
+        处理中{step ? ` · ${STEP_LABELS_SHORT[step] || step}` : ""}
       </span>
     );
   }

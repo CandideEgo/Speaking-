@@ -140,6 +140,29 @@ def process_video(self, video_id: str):
             try:
                 settings = get_settings()
 
+                # --- Resume check: skip transcription if subtitles exist ---
+                # If subtitles are already in the DB, a prior run's transcription
+                # succeeded (the callback only inserts on status=ok). Re-enqueuing
+                # GPU transcription would waste GPU time and risk clobbering good
+                # subtitles. Jump straight to the tail; finalize_video's
+                # is_step_done() checks then skip any steps that already finished.
+                from app.services.video_service import count_subtitles
+
+                subtitle_count = await count_subtitles(db, video.id)
+                if subtitle_count > 0:
+                    logger.info(
+                        "Video %s: subtitles already exist (%d), skipping transcription",
+                        video_id,
+                        subtitle_count,
+                    )
+                    video.status = VideoStatus.ready_subtitles
+                    video.processing_step = "translating"
+                    video.processing_progress = 70
+                    await db.commit()
+                    release_lock(video_id)
+                    finalize_video.delay(video_id)
+                    return
+
                 # --- Pre-check: refresh YouTube cookies if needed ---
                 if video.video_source == VideoSource.imported:
                     from app.services.youtube_cookies_service import ensure_cookies_for_pipeline

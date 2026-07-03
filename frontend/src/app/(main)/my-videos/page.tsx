@@ -78,6 +78,9 @@ export default function MyVideosPage() {
               ...v,
               status: st.status as Video["status"],
               processing_step: st.processing_step,
+              processing_progress:
+                st.processing_progress ?? v.processing_progress,
+              error_message: st.error_message ?? v.error_message,
               video_url_720p: st.video_url_720p ?? v.video_url_720p,
             });
           } else {

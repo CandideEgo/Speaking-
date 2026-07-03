@@ -8,17 +8,20 @@ off the pipeline tail. Authenticated by a shared secret (no JWT).
 import secrets
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from sqlalchemy import delete, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.core.logging import get_logger
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.video import TranscriptionCallbackRequest
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+logger = get_logger(__name__)
 
 # Redis-based dedup lock for the callback endpoint.  Two concurrent callbacks
 # (e.g. a Celery retry that fires a second POST before the first commits) can
@@ -100,19 +103,28 @@ async def transcription_callback(
             await db.commit()
             return {"acknowledged": True}
 
-        # status == "ok": replace subtitles and hand off to the tail.
+        # status == "ok": insert subtitles and hand off to the tail.
+        # Guard against re-inserting: if subtitles already exist (a duplicate
+        # callback raced past the status guard, or a prior partial insert left
+        # rows behind), keep the existing set rather than wiping them —
+        # deleting would discard any already-translated rows.
         segments = payload.segments or []
-        await db.execute(delete(Subtitle).where(Subtitle.video_id == payload.video_id))
-        for i, seg in enumerate(segments):
-            db.add(
-                Subtitle(
-                    video_id=video.id,
-                    start_time=seg.start,
-                    end_time=seg.end,
-                    text_en=seg.text,
-                    sentence_index=i,
+        existing = await db.scalar(
+            select(func.count()).select_from(Subtitle).where(Subtitle.video_id == payload.video_id)
+        )
+        if existing:
+            logger.info("Subtitles already exist for video %s, skipping insert", payload.video_id)
+        else:
+            for i, seg in enumerate(segments):
+                db.add(
+                    Subtitle(
+                        video_id=video.id,
+                        start_time=seg.start,
+                        end_time=seg.end,
+                        text_en=seg.text,
+                        sentence_index=i,
+                    )
                 )
-            )
         video.status = VideoStatus.ready_subtitles
         video.processing_step = "translating"
         video.processing_progress = 70

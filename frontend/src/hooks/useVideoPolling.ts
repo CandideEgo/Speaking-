@@ -24,6 +24,8 @@ export function useVideoPolling(
         status: st.status as string,
         processing_step: st.processing_step,
         video_url_720p: st.video_url_720p ?? undefined,
+        processing_progress: st.processing_progress,
+        error_message: st.error_message,
       };
     },
     [videoId],
@@ -36,6 +38,8 @@ export function useVideoPolling(
         status: patch.status as VideoAdmin["status"],
         processing_step: patch.processing_step,
         video_url_720p: patch.video_url_720p,
+        processing_progress: patch.processing_progress,
+        error_message: patch.error_message,
       });
       if (patch.status === "ready") {
         toast.success("搬运完成");
@@ -49,6 +53,8 @@ export function useVideoPolling(
         status: patch.status as VideoAdmin["status"],
         processing_step: patch.processing_step,
         video_url_720p: patch.video_url_720p,
+        processing_progress: patch.processing_progress,
+        error_message: patch.error_message,
       });
     },
   });

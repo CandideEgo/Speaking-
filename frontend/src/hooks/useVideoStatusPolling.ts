@@ -21,6 +21,8 @@ interface VideoStatusPatch {
   status: string;
   processing_step: string | null;
   video_url_720p?: string | null;
+  processing_progress?: number;
+  error_message?: string | null;
 }
 
 interface UseVideoStatusPollingOptions {

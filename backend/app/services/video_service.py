@@ -38,6 +38,20 @@ from app.services.video_access import (
 )
 
 
+async def count_subtitles(db: AsyncSession, video_id: str) -> int:
+    """Count persisted subtitle rows for a video.
+
+    Used by the pipeline resume logic (``retry_video`` and the ``process_video``
+    head) to decide whether transcription can be skipped. Subtitles in the DB
+    are the ground-truth signal that the GPU stage already succeeded, since
+    the transcription callback only inserts them on ``status == "ok"``.
+    """
+    from app.models.subtitle import Subtitle
+
+    result = await db.scalar(select(func.count()).select_from(Subtitle).where(Subtitle.video_id == video_id))
+    return result or 0
+
+
 async def list_public_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:
     """List official public videos for the homepage. Paginated."""
     page = max(1, page)
@@ -103,6 +117,9 @@ async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: 
     for v in rows[:page_size]:
         item = VideoResponse.model_validate(v).model_dump()
         item["user"] = UserProfileBrief.from_model(v.user) if v.user else None
+        # Community feed viewers are not the owner — zero out owner-only fields.
+        item["error_message"] = None
+        item["rejection_reason"] = None
         items.append(item)
     return {"items": items, "has_more": has_more, "total": total}
 
@@ -122,8 +139,15 @@ async def get_video_detail(
     db: AsyncSession,
     video_id: str,
     current_user: User | None,
+    *,
+    skip_access_check: bool = False,
 ) -> VideoDetailResponse:
-    """Get video detail with subtitles. Creates a LearningRecord on first view."""
+    """Get video detail with subtitles. Creates a LearningRecord on first view.
+
+    When *skip_access_check* is True the ``check_video_access`` gate is
+    bypassed (used by the admin detail endpoint so admins can view UGC
+    drafts they don't own).
+    """
 
     # Check cache for official videos (user-owned videos are never cached)
     from app.core.cache import cache_get, cache_set
@@ -140,8 +164,9 @@ async def get_video_detail(
     if not video:
         return None
 
-    # Access control: official videos are public; user-owned require auth
-    if not check_video_access(video, current_user):
+    # Access control: official videos are public; user-owned require auth.
+    # Admin endpoints set skip_access_check=True so admins can view any video.
+    if not skip_access_check and not check_video_access(video, current_user):
         return None
 
     # Create LearningRecord on first view for authenticated users (after access check)
@@ -212,14 +237,17 @@ async def get_video_detail(
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         processing_mode=video.processing_mode,
+        processing_progress=video.processing_progress or 0,
+        # Only the owner sees the error message; non-owners get null.
+        error_message=video.error_message if is_video_owner(video, current_user) else None,
         created_at=video.created_at.isoformat(),
         subtitles=subtitle_responses,
     )
 
     # Cache official video details for 5 minutes.
-    # Only cache if rejection_reason is None (non-owner view) to prevent
-    # leaking owner-only data to anonymous/free users via the shared cache.
-    if video.is_official and detail.rejection_reason is None:
+    # Only cache if owner-only fields are None to prevent leaking them
+    # to anonymous/free users via the shared cache.
+    if video.is_official and detail.rejection_reason is None and detail.error_message is None:
         await cache_set(cache_key, detail.model_dump_json(), ttl=300)
 
     return detail
@@ -229,19 +257,26 @@ async def get_video_status(
     db: AsyncSession,
     video_id: str,
     current_user: User | None,
+    *,
+    skip_access_check: bool = False,
 ) -> VideoStatusResponse | None:
-    """Get processing status for a video. Returns None if not found / no access."""
+    """Get processing status for a video. Returns None if not found / no access.
+
+    When *skip_access_check* is True the ``check_video_access`` gate is
+    bypassed (used by the admin status endpoint).
+    """
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if not video:
         return None
-    if not check_video_access(video, current_user):
+    if not skip_access_check and not check_video_access(video, current_user):
         return None
     return VideoStatusResponse(
         status=video.status.value,
         video_url_720p=video.video_url_720p,
         processing_step=video.processing_step,
         processing_progress=video.processing_progress,
+        error_message=video.error_message,
     )
 
 

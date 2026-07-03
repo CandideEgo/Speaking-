@@ -43,6 +43,11 @@ class VideoResponse(BaseModel):
     video_url_1080p: str | None = None
     processing_mode: str | None = None
     processing_step: str | None = None
+    processing_progress: int = 0
+    # Error message from the processing pipeline. The service layer zeroes it
+    # out for non-owners (same pattern as rejection_reason) so the public never
+    # sees internal error details, but the owner can tell *why* their video failed.
+    error_message: str | None = None
     like_count: int = 0
     favorite_count: int = 0
     created_at: str
@@ -229,6 +234,14 @@ class VideoStatusResponse(BaseModel):
     video_url_720p: str | None = None
     processing_step: str | None = None
     processing_progress: int | None = None
+    error_message: str | None = None
+
+
+class VideoAdminStatusResponse(VideoStatusResponse):
+    """Admin polling response: inherits error_message from VideoStatusResponse
+    for immediate display when a video transitions to error status."""
+
+    pass
 
 
 class TranscriptionSegment(BaseModel):

@@ -14,6 +14,9 @@
 
 - **Official 视频**：管理员 seed 的官方视频（`is_official=True`），出现在首页/browse。来源：`seed_video`（API）或 `seed_official_videos.py`（脚本，绕过 Celery）。
 - **UGC 视频**：用户提交的视频（`is_official=False`），审核通过后出现在社区 feed，不进首页（除非管理员手动勾"官方"）。
+- **标准版 (Standard Version)**：某 `source_url` 第一个处理至 `ready` 的视频，作为该 URL 所有用户编辑的共享起点（GPU 一 URL 一跑）。首处理即标准版，无独立 promote。标准版与 `is_official` 正交——UGC 亦可成标准版。详见 `docs/plans/PIPELINE-RESUME-DEDUP-AUDIT.md`。
+- **Fork（副本）**：用户从标准版（或他人已发布的 fork）复制一份独立 Video 行（字幕 + 练习题快照 + 元数据），直接 `ready`、不触发 GPU。`forked_from` 记溯源，允许 fork-of-fork。用户在自己 fork 上微调。
+- **提议回写 (Propose-back / PR)**：fork 持有者把字幕修改以 PR（按批，含多行）提交给该 URL 的标准版；管理员审/合/驳。合并后按行传播到未动该行的 fork。练习题不走 PR。
 - **VideoStatus**：处理状态机——`pending_processing → processing → ready_subtitles → ready / error`。
 - **VideoReviewStatus**：审核状态机——`draft → pending_review → published / rejected`。UGC 必走审核；official 不走。
 - **创作者中心**：`/my-videos`，用户上传/链接导入视频、编辑字幕与练习题、提审。完整功能见 ADR-0004。

@@ -48,6 +48,7 @@ export interface Video {
   video_url_1080p: string | null;
   processing_mode: string | null;
   processing_step: string | null;
+  processing_progress: number;
   like_count: number;
   favorite_count: number;
   created_at: string;

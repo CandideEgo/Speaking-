@@ -198,6 +198,15 @@ export function recoverVideo(id: string): Promise<VideoAdmin> {
   });
 }
 
+/** Resume a failed (error) video from the last completed pipeline step.
+ *  If subtitles exist, jumps straight to finalize (skips transcription);
+ *  otherwise resets to pending_processing for a fresh full run. */
+export function retryVideo(id: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/retry`, {
+    method: "POST",
+  });
+}
+
 export function listVideos(
   opts: {
     page?: number;
@@ -224,8 +233,9 @@ export function getVideoStatus(id: string): Promise<{
   video_url_720p: string | null;
   processing_step: string | null;
   processing_progress?: number;
+  error_message?: string | null;
 }> {
-  return adminApi(`/api/v1/videos/${id}/status`);
+  return adminApi(`/api/v1/videos/admin/${id}/status`);
 }
 
 export async function seedVideo(source_url: string): Promise<void> {
@@ -304,9 +314,10 @@ export function rejectReview(id: string, reason: string): Promise<VideoAdmin> {
 // Subtitle & word-level editing (Phase 5 review/edit flow)
 // ---------------------------------------------------------------------------
 
-/** Fetch video detail with subtitles. Admin token can access unpublished official videos. */
+/** Fetch video detail with subtitles. Uses admin-scoped endpoint to bypass
+ *  check_video_access (so admins can view UGC drafts they don't own). */
 export function getVideoDetail(id: string): Promise<VideoWithSubtitles> {
-  return adminApi<VideoWithSubtitles>(`/api/v1/videos/${id}`);
+  return adminApi<VideoWithSubtitles>(`/api/v1/videos/admin/${id}/detail`);
 }
 
 export interface SubtitlePatch {

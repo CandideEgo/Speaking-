@@ -14,14 +14,16 @@ import {
   XCircle,
   Play,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import { useVideoPolling } from "@/hooks/useVideoPolling";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import type { VideoAdmin } from "@/types";
-import { updateVideo } from "@/lib/adminData";
+import { updateVideo, retryVideo } from "@/lib/adminData";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -46,6 +48,7 @@ interface DetailRowProps {
   workerOnline: boolean;
   reviewBusy: boolean;
   onEditSubtitles: (id: string) => void;
+  onRetry: (v: VideoAdmin) => void;
 }
 
 export function VideoDetailRow({
@@ -61,12 +64,17 @@ export function VideoDetailRow({
   onRecover,
   workerOnline,
   reviewBusy,
+  onRetry,
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
   const hasLocal = Boolean(
     video.video_url_720p || video.video_url_480p || video.video_url_1080p,
   );
-  const isProcessing = video.status === "processing";
+  const isProcessing =
+    video.status === "processing" || video.status === "ready_subtitles";
+  const stepLabel = video.processing_step
+    ? STEP_LABELS_SHORT[video.processing_step] || video.processing_step
+    : "";
 
   // Edit form state.
   const [title, setTitle] = useState(video.title);
@@ -148,10 +156,25 @@ export function VideoDetailRow({
             )}
           </div>
           {isProcessing && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 size={12} className="animate-spin" />
-              搬运中 {video.processing_step ? `· ${video.processing_step}` : ""}
-              （进度自动更新）
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 size={12} className="animate-spin" />
+                处理中{stepLabel ? ` · ${stepLabel}` : ""}
+                {video.processing_progress
+                  ? `（${video.processing_progress}%）`
+                  : "（进度自动更新）"}
+              </div>
+              {video.processing_progress != null &&
+                video.processing_progress > 0 && (
+                  <div className="h-1 w-full rounded-full bg-ink/10">
+                    <div
+                      className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(video.processing_progress, 100)}%`,
+                      }}
+                    />
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -249,22 +272,61 @@ export function VideoDetailRow({
             </Button>
           </div>
         )}
-        {/* Stuck mid-pipeline (worker crash residue): re-dispatch finalize. */}
+        {/* Processing / ready_subtitles: normal progress with optional recover link */}
         {(video.status === "processing" ||
           video.status === "ready_subtitles") && (
           <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-            <div className="text-xs font-medium text-amber-800">
-              视频处理中断 · 点击恢复继续
-              {video.processing_step ? `（卡在 ${video.processing_step}）` : ""}
+            <div className="flex items-center gap-2 text-xs font-medium text-amber-800">
+              <Loader2 size={12} className="animate-spin" />
+              处理中{stepLabel ? ` · ${stepLabel}` : ""}
+              {video.processing_progress
+                ? `（${video.processing_progress}%）`
+                : ""}
             </div>
+            {video.processing_progress != null &&
+              video.processing_progress > 0 && (
+                <div className="h-1.5 w-full rounded-full bg-ink/10">
+                  <div
+                    className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(video.processing_progress, 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
+            <button
+              type="button"
+              onClick={() => onRecover(video)}
+              className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 underline underline-offset-2"
+            >
+              <RefreshCw size={10} />
+              卡住了？重新恢复处理
+            </button>
+          </div>
+        )}
+        {/* Error state: show error_message + retry button */}
+        {video.status === "error" && (
+          <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium text-red-800">
+              <AlertCircle size={12} />
+              处理失败
+              {video.processing_step
+                ? `（卡在 ${STEP_LABELS_SHORT[video.processing_step] || video.processing_step}）`
+                : ""}
+            </div>
+            {video.error_message && (
+              <div className="text-xs text-red-600 break-all">
+                {video.error_message}
+              </div>
+            )}
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => onRecover(video)}
+              onClick={() => onRetry(video)}
               icon={RefreshCw}
             >
-              恢复处理
+              重新处理
             </Button>
           </div>
         )}

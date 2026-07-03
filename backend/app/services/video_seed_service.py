@@ -22,7 +22,7 @@ from app.core.database import commit_refresh
 from app.core.redis import get_redis
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
-from app.schemas.video import VideoResponse
+from app.schemas.video import VideoAdminResponse, VideoResponse
 
 
 def _detect_platform(source_url: str) -> VideoSource:
@@ -222,10 +222,10 @@ async def start_processing(db: AsyncSession, video_id: str) -> VideoResponse:
 
     process_video.delay(video.id)
 
-    return VideoResponse.model_validate(video)
+    return VideoAdminResponse.model_validate(video)
 
 
-async def recover_processing(db: AsyncSession, video_id: str) -> VideoResponse:
+async def recover_processing(db: AsyncSession, video_id: str) -> VideoAdminResponse:
     """Re-dispatch ``finalize_video`` for a video stuck mid-pipeline.
 
     When the cloud Celery worker dies during ``finalize_video`` (the most
@@ -268,4 +268,79 @@ async def recover_processing(db: AsyncSession, video_id: str) -> VideoResponse:
 
     finalize_video.delay(str(video.id))
 
-    return VideoResponse.model_validate(video)
+    return VideoAdminResponse.model_validate(video)
+
+
+async def retry_video(db: AsyncSession, video_id: str) -> VideoAdminResponse:
+    """Resume an errored video from the last completed pipeline step.
+
+    Unlike a blind reset, this preserves the Redis completed-step set so
+    ``finalize_video``'s ``is_step_done()`` checks can skip work that already
+    succeeded. The resume point is decided by the ground-truth presence of
+    subtitles in the DB:
+
+    * Subtitles exist -> transcription succeeded; jump straight to the tail
+      (``finalize_video``), keeping the step set so translating/annotating/
+      downloading/transcoding that already finished are skipped.
+    * No subtitles -> transcription never produced output; reset to
+      ``pending_processing`` and clear the step set so the admin can trigger
+      a fresh full run via ``start_processing``.
+
+    Only the processing lock is cleared in the subtitle-exists branch — the
+    step set is intentionally kept. Compare ``recover_processing`` (re-dispatch
+    finalize for videos stuck mid-pipeline without an error state).
+
+    Raises:
+        ValueError: If the video is not found, or not in error status.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Video not found")
+    if video.status != VideoStatus.error:
+        raise ValueError(
+            f"Video is not in error state (current: {video.status.value}). "
+            f"Use recover for processing/ready_subtitles; start-processing for pending_processing."
+        )
+
+    from app.services.video_service import count_subtitles
+    from app.tasks.video_processing import finalize_video
+
+    # Subtitles in the DB are ground truth that transcription already
+    # succeeded (the callback only inserts on status=ok). Decide the resume
+    # point from this — not from processing_step, which error paths may have
+    # already cleared.
+    subtitle_count = await count_subtitles(db, video.id)
+
+    # Always release the processing lock so the head/tail can re-acquire it.
+    # The step set is kept in the resume branch (only cleared when starting over).
+    try:
+        r = get_redis()
+        await r.delete(f"video:processing:{video.id}")
+    except Exception:
+        pass
+
+    if subtitle_count > 0:
+        # Transcription succeeded before the failure — resume from the tail.
+        # Keep video:steps so finalize_video skips already-completed steps.
+        video.status = VideoStatus.ready_subtitles
+        video.error_message = None
+        video.processing_step = "translating"
+        video.processing_progress = 70
+        await commit_refresh(db, video)
+        finalize_video.delay(str(video.id))
+    else:
+        # No subtitles -> transcription never produced output; start over.
+        # This is the only branch that clears the step set.
+        video.status = VideoStatus.pending_processing
+        video.error_message = None
+        video.processing_step = None
+        video.processing_progress = 0
+        try:
+            r = get_redis()
+            await r.delete(f"video:steps:{video.id}")
+        except Exception:
+            pass
+        await commit_refresh(db, video)
+
+    return VideoAdminResponse.model_validate(video)

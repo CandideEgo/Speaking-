@@ -24,6 +24,7 @@ import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
+import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import type { VideoAdmin } from "@/types";
 import {
   approveReview,
@@ -33,6 +34,7 @@ import {
   localizeVideo,
   recoverVideo,
   rejectReview,
+  retryVideo,
   seedVideoFull,
   startProcessing,
 } from "@/lib/adminData";
@@ -162,6 +164,16 @@ export default function VideoManager() {
       toast.success("已重新派发，进度将自动更新");
     } catch (err) {
       toastApiError(err, "恢复处理失败");
+    }
+  }
+
+  async function handleRetry(video: VideoAdmin) {
+    try {
+      const updated = await retryVideo(video.id);
+      patchVideo(video.id, updated);
+      toast.success("已重置为待处理，可点击「开始处理」重新运行");
+    } catch (err) {
+      toastApiError(err, "重置失败");
     }
   }
 
@@ -336,11 +348,30 @@ export default function VideoManager() {
               </td>
               <td className="py-3 pr-4">
                 <VideoStatusBadge status={v.status} />
-                {v.status === "processing" && v.processing_step && (
-                  <div className="mt-1 text-[10px] text-muted-foreground">
-                    {v.processing_step}
-                  </div>
-                )}
+                {(v.status === "processing" ||
+                  v.status === "ready_subtitles") &&
+                  v.processing_step && (
+                    <div className="mt-1 space-y-0.5">
+                      <div className="text-[10px] text-muted-foreground">
+                        {STEP_LABELS_SHORT[v.processing_step] ||
+                          v.processing_step}
+                        {v.processing_progress
+                          ? `（${v.processing_progress}%）`
+                          : ""}
+                      </div>
+                      {v.processing_progress != null &&
+                        v.processing_progress > 0 && (
+                          <div className="h-1 w-full max-w-[120px] rounded-full bg-ink/10">
+                            <div
+                              className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                              style={{
+                                width: `${Math.min(v.processing_progress, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                    </div>
+                  )}
                 {v.status === "error" && v.error_message && (
                   <div
                     className="mt-1 text-[10px] text-red-600 truncate max-w-[180px]"
@@ -419,6 +450,7 @@ export default function VideoManager() {
               }}
               onStartProcessing={handleStartProcessing}
               onRecover={handleRecover}
+              onRetry={handleRetry}
               workerOnline={workerOnline}
               reviewBusy={reviewBusy}
               onEditSubtitles={(id) => router.push(`/admin/videos/${id}`)}

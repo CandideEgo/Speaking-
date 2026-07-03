@@ -20,6 +20,7 @@ from app.schemas.video import (
     SubtitleResponse,
     SubtitleUpdate,
     VideoAdminResponse,
+    VideoAdminStatusResponse,
     VideoAdminUpdate,
     VideoCreate,
     VideoDetailResponse,
@@ -254,7 +255,7 @@ async def delete_admin_video(
     return None
 
 
-@router.post("/admin/{video_id}/start-processing", response_model=VideoResponse)
+@router.post("/admin/{video_id}/start-processing", response_model=VideoAdminResponse)
 @rate_limit("10/minute")
 async def start_processing_video(
     request: Request,
@@ -281,7 +282,7 @@ async def start_processing_video(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
-@router.post("/admin/{video_id}/recover", response_model=VideoResponse)
+@router.post("/admin/{video_id}/recover", response_model=VideoAdminResponse)
 @rate_limit("10/minute")
 async def recover_video(
     request: Request,
@@ -301,6 +302,34 @@ async def recover_video(
 
     try:
         return await _recover_processing(db, video_id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/retry", response_model=VideoAdminResponse)
+@rate_limit("10/minute")
+async def retry_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resume a failed (error) video from the last completed pipeline step. Admin only.
+
+    Preserves completed steps so finalize_video skips already-finished work.
+    If subtitles exist, jumps straight to the tail (translating -> ... -> ready);
+    otherwise resets to pending_processing for a fresh full run.
+
+    Use ``recover`` for videos stuck mid-pipeline (processing/ready_subtitles)
+    without an error state.
+    """
+    from app.services.video_seed_service import retry_video as _retry_video
+
+    try:
+        return await _retry_video(db, video_id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():
@@ -444,6 +473,36 @@ async def _get_admin_video_or_404(db: AsyncSession, video_id: str):
         return await _get_video_or_404(db, video_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+
+
+@router.get("/admin/{video_id}/detail", response_model=VideoDetailResponse)
+@rate_limit("30/minute")
+async def get_admin_video_detail(
+    request: Request,
+    video_id: str,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin video detail — bypasses check_video_access so admins can view UGC drafts."""
+    result = await _get_video_detail(db, video_id, current_user=None, skip_access_check=True)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return result
+
+
+@router.get("/admin/{video_id}/status", response_model=VideoAdminStatusResponse)
+@rate_limit("30/minute")
+async def get_admin_video_status(
+    request: Request,
+    video_id: str,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin processing status — bypasses check_video_access + includes error_message."""
+    result = await _get_video_status(db, video_id, current_user=None, skip_access_check=True)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return result
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)

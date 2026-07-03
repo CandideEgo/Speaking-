@@ -111,6 +111,7 @@ export default function HomePage() {
             video_url_1080p: null,
             processing_mode: null,
             processing_step: null,
+            processing_progress: 0,
             like_count: 0,
             favorite_count: 0,
             created_at: r.created_at,

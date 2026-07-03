@@ -59,6 +59,7 @@ export function getMyVideoStatus(id: string): Promise<{
   video_url_720p: string | null;
   processing_step: string | null;
   processing_progress?: number;
+  error_message?: string | null;
 }> {
   return api(`/api/v1/videos/${id}/status`);
 }
