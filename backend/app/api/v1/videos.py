@@ -14,6 +14,8 @@ from app.models.user import User
 from app.models.video import VideoReviewStatus
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
+    ProposalCreate,
+    ProposalReject,
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
     SubtitleBatchUpdate,
@@ -33,6 +35,27 @@ from app.services.community_service import (
 )
 from app.services.community_service import (
     toggle_video_like as _toggle_video_like,
+)
+from app.services.proposal_service import (
+    apply_mergeable_update as _apply_mergeable_update,
+)
+from app.services.proposal_service import (
+    list_mergeable_updates as _list_mergeable_updates,
+)
+from app.services.proposal_service import (
+    list_proposals as _list_proposals,
+)
+from app.services.proposal_service import (
+    merge_proposal as _merge_proposal,
+)
+from app.services.proposal_service import (
+    propose_subtitle_changes as _propose_subtitle_changes,
+)
+from app.services.proposal_service import (
+    reject_proposal as _reject_proposal,
+)
+from app.services.proposal_service import (
+    withdraw_proposal as _withdraw_proposal,
 )
 from app.services.quiz_service import (
     get_video_quiz as _get_video_quiz,
@@ -658,13 +681,27 @@ async def _require_editable_own_video(video_id: str, current_user: User, db: Asy
     """Fetch a video owned by the caller and ensure it is in an editable state.
 
     Returns the Video. Raises 404 if not owned, 409 if currently published
-    (owner must begin-edit first to avoid clobbering the public version).
+    (owner must begin-edit first to avoid clobbering the public version), 403
+    if the video is a standard version body (决议 5 — standard edits go via PR).
     """
     video = await require_video_owner(video_id, current_user, db)
     if video.review_status == VideoReviewStatus.published.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="视频已发布，请先调用 begin-edit 触发重新审核后再编辑",
+        )
+    # Standard version body is admin-only (决议 5); owners must propose via PR.
+    from sqlalchemy import select
+
+    from app.models.video_standard import VideoStandard
+
+    std = (
+        await db.execute(select(VideoStandard).where(VideoStandard.canonical_video_id == video_id))
+    ).scalar_one_or_none()
+    if std is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="该视频是标准版本体，请通过 PR 提议修改",
         )
     return video
 
@@ -703,6 +740,162 @@ async def update_own_subtitles_batch(
     await _require_editable_own_video(video_id, current_user, db)
     try:
         return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+# ---------------------------------------------------------------------------
+# Phase 3e: PR propose-back + mergeable updates
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{video_id}/propose", response_model=dict, status_code=status.HTTP_201_CREATED)
+@rate_limit("10/minute")
+async def propose_subtitle_changes(
+    request: Request,
+    video_id: str,
+    payload: ProposalCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit a PR proposing this fork's subtitle edits back to the standard body."""
+    try:
+        proposal = await _propose_subtitle_changes(
+            db,
+            video_id,
+            title=payload.title,
+            body=payload.body,
+            subtitle_ids=payload.subtitle_ids,
+            submitted_by=current_user.id,
+        )
+        return {"id": proposal.id, "status": proposal.status}
+    except ValueError as e:
+        msg = str(e)
+        if "owner" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.get("/proposals/mine")
+@rate_limit("30/minute")
+async def list_my_proposals(
+    request: Request,
+    page: int = 1,
+    page_size: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List the current user's submitted PRs."""
+    return await _list_proposals(db, submitted_by=current_user.id, page=page, page_size=page_size)
+
+
+@router.post("/proposals/{proposal_id}/withdraw", response_model=dict)
+@rate_limit("10/minute")
+async def withdraw_my_proposal(
+    request: Request,
+    proposal_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Withdraw one of your own pending PRs."""
+    try:
+        proposal = await _withdraw_proposal(db, proposal_id, submitted_by=current_user.id)
+        return {"id": proposal.id, "status": proposal.status}
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        if "submitter" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.get("/{video_id}/mergeable-updates")
+@rate_limit("30/minute")
+async def list_my_mergeable_updates(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List pending mergeable-update markers on one of the caller's forks."""
+    video = await require_video_owner(video_id, current_user, db)
+    return await _list_mergeable_updates(db, video.id)
+
+
+@router.post("/{video_id}/mergeable-updates/{update_id}/apply", response_model=SubtitleResponse)
+@rate_limit("10/minute")
+async def apply_mergeable_update(
+    request: Request,
+    video_id: str,
+    update_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply one mergeable update: pull the standard's value onto this fork line."""
+    try:
+        sub = await _apply_mergeable_update(db, video_id, update_id, user_id=current_user.id)
+        return SubtitleResponse.model_validate(sub)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        if "owner" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.get("/admin/proposals")
+@rate_limit("30/minute")
+async def list_admin_proposals(
+    request: Request,
+    status_filter: str | None = Query(None, alias="status"),
+    page: int = 1,
+    page_size: int = 50,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List PRs for admin review (optionally filtered by status). Admin only."""
+    return await _list_proposals(db, status=status_filter, page=page, page_size=page_size)
+
+
+@router.post("/admin/proposals/{proposal_id}/merge", response_model=dict)
+@rate_limit("10/minute")
+async def merge_admin_proposal(
+    request: Request,
+    proposal_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge a PR: write to standard body + propagate to forks. Admin only."""
+    try:
+        proposal = await _merge_proposal(db, proposal_id, reviewed_by=current_user.id)
+        return {"id": proposal.id, "status": proposal.status}
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/proposals/{proposal_id}/reject", response_model=dict)
+@rate_limit("10/minute")
+async def reject_admin_proposal(
+    request: Request,
+    proposal_id: str,
+    payload: ProposalReject,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reject a PR with a reason. Admin only."""
+    try:
+        proposal = await _reject_proposal(db, proposal_id, reviewed_by=current_user.id, reason=payload.reason)
+        return {"id": proposal.id, "status": proposal.status}
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():

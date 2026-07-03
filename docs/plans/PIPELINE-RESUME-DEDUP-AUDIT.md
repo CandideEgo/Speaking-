@@ -237,7 +237,7 @@ if standard is not None:
 ## Phase 3：编辑审计与回滚（更新 — 区分标准版编辑 vs fork 编辑） ✅ 3a-3d 已实施
 
 > **状态（2026-07-03）**：3a-3d 已实施并测试通过（`tests/test_subtitle_revisions.py` 5 用例 + 全量 324 passed）。新增 `SubtitleRevision` 模型（subtitle_id/video_id FK + edited_by FK + scope: fork|standard + before/after JSON）+ migration `v3w4x5y6z7a8`。`subtitle_edit_service.update_subtitle`/`update_subtitles_batch` 加 `edited_by` 参数，提交前 `_snapshot`+`_diff` 写审计（只存改变字段）；scope 由 `_determine_edit_scope`（视频是否标准版）判定。回滚 `POST /admin/{id}/subtitles/{sid}/rollback/{rid}` 从 `before` 恢复 + 写新审计。历史 `GET /admin/{id}/subtitles/revisions` + `GET .../{sid}/revisions`。
-> **3e 待实施**：PR 模型 `SubtitleChangeProposal`（决议 8 状态机 pending→merged|rejected+withdrawn，按批粒度）+ 决议 2 按行传播（PR 合并后未动过的 fork 自动同步该行，动过的标"可合并更新"）+ 标准版本体仅 admin 可直接改的权限闸。这是更大子项目，单独推进。
+> **3e 已实施（2026-07-03）**：`SubtitleChangeProposal`(PR) + `SubtitleMergeableUpdate` 模型 + migration `w4x5y6z7a8b9`。`proposal_service`：propose / merge（写标准版 `scope="standard"` revision + 传播）/ reject / withdraw / list + mergeable-updates list/apply。传播（决议 2）：`forked_from=standard` 直接 fork，未动行（无 `scope="fork"` revision）自动同步写 `scope="sync"` revision，动过行写 `MergeableUpdate` 标记。`SubtitleRevision.scope` 加 `"sync"` 值。8 endpoint + `_require_editable_own_video` 加标准版 admin-only 权限闸（owner 编辑标准版→403）。v1 限制：传播只流向直接 fork（fork-of-fork 手动）；同步传播。测试 `test_proposal_propagation.py` 8 用例，全量 332 passed。决议 7（标准版替换 repoint）未实施，低优先。
 
 > 引入标准版后，编辑审计需区分两类动作：① 用户编辑自己的 fork（私有，仅影响自己）；② 编辑标准版本体（影响所有未来 fork 的起点）。决议 1/5 已定：标准版本体仅管理员可直接改，普通用户走 propose-back（PR）。
 

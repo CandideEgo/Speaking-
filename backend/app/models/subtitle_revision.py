@@ -45,7 +45,10 @@ class SubtitleRevision(Base):
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     # "fork" (private edit to a user's fork) | "standard" (edit to the URL's
-    # canonical standard body — affects all future forks).
+    # canonical standard body — affects all future forks) | "sync" (a standard
+    # version PR merge auto-propagated to an unedited fork line; edited_by=None).
+    # "动过" detection for propagation keys off scope="fork" ONLY — a prior
+    # "sync" does NOT count as the fork having edited the line.
     scope: Mapped[str] = mapped_column(String(20), nullable=False)
     # Only the fields that actually changed: {field: old_value} / {field: new_value}.
     before: Mapped[dict] = mapped_column(JSON, nullable=False)
