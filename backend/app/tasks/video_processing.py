@@ -432,11 +432,10 @@ def finalize_video(self, video_id: str):
                 release_lock_and_steps(video_id)
                 logger.info("Video %s finalized", video_id)
 
-                # Auto-publish once ready. Only official videos may bypass
-                # admin review; UGC must always go through the review workflow
-                # regardless of the auto_publish flag.  For UGC, auto_publish
-                # means "auto-submit for review when ready" (handled by the
-                # review service), not "skip review entirely".
+                # Auto-publish once ready. Only official videos with
+                # auto_publish=True are published immediately; UGC videos
+                # always stay in draft after processing so the creator can
+                # edit subtitles/practice before submitting for admin review.
                 if video.auto_publish and not video.is_published and video.is_official:
                     video.is_published = True
                     video.review_status = VideoReviewStatus.published.value
@@ -450,12 +449,6 @@ def finalize_video(self, video_id: str):
                             "auto_publish browse cache invalidation failed", video_id=video_id, exc_info=True
                         )
                     logger.info("Video %s auto-published (official)", video_id)
-                elif video.auto_publish and not video.is_published and not video.is_official:
-                    # UGC with auto_publish: mark as pending_review instead of
-                    # published so admin must approve before community visibility.
-                    video.review_status = VideoReviewStatus.pending_review.value
-                    await db.commit()
-                    logger.info("Video %s auto-submitted for review (UGC)", video_id)
 
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:

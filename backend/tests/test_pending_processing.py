@@ -9,6 +9,7 @@ Covers:
 - Admin seed (seed_video) still auto-processes (backwards compatible).
 - Auto-publish syncs review_status to published.
 - Worker status endpoint returns correct online/offline state.
+- UGC submissions always stay in draft (auto_publish=False).
 """
 
 from unittest.mock import patch
@@ -35,7 +36,7 @@ async def _seed_pending_video(db, *, owner_id):
         is_published=False,
         review_status=VideoReviewStatus.draft.value,
         user_id=owner_id,
-        auto_publish=True,
+        auto_publish=False,
     )
     db.add(v)
     await db.commit()
@@ -204,3 +205,66 @@ class TestAutoPublishSyncsReviewStatus:
     async def test_auto_publish_sets_review_status_published(self):
         assert VideoReviewStatus.published.value == "published"
         assert VideoStatus.pending_processing.value == "pending_processing"
+
+
+class TestUGCStaysDraft:
+    """UGC submissions should have auto_publish=False so they stay in draft
+    after processing, giving the creator a chance to edit before submitting
+    for admin review (ADR-0004)."""
+
+    async def test_submit_video_no_auto_publish(self, client: AsyncClient, auth_headers: dict):
+        """POST /videos creates a UGC video with auto_publish=False."""
+        from tests.conftest import TestSessionLocal
+
+        with patch("app.tasks.video_processing.process_video"):
+            resp = await client.post(
+                "/api/v1/videos",
+                json={"source_url": "https://www.youtube.com/watch?v=ugc_draft_test_1"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 201
+        vid = resp.json()["id"]
+
+        async with TestSessionLocal() as db:
+            v = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert v.auto_publish is False
+            assert v.review_status == VideoReviewStatus.draft.value
+
+    async def test_user_seed_no_auto_publish(self, client: AsyncClient, auth_headers: dict):
+        """POST /videos/user-seed creates a UGC video with auto_publish=False."""
+        from tests.conftest import TestSessionLocal
+
+        with patch("app.tasks.video_processing.process_video"):
+            resp = await client.post(
+                "/api/v1/videos/user-seed",
+                json={"source_url": "https://www.youtube.com/watch?v=ugc_draft_test_2"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 201
+        vid = resp.json()["id"]
+
+        async with TestSessionLocal() as db:
+            v = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert v.auto_publish is False
+            assert v.review_status == VideoReviewStatus.draft.value
+
+    async def test_user_seed_full_no_auto_publish(self, client: AsyncClient, auth_headers: dict):
+        """POST /videos/user-seed-full creates a UGC video with auto_publish=False."""
+        from tests.conftest import TestSessionLocal
+
+        with (
+            patch("app.api.v1.videos._require_valid_cookies"),
+            patch("app.tasks.video_processing.process_video"),
+        ):
+            resp = await client.post(
+                "/api/v1/videos/user-seed-full",
+                json={"source_url": "https://www.youtube.com/watch?v=ugc_draft_test_3"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 201
+        vid = resp.json()["id"]
+
+        async with TestSessionLocal() as db:
+            v = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert v.auto_publish is False
+            assert v.review_status == VideoReviewStatus.draft.value

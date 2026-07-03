@@ -723,12 +723,13 @@ async def user_seed_video_full(
     """One-click user seed: ensure cookies, seed, run full pipeline.
 
     Like user-seed but also ensures YouTube cookies are valid before
-    processing. The video is created as UGC (is_official=False) with
-    auto_publish=True so it auto-publishes once ready, but still needs
-    admin review before appearing in the community.
+    processing. The video is created as UGC (is_official=False) and
+    stays in draft after processing completes, so the creator can
+    edit subtitles and practice questions before submitting for admin
+    review.
     """
     await _require_valid_cookies(data.source_url)
-    return await _seed_user_video(db, data.source_url, current_user, auto_publish=True)
+    return await _seed_user_video(db, data.source_url, current_user)
 
 
 # ---------------------------------------------------------------------------

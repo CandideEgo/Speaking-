@@ -6,7 +6,8 @@ Handles user submission, admin seed, and user-seed flows.
   dispatches process_video.delay() — admin-seeded videos auto-process.
 - User submission (submit_video, seed_user_video, upload): creates video in
   "pending_processing" status — waits for admin to trigger processing via
-  the start_processing() function. Auto-publishes when processing completes.
+  the start_processing() function. Stays in draft after processing completes
+  so the creator can edit subtitles/practice before submitting for review.
 - start_processing(): admin triggers GPU processing for a pending video.
   Checks that the local GPU worker is online (via Redis heartbeat) before
   dispatching the Celery task.
@@ -76,14 +77,15 @@ async def submit_video(
         await commit_refresh(db, user_video)
         return VideoResponse.model_validate(user_video)
 
-    # New video -- wait for admin to trigger processing
+    # New video — wait for admin to trigger processing.  Stays in draft
+    # after processing so the creator can edit before submitting for review.
     video = Video(
         user_id=current_user.id,
         title="Processing...",
         source_url=source_url,
         video_source=platform,
         status=VideoStatus.pending_processing,
-        auto_publish=True,
+        auto_publish=False,
     )
     db.add(video)
     await commit_refresh(db, video)

@@ -53,7 +53,7 @@ async def handle_video_upload(
         source_url=str(temp_path),
         video_source=VideoSource.local,
         status=VideoStatus.pending_processing,
-        auto_publish=True,
+        auto_publish=False,
     )
     db.add(video)
     await commit_refresh(db, video)
