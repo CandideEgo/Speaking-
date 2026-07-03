@@ -169,7 +169,9 @@ async def _count_subtitles(db: AsyncSession, video_id: str) -> int:
 
 ---
 
-## Phase 2：标准版与按 URL 去重（重构）
+## Phase 2：标准版与按 URL 去重（重构） ✅ 已实施
+
+> **状态（2026-07-03）**：已实施并测试通过（`tests/test_standard_fork.py` 6 用例 + 全量 319 passed）。新增 `VideoStandard` 模型（`source_url` PK）+ `videos.forked_from` 列 + `ix_videos_source_url` 索引 + Alembic migration `u2v3w4x5y6z7`。`finalize_video` 收尾 `_register_standard`（INSERT ON CONFLICT DO NOTHING，first-ready-wins）。`submit_video`/`seed_user_video` 命中标准版时 `_fork_video_from` 完整复制字幕+练习题+元数据，直接 ready 不触发 GPU。`POST /videos/{id}/fork` API（扩展 A4）。决议 6 落地采用 `video_standards` 表。决议 7（替换 repoint）/8（PR 生命周期）留 Phase 3。
 
 > 原 Phase 2 仅"复制字幕到新用户行"。现重构为"标准版 fork"模型：首个 ready 视频成为该 URL 的标准版，后续提交 fork 自它（字幕 + 练习题 + 元数据），且绝不触发 GPU。
 >

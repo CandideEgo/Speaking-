@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
 from app.core.redis import get_redis
+from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.schemas.video import VideoAdminResponse, VideoResponse
@@ -48,33 +49,14 @@ async def submit_video(
     """
     platform = _detect_platform(source_url)
 
-    # Check if this URL was already processed
-    result = await db.execute(
-        select(Video).where(
-            Video.source_url == source_url,
-            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
-        )
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        # Create a new reference for this user
-        user_video = Video(
-            user_id=current_user.id,
-            title=existing.title,
-            source_url=source_url,
-            video_source=existing.video_source,
-            thumbnail_url=existing.thumbnail_url,
-            duration=existing.duration,
-            difficulty_level=existing.difficulty_level,
-            video_url_480p=existing.video_url_480p,
-            video_url_720p=existing.video_url_720p,
-            video_url_1080p=existing.video_url_1080p,
-            processing_mode=existing.processing_mode,
-            status=existing.status,
-        )
-        db.add(user_video)
-        await commit_refresh(db, user_video)
+    # Phase 2: if a standard version exists for this URL, fork it (subtitles +
+    # practice + metadata) instead of re-running the GPU pipeline. The
+    # standard is the first ready video for the URL — registered by
+    # finalize_video. No standard → this is a new URL; create a pending row
+    # and let the admin trigger first processing (which registers the standard).
+    standard = await _find_standard_for_url(db, source_url)
+    if standard is not None:
+        user_video = await _fork_video_from(db, standard, current_user=current_user)
         return VideoResponse.model_validate(user_video)
 
     # New video — wait for admin to trigger processing.  Stays in draft
@@ -155,6 +137,12 @@ async def seed_user_video(
     UGC videos always require admin review before appearing in the
     community feed, regardless of the ``auto_publish`` flag.
     """
+    # Phase 2: same-URL dedup — fork the standard if one exists.
+    standard = await _find_standard_for_url(db, source_url)
+    if standard is not None:
+        user_video = await _fork_video_from(db, standard, current_user=current_user)
+        return VideoResponse.model_validate(user_video)
+
     platform = _detect_platform(source_url)
 
     video = Video(
@@ -172,6 +160,148 @@ async def seed_user_video(
     await commit_refresh(db, video)
 
     return VideoResponse.model_validate(video)
+
+
+# ---------------------------------------------------------------------------
+# Standard-version fork helpers (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+async def _find_standard_for_url(db: AsyncSession, source_url: str) -> Video | None:
+    """Return the canonical Video for ``source_url``, or None if no standard yet.
+
+    A standard appears once a video for that URL first reaches ``ready``
+    (registered by ``finalize_video``). Forks copy from the standard instead
+    of re-running the GPU pipeline.
+    """
+    from app.models.video_standard import VideoStandard
+
+    result = await db.execute(
+        select(Video)
+        .join(VideoStandard, VideoStandard.canonical_video_id == Video.id)
+        .where(VideoStandard.source_url == source_url)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _copy_subtitles(db: AsyncSession, *, source_video_id: str, target_video_id: str) -> int:
+    """Copy every subtitle row from source to target (full column set).
+
+    Preserves word_levels / grammar_note / text_zh so the fork starts with the
+    standard's translated, annotated state — not just raw English. Returns the
+    count of rows copied.
+    """
+    result = await db.execute(
+        select(Subtitle).where(Subtitle.video_id == source_video_id).order_by(Subtitle.sentence_index)
+    )
+    count = 0
+    for s in result.scalars().all():
+        db.add(
+            Subtitle(
+                video_id=target_video_id,
+                start_time=s.start_time,
+                end_time=s.end_time,
+                text_en=s.text_en,
+                text_zh=s.text_zh,
+                sentence_index=s.sentence_index,
+                speaker=s.speaker,
+                grammar_note=s.grammar_note,
+                difficulty_words=s.difficulty_words,
+                word_levels=s.word_levels,
+            )
+        )
+        count += 1
+    return count
+
+
+async def _copy_practice_questions(db: AsyncSession, *, source_video_id: str, target_video_id: str) -> int:
+    """Copy practice-question sets from source to target (fork snapshot).
+
+    Per Grilling 决议 4, a fork copies a snapshot of the standard's practice
+    questions; the owner can edit their copy, but practice questions do NOT
+    flow back via PR (only subtitles do). The (video_id, exam_level) unique
+    constraint holds on the new rows since each target is a fresh fork.
+    """
+    from app.models.practice import VideoPracticeQuestion
+
+    result = await db.execute(select(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == source_video_id))
+    count = 0
+    for q in result.scalars().all():
+        db.add(
+            VideoPracticeQuestion(
+                video_id=target_video_id,
+                exam_level=q.exam_level,
+                questions=q.questions,
+                question_count=q.question_count,
+            )
+        )
+        count += 1
+    return count
+
+
+async def _fork_video_from(
+    db: AsyncSession,
+    source: Video,
+    *,
+    current_user: User,
+) -> Video:
+    """Create a user-owned ``ready`` fork of ``source``.
+
+    Shared by ``submit_video`` / ``seed_user_video`` (same-URL dedup) and the
+    explicit ``POST /videos/{id}/fork`` endpoint (扩展 A4). The fork is born
+    ``ready`` with the source's media URLs (shared file — see 扩展 E1) and a
+    full subtitle + practice snapshot; no GPU pipeline runs. ``forked_from``
+    records lineage (may point at the standard or another fork — fork-of-fork
+    is allowed; dedup still keys off the URL's standard).
+    """
+    user_video = Video(
+        user_id=current_user.id,
+        title=source.title,
+        source_url=source.source_url,
+        video_source=source.video_source,
+        thumbnail_url=source.thumbnail_url,
+        duration=source.duration,
+        difficulty_level=source.difficulty_level,
+        video_url_480p=source.video_url_480p,
+        video_url_720p=source.video_url_720p,
+        video_url_1080p=source.video_url_1080p,
+        processing_mode=source.processing_mode,
+        status=VideoStatus.ready,
+        is_official=False,
+        is_published=False,
+        review_status=VideoReviewStatus.draft.value,
+        auto_publish=False,
+        forked_from=source.id,
+    )
+    db.add(user_video)
+    await commit_refresh(db, user_video)
+
+    await _copy_subtitles(db, source_video_id=source.id, target_video_id=user_video.id)
+    await _copy_practice_questions(db, source_video_id=source.id, target_video_id=user_video.id)
+    await db.commit()
+    return user_video
+
+
+async def fork_video(db: AsyncSession, video_id: str, current_user: User) -> VideoResponse:
+    """Fork a video into the current user's library (扩展 A4).
+
+    The source may be the standard version or any ready fork (fork-of-fork
+    allowed; dedup still keys off the URL's standard). The fork is born
+    ``ready`` with subtitles + practice + metadata copied; no GPU pipeline
+    runs. ``forked_from`` records lineage to the source.
+
+    Raises:
+        ValueError: If the source video is not found or not ready.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise ValueError("Video not found")
+    if source.status != VideoStatus.ready:
+        raise ValueError(f"Video is not ready (current: {source.status.value}); only ready videos can be forked")
+
+    user_video = await _fork_video_from(db, source, current_user=current_user)
+    return VideoResponse.model_validate(user_video)
 
 
 # ---------------------------------------------------------------------------

@@ -14,4 +14,5 @@ from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video
+from app.models.video_standard import VideoStandard
 from app.models.word_note import WordAINote

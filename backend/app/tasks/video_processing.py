@@ -328,6 +328,37 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
 # ---------------------------------------------------------------------------
 
 
+async def _register_standard(db, video) -> None:
+    """Register ``video`` as the standard version for its ``source_url``.
+
+    First-ready-wins: if a standard already exists for this URL (a concurrent
+    finalize on a duplicate submission, or a prior ready), the INSERT becomes
+    a no-op. The ``video_standards.source_url`` PK is the race backstop — two
+    finalizes cannot both register a standard for the same URL.
+
+    Dialect-specific INSERT ... ON CONFLICT DO NOTHING (Postgres + SQLite both
+    support it; tests run on SQLite, prod on Postgres). Failure here is
+    non-fatal: the video is already ``ready``, and the standard can be
+    backfilled later, so we log and continue rather than failing finalize.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    from app.models.video_standard import VideoStandard
+
+    try:
+        dialect = db.bind.dialect.name
+        stmt = (
+            (pg_insert(VideoStandard) if dialect == "postgresql" else sqlite_insert(VideoStandard))
+            .values(source_url=video.source_url, canonical_video_id=video.id)
+            .on_conflict_do_nothing(index_elements=["source_url"])
+        )
+        await db.execute(stmt)
+        await db.commit()
+    except Exception:
+        logger.warning("Video %s: failed to register standard version (continuing)", video.id, exc_info=True)
+
+
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.finalize_video")
 def finalize_video(self, video_id: str):
     """Tail of the video pipeline: translate → download → transcode → ready.
@@ -474,6 +505,10 @@ def finalize_video(self, video_id: str):
                 await update_progress(video_id, "done")
                 release_lock_and_steps(video_id)
                 logger.info("Video %s finalized", video_id)
+
+                # Phase 2: register as the standard version for this source_url
+                # (first ready wins; no-op if a standard already exists).
+                await _register_standard(db, video)
 
                 # Auto-publish once ready. Only official videos with
                 # auto_publish=True are published immediately; UGC videos

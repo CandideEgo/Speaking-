@@ -125,6 +125,14 @@ class Video(Base):
     # created_at because admin may delay triggering start_processing.
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Fork lineage (扩展 A4): points to the source Video this was forked from
+    # (a standard version or another fork). Null for original submissions.
+    # Indexed for "find all forks of X" queries; SET NULL on delete so forks
+    # survive their source being deleted.
+    forked_from: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # relationships
     # foreign_keys disambiguates the two users FKs (user_id ownership vs
     # reviewed_by reviewer); this relationship tracks the owner.

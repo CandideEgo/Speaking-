@@ -704,6 +704,30 @@ async def withdraw_own_review(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
+@router.post("/{video_id}/fork", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("10/minute")
+async def fork_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fork a ready video into the current user's library.
+
+    Copies subtitles + practice questions + metadata; the fork is born ready
+    and editable. No GPU pipeline runs (扩展 A4).
+    """
+    from app.services.video_seed_service import fork_video as _fork_video
+
+    try:
+        return await _fork_video(db, video_id, current_user)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
 @router.post("/seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit("5/minute")
 async def seed_video(
