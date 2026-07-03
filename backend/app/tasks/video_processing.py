@@ -140,6 +140,26 @@ def process_video(self, video_id: str):
             try:
                 settings = get_settings()
 
+                # --- Pre-check: refresh YouTube cookies if needed ---
+                if video.video_source == VideoSource.imported:
+                    from app.services.youtube_cookies_service import ensure_cookies_for_pipeline
+
+                    cookie_result = await ensure_cookies_for_pipeline(video.source_url)
+                    if cookie_result.status == "ok":
+                        logger.info("Video %s: cookies valid", video_id)
+                    elif cookie_result.cookies_path:
+                        logger.warning(
+                            "Video %s: cookies %s — continuing with existing file",
+                            video_id,
+                            cookie_result.message,
+                        )
+                    else:
+                        logger.info(
+                            "Video %s: no cookies file — proceeding without cookies (%s)",
+                            video_id,
+                            cookie_result.message,
+                        )
+
                 # --- Step: extracting (metadata) ---
                 if video.video_source == VideoSource.imported:
                     info = await _extract_video_info(video.source_url)
