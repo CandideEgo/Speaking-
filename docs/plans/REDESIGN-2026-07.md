@@ -36,7 +36,7 @@ ADR-0004。Phase 0 已做通知 + bug 修，本阶段补草稿阶段。
 
 - [x] UGC 链接导入不再跳过草稿：改 `seed_user_video` 的 `auto_publish` 行为，UGC 提交后停 `draft`，创作者编辑后再 `submit-review`。
 - [x] 验证完整流：创作者提交（上传/链接）→ `pending_processing` → 管理员"开始处理"→ process_video → ready → `pending_review` → 管理员批准 → `published` → 社区 feed 可见。
-- [ ] 端到端手测一条 UGC 视频（含 GPU worker 在线/离线两种情况）。
+- [x] 端到端手测一条 UGC 视频（含 GPU worker 在线/离线两种情况）。
 
 ## Phase 3 — 统一组件库（2–3 天）
 
