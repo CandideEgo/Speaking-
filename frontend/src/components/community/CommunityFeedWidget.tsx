@@ -6,10 +6,9 @@ import { Heart, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
-import { api, mediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
-import { avatarColor } from "@/lib/avatar";
-import { cn } from "@/lib/utils";
+import { Avatar } from "@/components/ui/Avatar";
 
 /** Compact community post for the homepage widget. Mirrors the community page
  * Post shape (Phase 1A fixed contract). */
@@ -94,23 +93,12 @@ export function CommunityFeedWidget() {
               className="bg-canvas border border-hairline rounded-lg p-4 hover:border-ink hover:shadow-soft transition-all duration-150"
             >
               <div className="flex items-center gap-2 mb-2">
-                {p.user.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={mediaUrl(p.user.avatar_url)}
-                    alt=""
-                    className="w-7 h-7 rounded-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white",
-                      avatarColor(p.user.id),
-                    )}
-                  >
-                    {(p.user.name?.[0] || "U").toUpperCase()}
-                  </div>
-                )}
+                <Avatar
+                  src={p.user.avatar_url}
+                  name={p.user}
+                  seed={p.user.id}
+                  size="sm"
+                />
                 <span className="text-xs font-semibold">
                   {p.user.name || "用户"}
                 </span>

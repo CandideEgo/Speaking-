@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { Loader2, Upload, Plus, PlayCircle, Link2 } from "lucide-react";
 
-import { api, mediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
+import { Image } from "@/components/ui/Image";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -188,18 +189,16 @@ export default function MyVideosPage() {
                   className="block bg-canvas border border-hairline rounded-lg overflow-hidden hover:border-ink hover:shadow-soft transition-all duration-150"
                 >
                   <div className="relative aspect-video bg-surface-card">
-                    {v.thumbnail_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={mediaUrl(v.thumbnail_url ?? "")}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-soft">
-                        <PlayPlaceholder />
-                      </div>
-                    )}
+                    <Image
+                      src={v.thumbnail_url}
+                      alt=""
+                      fill
+                      fallback={
+                        <div className="absolute inset-0 flex items-center justify-center text-muted-soft">
+                          <PlayPlaceholder />
+                        </div>
+                      }
+                    />
                     <span
                       className={`absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-pill inline-flex items-center gap-1 ${meta.className}`}
                     >

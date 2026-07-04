@@ -42,11 +42,11 @@ ADR-0004。Phase 0 已做通知 + bug 修，本阶段补草稿阶段。
 
 ADR-0005 的基础。先抽组件，再改页面。
 
-- [ ] 以 watch 页为风格锚点，抽 design token（color/spacing/radius/typography）——保持 coral/cream/brand 色系。
-- [ ] 建统一组件库：Button/Card/Input/Badge/Modal/DataTable/Avatar/Image 等，对齐 watch 页样式。
-- [ ] 迁移 `next/image`（替代裸 `<img>`），配 `images.remotePatterns`；图片走统一 `mediaUrl`。
-- [ ] 移动优先的布局原语（Container/Stack/Grid 响应式）。
-- [ ] Storybook 或页面级 demo 验证组件。
+- [x] 以 watch 页为风格锚点，抽 design token（color/spacing/radius/typography）——保持 coral/cream/brand 色系。（token 已在 `tailwind.config.ts` + `globals.css` 落地；本次补 `docs/frontend/DESIGN-TOKENS.md` 文档化 + 标注 preferred vs legacy 别名，不删 legacy）
+- [x] 建统一组件库：Button/Card/Input/Badge/Modal/DataTable/Avatar/Image 等，对齐 watch 页样式。（Button/Card/Input/Badge/Modal/DataTable 已由 design loop 迭代 2-4 抽出；本次补 `Avatar`/`Image` + 布局原语 `Container/Stack/Grid`）
+- [x] 迁移 `next/image`（替代裸 `<img>`），配 `images.remotePatterns`；图片走统一 `mediaUrl`。（11 处裸 `<img>` 全迁；`next.config.js` remotePatterns 扩 API host + CDN fallback）
+- [x] 移动优先的布局原语（Container/Stack/Grid 响应式）。
+- [x] Storybook 或页面级 demo 验证组件。（admin-gated `/admin/_design` demo 页 + AdminSidebar「设计系统」入口）
 
 ## Phase 4 — 用户页重做（5–7 天）
 

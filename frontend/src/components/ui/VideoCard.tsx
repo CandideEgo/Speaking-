@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
-import { mediaUrl } from "@/lib/api";
+import { Image } from "@/components/ui/Image";
 import { cn } from "@/lib/utils";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
@@ -59,18 +59,16 @@ export function VideoCard({
           feat && "aspect-[16/10]",
         )}
       >
-        {video.thumbnail_url ? (
-          <img
-            src={mediaUrl(video.thumbnail_url ?? "")}
-            alt=""
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Play size={32} className="text-muted-soft" />
-          </div>
-        )}
+        <Image
+          src={video.thumbnail_url}
+          alt=""
+          fill
+          fallback={
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Play size={32} className="text-muted-soft" />
+            </div>
+          }
+        />
         {video.difficulty_level && (
           <span
             className="absolute left-2 top-2 backdrop-blur-sm text-[11px] font-bold text-ink px-2 py-1 rounded-pill"

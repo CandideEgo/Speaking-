@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { mediaUrl } from "@/lib/api";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { DataTable } from "@/components/admin/DataTable";
@@ -23,6 +22,7 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Image } from "@/components/ui/Image";
 import { Input, Textarea } from "@/components/ui/Input";
 import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import type { VideoAdmin } from "@/types";
@@ -318,18 +318,18 @@ export default function VideoManager() {
             <tr className="text-xs align-top">
               <td className="py-3 pr-4">
                 <div className="flex items-start gap-3">
-                  {v.thumbnail_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={mediaUrl(v.thumbnail_url ?? "")}
+                  <div className="relative h-12 w-20 rounded-sm bg-surface-soft overflow-hidden flex-shrink-0">
+                    <Image
+                      src={v.thumbnail_url}
                       alt=""
-                      className="h-12 w-20 rounded-sm object-cover bg-surface-soft flex-shrink-0"
+                      fill
+                      fallback={
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <VideoIcon size={16} className="text-muted-soft" />
+                        </div>
+                      }
                     />
-                  ) : (
-                    <div className="h-12 w-20 rounded-sm bg-surface-soft flex items-center justify-center flex-shrink-0">
-                      <VideoIcon size={16} className="text-muted-soft" />
-                    </div>
-                  )}
+                  </div>
                   <div className="min-w-0">
                     <div
                       className="font-medium text-ink truncate max-w-[280px]"

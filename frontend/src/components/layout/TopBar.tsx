@@ -12,8 +12,8 @@ import {
   type SubtitleSearchResult,
 } from "@/components/search/SearchDropdown";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
-import { api, mediaUrl } from "@/lib/api";
-import { userInitial } from "@/lib/avatar";
+import { api } from "@/lib/api";
+import { Avatar } from "@/components/ui/Avatar";
 import { Search, Bell, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -193,7 +193,6 @@ export function TopBar() {
   }
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
-  const initial = userInitial(user);
 
   return (
     <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-white/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
@@ -300,19 +299,10 @@ export function TopBar() {
             {/* Avatar */}
             <Link
               href="/profile"
-              className="w-[34px] h-[34px] rounded-full overflow-hidden bg-gradient-to-br from-brand-500 to-brand-400 text-on-primary font-bold text-sm flex items-center justify-center ml-1.5 flex-shrink-0"
               aria-label="个人中心"
+              className="ml-1.5 flex-shrink-0"
             >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={mediaUrl(avatarUrl)}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                initial
-              )}
+              <Avatar src={avatarUrl} name={user} seed={user?.sub} size="md" />
             </Link>
           </>
         )}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Flag,
+  Palette,
   Ticket,
   UserCog,
   Video,
@@ -36,6 +37,10 @@ const NAV: { title: string; items: NavItem[] }[] = [
       { label: "数据统计", href: "/admin/stats", icon: BarChart3 },
       { label: "兑换码", href: "/admin/invites", icon: Ticket },
     ],
+  },
+  {
+    title: "系统",
+    items: [{ label: "设计系统", href: "/admin/_design", icon: Palette }],
   },
 ];
 

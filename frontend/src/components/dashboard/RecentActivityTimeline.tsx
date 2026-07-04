@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { api, mediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
+import { Image } from "@/components/ui/Image";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import type { LearningRecord } from "@/types";
@@ -36,18 +37,17 @@ export default function RecentActivityTimeline({
           className="flex items-center gap-4 p-3 rounded-lg hover:bg-cream-soft transition-colors group"
         >
           {/* Thumbnail */}
-          <div className="h-10 w-14 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
-            {record.video?.thumbnail_url ? (
-              <img
-                src={mediaUrl(record.video.thumbnail_url ?? "")}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
-                🎬
-              </div>
-            )}
+          <div className="relative h-10 w-14 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
+            <Image
+              src={record.video?.thumbnail_url}
+              alt=""
+              fill
+              fallback={
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  🎬
+                </div>
+              }
+            />
           </div>
 
           {/* Info */}

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, memo } from "react";
+import { useMemo, memo } from "react";
 import { Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format";
-import { mediaUrl } from "@/lib/api";
+import { Image } from "@/components/ui/Image";
 
 interface VideoThumbnailProps {
   url: string | null;
@@ -40,25 +40,22 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   aspectClass,
   hoverOverlay,
 }: VideoThumbnailProps) {
-  const [status, setStatus] = useState<"loading" | "error" | "loaded">(
-    "loading",
-  );
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  const showPlaceholder = !url || status === "error";
   const bgStyle = useMemo(() => gradientFromString(title), [title]);
-
-  useEffect(() => {
-    if (!url || status !== "loading") return;
-    const timer = setTimeout(() => {
-      if (imgRef.current && imgRef.current.naturalWidth === 0) {
-        setStatus("error");
-      }
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [url, status]);
-
   const aspect = aspectClass || "aspect-video";
+
+  const placeholder = (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center text-ivory/95"
+      style={{ background: bgStyle }}
+    >
+      <div className="flex flex-col items-center gap-1.5">
+        <Tv size={28} className="opacity-90" strokeWidth={1.5} />
+        <span className="text-3xl font-bold tracking-tight drop-shadow-sm">
+          {initialFromTitle(title)}
+        </span>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -68,38 +65,7 @@ export const VideoThumbnail = memo(function VideoThumbnail({
         className,
       )}
     >
-      {url && status !== "error" && (
-        <img
-          ref={imgRef}
-          src={url ? mediaUrl(url) : undefined}
-          alt={title}
-          className={cn(
-            "h-full w-full object-cover transition-opacity duration-300",
-            status === "loaded" ? "opacity-100" : "opacity-0",
-          )}
-          loading="lazy"
-          onLoad={() => setStatus("loaded")}
-          onError={() => setStatus("error")}
-        />
-      )}
-
-      {status === "loading" && url && (
-        <div className="absolute inset-0 animate-pulse bg-cream-soft" />
-      )}
-
-      {showPlaceholder && (
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center text-ivory/95"
-          style={{ background: bgStyle }}
-        >
-          <div className="flex flex-col items-center gap-1.5">
-            <Tv size={28} className="opacity-90" strokeWidth={1.5} />
-            <span className="text-3xl font-bold tracking-tight drop-shadow-sm">
-              {initialFromTitle(title)}
-            </span>
-          </div>
-        </div>
-      )}
+      <Image src={url} alt={title} fill fallback={placeholder} />
 
       {duration && duration > 0 && (
         <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 text-[11px] font-medium text-ivory">

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api, mediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
-import { avatarColor, userInitial } from "@/lib/avatar";
+import { Avatar } from "@/components/ui/Avatar";
+import { Image } from "@/components/ui/Image";
 import { POST_TYPE_META } from "@/lib/community";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
@@ -279,17 +280,16 @@ export default function CommunityPage() {
                     className="block bg-canvas border border-hairline rounded-lg overflow-hidden hover:border-ink hover:shadow-soft transition-all duration-150"
                   >
                     <div className="relative aspect-video bg-surface-card">
-                      {v.thumbnail_url ? (
-                        <img
-                          src={mediaUrl(v.thumbnail_url ?? "")}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Play size={24} className="text-muted" />
-                        </div>
-                      )}
+                      <Image
+                        src={v.thumbnail_url}
+                        alt=""
+                        fill
+                        fallback={
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Play size={24} className="text-muted" />
+                          </div>
+                        }
+                      />
                       {v.difficulty_level && (
                         <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-black/55 text-white">
                           {v.difficulty_level}
@@ -348,23 +348,13 @@ export default function CommunityPage() {
                     >
                       {/* Author header */}
                       <div className="flex items-center gap-2.5 mb-3">
-                        {post.user.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={mediaUrl(post.user.avatar_url)}
-                            alt={post.user.name ?? "用户"}
-                            className="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className={cn(
-                              "w-[38px] h-[38px] rounded-full flex items-center justify-center font-bold text-[14px] text-on-primary flex-shrink-0",
-                              avatarColor(post.user.id),
-                            )}
-                          >
-                            {userInitial(post.user)}
-                          </div>
-                        )}
+                        <Avatar
+                          src={post.user.avatar_url}
+                          name={post.user}
+                          seed={post.user.id}
+                          size="md"
+                          className="w-[38px] h-[38px] text-[14px]"
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold">
                             {post.user.name ?? "用户"}

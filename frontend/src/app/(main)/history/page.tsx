@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { api, mediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
+import { Image } from "@/components/ui/Image";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { Pagination } from "@/components/admin/Pagination";
@@ -174,18 +175,17 @@ export default function HistoryPage() {
                   className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-cream-soft transition-colors"
                 >
                   {/* Thumbnail */}
-                  <div className="h-12 w-20 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
-                    {record.video?.thumbnail_url ? (
-                      <img
-                        src={mediaUrl(record.video.thumbnail_url ?? "")}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-lg">
-                        🎬
-                      </div>
-                    )}
+                  <div className="relative h-12 w-20 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
+                    <Image
+                      src={record.video?.thumbnail_url}
+                      alt=""
+                      fill
+                      fallback={
+                        <div className="absolute inset-0 flex items-center justify-center text-lg">
+                          🎬
+                        </div>
+                      }
+                    />
                   </div>
 
                   {/* Info */}

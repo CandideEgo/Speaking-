@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Avatar } from "@/components/ui/Avatar";
 import { api, isProUser } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -49,19 +50,13 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       <div>
         <label className="block text-sm font-medium text-ink mb-2">头像</label>
         <div className="flex items-center gap-4">
-          <div className="h-20 w-20 rounded-full bg-cream-card border border-hairline overflow-hidden flex items-center justify-center">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt="头像"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="text-2xl font-display text-muted-foreground">
-                {(user.name || user.email)[0].toUpperCase()}
-              </span>
-            )}
-          </div>
+          <Avatar
+            src={avatarUrl}
+            name={user}
+            seed={user.id}
+            size="xl"
+            className="w-20 h-20 text-2xl border border-hairline"
+          />
           <div className="flex-1">
             <Input
               type="url"
