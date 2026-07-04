@@ -21,11 +21,14 @@ from app.schemas.user import (
     ForgotPasswordRequest,
     LogoutRequest,
     MessageResponse,
+    PhoneLoginRequest,
     RefreshRequest,
     RefreshResponse,
     ResetPasswordRequest,
     SendSmsCodeRequest,
     SmsLoginRequest,
+    SmsRegisterRequest,
+    SmsResetPasswordRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -128,10 +131,10 @@ async def sms_send_code(request: Request, data: SendSmsCodeRequest):
 @router.post("/sms/login", response_model=TokenResponse)
 @rate_limit("10/minute")
 async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Log in (or register) via phone number + SMS code.
+    """Log in via phone number + SMS code.
 
-    Find-or-create: a phone with no existing account is created as a phone-only
-    user (email/password null, onboarding incomplete). Aliyun verifies the code
+    Login-only — does NOT auto-create accounts. Registration is via
+    /auth/sms/register (which sets a password). Aliyun verifies the code
     (or the dev-fake code is accepted locally).
     """
     if not await verify_sms_code(data.phone, data.code):
@@ -139,30 +142,72 @@ async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = 
 
     result = await db.execute(select(User).where(User.phone == data.phone))
     user = result.scalar_one_or_none()
-    is_new_user = user is None
 
     if user is None:
-        user = User(phone=data.phone, onboarding_completed=False)
-        db.add(user)
-        try:
-            await db.commit()
-        except Exception as exc:
-            await db.rollback()
-            if "uq_users_phone_partial" in str(exc) or "unique" in str(exc).lower():
-                # Race: another request created the same phone user first.
-                result = await db.execute(select(User).where(User.phone == data.phone))
-                user = result.scalar_one_or_none()
-                if user is None:
-                    raise HTTPException(status_code=409, detail="手机号注册冲突") from exc
-            else:
-                raise
-        await db.refresh(user)
-    elif user.is_banned:
+        raise HTTPException(status_code=404, detail="该手机号未注册")
+    if user.is_banned:
         raise HTTPException(status_code=403, detail="账户已被封禁")
 
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
-    logger.info("sms_login_success", user_id=user.id, phone=data.phone, new_user=is_new_user)
+    logger.info("sms_login_success", user_id=user.id, phone=data.phone)
+    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
+
+
+@router.post("/sms/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit("3/minute")
+async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Register with phone + SMS code + password (phone-only registration).
+
+    The SMS code proves phone ownership; the password is set now (used for
+    subsequent /auth/phone-login). No email is collected at registration —
+    users may bind an email later from their profile.
+    """
+    if not await verify_sms_code(data.phone, data.code):
+        raise HTTPException(status_code=400, detail="验证码错误或已失效")
+
+    existing = await db.execute(select(User).where(User.phone == data.phone))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="该手机号已注册")
+
+    user = User(
+        phone=data.phone,
+        hashed_password=hash_password(data.password),
+        name=data.name,
+        onboarding_completed=False,
+    )
+    db.add(user)
+    try:
+        await db.commit()
+    except Exception as exc:
+        # Concurrent registration with the same phone can race past the check
+        # above and hit the partial unique index — convert to a clean 409.
+        await db.rollback()
+        if "uq_users_phone_partial" in str(exc) or "unique" in str(exc).lower():
+            raise HTTPException(status_code=409, detail="该手机号已注册") from exc
+        raise
+    await db.refresh(user)
+
+    token = create_token(user.id)
+    refresh_token = create_token(user.id, token_type="refresh")
+    logger.info("sms_register_success", user_id=user.id, phone=data.phone)
+    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
+
+
+@router.post("/phone-login", response_model=TokenResponse)
+@rate_limit("5/minute")
+async def phone_login(request: Request, data: PhoneLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Log in with phone + password (the password set at /auth/sms/register)."""
+    result = await db.execute(select(User).where(User.phone == data.phone))
+    user = result.scalar_one_or_none()
+
+    if not user or not user.hashed_password or not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号或密码错误")
+    if user.is_banned:
+        raise HTTPException(status_code=403, detail="账户已被封禁")
+
+    token = create_token(user.id)
+    refresh_token = create_token(user.id, token_type="refresh")
     return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
 
 
@@ -360,6 +405,37 @@ async def reset_password(
 
     logger.info("password_reset_completed", user_id=user.id)
     return MessageResponse(message="Password has been reset successfully.")
+
+
+@router.post("/sms/reset-password", response_model=MessageResponse)
+@rate_limit("5/minute")
+async def sms_reset_password(
+    request: Request,
+    data: SmsResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset password via phone + SMS code (no email link).
+
+    The code is sent via /auth/sms/send-code (reused). Returns the same message
+    whether or not the phone is registered, to prevent enumeration (consistent
+    with the email forgot-password flow).
+    """
+    if not await verify_sms_code(data.phone, data.code):
+        raise HTTPException(status_code=400, detail="验证码错误或已失效")
+
+    result = await db.execute(select(User).where(User.phone == data.phone).with_for_update())
+    user = result.scalar_one_or_none()
+
+    if user is not None:
+        user.hashed_password = hash_password(data.new_password)
+        # Invalidate all sessions issued before this moment (tokens with an
+        # earlier ``iat`` are rejected by the auth dependency).
+        user.password_changed_at = datetime.now(UTC)
+        db.add(user)
+        await db.commit()
+        logger.info("sms_password_reset", user_id=user.id, phone=data.phone)
+
+    return MessageResponse(message="如果该手机号已注册，密码已重置。")
 
 
 @router.post("/logout", response_model=MessageResponse)

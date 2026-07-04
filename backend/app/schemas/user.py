@@ -33,6 +33,42 @@ class SmsLoginRequest(BaseModel):
     code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
 
 
+class PhoneLoginRequest(BaseModel):
+    """Phone + password login (the password set at /auth/sms/register)."""
+
+    phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    password: str
+
+
+class SmsRegisterRequest(BaseModel):
+    """Phone-only registration: SMS code proves phone ownership, password is set now."""
+
+    phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
+    password: str = Field(min_length=8, max_length=128)
+    name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        validate_password_strength(v)
+        return v
+
+
+class SmsResetPasswordRequest(BaseModel):
+    """Phone-based password reset: SMS code + new password (no email link)."""
+
+    phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        validate_password_strength(v)
+        return v
+
+
 class UserUpdate(BaseModel):
     name: str | None = None
     level: str | None = None

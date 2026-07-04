@@ -53,7 +53,7 @@ ADR-0005 的基础。先抽组件，再改页面。
 ADR-0005。用统一组件库重做用户页，修 4 个不满意点（一致/移动/导航/视觉）。
 
 - [x] 落地页接入：未登录 `/` → 落地页；落地页"登录/试用"→ `/login`。（`MainLayoutInner` 未认证渲染 `LandingContent`；抽 `LandingContent` 共享给 `/landing` 与 `(main)` 布局；TopBar 加汉堡菜单修移动 nav 死锁；落地页文案对齐 ADR-0001——删 AI 评测/发音评分声称、补社区 UGC 支柱；`useRedirectIfAuthenticated` 默认 `/dashboard`→`/`；login/register/redeem 成功跳转 →`/`；metadata 去"口语练习"）
-- [ ] 登录/注册页重做（含手机 SMS 流）；登录页本身修视觉。
+- [x] 登录/注册页重做（含手机 SMS 流）；登录页本身修视觉。（**注册改为手机号+验证码+密码**（phone-only，不收集邮箱）；**登录改为手机号或邮箱+同一密码**——前端按 `@`/手机正则路由 `/auth/phone-login` 或 `/auth/login`；**忘记密码改为手机验证码+新密码**。后端新增 `POST /auth/sms/register`、`/auth/phone-login`、`/auth/sms/reset-password`；`sms/login` 停止自动创建改为仅登录。抽 `AuthCard` 共享壳 + `useSmsCode` hook。邮箱绑定（登录用邮箱）推迟到 4.5 profile。14 新测试 + 332 旧测试全过）
 - [ ] 首页重做（去 speaking chip，价值主张对齐 ADR-0001 定位）。
 - [x] browse / search 重做（移动优先）。（browse: `py-16 sm:py-24`→`py-6 sm:py-12` 减移动 padding；search: `DifficultyBadge`→`common/Badge`、返回按钮→`ui/Button`、删未用 `cn` import。`VideoThumbnail` 保留——有 duration 叠加层，比 `ui/Image` 更合适）
 - [ ] profile 重做（头像上传——需后端端点；3 tab 保留）。
