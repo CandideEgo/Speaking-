@@ -33,7 +33,7 @@ export default function RedeemPage() {
         },
       );
       setResult(res);
-      if (res.success) setTimeout(() => router.push("/dashboard"), 2000);
+      if (res.success) setTimeout(() => router.push("/"), 2000);
     } catch (err) {
       setResult({
         success: false,

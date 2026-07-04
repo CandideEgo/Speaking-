@@ -68,7 +68,7 @@ export default function LoginPage() {
         },
       );
       login(res.token, res.refresh_token);
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       setError(apiErrorMessage(err, "登录失败，请重试"));
     } finally {
@@ -109,7 +109,7 @@ export default function LoginPage() {
         },
       );
       login(res.token, res.refresh_token);
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       setError(apiErrorMessage(err, "登录失败，请重试"));
     } finally {

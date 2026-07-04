@@ -1,4 +1,4 @@
-import { Mic, Star, ListFilter } from "lucide-react";
+import { Users, Star, ListFilter } from "lucide-react";
 
 const features = [
   {
@@ -8,9 +8,9 @@ const features = [
     color: "bg-brand-500",
   },
   {
-    icon: <Mic size={24} />,
-    title: "AI 口语评测",
-    desc: "实时给出发音、流利度、完整度三项分数，标出读不准的音节，精准反馈帮你快速提升。",
+    icon: <Users size={24} />,
+    title: "社区创作",
+    desc: "在创作者中心提交你喜欢的视频，经审核后发布到社区 feed。大家一起积累真实语料，学习资源越来越丰富。",
     color: "bg-indigo",
   },
   {
@@ -30,11 +30,11 @@ export function FeatureGrid() {
             核心功能
           </span>
           <h2 className="!text-[44px] !font-extrabold !tracking-[-0.03em] !leading-tight mt-3.5 mb-4">
-            看 · 说 · 懂，三位一体
+            看 · 查 · 懂，三位一体
           </h2>
           <p className="text-[17px] text-muted leading-relaxed">
-            沉浸式双语字幕阅读，AI
-            实时评测发音，智能理解测验——一段视频，完整学习闭环。
+            沉浸式双语字幕阅读，生词自动标注与 SM-2
+            复习，社区贡献真实视频——一段视频，完整学习闭环。
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">

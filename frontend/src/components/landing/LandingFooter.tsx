@@ -9,7 +9,7 @@ const footerLinks = {
   ],
   学习: [
     { label: "词汇本", href: "/vocabulary" },
-    { label: "学习面板", href: "/dashboard" },
+    { label: "学习记录", href: "/history" },
     { label: "社区", href: "/community" },
   ],
   法律: [
@@ -35,7 +35,7 @@ export function LandingFooter() {
               </span>
             </Link>
             <p className="text-[13px] text-muted leading-relaxed mt-3 max-w-[280px]">
-              用真实视频学开口说英语。AI 驱动的双语字幕、口语评测和理解测验。
+              用真实视频学英语。双语字幕、生词复习与社区创作，一条龙学习闭环。
             </p>
           </div>
 

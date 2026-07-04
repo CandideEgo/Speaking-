@@ -62,8 +62,8 @@ export function LandingNav() {
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
-            <LinkButton href="/dashboard" variant="primary" size="nav">
-              进入控制台
+            <LinkButton href="/" variant="primary" size="nav">
+              进入应用
             </LinkButton>
           ) : (
             <>
@@ -104,8 +104,8 @@ export function LandingNav() {
           ))}
           <div className="flex gap-3 mt-3 pt-3 border-t border-hairline">
             {isAuthenticated ? (
-              <LinkButton href="/dashboard" variant="primary" fullWidth>
-                进入控制台
+              <LinkButton href="/" variant="primary" fullWidth>
+                进入应用
               </LinkButton>
             ) : (
               <>

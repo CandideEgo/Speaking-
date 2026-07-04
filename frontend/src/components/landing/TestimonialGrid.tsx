@@ -2,14 +2,16 @@ import Link from "next/link";
 
 const testimonials = [
   {
-    quote: "终于找到一个不靠死记硬背的学英语方式。每天看一段真实视频，口语进步肉眼可见。",
+    quote:
+      "终于找到一个不靠死记硬背的学英语方式。每天看一段真实视频，口语进步肉眼可见。",
     name: "Lin Wei",
     role: "备考雅思 · 3 个月",
     initial: "L",
     color: "bg-indigo",
   },
   {
-    quote: "AI 发音评测比我请的私教还细致，能精确到每个音节。性价比太高了。",
+    quote:
+      "在社区发现了好多冷门但高质量的视频，自己也能提交喜欢的演讲。大家一起学，比一个人坚持容易多了。",
     name: "Maria Chen",
     role: "外企工作 · 6 个月",
     initial: "M",
@@ -38,9 +40,16 @@ export function TestimonialGrid() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
           {testimonials.map((t) => (
-            <div key={t.name} className="bg-canvas border border-hairline rounded-lg p-7">
-              <div className="text-warning text-[15px] tracking-[2px] mb-3">★★★★★</div>
-              <p className="text-sm text-body leading-relaxed mb-[18px]">"{t.quote}"</p>
+            <div
+              key={t.name}
+              className="bg-canvas border border-hairline rounded-lg p-7"
+            >
+              <div className="text-warning text-[15px] tracking-[2px] mb-3">
+                ★★★★★
+              </div>
+              <p className="text-sm text-body leading-relaxed mb-[18px]">
+                "{t.quote}"
+              </p>
               <div className="flex items-center gap-2.5">
                 <div
                   className={`w-9 h-9 rounded-full ${t.color} text-on-primary flex items-center justify-center font-bold text-[13px]`}

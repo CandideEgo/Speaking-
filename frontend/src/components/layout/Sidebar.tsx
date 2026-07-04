@@ -167,7 +167,7 @@ function SidebarNavContent({
             <div className="text-[13px] font-semibold">
               升级 Pro · 前往小商店
             </div>
-            <div className="text-xs text-muted mt-0.5">解锁无限口语评测</div>
+            <div className="text-xs text-muted mt-0.5">解锁无限词汇复习</div>
             <Link
               href="/pricing"
               className="block w-full mt-2.5 bg-ink text-on-primary text-[13px] font-semibold py-2 rounded-sm text-center hover:bg-black transition-colors duration-150"

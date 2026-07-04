@@ -51,7 +51,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, password, name: name || null }),
       });
       login(res.token, res.refresh_token);
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       setError(apiErrorMessage(err, "注册失败，请重试"));
     } finally {

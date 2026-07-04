@@ -16,9 +16,12 @@ export function BentoShowcase() {
           <div className="sm:col-span-2 md:col-span-2 bg-ink rounded-xl p-7 min-h-[300px] flex flex-col justify-between text-on-dark">
             <div>
               <div className="text-[13px] text-on-dark-soft mb-1.5">播放器</div>
-              <h3 className="text-[22px] font-bold tracking-tight mb-3">沉浸式播放</h3>
+              <h3 className="text-[22px] font-bold tracking-tight mb-3">
+                沉浸式播放
+              </h3>
               <p className="text-[13px] text-on-dark-soft leading-relaxed max-w-[340px]">
-                逐句双语字幕，AB 循环复读，变速播放，一键收藏生词——看视频就是学英语。
+                逐句双语字幕，AB
+                循环复读，变速播放，一键收藏生词——看视频就是学英语。
               </p>
             </div>
             <div className="flex gap-2 mt-5">
@@ -34,14 +37,14 @@ export function BentoShowcase() {
             </div>
           </div>
 
-          {/* Speaking score */}
+          {/* Community contributions */}
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
-            <div className="text-[13px] text-muted mb-1.5">口语评测</div>
+            <div className="text-[13px] text-muted mb-1.5">社区贡献</div>
             <div>
               <div className="text-[44px] font-extrabold tracking-display-lg text-brand-500">
-                92
+                120+
               </div>
-              <div className="text-[13px] text-muted">发音 · 流利度 · 完整度</div>
+              <div className="text-[13px] text-muted">用户提交的视频</div>
             </div>
           </div>
 
@@ -49,7 +52,9 @@ export function BentoShowcase() {
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
             <div className="text-[13px] text-muted mb-1.5">词汇本</div>
             <div>
-              <div className="text-[22px] font-bold tracking-tight">1,240 个</div>
+              <div className="text-[22px] font-bold tracking-tight">
+                1,240 个
+              </div>
               <div className="text-[13px] text-muted">已收集 · 84% 已掌握</div>
               <div className="flex gap-1 mt-2.5">
                 {[0.84, 0.68, 0.45, 0.92, 0.7, 0.55, 0.8].map((v, i) => (
@@ -85,24 +90,29 @@ export function BentoShowcase() {
             </div>
           </div>
 
-          {/* Community */}
+          {/* Community creators */}
           <div className="sm:col-span-2 md:col-span-2 bg-canvas border border-hairline rounded-xl p-6 flex flex-col min-h-[160px]">
-            <div className="text-[13px] text-muted mb-3">学习社区</div>
+            <div className="text-[13px] text-muted mb-3">社区创作者</div>
             <div className="flex gap-3">
               {[
-                { name: "小明", streak: 21, color: "bg-brand-500" },
-                { name: "Yuki", streak: 14, color: "bg-indigo" },
-                { name: "Sarah", streak: 30, color: "bg-success" },
-                { name: "Alex", streak: 7, color: "bg-warning" },
+                { name: "小明", contributed: 12, color: "bg-brand-500" },
+                { name: "Yuki", contributed: 8, color: "bg-indigo" },
+                { name: "Sarah", contributed: 21, color: "bg-success" },
+                { name: "Alex", contributed: 5, color: "bg-warning" },
               ].map((u) => (
-                <div key={u.name} className="flex flex-col items-center gap-1.5">
+                <div
+                  key={u.name}
+                  className="flex flex-col items-center gap-1.5"
+                >
                   <div
                     className={`w-10 h-10 rounded-full ${u.color} text-on-primary flex items-center justify-center text-sm font-bold`}
                   >
                     {u.name[0]}
                   </div>
                   <div className="text-[11px] font-medium">{u.name}</div>
-                  <div className="text-[10px] text-muted">🔥 {u.streak} 天</div>
+                  <div className="text-[10px] text-muted">
+                    贡献 {u.contributed} 个视频
+                  </div>
                 </div>
               ))}
             </div>

@@ -11,15 +11,15 @@ export function HeroSection() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-14 items-center">
           {/* Copy */}
           <div>
-            <Eyebrow>用真实视频学英语 · AI 驱动</Eyebrow>
+            <Eyebrow>用真实视频学英语 · 双语字幕 + 词汇</Eyebrow>
             <h1 className="!text-[36px] sm:!text-[52px] lg:!text-[68px] !font-black !tracking-[-0.04em] !leading-none mt-6 mb-6">
               Learn English
               <br />
               with <em className="not-italic text-brand-500">Real Speech.</em>
             </h1>
             <p className="text-lg text-muted leading-relaxed max-w-[500px] mb-9">
-              粘贴任意英文视频链接，AI
-              自动生成双语字幕、口语评测和理解测验。看真实的人怎么说话，然后开口说。
+              粘贴英文视频链接，自动生成双语字幕与生词标注，SM-2
+              间隔复习帮你记住。还能在社区发现、贡献更多真实视频。
             </p>
             <div className="flex gap-3 flex-wrap">
               <LinkButton
@@ -89,8 +89,8 @@ export function HeroSection() {
                 <Check size={17} />
               </div>
               <div>
-                <div className="font-semibold leading-tight">发音 92 分</div>
-                <div className="text-[11px] text-muted">流利度 +8%</div>
+                <div className="font-semibold leading-tight">生词 1,240</div>
+                <div className="text-[11px] text-muted">SM-2 间隔复习</div>
               </div>
             </div>
 
@@ -100,8 +100,8 @@ export function HeroSection() {
                 <Zap size={17} />
               </div>
               <div>
-                <div className="font-semibold leading-tight">连续 14 天</div>
-                <div className="text-[11px] text-muted">坚持学习中</div>
+                <div className="font-semibold leading-tight">社区创作</div>
+                <div className="text-[11px] text-muted">用户贡献视频</div>
               </div>
             </div>
           </div>

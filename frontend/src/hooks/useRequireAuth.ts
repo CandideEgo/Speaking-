@@ -59,12 +59,13 @@ export function useRequireAuth(
 }
 
 /**
- * useRedirectIfAuthenticated — reverse guard for login/register pages.
+ * useRedirectIfAuthenticated — reverse guard for login/register/landing pages.
  *
- * Redirects authenticated users away (e.g. to dashboard).
+ * Redirects authenticated users away to the app home. (Was /dashboard; the
+ * dashboard is being removed per ADR-0003, so the app entry is now `/`.)
  */
 export function useRedirectIfAuthenticated(
-  redirectTo = "/dashboard",
+  redirectTo = "/",
 ): UseRequireAuthReturn {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);

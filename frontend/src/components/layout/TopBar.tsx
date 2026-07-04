@@ -14,7 +14,7 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Bell, Sun, Moon, Sparkles } from "lucide-react";
+import { Search, Bell, Sun, Moon, Sparkles, Menu } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 
@@ -196,6 +196,18 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-white/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
+      {/* Mobile sidebar trigger — opens the slide-in nav overlay (Sidebar.tsx).
+          Without this, dashboard / creator center / pricing are unreachable on mobile. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
+        onClick={() => setMobileOpen(true)}
+        aria-label="打开菜单"
+      >
+        <Menu size={20} />
+      </Button>
+
       {/* Search — centered */}
       {!isAuthPage && (
         <div className="flex flex-1 justify-center max-w-[520px] mx-auto">

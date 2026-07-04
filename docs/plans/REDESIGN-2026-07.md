@@ -52,7 +52,7 @@ ADR-0005 的基础。先抽组件，再改页面。
 
 ADR-0005。用统一组件库重做用户页，修 4 个不满意点（一致/移动/导航/视觉）。
 
-- [ ] 落地页接入：未登录 `/` → 落地页；落地页"登录/试用"→ `/login`。
+- [x] 落地页接入：未登录 `/` → 落地页；落地页"登录/试用"→ `/login`。（`MainLayoutInner` 未认证渲染 `LandingContent`；抽 `LandingContent` 共享给 `/landing` 与 `(main)` 布局；TopBar 加汉堡菜单修移动 nav 死锁；落地页文案对齐 ADR-0001——删 AI 评测/发音评分声称、补社区 UGC 支柱；`useRedirectIfAuthenticated` 默认 `/dashboard`→`/`；login/register/redeem 成功跳转 →`/`；metadata 去"口语练习"）
 - [ ] 登录/注册页重做（含手机 SMS 流）；登录页本身修视觉。
 - [ ] 首页重做（去 speaking chip，价值主张对齐 ADR-0001 定位）。
 - [ ] browse / search 重做（移动优先）。
