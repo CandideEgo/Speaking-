@@ -167,7 +167,7 @@ async def get_preferences(
 
     if pref_row:
         return UserPreferencesResponse(
-            daily_goal_type=pref_row.daily_goal_type or "speaking_attempts",
+            daily_goal_type=pref_row.daily_goal_type or "words",
             daily_goal_value=pref_row.daily_goal_value or 5,
             reminder_enabled=pref_row.reminder_enabled if pref_row.reminder_enabled is not None else True,
             reminder_time=pref_row.reminder_time,
@@ -215,7 +215,7 @@ async def update_preferences(
     await commit_refresh(db, pref)
 
     return UserPreferencesResponse(
-        daily_goal_type=pref.daily_goal_type or "speaking_attempts",
+        daily_goal_type=pref.daily_goal_type or "words",
         daily_goal_value=pref.daily_goal_value or 5,
         reminder_enabled=pref.reminder_enabled if pref.reminder_enabled is not None else True,
         reminder_time=pref.reminder_time,

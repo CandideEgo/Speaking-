@@ -18,7 +18,9 @@ export default function LearningPrefsTab({
   onUpdate,
 }: LearningPrefsTabProps) {
   const [goalType, setGoalType] = useState<UserPreferences["daily_goal_type"]>(
-    preferences?.daily_goal_type || "speaking_attempts",
+    preferences?.daily_goal_type === "speaking_attempts"
+      ? "words"
+      : preferences?.daily_goal_type || "words",
   );
   const [goalValue, setGoalValue] = useState(
     preferences?.daily_goal_value || 5,
@@ -56,7 +58,6 @@ export default function LearningPrefsTab({
   }
 
   const goalTypeLabels: Record<string, string> = {
-    speaking_attempts: "跟读练习次数",
     minutes: "学习分钟数",
     words: "复习单词数",
   };
@@ -84,8 +85,7 @@ export default function LearningPrefsTab({
                   e.target.value as UserPreferences["daily_goal_type"],
                 );
                 // Reset value to sensible defaults per type
-                if (e.target.value === "speaking_attempts") setGoalValue(5);
-                else if (e.target.value === "minutes") setGoalValue(15);
+                if (e.target.value === "minutes") setGoalValue(15);
                 else if (e.target.value === "words") setGoalValue(10);
               }}
               className="w-48"

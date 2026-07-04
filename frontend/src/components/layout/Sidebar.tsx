@@ -9,7 +9,6 @@ import { gsap } from "gsap";
 import { DURATIONS, EASES, MEDIA, motionDuration } from "@/lib/animations";
 import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard,
   BookOpen,
   Sparkles,
   Users,
@@ -49,10 +48,7 @@ const navigation: NavSection[] = [
   },
   {
     title: "学习",
-    items: [
-      { label: "学习面板", href: "/dashboard", icon: LayoutDashboard },
-      { label: "词汇本", href: "/vocabulary", icon: BookOpen },
-    ],
+    items: [{ label: "词汇本", href: "/vocabulary", icon: BookOpen }],
   },
   {
     title: "创作",

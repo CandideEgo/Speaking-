@@ -18,12 +18,6 @@ const LEVELS = [
 
 const GOALS = [
   {
-    value: "speaking_attempts",
-    label: "每天开口说",
-    description: "每日练习次数",
-    target: 5,
-  },
-  {
     value: "minutes",
     label: "每天学 X 分钟",
     description: "累计学习时长",
@@ -45,7 +39,7 @@ export default function OnboardingPage() {
   const { setOnboardingCompleted } = useAuthStore();
   const [step, setStep] = useState(0);
   const [level, setLevel] = useState<string | null>(null);
-  const [goalType, setGoalType] = useState<string>("speaking_attempts");
+  const [goalType, setGoalType] = useState<string>("words");
   const [goalValue, setGoalValue] = useState(5);
   const [saving, setSaving] = useState(false);
 
@@ -113,7 +107,7 @@ export default function OnboardingPage() {
               欢迎来到 Speaking
             </h1>
             <p className="text-muted-foreground">
-              用真实视频学开口说英语。让我们先了解一下你的水平。
+              用真实视频学英语。让我们先了解一下你的水平。
             </p>
             <Button onClick={() => setStep(1)} fullWidth>
               开始设置

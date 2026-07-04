@@ -379,6 +379,8 @@ export interface AdminStats {
 
 /* ── Profile ── */
 export interface UserPreferences {
+  // "speaking_attempts" retained for legacy DB rows; UI no longer offers it
+  // (LearningPrefsTab sanitizes it to "words").
   daily_goal_type: "speaking_attempts" | "minutes" | "words";
   daily_goal_value: number;
   reminder_enabled: boolean;

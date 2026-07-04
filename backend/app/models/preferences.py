@@ -33,7 +33,7 @@ class UserPreferences(Base):
         default=lambda: DEFAULT_NOTIFICATION_PREFS.copy(),
         comment="Dict of notification type -> bool opt-in. Null means all enabled.",
     )
-    daily_goal_type: Mapped[str] = mapped_column(String(20), default="speaking_attempts")
+    daily_goal_type: Mapped[str] = mapped_column(String(20), default="words")
     daily_goal_value: Mapped[int] = mapped_column(Integer, default=5)
     reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     reminder_time: Mapped[str | None] = mapped_column(String(5), nullable=True)

@@ -213,7 +213,7 @@ class ActivityCalendarResponse(BaseModel):
 
 
 class UserPreferencesResponse(BaseModel):
-    daily_goal_type: str = "speaking_attempts"
+    daily_goal_type: str = "words"
     daily_goal_value: int = 5
     reminder_enabled: bool = True
     reminder_time: str | None = None
@@ -227,7 +227,7 @@ class UserPreferencesResponse(BaseModel):
 
 
 class UserPreferencesUpdate(BaseModel):
-    daily_goal_type: Literal["speaking_attempts", "minutes", "words"] | None = None
+    daily_goal_type: Literal["minutes", "words"] | None = None
     daily_goal_value: int | None = Field(default=None, ge=1, le=100)
     reminder_enabled: bool | None = None
     reminder_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
