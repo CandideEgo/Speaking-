@@ -15,10 +15,14 @@ import {
   Trash2,
   RefreshCw,
   Play,
+  X,
 } from "lucide-react";
 
 import { api, mediaUrl } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoStatusPolling } from "@/hooks/useVideoStatusPolling";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
@@ -59,6 +63,12 @@ export default function MyVideoEditorPage() {
   );
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery("(max-width: 1023px)");
+  const { isPip, dismiss } = useStickyPip(
+    slotRef,
+    isMobile && !!video?.video_url_720p,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -316,19 +326,46 @@ export default function MyVideoEditorPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
           {/* Player */}
           <div className="lg:sticky lg:top-6">
-            <div className="aspect-video bg-ink rounded-lg overflow-hidden">
-              {video.video_url_720p ? (
-                <video
-                  ref={videoElRef}
-                  src={mediaUrl(video.video_url_720p ?? "")}
-                  controls
-                  className="w-full h-full"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-on-primary/40">
-                  <Play size={40} />
-                </div>
-              )}
+            <div
+              ref={slotRef}
+              className="relative aspect-video bg-ink rounded-lg overflow-hidden"
+            >
+              {/* Wrapper: in-flow when normal, fixed mini-player when pip. The
+                  <video> lives inside and is never re-parented, so playback
+                  state survives the switch. */}
+              <div
+                className={cn(
+                  "transition-all duration-300",
+                  isPip
+                    ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
+                    : "absolute inset-0",
+                )}
+              >
+                {video.video_url_720p ? (
+                  <>
+                    <video
+                      ref={videoElRef}
+                      src={mediaUrl(video.video_url_720p ?? "")}
+                      controls
+                      className="h-full w-full"
+                    />
+                    {isPip && (
+                      <button
+                        type="button"
+                        onClick={dismiss}
+                        className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white shadow hover:bg-ink/80"
+                        aria-label="关闭小窗播放"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-on-primary/40">
+                    <Play size={40} />
+                  </div>
+                )}
+              </div>
             </div>
             <p className="text-xs text-muted mt-2">
               编辑字幕时可点 ● 按钮取当前播放时间填入时间轴。

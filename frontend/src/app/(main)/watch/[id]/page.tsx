@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWatchStore } from "@/stores/watchStore";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
+import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoPlayer, bestVideoUrl } from "@/hooks/useVideoPlayer";
 import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -89,6 +91,14 @@ export default function WatchPage() {
   // 字幕自动居中：只滚动右侧内层字幕列表，绝不触碰整页 <main>。
   // 用 scrollIntoView 会连带 <main> 一起拽回顶部，导致停在底部练习区时页面被拽走白屏。
   const subtitleListRef = useRef<HTMLDivElement>(null);
+  // Mobile sticky mini-player: pin the video to the bottom-right when it
+  // scrolls out of view. Desktop keeps its in-flow sticky layout.
+  const slotRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery("(max-width: 1023px)");
+  const { isPip, dismiss } = useStickyPip(
+    slotRef,
+    isMobile && playbackMode === "ready",
+  );
   useEffect(() => {
     const container = subtitleListRef.current;
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
@@ -416,35 +426,63 @@ export default function WatchPage() {
       >
         {/* ========== LEFT COLUMN ========== */}
         <div className="min-w-0">
-          {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏） */}
-          <div className="relative w-full aspect-video bg-ink rounded-xl overflow-hidden shadow-lift">
-            {playbackMode === "ready" && bestVideoUrl(video) ? (
-              <video
-                ref={videoRef}
-                src={mediaUrl(bestVideoUrl(video)!)}
-                controls
-                className="h-full w-full object-contain"
-                onTimeUpdate={(e) => {
-                  const idx = findSubtitleIndex(
-                    video.subtitles,
-                    e.currentTarget.currentTime,
-                  );
-                  if (idx !== -1) setCurrentSubtitleIndex(idx);
-                }}
-              />
-            ) : (
-              <div className="flex items-center justify-center w-full h-full">
-                <div className="text-center">
-                  <Play size={40} className="mx-auto text-white/30" />
-                  <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+          {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
+              移动端滚出视口时，内层 wrapper 浮为右下角 mini-player（PiP），
+              <video> 节点不换父，播放连续。 */}
+          <div
+            ref={slotRef}
+            className="relative w-full aspect-video bg-ink rounded-xl overflow-hidden shadow-lift"
+          >
+            <div
+              className={cn(
+                "transition-all duration-300",
+                isPip
+                  ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
+                  : "absolute inset-0",
+              )}
+            >
+              {playbackMode === "ready" && bestVideoUrl(video) ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    src={mediaUrl(bestVideoUrl(video)!)}
+                    controls
+                    className="h-full w-full object-contain"
+                    onTimeUpdate={(e) => {
+                      const idx = findSubtitleIndex(
+                        video.subtitles,
+                        e.currentTarget.currentTime,
+                      );
+                      if (idx !== -1) setCurrentSubtitleIndex(idx);
+                    }}
+                  />
+                  {isPip && (
+                    <button
+                      type="button"
+                      onClick={dismiss}
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white shadow hover:bg-ink/80"
+                      aria-label="关闭小窗播放"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="text-center">
+                    <Play size={40} className="mx-auto text-white/30" />
+                    <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看（mini-player 时隐藏） */}
+            {!isPip && (
+              <ExamLevelSelector
+                level={selectedExamLevel}
+                onChange={handleExamLevelChange}
+              />
             )}
-            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看 */}
-            <ExamLevelSelector
-              level={selectedExamLevel}
-              onChange={handleExamLevelChange}
-            />
           </div>
 
           {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
