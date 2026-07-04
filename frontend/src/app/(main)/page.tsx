@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Play, ArrowRight } from "lucide-react";
+import { Play, ArrowRight, Users } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useHomeFeed, DIFFICULTY_GROUPS } from "@/hooks/useHomeFeed";
 import { api } from "@/lib/api";
-import { formatDuration } from "@/lib/format";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -37,13 +36,7 @@ export default function HomePage() {
   const { videos, loading, error, retry, activeGroup, setActiveGroup } =
     useHomeFeed();
 
-  const [streakInfo, setStreakInfo] = useState<{
-    current_streak: number;
-    longest_streak: number;
-    goal_type: string;
-    goal_value: number;
-    today_progress: Record<string, number>;
-  } | null>(null);
+  const [vocabDue, setVocabDue] = useState<number | null>(null);
   const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
     [],
   );
@@ -51,19 +44,15 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [streakRes, recordsRes] = await Promise.all([
-          api<{
-            current_streak: number;
-            longest_streak: number;
-            goal_type: string;
-            goal_value: number;
-            today_progress: Record<string, number>;
-          }>("/api/v1/users/me/streak").catch(() => null),
+        const [vocabRes, recordsRes] = await Promise.all([
+          api<{ due_count?: number; total?: number }>(
+            "/api/v1/vocabulary/stats",
+          ).catch(() => null),
           api<{ records: LearningRecord[] }>(
             "/api/v1/learning/records?page=1&page_size=4&completed=false",
           ).catch(() => ({ records: [] })),
         ]);
-        if (streakRes) setStreakInfo(streakRes);
+        if (vocabRes) setVocabDue(vocabRes.due_count ?? 0);
         setInProgressRecords(recordsRes.records);
       } catch {
         // silent fallback
@@ -77,15 +66,6 @@ export default function HomePage() {
     const tag = v.topic_tags?.split(",")[0]?.trim() || "其他";
     categoryCounts[tag] = (categoryCounts[tag] || 0) + 1;
   }
-
-  const streak = streakInfo?.current_streak ?? 0;
-  const longestStreak = streakInfo?.longest_streak ?? 0;
-  const goalType = streakInfo?.goal_type ?? "speaking_attempts";
-  const goalValue = streakInfo?.goal_value ?? 5;
-  const todayProgress = streakInfo?.today_progress?.[goalType] ?? 0;
-  const goalMet = todayProgress >= goalValue;
-  const goalUnit =
-    goalType === "minutes" ? "分钟" : goalType === "words" ? "单词" : "次练习";
 
   // Continue watching: real in-progress records (with progress), fallback to first 4 videos
   const continueWatching: { video: Video; progress?: number }[] =
@@ -126,31 +106,30 @@ export default function HomePage() {
   return (
     <PageTransition>
       <main className="container-page py-7 pb-24">
-        {/* ── Bento 首屏：hero + 连胜 + 目标 ── */}
+        {/* ── Bento 首屏：hero + 词汇/社区 ── */}
         <div className="bento">
           {/* hero 大卡 */}
           <div className="b-hero">
             <div className="flex items-start justify-between">
               <span className="b-hero-tag">
                 <span className="led" />
-                每日练习 ·{" "}
+                每日学习 ·{" "}
                 {new Date().toLocaleDateString("zh-CN", {
                   month: "2-digit",
                   day: "2-digit",
                 })}
               </span>
-              <span className="text-[22px]">🔥</span>
+              <span className="text-[22px]">📚</span>
             </div>
             <div>
               <h1>
                 你好{userName}，
                 <br />
-                把英语<em>说出口</em>。
+                用真实视频<em>学英语</em>。
               </h1>
               <p className="b-hero-sub">
-                {goalMet
-                  ? "今日目标已达成！继续保持，或挑战更高难度。"
-                  : `还差 ${Math.max(0, goalValue - todayProgress)} ${goalUnit}即可达成今日目标。从一条真实演讲开始。`}
+                双语字幕、生词自动标注与 SM-2
+                复习，社区贡献真实视频——一段视频，完整学习闭环。
               </p>
               <div className="b-hero-cta">
                 <LinkButton
@@ -168,58 +147,50 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 连胜 + 目标 栈 */}
+          {/* 词汇待复习 + 社区 栈 */}
           <div className="b-stack">
-            <div className="b-streak">
+            <Link
+              href="/vocabulary"
+              className="flex-1 p-6 rounded-lg border flex flex-col justify-between bg-brand-50 border-brand-100 hover:border-brand-300 transition-colors"
+            >
               <div>
-                <div className="lbl">Current Streak</div>
-                <div className="big">
-                  {streak}
-                  <small>天</small>
+                <div className="text-[11px] font-semibold uppercase font-mono tracking-[0.14em] text-brand-700">
+                  词汇待复习
+                </div>
+                <div className="text-[44px] font-extrabold tracking-display-lg leading-none mt-2.5 text-brand-600">
+                  {vocabDue ?? "—"}
+                  <small className="text-[16px] font-semibold ml-1 text-brand-500">
+                    词
+                  </small>
                 </div>
               </div>
-              <div className="foot">最长 {longestStreak} 天 · 继续加油</div>
-            </div>
-            <div className="b-goal">
+              <div className="text-xs font-medium mt-2 text-brand-700">
+                {vocabDue === null
+                  ? "加载中…"
+                  : vocabDue > 0
+                    ? "趁热打铁，去复习 →"
+                    : "暂无待复习，继续积累"}
+              </div>
+            </Link>
+            <Link
+              href="/community"
+              className="flex-1 p-6 rounded-lg border bg-canvas border-hairline hover:border-ink transition-colors flex flex-col justify-between"
+            >
               <div>
-                <div className="lbl">Daily Goal</div>
-                <div className="num">
-                  {todayProgress}
-                  <small>/{goalValue}</small>
+                <div className="text-[11px] font-semibold uppercase font-mono tracking-[0.14em] text-muted-foreground">
+                  社区
+                </div>
+                <div className="flex items-center gap-2 mt-2.5">
+                  <Users size={24} className="text-brand-500" />
+                  <span className="text-[20px] font-bold tracking-tight">
+                    发现新视频
+                  </span>
                 </div>
               </div>
-              <div>
-                <div className="b-goal-track">
-                  <div
-                    className="b-goal-fill"
-                    style={{
-                      width: `${Math.min(100, (todayProgress / goalValue) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <div className="foot">
-                  {goalMet
-                    ? "今日目标已达成 🎉"
-                    : `还差 ${Math.max(0, goalValue - todayProgress)} ${goalUnit}达成目标`}
-                </div>
+              <div className="text-xs text-muted mt-2">
+                看看大家贡献的内容 →
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── 今日练习入口 ── */}
-        <div className="bento">
-          <div className="b-practice">
-            <div>
-              <div className="lbl">Quick Practice</div>
-              <div className="title">选择视频，开始练习</div>
-            </div>
-            <div className="b-practice-modes">
-              <Link href="/browse" className="mode-chip">
-                <span className="dot r" />
-                朗读 <small>Read aloud</small>
-              </Link>
-            </div>
+            </Link>
           </div>
         </div>
 
