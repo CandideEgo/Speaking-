@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   BarChart3,
+  BookOpen,
   Crown,
   Flag,
   Loader2,
   MessageSquare,
-  Mic,
   TrendingUp,
   Users,
   Video,
@@ -60,7 +60,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 const ACTIVITY_ICON: Record<RecentActivityType, React.ElementType> = {
   signup: UserPlus,
-  speaking: Mic,
   post: MessageSquare,
   report: Flag,
   payment: CreditCard,
@@ -104,9 +103,16 @@ export default function AdminStatsPage() {
   const trend = trendData.map((d) => ({
     date: d.date,
     signups: stats.trend.signups[startIdx + d.idx],
-    speaking: stats.trend.speaking_attempts[startIdx + d.idx],
+    vocabulary: stats.trend.vocabulary[startIdx + d.idx],
     active: stats.trend.active_users[startIdx + d.idx],
   }));
+
+  // Real 7-day new-vocabulary count (sum of the last 7 trend points) — replaces
+  // the hardcoded "+8.4%" speaking delta. The backend always returns a 30-day
+  // trend, so slice(-7) is the last 7 days regardless of the chart range toggle.
+  const newVocab7d = stats.trend.vocabulary
+    .slice(-7)
+    .reduce((a, b) => a + b, 0);
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
@@ -168,10 +174,10 @@ export default function AdminStatsPage() {
           delta={`${stats.videos_ready} 已就绪`}
         />
         <StatCard
-          icon={Mic}
-          label="口语练习总数"
-          value={stats.total_speaking_attempts.toLocaleString()}
-          delta="+8.4% 较上周"
+          icon={BookOpen}
+          label="词汇总数"
+          value={stats.total_vocabulary.toLocaleString()}
+          delta={`+${newVocab7d} 近7日`}
           tone="green"
         />
         <StatCard
@@ -185,7 +191,7 @@ export default function AdminStatsPage() {
       {/* Trend chart */}
       <SectionCard
         title="平台趋势"
-        description="注册、口语练习与活跃用户"
+        description="注册、新增词汇与活跃用户（按观看记录）"
         actions={
           <div className="flex rounded-md border border-hairline bg-canvas p-0.5">
             {([7, 30] as const).map((r) => (
@@ -215,7 +221,7 @@ export default function AdminStatsPage() {
                 <stop offset="5%" stopColor="#ff5a1f" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#ff5a1f" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="gSpeaking" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="gVocab" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#5db8a6" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#5db8a6" stopOpacity={0} />
               </linearGradient>
@@ -246,11 +252,11 @@ export default function AdminStatsPage() {
             />
             <Area
               type="monotone"
-              dataKey="speaking"
+              dataKey="vocabulary"
               stroke="#5db8a6"
               strokeWidth={2}
-              fill="url(#gSpeaking)"
-              name="口语练习"
+              fill="url(#gVocab)"
+              name="新增词汇"
             />
             <Area
               type="monotone"

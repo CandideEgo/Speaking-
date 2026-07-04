@@ -9,6 +9,7 @@
 import { adminApi } from "@/lib/adminApi";
 import type {
   AdminComment,
+  AdminOrder,
   AdminPost,
   AdminStats,
   AdminUser,
@@ -380,6 +381,25 @@ export async function recomputeWordLevels(
       method: "POST",
       body: JSON.stringify(subtitleIds ? { subtitle_ids: subtitleIds } : {}),
     },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+export function listOrders(
+  opts: {
+    page?: number;
+    page_size?: number;
+  } = {},
+): Promise<Paginated<AdminOrder>> {
+  const params = new URLSearchParams();
+  if (opts.page) params.set("page", String(opts.page));
+  if (opts.page_size) params.set("page_size", String(opts.page_size));
+  const qs = params.toString();
+  return adminApi<Paginated<AdminOrder>>(
+    `/api/v1/admin/orders${qs ? `?${qs}` : ""}`,
   );
 }
 

@@ -345,7 +345,6 @@ function UserDetailRow({
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="grid grid-cols-2 gap-3 text-xs">
-        <Stat label="口语练习次数" value={user.speaking_attempts} />
         <Stat label="观看视频数" value={user.videos_watched} />
         <Stat label="发帖数" value={user.posts_count} />
         <Stat label="等级" value={user.level || "-"} />

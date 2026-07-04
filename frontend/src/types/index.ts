@@ -264,7 +264,6 @@ export interface InviteCode {
 export interface AdminUser extends User {
   is_banned: boolean;
   last_active_at: string | null;
-  speaking_attempts: number;
   videos_watched: number;
   posts_count: number;
 }
@@ -315,16 +314,11 @@ export interface CommentReport {
 export interface AdminStatsTrend {
   dates: string[];
   signups: number[];
-  speaking_attempts: number[];
+  vocabulary: number[];
   active_users: number[];
 }
 
-export type RecentActivityType =
-  | "signup"
-  | "speaking"
-  | "post"
-  | "report"
-  | "payment";
+export type RecentActivityType = "signup" | "post" | "report" | "payment";
 
 export interface RecentActivity {
   id: string;
@@ -339,7 +333,7 @@ export interface AdminStats {
   pro_users: number;
   total_videos: number;
   videos_ready: number;
-  total_speaking_attempts: number;
+  total_vocabulary: number;
   total_posts: number;
   pending_reports: number;
   active_users_today: number;
@@ -348,6 +342,20 @@ export interface AdminStats {
   videos_by_status: { status: string; count: number }[];
   users_by_plan: { plan: string; count: number }[];
   recent_activity: RecentActivity[];
+}
+
+/** Admin order row — mirrors AdminOrderResponse (backend/app/schemas/admin.py). */
+export interface AdminOrder {
+  id: string;
+  order_number: string;
+  user_id: string;
+  user_email: string | null;
+  plan: string;
+  /** Amount in fen (cents). Display as ¥{amount/100}. */
+  amount: number;
+  status: string;
+  paid_at: string | null;
+  created_at: string;
 }
 
 /* ── Profile ── */

@@ -47,7 +47,7 @@ def _dt(v: object) -> str:
 class AdminStatsTrendResponse(BaseModel):
     dates: list[str]
     signups: list[int]
-    speaking_attempts: list[int]
+    vocabulary: list[int]
     active_users: list[int]
 
 
@@ -57,7 +57,7 @@ class AdminStatsResponse(BaseModel):
     pro_users: int
     total_videos: int
     videos_ready: int
-    total_speaking_attempts: int
+    total_vocabulary: int
     total_posts: int
     pending_reports: int
     active_users_today: int
@@ -82,8 +82,9 @@ class AdminUserResponse(BaseModel):
     is_banned: bool
     created_at: str
     last_active_at: str | None = None
-    # Aggregated counts (computed in service layer, not DB columns)
-    speaking_attempts: int = 0
+    # Aggregated counts (computed in service layer, not DB columns).
+    # speaking_attempts intentionally omitted — AI speaking scoring removed
+    # (ADR-0002/0003); the SpeakingAttempt table is frozen.
     videos_watched: int = 0
     posts_count: int = 0
 

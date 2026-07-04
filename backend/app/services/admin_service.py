@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import _to_aware_utc
 from app.core.database import commit_refresh
 from app.models.community import CommentReport, Post, UserComment
-from app.models.learning import LearningRecord, SpeakingAttempt
+from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
@@ -52,7 +52,9 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     videos_ready = (
         await db.execute(select(func.count(Video.id)).where(Video.status == VideoStatus.ready))
     ).scalar_one()
-    total_speaking_attempts = (await db.execute(select(func.count(SpeakingAttempt.id)))).scalar_one()
+    # Vocabulary KPI — replaces the frozen speaking_attempts count (ADR-0003):
+    # speaking progress tracking is gone; vocabulary is the active learning metric.
+    total_vocabulary = (await db.execute(select(func.count(Vocabulary.id)))).scalar_one()
     total_posts = (await db.execute(select(func.count(Post.id)))).scalar_one()
     pending_reports = (
         await db.execute(select(func.count(CommentReport.id)).where(CommentReport.status == "pending"))
@@ -76,17 +78,18 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     ).all()
     signup_map = {r.d: r.c for r in signup_rows}
 
-    # Speaking attempts trend: count per day directly from SpeakingAttempt
-    # (frozen table — AI scoring removed per ADR-0002, so this is historical only).
-    speaking_rows = (
+    # Vocabulary trend: new words added per day (SM-2 vocabulary table). Replaces
+    # the frozen speaking_attempts trend (ADR-0003) — vocabulary is the active
+    # learning metric now that AI speaking scoring is removed.
+    vocab_rows = (
         await db.execute(
-            select(func.date(SpeakingAttempt.created_at).label("d"), func.count(SpeakingAttempt.id).label("c"))
-            .where(SpeakingAttempt.created_at >= ago_nd)
-            .group_by(func.date(SpeakingAttempt.created_at))
-            .order_by(func.date(SpeakingAttempt.created_at))
+            select(func.date(Vocabulary.created_at).label("d"), func.count(Vocabulary.id).label("c"))
+            .where(Vocabulary.created_at >= ago_nd)
+            .group_by(func.date(Vocabulary.created_at))
+            .order_by(func.date(Vocabulary.created_at))
         )
     ).all()
-    speaking_map = {r.d: r.c or 0 for r in speaking_rows}
+    vocab_map = {r.d: r.c or 0 for r in vocab_rows}
 
     # Active users trend: distinct users whose LearningRecord was last accessed
     # per day (real watch activity — DailyActivity snapshots are gone with the
@@ -106,13 +109,13 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
 
     dates_list: list[str] = []
     signups_list: list[int] = []
-    speaking_list: list[int] = []
+    vocab_list: list[int] = []
     active_list: list[int] = []
     for i in range(days - 1, -1, -1):
         d = (now - timedelta(days=i)).date()
         dates_list.append(d.isoformat())
         signups_list.append(signup_map.get(d, 0))
-        speaking_list.append(speaking_map.get(d, 0))
+        vocab_list.append(vocab_map.get(d, 0))
         active_list.append(active_map.get(d, 0))
 
     # --- Distributions ---
@@ -136,24 +139,9 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
             }
         )
 
-    # Speaking attempts
-    for sa in (
-        await db.execute(
-            select(SpeakingAttempt, User.name, User.email)
-            .join(User, SpeakingAttempt.user_id == User.id)
-            .order_by(SpeakingAttempt.created_at.desc())
-            .limit(8)
-        )
-    ).all():
-        attempt, name, email = sa
-        recent.append(
-            {
-                "id": f"speaking-{attempt.id}",
-                "type": "speaking",
-                "summary": f"{name or email} 完成口语评测",
-                "created_at": _dt_iso(attempt.created_at),
-            }
-        )
+    # (Speaking-attempts activity source removed per ADR-0003 — AI speaking
+    # scoring is gone, so "完成口语评测" entries would only ever describe a
+    # dead feature. The frozen SpeakingAttempt table is no longer surfaced.)
 
     # Posts
     for p in (
@@ -229,7 +217,7 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         "pro_users": pro_users,
         "total_videos": total_videos,
         "videos_ready": videos_ready,
-        "total_speaking_attempts": total_speaking_attempts,
+        "total_vocabulary": total_vocabulary,
         "total_posts": total_posts,
         "pending_reports": pending_reports,
         "active_users_today": active_users_today,
@@ -237,7 +225,7 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         "trend": {
             "dates": dates_list,
             "signups": signups_list,
-            "speaking_attempts": speaking_list,
+            "vocabulary": vocab_list,
             "active_users": active_list,
         },
         "videos_by_status": videos_by_status,
@@ -261,13 +249,10 @@ async def list_admin_users(
 ) -> dict:
     """List users with aggregated stats, filtered by role/plan/keyword."""
 
-    # Subqueries for aggregated counts
-    sa_count = (
-        select(func.count(SpeakingAttempt.id))
-        .where(SpeakingAttempt.user_id == User.id)
-        .correlate(User)
-        .scalar_subquery()
-    )
+    # Subqueries for aggregated counts.
+    # Note: speaking_attempts is intentionally omitted — AI speaking scoring was
+    # removed (ADR-0002/0003) and the SpeakingAttempt table is frozen, so a
+    # per-user speaking count is dead data.
     vw_count = (
         select(func.count(LearningRecord.id)).where(LearningRecord.user_id == User.id).correlate(User).scalar_subquery()
     )
@@ -275,7 +260,6 @@ async def list_admin_users(
 
     stmt = select(
         User,
-        sa_count.label("speaking_attempts"),
         vw_count.label("videos_watched"),
         posts_count.label("posts_count"),
     )
@@ -338,9 +322,8 @@ async def list_admin_users(
                 "is_banned": user.is_banned,
                 "created_at": _dt_iso(user.created_at),
                 "last_active_at": _dt_iso(user.last_active_at),
-                "speaking_attempts": row[1] or 0,
-                "videos_watched": int(row[2] or 0),
-                "posts_count": row[3] or 0,
+                "videos_watched": int(row[1] or 0),
+                "posts_count": row[2] or 0,
             }
         )
 
