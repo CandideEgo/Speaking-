@@ -3,9 +3,16 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
-import { ArrowLeft, SearchIcon, Loader2, FileSearch, Subtitles } from "lucide-react";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
+import { Button } from "@/components/ui/Button";
+import {
+  ArrowLeft,
+  SearchIcon,
+  Loader2,
+  FileSearch,
+  Subtitles,
+} from "lucide-react";
 
 // --- Types (mirrored from SearchDropdown) ---
 
@@ -33,23 +40,11 @@ interface SubtitleSearchResult {
 
 // --- Helpers ---
 
-function DifficultyBadge({ level }: { level: string | null }) {
-  if (!level) return null;
-  const colors: Record<string, string> = {
-    A1: "bg-green-100 text-green-700",
-    A2: "bg-green-100 text-green-700",
-    B1: "bg-blue-100 text-blue-700",
-    B2: "bg-amber-100 text-amber-700",
-    C1: "bg-red-100 text-red-700",
-    C2: "bg-red-100 text-red-700",
-  };
-  return (
-    <span
-      className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${colors[level] || "bg-gray-100 text-gray-600"}`}
-    >
-      {level}
-    </span>
-  );
+function difficultyTone(level: string): BadgeTone {
+  if (level === "A1" || level === "A2") return "green";
+  if (level === "B1" || level === "B2") return "amber";
+  if (level === "C1" || level === "C2") return "red";
+  return "neutral";
 }
 
 function formatTime(seconds: number): string {
@@ -64,7 +59,9 @@ export default function SearchPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [videoResults, setVideoResults] = useState<SearchResultItem[]>([]);
-  const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
+  const [subtitleResults, setSubtitleResults] = useState<
+    SubtitleSearchResult[]
+  >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -87,10 +84,10 @@ export default function SearchPage() {
     try {
       const [vResults, sResults] = await Promise.all([
         api<SearchResultItem[]>(
-          `/api/v1/videos/search?q=${encodeURIComponent(searchQuery)}&limit=10`
+          `/api/v1/videos/search?q=${encodeURIComponent(searchQuery)}&limit=10`,
         ),
         api<SubtitleSearchResult[]>(
-          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(searchQuery)}&limit=5`
+          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(searchQuery)}&limit=5`,
         ).catch(() => [] as SubtitleSearchResult[]),
       ]);
       setVideoResults(vResults);
@@ -121,7 +118,7 @@ export default function SearchPage() {
         performSearch(value);
       }, 300);
     },
-    [performSearch]
+    [performSearch],
   );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -151,13 +148,14 @@ export default function SearchPage() {
       {/* Search header */}
       <div className="sticky top-0 z-30 bg-canvas border-b border-hairline">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => router.back()}
-            className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-cream-soft transition-colors shrink-0"
             aria-label="返回"
           >
-            <ArrowLeft size={20} className="text-ink/70" />
-          </button>
+            <ArrowLeft size={20} />
+          </Button>
           <div className="flex-1 relative">
             <input
               ref={inputRef}
@@ -190,7 +188,9 @@ export default function SearchPage() {
         {!isSearching && hasSearched && !hasAnyResults && (
           <div className="flex flex-col items-center gap-2 py-12">
             <FileSearch className="h-10 w-10 text-muted-foreground/40" />
-            <span className="text-sm text-muted-foreground">没有找到相关视频</span>
+            <span className="text-sm text-muted-foreground">
+              没有找到相关视频
+            </span>
           </div>
         )}
 
@@ -198,7 +198,9 @@ export default function SearchPage() {
         {!hasSearched && !isSearching && (
           <div className="flex flex-col items-center gap-2 py-12">
             <SearchIcon className="h-10 w-10 text-muted-foreground/30" />
-            <span className="text-sm text-muted-foreground">输入关键词搜索视频或字幕</span>
+            <span className="text-sm text-muted-foreground">
+              输入关键词搜索视频或字幕
+            </span>
           </div>
         )}
 
@@ -224,9 +226,15 @@ export default function SearchPage() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink line-clamp-2">{video.title}</p>
+                      <p className="text-sm font-medium text-ink line-clamp-2">
+                        {video.title}
+                      </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <DifficultyBadge level={video.difficulty_level} />
+                        {video.difficulty_level && (
+                          <Badge tone={difficultyTone(video.difficulty_level)}>
+                            {video.difficulty_level}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -238,7 +246,11 @@ export default function SearchPage() {
 
         {/* Subtitle results */}
         {hasSubtitleResults && (
-          <div className={hasVideoResults ? "mt-4 pt-4 border-t border-hairline" : ""}>
+          <div
+            className={
+              hasVideoResults ? "mt-4 pt-4 border-t border-hairline" : ""
+            }
+          >
             <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
               <Subtitles size={12} />
               字幕匹配
@@ -250,7 +262,9 @@ export default function SearchPage() {
                     <button
                       key={sub.id}
                       className="w-full flex items-start gap-3 px-2 py-2.5 hover:bg-cream-soft rounded-lg transition-colors text-left"
-                      onClick={() => handleVideoClick(result.video.id, sub.start_time)}
+                      onClick={() =>
+                        handleVideoClick(result.video.id, sub.start_time)
+                      }
                     >
                       <div className="flex-shrink-0 w-20 h-10 rounded overflow-hidden mt-0.5">
                         <VideoThumbnail

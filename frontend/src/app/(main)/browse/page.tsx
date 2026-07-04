@@ -36,7 +36,7 @@ export default function BrowsePage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-16 sm:py-24">
+      <main className="container-page py-6 sm:py-12">
         {/* Page header */}
         <PageHeader
           crumb="发现"
