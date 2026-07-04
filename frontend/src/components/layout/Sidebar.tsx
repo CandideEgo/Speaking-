@@ -17,6 +17,7 @@ import {
   Upload,
   User,
   LogOut,
+  History,
 } from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { useAuthStore } from "@/stores/authStore";
@@ -48,7 +49,10 @@ const navigation: NavSection[] = [
   },
   {
     title: "学习",
-    items: [{ label: "词汇本", href: "/vocabulary", icon: BookOpen }],
+    items: [
+      { label: "词汇本", href: "/vocabulary", icon: BookOpen },
+      { label: "学习记录", href: "/history", icon: History },
+    ],
   },
   {
     title: "创作",
@@ -181,6 +185,25 @@ function SidebarNavContent({
           </Link>
         )}
         {!collapsed && <ComplianceInfo className="mt-2.5 text-center" />}
+        {!collapsed && (
+          <div className="mt-2 flex items-center justify-center gap-3 text-[11px] text-muted-soft">
+            <Link
+              href="/terms"
+              onClick={onNavClick}
+              className="hover:text-ink transition-colors"
+            >
+              用户协议
+            </Link>
+            <span aria-hidden>·</span>
+            <Link
+              href="/privacy"
+              onClick={onNavClick}
+              className="hover:text-ink transition-colors"
+            >
+              隐私政策
+            </Link>
+          </div>
+        )}
         {/* Logout */}
         <button
           onClick={() => {

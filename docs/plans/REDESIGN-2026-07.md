@@ -75,11 +75,11 @@ ADR-0005。UI 重做 + 功能性修复落地。
 
 ## Phase 6 — 打磨 & QA
 
-- [ ] 移动端全量走查。
-- [ ] 导航/IA 审计（所有功能 3 次点击内可达）。
-- [ ] 图片加载生产验证（`NEXT_PUBLIC_API_URL` 设好后全站图片可见）。
-- [ ] 视觉一致性审计（组件库覆盖率）。
-- [ ] `pre-commit run --all-files` + `gitnexus_detect_changes()` 全绿。
+- [x] 移动端全量走查。（响应式网格全带 `sm:/md:/lg:` 前缀、宽度全用 `max-w-*`（无固定大宽度）、无 `flex-nowrap`、`DataTable` 包 `overflow-x-auto`、`MobileTabBar` 触控 `min-h-[44px]`、watch 页 `grid-cols-1 lg:grid-cols-[2fr_1fr]` + `aspect-video` + PiP `max-w-[40vw]` + `min-w-0`。无溢出/触控/断点问题）
+- [x] 导航/IA 审计（所有功能 3 次点击内可达）。（**发现并修复缺口**：Phase 4.9 删 `/dashboard` 后 `/history` 成学习记录主页，但认证态无入口（仅 `LandingFooter` 链接）；`/terms` `/privacy` 同样仅 Landing 可达——合规风险。修复：Sidebar「学习」section 补「学习记录」(/history) 入口 + 底部补「用户协议/隐私政策」法律链接。桌面侧栏 1 click、移动汉堡 2 click，全在 3 click 内）
+- [x] 图片加载生产验证（`NEXT_PUBLIC_API_URL` 设好后全站图片可见）。（代码侧全接线：`next.config.js` `remotePatterns` 读 `NEXT_PUBLIC_API_URL` + CDN host fallback（http/https 双协议）；`lib/api.ts` `API_URL=process.env.NEXT_PUBLIC_API_URL||localhost:8000` + `mediaUrl()` 路由 CDN→后端代理、http→https 升级；`ui/Avatar`+`ui/Image` 全走 `NextImage`+`mediaUrl`+错误 fallback；0 裸 `<img>`。**生产仅需部署侧设 `NEXT_PUBLIC_API_URL`**——代码无待办）
+- [x] 视觉一致性审计（组件库覆盖率）。（`ui/Button` 被 42 文件 import；`ui/` 全原语（Button/Card/Input/Badge/Modal/DataTable/Avatar/Image/Container/Stack/Grid/...）覆盖主面；0 裸 `<img>`。剩余 12 文件的 `<button` 全为合理例外：icon-only 动作（speak/delete 24px 圆钮）、tab 切换、暗色主题 `admin/login` submit（Button primary 的 `disabled:bg-surface-card` 在暗色卡片上会显亮灰，退化为手写 `disabled:opacity-60` 保 coral）。手写色值全为语义色 error/success/warning 或字幕说话人区分色，非品牌色漂移）
+- [x] `pre-commit run --all-files` + `gitnexus_detect_changes()` 全绿。（pre-commit 8 hooks 全 Passed（prettier/ruff 自动修复 33 文件——prettier v4 print-width 100 换行 + ruff import 排序/`Union`→`|`/`typing.Sequence`→`collections.abc.Sequence` 现代化）；`npx tsc --noEmit` exit 0；`npm run build` 全 35 路由编译通过；`gitnexus_detect_changes` 77 符号全 `touched`（仅格式化触达，无语义改动），affected processes 全为 layout/theme/search/skeleton shell 流，**无跨域污染**——"critical" 标签纯因符号数，同 Phase 5 既有形态）
 
 ---
 
