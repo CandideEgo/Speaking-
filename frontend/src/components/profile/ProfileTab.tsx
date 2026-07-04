@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { Camera, Mail } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Avatar } from "@/components/ui/Avatar";
 import { api, isProUser } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import type { User } from "@/types";
 
 interface ProfileTabProps {
@@ -18,8 +20,16 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
   const [level, setLevel] = useState(user.level || "");
-  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
   const [saving, setSaving] = useState(false);
+
+  // Avatar upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Email binding (for phone-only accounts)
+  const [bindEmail, setBindEmail] = useState("");
+  const [bindPassword, setBindPassword] = useState("");
+  const [binding, setBinding] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -30,7 +40,6 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
           name: name || null,
           bio: bio || null,
           level: level || null,
-          avatar_url: avatarUrl || null,
         }),
       });
       onUpdate(updated);
@@ -39,6 +48,46 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       toast.error("保存失败");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const updated = await api<User>("/api/v1/users/me/avatar", {
+        method: "POST",
+        body: form,
+      });
+      onUpdate(updated);
+      toast.success("头像已更新");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "头像上传失败"));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleBindEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setBinding(true);
+    try {
+      const updated = await api<User>("/api/v1/users/me/bind-email", {
+        method: "POST",
+        body: JSON.stringify({ email: bindEmail, password: bindPassword }),
+      });
+      onUpdate(updated);
+      setBindEmail("");
+      setBindPassword("");
+      toast.success("邮箱已绑定，验证邮件已发送");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "绑定失败"));
+    } finally {
+      setBinding(false);
     }
   }
 
@@ -51,22 +100,32 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">头像</label>
         <div className="flex items-center gap-4">
           <Avatar
-            src={avatarUrl}
+            src={user.avatar_url}
             name={user}
             seed={user.id}
             size="xl"
             className="w-20 h-20 text-2xl border border-hairline"
           />
-          <div className="flex-1">
-            <Input
-              type="url"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="输入头像图片 URL"
-              className="w-full"
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleAvatarChange}
+              className="hidden"
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              支持任意图片链接
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              icon={Camera}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? "上传中..." : "上传头像"}
+            </Button>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              支持 JPG/PNG/WebP/GIF，最大 5MB
             </p>
           </div>
         </div>
@@ -120,11 +179,51 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </Select>
       </div>
 
-      {/* Email (read-only) */}
+      {/* Email — bound or bindable */}
       <div>
         <label className="block text-sm font-medium text-ink mb-2">邮箱</label>
-        <p className="text-sm text-muted-foreground">{user.email}</p>
+        {user.email ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Mail size={14} />
+            <span>{user.email}</span>
+          </div>
+        ) : (
+          <form onSubmit={handleBindEmail} className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              绑定邮箱后可用手机号或邮箱登录（同一密码）。
+            </p>
+            <Input
+              type="email"
+              value={bindEmail}
+              onChange={(e) => setBindEmail(e.target.value)}
+              placeholder="邮箱地址"
+              required
+              className="w-full"
+            />
+            <Input
+              type="password"
+              value={bindPassword}
+              onChange={(e) => setBindPassword(e.target.value)}
+              placeholder="当前密码（用于验证身份）"
+              required
+              className="w-full"
+            />
+            <Button type="submit" variant="outline" disabled={binding}>
+              {binding ? "绑定中..." : "绑定邮箱"}
+            </Button>
+          </form>
+        )}
       </div>
+
+      {/* Phone (read-only) */}
+      {user.phone && (
+        <div>
+          <label className="block text-sm font-medium text-ink mb-2">
+            手机号
+          </label>
+          <p className="text-sm text-muted-foreground">{user.phone}</p>
+        </div>
+      )}
 
       {/* Plan */}
       <div>

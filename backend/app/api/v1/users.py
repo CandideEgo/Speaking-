@@ -1,11 +1,19 @@
-from fastapi import APIRouter, Depends, Query, Request
+import uuid
+from pathlib import Path
+
+import structlog
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.core.config import get_settings
 from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
+from app.core.security import verify_password
 from app.models.user import User
 from app.schemas.user import (
+    BindEmailRequest,
     MessageResponse,
     OnboardingRequest,
     UserPreferencesResponse,
@@ -14,8 +22,20 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.activity_service import get_activity_calendar, get_streak_info, get_user_stats
+from app.services.email_service import send_verification_email
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+# Avatar upload constraints.
+_AVATAR_MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+_AVATAR_ALLOWED_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -43,6 +63,75 @@ async def update_me(
     if data.timezone is not None:
         current_user.timezone = data.timezone
     await commit_refresh(db, current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/me/avatar", response_model=UserResponse)
+@rate_limit("10/minute")
+async def upload_avatar(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    """Upload an avatar image (JPG/PNG/WebP/GIF, ≤5MB).
+
+    Stored locally under ``/media/avatars/`` and served via the existing
+    ``GET /api/v1/media/{path}`` handler; the relative path is stored on
+    ``user.avatar_url`` so the frontend ``mediaUrl()`` resolves it against
+    ``API_URL``.
+    """
+    ext = _AVATAR_ALLOWED_TYPES.get(file.content_type or "")
+    if ext is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持 JPG/PNG/WebP/GIF 图片",
+        )
+    contents = await file.read()
+    if len(contents) > _AVATAR_MAX_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片过大，最大 5MB",
+        )
+    settings = get_settings()
+    avatar_dir = Path(settings.local_media_path) / "avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4()}{ext}"
+    (avatar_dir / filename).write_bytes(contents)
+    current_user.avatar_url = f"/media/avatars/{filename}"
+    await commit_refresh(db, current_user)
+    logger.info("avatar_uploaded", user_id=current_user.id)
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/me/bind-email", response_model=UserResponse)
+@rate_limit("5/minute")
+async def bind_email(
+    request: Request,
+    data: BindEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bind an email to the current account (phone-only users), so they can also
+    log in with email + the same password. Requires the current password; the
+    email must not be bound to another account. Sends a verification email
+    after binding (best-effort — non-blocking on failure).
+    """
+    if not current_user.hashed_password or not verify_password(data.password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="密码错误")
+    existing = await db.execute(select(User).where(User.email == data.email))
+    other = existing.scalar_one_or_none()
+    if other is not None and other.id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该邮箱已被其他账号绑定")
+    current_user.email = data.email
+    current_user.email_verified_at = None  # require re-verification
+    await commit_refresh(db, current_user)
+    try:
+        await send_verification_email(user_id=current_user.id, email=current_user.email, name=current_user.name)
+    except Exception:
+        # Verification email is best-effort; the email is bound regardless.
+        logger.warning("bind_email_verification_send_failed", user_id=current_user.id)
+    logger.info("email_bound", user_id=current_user.id)
     return UserResponse.model_validate(current_user)
 
 

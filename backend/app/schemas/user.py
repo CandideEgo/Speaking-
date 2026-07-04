@@ -84,6 +84,14 @@ class UserUpdate(BaseModel):
         return v.upper() if v else v
 
 
+class BindEmailRequest(BaseModel):
+    """Bind an email to a phone-only account (so the user can log in with email
+    as well as phone, using the same password). Requires the current password."""
+
+    email: EmailStr
+    password: str
+
+
 class UserResponse(BaseModel):
     id: str
     email: str | None = None

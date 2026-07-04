@@ -228,7 +228,7 @@ export default function AdminUsersPage() {
                   <ChevronRight size={12} className="text-muted-foreground" />
                 )}
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
-                  {(u.name || u.email).slice(0, 1).toUpperCase()}
+                  {(u.name || u.email || "U").slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0">
                   <div className="font-medium text-ink truncate max-w-[160px]">
