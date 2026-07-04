@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { Loader2, Link2, Upload } from "lucide-react";
 import { seedFromUrlFull, getMyVideoStatus } from "@/lib/creatorData";
+import { PROCESSING_STATUS_CONFIG, STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/common/Modal";
@@ -67,8 +68,8 @@ export function LinkUploadDialog({
           const st = await getMyVideoStatus(video.id);
           setProgressText(
             st.processing_step
-              ? `${st.processing_step}（${st.processing_progress ?? 0}%）`
-              : st.status,
+              ? `${STEP_LABELS_SHORT[st.processing_step] ?? st.processing_step}（${st.processing_progress ?? 0}%）`
+              : (PROCESSING_STATUS_CONFIG[st.status]?.label ?? st.status),
           );
           if (st.status === "ready") {
             if (pollRef.current) clearInterval(pollRef.current);

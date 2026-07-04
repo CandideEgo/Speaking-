@@ -43,6 +43,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { Select } from "@/components/ui/Select";
 import { TabPills } from "@/components/ui/TabPills";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
 import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
@@ -401,18 +402,14 @@ function ReviewBadge({
       </span>
     );
   }
-  const map: Record<string, { label: string; cls: string }> = {
-    draft: { label: "草稿", cls: "bg-surface-card text-muted-foreground" },
-    pending_review: { label: "待审核", cls: "bg-warning-soft text-warning" },
-    published: { label: "已发布", cls: "bg-success-soft text-success" },
-    rejected: { label: "已驳回", cls: "bg-red-soft text-red" },
+  const map: Record<string, { label: string; tone: BadgeTone }> = {
+    draft: { label: "草稿", tone: "neutral" },
+    pending_review: { label: "待审核", tone: "amber" },
+    published: { label: "已发布", tone: "green" },
+    rejected: { label: "已驳回", tone: "red" },
   };
   const m = map[status] ?? map.draft;
-  return (
-    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-pill ${m.cls}`}>
-      {m.label}
-    </span>
-  );
+  return <Badge tone={m.tone}>{m.label}</Badge>;
 }
 
 // ---------------------------------------------------------------------------
