@@ -12,10 +12,12 @@ import {
   CheckCircle2,
   Flame,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Button, type ButtonVariant } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -50,25 +52,27 @@ interface VocabStatsResponse {
   due_count: number;
 }
 
-const QUALITY_BUTTONS = [
-  { value: 0, label: "Forgot", color: "bg-red-500 hover:bg-red-600" },
-  { value: 1, label: "Hard", color: "bg-orange-500 hover:bg-orange-600" },
-  { value: 2, label: "Difficult", color: "bg-amber-500 hover:bg-amber-600" },
-  { value: 3, label: "OK", color: "bg-lime-600 hover:bg-lime-700" },
-  { value: 4, label: "Easy", color: "bg-green-600 hover:bg-green-700" },
-  { value: 5, label: "Perfect", color: "bg-emerald-600 hover:bg-emerald-700" },
+// SM-2 review quality buttons, grouped into 3 visual tiers (fail / neutral / pass).
+const QUALITY_BUTTONS: {
+  value: number;
+  label: string;
+  variant: ButtonVariant;
+}[] = [
+  { value: 0, label: "Forgot", variant: "destructive" },
+  { value: 1, label: "Hard", variant: "outline" },
+  { value: 2, label: "Difficult", variant: "outline" },
+  { value: 3, label: "OK", variant: "primary" },
+  { value: 4, label: "Easy", variant: "primary" },
+  { value: 5, label: "Perfect", variant: "primary" },
 ];
 
-function getLevelBadge(level: string | null | undefined) {
-  if (!level) return { text: "待复习", cls: "bg-brand-50 text-brand-500" };
-  switch (level) {
-    case "mastered":
-      return { text: "已掌握", cls: "bg-success-soft text-success" };
-    case "learning":
-      return { text: "学习中", cls: "bg-warning-soft text-warning" };
-    default:
-      return { text: "待复习", cls: "bg-brand-50 text-brand-500" };
-  }
+function masteryBadge(level: string | null | undefined): {
+  tone: BadgeTone;
+  text: string;
+} {
+  if (level === "mastered") return { tone: "green", text: "已掌握" };
+  if (level === "learning") return { tone: "amber", text: "学习中" };
+  return { tone: "brand", text: "待复习" };
 }
 
 export default function VocabularyPage() {
@@ -204,16 +208,14 @@ export default function VocabularyPage() {
             </div>
             <div className="flex gap-2 flex-wrap">
               {QUALITY_BUTTONS.map((q) => (
-                <button
+                <Button
                   key={q.value}
+                  variant={q.variant}
+                  size="sm"
                   onClick={() => handleReview(nextDueWord.id, q.value)}
-                  className={cn(
-                    "px-4 py-2 rounded-sm text-[13px] font-semibold text-white transition-all duration-150 hover:-translate-y-px hover:brightness-110",
-                    q.color,
-                  )}
                 >
                   {q.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -252,11 +254,13 @@ export default function VocabularyPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {words.map((w) => {
-              const badge = getLevelBadge(w.mastery_level);
+              const mb = masteryBadge(w.mastery_level);
               return (
-                <div
+                <Card
                   key={w.id}
-                  className="flex flex-col gap-3 bg-canvas border border-hairline rounded-lg px-5 py-[18px] hover:border-ink hover:shadow-soft transition-all duration-150"
+                  variant="outline"
+                  padding={5}
+                  className="flex flex-col gap-3"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
@@ -284,14 +288,7 @@ export default function VocabularyPage() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <span
-                        className={cn(
-                          "text-[11px] font-bold px-2.5 py-[3px] rounded-pill",
-                          badge.cls,
-                        )}
-                      >
-                        {badge.text}
-                      </span>
+                      <Badge tone={mb.tone}>{mb.text}</Badge>
                       <button
                         onClick={() => setDeleteTarget(w)}
                         className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-red-500 hover:text-white transition-colors duration-100 cursor-pointer"
@@ -304,23 +301,19 @@ export default function VocabularyPage() {
 
                   {/* Inline review controls */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-hairline">
-                    <span className="text-[11px] text-muted mr-1">
-                      评分复习：
-                    </span>
+                    <span className="text-xs text-muted mr-1">评分复习：</span>
                     {QUALITY_BUTTONS.map((q) => (
-                      <button
+                      <Button
                         key={q.value}
+                        variant={q.variant}
+                        size="sm"
                         onClick={() => handleReview(w.id, q.value)}
-                        className={cn(
-                          "px-2 py-1 rounded-sm text-[11px] font-semibold text-white transition-all duration-150 hover:-translate-y-px hover:brightness-110",
-                          q.color,
-                        )}
                       >
                         {q.label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
