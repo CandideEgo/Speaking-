@@ -8,16 +8,18 @@ Adds ``is_featured`` (admin-curated highlight, default false) and
 ``admin_notes`` (freeform admin-only annotation) to the ``videos`` table to
 support the admin video content-management panel.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
+from typing import Union
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
 revision: str = "c3d4e5f6g7h8"
-down_revision: Union[str, None] = "b2d3f4g5h6i7"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "b2d3f4g5h6i7"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -28,12 +28,12 @@ export function PageTransition({ children, className }: PageTransitionProps) {
             y: 0,
             duration: motionDuration(DURATIONS.pageEnter, reduceMotion),
             ease: EASES.smooth,
-          }
+          },
         );
       });
       return () => mm.revert();
     },
-    { scope: ref }
+    { scope: ref },
   );
 
   // CSS fallback: if GSAP fails to run, the page still becomes visible

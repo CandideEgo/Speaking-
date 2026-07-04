@@ -32,7 +32,12 @@ export function TimelineItem({
   return (
     <div className={cn("flex gap-3.5 items-start", className)}>
       <div className="flex flex-col items-center flex-shrink-0">
-        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[13px]", dotColor)}>
+        <div
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center text-[13px]",
+            dotColor,
+          )}
+        >
           {dot}
         </div>
         {!isLast && <div className="w-0.5 flex-1 bg-hairline min-h-6 my-1" />}

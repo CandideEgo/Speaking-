@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function BrowseLayout({ children }: { children: React.ReactNode }) {
+export default function BrowseLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return children;
 }

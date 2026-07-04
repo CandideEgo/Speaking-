@@ -13,16 +13,18 @@ were stamped to head without ever physically receiving the column. This makes
 the schema match the model so queries that select ``videos.comment_count`` (e.g.
 the homepage "continue learning" join) stop raising UndefinedColumnError.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
+from typing import Union
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
 revision: str = "d4e5f6g7h8i9"
-down_revision: Union[str, None] = "c3d4e5f6g7h8"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "c3d4e5f6g7h8"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

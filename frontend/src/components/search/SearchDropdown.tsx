@@ -132,7 +132,9 @@ export function SearchDropdown({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-ink line-clamp-1">{video.title}</p>
+                    <p className="text-sm font-medium text-ink line-clamp-1">
+                      {video.title}
+                    </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <DifficultyBadge level={video.difficulty_level} />
                     </div>

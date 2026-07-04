@@ -41,7 +41,7 @@ export function usePanelResize({
         const deltaPercent = (deltaX / window.innerWidth) * 100;
         const newWidth = Math.max(
           MIN_PANEL_WIDTH,
-          Math.min(MAX_PANEL_WIDTH, startWidth + deltaPercent)
+          Math.min(MAX_PANEL_WIDTH, startWidth + deltaPercent),
         );
         setLeftPanelWidth(newWidth);
       };
@@ -56,7 +56,7 @@ export function usePanelResize({
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     },
-    [leftPanelWidth, setLeftPanelWidth, onResizeStart, onResizeEnd]
+    [leftPanelWidth, setLeftPanelWidth, onResizeStart, onResizeEnd],
   );
 
   return { startResize };

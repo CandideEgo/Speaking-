@@ -133,7 +133,7 @@ export default function StatusBar({
               "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isLoopEnabled
                 ? "bg-coral/10 text-coral"
-                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft",
             )}
             title="连播"
             aria-label={isLoopEnabled ? "关闭连播" : "开启连播"}
@@ -149,7 +149,7 @@ export default function StatusBar({
               "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isCleanScreen
                 ? "bg-coral/10 text-coral"
-                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft",
             )}
             title="清屏"
             aria-label={isCleanScreen ? "退出清屏" : "清屏"}
@@ -165,7 +165,7 @@ export default function StatusBar({
               "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
               isSmartMode
                 ? "bg-coral/10 text-coral"
-                : "text-ink/60 hover:text-ink hover:bg-cream-soft"
+                : "text-ink/60 hover:text-ink hover:bg-cream-soft",
             )}
             title="智能"
             aria-label={isSmartMode ? "关闭智能模式" : "开启智能模式"}
@@ -182,7 +182,7 @@ export default function StatusBar({
                 "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors",
                 showSpeedMenu
                   ? "bg-coral/10 text-coral"
-                  : "text-ink/60 hover:text-ink hover:bg-cream-soft"
+                  : "text-ink/60 hover:text-ink hover:bg-cream-soft",
               )}
               title="倍速"
               aria-label={showSpeedMenu ? "关闭倍速选择" : "打开倍速选择"}
@@ -203,7 +203,7 @@ export default function StatusBar({
                       "w-full px-3 py-1.5 text-xs text-left transition-colors",
                       playbackRate === s
                         ? "bg-coral/10 text-coral font-medium"
-                        : "text-ink/70 hover:bg-cream-soft"
+                        : "text-ink/70 hover:bg-cream-soft",
                     )}
                   >
                     {s}x

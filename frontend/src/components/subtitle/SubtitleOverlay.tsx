@@ -41,7 +41,7 @@ export default function SubtitleOverlay({
                 }}
                 className={cn(
                   "cursor-pointer rounded hover:bg-white/20",
-                  selectedWord === clean && "bg-brand-500/40"
+                  selectedWord === clean && "bg-brand-500/40",
                 )}
               >
                 {word}{" "}
@@ -53,7 +53,9 @@ export default function SubtitleOverlay({
           <p className="text-slate-300 text-sm mt-1">{subtitle.text_zh}</p>
         )}
         {subtitle.grammar_note && (
-          <p className="text-amber-400 text-xs mt-1">Tip: {subtitle.grammar_note}</p>
+          <p className="text-amber-400 text-xs mt-1">
+            Tip: {subtitle.grammar_note}
+          </p>
         )}
         <button
           onClick={() => onStartSpeaking(subtitle.id)}

@@ -10,7 +10,11 @@ export const metadata: Metadata = {
   description: "粘贴视频链接，AI 生成双语字幕和口语练习，开口说英语。",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>

@@ -18,15 +18,19 @@ export const SkeletonCard = memo(function SkeletonCard({
     <div
       className={cn(
         "rounded-lg border overflow-hidden",
-        isDouyin ? "border-gray-200 bg-white" : "border-hairline-cream bg-parchment",
-        className
+        isDouyin
+          ? "border-gray-200 bg-white"
+          : "border-hairline-cream bg-parchment",
+        className,
       )}
     >
-      <div className={cn("relative", isDouyin ? "aspect-[9/16]" : "aspect-video")}>
+      <div
+        className={cn("relative", isDouyin ? "aspect-[9/16]" : "aspect-video")}
+      >
         <div
           className={cn(
             "absolute inset-0 skeleton-shimmer",
-            isDouyin ? "bg-gray-100" : "bg-cream-soft"
+            isDouyin ? "bg-gray-100" : "bg-cream-soft",
           )}
         />
       </div>
@@ -34,26 +38,26 @@ export const SkeletonCard = memo(function SkeletonCard({
         <div
           className={cn(
             "h-4 skeleton-shimmer rounded-sm w-[92%]",
-            isDouyin ? "bg-gray-100" : "bg-cream-soft"
+            isDouyin ? "bg-gray-100" : "bg-cream-soft",
           )}
         />
         <div
           className={cn(
             "h-4 skeleton-shimmer rounded-sm w-[70%]",
-            isDouyin ? "bg-gray-100" : "bg-cream-soft"
+            isDouyin ? "bg-gray-100" : "bg-cream-soft",
           )}
         />
         <div className="flex items-center gap-2 pt-1">
           <div
             className={cn(
               "h-5 skeleton-shimmer rounded-sm w-16",
-              isDouyin ? "bg-gray-100" : "bg-cream-soft"
+              isDouyin ? "bg-gray-100" : "bg-cream-soft",
             )}
           />
           <div
             className={cn(
               "h-5 skeleton-shimmer rounded-sm w-12",
-              isDouyin ? "bg-gray-100" : "bg-cream-soft"
+              isDouyin ? "bg-gray-100" : "bg-cream-soft",
             )}
           />
         </div>

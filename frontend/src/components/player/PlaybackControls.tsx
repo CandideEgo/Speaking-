@@ -4,7 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format";
 import type { Subtitle } from "@/types";
-import { SkipBack, SkipForward, Play, Pause, Volume2, VolumeX } from "lucide-react";
+import {
+  SkipBack,
+  SkipForward,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 interface PlaybackControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -98,7 +105,9 @@ export default function PlaybackControls({
         />
       </div>
 
-      <span className="text-xs text-white/40 font-mono min-w-[40px]">{formatTime(duration)}</span>
+      <span className="text-xs text-white/40 font-mono min-w-[40px]">
+        {formatTime(duration)}
+      </span>
 
       <button
         onClick={toggleMute}

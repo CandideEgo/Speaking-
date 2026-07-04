@@ -1,18 +1,19 @@
-from logging.config import fileConfig
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
-from alembic import context
 import asyncio
 import os
+from logging.config import fileConfig
+
+from alembic import context
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.database import Base
+from app.models.comment import VideoComment, VideoCommentStats
+from app.models.invite import InviteCode
+from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+from app.models.order import Order
+from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video
-from app.models.subtitle import Subtitle
-from app.models.invite import InviteCode
-from app.models.learning import SpeakingAttempt, LearningRecord, Vocabulary
-from app.models.order import Order
-from app.models.comment import VideoComment, VideoCommentStats
 
 config = context.config
 
@@ -22,6 +23,7 @@ if not database_url:
     # Fall back to app config if DATABASE_URL env var is not set directly
     try:
         from app.core.config import get_settings
+
         database_url = get_settings().database_url
     except Exception:
         pass
@@ -66,4 +68,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

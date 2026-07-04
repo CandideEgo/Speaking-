@@ -22,7 +22,11 @@ export default memo(function WordTooltip({
     <div className="fixed bottom-4 right-4 w-80 rounded-lg border border-white/10 bg-navy-elevated p-4 shadow-xl z-30">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-xl text-white">{word}</h3>
-        <button onClick={onClose} className="text-white/40 hover:text-white" aria-label="关闭">
+        <button
+          onClick={onClose}
+          className="text-white/40 hover:text-white"
+          aria-label="关闭"
+        >
           <X size={16} />
         </button>
       </div>

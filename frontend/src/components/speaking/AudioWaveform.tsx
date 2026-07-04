@@ -15,7 +15,11 @@ interface AudioWaveformProps {
  * Real-time audio waveform visualizer using Web Audio API AnalyserNode.
  * Renders a row of bars whose height reflects the current audio level.
  */
-export function AudioWaveform({ stream, color = "#e8614d", barCount = 32 }: AudioWaveformProps) {
+export function AudioWaveform({
+  stream,
+  color = "#e8614d",
+  barCount = 32,
+}: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
@@ -75,5 +79,7 @@ export function AudioWaveform({ stream, color = "#e8614d", barCount = 32 }: Audi
     };
   }, [stream, color, barCount]);
 
-  return <canvas ref={canvasRef} width={200} height={32} className="rounded-md" />;
+  return (
+    <canvas ref={canvasRef} width={200} height={32} className="rounded-md" />
+  );
 }
