@@ -191,7 +191,6 @@ export type PostType =
   | "text"
   | "progress_share"
   | "vocabulary_share"
-  | "speaking_share"
   | "video_share";
 
 export interface Post {

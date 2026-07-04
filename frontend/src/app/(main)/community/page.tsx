@@ -387,12 +387,11 @@ export default function CommunityPage() {
                           className="flex gap-3 items-center bg-surface-soft border border-hairline rounded-lg px-3 py-3 mb-3.5 hover:bg-canvas hover:border-ink transition-colors"
                         >
                           <div className="w-[84px] h-[48px] rounded-lg bg-ink flex-shrink-0 relative overflow-hidden">
-                            <div
-                              className="absolute inset-0"
-                              style={{
-                                background:
-                                  "radial-gradient(80% 80% at 60% 40%, rgba(255,90,31,0.4), transparent)",
-                              }}
+                            <Image
+                              src={post.video.thumbnail_url}
+                              alt={post.video.title || "视频"}
+                              fill
+                              className="object-cover"
                             />
                           </div>
                           <div>

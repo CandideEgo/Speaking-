@@ -48,7 +48,7 @@ export function PostComposer({ userInitial, onCreated }: PostComposerProps) {
         />
       </div>
       <div className="flex justify-between items-center mt-3">
-        <span className="text-xs text-muted-soft">支持添加视频和图片</span>
+        <span className="text-xs text-muted-soft">分享学习心得或打卡</span>
         <Button onClick={handleCreatePost} size="sm">
           发布
         </Button>

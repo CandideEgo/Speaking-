@@ -29,11 +29,6 @@ export const POST_TYPE_META: Record<string, PostTypeMeta> = {
     labelFull: "词汇分享",
     color: "bg-indigo-soft text-indigo",
   },
-  speaking_share: {
-    label: "口语",
-    labelFull: "口语分享",
-    color: "bg-warning-soft text-warning",
-  },
   video_share: {
     label: "视频",
     labelFull: "视频分享",
