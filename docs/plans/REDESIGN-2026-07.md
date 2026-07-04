@@ -82,9 +82,36 @@ ADR-0005。UI 重做 + 功能性修复落地。
 
 ---
 
+## Phase 4 遗留 backlog
+
+Phase 4 已全部上线（4.1–4.9 commit），以下三项本期未做，列为独立后续工作：
+
+### B1. PostComposer 真附件上传
+
+- **现状**：4.6 移除了"支持添加视频和图片"谎言文案，PostComposer 现为纯文本 + 打卡 + 词汇 + 视频链接分享，**无图片/视频附件上传**。
+- **本期未做原因**：用户在 4.6 决策时选了"移除谎言文案"路径（而非"补图片附件上传"）。
+- **大致工作**：后端新增图片/视频上传端点（可复用 `./media/` 存储与 `mediaUrl()`）+ `Post` 表加 `media` 字段 + PostComposer 加文件选择/预览/上传 UI + feed 渲染附件。
+- **依赖**：无硬依赖，可独立做。社区帖 `PostType` 已无 `speaking_share`，附件类型按 `text`/`progress_share`/`vocabulary_share`/`video_share` 通用。
+
+### B2. 后端 streak/activity dead code 全面清理
+
+- **现状**：4.9 删了 `/dashboard` 前端页 + `goal_type` 默认改 `words`，但后端 `activity_service.py` 的 4 个 recorder（`record_speaking_activity`/`record_vocabulary_activity`/`record_video_activity`/`record_quiz_activity`）+ `update_streak` + `get_streak_info` + `get_activity_calendar` + `get_user_stats` + 端点 `/users/me/streak`、`/users/me/activity`、`/users/me/stats` **全是孤儿死代码保留冻结**（Phase 1 删 `speaking_service` 后无活跃调用方）。
+- **本期未做原因**：`get_user_stats` 被 `users.py:get_my_stats` + `ai.py:assistant_summary` 共享（非完全孤儿）；`/users/me/activity` 仍被 `/history` 页的 `ActivityHeatmap` 消费——删除会牵连前端与 AI 助手摘要，范围大、风险高，保守保留。
+- **大致工作**：先 `gitnexus_impact` 评估 `get_user_stats`/`get_streak_info`/`get_activity_calendar` 全部消费方；`/history` 页 `ActivityHeatmap` 改接 `LearningRecord` 或一并删；删 `activity_service` 死函数 + 3 个端点 + 评估 `DailyActivity` 模型是否保留。可选：若将来要让 streak 复活，反而应**接通** recorder 到 vocab/watch 端点（4.9 验证结论：管线存在但未接）。
+- **依赖**：需先确认 `/history` 页与 AI 助手摘要的数据替代方案。
+
+### B3. 移动端播放器 sticky mini-player
+
+- **现状**：4.8 创作者详情页（`my-videos/[id]`）移动端是单列布局，编辑字幕时 `<video>` 播放器随滚动滚走，无法边看边编辑。
+- **本期未做原因**：4.8 聚焦在 LinkUploadDialog 文案不露原始 status + `ReviewBadge` 迁 `common/Badge`（对齐 ADR-0004）；sticky mini-player 是较大的移动 UX 改动，列为体验增强。
+- **大致工作**：移动端滚动到播放器视口外时，将其吸附为右下角小窗（类 PiP）——需 scroll/IntersectionObserver 监听 + 布局切换 + 播放状态保持。watch 页（`watch/[id]`）同问题可一并考虑（ADR-0005 watch 页豁免重做，但此增强可独立加）。
+- **依赖**：无硬依赖，纯前端。
+
+---
+
 ## 风险与依赖
 
-- **ADR-0003 dashboard 数据源**：`DailyActivity` 是否追踪 vocab/watch 活动未验证。Phase 4 dashboard 任务前必须先查；无数据则 fallback 删 dashboard。
+- **~~ADR-0003 dashboard 数据源~~**（已解决，4.9）：验证 `DailyActivity` 有 vocab/watch 列但零活跃写入 → fallback 删 `/dashboard`，详见上方 B2。
 - **GPU worker 在线依赖**：UGC 处理（Phase 2）与管理员"开始处理"都硬性要求本机 GPU worker 在线。生产（云服务器无 GPU）需 worker 持续在本机跑，否则 UGC 堆积。
-- **头像上传端点**：profile 头像上传需新后端端点（当前只有 audio/video UploadFile）。
+- **~~头像上传端点~~**（已解决，4.5）：`POST /users/me/avatar` 已实现，存 `./media/avatars/`。
 - **工作量**：Phase 3–5（组件库 + 用户页 + 管理面板）是主要工作量，约 2–3 周。
