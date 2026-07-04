@@ -127,7 +127,14 @@ def _build_ytdlp_extra_args() -> list[str]:
 
 
 def extract_streaming_audio(url: str, output_path: str) -> None:
-    """Extract audio from a streaming URL using yt-dlp pipe to ffmpeg.
+    """Extract audio from a streaming URL via yt-dlp → temp file → ffmpeg.
+
+    Two-step download instead of a yt-dlp→ffmpeg pipe: yt-dlp sometimes keeps
+    stdout open after the audio stream finishes (still fetching metadata /
+    chapters / subtitles), which deadlocks the pipe — ffmpeg waits for EOF
+    and hits its 1800s timeout (the historical "Audio extraction timed out"
+    failure). Writing to a file lets yt-dlp exit on its own and gives the two
+    steps independent timeouts.
 
     Args:
         url: Video URL (YouTube, Bilibili, etc.)
@@ -139,65 +146,85 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
     url = _normalize_streaming_url(url)
     extra = _build_ytdlp_extra_args()
 
+    # yt-dlp appends the real extension (.m4a/.webm/.opus); we glob it back.
+    raw_pattern = f"{output_path}.src"
+
     ytdlp_cmd = [
         _get_ytdlp_path(),
         *extra,
         "-o",
-        "-",
+        f"{raw_pattern}.%(ext)s",
         "--no-playlist",
         "-f",
         "bestaudio/best",
+        "--no-write-info-json",
+        "--no-write-thumbnail",
+        "--no-write-subs",
+        "--socket-timeout",
+        "30",
         "--",
         url,
     ]
 
-    ffmpeg_cmd = [
-        _get_ffmpeg_path(),
-        "-y",
-        "-i",
-        "pipe:0",
-        *_FFMPEG_WAV_ARGS,
-        output_path,
-    ]
-
     logger.info("Extracting streaming audio", url=url[:80])
 
+    raw_file: str | None = None
     try:
-        proc = subprocess.Popen(
+        # Step 1: yt-dlp downloads audio to a temp file (exits when done — no pipe)
+        ytdlp_proc = subprocess.run(
             ytdlp_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
+            timeout=600,
             creationflags=_NO_WINDOW,
         )
+        if ytdlp_proc.returncode != 0:
+            stderr = ytdlp_proc.stderr.decode(errors="replace") if ytdlp_proc.stderr else ""
+            raise AudioExtractionError(f"yt-dlp audio download failed: {stderr[-1000:]}")
+
+        # Locate the downloaded file (yt-dlp appended the extension)
+        candidates = [
+            p for p in Path(raw_pattern).parent.glob(Path(raw_pattern).name + ".*") if p.suffix.lower() != ".wav"
+        ]
+        if not candidates:
+            raise AudioExtractionError("yt-dlp finished but produced no audio file")
+        raw_file = str(candidates[0])
+
+        # Step 2: ffmpeg converts to 16kHz mono WAV
+        ffmpeg_cmd = [
+            _get_ffmpeg_path(),
+            "-y",
+            "-i",
+            raw_file,
+            *_FFMPEG_WAV_ARGS,
+            output_path,
+        ]
         ffmpeg_proc = subprocess.run(
             ffmpeg_cmd,
-            stdin=proc.stdout,
             capture_output=True,
-            text=True,
-            timeout=1800,
+            timeout=300,
             creationflags=_NO_WINDOW,
         )
-        _, ytdlp_stderr = proc.communicate()
-
-        if ffmpeg_proc.returncode != 0 or proc.returncode != 0:
-            stderr_msg = ytdlp_stderr.decode(errors="replace") if ytdlp_stderr else ""
-            raise AudioExtractionError(
-                f"ffmpeg streaming extraction failed.\n"
-                f"ffmpeg stderr: {ffmpeg_proc.stderr[-500:]}\n"
-                f"yt-dlp stderr: {stderr_msg[-1000:]}"
-            )
+        if ffmpeg_proc.returncode != 0:
+            stderr = ffmpeg_proc.stderr.decode(errors="replace") if ffmpeg_proc.stderr else ""
+            raise AudioExtractionError(f"ffmpeg conversion failed: {stderr[-500:]}")
 
         if not Path(output_path).exists():
             raise AudioExtractionError("Audio extraction succeeded but output file not found")
 
         logger.info("Audio extracted", path=output_path, size=os.path.getsize(output_path))
 
-    except subprocess.TimeoutExpired:
-        raise AudioExtractionError("Audio extraction timed out (1800s)") from None
+    except subprocess.TimeoutExpired as e:
+        raise AudioExtractionError(f"Audio extraction timed out ({e.timeout}s)") from None
     except Exception as e:
         if not isinstance(e, AudioExtractionError):
             raise AudioExtractionError(f"Audio extraction failed: {e}") from e
         raise
+    finally:
+        if raw_file and Path(raw_file).exists():
+            try:
+                os.remove(raw_file)
+            except OSError:
+                pass
 
 
 def extract_local_audio(video_path: str, output_path: str) -> None:

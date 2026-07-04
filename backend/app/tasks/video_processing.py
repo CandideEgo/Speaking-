@@ -624,7 +624,7 @@ async def _extract_video_info(url: str) -> dict | None:
             opts["proxy"] = settings.http_proxy
         if settings.youtube_cookies_path:
             opts["cookiefile"] = settings.youtube_cookies_path
-        opts["remote_components"] = "ejs:github"
+        opts["socket_timeout"] = 30
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -667,7 +667,7 @@ async def _download_video(url: str, video_id: str) -> str | None:
             opts["proxy"] = settings.http_proxy
         if settings.youtube_cookies_path:
             opts["cookiefile"] = settings.youtube_cookies_path
-        opts["remote_components"] = "ejs:github"
+        opts["socket_timeout"] = 30
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
