@@ -7,7 +7,6 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.user import User
-from app.services.activity_service import get_user_stats
 from app.services.ai_service import get_ai_service
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -34,20 +33,21 @@ async def assistant_summary(
     current_user: User = Depends(require_pro_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """AI-generated daily learning summary with trend context."""
-    # Get weekly stats with trend data
-    stats = await get_user_stats(db, current_user.id, period="week")
+    """AI-generated daily learning summary.
 
+    Built from real vocab/watch data. Speaking metrics were removed with AI
+    scoring (ADR-0002) and are no longer surfaced here.
+    """
     vocab_count = await db.execute(select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id))
-    stats["vocabulary_count"] = vocab_count.scalar() or 0
-
     records_count = await db.execute(
         select(func.count(LearningRecord.id)).where(LearningRecord.user_id == current_user.id)
     )
-    stats["videos_watched"] = records_count.scalar() or 0
 
-    # Add user level for context
-    stats["current_level"] = current_user.level or "B1"
+    stats = {
+        "vocabulary_count": vocab_count.scalar() or 0,
+        "videos_watched": records_count.scalar() or 0,
+        "current_level": current_user.level or "B1",
+    }
 
     ai = get_ai_service()
     summary = await ai.assistant_daily_summary(stats)

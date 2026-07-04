@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +21,6 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from app.services.activity_service import get_activity_calendar, get_streak_info, get_user_stats
 from app.services.email_service import send_verification_email
 
 logger = structlog.get_logger(__name__)
@@ -225,52 +224,3 @@ async def update_preferences(
         preferred_difficulty=pref.preferred_difficulty,
         target_exam=pref.target_exam,
     )
-
-
-@router.get("/me/activity")
-@rate_limit("30/minute")
-async def get_my_activity(
-    request: Request,
-    year: int = Query(..., ge=1900, le=2100),
-    month: int = Query(..., ge=1, le=12),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return the current user's daily-activity calendar for a given month.
-
-    Powers the /history page heatmap and the dashboard heatmap. Reads from the
-    pre-computed ``daily_activities`` snapshots (one row per user per day).
-    """
-    activities = await get_activity_calendar(db, current_user.id, year, month)
-    return {"activities": activities}
-
-
-@router.get("/me/streak")
-@rate_limit("30/minute")
-async def get_my_streak(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return the current user's streak info and today's progress.
-
-    Streak is maintained on ``User.streak_count`` (O(1) read) by the activity
-    service; this endpoint also returns today's goal progress.
-    """
-    return await get_streak_info(db, current_user.id)
-
-
-@router.get("/me/stats")
-@rate_limit("30/minute")
-async def get_my_stats(
-    request: Request,
-    period: str = Query("all", pattern="^(today|week|month|all)$"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Aggregate learning stats for a time period.
-
-    Thin user-scoped alias over the speaking-service aggregator (also exposed at
-    ``/speaking/stats``); the dashboard fetches it under ``/users/me/stats``.
-    """
-    return await get_user_stats(db, current_user.id, period)

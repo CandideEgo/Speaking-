@@ -77,7 +77,6 @@ class User(Base):
     posts = relationship("Post", back_populates="user", foreign_keys="Post.user_id")
     following = relationship("Follow", back_populates="follower", foreign_keys="Follow.follower_id")
     followers = relationship("Follow", back_populates="followee", foreign_keys="Follow.followee_id")
-    daily_activities = relationship("DailyActivity", back_populates="user", order_by="DailyActivity.date.desc()")
     preferences = relationship("UserPreferences", back_populates="user", uselist=False)
     favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
     notes = relationship("UserNote", back_populates="user", cascade="all, delete-orphan")

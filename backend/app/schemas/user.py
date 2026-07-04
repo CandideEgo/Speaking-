@@ -166,49 +166,6 @@ class MessageResponse(BaseModel):
     message: str
 
 
-# ── Learning stats & activity schemas ───────────────────────────────
-
-
-class UserStatsResponse(BaseModel):
-    total_speaking_attempts: int = 0
-    average_accuracy: float = 0.0
-    average_fluency: float = 0.0
-    average_completeness: float = 0.0
-    total_vocabulary: int = 0
-    total_videos_watched: int = 0
-    period: str = "all"
-    trend: dict | None = None
-
-
-class StreakInfoResponse(BaseModel):
-    current_streak: int = 0
-    longest_streak: int = 0
-    last_active_at: str | None = None
-    goal_type: str | None = None
-    goal_value: int = 0
-    today_progress: dict = {}
-
-
-class DailyActivityResponse(BaseModel):
-    date: str
-    speaking_attempts: int = 0
-    words_reviewed: int = 0
-    words_added: int = 0
-    videos_watched: int = 0
-    quizzes_taken: int = 0
-    avg_accuracy: float | None = None
-    avg_fluency: float | None = None
-    avg_completeness: float | None = None
-    time_spent_seconds: int = 0
-    goal_met: bool = False
-
-
-class ActivityCalendarResponse(BaseModel):
-    year: int
-    month: int
-    activities: list[DailyActivityResponse] = []
-
-
 # ── User preferences schemas ────────────────────────────────────────
 
 

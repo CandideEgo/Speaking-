@@ -1,28 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { Pagination } from "@/components/admin/Pagination";
-import { Card } from "@/components/ui/Card";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
+import { Calendar } from "lucide-react";
 import { EmptyState } from "@/components/common/EmptyState";
-import type { ActivityCalendar, LearningRecord } from "@/types";
+import type { LearningRecord } from "@/types";
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-
-  // Month navigation
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-
-  const [activityCalendar, setActivityCalendar] =
-    useState<ActivityCalendar | null>(null);
 
   const {
     items: records,
@@ -46,55 +34,6 @@ export default function HistoryPage() {
     enabled: isAuthenticated && !isLoading,
   });
 
-  // Fetch activity calendar (guarded on auth)
-  useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
-    (async () => {
-      try {
-        const data = await api<ActivityCalendar>(
-          `/api/v1/users/me/activity?year=${year}&month=${month}`,
-        );
-        setActivityCalendar(data);
-      } catch {
-        toast.error("加载活动数据失败");
-      }
-    })();
-  }, [year, month, isAuthenticated, isLoading]);
-
-  function prevMonth() {
-    if (month === 1) {
-      setMonth(12);
-      setYear(year - 1);
-    } else {
-      setMonth(month - 1);
-    }
-  }
-
-  function nextMonth() {
-    if (month === 12) {
-      setMonth(1);
-      setYear(year + 1);
-    } else {
-      setMonth(month + 1);
-    }
-  }
-
-  const monthNames = [
-    "",
-    "一月",
-    "二月",
-    "三月",
-    "四月",
-    "五月",
-    "六月",
-    "七月",
-    "八月",
-    "九月",
-    "十月",
-    "十一月",
-    "十二月",
-  ];
-
   return (
     <main className="min-h-full bg-canvas">
       {/* Header */}
@@ -112,44 +51,7 @@ export default function HistoryPage() {
         </div>
       </section>
 
-      <div className="container-page py-8 space-y-8">
-        {/* Month navigator + Activity heatmap */}
-        <Card padding={5}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground">
-              学习日历
-            </h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={prevMonth}
-                className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-cream-soft transition-colors"
-              >
-                <ChevronLeft size={16} className="text-ink" />
-              </button>
-              <span className="text-sm font-medium text-ink min-w-[100px] text-center">
-                {year} 年 {monthNames[month]}
-              </span>
-              <button
-                onClick={nextMonth}
-                className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-cream-soft transition-colors"
-              >
-                <ChevronRight size={16} className="text-ink" />
-              </button>
-            </div>
-          </div>
-          {activityCalendar ? (
-            <ActivityHeatmap
-              activities={activityCalendar.activities}
-              year={year}
-              month={month}
-            />
-          ) : (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coral" />
-            </div>
-          )}
-        </Card>
-
+      <div className="container-page py-8">
         {/* Learning records list */}
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-caption-wide text-muted-foreground mb-4">

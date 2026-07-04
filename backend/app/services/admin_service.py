@@ -13,8 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import _to_aware_utc
 from app.core.database import commit_refresh
 from app.models.community import CommentReport, Post, UserComment
-from app.models.daily_activity import DailyActivity
-from app.models.learning import SpeakingAttempt
+from app.models.learning import LearningRecord, SpeakingAttempt
 from app.models.order import Order
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
@@ -77,24 +76,30 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     ).all()
     signup_map = {r.d: r.c for r in signup_rows}
 
-    # Speaking attempts trend: sum per day from DailyActivity
+    # Speaking attempts trend: count per day directly from SpeakingAttempt
+    # (frozen table — AI scoring removed per ADR-0002, so this is historical only).
     speaking_rows = (
         await db.execute(
-            select(DailyActivity.date.label("d"), func.sum(DailyActivity.speaking_attempts).label("c"))
-            .where(DailyActivity.date >= ago_nd - timedelta(days=1))
-            .group_by(DailyActivity.date)
-            .order_by(DailyActivity.date)
+            select(func.date(SpeakingAttempt.created_at).label("d"), func.count(SpeakingAttempt.id).label("c"))
+            .where(SpeakingAttempt.created_at >= ago_nd)
+            .group_by(func.date(SpeakingAttempt.created_at))
+            .order_by(func.date(SpeakingAttempt.created_at))
         )
     ).all()
     speaking_map = {r.d: r.c or 0 for r in speaking_rows}
 
-    # Active users trend: distinct users with activity per day
+    # Active users trend: distinct users whose LearningRecord was last accessed
+    # per day (real watch activity — DailyActivity snapshots are gone with the
+    # activity service per ADR-0002/0003).
     active_rows = (
         await db.execute(
-            select(DailyActivity.date.label("d"), func.count(func.distinct(DailyActivity.user_id)).label("c"))
-            .where(DailyActivity.date >= ago_nd - timedelta(days=1))
-            .group_by(DailyActivity.date)
-            .order_by(DailyActivity.date)
+            select(
+                func.date(LearningRecord.last_accessed_at).label("d"),
+                func.count(func.distinct(LearningRecord.user_id)).label("c"),
+            )
+            .where(LearningRecord.last_accessed_at >= ago_nd)
+            .group_by(func.date(LearningRecord.last_accessed_at))
+            .order_by(func.date(LearningRecord.last_accessed_at))
         )
     ).all()
     active_map = {r.d: r.c for r in active_rows}
@@ -264,10 +269,7 @@ async def list_admin_users(
         .scalar_subquery()
     )
     vw_count = (
-        select(func.sum(DailyActivity.videos_watched))
-        .where(DailyActivity.user_id == User.id)
-        .correlate(User)
-        .scalar_subquery()
+        select(func.count(LearningRecord.id)).where(LearningRecord.user_id == User.id).correlate(User).scalar_subquery()
     )
     posts_count = select(func.count(Post.id)).where(Post.user_id == User.id).correlate(User).scalar_subquery()
 

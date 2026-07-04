@@ -6,7 +6,6 @@
 
 | 脚本 | 用途 | 运行方式 |
 |------|------|----------|
-| `backfill_daily_activities.py` | 回填用户每日活动数据 | `python -m scripts.backfill_daily_activities` |
 | `download_youtube_audio.py` | 下载 YouTube 视频音频 | `python -m scripts.download_youtube_audio` |
 | `get_youtube_cookies.py` | 获取 YouTube Cookie 用于认证 | `python -m scripts.get_youtube_cookies` |
 | `refresh_youtube_cookies.py` | 自动刷新 YouTube Cookie（playwright --persistent + yt-dlp 验证） | `python -m scripts.refresh_youtube_cookies` |

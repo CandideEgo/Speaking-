@@ -249,33 +249,6 @@ export interface UserStats {
   };
 }
 
-export interface StreakInfo {
-  current_streak: number;
-  longest_streak: number;
-  last_active_at: string | null;
-  goal_type: string | null;
-  goal_value: number;
-  today_progress: Record<string, number>;
-}
-
-export interface DailyActivity {
-  date: string;
-  speaking_attempts: number;
-  words_reviewed: number;
-  words_added: number;
-  videos_watched: number;
-  quizzes_taken: number;
-  avg_accuracy: number | null;
-  avg_fluency: number | null;
-  avg_completeness: number | null;
-  time_spent_seconds: number;
-  goal_met: boolean;
-}
-
-export interface ActivityCalendar {
-  activities: DailyActivity[];
-}
-
 /* ── Admin ── */
 export interface InviteCode {
   id: string;

@@ -64,9 +64,7 @@ from app.schemas.payment import (
     PaymentStatusResponse,
 )
 from app.schemas.user import (
-    ActivityCalendarResponse,
     ChangePasswordRequest,
-    DailyActivityResponse,
     ForgotPasswordRequest,
     LogoutRequest,
     MessageResponse,
@@ -74,14 +72,12 @@ from app.schemas.user import (
     RefreshRequest,
     RefreshResponse,
     ResetPasswordRequest,
-    StreakInfoResponse,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserPreferencesResponse,
     UserPreferencesUpdate,
     UserResponse,
-    UserStatsResponse,
     UserUpdate,
 )
 
