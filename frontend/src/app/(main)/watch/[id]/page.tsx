@@ -15,6 +15,7 @@ import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
 import { api, mediaUrl } from "@/lib/api";
+import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -438,12 +439,39 @@ export default function WatchPage() {
                     controls
                     className="h-full w-full object-contain"
                     onTimeUpdate={(e) => {
-                      const idx = findSubtitleIndex(
-                        video.subtitles,
-                        e.currentTarget.currentTime,
-                      );
+                      const t = e.currentTarget.currentTime;
+                      const idx = findSubtitleIndex(video.subtitles, t);
                       if (idx !== -1) setCurrentSubtitleIndex(idx);
+                      trackWatchTime(id, t);
                     }}
+                    onPlay={() =>
+                      track(
+                        "play",
+                        { position_s: videoRef.current?.currentTime ?? 0 },
+                        id,
+                      )
+                    }
+                    onPause={() =>
+                      track(
+                        "pause",
+                        { position_s: videoRef.current?.currentTime ?? 0 },
+                        id,
+                      )
+                    }
+                    onSeeked={() =>
+                      track(
+                        "seek",
+                        { position_s: videoRef.current?.currentTime ?? 0 },
+                        id,
+                      )
+                    }
+                    onEnded={() =>
+                      track(
+                        "complete",
+                        { position_s: videoRef.current?.currentTime ?? 0 },
+                        id,
+                      )
+                    }
                   />
                   {isPip && (
                     <button

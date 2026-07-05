@@ -14,6 +14,7 @@ from app.api.v1 import (
     admin,
     ai,
     auth,
+    behavior,
     browse,
     comments,
     community,
@@ -185,6 +186,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")
+    app.include_router(behavior.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/api/v1")
 
     @app.get("/health")

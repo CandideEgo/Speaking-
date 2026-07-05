@@ -188,6 +188,53 @@ export function useVideoPlayer({
     return () => window.removeEventListener("keydown", handleKey);
   }, [togglePlayPause, seekBy, navigateSubtitle]);
 
+  // Resume from last saved position on first ready (closes the resume gap —
+  // /learning/progress existed but was never called from the frontend).
+  useEffect(() => {
+    if (playbackMode !== "ready") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api<{ position_seconds: number | null }>(
+          `/api/v1/learning/progress/${videoId}`,
+        );
+        if (cancelled) return;
+        const pos = data.position_seconds;
+        if (typeof pos === "number" && pos > 5 && videoRef.current) {
+          videoRef.current.currentTime = pos;
+        }
+      } catch {
+        // First-time viewers have no saved position — ignore.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playbackMode, videoId]);
+
+  // Periodic position save (every 10s while playing) → PATCH /learning/progress.
+  // This populates LearningRecord.position_seconds / progress_percentage, which
+  // feed the P1 Retention score factor.
+  useEffect(() => {
+    if (playbackMode !== "ready") return;
+    const interval = setInterval(async () => {
+      const v = videoRef.current;
+      if (!v || v.paused) return;
+      try {
+        await api("/api/v1/learning/progress", {
+          method: "PATCH",
+          body: JSON.stringify({
+            video_id: videoId,
+            position_seconds: v.currentTime,
+          }),
+        });
+      } catch {
+        // Non-blocking — position save is best-effort.
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [playbackMode, videoId]);
+
   return {
     video,
     playbackMode,

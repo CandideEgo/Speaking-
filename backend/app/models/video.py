@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -114,6 +114,9 @@ class Video(Base):
     # Denormalized social counts
     like_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     favorite_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # Play-completion counter (distinct from like_count) — populated by
+    # behavior_service on `complete` events. Used by scoring/recommendation (P1/P2).
+    view_count: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", nullable=False)
 
     # Admin-curated homepage visibility (distinct from is_featured which is auto-set)
     show_on_homepage: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)

@@ -6,6 +6,7 @@ import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
 import { cn } from "@/lib/utils";
+import { trackClick } from "@/lib/analytics";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
 export interface VideoCardData {
@@ -34,6 +35,17 @@ export interface VideoCardProps {
   className?: string;
 }
 
+function clickSource(): string {
+  if (typeof window === "undefined") return "unknown";
+  const p = window.location.pathname;
+  if (p === "/" || p === "") return "home";
+  if (p.startsWith("/browse")) return "browse";
+  if (p.startsWith("/search")) return "search";
+  if (p.startsWith("/vocabulary")) return "vocabulary";
+  if (p.startsWith("/community")) return "community";
+  return "other";
+}
+
 export function VideoCard({
   video,
   feat = false,
@@ -43,10 +55,12 @@ export function VideoCard({
   className,
 }: VideoCardProps) {
   const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
+  const videoId = String(video.id || video.video_id || "");
 
   return (
     <Link
       href={`/watch/${video.id || video.video_id}`}
+      onClick={() => trackClick(videoId, clickSource())}
       className={cn(
         "bg-canvas border border-hairline rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lift hover:border-transparent transition-all duration-150 group",
         className,
