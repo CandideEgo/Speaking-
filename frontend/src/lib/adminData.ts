@@ -347,6 +347,38 @@ export async function updateSubtitle(
   );
 }
 
+export interface SubtitleSplitPayload {
+  split_time: number;
+  text_before: string;
+  text_after: string;
+}
+
+export async function splitSubtitle(
+  videoId: string,
+  subtitleId: string,
+  payload: SubtitleSplitPayload,
+): Promise<Subtitle[]> {
+  return adminApi<Subtitle[]>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/split`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function mergeSubtitle(
+  videoId: string,
+  subtitleId: string,
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/merge`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export async function updateSubtitlesBatch(
   videoId: string,
   updates: (SubtitlePatch & { id: string })[],

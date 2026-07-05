@@ -178,6 +178,29 @@ class SubtitleBatchItem(SubtitleUpdate):
     id: str
 
 
+class SubtitleSplit(BaseModel):
+    """Payload for splitting one subtitle into two at a given time.
+
+    The original subtitle becomes the ``text_before`` part (end trimmed to
+    ``split_time``); a new subtitle is inserted after it for ``text_after``
+    (start at ``split_time``, end at the original end). Word-level timestamps,
+    when present, are partitioned at ``split_time`` so both parts keep precise
+    timing for further split/merge or re-segmentation.
+    """
+
+    split_time: float
+    text_before: str
+    text_after: str
+
+    @field_validator("text_before", "text_after")
+    @classmethod
+    def strip_and_require_nonempty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be empty/whitespace")
+        return v
+
+
 class SubtitleBatchUpdate(BaseModel):
     """Batch subtitle update payload — applies many edits in one transaction."""
 

@@ -20,6 +20,7 @@ from app.schemas.video import (
     ReviewRejectRequest,
     SubtitleBatchUpdate,
     SubtitleResponse,
+    SubtitleSplit,
     SubtitleUpdate,
     VideoAdminResponse,
     VideoAdminStatusResponse,
@@ -67,10 +68,16 @@ from app.services.subtitle_edit_service import (
     list_subtitle_revisions as _list_subtitle_revisions,
 )
 from app.services.subtitle_edit_service import (
+    merge_subtitle as _merge_subtitle,
+)
+from app.services.subtitle_edit_service import (
     recompute_word_levels as _recompute_word_levels,
 )
 from app.services.subtitle_edit_service import (
     rollback_subtitle as _rollback_subtitle,
+)
+from app.services.subtitle_edit_service import (
+    split_subtitle as _split_subtitle,
 )
 from app.services.subtitle_edit_service import (
     update_subtitle as _update_subtitle,
@@ -419,6 +426,51 @@ async def update_admin_subtitles_batch(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
+@router.post(
+    "/admin/{video_id}/subtitles/{subtitle_id}/split",
+    response_model=list[SubtitleResponse],
+)
+@rate_limit("60/minute")
+async def split_admin_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    payload: SubtitleSplit,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Split one subtitle into two at split_time. Admin only."""
+    try:
+        return await _split_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post(
+    "/admin/{video_id}/subtitles/{subtitle_id}/merge",
+    response_model=SubtitleResponse,
+)
+@rate_limit("60/minute")
+async def merge_admin_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge a subtitle with the next one. Admin only."""
+    try:
+        return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
 @router.patch("/admin/{video_id}/subtitles/{subtitle_id}/word-levels", response_model=SubtitleResponse)
 @rate_limit("60/minute")
 async def update_admin_word_levels(
@@ -703,6 +755,53 @@ async def update_own_subtitles_batch(
     await _require_editable_own_video(video_id, current_user, db)
     try:
         return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post(
+    "/{video_id}/subtitles/{subtitle_id}/split",
+    response_model=list[SubtitleResponse],
+)
+@rate_limit("60/minute")
+async def split_own_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    payload: SubtitleSplit,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Split one subtitle into two at split_time. Owner only; blocked while published."""
+    await _require_editable_own_video(video_id, current_user, db)
+    try:
+        return await _split_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post(
+    "/{video_id}/subtitles/{subtitle_id}/merge",
+    response_model=SubtitleResponse,
+)
+@rate_limit("60/minute")
+async def merge_own_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge a subtitle with the next one. Owner only; blocked while published."""
+    await _require_editable_own_video(video_id, current_user, db)
+    try:
+        return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():

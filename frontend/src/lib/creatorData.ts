@@ -91,6 +91,38 @@ export async function updateSubtitle(
   });
 }
 
+export interface SubtitleSplitPayload {
+  split_time: number;
+  text_before: string;
+  text_after: string;
+}
+
+export async function splitSubtitle(
+  videoId: string,
+  subtitleId: string,
+  payload: SubtitleSplitPayload,
+): Promise<Subtitle[]> {
+  return api<Subtitle[]>(
+    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/split`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function mergeSubtitle(
+  videoId: string,
+  subtitleId: string,
+): Promise<Subtitle> {
+  return api<Subtitle>(
+    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/merge`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export async function updateWordLevels(
   videoId: string,
   subtitleId: string,

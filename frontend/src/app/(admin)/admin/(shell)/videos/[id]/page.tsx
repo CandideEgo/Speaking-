@@ -8,7 +8,9 @@ import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 
 import {
   getVideoDetail,
+  mergeSubtitle,
   recomputeWordLevels,
+  splitSubtitle,
   updateSubtitle,
   updateVideo,
   updateWordLevels,
@@ -97,6 +99,32 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
         : v,
     );
 
+  // Split/merge change the subtitle LIST structure (row count), so re-fetch
+  // the whole video rather than patching in place.
+  const refreshVideo = useCallback(async () => {
+    const v = await getVideoDetail(params.id);
+    setVideo(v);
+  }, [params.id]);
+
+  const handleSplit = useCallback(
+    async (
+      subtitleId: string,
+      payload: { split_time: number; text_before: string; text_after: string },
+    ) => {
+      await splitSubtitle(params.id, subtitleId, payload);
+      await refreshVideo();
+    },
+    [params.id, refreshVideo],
+  );
+
+  const handleMerge = useCallback(
+    async (subtitleId: string) => {
+      await mergeSubtitle(params.id, subtitleId);
+      await refreshVideo();
+    },
+    [params.id, refreshVideo],
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -159,7 +187,7 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
                 暂无字幕（视频可能仍在处理中）
               </div>
             )}
-            {video.subtitles.map((sub) => (
+            {video.subtitles.map((sub, i) => (
               <SubtitleEditor
                 key={sub.id}
                 subtitle={sub}
@@ -179,6 +207,9 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
                     },
                   )
                 }
+                onSplit={(payload) => handleSplit(sub.id, payload)}
+                onMerge={() => handleMerge(sub.id)}
+                canMerge={i < video.subtitles.length - 1}
               />
             ))}
           </div>

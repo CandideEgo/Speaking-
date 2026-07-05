@@ -31,7 +31,9 @@ import {
   editPractice,
   getMyVideoDetail,
   getMyVideoStatus,
+  mergeSubtitle,
   regeneratePractice,
+  splitSubtitle,
   submitForReview,
   updateSubtitle,
   updateWordLevels,
@@ -182,6 +184,34 @@ export default function MyVideoEditorPage() {
         throw err;
       }
     };
+
+  // Split/merge change the subtitle LIST structure (row count), so re-fetch
+  // the whole video rather than patching in place.
+  const handleSplit =
+    (subtitleId: string) =>
+    async (payload: {
+      split_time: number;
+      text_before: string;
+      text_after: string;
+    }) => {
+      try {
+        await splitSubtitle(videoId, subtitleId, payload);
+        setVideo(await getMyVideoDetail(videoId));
+      } catch (err) {
+        toastApiError(err, "拆分失败");
+        throw err;
+      }
+    };
+
+  const handleMerge = (subtitleId: string) => async () => {
+    try {
+      await mergeSubtitle(videoId, subtitleId);
+      setVideo(await getMyVideoDetail(videoId));
+    } catch (err) {
+      toastApiError(err, "合并失败");
+      throw err;
+    }
+  };
 
   const handleSaveWordLevels =
     (subtitleId: string) =>
@@ -398,7 +428,7 @@ export default function MyVideoEditorPage() {
                     暂无字幕。
                   </p>
                 ) : (
-                  video.subtitles.map((s: Subtitle) => (
+                  video.subtitles.map((s: Subtitle, i: number) => (
                     <SubtitleEditor
                       key={s.id}
                       subtitle={s}
@@ -406,6 +436,9 @@ export default function MyVideoEditorPage() {
                       onSeekTo={seekTo}
                       onSave={handleSaveSubtitle(s.id)}
                       onSaveWordLevels={handleSaveWordLevels(s.id)}
+                      onSplit={handleSplit(s.id)}
+                      onMerge={handleMerge(s.id)}
+                      canMerge={i < video.subtitles.length - 1}
                     />
                   ))
                 )}

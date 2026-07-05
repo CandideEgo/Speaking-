@@ -202,6 +202,163 @@ async def update_word_levels(
     return SubtitleResponse.model_validate(subtitle)
 
 
+async def split_subtitle(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_id: str,
+    payload,  # SubtitleSplit
+    *,
+    edited_by: str | None = None,
+) -> list:
+    """Split one subtitle into two at ``payload.split_time``.
+
+    The original subtitle becomes the ``text_before`` part (end trimmed to
+    ``split_time``); a new subtitle is inserted after it for ``text_after``
+    (start at ``split_time``, end at the original end). Word-level timestamps
+    are partitioned at ``split_time`` so both parts keep precise timing.
+    ``sentence_index`` of subsequent subtitles is shifted up by one.
+
+    Returns ``[before_part, after_part]`` (both refreshed). A SubtitleRevision
+    is written for the original subtitle's field changes; the new subtitle is
+    audited implicitly via its existence (merge reverses a split).
+    """
+    from sqlalchemy import update
+
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text
+
+    result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
+    subtitle = result.scalar_one_or_none()
+    if subtitle is None:
+        raise ValueError("Subtitle not found")
+    if subtitle.video_id != video_id:
+        raise ValueError("Subtitle does not belong to this video")
+    if not (subtitle.start_time < payload.split_time < subtitle.end_time):
+        raise ValueError("split_time must be within the subtitle's time range")
+
+    before_snap = _snapshot(subtitle)
+    original_end = subtitle.end_time
+    original_index = subtitle.sentence_index
+    cur_words = subtitle.words or []
+    before_words = [w for w in cur_words if float(w.get("start", 0)) < payload.split_time]
+    after_words = [w for w in cur_words if float(w.get("start", 0)) >= payload.split_time]
+
+    # Shift subsequent subtitles up by one to free up original_index + 1.
+    await db.execute(
+        update(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.sentence_index > original_index,
+        )
+        .values(sentence_index=Subtitle.sentence_index + 1)
+    )
+
+    # Original → before part.
+    subtitle.text_en = payload.text_before
+    subtitle.end_time = payload.split_time
+    subtitle.words = before_words or None
+    levels = annotate_text(subtitle.text_en)
+    subtitle.word_levels = levels or None
+
+    after_snap = _snapshot(subtitle)
+    scope = await _determine_edit_scope(db, video_id)
+    await _write_revision(db, subtitle, before_snap, after_snap, edited_by=edited_by, scope=scope)
+
+    # New → after part.
+    new_sub = Subtitle(
+        video_id=video_id,
+        start_time=payload.split_time,
+        end_time=original_end,
+        text_en=payload.text_after,
+        text_zh=None,  # translation can't be auto-split; user re-translates
+        sentence_index=original_index + 1,
+        words=after_words or None,
+        speaker=subtitle.speaker,
+    )
+    new_levels = annotate_text(new_sub.text_en)
+    new_sub.word_levels = new_levels or None
+    db.add(new_sub)
+
+    await db.commit()
+    await db.refresh(subtitle)
+    await db.refresh(new_sub)
+    await invalidate_video_detail_cache(video_id)
+    return [SubtitleResponse.model_validate(subtitle), SubtitleResponse.model_validate(new_sub)]
+
+
+async def merge_subtitle(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_id: str,
+    *,
+    edited_by: str | None = None,
+) -> SubtitleResponse:
+    """Merge a subtitle with the next one (by ``sentence_index``).
+
+    The next subtitle's text/words/timing are folded into the current one and
+    the next row is deleted. ``sentence_index`` of subtitles after the deleted
+    row is shifted down by one. Returns the merged subtitle (refreshed).
+    """
+    from sqlalchemy import update
+
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text
+
+    result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
+    cur = result.scalar_one_or_none()
+    if cur is None:
+        raise ValueError("Subtitle not found")
+    if cur.video_id != video_id:
+        raise ValueError("Subtitle does not belong to this video")
+
+    nxt_result = await db.execute(
+        select(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.sentence_index > cur.sentence_index,
+        )
+        .order_by(Subtitle.sentence_index)
+        .limit(1)
+    )
+    nxt = nxt_result.scalar_one_or_none()
+    if nxt is None:
+        raise ValueError("No next subtitle to merge with")
+
+    before_snap = _snapshot(cur)
+    next_index = nxt.sentence_index
+
+    cur.text_en = (cur.text_en + " " + nxt.text_en).strip()
+    cur.end_time = nxt.end_time
+    merged_words = (cur.words or []) + (nxt.words or [])
+    cur.words = merged_words or None
+    if cur.text_zh and nxt.text_zh:
+        cur.text_zh = (cur.text_zh + " " + nxt.text_zh).strip()
+    elif nxt.text_zh:
+        cur.text_zh = nxt.text_zh
+    levels = annotate_text(cur.text_en)
+    cur.word_levels = levels or None
+
+    await db.delete(nxt)
+    await db.flush()  # persist the delete before the index shift
+
+    await db.execute(
+        update(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.sentence_index > next_index,
+        )
+        .values(sentence_index=Subtitle.sentence_index - 1)
+    )
+
+    after_snap = _snapshot(cur)
+    scope = await _determine_edit_scope(db, video_id)
+    await _write_revision(db, cur, before_snap, after_snap, edited_by=edited_by, scope=scope)
+
+    await commit_refresh(db, cur)
+    await invalidate_video_detail_cache(video_id)
+    return SubtitleResponse.model_validate(cur)
+
+
 async def recompute_word_levels(
     db: AsyncSession,
     video_id: str,

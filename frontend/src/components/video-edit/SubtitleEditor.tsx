@@ -3,27 +3,41 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Split, Merge } from "lucide-react";
 
 import { WordLevelsEditor } from "./WordLevelsEditor";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Input, Textarea } from "@/components/ui/Input";
 import type { Subtitle } from "@/types";
 import type { SubtitlePatch } from "@/lib/creatorData";
 
 /**
- * One editable subtitle row. Shared by the creator editor and (later) the
- * admin review panel. The caller provides save callbacks; an optional
- * `videoRef` powers "set start/end from current playback time" buttons.
+ * One editable subtitle row. Shared by the creator editor and the admin review
+ * panel. The caller provides save/split/merge callbacks; an optional
+ * `videoRef` powers "set start/end from current playback time" and the split
+ * action (splits at the current playback time).
  *
  * Editing text_en normally resets word_levels to the ECDICT baseline; a
  * checkbox lets the owner preserve existing overrides instead.
+ *
+ * Text fields use Textarea (not single-line Input) so Enter inserts a newline
+ * and multi-line subtitle text works — the original single-line Input made
+ * line breaks and sentence-splitting impossible.
  */
+export interface SubtitleSplitPayload {
+  split_time: number;
+  text_before: string;
+  text_after: string;
+}
+
 export function SubtitleEditor({
   subtitle,
   onSave,
   onSaveWordLevels,
+  onSplit,
+  onMerge,
+  canMerge = false,
   videoRef,
   onSeekTo,
 }: {
@@ -32,6 +46,12 @@ export function SubtitleEditor({
   onSaveWordLevels: (
     wordLevels: Record<string, string[]> | null,
   ) => Promise<Subtitle>;
+  /** Split this subtitle into two at a time. Parent refreshes the list. */
+  onSplit?: (payload: SubtitleSplitPayload) => Promise<void>;
+  /** Merge with the next subtitle. Parent refreshes the list. */
+  onMerge?: () => Promise<void>;
+  /** Whether a next subtitle exists (enables the merge button). */
+  canMerge?: boolean;
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   onSeekTo?: (time: number) => void;
 }) {
@@ -42,6 +62,8 @@ export function SubtitleEditor({
   const [grammarNote, setGrammarNote] = useState(subtitle.grammar_note || "");
   const [preserveLevels, setPreserveLevels] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [editingLevels, setEditingLevels] = useState(false);
 
   const dirty =
@@ -87,6 +109,74 @@ export function SubtitleEditor({
     }
   };
 
+  const handleSplit = async () => {
+    if (!onSplit) return;
+    const t = captureCurrentTime();
+    if (t === null || t <= subtitle.start_time || t >= subtitle.end_time) {
+      toast.error("请先把播放器调到要拆分的时间点（在该字幕时间范围内）");
+      return;
+    }
+    // Compute text_before/text_after. Prefer word timestamps (precise cut at
+    // the first word whose start >= t); fall back to a proportional word-count
+    // split so the feature still works on legacy rows without `words`.
+    let textBefore = "";
+    let textAfter = "";
+    const words = subtitle.words;
+    if (words && words.length) {
+      const idx = words.findIndex((w) => w.start >= t);
+      const cut = idx === -1 ? words.length : idx;
+      textBefore = words
+        .slice(0, cut)
+        .map((w) => w.word)
+        .join(" ");
+      textAfter = words
+        .slice(cut)
+        .map((w) => w.word)
+        .join(" ");
+    } else {
+      const tokens = textEn.split(/\s+/).filter(Boolean);
+      const ratio =
+        (t - subtitle.start_time) /
+        Math.max(0.1, subtitle.end_time - subtitle.start_time);
+      const cut = Math.max(
+        1,
+        Math.min(tokens.length - 1, Math.round(tokens.length * ratio)),
+      );
+      textBefore = tokens.slice(0, cut).join(" ");
+      textAfter = tokens.slice(cut).join(" ");
+    }
+    if (!textBefore.trim() || !textAfter.trim()) {
+      toast.error("无法在此时间点拆分，请调整播放位置");
+      return;
+    }
+    setSplitting(true);
+    try {
+      await onSplit({
+        split_time: t,
+        text_before: textBefore,
+        text_after: textAfter,
+      });
+      toast.success("已拆分");
+    } catch (err) {
+      toastApiError(err, "拆分失败");
+    } finally {
+      setSplitting(false);
+    }
+  };
+
+  const handleMerge = async () => {
+    if (!onMerge) return;
+    setMerging(true);
+    try {
+      await onMerge();
+      toast.success("已合并到下一句");
+    } catch (err) {
+      toastApiError(err, "合并失败");
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
     <Card padding={3} className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -101,29 +191,56 @@ export function SubtitleEditor({
         <span>
           · {subtitle.start_time.toFixed(1)}s – {subtitle.end_time.toFixed(1)}s
         </span>
-        <Button
-          type="button"
-          onClick={() => setEditingLevels((v) => !v)}
-          variant="outline"
-          size="xs"
-          className="ml-auto"
-        >
-          {editingLevels ? "收起高亮" : "编辑高亮"}
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          {onSplit && (
+            <Button
+              type="button"
+              onClick={handleSplit}
+              disabled={splitting || !videoRef}
+              variant="outline"
+              size="xs"
+              icon={splitting ? Loader2 : Split}
+              title="在当前播放时间拆成两句（先调播放器到拆分点）"
+            >
+              拆分
+            </Button>
+          )}
+          {onMerge && (
+            <Button
+              type="button"
+              onClick={handleMerge}
+              disabled={merging || !canMerge}
+              variant="outline"
+              size="xs"
+              icon={merging ? Loader2 : Merge}
+              title={canMerge ? "与下一句合并" : "已是最后一句"}
+            >
+              合并下句
+            </Button>
+          )}
+          <Button
+            type="button"
+            onClick={() => setEditingLevels((v) => !v)}
+            variant="outline"
+            size="xs"
+          >
+            {editingLevels ? "收起高亮" : "编辑高亮"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <Input
-          type="text"
+        <Textarea
           value={textEn}
           onChange={(e) => setTextEn(e.target.value)}
-          placeholder="英文"
+          placeholder="英文（可换行）"
+          rows={2}
         />
-        <Input
-          type="text"
+        <Textarea
           value={textZh}
           onChange={(e) => setTextZh(e.target.value)}
-          placeholder="中文"
+          placeholder="中文（可换行）"
+          rows={2}
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
