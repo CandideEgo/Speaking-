@@ -22,10 +22,10 @@
 
 | 阶段 | 状态 | commit | 备注 |
 |---|---|---|---|
-| 1 练习题重设计+bug | ✅完成 | - | 逐题引导式;context_fill/sentence_repeat bug 修复;tsc+ruff 通过 |
-| 2 编辑器 watch 格式重设计 | ✅完成 | - | 创作者中心+后台编辑页改 watch 格式(共享 VideoSubtitleEditorPanel)+后端时序校验+owner 修订/回滚端点;tsc/build/35 字幕测试通过 |
-| 3 P0 行为采集+LearningRecord | ✅完成 | - | behavior_events 表+续播+watchTime/click 埋点;迁移跑通;tsc+ruff 通过 |
-| 4 P1 评分 | 待办 | - | 6 因子,配置化权重 |
+| 1 练习题重设计+bug | ✅完成 | 387e14e | 逐题引导式;context_fill/sentence_repeat bug 修复;tsc+ruff 通过 |
+| 2 编辑器 watch 格式重设计 | ✅完成 | 6636cab | 创作者中心+后台编辑页改 watch 格式(共享 VideoSubtitleEditorPanel)+后端时序校验+owner 修订/回滚端点;tsc/build/35 字幕测试通过 |
+| 3 P0 行为采集+LearningRecord | ✅完成 | 447500a | behavior_events 表+续播+watchTime/click 埋点;迁移跑通;tsc+ruff 通过 |
+| 4 P1 评分 | 待办 | - | 6 因子,配置化权重;改动前 gitnexus_impact finalize_video |
 | 5 P2 推荐+首页 | 待办 | - | 40/30/20/10 |
 | 6 上线准备 | 待办 | - | |
 
