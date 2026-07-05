@@ -180,7 +180,7 @@ flowchart TB
 ### 视频管线 — 风险 / 债
 
 - **孤儿 pub-sub 通道**：`video:progress:{id}`（`video_processing.py:77`）每步都 publish，**全代码库零订阅者**。前端靠 DB 轮询 `/status`。每次推进做一次无用 PUBLISH，且给人「有实时推送」错觉。→ 接 SSE 订阅 或 删代码。
-- **TranslationService 没接入主管线**：`finalize_video._translate_subtitles`（`:138-150`）调 `AIService.translate_batch`（`ai_service.py:122`），**绕过** `TranslationService` 的引擎切换 + fallback。`TRANSLATION_ENGINE=hy_mt2/qwen/custom` + `TRANSLATION_FALLBACK_ENGINE` 对字幕翻译**完全无效**。设计意图与实现脱节。
+- **TranslationService 已接入主管线**：`finalize_video._translate_subtitles`（`video_processing.py:42-60`）调 `TranslationService.translate_batch`，走引擎切换 + fallback + 双引擎并发（`translation_concurrent=True` 时 qwen + hy_mt2 同时跑，谁先返回用谁）。`TRANSLATION_ENGINE` / `TRANSLATION_FALLBACK_ENGINE` / `TRANSLATION_CONCURRENT` 对字幕翻译生效。注意：写回字幕时按原始 index 映射（`video_processing.py:400-407`），过滤空 `text_en` 不错位。
 - **UGC auto_publish 绕过审核**：`seed_user_video` 的 `auto_publish` 参数（`video_seed_service.py:144`）被**硬编码忽略**——`:165` 写死 `auto_publish=True`。`finalize_video:592-594` 据此直接设 `review_status=published`，而社区流过滤 `review_status==published`（`video_service.py:88`）。后果：用户经 user-seed 提交的视频**未经 admin 审核即进社区流**，与 `videos.py:705-712` docstring 声称矛盾。**策略性 bug。**
 - **callback 端点无锁，双回调竞态**：`/internal/transcription/callback` 仅靠 `status==processing` 判幂等（`internal.py:53-54`），无 Redis 锁。两个并发回调（Celery retry 二次 POST）可同时通过 → 都执行 `delete(Subtitle)` + 重插 + 都 `finalize_video.delay()`。finalize 侧 `_acquire_lock` 兜底第二个跳过，但**字幕表已双删双插**。建议 callback 也加锁。
 - **GPU worker「不碰 DB/OSS 凭证」是约定非隔离**：代码路径不碰 ✅，但 `TranscriptionService.__init__` 调 `get_settings()` 会加载 `oss_access_key`/`DATABASE_URL` 进单例；生产校验（`config.py:162-172`）强制 GPU worker 进程必须设 `DATABASE_URL`/`OPENAI_API_KEY` 才能启动。隔离靠 env 约定，无配置/进程级硬隔离。

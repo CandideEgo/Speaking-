@@ -338,7 +338,7 @@ function PracticeItemRenderer({
   graded: GradedResult | null;
   grading: boolean;
   onAnswer: (a: string) => void;
-  onGrade: () => void;
+  onGrade: (a?: string) => void;
   audio: ReturnType<typeof usePracticeAudio>;
 }) {
   const locked = !!graded;
@@ -352,7 +352,7 @@ function PracticeItemRenderer({
             <div className="flex items-center gap-2">
               <AudioPlayButton
                 onPlay={() => audio.playWord(item.word)}
-                isPlaying={audio.isPlaying}
+                isPlaying={audio.playingText === item.word}
               />
               <span className="text-sm text-muted">听发音，选择正确释义</span>
             </div>
@@ -369,7 +369,7 @@ function PracticeItemRenderer({
               locked={locked}
               onSelect={(opt) => {
                 onAnswer(opt);
-                onGrade();
+                onGrade(opt);
               }}
             />
           ) : (
@@ -386,7 +386,7 @@ function PracticeItemRenderer({
               <WordDisplay word={item.word} phonetic={item.phonetic} />
               <AudioPlayButton
                 onPlay={() => audio.playWord(item.word)}
-                isPlaying={audio.isPlaying}
+                isPlaying={audio.playingText === item.word}
               />
             </div>
           }
@@ -403,7 +403,7 @@ function PracticeItemRenderer({
               locked={locked}
               onSelect={(opt) => {
                 onAnswer(opt);
-                onGrade();
+                onGrade(opt);
               }}
             />
           ) : (
@@ -432,7 +432,10 @@ function PracticeItemRenderer({
               }}
             />
             {!locked && (
-              <CheckButton onClick={onGrade} disabled={!answer.trim()} />
+              <CheckButton
+                onClick={() => onGrade()}
+                disabled={!answer.trim()}
+              />
             )}
           </div>
         </QuestionCard>
@@ -445,7 +448,7 @@ function PracticeItemRenderer({
             <div className="flex items-center gap-2">
               <AudioPlayButton
                 onPlay={() => audio.playWord(item.word)}
-                isPlaying={audio.isPlaying}
+                isPlaying={audio.playingText === item.word}
               />
               <span className="text-sm text-muted">听发音，拼写单词</span>
             </div>
@@ -465,7 +468,10 @@ function PracticeItemRenderer({
               }}
             />
             {!locked && (
-              <CheckButton onClick={onGrade} disabled={!answer.trim()} />
+              <CheckButton
+                onClick={() => onGrade()}
+                disabled={!answer.trim()}
+              />
             )}
           </div>
         </QuestionCard>
@@ -494,7 +500,7 @@ function PracticeItemRenderer({
               locked={locked}
               onSelect={(opt) => {
                 onAnswer(opt);
-                onGrade();
+                onGrade(opt);
               }}
             />
           ) : (
@@ -510,7 +516,10 @@ function PracticeItemRenderer({
                 }}
               />
               {!locked && (
-                <CheckButton onClick={onGrade} disabled={!answer.trim()} />
+                <CheckButton
+                  onClick={() => onGrade()}
+                  disabled={!answer.trim()}
+                />
               )}
             </div>
           )}
@@ -526,7 +535,9 @@ function PracticeItemRenderer({
                 onPlay={() =>
                   audio.playSentence(item.full_sentence ?? item.word)
                 }
-                isPlaying={audio.isPlaying}
+                isPlaying={
+                  audio.playingText === (item.full_sentence ?? item.word)
+                }
               />
               <span className="text-sm text-muted">听句子，跟读并自评</span>
             </div>
@@ -539,8 +550,9 @@ function PracticeItemRenderer({
             <RecordAndEvaluate
               sentence={item.full_sentence ?? item.word}
               onResult={(correct) => {
-                onAnswer(correct ? "self_correct" : "self_wrong");
-                onGrade();
+                const ans = correct ? "self_correct" : "self_wrong";
+                onAnswer(ans);
+                onGrade(ans);
               }}
             />
           )}
@@ -678,7 +690,7 @@ export function UnifiedPracticePanel({
             graded={session.graded[i] ?? null}
             grading={session.grading[i] ?? false}
             onAnswer={(a) => session.setAnswer(i, a)}
-            onGrade={() => session.gradeAnswer(i)}
+            onGrade={(a) => session.gradeAnswer(i, a)}
             audio={audio}
           />
         ))}

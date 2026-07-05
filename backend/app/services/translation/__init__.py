@@ -11,6 +11,7 @@ Engine selection is controlled by ``TRANSLATION_ENGINE`` in .env.
 If ``TRANSLATION_FALLBACK_ENGINE`` is set, failures fall back automatically.
 """
 
+import asyncio
 import copy
 import json
 import threading
@@ -37,6 +38,7 @@ class TranslationService:
         self._engine_name = settings.translation_engine or "agnes"
         self._fallback_name = settings.translation_fallback_engine or None
         self._batch_size = settings.translation_batch_size or 20
+        self._concurrent = settings.translation_concurrent
 
         self._engine = self._resolve_engine(self._engine_name, settings)
         self._fallback = self._resolve_engine(self._fallback_name, settings) if self._fallback_name else None
@@ -49,6 +51,7 @@ class TranslationService:
             "TranslationService initialized",
             engine=self._engine.label,
             fallback=self._fallback.label if self._fallback else None,
+            concurrent=self._concurrent,
             batch_size=self._batch_size,
         )
 
@@ -59,17 +62,30 @@ class TranslationService:
     async def translate_batch(self, texts: list[str]) -> list[str | None]:
         """Translate a batch of English texts to Chinese.
 
-        Falls back to the fallback engine if the primary fails to produce
-        valid JSON with the correct number of results.
+        In concurrent mode (default when a fallback engine is configured),
+        primary + fallback run simultaneously and the first valid result wins
+        — the sibling call is cancelled. This mirrors the prewarm dual-engine
+        pattern and is far more robust against one engine intermittently
+        failing (the symptom behind "some subtitles translated, some not").
+
+        In sequential mode, the primary is tried first and the fallback only
+        on primary failure.
         """
         if not texts:
             return []
 
+        engines = [(self._client, self._engine)]
+        if self._fallback and self._fallback_client:
+            engines.append((self._fallback_client, self._fallback))
+
+        if self._concurrent and len(engines) > 1:
+            return await self._translate_concurrent(engines, texts)
+
+        # Sequential primary → fallback
         result = await self._call_engine(self._client, self._engine, texts)
         if result is not None:
             return result
 
-        # Try fallback
         if self._fallback and self._fallback_client:
             logger.warning(
                 "Primary translation engine failed, trying fallback",
@@ -82,6 +98,41 @@ class TranslationService:
 
         # Both failed
         logger.error("All translation engines failed", count=len(texts))
+        return [None] * len(texts)
+
+    async def _translate_concurrent(
+        self,
+        engines: list[tuple[AsyncOpenAI, EngineConfig]],
+        texts: list[str],
+    ) -> list[str | None]:
+        """Fan out to every engine concurrently; first valid result wins.
+
+        Losing tasks are cancelled so we don't pay for a second LLM call once
+        we have a winner. If every engine returns ``None`` (failure), the
+        caller gets ``[None] * len(texts)``.
+        """
+        tasks = [
+            asyncio.create_task(self._call_engine(client, engine, texts), name=f"translate:{engine.name}")
+            for client, engine in engines
+        ]
+        try:
+            for awaitable in asyncio.as_completed(tasks):
+                result = await awaitable
+                if result is not None:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    return result
+        except Exception as exc:  # pragma: no cover — _call_engine swallows, but guard
+            logger.error("Concurrent translation fan-out error", error=str(exc))
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+        logger.error(
+            "All concurrent translation engines failed",
+            count=len(texts),
+            engines=[e.name for _, e in engines],
+        )
         return [None] * len(texts)
 
     @property
@@ -97,6 +148,23 @@ class TranslationService:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_translations(items: list) -> list[str | None]:
+        """Coerce a parsed LLM response into ``list[str | None]``.
+
+        LLMs occasionally emit ``null`` / non-string / whitespace-only entries
+        inside an otherwise well-formed JSON array. Treat those as missing
+        (``None``) rather than passing junk through to the subtitle row, so a
+        single bad slot doesn't silently misalign the write-back.
+        """
+        out: list[str | None] = []
+        for p in items:
+            if isinstance(p, str) and p.strip():
+                out.append(p.strip())
+            else:
+                out.append(None)
+        return out
 
     async def _call_engine(
         self, client: AsyncOpenAI, engine: EngineConfig, texts: list[str]
@@ -120,7 +188,7 @@ class TranslationService:
             parsed = json.loads(cleaned)
 
             if isinstance(parsed, list) and len(parsed) == len(texts):
-                return parsed
+                return self._normalize_translations(parsed)
 
             # Length mismatch — log and treat as failure
             logger.warning(
@@ -131,7 +199,7 @@ class TranslationService:
             )
             # If we got *more* results than expected, truncate
             if isinstance(parsed, list) and len(parsed) > len(texts):
-                return parsed[: len(texts)]
+                return self._normalize_translations(parsed[: len(texts)])
             return None
 
         except json.JSONDecodeError as exc:

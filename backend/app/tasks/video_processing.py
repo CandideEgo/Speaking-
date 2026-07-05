@@ -397,11 +397,17 @@ def finalize_video(self, video_id: str):
                         select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
                     )
                     sub_rows = list(sub_result.scalars().all())
-                    texts = [s.text_en for s in sub_rows if s.text_en]
+                    # Preserve original row index when filtering out empty
+                    # text_en — translating a filtered list and writing back
+                    # with the same enumerate index shifts every translation
+                    # past the first empty row onto the wrong subtitle (the
+                    # root cause of "some subtitles translated, some not").
+                    indexed = [(i, s.text_en) for i, s in enumerate(sub_rows) if s.text_en]
+                    texts = [t for _, t in indexed]
                     translated = await _translate_subtitles(texts)
-                    for i, t in enumerate(translated):
-                        if t and i < len(sub_rows):
-                            sub_rows[i].text_zh = t
+                    for j, t in enumerate(translated):
+                        if t:
+                            sub_rows[indexed[j][0]].text_zh = t
                     video.processing_step = "translating"
                     video.processing_progress = 70
                     await db.commit()

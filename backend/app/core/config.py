@@ -122,9 +122,13 @@ class Settings(BaseSettings):
 
     transcription_temp_dir: str = "./media/transcription_temp"
 
-    # Translation engine (pluggable)
-    translation_engine: str = "agnes"  # agnes | hy_mt2 | qwen | custom
-    translation_fallback_engine: str = ""  # optional fallback engine
+    # Translation engine (pluggable). Agnes is retired for translation (prone
+    # to missed/low-quality output); qwen + hy_mt2 (both iFLYTEK) are the
+    # default pair. Agnes is still used by AIService._chat for non-translation
+    # LLM calls (pronunciation/rubric/gloss/grammar/practice questions).
+    translation_engine: str = "qwen"  # qwen | hy_mt2 | agnes | custom
+    translation_fallback_engine: str = "hy_mt2"  # paired with primary for concurrent mode
+    translation_concurrent: bool = True  # run primary + fallback concurrently, first valid wins
     translation_batch_size: int = 20
     translation_hymt2_api_key: str = ""
     translation_qwen_api_key: str = ""

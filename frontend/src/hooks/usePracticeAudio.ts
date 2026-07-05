@@ -8,6 +8,10 @@ interface UsePracticeAudioReturn {
   playWord: (word: string) => void;
   /** Play a full sentence via TTS. */
   playSentence: (sentence: string) => void;
+  /** The text currently being spoken (null when idle). Compare against the
+   * text a button plays to highlight only that button — a shared boolean
+   * would light up every play button at once. */
+  playingText: string | null;
   /** Whether audio is currently playing. */
   isPlaying: boolean;
   /** Stop current playback. */
@@ -20,7 +24,10 @@ interface UsePracticeAudioReturn {
  * Video-seek playback can be added later for sentence_repeat items.
  */
 export function usePracticeAudio(): UsePracticeAudioReturn {
-  const { isPlaying, speak, stop } = useSpeech({ lang: "en-US", rate: 0.9 });
+  const { isPlaying, currentText, speak, stop } = useSpeech({
+    lang: "en-US",
+    rate: 0.9,
+  });
 
   const playWord = useCallback(
     (word: string) => {
@@ -38,5 +45,5 @@ export function usePracticeAudio(): UsePracticeAudioReturn {
     [speak],
   );
 
-  return { playWord, playSentence, isPlaying, stop };
+  return { playWord, playSentence, playingText: currentText, isPlaying, stop };
 }
