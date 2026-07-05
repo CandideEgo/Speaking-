@@ -18,7 +18,9 @@ import { api, mediaUrl } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import SubtitleModeTabs from "@/components/subtitle/SubtitleModeTabs";
+import SubtitleModeTabs, {
+  SubtitleModeRail,
+} from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
@@ -408,9 +410,7 @@ export default function WatchPage() {
       <div
         className={cn(
           "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
-          panelCollapsed
-            ? "lg:grid-cols-[1fr_220px]"
-            : "lg:grid-cols-[2fr_1fr]",
+          panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]",
         )}
       >
         {/* ========== LEFT COLUMN ========== */}
@@ -601,78 +601,73 @@ export default function WatchPage() {
           )}
         </div>
 
-        {/* ========== RIGHT COLUMN：字幕面板，可折叠为窄轨 ========== */}
+        {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
         <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] overflow-hidden min-w-0">
-          {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
-          <div className="border-b border-hairline">
-            <SubtitleModeTabs
-              collapsed={panelCollapsed}
-              onToggleCollapse={() => setPanelCollapsed(!panelCollapsed)}
-              compact={panelCollapsed}
-            />
-          </div>
+          {panelCollapsed ? (
+            // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
+            <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
+          ) : (
+            <>
+              {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
+              <div className="border-b border-hairline">
+                <SubtitleModeTabs
+                  collapsed={false}
+                  onToggleCollapse={() => setPanelCollapsed(true)}
+                />
+              </div>
 
-          {/* 字幕列表 —— 只保留核心三种模式 */}
-          <div
-            ref={subtitleListRef}
-            className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
-          >
-            <div className="flex flex-col gap-0.5">
-              {video.subtitles.map((sub, i) => (
-                <button
-                  key={sub.id}
-                  id={`subtitle-${i}`}
-                  onClick={() => {
-                    setCurrentSubtitleIndex(i);
-                    seekTo(sub.start_time);
-                  }}
-                  className={cn(
-                    "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft",
-                    panelCollapsed ? "p-2" : "p-3",
-                    i === currentSubtitleIndex &&
-                      "bg-brand-50 border-l-brand-500",
-                  )}
-                >
-                  {subtitleMode !== "chinese" && (
-                    <div
+              {/* 字幕列表 —— 只保留核心三种模式 */}
+              <div
+                ref={subtitleListRef}
+                className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
+              >
+                <div className="flex flex-col gap-0.5">
+                  {video.subtitles.map((sub, i) => (
+                    <button
+                      key={sub.id}
+                      id={`subtitle-${i}`}
+                      onClick={() => {
+                        setCurrentSubtitleIndex(i);
+                        seekTo(sub.start_time);
+                      }}
                       className={cn(
-                        "font-medium",
-                        panelCollapsed
-                          ? "text-[12px] leading-snug"
-                          : "text-sm leading-relaxed",
-                        i === currentSubtitleIndex
-                          ? "text-brand-500"
-                          : "text-ink",
+                        "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
+                        i === currentSubtitleIndex &&
+                          "bg-brand-50 border-l-brand-500",
                       )}
                     >
-                      {sub.text_en.split(" ").map((word, wi) => (
-                        <span
-                          key={wi}
-                          className={levelClassFor(word, sub.word_levels)}
+                      {subtitleMode !== "chinese" && (
+                        <div
+                          className={cn(
+                            "font-medium text-sm leading-relaxed",
+                            i === currentSubtitleIndex
+                              ? "text-brand-500"
+                              : "text-ink",
+                          )}
                         >
-                          {word}{" "}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {(subtitleMode === "bilingual" ||
-                    subtitleMode === "chinese") &&
-                    sub.text_zh && (
-                      <div
-                        className={cn(
-                          "text-muted mt-0.5",
-                          panelCollapsed
-                            ? "text-[11px] leading-snug"
-                            : "text-xs",
+                          {sub.text_en.split(" ").map((word, wi) => (
+                            <span
+                              key={wi}
+                              className={levelClassFor(word, sub.word_levels)}
+                            >
+                              {word}{" "}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {(subtitleMode === "bilingual" ||
+                        subtitleMode === "chinese") &&
+                        sub.text_zh && (
+                          <div className="text-muted mt-0.5 text-xs">
+                            {sub.text_zh}
+                          </div>
                         )}
-                      >
-                        {sub.text_zh}
-                      </div>
-                    )}
-                </button>
-              ))}
-            </div>
-          </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </aside>
       </div>
 

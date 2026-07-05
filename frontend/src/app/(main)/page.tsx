@@ -17,18 +17,6 @@ import { SectionHeader, SectionLink } from "@/components/ui/SectionHeader";
 import { VideoCard } from "@/components/ui/VideoCard";
 import type { Video, LearningRecord } from "@/types";
 
-/* ── Category data ── */
-const CATEGORIES = [
-  { emoji: "🎤", label: "TED Talks", tag: "TED" },
-  { emoji: "🎙️", label: "访谈", tag: "访谈" },
-  { emoji: "📰", label: "新闻", tag: "新闻" },
-  { emoji: "📹", label: "Vlog", tag: "Vlog" },
-  { emoji: "📚", label: "教育", tag: "教育" },
-  { emoji: "🎬", label: "电影片段", tag: "电影" },
-  { emoji: "💻", label: "科技", tag: "科技" },
-  { emoji: "🛒", label: "商业", tag: "商业" },
-];
-
 export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
@@ -59,13 +47,6 @@ export default function HomePage() {
       }
     })();
   }, []);
-
-  // Count videos per category tag
-  const categoryCounts: Record<string, number> = {};
-  for (const v of videos) {
-    const tag = v.topic_tags?.split(",")[0]?.trim() || "其他";
-    categoryCounts[tag] = (categoryCounts[tag] || 0) + 1;
-  }
 
   // Continue watching: real in-progress records (with progress), fallback to first 4 videos
   const continueWatching: { video: Video; progress?: number }[] =
@@ -222,44 +203,6 @@ export default function HomePage() {
         {/* ── 社区动态 ── */}
         <CommunityFeedWidget />
 
-        {/* ── 分类视觉化大卡 ── */}
-        <section>
-          <SectionHeader
-            title="按分类浏览"
-            action={
-              <Link href="/browse">
-                <SectionLink>
-                  查看全部
-                  <ArrowRight size={15} />
-                </SectionLink>
-              </Link>
-            }
-          />
-          <div className="cat-feat">
-            {CATEGORIES_WITH_META.map((cat) => {
-              const count = categoryCounts[cat.tag];
-              return (
-                <Link
-                  key={cat.tag}
-                  href={`/browse?category=${encodeURIComponent(cat.tag)}`}
-                  className="cat-big"
-                >
-                  <div className={`cat-bg bg-gradient-to-br ${cat.gradient}`} />
-                  <div className="ov" />
-                  {count ? null : <span className="lv">COMING SOON</span>}
-                  <div className="meta">
-                    <div className="emoji">{cat.emoji}</div>
-                    <div className="label">{cat.label}</div>
-                    <div className="count">
-                      {count ? `${count} 个视频 · ${cat.range}` : "即将上线"}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
         {/* ── 按难度精选 ── */}
         <section>
           <SectionHeader
@@ -310,32 +253,3 @@ export default function HomePage() {
     </PageTransition>
   );
 }
-
-/* ── 分类元数据（确定性渐变 + 难度区间，用于视觉化大卡） ── */
-const CATEGORY_GRADIENTS: Record<string, string> = {
-  TED: "from-violet-500 to-indigo-600",
-  访谈: "from-rose-500 to-pink-600",
-  新闻: "from-sky-500 to-blue-600",
-  Vlog: "from-amber-500 to-orange-600",
-  教育: "from-emerald-500 to-teal-600",
-  电影: "from-fuchsia-500 to-purple-600",
-  科技: "from-cyan-500 to-sky-600",
-  商业: "from-lime-500 to-green-600",
-};
-
-const CATEGORIES_WITH_META = CATEGORIES.map((c) => ({
-  ...c,
-  gradient: CATEGORY_GRADIENTS[c.tag] ?? "from-brand-500 to-brand-400",
-  range:
-    c.tag === "TED" || c.tag === "新闻"
-      ? "B1–C1"
-      : c.tag === "访谈" || c.tag === "电影"
-        ? "B2–C2"
-        : c.tag === "Vlog"
-          ? "A2–B1"
-          : c.tag === "教育"
-            ? "A1–B1"
-            : c.tag === "科技"
-              ? "B2–C1"
-              : "A1–C2",
-}));

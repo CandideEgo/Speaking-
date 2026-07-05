@@ -323,46 +323,6 @@
     grid-column: span 1 / span 1;
     grid-row: span 2 / span 2;
   }
-  /* 分类视觉化大卡 */
-  .cat-feat {
-    @apply grid gap-4;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .cat-big {
-    @apply relative aspect-[4/3] rounded-lg overflow-hidden cursor-pointer border border-hairline;
-  }
-  .cat-big .cat-bg {
-    @apply w-full h-full opacity-55 transition-all duration-200;
-  }
-  .cat-big:hover .cat-bg {
-    @apply opacity-70 scale-105;
-  }
-  .cat-big .ov {
-    @apply absolute inset-0;
-    background: linear-gradient(
-      180deg,
-      transparent 30%,
-      rgba(10, 10, 10, 0.85)
-    );
-  }
-  .cat-big .meta {
-    @apply absolute left-4 right-4 bottom-[14px] text-on-primary;
-  }
-  .cat-big .meta .emoji {
-    @apply text-[24px];
-  }
-  .cat-big .meta .label {
-    @apply text-base font-bold tracking-display-sm mt-1;
-  }
-  .cat-big .meta .count {
-    @apply text-[11px] mt-0.5 font-mono;
-    color: rgba(255, 255, 255, 0.7);
-  }
-  .cat-big .lv {
-    @apply absolute top-3 right-3 text-[10px] font-mono;
-    letter-spacing: 0.1em;
-    color: rgba(255, 255, 255, 0.8);
-  }
   /* 响应式：bento 在中等屏降级 */
   @media (max-width: 1024px) {
     .bento {
@@ -387,9 +347,6 @@
     }
     .vcard-feat {
       grid-row: auto / auto;
-    }
-    .cat-feat {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 }

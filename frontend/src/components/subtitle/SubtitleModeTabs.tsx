@@ -105,3 +105,46 @@ export default function SubtitleModeTabs({
     </div>
   );
 }
+
+/**
+ * Collapsed icon rail — shown when the subtitle panel is collapsed to a thin
+ * vertical strip. Each mode is an icon-only button with a native ``title``
+ * tooltip (hover to see the label); clicking a mode expands the panel back to
+ * full width and activates that mode. The expand button at the bottom reopens
+ * the panel without changing the mode.
+ */
+export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
+  const { subtitleMode, setSubtitleMode } = useWatchStore();
+
+  return (
+    <div className="flex flex-col items-center gap-1 py-2">
+      {modes.map((m) => (
+        <button
+          key={m.key}
+          onClick={() => {
+            setSubtitleMode(m.key);
+            onExpand();
+          }}
+          className={cn(
+            "w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 cursor-pointer",
+            subtitleMode === m.key
+              ? "bg-coral/10 text-coral"
+              : "text-muted-foreground hover:text-ink hover:bg-cream-soft",
+          )}
+          title={m.label}
+          aria-label={m.label}
+        >
+          {m.icon}
+        </button>
+      ))}
+      <button
+        onClick={onExpand}
+        className="mt-1 w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-ink hover:bg-cream-soft transition-colors duration-150 cursor-pointer"
+        title="展开字幕面板"
+        aria-label="展开字幕面板"
+      >
+        <PanelRightOpen size={16} />
+      </button>
+    </div>
+  );
+}
