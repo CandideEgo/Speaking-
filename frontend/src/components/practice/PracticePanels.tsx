@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   Volume2,
   Check,
@@ -16,6 +16,7 @@ import { usePracticeAudio } from "@/hooks/usePracticeAudio";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -598,6 +599,25 @@ export function UnifiedPracticePanel({
 }: UnifiedPracticePanelProps) {
   const audio = usePracticeAudio();
   const [submitted, setSubmitted] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const total = session.items.length;
+  const currentGraded = session.graded[currentIndex] ?? null;
+
+  // Auto-advance ~800ms after a correct answer (lets the learner see the ✓).
+  useEffect(() => {
+    if (!currentGraded?.correct) return;
+    if (currentIndex >= total - 1) return;
+    const t = setTimeout(() => setCurrentIndex((i) => i + 1), 800);
+    return () => clearTimeout(t);
+  }, [currentGraded, currentIndex, total]);
+
+  // Reset to the first item whenever the item set reloads (level change /
+  // refetch), so we never point past the end of a fresh list.
+  useEffect(() => {
+    setCurrentIndex(0);
+    setSubmitted(false);
+  }, [session.items]);
 
   const handleSubmitResults = async () => {
     await session.submitResults();
@@ -607,6 +627,7 @@ export function UnifiedPracticePanel({
   const handleRetry = () => {
     session.reset();
     setSubmitted(false);
+    setCurrentIndex(0);
   };
 
   if (session.loading) {
@@ -633,7 +654,7 @@ export function UnifiedPracticePanel({
     );
   }
 
-  if (!session.items.length) {
+  if (!total) {
     return (
       <div className="text-sm text-muted py-4">
         该视频暂无目标等级词汇可供练习。
@@ -641,23 +662,55 @@ export function UnifiedPracticePanel({
     );
   }
 
+  // Completion screen — show once every item has been graded.
+  if (session.allGraded) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {session.items.map((_, i) => {
+            const g = session.graded[i];
+            return (
+              <span
+                key={i}
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  g?.correct ? "bg-emerald-500" : "bg-red-400",
+                )}
+              />
+            );
+          })}
+        </div>
+        <CompletionSummary
+          total={total}
+          correct={session.correctCount}
+          accuracy={session.accuracy}
+          onRetry={handleRetry}
+          onSubmit={handleSubmitResults}
+          submitted={submitted}
+        />
+      </div>
+    );
+  }
+
+  const wrongCount = session.answeredCount - session.correctCount;
+  const isLast = currentIndex >= total - 1;
+
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header: level + position + running score */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-ink">练习</span>
           <span className="text-xs px-1.5 py-0.5 rounded bg-ink/5 text-muted">
             {levelLabel}
           </span>
+          <span className="text-xs text-muted">
+            {currentIndex + 1} / {total}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted">
-          <span>
-            {session.correctCount} / {session.items.length}
-          </span>
-          {session.accuracy !== null && (
-            <span>{Math.round(session.accuracy)}%</span>
-          )}
+          <span className="text-emerald-600">✓ {session.correctCount}</span>
+          <span className="text-red-500">✗ {wrongCount}</span>
           <Button
             variant="ghost"
             size="compact"
@@ -669,43 +722,47 @@ export function UnifiedPracticePanel({
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full bg-hairline rounded-full h-1.5">
-        <div
-          className="bg-ink rounded-full h-1.5 transition-all"
-          style={{
-            width: `${(session.answeredCount / session.items.length) * 100}%`,
-          }}
-        />
+      {/* Progress dots — click to jump to any item */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {session.items.map((item, i) => {
+          const g = session.graded[i];
+          const isCurrent = i === currentIndex;
+          return (
+            <button
+              key={`${item.word}-${item.type}-${i}`}
+              type="button"
+              onClick={() => setCurrentIndex(i)}
+              aria-label={`第 ${i + 1} 题`}
+              className={cn(
+                "h-2 rounded-full transition-all",
+                isCurrent ? "w-6 bg-ink" : "w-2",
+                !isCurrent && g?.correct && "bg-emerald-500",
+                !isCurrent && g && !g.correct && "bg-red-400",
+                !isCurrent && !g && "bg-hairline",
+              )}
+            />
+          );
+        })}
       </div>
 
-      {/* Items */}
-      <div className="space-y-3">
-        {session.items.map((item, i) => (
-          <PracticeItemRenderer
-            key={`${item.word}-${item.type}-${i}`}
-            item={item}
-            index={i}
-            answer={session.answers[i] ?? ""}
-            graded={session.graded[i] ?? null}
-            grading={session.grading[i] ?? false}
-            onAnswer={(a) => session.setAnswer(i, a)}
-            onGrade={(a) => session.gradeAnswer(i, a)}
-            audio={audio}
-          />
-        ))}
-      </div>
+      {/* Current item only — one-at-a-time focused drill */}
+      <PracticeItemRenderer
+        key={currentIndex}
+        item={session.items[currentIndex]}
+        index={currentIndex}
+        answer={session.answers[currentIndex] ?? ""}
+        graded={currentGraded}
+        grading={session.grading[currentIndex] ?? false}
+        onAnswer={(a) => session.setAnswer(currentIndex, a)}
+        onGrade={(a) => session.gradeAnswer(currentIndex, a)}
+        audio={audio}
+      />
 
-      {/* Completion */}
-      {session.allGraded && (
-        <CompletionSummary
-          total={session.items.length}
-          correct={session.correctCount}
-          accuracy={session.accuracy}
-          onRetry={handleRetry}
-          onSubmit={handleSubmitResults}
-          submitted={submitted}
-        />
+      {/* Wrong answer → manual "next" (correct answers auto-advance) */}
+      {currentGraded && !currentGraded.correct && !isLast && (
+        <div className="flex justify-end">
+          <Button onClick={() => setCurrentIndex((i) => i + 1)}>下一题</Button>
+        </div>
       )}
     </div>
   );

@@ -62,9 +62,13 @@ function gradePracticeItem(
       return { correct, explanation: null, correctAnswer: expected };
     }
 
-    // Sentence repeat: always "correct" (self-evaluated)
-    case "sentence_repeat":
-      return { correct: true, explanation: null, correctAnswer: expected };
+    // Sentence repeat: self-evaluated. RecordAndEvaluate passes "self_correct"
+    // or "self_wrong" as the answer. Treating it as always-correct inflated
+    // SM-2 mastery (every repeat pushed quality=5). Now "需练习" → quality 2.
+    case "sentence_repeat": {
+      const correct = userAnswer === "self_correct";
+      return { correct, explanation: null, correctAnswer: expected };
+    }
 
     default:
       return { correct: false, explanation: null, correctAnswer: expected };

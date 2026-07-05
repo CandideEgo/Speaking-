@@ -347,7 +347,9 @@ class AIService:
             exam_examples: optional 真题 sentences to seed authentic questions.
 
         Returns:
-            list of {type: "qa"|"fill_blank", question, answer, options?, cet_words[]}
+            list of {type: "qa"|"context_fill"|"reading"|"sentence_building", question, answer,
+            options?, cet_words[], word? (context_fill only — the gap word), passage? (reading only),
+            tokens? (sentence_building only)}
         """
         # Trim a long transcript so the prompt stays bounded.
         transcript = (subtitles_text or "").strip()[:6000]
@@ -371,11 +373,13 @@ class AIService:
             "Produce a mix of these types:\n"
             "- qa: a comprehension question about the transcript content. Include answer (a concise "
             "Chinese or English answer). Optionally add options (4 strings) to make it multiple-choice.\n"
-            "- fill_blank: a fill-in-the-blank sentence drawn from the transcript, with the gap being a "
-            "word from the target vocabulary list. answer is the gap word (its lemma). Optionally add "
-            "options (4 strings) for multiple-choice. Add cet_words listing the target words used. "
-            "You may adapt a provided past-paper (真题) sentence into a fill-in-the-blank question when it "
-            "contains a target word, for an authentic exam flavor.\n"
+            "- context_fill: a fill-in-the-blank sentence drawn from the transcript, with the gap being a "
+            'single word from the target vocabulary list. The `question` field is the sentence with "___" '
+            "(three underscores) marking the gap position. `word` is the single gap word (MUST be exactly "
+            "one of the target vocabulary words — it is used as the cache key). `answer` is the gap word "
+            "(its lemma). Optionally add `options` (4 strings) for multiple-choice. Add `cet_words` "
+            "listing the target words used. You may adapt a provided past-paper (真题) sentence into a "
+            "context_fill question when it contains a target word, for an authentic exam flavor.\n"
             "- reading: a short reading-comprehension question. Build a 2-4 sentence passage that "
             "paraphrases or expands on part of the transcript (put it in the passage field), then ask a "
             "comprehension question about it. answer is the answer; options (4 strings) makes it "
@@ -385,8 +389,9 @@ class AIService:
             "the correct sentence (the tokens in order, space-joined, original punctuation stripped). "
             "Do not include options for this type.\n\n"
             'Return a JSON object {"questions": [ ... ]}. Each question object has: type, question, '
-            "answer, options (array or null), cet_words (array or null), passage (string or null, "
-            "reading only), tokens (array of strings or null, sentence_building only). Keep questions "
+            "answer, options (array or null), cet_words (array or null), word (string, context_fill "
+            "only — the single gap word, must match a target word), passage (string or null, reading "
+            "only), tokens (array of strings or null, sentence_building only). Keep questions "
             "answerable from the transcript. Do not reveal the answer in the question text."
         )
         user = (
