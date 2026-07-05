@@ -3,6 +3,7 @@
 import pytest
 
 from app.services.transcription.formatters import (
+    merge_short_segments,
     whisper_segments_to_subtitles,
     whisperx_segments_to_subtitles,
 )
@@ -324,3 +325,124 @@ class TestWhisperSegmentsToSubtitles:
         result = whisper_segments_to_subtitles([seg])
 
         assert len(result) == 0
+
+
+# ---------------------------------------------------------------------------
+# words preservation in whisperx_segments_to_subtitles
+# ---------------------------------------------------------------------------
+
+
+class TestWordsPreservation:
+    """Word-level timestamps must survive formatting (with offset) so the
+    editor split/merge and re-segmentation can re-cut precisely."""
+
+    def test_words_preserved_with_offset(self):
+        segments = [
+            {
+                "start": 0.0,
+                "end": 2.0,
+                "text": "hello world",
+                "words": [
+                    {"word": "hello", "start": 0.0, "end": 0.5, "score": 0.9},
+                    {"word": "world", "start": 0.6, "end": 1.0, "score": 0.9},
+                ],
+            }
+        ]
+        # chunk offset of 600s must apply to both segment and word timestamps
+        result = whisperx_segments_to_subtitles(segments, offset=600.0)
+        assert result[0]["start"] == 600.0
+        assert result[0]["end"] == 601.0
+        words = result[0]["words"]
+        assert words == [
+            {"word": "hello", "start": 600.0, "end": 600.5},
+            {"word": "world", "start": 600.6, "end": 601.0},
+        ]
+
+    def test_words_absent_when_input_has_none(self):
+        segments = [{"start": 0.0, "end": 2.0, "text": "no words here"}]
+        result = whisperx_segments_to_subtitles(segments)
+        assert "words" not in result[0]
+
+
+# ---------------------------------------------------------------------------
+# merge_short_segments tests
+# ---------------------------------------------------------------------------
+
+
+class TestMergeShortSegments:
+    """Lone-word / sub-second fragments fold into the preceding segment."""
+
+    def test_single_word_segment_merges_into_previous(self):
+        segments = [
+            {
+                "start": 0.0,
+                "end": 3.0,
+                "text": "full sentence here",
+                "words": [
+                    {"word": "full", "start": 0.0, "end": 0.5},
+                    {"word": "sentence", "start": 0.6, "end": 1.5},
+                    {"word": "here", "start": 1.6, "end": 2.5},
+                ],
+            },
+            {
+                "start": 3.0,
+                "end": 3.3,
+                "text": "Yeah.",
+                "words": [{"word": "Yeah.", "start": 3.0, "end": 3.3}],
+            },
+        ]
+        result = merge_short_segments(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "full sentence here Yeah."
+        assert result[0]["start"] == 0.0
+        assert result[0]["end"] == 3.3
+        # word lists concatenated
+        assert len(result[0]["words"]) == 4
+
+    def test_normal_segments_not_merged(self):
+        segments = [
+            {"start": 0.0, "end": 3.0, "text": "first", "words": [{"word": "first", "start": 0.0, "end": 3.0}]},
+            {"start": 3.0, "end": 6.0, "text": "second", "words": [{"word": "second", "start": 3.0, "end": 6.0}]},
+        ]
+        result = merge_short_segments(segments)
+        assert len(result) == 2
+
+    def test_first_segment_short_kept(self):
+        # No predecessor to merge into — first segment is kept as-is
+        segments = [
+            {"start": 0.0, "end": 0.3, "text": "uh", "words": [{"word": "uh", "start": 0.0, "end": 0.3}]},
+            {
+                "start": 0.3,
+                "end": 4.0,
+                "text": "real sentence",
+                "words": [{"word": "real", "start": 0.3, "end": 1.0}, {"word": "sentence", "start": 1.1, "end": 3.5}],
+            },
+        ]
+        result = merge_short_segments(segments)
+        assert len(result) == 2
+        assert result[0]["text"] == "uh"
+
+    def test_run_of_short_segments_accumulate(self):
+        segments = [
+            {"start": 0.0, "end": 4.0, "text": "long", "words": [{"word": "long", "start": 0.0, "end": 4.0}]},
+            {"start": 4.0, "end": 4.2, "text": "a", "words": [{"word": "a", "start": 4.0, "end": 4.2}]},
+            {"start": 4.2, "end": 4.4, "text": "b", "words": [{"word": "b", "start": 4.2, "end": 4.4}]},
+        ]
+        result = merge_short_segments(segments)
+        assert len(result) == 1
+        assert result[0]["text"] == "long a b"
+
+    def test_empty_and_single_input(self):
+        assert merge_short_segments([]) == []
+        single = [{"start": 0.0, "end": 0.2, "text": "x", "words": [{"word": "x", "start": 0.0, "end": 0.2}]}]
+        assert len(merge_short_segments(single)) == 1
+
+    def test_does_not_mutate_input(self):
+        segments = [
+            {"start": 0.0, "end": 3.0, "text": "keep", "words": [{"word": "keep", "start": 0.0, "end": 3.0}]},
+            {"start": 3.0, "end": 3.2, "text": "x", "words": [{"word": "x", "start": 3.0, "end": 3.2}]},
+        ]
+        original_text = segments[0]["text"]
+        merge_short_segments(segments)
+        # caller's dict not mutated
+        assert segments[0]["text"] == original_text

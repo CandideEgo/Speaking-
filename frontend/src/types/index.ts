@@ -88,6 +88,10 @@ export interface Subtitle {
   /** Exam-level word annotations: lowercased surface token -> exam level keys.
    * Computed once at ingest from ECDICT; see lib/examLevels.ts. */
   word_levels: Record<string, string[]> | null;
+  /** Word-level timestamps from WhisperX alignment: [{word, start, end}, ...].
+   * Populated at ingest; null for legacy rows / faster-whisper fallback. Used
+   * by the subtitle editor split/merge to assign precise timestamps. */
+  words?: { word: string; start: number; end: number }[] | null;
   speaker: string | null;
   index?: number;
 }

@@ -330,6 +330,18 @@ def transcribe_with_whisperx(audio_path: str, batch_size: int | None = None) -> 
     model_a, metadata = get_align_model(language)
     device, _ = _detect_device()
     result = whisperx.align(result["segments"], model_a, metadata, audio, device)
+
+    # Failsafe segmentation: if punctuation restoration was skipped or failed
+    # (so align()'s NLTK Punkt couldn't split sentences), split_long_segments
+    # force-splits any segment still over ~12s by word count. merge_short_segments
+    # then folds lone-word fragments (VAD-isolated utterances or mis-flagged
+    # sentence finals) into the prior segment. Together these prevent the
+    # "one giant segment" and "single-word segment" pathologies even when the
+    # punctuation model is unavailable.
+    from .formatters import merge_short_segments, split_long_segments
+
+    result["segments"] = split_long_segments(result["segments"], max_duration=12.0)
+    result["segments"] = merge_short_segments(result["segments"])
     logger.info("WhisperX aligned", segment_count=len(result["segments"]))
 
     return result["segments"]
@@ -371,9 +383,10 @@ def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
         from .punctuation import restore_punctuation
 
         out = restore_punctuation(out)
-    from .formatters import split_long_segments
+    from .formatters import merge_short_segments, split_long_segments
 
     out = split_long_segments(out, max_duration=12.0)
+    out = merge_short_segments(out)
     logger.info("faster-whisper transcription complete", segment_count=len(out))
     return out
 

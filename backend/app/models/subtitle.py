@@ -30,6 +30,13 @@ class Subtitle(Base):
     # Computed once at ingest from ECDICT; level-agnostic so display can filter by user target.
     word_levels: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Word-level timestamps from WhisperX alignment: [{word, start, end}, ...].
+    # Populated at ingest (transcription callback). Enables precise segment
+    # split/merge in the subtitle editor and re-segmentation without re-running
+    # forced alignment on the audio. Null for legacy rows and for the
+    # faster-whisper fallback path when word timestamps are unavailable.
+    words: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
     # relationships
     video = relationship("Video", back_populates="subtitles")
     speaking_attempts = relationship("SpeakingAttempt", back_populates="subtitle")

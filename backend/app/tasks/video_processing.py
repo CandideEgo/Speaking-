@@ -267,7 +267,17 @@ def _post_transcription_callback(
         "video_id": video_id,
         "status": status,
         "segments": (
-            [{"start": s["start"], "end": s["end"], "text": s["text"]} for s in segments]
+            [
+                {
+                    "start": s["start"],
+                    "end": s["end"],
+                    "text": s["text"],
+                    # Forward word-level timestamps so the cloud can persist
+                    # them for precise split/merge + re-segmentation.
+                    "words": s.get("words"),
+                }
+                for s in segments
+            ]
             if status == "ok" and segments
             else None
         ),

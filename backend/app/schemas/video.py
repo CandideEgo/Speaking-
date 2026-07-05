@@ -73,6 +73,8 @@ class SubtitleResponse(BaseModel):
     speaker: str | None
     # Exam-level word annotations: {surface_token: [level keys]} or null.
     word_levels: dict | None = None
+    # Word-level timestamps [{word, start, end}, ...] from alignment, or null.
+    words: list | None = None
 
     model_config = {"from_attributes": True}
 
@@ -258,12 +260,24 @@ class VideoAdminStatusResponse(VideoStatusResponse):
     pass
 
 
+class WordToken(BaseModel):
+    """A single word token with timing from WhisperX forced alignment."""
+
+    word: str
+    start: float
+    end: float
+
+
 class TranscriptionSegment(BaseModel):
     """A single subtitle segment returned by the remote GPU transcription worker."""
 
     start: float
     end: float
     text: str
+    # Word-level timestamps from alignment. Optional: absent for legacy workers
+    # and the faster-whisper fallback path. When present, persisted to
+    # Subtitle.words so the editor/re-segmentation can re-cut precisely.
+    words: list[WordToken] | None = None
 
 
 class TranscriptionCallbackRequest(BaseModel):

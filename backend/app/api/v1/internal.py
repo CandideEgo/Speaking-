@@ -123,6 +123,9 @@ async def transcription_callback(
                         end_time=seg.end,
                         text_en=seg.text,
                         sentence_index=i,
+                        # Persist word-level timestamps when the GPU worker
+                        # sends them — enables precise split/merge + re-segment.
+                        words=[w.model_dump() for w in seg.words] if seg.words else None,
                     )
                 )
         video.status = VideoStatus.ready_subtitles

@@ -59,6 +59,11 @@ def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) ->
     Word-level timestamps are used to tighten subtitle boundaries when present;
     otherwise the segment's own start/end are used.
 
+    When the input segment carries ``words``, they are preserved (offset
+    applied) on the output dict so downstream consumers — the subtitle editor
+    split/merge and the re-segmentation API — can re-cut precisely without
+    re-running forced alignment on the audio.
+
     Args:
         segments: List of segment dicts.
             Each: {"start": float, "end": float, "text": str, "words": [...]}
@@ -66,7 +71,7 @@ def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) ->
         offset: Time offset in seconds (for chunked transcription).
 
     Returns:
-        list[dict]: [{"start": float, "end": float, "text": str}, ...]
+        list[dict]: [{"start": float, "end": float, "text": str, "words"?: [...]}, ...]
     """
     results = []
     for seg in segments:
@@ -83,13 +88,19 @@ def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) ->
             start = seg.get("start", 0.0) + offset
             end = seg.get("end", 0.0) + offset
 
-        results.append(
-            {
-                "start": float(start),
-                "end": float(end),
-                "text": text,
-            }
-        )
+        sub: dict = {"start": float(start), "end": float(end), "text": text}
+        if words:
+            # Preserve word tokens with offset applied, dropping any empty tokens.
+            sub["words"] = [
+                {
+                    "word": w.get("word", "").strip(),
+                    "start": float(w.get("start", 0.0)) + offset,
+                    "end": float(w.get("end", 0.0)) + offset,
+                }
+                for w in words
+                if w.get("word", "").strip()
+            ]
+        results.append(sub)
     return results
 
 
@@ -199,6 +210,57 @@ def split_long_segments(segments: list[dict], max_duration: float = 12.0) -> lis
             sub = _build_subsegment(g, seg_start, seg_end)
             if sub:
                 out.append(sub)
+    return out
+
+
+def merge_short_segments(
+    segments: list[dict],
+    min_duration: float = 1.0,
+    max_words: int = 2,
+) -> list[dict]:
+    """Merge adjacent segments that are too short to stand alone.
+
+    A segment is a merge candidate when its duration is below ``min_duration``
+    AND it has at most ``max_words`` words. Such fragments arise when VAD
+    isolates a short utterance or when punctuation restoration mis-flags a lone
+    word as sentence-final (NLTK then splits it into its own segment). The
+    fragment is folded into the preceding segment: text concatenated with a
+    space, span widened to ``[prev.start, cur.end]``, word lists concatenated.
+
+    The first segment is never merged away (no predecessor); a run of short
+    segments after a normal one accumulates into it. Segments without word
+    timestamps are judged by duration alone (``max_words`` skipped).
+
+    Args:
+        segments: List of segment dicts (``{"start","end","text","words"}``).
+        min_duration: Segments shorter than this (seconds) are merge candidates.
+        max_words: ...and have at most this many words.
+
+    Returns:
+        list[dict]: Segments with short tails merged into their predecessor.
+    """
+    if len(segments) <= 1:
+        return list(segments)
+    out: list[dict] = []
+    for seg in segments:
+        words = seg.get("words", []) or []
+        seg_start = seg.get("start", 0.0)
+        seg_end = seg.get("end", seg_start)
+        duration = seg_end - seg_start
+        is_short = duration < min_duration and (len(words) <= max_words if words else True)
+        if is_short and out:
+            prev = out[-1]
+            prev_words = prev.get("words", []) or []
+            merged_words = prev_words + words
+            prev["start"] = min(prev.get("start", seg_start), seg_start)
+            prev["end"] = max(prev.get("end", seg_end), seg_end)
+            prev["text"] = (prev.get("text", "") + " " + seg.get("text", "")).strip()
+            if merged_words:
+                prev["words"] = merged_words
+        else:
+            # Shallow copy so we don't mutate the caller's segment dicts when
+            # later segments merge into this one.
+            out.append(dict(seg))
     return out
 
 
