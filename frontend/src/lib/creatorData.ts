@@ -13,6 +13,8 @@ import type {
   PracticeItem,
   UnifiedPracticeSet,
   Subtitle,
+  SubtitleRevision,
+  SubtitleRevisionPage,
   Video,
   VideoWithSubtitles,
 } from "@/types";
@@ -120,6 +122,32 @@ export async function mergeSubtitle(
     {
       method: "POST",
     },
+  );
+}
+
+/** List edit revisions for one subtitle on your own video (newest first).
+ * Allowed even when published (read-only history). Owner only. */
+export async function listSubtitleRevisions(
+  videoId: string,
+  subtitleId: string,
+  page = 1,
+  pageSize = 50,
+): Promise<SubtitleRevisionPage> {
+  return api<SubtitleRevisionPage>(
+    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`,
+  );
+}
+
+/** Roll back a subtitle to the before-state of a prior edit on your own video.
+ * Blocked while published (begin-edit first). Owner only. */
+export async function rollbackSubtitle(
+  videoId: string,
+  subtitleId: string,
+  revisionId: string,
+): Promise<Subtitle> {
+  return api<Subtitle>(
+    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`,
+    { method: "POST" },
   );
 }
 

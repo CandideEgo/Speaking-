@@ -96,6 +96,25 @@ export interface Subtitle {
   index?: number;
 }
 
+/** One audited subtitle edit (before/after field deltas). Returned by the
+ * subtitle revisions endpoints (admin + owner). `before`/`after` map audited
+ * field names (text_en, start_time, ...) to their old/new values. */
+export interface SubtitleRevision {
+  id: string;
+  subtitle_id: string;
+  video_id: string;
+  edited_by: string | null;
+  scope: "fork" | "standard" | "sync" | string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SubtitleRevisionPage {
+  items: SubtitleRevision[];
+  has_more: boolean;
+}
+
 export interface VideoWithSubtitles extends Video {
   subtitles: Subtitle[];
 }

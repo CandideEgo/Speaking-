@@ -17,6 +17,8 @@ import type {
   InviteCode,
   Paginated,
   Subtitle,
+  SubtitleRevision,
+  SubtitleRevisionPage,
   VideoAdmin,
   VideoWithSubtitles,
 } from "@/types";
@@ -376,6 +378,30 @@ export async function mergeSubtitle(
     {
       method: "POST",
     },
+  );
+}
+
+/** List edit revisions for one subtitle (newest first). Admin only. */
+export async function listSubtitleRevisions(
+  videoId: string,
+  subtitleId: string,
+  page = 1,
+  pageSize = 50,
+): Promise<SubtitleRevisionPage> {
+  return adminApi<SubtitleRevisionPage>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`,
+  );
+}
+
+/** Roll back a subtitle to the before-state of a prior edit. Admin only. */
+export async function rollbackSubtitle(
+  videoId: string,
+  subtitleId: string,
+  revisionId: string,
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`,
+    { method: "POST" },
   );
 }
 

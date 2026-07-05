@@ -85,14 +85,16 @@ class TestSubtitleUpdate:
 
     async def test_edit_timing(self, client: AsyncClient, admin_headers: dict):
         vid, sids = await _seed_video_with_subtitles()
+        # [0.5, 1.5] stays within the original [0, 2] slot — no overlap with the
+        # next subtitle (starts at 2.0), so the adjacency check passes.
         resp = await client.patch(
             f"/api/v1/videos/admin/{vid}/subtitles/{sids[0]}",
             headers=admin_headers,
-            json={"start_time": 0.5, "end_time": 2.5},
+            json={"start_time": 0.5, "end_time": 1.5},
         )
         assert resp.status_code == 200
         assert resp.json()["start_time"] == 0.5
-        assert resp.json()["end_time"] == 2.5
+        assert resp.json()["end_time"] == 1.5
 
     async def test_invalid_timing_rejected(self, client: AsyncClient, admin_headers: dict):
         vid, sids = await _seed_video_with_subtitles()
@@ -102,6 +104,17 @@ class TestSubtitleUpdate:
             json={"start_time": 5.0, "end_time": 1.0},  # start >= end
         )
         assert resp.status_code == 422
+
+    async def test_overlap_with_next_rejected(self, client: AsyncClient, admin_headers: dict):
+        """Editing a subtitle's end_time into the next subtitle's slot is an
+        overlap and must be rejected (400) — the service-level adjacency check."""
+        vid, sids = await _seed_video_with_subtitles()
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{vid}/subtitles/{sids[0]}",
+            headers=admin_headers,
+            json={"start_time": 0.0, "end_time": 2.5},  # next starts at 2.0 → overlap
+        )
+        assert resp.status_code == 400
 
     async def test_empty_text_rejected(self, client: AsyncClient, admin_headers: dict):
         vid, sids = await _seed_video_with_subtitles()

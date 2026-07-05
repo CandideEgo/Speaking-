@@ -212,3 +212,60 @@ class TestHistoryEndpoints:
         data = resp.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["subtitle_id"] == sid
+
+
+class TestOwnerHistoryEndpoints:
+    """Owner-scoped revision list + rollback (mirrors the admin surface, owner
+    auth). Listing is allowed even when published; rollback is blocked while
+    published (begin-edit first). Non-owners get 404."""
+
+    async def test_owner_lists_and_rolls_back(self, client: AsyncClient, auth_headers: dict):
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            v, sub = await _make_video_with_subtitle(db, owner_id=owner)
+            vid, sid = v.id, sub.id
+
+        # Owner edits via the owner endpoint (draft → allowed).
+        resp = await client.patch(
+            f"/api/v1/videos/{vid}/subtitles/{sid}",
+            json={"text_en": "changed by owner"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        # Owner lists revisions via the owner endpoint.
+        resp = await client.get(
+            f"/api/v1/videos/{vid}/subtitles/{sid}/revisions",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        rev_id = items[0]["id"]
+        assert items[0]["after"]["text_en"] == "changed by owner"
+
+        # Owner rolls back via the owner endpoint.
+        resp = await client.post(
+            f"/api/v1/videos/{vid}/subtitles/{sid}/rollback/{rev_id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["text_en"] == "hello"  # restored
+
+    async def test_non_owner_list_rejected(self, client: AsyncClient, auth_headers: dict, admin_headers: dict):
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            v, sub = await _make_video_with_subtitle(db, owner_id=owner)
+            vid, sid = v.id, sub.id
+
+        # admin_headers is a different user (the admin), not the owner → 404
+        # (require_video_owner hides ownership from non-owners).
+        resp = await client.get(
+            f"/api/v1/videos/{vid}/subtitles/{sid}/revisions",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 404

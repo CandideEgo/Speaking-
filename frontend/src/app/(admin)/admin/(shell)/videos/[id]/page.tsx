@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
@@ -8,17 +8,20 @@ import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 
 import {
   getVideoDetail,
+  listSubtitleRevisions,
   mergeSubtitle,
   recomputeWordLevels,
   resegmentSubtitles,
   rollbackResegment,
+  rollbackSubtitle,
   splitSubtitle,
   updateSubtitle,
   updateVideo,
   updateWordLevels,
+  type SubtitlePatch,
+  type SubtitleSplitPayload,
 } from "@/lib/adminData";
-import { mediaUrl } from "@/lib/api";
-import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
+import { VideoSubtitleEditorPanel } from "@/components/video-edit/VideoSubtitleEditorPanel";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -32,7 +35,6 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
-  const videoElRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,37 +59,17 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
       toast.success(
         `已重算 ${res.subtitles_updated} 条字幕的高亮（${res.exam_words_found} 个考级词）`,
       );
-      const v = await getVideoDetail(params.id);
-      setVideo(v);
+      setVideo(await getVideoDetail(params.id));
     } catch (err) {
       toastApiError(err, "重算失败");
     }
   }, [params.id]);
 
-  const seekTo = useCallback((time: number) => {
-    const el = videoElRef.current;
-    if (el) {
-      el.currentTime = time;
-      el.play().catch(() => {});
-    }
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <Loader2 className="animate-spin" size={20} />
-      </div>
-    );
-  }
-  if (!video) {
-    return (
-      <div className="py-20 text-center text-muted-foreground">视频未找到</div>
-    );
-  }
-
-  const hasLocalVideo = Boolean(
-    video.video_url_720p || video.video_url_480p || video.video_url_1080p,
-  );
+  // Split/merge/rollback change the subtitle LIST structure (row count), so
+  // re-fetch the whole video rather than patching in place.
+  const refreshVideo = useCallback(async () => {
+    setVideo(await getVideoDetail(params.id));
+  }, [params.id]);
 
   const handleSubtitleSaved = (updated: Subtitle) =>
     setVideo((v) =>
@@ -101,31 +83,41 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
         : v,
     );
 
-  // Split/merge change the subtitle LIST structure (row count), so re-fetch
-  // the whole video rather than patching in place.
-  const refreshVideo = useCallback(async () => {
-    const v = await getVideoDetail(params.id);
-    setVideo(v);
-  }, [params.id]);
-
+  // --- Subtitle edit callbacks (admin API). Errors propagate to
+  // SubtitleEditor/SubtitleHistory, which render the toast. ---
+  const handleSaveSubtitle = async (subId: string, patch: SubtitlePatch) => {
+    const updated = await updateSubtitle(video!.id, subId, patch);
+    handleSubtitleSaved(updated);
+    return updated;
+  };
   const handleSplit = useCallback(
-    async (
-      subtitleId: string,
-      payload: { split_time: number; text_before: string; text_after: string },
-    ) => {
-      await splitSubtitle(params.id, subtitleId, payload);
+    async (subId: string, payload: SubtitleSplitPayload) => {
+      await splitSubtitle(params.id, subId, payload);
       await refreshVideo();
     },
     [params.id, refreshVideo],
   );
-
   const handleMerge = useCallback(
-    async (subtitleId: string) => {
-      await mergeSubtitle(params.id, subtitleId);
+    async (subId: string) => {
+      await mergeSubtitle(params.id, subId);
       await refreshVideo();
     },
     [params.id, refreshVideo],
   );
+  const handleSaveWordLevels = async (
+    subId: string,
+    levels: Record<string, string[]> | null,
+  ) => {
+    const updated = await updateWordLevels(video!.id, subId, levels);
+    handleSubtitleSaved(updated);
+    return updated;
+  };
+  const handleListRevisions = (subId: string) =>
+    listSubtitleRevisions(video!.id, subId);
+  const handleRollback = async (subId: string, revisionId: string) => {
+    await rollbackSubtitle(video!.id, subId, revisionId);
+    await refreshVideo();
+  };
 
   const handleResegment = useCallback(async () => {
     if (
@@ -159,6 +151,49 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
     }
   }, [params.id, refreshVideo]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="animate-spin" size={20} />
+      </div>
+    );
+  }
+  if (!video) {
+    return (
+      <div className="py-20 text-center text-muted-foreground">视频未找到</div>
+    );
+  }
+
+  const headerExtra = (
+    <>
+      <Button
+        onClick={handleResegment}
+        variant="secondary"
+        size="compact"
+        title="按句末标点重新切分所有字幕（会清空翻译，可回滚）"
+      >
+        重新断句
+      </Button>
+      <Button
+        onClick={handleRollbackResegment}
+        variant="outline"
+        size="compact"
+        title="回滚到上次重断句前"
+      >
+        回滚重断句
+      </Button>
+      <Button
+        onClick={handleRecomputeAll}
+        variant="secondary"
+        size="compact"
+        icon={RefreshCw}
+        title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
+      >
+        重算全部高亮
+      </Button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -176,97 +211,17 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
 
       <MetadataForm video={video} onChanged={setVideo} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] gap-6 items-start">
-        {/* Player preview (sticky) — solves "timing typed blind": click a
-            subtitle's # to jump, or use the ● capture buttons to set start/end
-            from the current playback time. */}
-        <div className="lg:sticky lg:top-6 space-y-2">
-          <div className="aspect-video w-full overflow-hidden rounded-sm bg-ink/5 flex items-center justify-center">
-            {hasLocalVideo && video.video_url_720p ? (
-              <video
-                ref={videoElRef}
-                src={mediaUrl(video.video_url_720p)}
-                controls
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <div className="text-center p-4 text-xs text-muted-foreground">
-                无本地视频文件，无法预览时间轴
-              </div>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            点击字幕序号跳转到该句；编辑时间轴时点 ● 取当前播放时间。
-          </p>
-        </div>
-
-        {/* Subtitle list */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">字幕编辑</h2>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleResegment}
-                variant="secondary"
-                size="compact"
-                title="按句末标点重新切分所有字幕（会清空翻译，可回滚）"
-              >
-                重新断句
-              </Button>
-              <Button
-                onClick={handleRollbackResegment}
-                variant="outline"
-                size="compact"
-                title="回滚到上次重断句前"
-              >
-                回滚重断句
-              </Button>
-              <Button
-                onClick={handleRecomputeAll}
-                variant="secondary"
-                size="compact"
-                icon={RefreshCw}
-                title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
-              >
-                重算全部高亮
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {video.subtitles.length === 0 && (
-              <div className="text-center text-muted-foreground py-8 text-sm">
-                暂无字幕（视频可能仍在处理中）
-              </div>
-            )}
-            {video.subtitles.map((sub, i) => (
-              <SubtitleEditor
-                key={sub.id}
-                subtitle={sub}
-                videoRef={videoElRef}
-                onSeekTo={seekTo}
-                onSave={(patch) =>
-                  updateSubtitle(video.id, sub.id, patch).then((updated) => {
-                    handleSubtitleSaved(updated);
-                    return updated;
-                  })
-                }
-                onSaveWordLevels={(wordLevels) =>
-                  updateWordLevels(video.id, sub.id, wordLevels).then(
-                    (updated) => {
-                      handleSubtitleSaved(updated);
-                      return updated;
-                    },
-                  )
-                }
-                onSplit={(payload) => handleSplit(sub.id, payload)}
-                onMerge={() => handleMerge(sub.id)}
-                canMerge={i < video.subtitles.length - 1}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
+      <VideoSubtitleEditorPanel
+        video={video}
+        canEdit
+        onSaveSubtitle={handleSaveSubtitle}
+        onSplit={handleSplit}
+        onMerge={handleMerge}
+        onSaveWordLevels={handleSaveWordLevels}
+        onListRevisions={handleListRevisions}
+        onRollback={handleRollback}
+        headerExtra={headerExtra}
+      />
     </div>
   );
 }

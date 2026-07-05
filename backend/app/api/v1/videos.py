@@ -850,6 +850,48 @@ async def merge_own_subtitle(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
+@router.get("/{video_id}/subtitles/{subtitle_id}/revisions")
+@rate_limit("30/minute")
+async def list_own_subtitle_revisions(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List edit revisions for one subtitle on your own video. Owner only;
+    allowed even when published (read-only history)."""
+    await require_video_owner(video_id, current_user, db)
+    return await _list_subtitle_revisions(db, video_id, subtitle_id=subtitle_id, page=page, page_size=page_size)
+
+
+@router.post(
+    "/{video_id}/subtitles/{subtitle_id}/rollback/{revision_id}",
+    response_model=SubtitleResponse,
+)
+@rate_limit("30/minute")
+async def rollback_own_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    revision_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Roll back a subtitle to the before-state of a prior edit on your own
+    video. Owner only; blocked while published (begin-edit first)."""
+    await _require_editable_own_video(video_id, current_user, db)
+    try:
+        return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
 # ---------------------------------------------------------------------------
 # Phase 3e: PR propose-back + mergeable updates
 # ---------------------------------------------------------------------------

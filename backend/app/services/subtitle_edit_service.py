@@ -69,6 +69,47 @@ async def _write_revision(
     )
 
 
+async def _validate_timing(db: AsyncSession, video_id: str, subtitle) -> None:
+    """Validate a subtitle's timing after an edit has been applied in memory.
+
+    Checks ``start_time < end_time`` and that the interval does not overlap its
+    immediate neighbors (ordered by ``sentence_index``). Gaps and touching
+    boundaries are allowed; overlaps are rejected. Raises ``ValueError`` — route
+    handlers map that to HTTP 400.
+    """
+    from app.models.subtitle import Subtitle
+
+    if subtitle.start_time >= subtitle.end_time:
+        raise ValueError("start_time must be less than end_time")
+
+    prev_q = (
+        select(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.id != subtitle.id,
+            Subtitle.sentence_index < subtitle.sentence_index,
+        )
+        .order_by(Subtitle.sentence_index.desc())
+        .limit(1)
+    )
+    next_q = (
+        select(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.id != subtitle.id,
+            Subtitle.sentence_index > subtitle.sentence_index,
+        )
+        .order_by(Subtitle.sentence_index.asc())
+        .limit(1)
+    )
+    prev = (await db.execute(prev_q)).scalar_one_or_none()
+    nxt = (await db.execute(next_q)).scalar_one_or_none()
+    if prev is not None and subtitle.start_time < prev.end_time:
+        raise ValueError(f"start_time {subtitle.start_time} overlaps previous subtitle (ends at {prev.end_time})")
+    if nxt is not None and subtitle.end_time > nxt.start_time:
+        raise ValueError(f"end_time {subtitle.end_time} overlaps next subtitle (starts at {nxt.start_time})")
+
+
 async def update_subtitle(
     db: AsyncSession,
     video_id: str,
@@ -105,6 +146,8 @@ async def update_subtitle(
         value = getattr(payload, field)
         if value is not None:
             setattr(subtitle, field, value)
+
+    await _validate_timing(db, video_id, subtitle)
 
     if text_en_changed and not payload.preserve_word_levels:
         # Re-derive word_levels from the new English text — same primitive the
@@ -164,6 +207,7 @@ async def update_subtitles_batch(
             value = getattr(item, field)
             if value is not None:
                 setattr(sub, field, value)
+        await _validate_timing(db, video_id, sub)
         if text_en_changed and not item.preserve_word_levels:
             levels = annotate_text(sub.text_en)
             sub.word_levels = levels or None

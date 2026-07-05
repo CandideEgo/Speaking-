@@ -1,6 +1,6 @@
 # ADR-0011: 视频评分 + 推荐 + 行为采集系统 — 差距分析与分阶段落地
 
-- **Status**: Accepted — 2026-07-05
+- **Status**: Accepted (long-term blueprint, deferred) — 2026-07-05; reclassified 2026-07-06
 
 ## Context
 
@@ -25,6 +25,27 @@
 - **可复用资产**：三段式视频流水线（`process_video` → `transcribe_video_gpu` → `finalize_video`）、WhisperX forced alignment、4 引擎翻译、`LearningRecord`（time_spent_seconds/progress_percentage/position_seconds 可作 Retention/WatchTime 信号）、PostgreSQL FTS `search_vector`（可作 TopicMatch 关键词基础）、Redis fail-open 工具（`@cached` 装饰器）、`/browse/feed` 端点骨架、Celery beat 调度、`run_async()` 共享事件循环。
 - **阻塞链**：无行为采集 (层7) → 无训练数据 → 推荐算法无样本 (层5) → 推荐无个性化；无 score 字段 (层4) → 列表只能按 created_at 排序。**落地顺序必须是 P0 行为采集 → P1 评分 → P2 推荐**，反向不可行。
 - **与既有 ADR 的关系**：本方案不依赖 ADR-0002 已删除的 `speaking_service.py`（口语评分已冻结）；与 ADR-0004 UGC 管线兼容（评分计算挂在 `finalize_video` 末尾，对 UGC/官方视频统一处理）；与 ADR-0006 标准版/Fork 模型正交（评分针对 `Video` 行，标准版与 fork 共享同一 score）。
+
+### 现状评估与启动门槛（2026-07-06 重新定位为远期能力蓝图）
+
+> **本 ADR 现为远期能力蓝图，非待执行计划。** 整体推迟至启动门槛满足后才启动。以下 Decision 的分阶段计划保留作为能力蓝图，不等同于近期开工清单。
+
+**当前规模事实**（核实）：~13 个种子视频 / 未上线（3 CRITICAL 阻塞：邮箱 stub、HTTPS、ICP）/ 日活 0 / 2C1.6G 服务器。推荐系统解决"内容过载下的选择困难"，13 个视频不存在过载——`is_featured` + `show_on_homepage` + `created_at desc` 完全够用，人工精选反而更准。当务之急是上线阻塞，不是推荐系统。
+
+**拆分两个独立决策**：原 ADR 把"行为采集"与"推荐排序"捆绑评估，二者必要性不同——
+
+- **行为采集 = 基础设施**：早做、成本低、数据有独立价值（产品决策 / 内容采购 / 留存分析），不依赖推荐算法。**唯一可在上线后立即启动的部分**，后端可简化：当前规模直接写 PG 表够，不需要 Redis Stream（Stream 为 P4 实时消费准备，现在无消费者，徒增复杂度）。
+- **推荐排序 = 产品功能**：晚做、依赖规模与数据。整体推迟。
+
+**各阶段启动门槛**：
+
+| 阶段 | 启动门槛 | 前置条件 |
+|---|---|---|
+| P0 行为采集 | 上线后 | 无（独立有价值） |
+| P1 评分 | 视频数 > 50 + 1 个月行为数据 | 先核实 `LearningRecord.time_spent_seconds` / `progress_percentage` 是否被前端可靠写入（当前存疑；占 45% 权重的 Retention/WatchTime 因子可能无源之水） |
+| P2 推荐排序 | P1 跑稳 + 日活 > 200 | P1 评分有效 |
+| P3 内容获取 | 国内访问 YouTube 的网络方案确定 | YouTube Data API 配额 + 代理 / 海外节点（云端调用，不同于 GPU 转录可搬到本地） |
+| P4 进阶 | 行为事件 > 10 万条 + 数据积累 1 月+ | 2C1.6G 服务器需评估 pgvector 负载 |
 
 ## Decision
 
@@ -266,6 +287,7 @@ videos 表新增字段:
 
 ## Consequences
 
+- **整体推迟（2026-07-06 重新定位为远期能力蓝图）**：当前阶段（13 视频 / 未上线 / 3 CRITICAL 阻塞）整体推迟，当务之急是上线（邮箱 / HTTPS / ICP）。仅 P0 行为采集可在上线后剥离单独启动，且后端无需 Redis Stream（当前规模直接写 PG 表够）。
 - **P0 是阻塞项**：不先做行为采集，P1-P2 都是空跑（无数据训练）。强烈建议 P0 单独跑完上线，积累 1-2 周数据再启动 P1。
 - **score 公式需要调参**：P1 的权重 0.30/0.25/0.20/0.15/0.10 是经验值，上线后需基于实际 click-through 数据回测调整。建议加一个 admin 调参端点，避免改代码重发。
 - **YouTube Data API 配额**：默认 10000 单位/天，`search.list` 每次耗 100 单位——频道订阅场景够用，但全量视频元数据补全要分批。P3 优先用 `videos.list`（1 单位/次）补已有视频的元数据，`search.list` 仅用于频道新增视频发现。

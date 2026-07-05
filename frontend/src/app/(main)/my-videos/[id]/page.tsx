@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import {
@@ -14,15 +13,10 @@ import {
   Plus,
   Trash2,
   RefreshCw,
-  Play,
-  X,
 } from "lucide-react";
 
-import { api, mediaUrl } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoStatusPolling } from "@/hooks/useVideoStatusPolling";
 import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
@@ -31,8 +25,10 @@ import {
   editPractice,
   getMyVideoDetail,
   getMyVideoStatus,
+  listSubtitleRevisions,
   mergeSubtitle,
   regeneratePractice,
+  rollbackSubtitle,
   splitSubtitle,
   submitForReview,
   updateSubtitle,
@@ -40,17 +36,18 @@ import {
   withdrawSubmission,
   type PracticeItem,
   type SubtitlePatch,
+  type SubtitleSplitPayload,
 } from "@/lib/creatorData";
-import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
+import { VideoSubtitleEditorPanel } from "@/components/video-edit/VideoSubtitleEditorPanel";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
-import { Input, Textarea } from "@/components/ui/Input";
-import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
+import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { TabPills } from "@/components/ui/TabPills";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
-import type { Subtitle, Video, VideoWithSubtitles } from "@/types";
+import type { Video, VideoWithSubtitles } from "@/types";
 
 export default function MyVideoEditorPage() {
   const params = useParams<{ id: string }>();
@@ -62,14 +59,6 @@ export default function MyVideoEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"subtitles" | "practice">(
     "subtitles",
-  );
-
-  const videoElRef = useRef<HTMLVideoElement | null>(null);
-  const slotRef = useRef<HTMLDivElement>(null);
-  const isMobile = useMediaQuery("(max-width: 1023px)");
-  const { isPip, dismiss } = useStickyPip(
-    slotRef,
-    isMobile && !!video?.video_url_720p,
   );
 
   const load = useCallback(async () => {
@@ -124,14 +113,6 @@ export default function MyVideoEditorPage() {
     },
   });
 
-  const seekTo = useCallback((time: number) => {
-    const el = videoElRef.current;
-    if (el) {
-      el.currentTime = time;
-      el.play().catch(() => {});
-    }
-  }, []);
-
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
   }
@@ -164,76 +145,49 @@ export default function MyVideoEditorPage() {
     video.status === "ready" &&
     (video.review_status === "draft" || video.review_status === "rejected");
 
-  const handleSaveSubtitle =
-    (subtitleId: string) => async (patch: SubtitlePatch) => {
-      try {
-        const updated = await updateSubtitle(videoId, subtitleId, patch);
-        setVideo((v) =>
-          v
-            ? {
-                ...v,
-                subtitles: v.subtitles.map((s) =>
-                  s.id === subtitleId ? updated : s,
-                ),
-              }
-            : v,
-        );
-        return updated;
-      } catch (err) {
-        toastApiError(err, "保存字幕失败");
-        throw err;
-      }
-    };
-
-  // Split/merge change the subtitle LIST structure (row count), so re-fetch
-  // the whole video rather than patching in place.
-  const handleSplit =
-    (subtitleId: string) =>
-    async (payload: {
-      split_time: number;
-      text_before: string;
-      text_after: string;
-    }) => {
-      try {
-        await splitSubtitle(videoId, subtitleId, payload);
-        setVideo(await getMyVideoDetail(videoId));
-      } catch (err) {
-        toastApiError(err, "拆分失败");
-        throw err;
-      }
-    };
-
-  const handleMerge = (subtitleId: string) => async () => {
-    try {
-      await mergeSubtitle(videoId, subtitleId);
-      setVideo(await getMyVideoDetail(videoId));
-    } catch (err) {
-      toastApiError(err, "合并失败");
-      throw err;
-    }
+  // --- Subtitle edit callbacks (owner API). Errors propagate to
+  // SubtitleEditor/SubtitleHistory, which render the toast — no double toast. ---
+  const handleSaveSubtitle = async (subId: string, patch: SubtitlePatch) => {
+    const updated = await updateSubtitle(videoId, subId, patch);
+    setVideo((v) =>
+      v
+        ? {
+            ...v,
+            subtitles: v.subtitles.map((s) => (s.id === subId ? updated : s)),
+          }
+        : v,
+    );
+    return updated;
   };
-
-  const handleSaveWordLevels =
-    (subtitleId: string) =>
-    async (wordLevels: Record<string, string[]> | null) => {
-      try {
-        const updated = await updateWordLevels(videoId, subtitleId, wordLevels);
-        setVideo((v) =>
-          v
-            ? {
-                ...v,
-                subtitles: v.subtitles.map((s) =>
-                  s.id === subtitleId ? updated : s,
-                ),
-              }
-            : v,
-        );
-        return updated;
-      } catch (err) {
-        toastApiError(err, "保存词级标注失败");
-        throw err;
-      }
-    };
+  const handleSplit = async (subId: string, payload: SubtitleSplitPayload) => {
+    await splitSubtitle(videoId, subId, payload);
+    setVideo(await getMyVideoDetail(videoId));
+  };
+  const handleMerge = async (subId: string) => {
+    await mergeSubtitle(videoId, subId);
+    setVideo(await getMyVideoDetail(videoId));
+  };
+  const handleSaveWordLevels = async (
+    subId: string,
+    levels: Record<string, string[]> | null,
+  ) => {
+    const updated = await updateWordLevels(videoId, subId, levels);
+    setVideo((v) =>
+      v
+        ? {
+            ...v,
+            subtitles: v.subtitles.map((s) => (s.id === subId ? updated : s)),
+          }
+        : v,
+    );
+    return updated;
+  };
+  const handleListRevisions = (subId: string) =>
+    listSubtitleRevisions(videoId, subId);
+  const handleRollback = async (subId: string, revisionId: string) => {
+    await rollbackSubtitle(videoId, subId, revisionId);
+    setVideo(await getMyVideoDetail(videoId));
+  };
 
   const reviewAction = async (
     fn: (id: string) => Promise<Video>,
@@ -352,105 +306,37 @@ export default function MyVideoEditorPage() {
           </div>
         )}
 
-        {/* Player + editor side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
-          {/* Player */}
-          <div className="lg:sticky lg:top-6">
-            <div
-              ref={slotRef}
-              className="relative aspect-video bg-ink rounded-lg overflow-hidden"
-            >
-              {/* Wrapper: in-flow when normal, fixed mini-player when pip. The
-                  <video> lives inside and is never re-parented, so playback
-                  state survives the switch. */}
-              <div
-                className={cn(
-                  "transition-all duration-300",
-                  isPip
-                    ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
-                    : "absolute inset-0",
-                )}
-              >
-                {video.video_url_720p ? (
-                  <>
-                    <video
-                      ref={videoElRef}
-                      src={mediaUrl(video.video_url_720p ?? "")}
-                      controls
-                      className="h-full w-full"
-                    />
-                    {isPip && (
-                      <button
-                        type="button"
-                        onClick={dismiss}
-                        className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white shadow hover:bg-ink/80"
-                        aria-label="关闭小窗播放"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-on-primary/40">
-                    <Play size={40} />
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-muted mt-2">
-              编辑字幕时可点 ● 按钮取当前播放时间填入时间轴。
-            </p>
+        {isPublished && (
+          <div className="bg-warning-soft text-warning rounded-lg p-3 mb-4 text-xs">
+            视频已发布。要修改内容请先点击上方“编辑已发布视频”，修改后会触发重新审核，公开版保留当前版本。
           </div>
+        )}
 
-          {/* Editor */}
-          <div>
-            {/* Tabs */}
-            <TabPills
-              tabs={[
-                { key: "subtitles", label: "字幕" },
-                { key: "practice", label: "练习题" },
-              ]}
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              className="mb-4"
-            />
+        {/* Tabs */}
+        <TabPills
+          tabs={[
+            { key: "subtitles", label: "字幕" },
+            { key: "practice", label: "练习题" },
+          ]}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          className="mb-4"
+        />
 
-            {isPublished && (
-              <div className="bg-warning-soft text-warning rounded-lg p-3 mb-4 text-xs">
-                视频已发布。要修改内容请先点击上方"编辑已发布视频"，修改后会触发重新审核，公开版保留当前版本。
-              </div>
-            )}
-
-            {activeTab === "subtitles" ? (
-              <div className="space-y-3">
-                {video.subtitles.length === 0 ? (
-                  <p className="text-sm text-muted py-8 text-center">
-                    暂无字幕。
-                  </p>
-                ) : (
-                  video.subtitles.map((s: Subtitle, i: number) => (
-                    <SubtitleEditor
-                      key={s.id}
-                      subtitle={s}
-                      videoRef={videoElRef}
-                      onSeekTo={seekTo}
-                      onSave={handleSaveSubtitle(s.id)}
-                      onSaveWordLevels={handleSaveWordLevels(s.id)}
-                      onSplit={handleSplit(s.id)}
-                      onMerge={handleMerge(s.id)}
-                      canMerge={i < video.subtitles.length - 1}
-                    />
-                  ))
-                )}
-              </div>
-            ) : (
-              <PracticeEditor
-                videoId={videoId}
-                editable={editable || isPending}
-              />
-            )}
-          </div>
-        </div>
+        {activeTab === "subtitles" ? (
+          <VideoSubtitleEditorPanel
+            video={video}
+            canEdit={video.status === "ready"}
+            onSaveSubtitle={handleSaveSubtitle}
+            onSplit={handleSplit}
+            onMerge={handleMerge}
+            onSaveWordLevels={handleSaveWordLevels}
+            onListRevisions={handleListRevisions}
+            onRollback={handleRollback}
+          />
+        ) : (
+          <PracticeEditor videoId={videoId} editable={editable || isPending} />
+        )}
       </div>
     </main>
   );
@@ -598,7 +484,7 @@ function PracticeEditor({
         <InlineSpinner className="py-8" size={20} />
       ) : questions.length === 0 ? (
         <p className="text-sm text-muted py-8 text-center">
-          该考级暂无练习题。点击"AI 重新生成"创建一组。
+          该考级暂无练习题。点击“AI 重新生成”创建一组。
         </p>
       ) : (
         <div className="space-y-3">
