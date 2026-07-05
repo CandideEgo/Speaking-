@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     setError("");
 
     if (password.length < 8) {
-      setError("密码至少需要 8 位，含大小写字母、数字及特殊字符");
+      setError("密码至少需要 8 位，含大小写字母和数字");
       return;
     }
     if (password !== confirmPassword) {
@@ -117,7 +117,7 @@ export default function ForgotPasswordPage() {
               required
               minLength={8}
               className="mt-1.5"
-              placeholder="至少 8 位，含大小写字母、数字及特殊字符"
+              placeholder="至少 8 位，含大小写字母和数字"
             />
           </div>
           <div>

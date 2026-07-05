@@ -161,16 +161,24 @@ def release_lock_and_steps(video_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def commit_error_state(video, db, error: Exception) -> None:
+async def commit_error_state(video, db, error: Exception, *, step: str | None = None) -> None:
     """Set video to error status and commit.  Safe to call from an except block.
 
     If the commit itself fails, attempts a rollback.  This is the single
     implementation of the error-commit contract — previously duplicated in
     process_video, finalize_video, and localize_video.
+
+    If ``step`` is given, also stamps it onto ``video.processing_step`` so the
+    admin UI shows the step that actually failed. Without it the field keeps
+    the last successfully-committed step name — which names the step *before*
+    the one that broke, since each step only writes its own name after it
+    succeeds.
     """
     try:
         video.status = "error"
         video.error_message = str(error)
+        if step:
+            video.processing_step = step
         await db.commit()
     except Exception:
         logger.exception("Failed to commit error state for video %s", video.id)

@@ -1,7 +1,7 @@
-import json
 from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,46 +11,38 @@ from app.core.limiter import rate_limit
 from app.models.learning import Vocabulary
 from app.models.user import User
 from app.schemas.vocabulary import (
-    QuizGenerateRequest,
-    QuizQuestionResponse,
-    QuizSubmitRequest,
-    QuizSubmitResponse,
     VocabularyEnrichResponse,
     VocabularyResponse,
     VocabularyStatsResponse,
 )
-from app.services import vocabulary_service
+from app.services import practice_service, vocabulary_service
 from app.services.sr_service import calculate_next_review
 
 router = APIRouter(prefix="/vocabulary", tags=["vocabulary"])
 
 
-# ── Redis-backed quiz storage ──
+# ---------------------------------------------------------------------------
+# Schemas for unified practice submit
+# ---------------------------------------------------------------------------
 
 
-async def _save_quiz(user_id: str, quiz_data: dict):
-    from app.core.redis import get_redis
-
-    redis = get_redis()
-    await redis.setex(f"vocab_quiz:{user_id}", 600, json.dumps(quiz_data))  # 10 min TTL
+class VocabPracticeResultItem(BaseModel):
+    word: str
+    correct: bool
 
 
-async def _load_quiz(user_id: str) -> dict | None:
-    from app.core.redis import get_redis
-
-    redis = get_redis()
-    data = await redis.get(f"vocab_quiz:{user_id}")
-    return json.loads(data) if data else None
+class VocabPracticeSubmitRequest(BaseModel):
+    results: list[VocabPracticeResultItem]
 
 
-async def _delete_quiz(user_id: str):
-    from app.core.redis import get_redis
-
-    redis = get_redis()
-    await redis.delete(f"vocab_quiz:{user_id}")
+class VocabPracticeSubmitResponse(BaseModel):
+    updated: int
+    auto_added: int
 
 
-# ── Static-path routes (must come before /{word_id} to avoid path collision) ──
+# ---------------------------------------------------------------------------
+# Static-path routes (must come before /{word_id} to avoid path collision)
+# ---------------------------------------------------------------------------
 
 
 @router.get("/stats", response_model=VocabularyStatsResponse)
@@ -64,75 +56,57 @@ async def vocabulary_stats(
     return await vocabulary_service.get_stats(db, current_user.id)
 
 
-@router.post("/quiz", response_model=list[QuizQuestionResponse])
-@rate_limit("5/minute")
-async def generate_quiz(
-    request: Request,
-    body: QuizGenerateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Generate a vocabulary quiz."""
-    # Service returns questions WITH correct_answer_index for scoring
-    questions = await vocabulary_service.generate_quiz(
-        db=db,
-        user_id=current_user.id,
-        quiz_type=body.quiz_type,
-        count=body.count,
-        due_only=body.due_only,
-    )
-
-    # Store full questions (with answers) in Redis for later submission scoring
-    quiz_data = {q["id"]: q for q in questions}
-    await _save_quiz(current_user.id, quiz_data)
-
-    # Return questions WITHOUT correct_answer_index to the client
-    return [
-        QuizQuestionResponse(
-            id=q["id"],
-            word=q["word"],
-            quiz_type=q["quiz_type"],
-            question=q["question"],
-            options=q.get("options"),
-            correct_answer_index=None,
-        )
-        for q in questions
-    ]
-
-
-@router.post("/quiz/submit", response_model=QuizSubmitResponse)
+@router.get("/practice")
 @rate_limit("10/minute")
-async def submit_quiz(
+async def get_vocabulary_practice(
     request: Request,
-    body: QuizSubmitRequest,
+    level: str | None = Query(None, description="Target exam level key"),
+    count: int = Query(10, ge=1, le=30),
+    due_only: bool = Query(False, description="Only include words due for review"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit quiz answers and get scored results."""
-    # Load stored questions from Redis for this user
-    quiz_data = await _load_quiz(current_user.id)
-    if not quiz_data:
-        raise HTTPException(status_code=400, detail="No active quiz found. Please generate a quiz first.")
+    """Generate adaptive practice items from the user's vocabulary list.
 
-    # Pass ALL stored questions to the service — unanswered questions are scored
-    # as incorrect. Passing only answered questions would let users strategically
-    # skip hard questions to inflate their score.
-    all_questions = list(quiz_data.values())
+    Item types are chosen based on each word's SM-2 mastery level.
+    All grading is client-side.
+    """
+    try:
+        items = await practice_service.build_vocabulary_drill(db, current_user.id, level, count, due_only)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
-    result = await vocabulary_service.submit_quiz(
-        db=db,
-        user_id=current_user.id,
-        answers=[a.model_dump() for a in body.answers],
-        questions=all_questions,
-    )
-
-    # Clean up stored quiz from Redis
-    await _delete_quiz(current_user.id)
-
-    return result
+    return {"items": items}
 
 
-# ── Dynamic-path routes ──
+@router.post("/practice/submit", response_model=VocabPracticeSubmitResponse)
+@rate_limit("10/minute")
+async def submit_vocabulary_practice(
+    request: Request,
+    body: VocabPracticeSubmitRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch-submit vocabulary practice results and update SM-2 for each word.
+
+    Words not yet in the user's vocabulary are auto-added.
+    """
+    try:
+        result = await practice_service.submit_practice_results(
+            db,
+            current_user.id,
+            [r.model_dump() for r in body.results],
+            video_id=None,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提交失败：{e}") from e
+
+    return VocabPracticeSubmitResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Dynamic-path routes
+# ---------------------------------------------------------------------------
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -146,7 +120,6 @@ async def add_word(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a word to personal vocabulary."""
-    # Check for duplicates
     existing = await db.execute(
         select(Vocabulary).where(
             Vocabulary.user_id == current_user.id,
@@ -193,7 +166,6 @@ async def list_vocabulary(
     result = await db.execute(stmt)
     words = result.scalars().all()
 
-    # Count stats
     total_result = await db.execute(select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id))
     total = total_result.scalar() or 0
 
@@ -273,7 +245,6 @@ async def review_word(
     if not vocab:
         raise HTTPException(status_code=404, detail="Word not found")
 
-    # SM-2 calculation — use persisted ease_factor and interval_days
     current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
     interval_days = vocab.interval_days if vocab.review_count > 0 else 0
 
@@ -288,7 +259,6 @@ async def review_word(
     vocab.ease_factor = new_ef
     vocab.interval_days = next_interval
 
-    # Update mastery level based on review count
     if new_review_count == 0:
         vocab.mastery_level = "new"
     elif new_review_count <= 2:

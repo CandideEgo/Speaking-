@@ -1,23 +1,27 @@
-"""Practice mode — AI-generated questions per exam level for a video.
+"""Unified practice engine — adaptive drill per exam level.
 
 GET  /api/v1/videos/{video_id}/practice?level=<exam_level>
-    Generate-on-demand + DB cache. First request generates a question set for
-    the given exam level (content Q&A + word fill-in-the-blank from the
-    target-level vocabulary) and caches it under video_practice_questions;
-    subsequent requests return the cached set.
+    Generate adaptive practice items for the given exam level. Item types are
+    chosen based on each word's SM-2 mastery level (new→识别, learning→产出,
+    reviewing/mastered→语境). All grading is client-side.
 
-POST /api/v1/videos/{video_id}/practice/grade
-    Grade one answer. Fill-in-the-blank is lenient locally; open-ended Q&A is
-    graded by the AI.
+POST /api/v1/practice/submit
+    Batch-submit practice results and update SM-2 for each word.
 
-Pro-gated: practice is a Pro feature (annotation/highlighting stays free).
+PATCH /api/v1/videos/{video_id}/practice
+    Owner-only: overwrite cached context_fill questions for a level.
+
+POST /api/v1/videos/{video_id}/practice/regenerate
+    Owner-only: AI-regenerate context_fill questions for a level.
 """
+
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, require_pro_user
+from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.exam_levels import EXAM_LEVEL_KEYS
 from app.core.limiter import rate_limit
@@ -27,54 +31,81 @@ from app.services.ai_service import AIServiceError
 
 router = APIRouter(prefix="/videos", tags=["practice"])
 
-DEFAULT_COUNT = 6
+DEFAULT_COUNT = 10
 
 
-class PracticeQuestion(BaseModel):
-    type: str  # "qa" | "fill_blank" | "reading" | "sentence_building"
-    question: str
-    answer: str
-    options: list[str] | None = None
-    cet_words: list[str] = []
-    # reading: a comprehension passage the question refers to.
-    passage: str | None = None
-    # sentence_building: the scrambled tokens; answer is the correct order
-    # (space-joined) and options holds the shuffled tokens.
-    tokens: list[str] | None = None
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
 
 
-class PracticeSet(BaseModel):
-    video_id: str
-    exam_level: str
-    questions: list[PracticeQuestion]
+class PracticeItem(BaseModel):
+    """A single adaptive practice item.
 
-
-class GradeRequest(BaseModel):
-    question: PracticeQuestion
-    user_answer: str = ""
-
-
-class GradeResponse(BaseModel):
-    correct: bool
-    explanation: str
-
-
-class PracticeQuestionItem(PracticeQuestion):
-    """One editable practice question (UGC editor). Mirrors PracticeQuestion; the
-    shared base keeps the on-wire shape identical between editor and player."""
-
-    pass
-
-
-class PracticeQuestionEdit(BaseModel):
-    """Full replacement payload for a video's practice set at a given level.
-
-    The owner sends the complete list of questions; the backend overwrites the
-    cached ``questions`` JSON and recomputes ``question_count``. Add/remove/
-    reorder are all expressed as "send the new full list".
+    6 types across 3 categories:
+    - recognition: listen_choose_meaning, see_word_choose_meaning
+    - production:  see_meaning_spell_word, listen_spell_word
+    - context:     context_fill, sentence_repeat
     """
 
-    questions: list[PracticeQuestionItem] = Field(default_factory=list)
+    word: str
+    category: Literal["recognition", "production", "context"]
+    type: Literal[
+        "listen_choose_meaning",
+        "see_word_choose_meaning",
+        "see_meaning_spell_word",
+        "listen_spell_word",
+        "context_fill",
+        "sentence_repeat",
+    ]
+    translation: str
+    options: list[str] | None = None
+    answer: str
+    # context_fill
+    sentence_template: str | None = None
+    # sentence_repeat / audio seek
+    start_time: float | None = None
+    end_time: float | None = None
+    full_sentence: str | None = None
+    # metadata
+    phonetic: str | None = None
+
+
+class UnifiedPracticeSet(BaseModel):
+    video_id: str
+    exam_level: str
+    items: list[PracticeItem]
+
+
+class PracticeResultItem(BaseModel):
+    word: str
+    correct: bool
+
+
+class PracticeSubmitRequest(BaseModel):
+    results: list[PracticeResultItem]
+    video_id: str
+
+
+class PracticeSubmitResponse(BaseModel):
+    updated: int
+    auto_added: int
+
+
+class ContextFillItem(BaseModel):
+    """One editable context_fill question (UGC editor)."""
+
+    word: str
+    type: Literal["context_fill"] = "context_fill"
+    question: str  # sentence_template
+    answer: str
+    options: list[str] | None = None
+
+
+class ContextFillEdit(BaseModel):
+    """Full replacement payload for a video's context_fill set at a given level."""
+
+    questions: list[ContextFillItem] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -101,22 +132,28 @@ def _raise_for_permission_error(exc: PermissionError) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{video_id}/practice", response_model=PracticeSet)
+@router.get("/{video_id}/practice", response_model=UnifiedPracticeSet)
 @rate_limit("10/minute")
 async def get_practice(
     request: Request,
     video_id: str,
     level: str = Query(..., description="Target exam level key"),
-    count: int = Query(DEFAULT_COUNT, ge=1, le=12),
-    current_user: User = Depends(require_pro_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return (generating on first request) the cached practice set for a level."""
+    """Return adaptive practice items for a video's target-level words.
+
+    Item types are chosen based on each word's SM-2 mastery level.
+    Free-tier (not Pro-gated). All grading is client-side.
+    """
     if level not in EXAM_LEVEL_KEYS:
-        raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}",
+        )
 
     try:
-        questions = await practice_service.get_or_generate_practice(db, video_id, level, count, current_user)
+        items = await practice_service.build_unified_drill(db, video_id, level, current_user)
     except ValueError as e:
         _raise_for_value_error(e)
     except PermissionError as e:
@@ -124,124 +161,64 @@ async def get_practice(
     except AIServiceError as e:
         raise HTTPException(status_code=502, detail=f"练习题生成失败：{e}") from e
 
-    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in questions])
+    return UnifiedPracticeSet(
+        video_id=video_id,
+        exam_level=level,
+        items=[PracticeItem(**i) for i in items],
+    )
 
 
 # ---------------------------------------------------------------------------
-# Vocabulary drill (Phase 4) — deterministic, free-tier, no AI.
-#
-# Generates spelling + meaning-choice items from the video's target-level
-# words (drawn from subtitle word_levels via collect_target_words, same
-# primitive the AI practice set uses). Distractors come from other target
-# words' translations, so it stays fully local (ECDICT only) and engages the
-# learner with the video's own vocabulary.
+# SM-2 batch submit
 # ---------------------------------------------------------------------------
 
 
-class VocabDrillItem(BaseModel):
-    """One vocabulary drill item.
-
-    Two kinds:
-    - kind="spelling": show ``translation``, learner types the English word
-      (``answer`` = the lemma). Graded leniently client-side (case/plural).
-    - kind="meaning_choice": show ``word``, pick its Chinese translation from
-      ``options`` (``answer`` = the correct option; ``options`` are shuffled).
-    """
-
-    kind: str  # "spelling" | "meaning_choice"
-    word: str
-    translation: str
-    answer: str
-    options: list[str] | None = None
-    cet_words: list[str] = []
-
-
-class VocabDrillSet(BaseModel):
-    video_id: str
-    exam_level: str
-    items: list[VocabDrillItem]
-
-
-@router.get("/{video_id}/vocabulary-drill", response_model=VocabDrillSet)
+@router.post("/practice/submit", response_model=PracticeSubmitResponse)
 @rate_limit("10/minute")
-async def get_vocabulary_drill(
+async def submit_practice_results(
     request: Request,
-    video_id: str,
-    level: str = Query(..., description="Target exam level key"),
+    body: PracticeSubmitRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deterministic vocabulary drill from the video's target-level words.
+    """Batch-submit practice results and update SM-2 for each word.
 
-    Free-tier (not Pro-gated): the drill drives engagement with the video's
-    own vocabulary and needs no AI. Generates spelling + meaning-choice items
-    on every call (cheap; not cached) so the learner can drill repeatedly.
+    Words not yet in the user's vocabulary are auto-added.
     """
-    if level not in EXAM_LEVEL_KEYS:
-        raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
-
     try:
-        items = await practice_service.build_vocabulary_drill(db, video_id, level)
-    except ValueError as e:
-        _raise_for_value_error(e)
-    except PermissionError as e:
-        _raise_for_permission_error(e)
+        result = await practice_service.submit_practice_results(
+            db,
+            current_user.id,
+            [r.model_dump() for r in body.results],
+            body.video_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提交失败：{e}") from e
 
-    return VocabDrillSet(video_id=video_id, exam_level=level, items=[VocabDrillItem(**i) for i in items])
-
-
-@router.post("/{video_id}/practice/grade", response_model=GradeResponse)
-@rate_limit("20/minute")
-async def grade_practice_answer(
-    request: Request,
-    video_id: str,
-    body: GradeRequest,
-    current_user: User = Depends(require_pro_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Grade a single practice-question answer."""
-    try:
-        await practice_service.get_accessible_video(db, video_id, current_user)
-    except ValueError as e:
-        _raise_for_value_error(e)
-    except PermissionError as e:
-        _raise_for_permission_error(e)
-
-    try:
-        result = await practice_service.grade_answer(body.question.model_dump(), body.user_answer)
-    except AIServiceError as e:
-        raise HTTPException(status_code=502, detail=f"判分失败：{e}") from e
-
-    return GradeResponse(correct=result["correct"], explanation=result["explanation"])
+    return PracticeSubmitResponse(**result)
 
 
 # ---------------------------------------------------------------------------
-# UGC creator endpoints — edit / regenerate the practice set for your own video.
-#
-# Owners edit freely (no Pro gate — the creator green channel). Editing a
-# published video is blocked until begin-edit (which freezes the approved
-# version, incl. practice, to published_snapshot).
+# UGC creator endpoints — edit / regenerate context_fill questions.
 # ---------------------------------------------------------------------------
 
 
-@router.patch("/{video_id}/practice", response_model=PracticeSet)
+@router.patch("/{video_id}/practice", response_model=UnifiedPracticeSet)
 @rate_limit("10/minute")
 async def edit_practice(
     request: Request,
     video_id: str,
-    payload: PracticeQuestionEdit,
+    payload: ContextFillEdit,
     level: str = Query(..., description="Target exam level key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Overwrite the cached practice set for a level with the owner's edits.
-
-    Owner only; not Pro-gated. The full question list is replaced (add/remove/
-    reorder/tweak all expressed as "send the new list"). Blocked while the
-    video is published — begin-edit first.
-    """
+    """Overwrite cached context_fill questions for a level (owner only)."""
     if level not in EXAM_LEVEL_KEYS:
-        raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}",
+        )
 
     try:
         await practice_service.require_editable_own_video(db, video_id, current_user)
@@ -252,10 +229,14 @@ async def edit_practice(
 
     questions_json = [q.model_dump() for q in payload.questions]
     persisted = await practice_service.update_practice_set(db, video_id, level, questions_json)
-    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in persisted])
+    return UnifiedPracticeSet(
+        video_id=video_id,
+        exam_level=level,
+        items=[PracticeItem(**q) for q in persisted],
+    )
 
 
-@router.post("/{video_id}/practice/regenerate", response_model=PracticeSet)
+@router.post("/{video_id}/practice/regenerate", response_model=UnifiedPracticeSet)
 @rate_limit("5/minute")
 async def regenerate_practice(
     request: Request,
@@ -265,14 +246,12 @@ async def regenerate_practice(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Regenerate the practice set for a level from scratch via the AI.
-
-    Owner only; not Pro-gated (creator green channel). Deletes/replaces the
-    cached row with a freshly generated set. Blocked while the video is
-    published — begin-edit first.
-    """
+    """AI-regenerate context_fill questions for a level (owner only)."""
     if level not in EXAM_LEVEL_KEYS:
-        raise HTTPException(status_code=422, detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"level must be one of: {', '.join(EXAM_LEVEL_KEYS)}",
+        )
 
     try:
         questions = await practice_service.regenerate_practice_questions(db, video_id, level, count, current_user)
@@ -283,4 +262,8 @@ async def regenerate_practice(
     except AIServiceError as e:
         raise HTTPException(status_code=502, detail=f"练习题生成失败：{e}") from e
 
-    return PracticeSet(video_id=video_id, exam_level=level, questions=[PracticeQuestion(**q) for q in questions])
+    return UnifiedPracticeSet(
+        video_id=video_id,
+        exam_level=level,
+        items=[PracticeItem(**q) for q in questions],
+    )

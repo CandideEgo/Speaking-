@@ -188,8 +188,29 @@ export function createApiClient(options: CreateApiClientOptions) {
         let code: string | null = null;
         try {
           const data = await res.json();
-          detail = data.detail || detail;
           code = data.code ?? null;
+          const d = data.detail;
+          if (Array.isArray(d)) {
+            // FastAPI/Pydantic 422 validation error: [{loc, msg, type}, ...].
+            // Surface each field's message instead of coercing the array to
+            // "[object Object]". Strip Pydantic's "Value error, " prefix.
+            detail = d
+              .map((e: { loc?: unknown[]; msg?: unknown }) => {
+                const rawMsg =
+                  typeof e.msg === "string" ? e.msg : JSON.stringify(e.msg);
+                const cleanMsg = rawMsg.replace(/^Value error,\s*/, "");
+                const field =
+                  Array.isArray(e.loc) && e.loc.length > 1
+                    ? String(e.loc[e.loc.length - 1])
+                    : null;
+                return field ? `${field}: ${cleanMsg}` : cleanMsg;
+              })
+              .join("; ");
+          } else if (typeof d === "string") {
+            detail = d;
+          } else if (d !== undefined && d !== null) {
+            detail = JSON.stringify(d);
+          }
         } catch {
           /* non-JSON error body */
         }

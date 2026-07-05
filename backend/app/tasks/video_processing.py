@@ -139,6 +139,7 @@ def process_video(self, video_id: str):
 
             try:
                 settings = get_settings()
+                current_step = "extracting"  # head task's primary step; shown on error
 
                 # --- Resume check: skip transcription if subtitles exist ---
                 # If subtitles are already in the DB, a prior run's transcription
@@ -229,9 +230,12 @@ def process_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s head processing failed", video_id)
-                await commit_error_state(video, db, e)
-                if self.request.retries >= self.max_retries:
-                    release_lock_and_steps(video_id)
+                await commit_error_state(video, db, e, step=current_step)
+                # Always release the lock so Celery's retry can re-acquire it.
+                # Keep the completed-step set so a retry (automatic or manual)
+                # resumes from the last successful step rather than re-running
+                # everything from scratch.
+                release_lock(video_id)
                 raise self.retry(exc=e) from e
 
     run_pipeline_task(_process())
@@ -387,6 +391,7 @@ def finalize_video(self, video_id: str):
 
             try:
                 # --- Step: translating ---
+                current_step = "translating"
                 if not await is_step_done(video_id, "translating"):
                     sub_result = await db.execute(
                         select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
@@ -405,6 +410,7 @@ def finalize_video(self, video_id: str):
                     logger.info("Video %s: skipping translating (already done)", video_id)
 
                 # --- Step: annotating (CET/高考/考研 exam-level word tags) ---
+                current_step = "annotating"
                 # Pure local ECDICT lookup — no AI. Populates Subtitle.word_levels
                 # (lemma -> exam level keys) once, level-agnostic, so the watch
                 # page can filter by the user's target exam at display time.
@@ -432,6 +438,7 @@ def finalize_video(self, video_id: str):
                     logger.info("Video %s: skipping annotating (already done)", video_id)
 
                 # --- Step: prewarm_notes (per-video AI learning notes) ---
+                current_step = "prewarm_notes"
                 # Batch-generate contextual_note / pitfalls / knowledge for the
                 # video's exam-tagged words, stored as video:{id} rows so the
                 # gloss endpoint can return <10ms responses. Resume-safe.
@@ -461,6 +468,7 @@ def finalize_video(self, video_id: str):
                     logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
                 # --- Step: downloading ---
+                current_step = "downloading"
                 video_path = None
                 if not await is_step_done(video_id, "downloading"):
                     if video.video_source == VideoSource.imported:
@@ -482,6 +490,7 @@ def finalize_video(self, video_id: str):
                         video_path = _find_local_raw(video.id)
 
                 # --- Step: transcoding ---
+                current_step = "transcoding"
                 if not await is_step_done(video_id, "transcoding"):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
@@ -534,9 +543,12 @@ def finalize_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s finalize failed", video_id)
-                await commit_error_state(video, db, e)
-                if self.request.retries >= self.max_retries:
-                    release_lock_and_steps(video_id)
+                await commit_error_state(video, db, e, step=current_step)
+                # Always release the lock so Celery's retry can re-acquire it.
+                # Keep the completed-step set so a retry (automatic or manual)
+                # resumes from the last successful step rather than re-running
+                # translate/annotate/prewarm needlessly.
+                release_lock(video_id)
                 raise self.retry(exc=e) from e
 
     run_pipeline_task(_process())
@@ -825,6 +837,7 @@ def localize_video(self, video_id: str):
 
             try:
                 # --- Step: downloading ---
+                current_step = "downloading"
                 if not await is_step_done(video_id, "downloading"):
                     await update_progress(video_id, "downloading")
                     video_path = await _download_video(video.source_url, video.id)
@@ -834,6 +847,7 @@ def localize_video(self, video_id: str):
                     video_path = _find_local_raw(video.id)
 
                 # --- Step: transcoding ---
+                current_step = "transcoding"
                 if not await is_step_done(video_id, "transcoding"):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
@@ -855,10 +869,11 @@ def localize_video(self, video_id: str):
 
             except Exception as e:
                 logger.exception("Video %s localize failed", video_id)
-                await commit_error_state(video, db, e)
-                if self.request.retries >= self.max_retries:
-                    logger.error("Video %s: max retries reached, releasing lock", video_id)
-                    release_lock_and_steps(video_id)
+                await commit_error_state(video, db, e, step=current_step)
+                # Always release the lock so Celery's retry can re-acquire it.
+                # Keep the completed-step set so a retry resumes from the last
+                # successful step rather than re-downloading/re-transcoding.
+                release_lock(video_id)
                 raise self.retry(exc=e) from e
 
     run_pipeline_task(_localize())

@@ -37,8 +37,8 @@ def get_sms_client() -> DypnsapiClient:
             if _client is None:
                 settings = get_settings()
                 config = open_api_models.Config(
-                    access_key=settings.aliyun_sms_access_key,
-                    secret_key=settings.aliyun_sms_secret_key,
+                    access_key_id=settings.aliyun_sms_access_key,
+                    access_key_secret=settings.aliyun_sms_secret_key,
                     endpoint=settings.aliyun_sms_endpoint,
                 )
                 _client = DypnsapiClient(config)

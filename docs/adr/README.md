@@ -13,6 +13,7 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0004](0004-ugc-pipeline-admin-triggered.md) | UGC 管线：管理员触发处理 + 通知 | Accepted |
 | [0005](0005-frontend-rebuild-unified-components.md) | 前端重做：统一组件库（保持现有色系），播放页为锚点 | Accepted |
 | [0006](0006-standard-version-fork-propose-back.md) | 标准版 + Fork + 提议回写：按 URL 去重与共享编辑模型 | Accepted |
+| [0011](0011-recommendation-system.md) | 视频评分 + 推荐 + 行为采集系统 — 差距分析与分阶段落地 | Accepted |
 
 ## Companion docs
 

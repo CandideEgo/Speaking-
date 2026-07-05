@@ -10,15 +10,15 @@
 
 import { api } from "@/lib/api";
 import type {
-  PracticeQuestion,
-  PracticeSet,
+  PracticeItem,
+  UnifiedPracticeSet,
   Subtitle,
   Video,
   VideoWithSubtitles,
 } from "@/types";
 
 // Re-export types that consumers already import from here
-export type { PracticeQuestion, PracticeSet };
+export type { PracticeItem, UnifiedPracticeSet };
 
 // ---------------------------------------------------------------------------
 // Upload + list
@@ -148,20 +148,23 @@ export function withdrawSubmission(videoId: string): Promise<Video> {
 export function editPractice(
   videoId: string,
   level: string,
-  questions: PracticeQuestion[],
-): Promise<PracticeSet> {
-  return api<PracticeSet>(`/api/v1/videos/${videoId}/practice?level=${level}`, {
-    method: "PATCH",
-    body: JSON.stringify({ questions }),
-  });
+  questions: PracticeItem[],
+): Promise<UnifiedPracticeSet> {
+  return api<UnifiedPracticeSet>(
+    `/api/v1/videos/${videoId}/practice?level=${level}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ questions }),
+    },
+  );
 }
 
 export function regeneratePractice(
   videoId: string,
   level: string,
   count = 6,
-): Promise<PracticeSet> {
-  return api<PracticeSet>(
+): Promise<UnifiedPracticeSet> {
+  return api<UnifiedPracticeSet>(
     `/api/v1/videos/${videoId}/practice/regenerate?level=${level}&count=${count}`,
     { method: "POST" },
   );

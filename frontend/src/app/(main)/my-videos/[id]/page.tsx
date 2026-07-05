@@ -36,7 +36,7 @@ import {
   updateSubtitle,
   updateWordLevels,
   withdrawSubmission,
-  type PracticeQuestion,
+  type PracticeItem,
   type SubtitlePatch,
 } from "@/lib/creatorData";
 import { SubtitleEditor } from "@/components/video-edit/SubtitleEditor";
@@ -387,7 +387,7 @@ export default function MyVideoEditorPage() {
 
             {isPublished && (
               <div className="bg-warning-soft text-warning rounded-lg p-3 mb-4 text-xs">
-                视频已发布。要修改内容请先点击上方“编辑已发布视频”，修改后会触发重新审核，公开版保留当前版本。
+                视频已发布。要修改内容请先点击上方"编辑已发布视频"，修改后会触发重新审核，公开版保留当前版本。
               </div>
             )}
 
@@ -461,7 +461,7 @@ function PracticeEditor({
   editable: boolean;
 }) {
   const [level, setLevel] = useState(TARGET_LEVEL_OPTIONS[0]?.key ?? "cet4");
-  const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [questions, setQuestions] = useState<PracticeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -469,12 +469,11 @@ function PracticeEditor({
   const loadPractice = useCallback(async () => {
     setLoading(true);
     try {
-      const set = await api<{ questions: PracticeQuestion[] }>(
+      const set = await api<{ items: PracticeItem[] }>(
         `/api/v1/videos/${videoId}/practice?level=${level}`,
       );
-      setQuestions(set.questions);
+      setQuestions(set.items ?? []);
     } catch (err) {
-      // 409 = not ready / no snapshot — show empty state, not a toast.
       setQuestions([]);
     } finally {
       setLoading(false);
@@ -485,28 +484,23 @@ function PracticeEditor({
     loadPractice();
   }, [loadPractice]);
 
-  const updateQuestion = (i: number, patch: Partial<PracticeQuestion>) => {
+  const updateQuestion = (i: number, patch: Partial<PracticeItem>) => {
     setQuestions((prev) =>
       prev.map((q, idx) => (idx === i ? { ...q, ...patch } : q)),
     );
   };
 
-  const addQuestion = (type?: PracticeQuestion["type"]) => {
-    const t = type ?? "qa";
-    const base = {
-      type: t,
-      question: "",
-      answer: "",
+  const addQuestion = () => {
+    const base: PracticeItem = {
+      word: "",
+      category: "context",
+      type: "context_fill",
+      translation: "",
       options: null,
-      cet_words: [],
-    } satisfies PracticeQuestion;
-    if (t === "reading") {
-      setQuestions((prev) => [...prev, { ...base, passage: "" }]);
-    } else if (t === "sentence_building") {
-      setQuestions((prev) => [...prev, { ...base, tokens: [], answer: "" }]);
-    } else {
-      setQuestions((prev) => [...prev, base]);
-    }
+      answer: "",
+      sentence_template: null,
+    };
+    setQuestions((prev) => [...prev, base]);
   };
 
   const removeQuestion = (i: number) => {
@@ -517,7 +511,7 @@ function PracticeEditor({
     setSaving(true);
     try {
       const set = await editPractice(videoId, level, questions);
-      setQuestions(set.questions);
+      setQuestions(set.items ?? []);
       toast.success("练习题已保存");
     } catch (err) {
       toastApiError(err, "保存失败");
@@ -530,7 +524,7 @@ function PracticeEditor({
     setRegenerating(true);
     try {
       const set = await regeneratePractice(videoId, level, 6);
-      setQuestions(set.questions);
+      setQuestions(set.items ?? []);
       toast.success("已重新生成练习题");
     } catch (err) {
       toastApiError(err, "生成失败");
@@ -571,33 +565,14 @@ function PracticeEditor({
         <InlineSpinner className="py-8" size={20} />
       ) : questions.length === 0 ? (
         <p className="text-sm text-muted py-8 text-center">
-          该考级暂无练习题。点击“AI 重新生成”创建一组。
+          该考级暂无练习题。点击"AI 重新生成"创建一组。
         </p>
       ) : (
         <div className="space-y-3">
           {questions.map((q, i) => (
             <Card key={i} padding={3} className="space-y-2">
               <div className="flex items-center gap-2">
-                <Select
-                  value={q.type}
-                  onChange={(e) => {
-                    const newType = e.target.value as PracticeQuestion["type"];
-                    const patch: Partial<PracticeQuestion> = {
-                      type: newType,
-                    };
-                    if (newType === "reading" && !q.passage) patch.passage = "";
-                    if (newType === "sentence_building" && !q.tokens)
-                      patch.tokens = [];
-                    updateQuestion(i, patch);
-                  }}
-                  className="w-32 text-xs"
-                  disabled={!editable}
-                >
-                  <option value="qa">问答</option>
-                  <option value="fill_blank">填空</option>
-                  <option value="reading">阅读</option>
-                  <option value="sentence_building">组句</option>
-                </Select>
+                <Badge tone="brand">语境填空</Badge>
                 <span className="text-xs text-muted-foreground ml-auto">
                   第 {i + 1} 题
                 </span>
@@ -613,72 +588,29 @@ function PracticeEditor({
               </div>
               <Input
                 type="text"
-                value={q.question}
-                onChange={(e) =>
-                  updateQuestion(i, { question: e.target.value })
-                }
-                placeholder="题干"
+                value={q.word}
+                onChange={(e) => updateQuestion(i, { word: e.target.value })}
+                placeholder="目标单词"
                 disabled={!editable}
               />
-              {q.type === "reading" && (
-                <Textarea
-                  value={q.passage ?? ""}
-                  onChange={(e) =>
-                    updateQuestion(i, {
-                      passage: e.target.value || null,
-                    })
-                  }
-                  placeholder="阅读段落（学生需阅读此段落后回答问题）"
-                  className="min-h-[80px]"
-                  rows={3}
-                  disabled={!editable}
-                />
-              )}
-              {q.type === "sentence_building" ? (
-                <div className="space-y-2">
-                  <Input
-                    type="text"
-                    value={q.answer}
-                    onChange={(e) => {
-                      const sentence = e.target.value;
-                      const tokens = sentence
-                        .split(/\s+/)
-                        .filter((t) => t.length > 0);
-                      updateQuestion(i, {
-                        answer: sentence,
-                        tokens: tokens.length > 0 ? tokens : null,
-                      });
-                    }}
-                    placeholder="输入正确句子（空格分词，系统自动生成乱序词块）"
-                    disabled={!editable}
-                  />
-                  {q.tokens && q.tokens.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-xs text-muted-foreground">
-                        词块预览：
-                      </span>
-                      {q.tokens.map((token, ti) => (
-                        <span
-                          key={ti}
-                          className="px-1.5 py-0.5 rounded bg-surface-soft border border-hairline text-xs"
-                        >
-                          {token}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <Input
-                  type="text"
-                  value={q.answer}
-                  onChange={(e) =>
-                    updateQuestion(i, { answer: e.target.value })
-                  }
-                  placeholder="答案"
-                  disabled={!editable}
-                />
-              )}
+              <Input
+                type="text"
+                value={q.sentence_template ?? ""}
+                onChange={(e) =>
+                  updateQuestion(i, {
+                    sentence_template: e.target.value || null,
+                  })
+                }
+                placeholder="句子模板（用 ___ 表示空格）"
+                disabled={!editable}
+              />
+              <Input
+                type="text"
+                value={q.answer}
+                onChange={(e) => updateQuestion(i, { answer: e.target.value })}
+                placeholder="答案（填空单词）"
+                disabled={!editable}
+              />
             </Card>
           ))}
         </div>

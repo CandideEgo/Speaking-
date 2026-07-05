@@ -113,25 +113,13 @@ export interface LearningRecord {
   } | null;
 }
 
-export interface QuizQuestion {
-  type: "comprehension" | "fill_blank" | "dictation";
-  question: string;
-  options?: string[];
-  answer: string;
-}
-
-/** Per-question grading result shared by all practice/drill/quiz hooks. */
+/** Per-question grading result shared by all practice hooks. */
 export interface GradedResult {
   correct: boolean;
-  /** AI practice returns a textual explanation; vocab/quiz leave this null. */
+  /** Textual explanation (null for client-graded items). */
   explanation: string | null;
   /** The correct answer, shown when the learner was wrong. */
   correctAnswer?: string;
-}
-
-export interface QuizResponse {
-  video_id: string;
-  quiz: QuizQuestion[];
 }
 
 export interface CreateOrderResponse {
@@ -169,21 +157,6 @@ export interface VocabularyWord {
   video_id: string | null;
   next_review_at: string | null;
   created_at: string;
-}
-
-export type QuizType =
-  | "multiple_choice"
-  | "spelling"
-  | "context_fill"
-  | "translation";
-
-export interface VocabQuizQuestion {
-  id: string;
-  type: "multiple_choice" | "spelling" | "context_fill" | "translation";
-  word: string;
-  question: string;
-  options: string[] | null;
-  correct_answer_index: number | null;
 }
 
 /* ── Community ── */
@@ -395,36 +368,60 @@ export interface WordGloss {
 }
 
 /** A practice question generated from a video's subtitles (GET /videos/{id}/practice). */
-export interface PracticeQuestion {
-  type: "qa" | "fill_blank" | "reading" | "sentence_building";
-  question: string;
-  answer: string;
-  options: string[] | null;
-  cet_words: string[];
-  /** reading: the comprehension passage the question refers to. */
-  passage?: string | null;
-  /** sentence_building: the scrambled tokens; answer is the correct order. */
-  tokens?: string[] | null;
-}
+export type PracticeItemType =
+  | "listen_choose_meaning"
+  | "see_word_choose_meaning"
+  | "see_meaning_spell_word"
+  | "listen_spell_word"
+  | "context_fill"
+  | "sentence_repeat";
 
-export interface PracticeSet {
-  video_id: string;
-  exam_level: string;
-  questions: PracticeQuestion[];
-}
+export type PracticeItemCategory = "recognition" | "production" | "context";
 
-/** One vocabulary drill item (GET /videos/{id}/vocabulary-drill). */
-export interface VocabDrillItem {
-  kind: "spelling" | "meaning_choice";
+/** One adaptive practice item, scored client-side.
+ * 6 types across 3 categories. Type is chosen by SM-2 mastery level. */
+export interface PracticeItem {
   word: string;
+  category: PracticeItemCategory;
+  type: PracticeItemType;
   translation: string;
-  answer: string;
   options: string[] | null;
-  cet_words: string[];
+  answer: string;
+  /** context_fill: sentence with ___ blank. */
+  sentence_template?: string | null;
+  /** sentence_repeat / audio seek. */
+  start_time?: number | null;
+  end_time?: number | null;
+  full_sentence?: string | null;
+  phonetic?: string | null;
 }
 
-export interface VocabDrillSet {
+export interface UnifiedPracticeSet {
   video_id: string;
   exam_level: string;
-  items: VocabDrillItem[];
+  items: PracticeItem[];
+}
+
+export interface PracticeResultItem {
+  word: string;
+  correct: boolean;
+}
+
+export interface PracticeSubmitRequest {
+  results: PracticeResultItem[];
+  video_id: string;
+}
+
+export interface PracticeSubmitResponse {
+  updated: number;
+  auto_added: number;
+}
+
+/** Vocabulary-page practice response (no exam_level wrapper). */
+export interface VocabularyPracticeSet {
+  items: PracticeItem[];
+}
+
+export interface VocabPracticeSubmitRequest {
+  results: PracticeResultItem[];
 }

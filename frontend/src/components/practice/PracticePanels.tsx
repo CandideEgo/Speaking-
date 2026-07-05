@@ -1,194 +1,62 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Loader2, RotateCcw, Lock, GraduationCap, Trophy } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  Volume2,
+  Check,
+  X,
+  RotateCcw,
+  Loader2,
+  Trophy,
+  Mic,
+  MicOff,
+} from "lucide-react";
+import type { GradedResult, PracticeItem } from "@/types";
+import { usePracticeAudio } from "@/hooks/usePracticeAudio";
+import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea } from "@/components/ui/Input";
-import { LinkButton } from "@/components/ui/LinkButton";
-import type {
-  PracticeQuestion,
-  VocabDrillItem,
-  QuizQuestion,
-  GradedResult,
-} from "@/types";
+import { Input } from "@/components/ui/Input";
 
 // ---------------------------------------------------------------------------
-// SentenceBuilderInput — tap-to-order scrambled tokens.
-// Used by the practice "sentence_building" question type.
+// Shared sub-components
 // ---------------------------------------------------------------------------
 
-/**
- * A tap-to-reorder sentence builder. The learner taps tokens from the shuffled
- * pool to build the sentence; tapping a placed token returns it to the pool.
- * `value` is the space-joined chosen tokens in order; `onChange` reports it.
- */
-export function SentenceBuilderInput({
-  tokens,
-  value,
-  onChange,
-  disabled,
-}: {
-  tokens: string[];
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  const chosen = value ? value.split(" ") : [];
-
-  // Pool indices already picked (tracked so duplicate tokens are distinguishable).
-  const [usedPoolIndices, setUsedPoolIndices] = useState<Set<number>>(
-    new Set(),
-  );
-
-  const pick = (indexInPool: number) => {
-    if (disabled || usedPoolIndices.has(indexInPool)) return;
-    const next = new Set(usedPoolIndices);
-    next.add(indexInPool);
-    setUsedPoolIndices(next);
-    onChange([...chosen, tokens[indexInPool]].join(" "));
-  };
-
-  const unpick = (i: number) => {
-    if (disabled) return;
-    // Remove the i-th chosen token and release the corresponding pool index.
-    const removed = chosen[i];
-    const remaining = chosen.filter((_, idx) => idx !== i);
-    onChange(remaining.join(" "));
-    // Release one pool index whose token equals `removed` and is currently used.
-    for (let p = 0; p < tokens.length; p++) {
-      if (usedPoolIndices.has(p) && tokens[p] === removed) {
-        const next = new Set(usedPoolIndices);
-        next.delete(p);
-        setUsedPoolIndices(next);
-        break;
-      }
-    }
-  };
-
-  return (
-    <div className="mt-1 space-y-2">
-      {/* Chosen tokens */}
-      <div className="min-h-[40px] flex flex-wrap gap-1.5 p-2 rounded-lg bg-surface-soft border border-hairline">
-        {chosen.length === 0 ? (
-          <span className="text-xs text-muted-soft">点击下方单词组成句子…</span>
-        ) : (
-          chosen.map((t, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => unpick(i)}
-              disabled={disabled}
-              className="px-2 py-1 rounded bg-canvas border border-ink text-[13px] hover:border-brand-500 disabled:opacity-60"
-            >
-              {t}
-            </button>
-          ))
-        )}
-      </div>
-      {/* Shuffled token pool */}
-      <div className="flex flex-wrap gap-1.5">
-        {tokens.map((t, p) => (
-          <button
-            key={p}
-            type="button"
-            disabled={disabled || usedPoolIndices.has(p)}
-            onClick={() => pick(p)}
-            className={cn(
-              "px-2 py-1 rounded text-[13px] border transition-colors",
-              usedPoolIndices.has(p)
-                ? "border-hairline text-muted-soft bg-surface-soft cursor-default"
-                : "border-hairline hover:border-ink hover:bg-surface-soft",
-              disabled && "opacity-60",
-            )}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared presentational pieces
-// ---------------------------------------------------------------------------
-
-/** Common shape implemented by usePracticeMode / useVocabDrill / useQuiz. */
-interface SessionLike<I> {
-  loading: boolean;
-  error: string | null;
-  items: I[];
-  answers: Record<number, string>;
-  graded: Record<number, GradedResult>;
-  grading: Record<number, boolean>;
-  answeredCount: number;
-  correctCount: number;
-  score: number | null;
-  accuracy: number | null;
-  setAnswer: (index: number, answer: string) => void;
-  gradeAnswer: (index: number, answer?: string) => void;
-  reset: () => void;
-  refetch: () => Promise<void>;
-}
-
-/** One question with its input widget and an inline graded reveal. */
 function QuestionCard({
   prompt,
   hint,
-  passage,
   graded,
   grading,
   children,
 }: {
   prompt: ReactNode;
   hint?: ReactNode;
-  passage?: string | null;
   graded?: GradedResult | null;
   grading?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="mb-4 mt-3">
-      <p className="text-[14px] font-semibold mb-1 text-ink">{prompt}</p>
-      {hint ? <p className="text-[13px] text-muted mb-2">{hint}</p> : null}
-      {passage ? (
-        <p className="text-[13px] text-body leading-relaxed bg-surface-soft rounded-lg p-3 mb-2">
-          {passage}
-        </p>
-      ) : null}
+    <div className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3">
+      <div className="font-semibold text-ink">{prompt}</div>
+      {hint && <div className="text-xs text-muted">{hint}</div>}
       {children}
-      {grading ? (
-        <p className="text-xs mt-1.5 text-muted flex items-center gap-1">
+      {grading && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Loader2 size={12} className="animate-spin" /> 判分中…
-        </p>
-      ) : graded ? (
-        <div
-          className={cn(
-            "mt-1.5 text-xs rounded-md px-2 py-1.5",
-            graded.correct
-              ? "bg-success-soft text-success"
-              : "bg-red-50 text-red-600",
-          )}
-        >
-          <p className="font-medium">
-            {graded.correct
-              ? "✓ 正确"
-              : `✗ 正确答案：${graded.correctAnswer ?? ""}`}
-          </p>
-          {graded.explanation ? (
-            <p className="mt-0.5 opacity-90 leading-relaxed">
-              {graded.explanation}
-            </p>
-          ) : null}
         </div>
-      ) : null}
+      )}
+      {graded && (
+        <div
+          className={`text-sm font-medium ${graded.correct ? "text-emerald-600" : "text-red-500"}`}
+        >
+          {graded.correct
+            ? "✓ 正确"
+            : `✗ 正确答案：${graded.correctAnswer ?? graded.explanation ?? ""}`}
+        </div>
+      )}
     </div>
   );
 }
 
-/** Radio option list. On select -> `onSelect`. When graded, the correct option
- * turns green and a wrong pick turns red; interaction is locked. */
 function OptionList({
   name,
   options,
@@ -205,25 +73,20 @@ function OptionList({
   onSelect: (opt: string) => void;
 }) {
   return (
-    <div>
-      {options.map((opt, oi) => {
+    <div className="space-y-1.5">
+      {options.map((opt, i) => {
         const isSelected = selected === opt;
-        const isCorrectAnswer = !!graded && opt === graded.correctAnswer;
-        const isWrongPick = !!graded && isSelected && !graded.correct;
+        const isCorrect =
+          graded?.correctAnswer === opt || (graded?.correct && isSelected);
+        const isWrong = isSelected && graded && !graded.correct;
         return (
           <label
-            key={oi}
-            className={cn(
-              "q-opt",
-              !graded && isSelected && "q-opt-selected",
-              isCorrectAnswer && "border-success bg-success-soft text-success",
-              isWrongPick && "border-red-500 bg-red-50 text-red-600",
-              locked && "cursor-default",
-            )}
-            // preventDefault 阻止 label 默认把焦点转给内部 sr-only radio ——
-            // 否则浏览器会对该 absolute 1px 元素做隐式 focus 滚动，把整页
-            // <main> 的 scrollTop 跳走，导致点击选项后整页下半部白屏。
-            // onChange 仍会触发，checked 由 state 控制，不受影响。
+            key={i}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm
+              ${locked ? "cursor-default" : "hover:border-ink/30"}
+              ${isCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-700" : ""}
+              ${isWrong ? "border-red-400 bg-red-50 text-red-700" : ""}
+              ${!isCorrect && !isWrong ? "border-hairline bg-white" : ""}`}
             onClick={(e) => {
               e.preventDefault();
               if (!locked) onSelect(opt);
@@ -238,7 +101,15 @@ function OptionList({
               disabled={locked}
               className="sr-only"
             />
-            {opt}
+            <span
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                ${isSelected ? "border-ink bg-ink" : "border-hairline"}
+                ${isCorrect ? "border-emerald-500 bg-emerald-500" : ""}
+                ${isWrong ? "border-red-500 bg-red-500" : ""}`}
+            >
+              {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+            </span>
+            <span>{opt}</span>
           </label>
         );
       })}
@@ -246,515 +117,584 @@ function OptionList({
   );
 }
 
-/** "检查答案" button for text-type questions (spelling / fill_blank / dictation
- * / qa textarea / sentence_building). Triggers per-question grading. */
 function CheckButton({
   onClick,
   disabled,
-  grading,
 }: {
   onClick: () => void;
   disabled?: boolean;
-  grading?: boolean;
 }) {
   return (
     <Button
-      type="button"
       variant="outline"
-      size="sm"
+      size="compact"
       onClick={onClick}
       disabled={disabled}
-      className="mt-2"
     >
-      {grading ? (
-        <span className="flex items-center gap-1">
-          <Loader2 size={12} className="animate-spin" /> 判分中
-        </span>
-      ) : (
-        "检查答案"
-      )}
+      检查答案
     </Button>
   );
 }
 
-function ProUpsell({ levelLabel }: { levelLabel: string }) {
+function CompletionSummary({
+  total,
+  correct,
+  accuracy,
+  onRetry,
+  onSubmit,
+  submitted,
+}: {
+  total: number;
+  correct: number;
+  accuracy: number | null;
+  onRetry: () => void;
+  onSubmit: () => void;
+  submitted: boolean;
+}) {
   return (
-    <div className="py-8 text-center">
-      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-        <Lock size={20} />
+    <div className="rounded-xl border border-hairline bg-surface-soft p-5 text-center space-y-3">
+      <Trophy className="mx-auto text-amber-500" size={32} />
+      <div className="text-lg font-semibold text-ink">练习完成！</div>
+      <div className="text-sm text-muted">
+        {correct} / {total} 正确
+        {accuracy !== null && ` (${Math.round(accuracy)}%)`}
       </div>
-      <p className="text-sm font-medium text-ink">AI 练习模式为 Pro 专属</p>
-      <p className="mt-1 text-xs text-muted">
-        基于本视频字幕 AI 生成 {levelLabel} 练习题，逐题判分与解析。
-      </p>
-      <LinkButton href="/pricing" variant="primary" size="sm" className="mt-3">
-        升级 Pro
-      </LinkButton>
+      <div className="flex justify-center gap-3 pt-1">
+        {!submitted && (
+          <Button onClick={onSubmit} size="compact">
+            保存学习记录
+          </Button>
+        )}
+        {submitted && (
+          <span className="text-xs text-emerald-600">✓ 已同步</span>
+        )}
+        <Button
+          variant="outline"
+          size="compact"
+          onClick={onRetry}
+          icon={RotateCcw}
+        >
+          重新练习
+        </Button>
+      </div>
     </div>
   );
 }
 
-/** Shown when all questions in a session have been answered. */
-function CompletionSummary({
-  total,
-  correct,
-  score,
-  accuracy,
-  onRetry,
+// ---------------------------------------------------------------------------
+// Practice-specific sub-components
+// ---------------------------------------------------------------------------
+
+function AudioPlayButton({
+  onPlay,
+  isPlaying,
 }: {
-  total: number;
-  correct: number;
-  score: number | null;
-  accuracy: number | null;
-  onRetry: () => void;
+  onPlay: () => void;
+  isPlaying: boolean;
 }) {
-  const pct = accuracy ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
   return (
-    <div className="mt-4 rounded-lg border border-hairline bg-surface-soft p-4 text-center animate-[fadeSlideIn_0.3s_ease-out]">
-      <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-500">
-        <Trophy size={20} />
-      </div>
-      <p className="text-sm font-semibold text-ink">练习完成！</p>
-      <div className="mt-2 flex items-center justify-center gap-4 text-xs text-muted">
-        <span>
-          正确 {correct}/{total}
-        </span>
-        <span>正确率 {pct}%</span>
-        {score !== null && <span>得分 {score}</span>}
-      </div>
+    <button
+      type="button"
+      onClick={onPlay}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors
+        ${isPlaying ? "bg-ink text-white" : "bg-ink/5 text-ink hover:bg-ink/10"}`}
+    >
+      <Volume2 size={14} />
+      {isPlaying ? "播放中…" : "播放"}
+    </button>
+  );
+}
+
+function WordDisplay({
+  word,
+  phonetic,
+}: {
+  word: string;
+  phonetic?: string | null;
+}) {
+  return (
+    <span>
+      <span className="font-semibold text-ink">{word}</span>
+      {phonetic && (
+        <span className="ml-1.5 text-xs text-muted">/{phonetic}/</span>
+      )}
+    </span>
+  );
+}
+
+function TranslationDisplay({ translation }: { translation: string }) {
+  return <span className="text-ink">{translation}</span>;
+}
+
+function SentenceWithBlank({ template }: { template: string }) {
+  const parts = template.split("___");
+  return (
+    <span className="text-ink">
+      {parts[0]}
+      <span className="inline-block min-w-[60px] border-b-2 border-ink/40 mx-1 text-center text-muted">
+        &nbsp;
+      </span>
+      {parts[1]}
+    </span>
+  );
+}
+
+function SelfEvaluateButtons({
+  onCorrect,
+  onWrong,
+}: {
+  onCorrect: () => void;
+  onWrong: () => void;
+}) {
+  return (
+    <div className="flex gap-2">
       <Button
-        type="button"
         variant="outline"
-        size="sm"
-        onClick={onRetry}
-        className="mt-3"
-        icon={RotateCcw}
+        size="compact"
+        onClick={onCorrect}
+        icon={Check}
+        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
       >
-        重新练习
+        读对了
+      </Button>
+      <Button
+        variant="outline"
+        size="compact"
+        onClick={onWrong}
+        icon={X}
+        className="text-red-500 border-red-300 hover:bg-red-50"
+      >
+        需练习
       </Button>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// UnifiedPracticePanel — single panel hosting tabs for the three practice
-// modes. Merges the old VocabDrillPanel + inline PracticeSection + inline Quiz.
-// ---------------------------------------------------------------------------
-
-type Tab = "vocab" | "practice" | "quiz";
-
-export function UnifiedPracticePanel({
-  vocab,
-  practice,
-  quiz,
-  isPro,
-  levelLabel,
+function RecordAndEvaluate({
+  sentence,
+  onResult,
 }: {
-  vocab: SessionLike<VocabDrillItem>;
-  practice: SessionLike<PracticeQuestion>;
-  quiz: SessionLike<QuizQuestion> & {
-    allGraded: boolean;
-    recordScore: () => Promise<void>;
-  };
-  isPro: boolean;
-  levelLabel: string;
+  sentence: string;
+  onResult: (correct: boolean) => void;
 }) {
-  const [tab, setTab] = useState<Tab>("vocab");
-  const hasQuiz = quiz.items.length > 0;
+  const { speakingState, startRecording, stopRecording, audioUrl } =
+    useSpeakingRecorder(() => true);
+  const isRecording = speakingState === "listening";
+  const [hasRecorded, setHasRecorded] = useState(false);
 
-  const active: SessionLike<unknown> =
-    tab === "vocab" ? vocab : tab === "practice" ? practice : quiz;
-
-  const allAnswered =
-    active.items.length > 0 && active.answeredCount === active.items.length;
-
-  const tabs: { key: Tab; label: string; badge?: ReactNode; show: boolean }[] =
-    [
-      { key: "vocab", label: "词汇练习", show: true },
-      {
-        key: "practice",
-        label: "AI 练习",
-        show: true,
-        badge: !isPro ? (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-            Pro
-          </span>
-        ) : undefined,
-      },
-      { key: "quiz", label: "理解测验", show: hasQuiz },
-    ];
+  const handleRecord = () => {
+    if (isRecording) {
+      stopRecording();
+      setHasRecorded(true);
+    } else {
+      startRecording();
+    }
+  };
 
   return (
-    <div className="bg-canvas border border-hairline rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-          <GraduationCap size={16} className="text-brand-500" />
-          练习
-          <span className="text-[11px] font-normal text-muted">
-            · {levelLabel}
-          </span>
-        </span>
-        <div className="flex items-center gap-3">
-          {active.items.length > 0 && (
-            <span className="text-[11px] text-muted">
-              已答 {active.answeredCount}/{active.items.length} · 正确{" "}
-              {active.correctCount}
-              {allAnswered && active.score !== null
-                ? ` · ${active.score}%`
-                : active.accuracy !== null
-                  ? ` · 正确率 ${active.accuracy}%`
-                  : ""}
-            </span>
-          )}
-          <Button
-            type="button"
-            onClick={active.reset}
-            disabled={active.answeredCount === 0}
-            title="收拾重做"
-            variant="ghost"
-            size="icon"
-            className="!w-auto !h-auto !p-1.5"
-          >
-            <RotateCcw size={15} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-3 pt-2 border-b border-hairline">
-        {tabs
-          .filter((t) => t.show)
-          .map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "px-3 py-1.5 text-[13px] rounded-t-md border-b-2 -mb-px transition-colors flex items-center gap-1.5",
-                tab === t.key
-                  ? "border-brand-500 text-ink font-medium"
-                  : "border-transparent text-muted hover:text-ink",
-              )}
-            >
-              {t.label}
-              {t.badge}
-            </button>
-          ))}
-      </div>
-
-      {/* Progress bar */}
-      {active.items.length > 0 && (
-        <div className="h-1 bg-surface-soft">
-          <div
-            className="h-full bg-brand-500 transition-all duration-500 ease-out"
-            style={{
-              width: `${(active.answeredCount / active.items.length) * 100}%`,
-            }}
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="compact"
+        onClick={handleRecord}
+        icon={isRecording ? MicOff : Mic}
+        className={isRecording ? "text-red-500" : ""}
+      >
+        {isRecording ? "停止录音" : "录音"}
+      </Button>
+      {hasRecorded && audioUrl && (
+        <div className="space-y-2">
+          <audio controls src={audioUrl} className="h-8 w-full" />
+          <div className="text-xs text-muted mb-1">
+            回放你的录音，然后自评：
+          </div>
+          <SelfEvaluateButtons
+            onCorrect={() => onResult(true)}
+            onWrong={() => onResult(false)}
           />
         </div>
       )}
-
-      {/* Body */}
-      <div className="px-4 pb-4 pt-1">
-        {tab === "vocab" && <VocabBody session={vocab} />}
-        {tab === "practice" && (
-          <PracticeBody
-            session={practice}
-            isPro={isPro}
-            levelLabel={levelLabel}
-          />
-        )}
-        {tab === "quiz" && <QuizBody session={quiz} />}
-      </div>
     </div>
   );
 }
 
-function LoadingRow({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 py-6 text-sm text-muted">
-      <Loader2 size={16} className="animate-spin" /> {label}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Per-item renderer
+// ---------------------------------------------------------------------------
 
-function VocabBody({ session }: { session: SessionLike<VocabDrillItem> }) {
-  if (session.loading) return <LoadingRow label="加载词汇练习…" />;
-  if (session.items.length === 0)
-    return (
-      <p className="py-4 text-sm text-muted">
-        该视频暂无目标等级词汇可供练习。
-      </p>
-    );
-  const allDone = session.answeredCount === session.items.length;
-  return (
-    <>
-      {session.items.map((it, i) => {
-        const g = session.graded[i] ?? null;
-        const locked = !!g;
-        if (it.kind === "spelling") {
-          return (
-            <QuestionCard
-              key={i}
-              prompt={`${i + 1}. 拼写`}
-              hint={`写出英文单词：${it.translation || "（无译文）"}`}
-              graded={g}
-            >
+function PracticeItemRenderer({
+  item,
+  index,
+  answer,
+  graded,
+  grading,
+  onAnswer,
+  onGrade,
+  audio,
+}: {
+  item: PracticeItem;
+  index: number;
+  answer: string;
+  graded: GradedResult | null;
+  grading: boolean;
+  onAnswer: (a: string) => void;
+  onGrade: () => void;
+  audio: ReturnType<typeof usePracticeAudio>;
+}) {
+  const locked = !!graded;
+  const name = `practice-${index}`;
+
+  switch (item.type) {
+    case "listen_choose_meaning":
+      return (
+        <QuestionCard
+          prompt={
+            <div className="flex items-center gap-2">
+              <AudioPlayButton
+                onPlay={() => audio.playWord(item.word)}
+                isPlaying={audio.isPlaying}
+              />
+              <span className="text-sm text-muted">听发音，选择正确释义</span>
+            </div>
+          }
+          graded={graded}
+          grading={grading}
+        >
+          {item.options ? (
+            <OptionList
+              name={name}
+              options={item.options}
+              selected={answer}
+              graded={graded}
+              locked={locked}
+              onSelect={(opt) => {
+                onAnswer(opt);
+                onGrade();
+              }}
+            />
+          ) : (
+            <div className="text-sm text-muted">暂无选项</div>
+          )}
+        </QuestionCard>
+      );
+
+    case "see_word_choose_meaning":
+      return (
+        <QuestionCard
+          prompt={
+            <div className="flex items-center gap-2">
+              <WordDisplay word={item.word} phonetic={item.phonetic} />
+              <AudioPlayButton
+                onPlay={() => audio.playWord(item.word)}
+                isPlaying={audio.isPlaying}
+              />
+            </div>
+          }
+          hint="选择正确的中文释义"
+          graded={graded}
+          grading={grading}
+        >
+          {item.options ? (
+            <OptionList
+              name={name}
+              options={item.options}
+              selected={answer}
+              graded={graded}
+              locked={locked}
+              onSelect={(opt) => {
+                onAnswer(opt);
+                onGrade();
+              }}
+            />
+          ) : (
+            <div className="text-sm text-muted">暂无选项</div>
+          )}
+        </QuestionCard>
+      );
+
+    case "see_meaning_spell_word":
+      return (
+        <QuestionCard
+          prompt={<TranslationDisplay translation={item.translation} />}
+          hint="拼写对应的英文单词"
+          graded={graded}
+          grading={grading}
+        >
+          <div className="flex gap-2">
+            <Input
+              value={answer}
+              onChange={(e) => onAnswer(e.target.value)}
+              placeholder="输入英文单词…"
+              disabled={locked}
+              className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !locked && answer.trim()) onGrade();
+              }}
+            />
+            {!locked && (
+              <CheckButton onClick={onGrade} disabled={!answer.trim()} />
+            )}
+          </div>
+        </QuestionCard>
+      );
+
+    case "listen_spell_word":
+      return (
+        <QuestionCard
+          prompt={
+            <div className="flex items-center gap-2">
+              <AudioPlayButton
+                onPlay={() => audio.playWord(item.word)}
+                isPlaying={audio.isPlaying}
+              />
+              <span className="text-sm text-muted">听发音，拼写单词</span>
+            </div>
+          }
+          graded={graded}
+          grading={grading}
+        >
+          <div className="flex gap-2">
+            <Input
+              value={answer}
+              onChange={(e) => onAnswer(e.target.value)}
+              placeholder="输入英文单词…"
+              disabled={locked}
+              className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !locked && answer.trim()) onGrade();
+              }}
+            />
+            {!locked && (
+              <CheckButton onClick={onGrade} disabled={!answer.trim()} />
+            )}
+          </div>
+        </QuestionCard>
+      );
+
+    case "context_fill":
+      return (
+        <QuestionCard
+          prompt={
+            item.sentence_template ? (
+              <SentenceWithBlank template={item.sentence_template} />
+            ) : (
+              <TranslationDisplay translation={item.translation} />
+            )
+          }
+          hint={item.phonetic ? `/${item.phonetic}/` : undefined}
+          graded={graded}
+          grading={grading}
+        >
+          {item.options ? (
+            <OptionList
+              name={name}
+              options={item.options}
+              selected={answer}
+              graded={graded}
+              locked={locked}
+              onSelect={(opt) => {
+                onAnswer(opt);
+                onGrade();
+              }}
+            />
+          ) : (
+            <div className="flex gap-2">
               <Input
-                type="text"
-                placeholder="输入英文单词..."
-                value={session.answers[i] || ""}
-                onChange={(e) => session.setAnswer(i, e.target.value)}
+                value={answer}
+                onChange={(e) => onAnswer(e.target.value)}
+                placeholder="填入单词…"
                 disabled={locked}
-                className="mt-1"
+                className="flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !locked && answer.trim()) onGrade();
+                }}
               />
               {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                />
+                <CheckButton onClick={onGrade} disabled={!answer.trim()} />
               )}
-            </QuestionCard>
-          );
-        }
-        return (
-          <QuestionCard
-            key={i}
-            prompt={`${i + 1}. 选择释义`}
-            hint={it.word}
-            graded={g}
-          >
-            <OptionList
-              name={`vd-${i}`}
-              options={it.options || []}
-              selected={session.answers[i]}
-              graded={g}
-              locked={locked}
-              onSelect={(opt) => session.gradeAnswer(i, opt)}
+            </div>
+          )}
+        </QuestionCard>
+      );
+
+    case "sentence_repeat":
+      return (
+        <QuestionCard
+          prompt={
+            <div className="flex items-center gap-2">
+              <AudioPlayButton
+                onPlay={() =>
+                  audio.playSentence(item.full_sentence ?? item.word)
+                }
+                isPlaying={audio.isPlaying}
+              />
+              <span className="text-sm text-muted">听句子，跟读并自评</span>
+            </div>
+          }
+          hint={item.full_sentence ?? undefined}
+          graded={graded}
+          grading={grading}
+        >
+          {!locked && (
+            <RecordAndEvaluate
+              sentence={item.full_sentence ?? item.word}
+              onResult={(correct) => {
+                onAnswer(correct ? "self_correct" : "self_wrong");
+                onGrade();
+              }}
             />
-          </QuestionCard>
-        );
-      })}
-      {allDone && (
-        <CompletionSummary
-          total={session.items.length}
-          correct={session.correctCount}
-          score={session.score}
-          accuracy={session.accuracy}
-          onRetry={session.reset}
-        />
-      )}
-    </>
-  );
+          )}
+        </QuestionCard>
+      );
+
+    default:
+      return null;
+  }
 }
 
-function PracticeBody({
-  session,
-  isPro,
-  levelLabel,
-}: {
-  session: SessionLike<PracticeQuestion>;
-  isPro: boolean;
+// ---------------------------------------------------------------------------
+// Main panel — unified, single-tab
+// ---------------------------------------------------------------------------
+
+interface SessionLike {
+  loading: boolean;
+  error: string | null;
+  items: PracticeItem[];
+  answers: Record<number, string>;
+  graded: Record<number, GradedResult>;
+  grading: Record<number, boolean>;
+  answeredCount: number;
+  correctCount: number;
+  allGraded: boolean;
+  score: number | null;
+  accuracy: number | null;
+  setAnswer: (index: number, answer: string) => void;
+  gradeAnswer: (index: number, answer?: string) => void;
+  reset: () => void;
+  refetch: () => Promise<void>;
+  submitResults: () => Promise<void>;
+}
+
+interface UnifiedPracticePanelProps {
+  session: SessionLike;
   levelLabel: string;
-}) {
-  if (!isPro) return <ProUpsell levelLabel={levelLabel} />;
-  if (session.loading) return <LoadingRow label="AI 正在生成练习题…" />;
-  if (session.error)
+}
+
+export function UnifiedPracticePanel({
+  session,
+  levelLabel,
+}: UnifiedPracticePanelProps) {
+  const audio = usePracticeAudio();
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmitResults = async () => {
+    await session.submitResults();
+    setSubmitted(true);
+  };
+
+  const handleRetry = () => {
+    session.reset();
+    setSubmitted(false);
+  };
+
+  if (session.loading) {
     return (
-      <div className="py-4">
-        <p className="text-sm text-ink/70 mb-2">{session.error}</p>
-        <Button variant="outline" size="sm" onClick={() => session.refetch()}>
+      <div className="flex items-center gap-2 text-sm text-muted py-4">
+        <Loader2 size={14} className="animate-spin" /> 加载练习中…
+      </div>
+    );
+  }
+
+  if (session.error) {
+    return (
+      <div className="text-sm text-red-500 py-4">
+        {session.error}
+        <Button
+          variant="outline"
+          size="compact"
+          className="ml-2"
+          onClick={() => session.refetch()}
+        >
           重试
         </Button>
       </div>
     );
-  if (session.items.length === 0)
-    return <p className="py-4 text-sm text-muted">暂无练习题。</p>;
-  const allDone = session.answeredCount === session.items.length;
+  }
+
+  if (!session.items.length) {
+    return (
+      <div className="text-sm text-muted py-4">
+        该视频暂无目标等级词汇可供练习。
+      </div>
+    );
+  }
+
   return (
-    <>
-      {session.items.map((q, i) => {
-        const g = session.graded[i] ?? null;
-        const locked = !!g;
-        const grading = !!session.grading[i];
-        const passage = q.type === "reading" ? q.passage : null;
-        let input: ReactNode;
-        if (q.type === "sentence_building" && q.tokens) {
-          input = (
-            <>
-              <SentenceBuilderInput
-                tokens={q.tokens}
-                value={session.answers[i] || ""}
-                onChange={(v) => session.setAnswer(i, v)}
-                disabled={locked}
-              />
-              {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                  grading={grading}
-                />
-              )}
-            </>
-          );
-        } else if (q.options) {
-          input = (
-            <OptionList
-              name={`pq-${i}`}
-              options={q.options}
-              selected={session.answers[i]}
-              graded={g}
-              locked={locked}
-              onSelect={(opt) => session.gradeAnswer(i, opt)}
-            />
-          );
-        } else if (q.type === "fill_blank") {
-          input = (
-            <>
-              <Input
-                type="text"
-                placeholder="输入答案..."
-                value={session.answers[i] || ""}
-                onChange={(e) => session.setAnswer(i, e.target.value)}
-                disabled={locked}
-                className="mt-1"
-              />
-              {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                  grading={grading}
-                />
-              )}
-            </>
-          );
-        } else {
-          input = (
-            <>
-              <Textarea
-                placeholder="输入你的答案..."
-                value={session.answers[i] || ""}
-                onChange={(e) => session.setAnswer(i, e.target.value)}
-                disabled={locked}
-                rows={2}
-                className="mt-1"
-              />
-              {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                  grading={grading}
-                />
-              )}
-            </>
-          );
-        }
-        return (
-          <QuestionCard
-            key={i}
-            prompt={`${i + 1}. ${q.question}`}
-            passage={passage}
-            graded={g}
-            grading={grading}
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-ink">练习</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-ink/5 text-muted">
+            {levelLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-muted">
+          <span>
+            {session.correctCount} / {session.items.length}
+          </span>
+          {session.accuracy !== null && (
+            <span>{Math.round(session.accuracy)}%</span>
+          )}
+          <Button
+            variant="ghost"
+            size="compact"
+            onClick={handleRetry}
+            icon={RotateCcw}
           >
-            {input}
-          </QuestionCard>
-        );
-      })}
-      {allDone && (
+            重置
+          </Button>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="w-full bg-hairline rounded-full h-1.5">
+        <div
+          className="bg-ink rounded-full h-1.5 transition-all"
+          style={{
+            width: `${(session.answeredCount / session.items.length) * 100}%`,
+          }}
+        />
+      </div>
+
+      {/* Items */}
+      <div className="space-y-3">
+        {session.items.map((item, i) => (
+          <PracticeItemRenderer
+            key={`${item.word}-${item.type}-${i}`}
+            item={item}
+            index={i}
+            answer={session.answers[i] ?? ""}
+            graded={session.graded[i] ?? null}
+            grading={session.grading[i] ?? false}
+            onAnswer={(a) => session.setAnswer(i, a)}
+            onGrade={() => session.gradeAnswer(i)}
+            audio={audio}
+          />
+        ))}
+      </div>
+
+      {/* Completion */}
+      {session.allGraded && (
         <CompletionSummary
           total={session.items.length}
           correct={session.correctCount}
-          score={session.score}
           accuracy={session.accuracy}
-          onRetry={session.reset}
+          onRetry={handleRetry}
+          onSubmit={handleSubmitResults}
+          submitted={submitted}
         />
       )}
-    </>
-  );
-}
-
-function QuizBody({
-  session,
-}: {
-  session: SessionLike<QuizQuestion> & {
-    allGraded: boolean;
-    recordScore: () => Promise<void>;
-  };
-}) {
-  if (session.loading) return <LoadingRow label="加载理解测验…" />;
-  if (session.items.length === 0)
-    return <p className="py-4 text-sm text-muted">暂无测验题。</p>;
-  return (
-    <>
-      {session.items.map((q, i) => {
-        const g = session.graded[i] ?? null;
-        const locked = !!g;
-        let input: ReactNode;
-        if (q.type === "comprehension" && q.options) {
-          input = (
-            <OptionList
-              name={`q-${i}`}
-              options={q.options}
-              selected={session.answers[i]}
-              graded={g}
-              locked={locked}
-              onSelect={(opt) => session.gradeAnswer(i, opt)}
-            />
-          );
-        } else if (q.type === "fill_blank") {
-          input = (
-            <>
-              <Input
-                type="text"
-                placeholder="输入答案..."
-                value={session.answers[i] || ""}
-                onChange={(e) => session.setAnswer(i, e.target.value)}
-                disabled={locked}
-                className="mt-1"
-              />
-              {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                />
-              )}
-            </>
-          );
-        } else {
-          input = (
-            <>
-              <Textarea
-                placeholder="写出你听到的内容..."
-                value={session.answers[i] || ""}
-                onChange={(e) => session.setAnswer(i, e.target.value)}
-                disabled={locked}
-                rows={2}
-                className="mt-1"
-              />
-              {!locked && (
-                <CheckButton
-                  onClick={() => session.gradeAnswer(i)}
-                  disabled={!session.answers[i]}
-                />
-              )}
-            </>
-          );
-        }
-        return (
-          <QuestionCard key={i} prompt={`${i + 1}. ${q.question}`} graded={g}>
-            {input}
-          </QuestionCard>
-        );
-      })}
-      <Button
-        fullWidth
-        onClick={session.recordScore}
-        disabled={!session.allGraded}
-      >
-        完成测验
-      </Button>
-    </>
+    </div>
   );
 }

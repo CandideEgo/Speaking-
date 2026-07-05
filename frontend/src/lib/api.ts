@@ -54,10 +54,13 @@ export function mediaUrl(path: string): string {
   if (path.startsWith("http")) {
     // Route known thumbnail CDN hosts through the backend proxy to dodge
     // hotlink protection and http/https mixed-content issues.
+    // NOTE: the media router is mounted at /media (no /api/v1 prefix — see
+    // backend/app/main.py: app.include_router(media.router)), so the proxy
+    // lives at /media/proxy, NOT /api/v1/media/proxy.
     try {
       const host = new URL(path).hostname;
       if (shouldProxyHost(host)) {
-        return `${API_URL}/api/v1/media/proxy?url=${encodeURIComponent(path)}`;
+        return `${API_URL}/media/proxy?url=${encodeURIComponent(path)}`;
       }
     } catch {
       // Malformed URL — fall through and return as-is.

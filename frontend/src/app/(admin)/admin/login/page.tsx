@@ -12,10 +12,13 @@ interface LoginResponse {
   refresh_token?: string;
 }
 
+// CN mobile pattern — same routing rule as the user-side login page.
+const PHONE_RE = /^1[3-9]\d{9}$/;
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const login = useAdminAuthStore((s) => s.login);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,9 +27,17 @@ export default function AdminLoginPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const data = await adminApi<LoginResponse>("/api/v1/auth/login", {
+      // Route to the phone or email login endpoint based on the identifier,
+      // mirroring the user-side login page. Both endpoints return the same
+      // TokenResponse; the shell guard verifies role === admin afterward.
+      const isPhone = PHONE_RE.test(identifier);
+      const path = isPhone ? "/api/v1/auth/phone-login" : "/api/v1/auth/login";
+      const body = isPhone
+        ? { phone: identifier, password }
+        : { email: identifier, password };
+      const data = await adminApi<LoginResponse>(path, {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       login(data.token, data.refresh_token ?? null);
       // The shell guard verifies role === admin and redirects back here if not.
@@ -36,7 +47,7 @@ export default function AdminLoginPage() {
       const msg =
         err instanceof AdminApiError
           ? err.status === 401
-            ? "邮箱或密码错误"
+            ? "账号或密码错误"
             : err.message
           : "登录失败，请重试";
       toast.error(msg);
@@ -65,16 +76,16 @@ export default function AdminLoginPage() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-on-dark/60">
-                邮箱
+                手机号或邮箱
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
                 className="w-full rounded-sm border border-white/10 bg-surface-dark-soft px-3 py-2.5 text-sm text-on-dark placeholder:text-on-dark/40 focus:border-coral focus:outline-none"
-                placeholder="admin@example.com"
+                placeholder="手机号或邮箱"
               />
             </div>
             <div>

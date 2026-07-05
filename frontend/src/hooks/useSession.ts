@@ -5,11 +5,11 @@ import { api } from "@/lib/api";
 import type { GradedResult } from "@/types";
 
 // ---------------------------------------------------------------------------
-// Core types — shared by all three practice modes
+// Core types — shared by all practice modes
 // ---------------------------------------------------------------------------
 
 /** A single question/item in any practice session. Each mode provides its own
- *  concrete type (PracticeQuestion, VocabDrillItem, QuizQuestion). */
+ *  concrete type (PracticeItem). */
 // No structural constraint — concrete item types are passed through as-is.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type SessionItem = object;

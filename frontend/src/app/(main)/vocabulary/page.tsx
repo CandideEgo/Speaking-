@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useVocabularyPractice } from "@/hooks/usePractice";
 import {
   BookOpen,
   Trash2,
@@ -11,6 +12,7 @@ import {
   Target,
   CheckCircle2,
   Flame,
+  Dumbbell,
 } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -22,6 +24,8 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { Modal } from "@/components/common/Modal";
+import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface VocabWord {
@@ -87,6 +91,12 @@ export default function VocabularyPage() {
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<VocabWord | null>(null);
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const vocabPractice = useVocabularyPractice({
+    count: 10,
+    dueOnly: true,
+    enabled: practiceOpen,
+  });
   const { speak } = useSpeech();
 
   const nextDueWord = words.find(
@@ -220,6 +230,25 @@ export default function VocabularyPage() {
             </div>
           </div>
         )}
+
+        {/* Practice button */}
+        {stats.due > 0 && !practiceOpen && (
+          <div className="mb-6">
+            <Button onClick={() => setPracticeOpen(true)} icon={Dumbbell}>
+              开始练习
+            </Button>
+          </div>
+        )}
+
+        {/* Practice modal */}
+        <Modal
+          open={practiceOpen}
+          onClose={() => setPracticeOpen(false)}
+          title="词汇练习"
+          footer={null}
+        >
+          <UnifiedPracticePanel session={vocabPractice} levelLabel="词汇练习" />
+        </Modal>
 
         {/* Section header */}
         <SectionHeader

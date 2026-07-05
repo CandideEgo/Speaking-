@@ -57,12 +57,6 @@ from app.services.proposal_service import (
 from app.services.proposal_service import (
     withdraw_proposal as _withdraw_proposal,
 )
-from app.services.quiz_service import (
-    get_video_quiz as _get_video_quiz,
-)
-from app.services.quiz_service import (
-    submit_quiz_result as _submit_quiz_result,
-)
 from app.services.search_service import (
     search_subtitles as _search_subtitles,
 )
@@ -611,37 +605,6 @@ async def get_video_status(
     return result
 
 
-@router.get("/{video_id}/quiz")
-@rate_limit("30/minute")
-async def get_video_quiz(
-    request: Request,
-    video_id: str,
-    current_user: User | None = Depends(get_optional_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get quiz questions for a video. Returns empty list if quiz not yet generated."""
-    result = await _get_video_quiz(db, video_id, current_user)
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    return result
-
-
-@router.post("/{video_id}/quiz/submit")
-@rate_limit("10/minute")
-async def submit_quiz_result(
-    request: Request,
-    video_id: str,
-    score: float = Form(...),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Submit quiz score and update learning record."""
-    result = await _submit_quiz_result(db, video_id, current_user.id, score)
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    return result
-
-
 @router.get("", response_model=PaginatedResponse[VideoResponse])
 @rate_limit("30/minute")
 async def list_videos(
@@ -1084,7 +1047,7 @@ async def toggle_video_like(
 
 
 @router.get("/{video_id}/like-status")
-@rate_limit("5/minute")
+@rate_limit("30/minute")
 async def video_like_status(
     request: Request,
     video_id: str,

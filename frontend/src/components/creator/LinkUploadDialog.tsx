@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import { Loader2, Link2, Upload } from "lucide-react";
-import { seedFromUrlFull, getMyVideoStatus } from "@/lib/creatorData";
-import { PROCESSING_STATUS_CONFIG, STEP_LABELS_SHORT } from "@/lib/videoStatus";
+import { Link2, Upload } from "lucide-react";
+import { seedFromUrlFull } from "@/lib/creatorData";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/common/Modal";
@@ -43,79 +42,26 @@ export function LinkUploadDialog({
 }: LinkUploadDialogProps) {
   const [url, setUrl] = useState("");
   const [seeding, setSeeding] = useState(false);
-  const [progressText, setProgressText] = useState("");
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up polling on unmount or close
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
 
   async function handleImport(sourceUrl: string) {
     if (!sourceUrl.trim()) return;
     setSeeding(true);
-    setProgressText("正在导入...");
     try {
-      const video = await seedFromUrlFull(sourceUrl);
-      setProgressText("处理中...");
+      await seedFromUrlFull(sourceUrl);
+      toast.success("视频已提交，等待管理员启动处理");
       onImported();
-
-      // Poll until ready or error
-      pollRef.current = setInterval(async () => {
-        try {
-          const st = await getMyVideoStatus(video.id);
-          setProgressText(
-            st.processing_step
-              ? `${STEP_LABELS_SHORT[st.processing_step] ?? st.processing_step}（${st.processing_progress ?? 0}%）`
-              : (PROCESSING_STATUS_CONFIG[st.status]?.label ?? st.status),
-          );
-          if (st.status === "ready") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setSeeding(false);
-            setProgressText("");
-            setUrl("");
-            toast.success("视频处理完成");
-            onImported();
-          } else if (st.status === "error") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setSeeding(false);
-            setProgressText("");
-            toast.error("视频处理失败，请检查链接或重试");
-          } else if (st.status === "pending_processing") {
-            setProgressText("等待管理员启动处理...");
-          }
-        } catch {
-          // transient poll error — keep polling
-        }
-      }, 3000);
+      // Close dialog immediately — list-level polling tracks status
+      setUrl("");
+      setSeeding(false);
+      onClose();
     } catch (err) {
       setSeeding(false);
-      setProgressText("");
       toastApiError(err, "导入失败，请检查链接");
     }
   }
 
-  function handleClose() {
-    if (seeding) return; // Don't close while processing
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = null;
-    setUrl("");
-    setProgressText("");
-    onClose();
-  }
-
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      closeOnBackdrop={!seeding}
-      title="导入视频"
-      footer={null}
-    >
+    <Modal open={open} onClose={onClose} title="导入视频" footer={null}>
       <div className="space-y-5">
         {/* URL input */}
         <div>
@@ -143,12 +89,6 @@ export function LinkUploadDialog({
               {seeding ? "导入中..." : "一键导入"}
             </Button>
           </div>
-          {progressText && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 size={12} className="animate-spin" />
-              {progressText}
-            </div>
-          )}
         </div>
 
         {/* Divider */}

@@ -9,14 +9,12 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoPlayer, bestVideoUrl } from "@/hooks/useVideoPlayer";
-import { useQuiz } from "@/hooks/useQuiz";
 import { useWordLookup } from "@/hooks/useWordLookup";
-import { usePracticeMode } from "@/hooks/usePracticeMode";
-import { useVocabDrill } from "@/hooks/useVocabDrill";
+import { usePractice } from "@/hooks/usePractice";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
-import { api, mediaUrl, isProUser } from "@/lib/api";
+import { api, mediaUrl } from "@/lib/api";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -113,7 +111,6 @@ export default function WatchPage() {
     }
   }, [currentSubtitleIndex]);
 
-  const quiz = useQuiz({ videoId: id });
   const {
     isFavorited,
     isLiked,
@@ -143,31 +140,23 @@ export default function WatchPage() {
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
 
-  // --- Practice mode (CET/高考/考研, per-level AI questions) ---
-  const practice = usePracticeMode({ videoId: id, level: selectedExamLevel });
+  // --- Unified practice (adaptive drill, client-graded, SM-2 closed-loop) ---
+  const practiceSession = usePractice({
+    videoId: id,
+    level: selectedExamLevel,
+  });
 
-  // --- Vocabulary drill (free-tier, deterministic, per-level) ---
-  const vocabDrill = useVocabDrill({ videoId: id, level: selectedExamLevel });
-
-  // Whether the current user is Pro (for gating reading/sentence_building
-  // client-side; the practice endpoint still enforces server-side via 403).
-  const [isPro, setIsPro] = useState(false);
-
-  // Load the user's target exam level + plan from preferences/me on mount.
+  // Load the user's target exam level from preferences on mount.
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
     (async () => {
       try {
-        const [prefs, me] = await Promise.all([
-          api<{ target_exam: string | null }>("/api/v1/users/me/preferences"),
-          api<{ plan: string; plan_expires_at: string | null }>(
-            "/api/v1/users/me",
-          ).catch(() => null),
-        ]);
+        const prefs = await api<{ target_exam: string | null }>(
+          "/api/v1/users/me/preferences",
+        );
         if (cancelled) return;
         setSelectedExamLevel(prefs.target_exam ?? "cet4");
-        if (me) setIsPro(isProUser(me));
       } catch {
         if (!cancelled) setSelectedExamLevel("cet4");
       }
@@ -687,13 +676,10 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区：词汇练习 / AI 练习 / 理解测验 三合一 ===== */}
+      {/* ===== 练习区：统一练习引擎 ===== */}
       <div className="mt-6">
         <UnifiedPracticePanel
-          vocab={vocabDrill}
-          practice={practice}
-          quiz={quiz}
-          isPro={isPro}
+          session={practiceSession}
           levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
         />
       </div>

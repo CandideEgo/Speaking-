@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -40,6 +41,10 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!agreed) {
       setError("请先阅读并同意《用户协议》与《隐私政策》");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("两次输入的密码不一致");
       return;
     }
     setError("");
@@ -126,7 +131,19 @@ export default function RegisterPage() {
             required
             minLength={8}
             className="mt-1.5"
-            placeholder="至少 8 位，含大小写字母、数字及特殊字符"
+            placeholder="至少 8 位，含大小写字母和数字"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-ink">确认密码</label>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            minLength={8}
+            className="mt-1.5"
+            placeholder="请再次输入密码"
           />
         </div>
 
