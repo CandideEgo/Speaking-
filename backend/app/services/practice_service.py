@@ -486,6 +486,23 @@ async def build_vocabulary_drill(
     if not words:
         raise ValueError("词汇本为空，请先在学习中添加词汇")
 
+    # Filter by target exam level when requested. Words whose ECDICT lookup
+    # levels pass should_display() are preferred; if too few match we top up
+    # from non-matches so practice still works (e.g. words missing from ECDICT
+    # or a level the user hasn't annotated for). Without this the vocabulary
+    # drill ignored `target_level` entirely — every level saw the same words.
+    if target_level and ecdict.is_available():
+        matches: list = []
+        misses: list = []
+        for w in words:
+            entry = ecdict.lookup(w.word)
+            levels = entry["levels"] if entry else []
+            (matches if should_display(levels, target_level) else misses).append(w)
+        if matches:
+            # Enough level matches → restrict to them; only top up with misses
+            # when matches alone can't fill the requested count.
+            words = matches if len(matches) >= count else matches + misses
+
     # Prefer enriched words
     enriched = [w for w in words if w.definition and w.translation]
     if len(enriched) >= count:
