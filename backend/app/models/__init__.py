@@ -13,6 +13,7 @@ from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
 from app.models.subtitle_change_proposal import SubtitleChangeProposal
 from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate
+from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
 from app.models.video import Video

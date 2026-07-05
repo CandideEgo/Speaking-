@@ -1,5 +1,7 @@
 """Subtitle editing service — CRUD for subtitle rows and word-level annotations."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -493,3 +495,211 @@ async def list_subtitle_revisions(
         "items": [_revision_to_dict(r) for r in items],
         "has_more": has_more,
     }
+
+
+# ---------------------------------------------------------------------------
+# Bulk re-segmentation (admin) — snapshot, re-cut, rollback
+# ---------------------------------------------------------------------------
+
+
+def _resegment_segments(subs: list) -> list[dict]:
+    """Re-cut a video's subtitles into proper sentences.
+
+    Builds one word stream from all subtitles (real timestamps when present,
+    else fabricated proportional timestamps from the concatenated text) and
+    splits on sentence-end punctuation — regardless of duration, since the
+    point of re-segmentation is to break up multi-sentence segments that the
+    ingest pipeline emitted as one row. ``split_long_segments`` then catches
+    any run-on sentence still over ~12s (by clause/count) and
+    ``merge_short_segments`` folds single-word fragments back in.
+    """
+    from app.services.transcription.formatters import (
+        _SENTENCE_END,
+        _build_subsegment,
+        _split_words_by_boundary,
+        merge_short_segments,
+        split_long_segments,
+    )
+
+    all_words: list[dict] = []
+    for s in subs:
+        if s.words:
+            all_words.extend(s.words)
+
+    if all_words:
+        mega_start = all_words[0]["start"]
+        mega_end = all_words[-1]["end"]
+        preserve_words = True
+    else:
+        # No word timestamps — fabricate proportional ones from the text so the
+        # sentence/clause split logic (which keys off word-level punctuation)
+        # still works on legacy rows.
+        mega_start = subs[0].start_time
+        mega_end = subs[-1].end_time
+        total_duration = max(0.1, mega_end - mega_start)
+        full_text = " ".join(s.text_en for s in subs).strip()
+        tokens = full_text.split()
+        if not tokens:
+            return []
+        n = len(tokens)
+        all_words = [
+            {
+                "word": tok,
+                "start": mega_start + total_duration * (i / n),
+                "end": mega_start + total_duration * ((i + 1) / n),
+            }
+            for i, tok in enumerate(tokens)
+        ]
+        preserve_words = False
+
+    # 1) split on sentence-end punctuation → sentence-level segments
+    groups = _split_words_by_boundary(all_words, _SENTENCE_END)
+    segs = [g for g in (_build_subsegment(grp, mega_start, mega_end) for grp in groups) if g]
+    # 2) split any run-on sentence still over ~12s (by clause, then word count)
+    segs = split_long_segments(segs, max_duration=12.0)
+    # 3) fold single-word / sub-second fragments into the prior segment
+    segs = merge_short_segments(segs)
+
+    return [
+        {
+            "start": s["start"],
+            "end": s["end"],
+            "text": s["text"],
+            "words": s.get("words") if preserve_words else None,
+        }
+        for s in segs
+    ]
+
+
+async def resegment_video(
+    db: AsyncSession,
+    video_id: str,
+    *,
+    edited_by: str | None = None,
+) -> dict:
+    """Re-segment every subtitle of a video.
+
+    Snapshots the current subtitles (so the change is reversible), re-cuts
+    them into proper sentences, and replaces the rows. Translations (text_zh)
+    are dropped because the English segmentation changed — the admin can
+    re-trigger translation afterwards.
+
+    Returns ``{before_count, after_count, translations_cleared, snapshot_id}``.
+    """
+    from app.models.subtitle import Subtitle
+    from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
+    from app.services.ecdict import annotate_text
+
+    result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index))
+    subs = list(result.scalars().all())
+    if not subs:
+        raise ValueError("视频没有字幕，无法重断句")
+
+    snapshot = SubtitleResegmentSnapshot(
+        video_id=video_id,
+        segments_json=[
+            {
+                "start_time": s.start_time,
+                "end_time": s.end_time,
+                "text_en": s.text_en,
+                "text_zh": s.text_zh,
+                "sentence_index": s.sentence_index,
+                "words": s.words,
+                "grammar_note": s.grammar_note,
+                "speaker": s.speaker,
+                "word_levels": s.word_levels,
+            }
+            for s in subs
+        ],
+        before_count=len(subs),
+        applied_by=edited_by,
+    )
+    db.add(snapshot)
+
+    new_segs = _resegment_segments(subs)
+    if not new_segs:
+        raise ValueError("重断句失败：无法从现有字幕生成新分段")
+
+    for s in subs:
+        await db.delete(s)
+    await db.flush()
+
+    for i, seg in enumerate(new_segs):
+        levels = annotate_text(seg["text"])
+        db.add(
+            Subtitle(
+                video_id=video_id,
+                start_time=seg["start"],
+                end_time=seg["end"],
+                text_en=seg["text"],
+                text_zh=None,  # translations cleared — segmentation changed
+                sentence_index=i,
+                words=seg.get("words"),
+                word_levels=levels or None,
+            )
+        )
+
+    snapshot.after_count = len(new_segs)
+    await db.commit()
+    await invalidate_video_detail_cache(video_id)
+    return {
+        "before_count": len(subs),
+        "after_count": len(new_segs),
+        "translations_cleared": True,
+        "snapshot_id": snapshot.id,
+    }
+
+
+async def rollback_resegment(
+    db: AsyncSession,
+    video_id: str,
+    *,
+    edited_by: str | None = None,
+) -> dict:
+    """Restore subtitles from the latest re-segment snapshot.
+
+    Deletes the current (re-segmented) subtitles and re-inserts the snapshotted
+    rows, including their translations. The snapshot is marked rolled back.
+    """
+    from app.models.subtitle import Subtitle
+    from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
+
+    result = await db.execute(
+        select(SubtitleResegmentSnapshot)
+        .where(
+            SubtitleResegmentSnapshot.video_id == video_id,
+            SubtitleResegmentSnapshot.rolled_back.is_(False),
+        )
+        .order_by(SubtitleResegmentSnapshot.applied_at.desc())
+        .limit(1)
+    )
+    snapshot = result.scalar_one_or_none()
+    if snapshot is None:
+        raise ValueError("没有可回滚的重断句快照")
+
+    cur_result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id))
+    for s in cur_result.scalars().all():
+        await db.delete(s)
+    await db.flush()
+
+    for seg in snapshot.segments_json:
+        db.add(
+            Subtitle(
+                video_id=video_id,
+                start_time=seg["start_time"],
+                end_time=seg["end_time"],
+                text_en=seg["text_en"],
+                text_zh=seg.get("text_zh"),
+                sentence_index=seg["sentence_index"],
+                words=seg.get("words"),
+                grammar_note=seg.get("grammar_note"),
+                speaker=seg.get("speaker"),
+                word_levels=seg.get("word_levels"),
+            )
+        )
+
+    snapshot.rolled_back = True
+    snapshot.rolled_back_at = datetime.now(UTC)
+    await db.commit()
+    await invalidate_video_detail_cache(video_id)
+    return {"restored_count": len(snapshot.segments_json), "snapshot_id": snapshot.id}

@@ -379,6 +379,31 @@ export async function mergeSubtitle(
   );
 }
 
+export interface ResegmentResult {
+  before_count: number;
+  after_count: number;
+  translations_cleared: boolean;
+  snapshot_id: string;
+}
+
+export async function resegmentSubtitles(
+  videoId: string,
+): Promise<ResegmentResult> {
+  return adminApi<ResegmentResult>(
+    `/api/v1/videos/admin/${videoId}/subtitles/resegment`,
+    { method: "POST" },
+  );
+}
+
+export async function rollbackResegment(
+  videoId: string,
+): Promise<{ restored_count: number }> {
+  return adminApi<{ restored_count: number }>(
+    `/api/v1/videos/admin/${videoId}/subtitles/resegment/rollback`,
+    { method: "POST" },
+  );
+}
+
 export async function updateSubtitlesBatch(
   videoId: string,
   updates: (SubtitlePatch & { id: string })[],

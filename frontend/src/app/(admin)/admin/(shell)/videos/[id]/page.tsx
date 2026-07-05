@@ -10,6 +10,8 @@ import {
   getVideoDetail,
   mergeSubtitle,
   recomputeWordLevels,
+  resegmentSubtitles,
+  rollbackResegment,
   splitSubtitle,
   updateSubtitle,
   updateVideo,
@@ -125,6 +127,38 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
     [params.id, refreshVideo],
   );
 
+  const handleResegment = useCallback(async () => {
+    if (
+      !confirm(
+        "重新断句会把所有字幕按句末标点重新切分，并清空中文翻译（断句变了需重译）。可在管理员审核后用「回滚重断句」恢复。继续？",
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await resegmentSubtitles(params.id);
+      toast.success(
+        `已重断句：${res.before_count} → ${res.after_count} 句（翻译已清空，请重译）`,
+      );
+      await refreshVideo();
+    } catch (err) {
+      toastApiError(err, "重断句失败");
+    }
+  }, [params.id, refreshVideo]);
+
+  const handleRollbackResegment = useCallback(async () => {
+    if (!confirm("回滚到上次重断句前的字幕状态？")) {
+      return;
+    }
+    try {
+      const res = await rollbackResegment(params.id);
+      toast.success(`已回滚（恢复 ${res.restored_count} 句）`);
+      await refreshVideo();
+    } catch (err) {
+      toastApiError(err, "回滚失败");
+    }
+  }, [params.id, refreshVideo]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -170,15 +204,33 @@ export default function VideoEditPage({ params }: { params: { id: string } }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">字幕编辑</h2>
-            <Button
-              onClick={handleRecomputeAll}
-              variant="secondary"
-              size="compact"
-              icon={RefreshCw}
-              title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
-            >
-              重算全部高亮
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleResegment}
+                variant="secondary"
+                size="compact"
+                title="按句末标点重新切分所有字幕（会清空翻译，可回滚）"
+              >
+                重新断句
+              </Button>
+              <Button
+                onClick={handleRollbackResegment}
+                variant="outline"
+                size="compact"
+                title="回滚到上次重断句前"
+              >
+                回滚重断句
+              </Button>
+              <Button
+                onClick={handleRecomputeAll}
+                variant="secondary"
+                size="compact"
+                icon={RefreshCw}
+                title="用 ECDICT 重新计算所有字幕的单词高亮（覆盖手动标注）"
+              >
+                重算全部高亮
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-3">

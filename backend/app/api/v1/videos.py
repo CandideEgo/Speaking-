@@ -74,6 +74,12 @@ from app.services.subtitle_edit_service import (
     recompute_word_levels as _recompute_word_levels,
 )
 from app.services.subtitle_edit_service import (
+    resegment_video as _resegment_video,
+)
+from app.services.subtitle_edit_service import (
+    rollback_resegment as _rollback_resegment,
+)
+from app.services.subtitle_edit_service import (
     rollback_subtitle as _rollback_subtitle,
 )
 from app.services.subtitle_edit_service import (
@@ -468,6 +474,41 @@ async def merge_admin_subtitle(
         msg = str(e)
         if "not found" in msg.lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/subtitles/resegment", response_model=dict)
+@rate_limit("10/minute")
+async def resegment_admin_subtitles(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-cut every subtitle into proper sentences (bulk). Snapshots first so
+    the change is reversible via /resegment/rollback. Translations are cleared
+    — segmentation changed, so the admin should re-trigger translation after.
+    Admin only."""
+    try:
+        return await _resegment_video(db, video_id, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/subtitles/resegment/rollback", response_model=dict)
+@rate_limit("10/minute")
+async def rollback_resegment_admin(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Restore subtitles from the latest re-segment snapshot. Admin only."""
+    try:
+        return await _rollback_resegment(db, video_id, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
