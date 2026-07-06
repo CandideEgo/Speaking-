@@ -409,8 +409,15 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
         else:
             print("  [WARN] No subtitles found -- video will be ready but without subtitles")
 
-        # Mark as ready (English subtitles available for learning)
+        # Mark as ready and publish. This script bypasses the Celery finalize
+        # pipeline (it inserts subtitles via yt-dlp directly), so unlike the
+        # admin "seed-full" flow — which sets auto_publish=True and lets
+        # finalize_video flip is_published on the ready step — we publish
+        # here. list_public_videos / recommendation_service / search_service
+        # all filter is_published == True, so without this the seeded
+        # homepage is empty even though the videos are status=ready.
         video.status = VideoStatus.ready
+        video.is_published = True
         await db.commit()
 
         # Trigger async comment analysis
