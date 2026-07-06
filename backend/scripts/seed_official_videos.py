@@ -30,6 +30,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
+
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -149,6 +151,41 @@ OFFICIAL_VIDEOS = [
         "duration_min": 6,
     },
 ]
+
+
+def _download_thumbnail(url: str, dest: Path, video_id: str) -> bool:
+    """Download a thumbnail image to the local media directory.
+
+    Returns True on success.  Falls back silently on failure (the external
+    URL is still stored in the DB and the runtime proxy_image endpoint
+    will try to serve it — or the user can upload a local copy later).
+    """
+    settings = get_settings()
+    proxy = settings.http_proxy or None
+    try:
+        with httpx.Client(timeout=15.0, follow_redirects=True, proxy=proxy) as client:
+            resp = client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 Speaking/1.0 (thumbnail download)",
+                    "Referer": "https://www.youtube.com/",
+                    "Accept": "image/*,*/*;q=0.8",
+                },
+            )
+            if resp.status_code != 200:
+                print(f"  [WARN] Thumbnail download returned HTTP {resp.status_code}")
+                return False
+            ct = resp.headers.get("content-type", "")
+            if not ct.lower().startswith("image/"):
+                print(f"  [WARN] Thumbnail response is not an image: {ct}")
+                return False
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(resp.content)
+            print(f"  [THUMB] Downloaded to {dest} ({len(resp.content)} bytes)")
+            return True
+    except Exception as e:
+        print(f"  [WARN] Thumbnail download failed: {e}")
+        return False
 
 
 def _extract_youtube_id(url: str) -> str | None:
@@ -418,6 +455,18 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
         # homepage is empty even though the videos are status=ready.
         video.status = VideoStatus.ready
         video.is_published = True
+
+        # Download thumbnail to local media dir so the server doesn't need
+        # to proxy YouTube CDN at runtime (which fails in mainland China).
+        ext_thumb = video.thumbnail_url or ""
+        if ext_thumb.startswith("http"):
+            settings = get_settings()
+            media_dir = Path(settings.local_media_path)
+            local_path = media_dir / f"{video.id}_thumb.jpg"
+            if not local_path.exists():
+                if _download_thumbnail(ext_thumb, local_path, video.id):
+                    video.thumbnail_url = f"/media/{video.id}_thumb.jpg"
+
         await db.commit()
 
         # Trigger async comment analysis
