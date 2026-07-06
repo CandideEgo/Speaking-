@@ -92,6 +92,7 @@ async def proxy_image(
         "Accept": "image/*,*/*;q=0.8",
     }
 
+    settings = get_settings()
     buf = bytearray()
     content_type = "image/jpeg"
     try:
@@ -99,6 +100,7 @@ async def proxy_image(
             timeout=_PROXY_TIMEOUT,
             follow_redirects=True,
             max_redirects=3,
+            proxy=settings.http_proxy or None,
         ) as client:
             async with client.stream("GET", url, headers=headers) as resp:
                 if resp.status_code != 200:
