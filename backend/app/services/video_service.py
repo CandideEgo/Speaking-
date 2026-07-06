@@ -188,9 +188,10 @@ async def get_video_detail(
                 LearningRecord.user_id == current_user.id,
                 LearningRecord.video_id == video_id,
             )
+            .limit(1)
             .with_for_update()
         )
-        if not lr_result.scalar_one_or_none():
+        if not lr_result.scalar():
             db.add(LearningRecord(user_id=current_user.id, video_id=video_id))
             try:
                 await db.commit()
