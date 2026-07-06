@@ -25,7 +25,7 @@
 | 1 练习题重设计+bug | ✅完成 | 387e14e | 逐题引导式;context_fill/sentence_repeat bug 修复;tsc+ruff 通过 |
 | 2 编辑器 watch 格式重设计 | ✅完成 | 6636cab | 创作者中心+后台编辑页改 watch 格式(共享 VideoSubtitleEditorPanel)+后端时序校验+owner 修订/回滚端点;tsc/build/35 字幕测试通过 |
 | 3 P0 行为采集+LearningRecord | ✅完成 | 447500a | behavior_events 表+续播+watchTime/click 埋点;迁移跑通;tsc+ruff 通过 |
-| 4 P1 评分 | 待办 | - | 6 因子,配置化权重;改动前 gitnexus_impact finalize_video |
+| 4 P1 评分 | ✅完成 | 6b72689 | 6 因子,配置化权重;改动前 gitnexus_impact finalize_video(LOW) |
 | 5 P2 推荐+首页 | 待办 | - | 40/30/20/10 |
 | 6 上线准备 | 待办 | - | |
 
@@ -127,6 +127,16 @@
 **API**:`GET /api/v1/videos/{id}/score`(admin/debug);视频详情返回 `score`。
 
 **验收**:`SELECT video_id,total_score FROM video_scores ORDER BY total_score DESC LIMIT 20` 合理;新视频 5 分钟内有分。
+
+**实际实现**(2026-07-06):
+- 6 因子定义(文档留白处,本实现选定):CTR=`min(clicks/50,1)`(behavior_events `event_type='click'` 计数);Retention=`avg(progress_percentage)/100`(LearningRecord 聚合,无记录→0);WatchTime=`min(Σtime_spent_seconds/36000,1)`;TopicMatch=元数据完整度`(tags+difficulty+duration+字幕+练习题)/5`;Quality=翻译覆盖率`有text_zh字幕/总字幕`;Bonus=`is_official 或 有练习题→1`(+10 加法,非权重)。`total=min(100, 100·Σ(wᵢfᵢ) + 10·bonus)`。
+- 权重 + benchmark + bonus_points 全部 `score_*` env 配置化(`config.py`)。
+- `VideoScore` 表存因子明细(可审计)+ `videos.score`/`score_updated_at` 反范式化(列表排序用)。
+- `finalize_video` 末尾 best-effort `compute_video_score_task.delay`(try/except,评分失败不影响 finalize);beat 每小时 Top200 / 每天全量。
+- `list_public_videos` 排序改 `score.is(None), score.desc(), is_featured.desc(), created_at.desc()`(score 主排,is_featured 兜底)。
+- 无数据新视频基线≈35(TopicMatch 15 + Quality 10 + Bonus 10),行为累积自然上升;全因子满载 cap 100。
+- `GET /admin/{video_id}/score` admin/debug 因子明细端点;`VideoResponse`/前端 `Video` 加 `score`。
+- 8 测试(`tests/test_scoring.py`)+ tsc + ruff + pre-commit 通过;全量 373 passed,16 failed 均为预存债(14 practice + vocab quiz `submit_quiz` 已删 + whisperx GPU env),改动前 `gitnexus_impact finalize_video`=LOW 验证。
 
 ---
 
