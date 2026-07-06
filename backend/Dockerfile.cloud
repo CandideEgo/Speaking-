@@ -1,6 +1,7 @@
 # ---- Cloud worker Dockerfile (no Whisper/GPU models) ----
 # For the cloud server that does NOT run transcription.
-# Skips pre-downloading ~500MB of Whisper/WhisperX model caches.
+# Uses requirements-cloud.txt which excludes torch/whisperx/faster-whisper
+# (saves ~1GB+ image size and 10+ min build time on low-memory servers).
 #
 # Usage in docker-compose.prod.yml:
 #   build:
@@ -18,9 +19,9 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements-cloud.txt .
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-cloud.txt
 
 # Skip Whisper model pre-download — cloud server does not run transcription.
 # The models are only needed on the GPU worker.
