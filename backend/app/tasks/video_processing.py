@@ -553,6 +553,17 @@ def finalize_video(self, video_id: str):
                         )
                     logger.info("Video %s auto-published (official)", video_id)
 
+                # P1: schedule an initial learning_score computation. Best-effort
+                # — scoring failure must never fail finalize. The beat jobs
+                # re-score hourly/daily; this gives new videos an immediate
+                # (metadata-baseline) score so they aren't buried at null.
+                try:
+                    from app.tasks.scoring_tasks import compute_video_score_task
+
+                    compute_video_score_task.delay(video_id)
+                except Exception:
+                    logger.warning("Video %s: failed to schedule scoring (continuing)", video_id, exc_info=True)
+
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:
                     await _cleanup_oss_raw(video.id, video.source_url)

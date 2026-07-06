@@ -52,6 +52,9 @@ export interface Video {
   processing_progress: number;
   like_count: number;
   favorite_count: number;
+  /** P1 learning_score (0-100). Null until first computed; drives list sorting. */
+  score: number | null;
+  score_updated_at: string | null;
   created_at: string;
 }
 

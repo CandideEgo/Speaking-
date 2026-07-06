@@ -18,5 +18,6 @@ from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
 from app.models.video import Video
+from app.models.video_score import VideoScore
 from app.models.video_standard import VideoStandard
 from app.models.word_note import WordAINote

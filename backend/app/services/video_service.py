@@ -65,7 +65,18 @@ async def list_public_videos(db: AsyncSession, page: int = 1, page_size: int = 2
     )
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
-    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
+    # Sort by score desc (nulls last) with is_featured as a fallback tiebreaker
+    # — featured curates the top until scores accumulate, then score dominates.
+    result = await db.execute(
+        base.order_by(
+            Video.score.is_(None),
+            Video.score.desc(),
+            Video.is_featured.desc(),
+            Video.created_at.desc(),
+        )
+        .offset(offset)
+        .limit(page_size + 1)
+    )
     rows = result.scalars().all()
     has_more = len(rows) > page_size
     items = [VideoResponse.model_validate(v) for v in rows[:page_size]]

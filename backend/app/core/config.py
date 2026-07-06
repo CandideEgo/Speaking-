@@ -144,6 +144,23 @@ class Settings(BaseSettings):
     prewarm_engines: str = "agnes,qwen"
     prewarm_concurrency: int = 4  # max in-flight LLM calls per engine
 
+    # Video scoring (P1, ADR-0011). 6-factor weighted learning_score (0-100)
+    # computed by scoring_service + refreshed by scoring beat tasks. Weights
+    # are applied to 0-1 factor values; ``score_bonus_points`` is additive on
+    # top of the 0-100 weighted base (not a weight). All tunable via env so
+    # scoring can be retuned without code changes. See LAUNCH-SPRINT-2026-07
+    # 阶段 4. No-data phase: CTR/Retention/WatchTime stay 0 (no redistribution);
+    # TopicMatch/Quality/Bonus give new videos a non-zero baseline.
+    score_weight_ctr: float = 0.30
+    score_weight_retention: float = 0.25
+    score_weight_watch_time: float = 0.20
+    score_weight_topic_match: float = 0.15
+    score_weight_quality: float = 0.10
+    score_bonus_points: float = 10.0  # additive bonus (max +10 points)
+    # Saturation benchmarks: the count at which a factor reaches 1.0.
+    score_ctr_click_benchmark: int = 50  # 50 clicks → CTR factor 1.0
+    score_watch_time_benchmark: int = 36000  # 10h total watch → WatchTime factor 1.0
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
     # Extra domains allowed by the production Content-Security-Policy connect-src

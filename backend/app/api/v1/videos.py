@@ -670,6 +670,39 @@ async def get_admin_video_status(
     return result
 
 
+@router.get("/admin/{video_id}/score", response_model=dict)
+@rate_limit("30/minute")
+async def get_admin_video_score(
+    request: Request,
+    video_id: str,
+    _admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin/debug: latest learning_score breakdown for a video (P1).
+
+    Returns the per-factor values so the score is explainable, not just the
+    total. 404 if the video has never been scored.
+    """
+    from app.services.scoring_service import get_latest_score
+
+    row = await get_latest_score(db, video_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No score computed yet")
+    return {
+        "video_id": video_id,
+        "total_score": row.total_score,
+        "factors": {
+            "ctr": row.ctr,
+            "retention": row.retention,
+            "watch_time": row.watch_time,
+            "topic_match": row.topic_match,
+            "quality": row.quality,
+            "bonus": row.bonus,
+        },
+        "computed_at": row.computed_at.isoformat() if row.computed_at else None,
+    }
+
+
 @router.get("/{video_id}", response_model=VideoDetailResponse)
 @rate_limit("30/minute")
 async def get_video(

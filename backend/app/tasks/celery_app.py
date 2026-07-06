@@ -47,6 +47,16 @@ celery_app.conf.update(
             "task": "app.tasks.video_processing.watchdog_stale_transcriptions",
             "schedule": 600,  # every 10 minutes
         },
+        # P1 scoring: refresh hot videos hourly, all videos daily. New videos
+        # are also scored immediately at the end of finalize_video.
+        "score-videos-hourly": {
+            "task": "app.tasks.scoring_tasks.compute_top_scores",
+            "schedule": 3600,  # every hour — Top 200 by view_count
+        },
+        "score-videos-daily": {
+            "task": "app.tasks.scoring_tasks.compute_all_scores",
+            "schedule": 86400,  # every day — full recompute
+        },
     },
 )
 
@@ -56,4 +66,5 @@ celery_app.conf.update(
 # automatically includes request_id for traceability.
 import app.core.logging as _logging
 import app.models
+import app.tasks.scoring_tasks
 import app.tasks.video_processing

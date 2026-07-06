@@ -50,13 +50,19 @@ class VideoResponse(BaseModel):
     error_message: str | None = None
     like_count: int = 0
     favorite_count: int = 0
+    # P1 learning_score (0-100, null until first computed). Drives list
+    # sorting; full per-factor breakdown via the admin score endpoint.
+    score: float | None = None
+    score_updated_at: str | None = None
     created_at: str
 
     model_config = {"from_attributes": True}
 
-    @field_validator("created_at", mode="before")
+    @field_validator("created_at", "score_updated_at", mode="before")
     @classmethod
-    def serialize_created_at(cls, v: object) -> str:
+    def _serialize_dt_iso(cls, v: object) -> str | None:
+        if v is None:
+            return None
         if isinstance(v, datetime):
             return v.isoformat()
         return str(v)

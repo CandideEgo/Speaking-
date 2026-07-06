@@ -118,6 +118,14 @@ class Video(Base):
     # behavior_service on `complete` events. Used by scoring/recommendation (P1/P2).
     view_count: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", nullable=False)
 
+    # P1 learning_score (0-100) — denormalized current total for cheap list
+    # sorting. Computed by scoring_service.compute_video_score (6-factor
+    # weighted) and refreshed by the scoring beat tasks. Null until first
+    # computed (sorts last via score.is_(None)). Full per-factor breakdown
+    # lives in video_scores rows.
+    score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    score_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Admin-curated homepage visibility (distinct from is_featured which is auto-set)
     show_on_homepage: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 

@@ -75,6 +75,8 @@ export default function HomePage() {
             processing_progress: 0,
             like_count: 0,
             favorite_count: 0,
+            score: null,
+            score_updated_at: null,
             created_at: r.created_at,
           },
           progress: r.progress_percentage || undefined,
