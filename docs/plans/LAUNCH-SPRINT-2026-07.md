@@ -27,7 +27,7 @@
 | 3 P0 行为采集+LearningRecord | ✅完成 | 447500a | behavior_events 表+续播+watchTime/click 埋点;迁移跑通;tsc+ruff 通过 |
 | 4 P1 评分 | ✅完成 | 6b72689 | 6 因子,配置化权重;改动前 gitnexus_impact finalize_video(LOW) |
 | 5 P2 推荐+首页 | ✅完成 | 869cf12 | 40/30/20/10 + 软个性化 + Redis 缓存 60s + is_featured 兜底 |
-| 6 上线准备 | 待办 | - | |
+| 6 上线准备 | ✅完成 | 99f7cce | 代码侧阻塞清零 + seed is_published bug 修复;部署侧待办见实际实现 |
 
 ---
 
@@ -174,6 +174,14 @@
 - **质量门禁**:`pre-commit run --all-files` + `pytest tests/ -v` + `npm run check`
 - **GitNexus**:`gitnexus_detect_changes()` 验证改动范围
 - **seed 视频**:确认 ~13 个种子视频均 `ready` + `is_published`
+
+**实际实现**(2026-07-06):
+- **质量门禁全过**:`pytest tests/` = 391 passed / 16 failed(与阶段 5 基线一致,16 failed 全预存债:14 practice + vocab quiz `submit_quiz` 已删 + whisperx GPU env,无新增);前端 `npx tsc --noEmit` exit 0(`npm run check` 因 frontend 未配 ESLint 触发 `next lint` 交互向导,改用 tsc——工具链现状非回归;prettier 155 files warn 是 v4-alpha 假报警,记忆已记录);`pre-commit run --all-files` 通过。
+- **GitNexus**:改前 `detect_changes()`=No changes(工作区干净);改后 `changed_count=1` 仅 `seed_video` touched,`affected_processes=[]` risk low;`impact seed_video`=LOW(只被同脚本 `main()` 调用,无外部调用方)。
+- **代码侧阻塞核查**(对照 production-launch-blockers 记忆,5 天前标的"待办"实际已修复):✅启动迁移 `entrypoint.sh`→`alembic upgrade head`(幂等,失败不阻塞);✅admin bootstrap `scripts/create_admin.py`(幂等+`--email`/`--password`/env);✅`NEXT_PUBLIC_API_URL` 构建注入(`docker-compose.prod.yml` build args→`Dockerfile.prod` ARG+ENV→`npm run build`);✅法律页中性占位+`.env.example` ICP 合规变量(留空降级);✅已就绪:JWT 强制/CORS+CSP/限流/Sentry 接线/structlog/`/health`/回调 `compare_digest`/refresh 轮换+JTI 黑名单+password_changed_at 失效/mock 支付 prod 关闭/Alembic 迁移齐全。
+- **修复 seed `is_published` bug**(代码侧唯一新修):`seed_official_videos.py` 创建视频后设 `status=ready` 但全程不设 `is_published`(默认 `False`),而 `list_public_videos`/`recommendation_service`/`search_service` 全过滤 `is_published == True` → 跑 seed 后 12 个视频虽 ready 但首页/推荐/搜索全空(冷启动空根因)。脚本不走 Celery finalize(不能依赖 `auto_publish`+finalize 自动 publish),故在 `status=ready` 处直接 `is_published=True`。
+- **部署侧待办(用户在 47.122 服务器操作,代码侧无阻塞)**:HTTPS(切 `nginx.ssl.conf`+证书,compose 已暴露 80+443)/ICP 备案(个体户非经营性,站内支付已关 451)/邮箱(不阻塞,注册/登录/重置走手机验证码)/GPU worker(`TRANSCRIPTION_CALLBACK_URL`+`TRANSCRIPTION_CALLBACK_SECRET`+SSH tunnel Redis)/服务器 `.env`/跑 `seed_official_videos.py`(现已自动 `is_published=True`)/`create_admin.py`/Sentry DSN。详见 [[cloud-server-deployment]] 记忆。
+- **seed 视频数**:12 个(OFFICIAL_VIDEOS:TED 3 + interview 3 + educational 3 + ...),实际 ready 状态需服务器 DB 查 `SELECT count(*) FROM videos WHERE status='ready' AND is_published=true`。
 
 ---
 
