@@ -13,6 +13,10 @@
 
 set -e
 
+# Ensure the app directory is on sys.path for alembic (which runs from /app
+# but may not have /app itself on the path depending on how pip installed things).
+export PYTHONPATH="/app:${PYTHONPATH:-}"
+
 MIGRATE_ONLY=0
 if [ "$1" = "migrate-only" ]; then
   MIGRATE_ONLY=1

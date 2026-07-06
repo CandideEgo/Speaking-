@@ -74,6 +74,7 @@ services:
       TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
       ENV: ${ENV:-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     expose:
       - "8000"
     volumes:
@@ -100,6 +101,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
@@ -113,6 +115,7 @@ services:
       TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
       ENV: ${ENV:-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - media:/app/media
     depends_on:
@@ -136,8 +139,12 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
       ENV: ${ENV:-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       redis:
         condition: service_healthy
