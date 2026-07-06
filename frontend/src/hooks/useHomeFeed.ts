@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toastApiError, apiErrorMessage } from "@/lib/errors";
 import { api } from "@/lib/api";
+import { useFeedStore } from "@/stores/feedStore";
 import type { Video } from "@/types";
 
 interface UseHomeFeedOptions {
@@ -17,8 +18,15 @@ export const DIFFICULTY_GROUPS = [
   { id: "advanced", label: "高级 C1-C2", levels: ["C1", "C2"] },
 ];
 
+/**
+ * P2 home feed (ADR-0011). Fetches the algorithmic recommendation stream
+ * from /recommendations/home (40/30/20/10 mix + soft personalization) into
+ * the shared feedStore, then applies client-side difficulty filtering + topic
+ * grouping on top. Falls back to the store's cached feed while reloading.
+ */
 export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
-  const [videos, setVideos] = useState<Video[]>([]);
+  const feed = useFeedStore((s) => s.feed);
+  const setFeed = useFeedStore((s) => s.setFeed);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState(initialGroup);
@@ -30,10 +38,10 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
     setError(null);
     try {
       const data = await api<{ items: Video[] }>(
-        "/api/v1/browse/featured?limit=50",
+        "/api/v1/recommendations/home?page=1&page_size=50",
       );
       if (!cancelledRef.current) {
-        setVideos(data.items);
+        setFeed(data.items);
       }
     } catch (err) {
       if (!cancelledRef.current) {
@@ -45,9 +53,9 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [setFeed]);
 
-  // Fetch public videos on mount
+  // Fetch recommendation feed on mount
   useEffect(() => {
     cancelledRef.current = false;
     fetchVideos();
@@ -61,8 +69,8 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
   const levels = group?.levels ?? [];
   const filtered =
     levels.length === 0
-      ? videos
-      : videos.filter(
+      ? feed
+      : feed.filter(
           (v) =>
             v.difficulty_level != null && levels.includes(v.difficulty_level),
         );

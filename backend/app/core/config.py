@@ -161,6 +161,24 @@ class Settings(BaseSettings):
     score_ctr_click_benchmark: int = 50  # 50 clicks → CTR factor 1.0
     score_watch_time_benchmark: int = 36000  # 10h total watch → WatchTime factor 1.0
 
+    # Home feed recommendation (P2, ADR-0011). 40/30/20/10 mix of
+    # high-score / potential / cold-start / long-form videos, plus diversity
+    # (same topic_tags ≤N consecutive) and soft personalization (history click
+    # topic_tags + target_exam/level CEFR match — NOT a hard filter, since
+    # videos have no exam_level field and a hard filter would empty a 13-video
+    # pool). Ratios must sum to ~1.0; shortfall buckets backfill from top.
+    # See LAUNCH-SPRINT-2026-07 阶段 5.
+    recommend_ratio_top: float = 0.40
+    recommend_ratio_potential: float = 0.30
+    recommend_ratio_cold: float = 0.20
+    recommend_ratio_long: float = 0.10
+    recommend_cold_start_days: int = 7  # created_at within N days → cold bucket
+    recommend_long_duration_min: int = 1200  # duration (s) → long-form bucket
+    recommend_min_score_for_long: float = 30.0  # long-form must clear this score
+    recommend_consecutive_tag_max: int = 2  # max consecutive same first-topic
+    recommend_min_clicks_for_personalization: int = 3  # below this → global sort
+    recommend_home_ttl_seconds: int = 60  # Redis cache TTL for home feed
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
     # Extra domains allowed by the production Content-Security-Policy connect-src

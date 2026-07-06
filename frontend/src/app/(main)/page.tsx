@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Play, ArrowRight, Users } from "lucide-react";
+import { Play, ArrowRight, Users, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useFeedStore, recommendWithSeenSink } from "@/stores/feedStore";
 import { useHomeFeed, DIFFICULTY_GROUPS } from "@/hooks/useHomeFeed";
 import { api } from "@/lib/api";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -23,6 +24,15 @@ export default function HomePage() {
 
   const { videos, loading, error, retry, activeGroup, setActiveGroup } =
     useHomeFeed();
+
+  // P2 "为你推荐": algorithmic feed with seen videos soft-sunk to the back.
+  const feed = useFeedStore((s) => s.feed);
+  const seenIds = useFeedStore((s) => s.seenIds);
+  const markSeen = useFeedStore((s) => s.markSeen);
+  const recommended = useMemo(
+    () => recommendWithSeenSink(feed, seenIds).slice(0, 8),
+    [feed, seenIds],
+  );
 
   const [vocabDue, setVocabDue] = useState<number | null>(null);
   const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
@@ -176,6 +186,32 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
+
+        {/* ── 为你推荐：算法推荐流（P2）── */}
+        {recommended.length > 0 && (
+          <section>
+            <SectionHeader
+              title="为你推荐"
+              action={
+                <span className="inline-flex items-center gap-1 text-xs text-brand-600 font-mono">
+                  <Sparkles size={13} />
+                  算法推荐
+                </span>
+              }
+            />
+            <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory">
+              {recommended.map((v) => (
+                <div
+                  key={v.id}
+                  className="snap-start shrink-0 w-[240px] sm:w-[260px]"
+                  onClick={() => markSeen(v.id)}
+                >
+                  <VideoCard video={v} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── 继续观看：主推大卡 + 不对称网格 ── */}
         {continueWatching.length > 0 && (
