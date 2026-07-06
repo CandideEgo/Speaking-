@@ -26,7 +26,7 @@
 | 2 编辑器 watch 格式重设计 | ✅完成 | 6636cab | 创作者中心+后台编辑页改 watch 格式(共享 VideoSubtitleEditorPanel)+后端时序校验+owner 修订/回滚端点;tsc/build/35 字幕测试通过 |
 | 3 P0 行为采集+LearningRecord | ✅完成 | 447500a | behavior_events 表+续播+watchTime/click 埋点;迁移跑通;tsc+ruff 通过 |
 | 4 P1 评分 | ✅完成 | 6b72689 | 6 因子,配置化权重;改动前 gitnexus_impact finalize_video(LOW) |
-| 5 P2 推荐+首页 | 待办 | - | 40/30/20/10 |
+| 5 P2 推荐+首页 | ✅完成 | 869cf12 | 40/30/20/10 + 软个性化 + Redis 缓存 60s + is_featured 兜底 |
 | 6 上线准备 | 待办 | - | |
 
 ---
@@ -156,6 +156,14 @@
 - `frontend/src/app/(main)/page.tsx`:顶部"为你推荐"模块
 
 **验收**:首页首卡是算法推荐(非人工 `is_featured`);切 `target_exam_level` 后内容变化;缓存命中率>70%。
+
+**实际实现**(2026-07-06):
+- `recommendation_service.py`:`get_home_feed` 实现 40/30/20/10(高分 score desc / 潜力 engagement desc / 冷启动 created_at>now-7d / 长视频 duration>1200 & score>30),桶不足从 top 补齐,总池<page_size 回退 score desc + is_featured 兜底;`_diversify` 频率交替算法(同首 tag 连续≤2,按组大小交替避免尾堆);个性化=软加权非硬过滤(`target_exam` 无视频侧字段,映射 CEFR band + level 匹配 + 历史 click 的 topic_tags 权重,click<3 不个性化),personalized 时整池按 effective score(score+boost)重排再分桶让低分高 boost 进 top 桶;Redis 缓存 `recommend:home:{user_id}:{page}:{page_size}` TTL 60s 手动 cache_get/set(fail-open)。
+- `recommendations.py`:`GET /recommendations/home` + `/category/{tag}`,`get_optional_user` 匿名可访问,`@rate_limit("30/minute")`。
+- `config.py`:`recommend_ratio_*`/`recommend_cold_start_days`/`recommend_long_duration_min`/`recommend_min_score_for_long`/`recommend_consecutive_tag_max`/`recommend_min_clicks_for_personalization`/`recommend_home_ttl_seconds` 全配置化。
+- 前端:`useHomeFeed` 切 `/recommendations/home?page=1&page_size=50` + 用 `feedStore` 缓存;`feedStore`(Zustand)存 feed + seenIds(localStorage 持久化)+ `recommendWithSeenSink` 软降权(不删视频);`page.tsx` hero 下方加"为你推荐"横向卡片行(前 8,seen 软降权,Sparkles 标识算法推荐)。
+- 13 视频时个性化效果有限(符合 ADR 重新定位"管道先建好");验收以"管道正确 + 首卡非 is_featured + 切 level/exam 内容变化"为准。
+- 18 测试(`test_recommendations.py`)全过;全量 391 passed/16 failed 均预存债;改动前 `gitnexus_impact list_public_videos`=LOW(未改),提交前 `gitnexus_detect_changes` critical 仅因 config 加字段扩散到 get_settings(实际 additive 不破坏现有流程)。
 
 ---
 
