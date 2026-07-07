@@ -25,6 +25,7 @@ class EngineConfig:
     temperature: float = 0.3  # LLM temperature for translation
     system_prompt: str = ""  # Override default prompt if non-empty
     label: str = ""  # Human-readable label for logging
+    batch_size: int = 0  # Per-engine override; 0 = use global translation_batch_size
 
 
 # Default system prompt — same as the original AIService.translate_batch prompt
@@ -34,6 +35,17 @@ DEFAULT_TRANSLATION_PROMPT = (
     "translation (e.g., it's just a sound), return empty string."
 )
 
+# Hy-MT2 has a tendency to merge multiple sentences into one translation.
+# A stricter prompt enforces one-to-one mapping.
+HYMT2_TRANSLATION_PROMPT = (
+    "You are a sentence-by-sentence translator. "
+    "For EACH input sentence, output EXACTLY ONE Chinese translation. "
+    "Never combine or merge multiple sentences into one translation. "
+    "The output JSON array MUST have the same length as the input. "
+    "If the input has N sentences, you MUST output exactly N translations. "
+    "If a sentence doesn't need translation (e.g., it's just a sound), return an empty string for that entry."
+)
+
 
 BUILTIN_ENGINES: dict[str, EngineConfig] = {
     "hy_mt2": EngineConfig(
@@ -41,6 +53,8 @@ BUILTIN_ENGINES: dict[str, EngineConfig] = {
         base_url="https://maas-api.cn-huabei-1.xf-yun.com/v2",
         model="xophunyuan7bmt",
         label="Hy-MT2-7B (iFLYTEK)",
+        system_prompt=HYMT2_TRANSLATION_PROMPT,
+        batch_size=5,
     ),
     "qwen": EngineConfig(
         name="qwen",
@@ -56,6 +70,7 @@ BUILTIN_ENGINES: dict[str, EngineConfig] = {
         model="",
         api_key="",
         label="Agnes 2.0 Flash",
+        batch_size=5,
     ),
     "custom": EngineConfig(
         name="custom",

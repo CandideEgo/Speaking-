@@ -142,7 +142,20 @@ class TranslationService:
 
     @property
     def batch_size(self) -> int:
-        """Configured batch size."""
+        """Configured global batch size."""
+        return self._batch_size
+
+    @property
+    def effective_batch_size(self) -> int:
+        """Return per-engine batch size override or the global default.
+
+        Uses the primary engine's ``batch_size`` if set (> 0); otherwise
+        the global ``translation_batch_size``.  This is the batch size
+        callers should use when splitting texts before calling
+        ``translate_batch()``.
+        """
+        if self._engine.batch_size > 0:
+            return self._engine.batch_size
         return self._batch_size
 
     # ------------------------------------------------------------------
@@ -187,19 +200,39 @@ class TranslationService:
             cleaned = sanitize_json(raw)
             parsed = json.loads(cleaned)
 
-            if isinstance(parsed, list) and len(parsed) == len(texts):
-                return self._normalize_translations(parsed)
+            if isinstance(parsed, list):
+                if len(parsed) == len(texts):
+                    return self._normalize_translations(parsed)
 
-            # Length mismatch — log and treat as failure
+                if len(parsed) > len(texts):
+                    # More results than expected — truncate
+                    logger.warning(
+                        "Translation result longer than input",
+                        engine=engine.name,
+                        expected=len(texts),
+                        got=len(parsed),
+                    )
+                    return self._normalize_translations(parsed[: len(texts)])
+
+                # Shorter result — pad missing slots with None instead of
+                # discarding all valid translations.  The per-item retry in
+                # _translate_subtitles will attempt to fill the gaps.
+                logger.warning(
+                    "Translation result shorter than input, padding with None",
+                    engine=engine.name,
+                    expected=len(texts),
+                    got=len(parsed),
+                )
+                normalized = self._normalize_translations(parsed)
+                padded = normalized + [None] * (len(texts) - len(parsed))
+                return padded
+
+            # Not a list at all
             logger.warning(
-                "Translation result length mismatch",
+                "Translation result not a list",
                 engine=engine.name,
-                expected=len(texts),
-                got=len(parsed) if isinstance(parsed, list) else "not a list",
+                got_type=type(parsed).__name__,
             )
-            # If we got *more* results than expected, truncate
-            if isinstance(parsed, list) and len(parsed) > len(texts):
-                return self._normalize_translations(parsed[: len(texts)])
             return None
 
         except json.JSONDecodeError as exc:

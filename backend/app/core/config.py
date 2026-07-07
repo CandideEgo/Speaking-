@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     translation_engine: str = "qwen"  # qwen | hy_mt2 | agnes | custom
     translation_fallback_engine: str = "hy_mt2"  # paired with primary for concurrent mode
     translation_concurrent: bool = True  # run primary + fallback concurrently, first valid wins
-    translation_batch_size: int = 20
+    translation_batch_size: int = 5  # smaller batches avoid 404s (agnes) and sentence-merging (hy_mt2)
     translation_hymt2_api_key: str = ""
     translation_qwen_api_key: str = ""
     translation_custom_base_url: str = ""

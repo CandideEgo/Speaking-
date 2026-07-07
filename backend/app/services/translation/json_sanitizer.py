@@ -65,6 +65,9 @@ def _normalise_quotes(text: str) -> str:
     delimiters instead of standard JSON ``","``. After normalising ``「`` →
     ``"`` and ``」`` → ``"``, adjacent ``""`` appear which break JSON parsing.
     We fix that by inserting the missing comma.
+
+    Hy-MT2-7B also sometimes uses Chinese comma ``，`` (U+FF0C) between
+    array elements instead of ASCII ``,``. We normalise those too.
     """
     # Chinese curly double-quotes → straight double-quotes
     text = text.replace("“", '"').replace("”", '"')
@@ -76,7 +79,11 @@ def _normalise_quotes(text: str) -> str:
     text = text.replace("『", '"').replace("』", '"')
     # Full-width quotation mark → straight double-quote
     text = text.replace("＂", '"')
-    # Fix adjacent double-quotes (missing comma between array elements)
+    # Full-width comma (Chinese ，) between " and " → ASCII comma
+    # e.g. "...text"，"next..." → "...text","next..."
+    text = re.sub(r'"，"', '","', text)
+    # Also handle the case where _normalise_quotes already turned CJK
+    # brackets into quotes, leaving adjacent "" without comma.
     text = text.replace('""', '","')
     return text
 

@@ -84,6 +84,11 @@ def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) ->
         if words:
             start = words[0].get("start", seg.get("start", 0.0)) + offset
             end = words[-1].get("end", seg.get("end", 0.0)) + offset
+            # Rebuild text from words when available — WhisperX ASR can emit
+            # concatenated text (missing spaces) as a hallucination artifact,
+            # but the aligned word tokens are correctly separated.  Rebuilding
+            # from words fixes the spacing and ensures text matches words.
+            text = " ".join(w.get("word", "").strip() for w in words if w.get("word", "").strip())
         else:
             start = seg.get("start", 0.0) + offset
             end = seg.get("end", 0.0) + offset
@@ -115,7 +120,9 @@ def _build_subsegment(words: list[dict], seg_start: float, seg_end: float) -> di
         return None
     start = words[0].get("start", seg_start)
     end = words[-1].get("end", seg_end)
-    text = "".join(w.get("word", "") for w in words).strip()
+    # Rebuild text from word tokens with proper spacing.  The raw ASR text
+    # may be concatenated (missing spaces), so always reconstruct from words.
+    text = " ".join(w.get("word", "").strip() for w in words if w.get("word", "").strip())
     if not text:
         return None
     return {"start": float(start), "end": float(end), "text": text, "words": words}

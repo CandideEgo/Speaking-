@@ -44,18 +44,36 @@ async def _translate_subtitles(texts: list[str]) -> list[str | None]:
 
     Uses the pluggable TranslationService (with engine selection + fallback)
     instead of AIService.translate_batch which has no fallback support.
+
+    After the main batch pass, retries individual None entries with
+    single-item batches to maximize fill rate.
     """
     from app.services.translation import get_translation_service
 
     service = get_translation_service()
     results: list[str | None] = [None] * len(texts)
 
-    batch_size = service.batch_size
+    batch_size = service.effective_batch_size
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         translations = await service.translate_batch(batch)
         for j, t in enumerate(translations):
             results[i + j] = t
+
+    # Retry individual None entries one at a time.  Single-item batches
+    # eliminate length-mismatch and sentence-merging risks, and each retry
+    # goes through the full translate_batch path (benefiting from concurrent
+    # dual-engine fan-out when configured).
+    none_indices = [i for i, r in enumerate(results) if r is None]
+    if none_indices:
+        logger.info(
+            "Retrying %d untranslated subtitles individually",
+            len(none_indices),
+        )
+        for idx in none_indices:
+            retry = await service.translate_batch([texts[idx]])
+            if retry and retry[0] is not None:
+                results[idx] = retry[0]
 
     return results
 
