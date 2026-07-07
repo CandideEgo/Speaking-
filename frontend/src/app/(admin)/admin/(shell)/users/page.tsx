@@ -195,7 +195,7 @@ export default function AdminUsersPage() {
           onKeyDown={(e) => {
             if (e.key === "Enter") reload();
           }}
-          placeholder="搜索姓名/邮箱..."
+          placeholder="搜索姓名/邮箱/手机号..."
           className="!py-1.5 max-w-xs ml-auto"
         />
       </div>
@@ -235,7 +235,7 @@ export default function AdminUsersPage() {
                     {u.name || "未命名"}
                   </div>
                   <div className="text-muted-foreground truncate max-w-[160px]">
-                    {u.email}
+                    {u.phone || u.email || "-"}
                   </div>
                 </div>
               </button>

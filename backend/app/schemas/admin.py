@@ -70,7 +70,8 @@ class AdminStatsResponse(BaseModel):
 
 class AdminUserResponse(BaseModel):
     id: str
-    email: str
+    email: str | None = None
+    phone: str | None = None
     name: str | None = None
     bio: str | None = None
     avatar_url: str | None = None

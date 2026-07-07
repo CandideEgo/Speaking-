@@ -281,7 +281,9 @@ async def list_admin_users(
             stmt = stmt.where(User.plan == plan_enum)
     if keyword and keyword.strip():
         k = keyword.strip().lower()
-        stmt = stmt.where((func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)))
+        stmt = stmt.where(
+            (func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)) | (User.phone.contains(k))
+        )
 
     # Count total for has_more
     count_stmt = select(func.count(User.id))
@@ -297,7 +299,9 @@ async def list_admin_users(
             pass
     if keyword and keyword.strip():
         k = keyword.strip().lower()
-        count_stmt = count_stmt.where((func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)))
+        count_stmt = count_stmt.where(
+            (func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)) | (User.phone.contains(k))
+        )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Paginate
@@ -311,6 +315,7 @@ async def list_admin_users(
             {
                 "id": user.id,
                 "email": user.email,
+                "phone": user.phone,
                 "name": user.name,
                 "bio": user.bio,
                 "avatar_url": user.avatar_url,
