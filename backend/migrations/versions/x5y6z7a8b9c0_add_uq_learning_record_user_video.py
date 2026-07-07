@@ -38,11 +38,19 @@ def upgrade() -> None:
         )
         """
     )
-    op.create_unique_constraint(
-        "uq_learning_record_user_video",
-        "learning_records",
-        ["user_id", "video_id"],
-    )
+    # Idempotent: skip if constraint already exists (e.g. applied manually
+    # on the server before this migration ran).
+    from sqlalchemy import inspect
+
+    bind = op.get_bind()
+    constraints = inspect(bind).get_unique_constraints("learning_records")
+    names = {c["name"] for c in constraints}
+    if "uq_learning_record_user_video" not in names:
+        op.create_unique_constraint(
+            "uq_learning_record_user_video",
+            "learning_records",
+            ["user_id", "video_id"],
+        )
 
 
 def downgrade() -> None:
