@@ -72,6 +72,13 @@ BUILTIN_ENGINES: dict[str, EngineConfig] = {
         label="Agnes 2.0 Flash",
         batch_size=5,
     ),
+    "glm": EngineConfig(
+        name="glm",
+        base_url="https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+        model="xopglm51",
+        label="GLM (iFLYTEK coding)",
+        batch_size=5,
+    ),
     "custom": EngineConfig(
         name="custom",
         base_url="",

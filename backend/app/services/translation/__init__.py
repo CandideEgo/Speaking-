@@ -272,6 +272,10 @@ class TranslationService:
             cfg.base_url = cfg.base_url or settings.openai_base_url
             cfg.model = cfg.model or settings.openai_model
             cfg.api_key = cfg.api_key or settings.openai_api_key
+        elif name == "glm":
+            cfg.api_key = settings.translation_glm_api_key or cfg.api_key
+            cfg.base_url = settings.translation_glm_base_url or cfg.base_url
+            cfg.model = settings.translation_glm_model or cfg.model
         elif name == "custom":
             cfg.base_url = settings.translation_custom_base_url or cfg.base_url
             cfg.model = settings.translation_custom_model or cfg.model

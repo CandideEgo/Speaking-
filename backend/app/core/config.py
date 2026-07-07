@@ -126,12 +126,15 @@ class Settings(BaseSettings):
     # to missed/low-quality output); qwen + hy_mt2 (both iFLYTEK) are the
     # default pair. Agnes is still used by AIService._chat for non-translation
     # LLM calls (pronunciation/rubric/gloss/grammar/practice questions).
-    translation_engine: str = "qwen"  # qwen | hy_mt2 | agnes | custom
+    translation_engine: str = "qwen"  # qwen | hy_mt2 | agnes | glm | custom
     translation_fallback_engine: str = "hy_mt2"  # paired with primary for concurrent mode
     translation_concurrent: bool = True  # run primary + fallback concurrently, first valid wins
     translation_batch_size: int = 5  # smaller batches avoid 404s (agnes) and sentence-merging (hy_mt2)
     translation_hymt2_api_key: str = ""
     translation_qwen_api_key: str = ""
+    translation_glm_api_key: str = ""
+    translation_glm_base_url: str = "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
+    translation_glm_model: str = "xopglm51"
     translation_custom_base_url: str = ""
     translation_custom_model: str = ""
     translation_custom_api_key: str = ""
