@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Speaking — 完整设计预览</title>
+<title>SeeWord — 完整设计预览</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   Speaking · 清爽明亮简约 · 完整设计系统预览
+   SeeWord · 清爽明亮简约 · 完整设计系统预览
    ============================================================ */
 :root{
   --bg:#ffffff;--bg-soft:#fafafa;--bg-muted:#f4f4f5;
@@ -554,7 +554,7 @@ img{display:block;max-width:100%}
      PREVIEW SWITCHER
      ============================================================ -->
 <div class="preview-bar">
-  <span class="brand-tag">Speaking 预览</span>
+  <span class="brand-tag">SeeWord 预览</span>
   <div class="seg" id="view-seg">
     <button class="on" data-view="landing">🏠 落地页</button>
     <button data-view="home">🏠 首页</button>
@@ -577,7 +577,7 @@ img{display:block;max-width:100%}
   <!-- NAV -->
   <nav class="l-nav">
     <div class="l-nav-in">
-      <a class="logo"><span class="mark">S</span>Speaking</a>
+      <a class="logo"><span class="mark">S</span>SeeWord</a>
       <div class="links">
         <a>功能</a><a>内容库</a><a>价格</a><a>关于</a>
       </div>
@@ -802,7 +802,7 @@ img{display:block;max-width:100%}
   <footer class="l-foot">
     <div class="l-foot-in">
       <div>
-        <a class="logo" style="margin-bottom:0"><span class="mark">S</span>Speaking</a>
+        <a class="logo" style="margin-bottom:0"><span class="mark">S</span>SeeWord</a>
         <p class="blurb">用真实视频学开口说英语。AI 驱动的双语字幕、口语评测和理解测验。</p>
       </div>
       <div><h4>产品</h4><a onclick="go('browse')">浏览视频</a><a onclick="go('speaking')">口语练习</a><a onclick="go('pricing')">价格</a></div>
@@ -1047,7 +1047,7 @@ img{display:block;max-width:100%}
             <span class="tag adv">进阶挑战</span>
           </div>
           <h3>自由说</h3>
-          <div class="sub-en">Free Speaking</div>
+          <div class="sub-en">Free SeeWord</div>
           <p>不依赖字幕,自由发挥话题表达。AI 智能评估你的表达力和连贯性。</p>
           <span class="mbtn brand">开始练习 <svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
         </div>
@@ -1321,7 +1321,7 @@ img{display:block;max-width:100%}
               <div class="meta"><div class="nm">Maria Chen</div><div class="tm">2 小时前</div></div>
               <span class="tag">口语进步</span>
             </div>
-            <p class="txt">坚持用 Speaking 跟读了一个月,今天外教夸我发音明显变地道了!这段 TED 真的太适合练 shadowing 了,推荐给大家 👇</p>
+            <p class="txt">坚持用 SeeWord 跟读了一个月,今天外教夸我发音明显变地道了!这段 TED 真的太适合练 shadowing 了,推荐给大家 👇</p>
             <div class="vid-prev" onclick="go('watch')">
               <div class="th"></div>
               <div><div class="vt">How to speak so that people want to listen</div><div class="vm">TED Talks · B2 · 12:08</div></div>
@@ -1508,7 +1508,7 @@ function sidebarHTML(active){
     {g:"学习",items:[{l:"学习面板",h:"dash",i:"<rect x='3' y='3' width='7' height='9' rx='1'/><rect x='14' y='3' width='7' height='5' rx='1'/><rect x='14' y='12' width='7' height='9' rx='1'/><rect x='3' y='16' width='7' height='5' rx='1'/>",b:""},{l:"词汇本",h:"vocab",i:"<path d='M4 19V5a2 2 0 0 1 2-2h12v18l-3-2-3 2-3-2-3 2Z'/><path d='M8 7h8M8 11h6'/>",b:""}]},
     {g:"账户",items:[{l:"Pro 会员",h:"pricing",i:"<path d='m2 7 4.5-4.5L9 5l3-3 3 3 2.5-2.5L22 7v3H2V7Z'/><path d='M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9'/>",b:""}]},
   ];
-  let h=`<div class="brand-row"><div class="logo">S</div><div class="brand-name">Speaking</div></div><nav class="nav">`;
+  let h=`<div class="brand-row"><div class="logo">S</div><div class="brand-name">SeeWord</div></div><nav class="nav">`;
   NAV.forEach(s=>{
     h+=`<div class="nav-label">${s.g}</div>`;
     s.items.forEach(it=>{

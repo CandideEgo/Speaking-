@@ -14,9 +14,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: speaking
-          POSTGRES_PASSWORD: speaking_test
-          POSTGRES_DB: speaking_test
+          POSTGRES_USER: seeword
+          POSTGRES_PASSWORD: seeword_test
+          POSTGRES_DB: seeword_test
         ports:
           - 5432:5432
         options: >-
@@ -64,7 +64,7 @@ jobs:
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: postgresql+asyncpg://speaking:speaking_test@localhost:5432/speaking_test
+          DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-for-ci
           ENV: development
@@ -109,9 +109,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: speaking
-          POSTGRES_PASSWORD: speaking_test
-          POSTGRES_DB: speaking_test
+          POSTGRES_USER: seeword
+          POSTGRES_PASSWORD: seeword_test
+          POSTGRES_DB: seeword_test
         ports:
           - 5432:5432
         options: >-
@@ -159,7 +159,7 @@ jobs:
       - name: Run database migrations
         working-directory: backend
         env:
-          DATABASE_URL: postgresql+asyncpg://speaking:speaking_test@localhost:5432/speaking_test
+          DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-for-ci
           ENV: development
@@ -167,7 +167,7 @@ jobs:
 
       - name: Start backend server
         env:
-          DATABASE_URL: postgresql+asyncpg://speaking:speaking_test@localhost:5432/speaking_test
+          DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-for-ci
           ENV: development

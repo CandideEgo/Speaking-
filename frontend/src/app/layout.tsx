@@ -6,7 +6,7 @@ import { ThemedToaster } from "@/components/common/ThemedToaster";
 import { AuthInitializer } from "@/components/common/AuthInitializer";
 
 export const metadata: Metadata = {
-  title: "Speaking — 用真实视频学开口说英语",
+  title: "SeeWord — 用真实视频学开口说英语",
   description: "粘贴视频链接，AI 生成双语字幕和口语练习，开口说英语。",
 };
 

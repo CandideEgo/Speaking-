@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/lib/siteConfig";
 
 export const metadata: Metadata = {
-  title: "用户协议 — Speaking",
-  description: "Speaking 用户协议",
+  title: "用户协议 — SeeWord",
+  description: "SeeWord 用户协议",
 };
 
 // 主体名称：已配置则显示具体名称，未配置时用中性表述（上线可用，
@@ -25,7 +25,7 @@ export default function TermsPage() {
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">一、服务性质</h2>
             <p>
-              Speaking（以下简称"本站"）由 {operatorName}
+              SeeWord（以下简称"本站"）由 {operatorName}
               {uscc ? `（统一社会信用代码：${uscc}）` : ""}{" "}
               运营，是面向中文用户的英语口语学习工具。 本站为
               <strong>非经营性工具展示平台</strong>

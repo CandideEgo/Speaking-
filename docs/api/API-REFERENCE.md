@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-Speaking 后端基于 FastAPI 构建，所有 API 端点挂载在 `/api/v1` 前缀下。FastAPI 自动生成交互式文档：
+SeeWord 后端基于 FastAPI 构建，所有 API 端点挂载在 `/api/v1` 前缀下。FastAPI 自动生成交互式文档：
 
 - **Swagger UI**: `GET /docs`
 - **ReDoc**: `GET /redoc`

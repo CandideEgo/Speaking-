@@ -20,10 +20,10 @@ export function AuthCard({
         <div className="text-center">
           <Link
             href="/"
-            aria-label="Speaking 首页"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-on-primary shadow-brand"
+            aria-label="SeeWord 首页"
+            className="font-display text-2xl font-bold text-ink tracking-tight"
           >
-            <span className="text-lg font-extrabold">S</span>
+            SeeWord
           </Link>
           <h1 className="mt-4 font-display text-3xl font-bold text-ink tracking-display-md">
             {title}

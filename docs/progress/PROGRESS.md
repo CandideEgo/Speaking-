@@ -1,4 +1,4 @@
-# 开发进度 — Speaking
+# SeeWord
 
 > 对应需求文档： [REQUIREMENTS.md](../api/REQUIREMENTS.md)
 
@@ -100,7 +100,7 @@
 | P-07 | 练习历史 | P1 | ✅ | `speaking.py` GET /attempts — 50 条历史 |
 | P-08 | 免费用户限制 | P0 | ✅ | `speaking.py` — 每日最多 3 次 |
 | P-09 | 练习统计 | P1 | ✅ | `speaking.py` GET /stats — 总次数 + 平均准确率 |
-| P-10 | 评分量规 | P2 | ✅ | `rubrics.py` GET / + GET /default — SpeakingRubric + RubricCriterion 模型 |
+| P-10 | 评分量规 | P2 | ✅ | `rubrics.py` GET / + GET /default — SeeWordRubric + RubricCriterion 模型 |
 
 ### 3.5 AI 功能（Pro 专属）
 

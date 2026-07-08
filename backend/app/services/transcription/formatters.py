@@ -1,4 +1,4 @@
-"""Format Whisper segments into Speaking-compatible subtitle dicts.
+"""Format Whisper segments into SeeWord-compatible subtitle dicts.
 
 Formatters provided:
 - whisperx_segments_to_subtitles(): Subtitle dicts from segment dicts (works for
@@ -49,7 +49,7 @@ def faster_whisper_segments_to_dicts(segments) -> list[dict]:
 
 
 def whisperx_segments_to_subtitles(segments: list[dict], offset: float = 0.0) -> list[dict]:
-    """Convert segment dicts to Speaking subtitle format.
+    """Convert segment dicts to SeeWord subtitle format.
 
     Accepts segment dicts from either engine:
     - WhisperX aligned output (sentence-segmented via punctuation restoration +
@@ -272,7 +272,7 @@ def merge_short_segments(
 
 
 def whisper_segments_to_subtitles(segments, offset: float = 0.0) -> list[dict]:
-    """Convert raw faster-whisper segments to Speaking subtitle format.
+    """Convert raw faster-whisper segments to SeeWord subtitle format.
 
     Legacy fallback used when WhisperX is unavailable (e.g. speaking_service
     uses raw faster-whisper for short user audio clips).

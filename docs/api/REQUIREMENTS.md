@@ -1,4 +1,4 @@
-# 需求文档 — Speaking
+# SeeWord
 
 > AI 驱动的英语口语学习应用
 

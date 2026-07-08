@@ -2,7 +2,7 @@
 
 > 背景：translate-tool（`C:/Users/Administrator/translate-tool/`）的 `run_transcribe.py`
 > 已跑通一套效果最优的转录方案（WhisperX + 本地 large-v3-turbo + 标点模型 `auto`=WhisperX 关）。
-> 本报告对比它与 Speaking 后端（`backend/app/services/transcription/`）转录功能的差异，
+> 本报告对比它与 SeeWord 后端（`backend/app/services/transcription/`）转录功能的差异，
 > 以及后端据此对齐所做的改动。**P0–P3 均已实施（见第 3 节）。**
 
 > **实测修正**：P0 原假设"标点恢复在后端造成污染"**经实测证伪**。
@@ -34,7 +34,7 @@
 - 叠加 deepmultilingualpunctuation 反而**引入污染**：重复标点 `right?.`、凭空短横 `.-`、句子被 `.,` 粘连。
 - → 结论：**turbo 自带标点模型下，标点恢复模型应关闭**。
 
-### 1.2 Speaking 后端
+### 1.2 SeeWord 后端
 
 入口：Celery `process_video` → `TranscriptionService.transcribe` → `_sync_transcribe`
 → `_transcribe_single`（或 `_transcribe_chunked_sync` → `transcribe_local_chunks`）。

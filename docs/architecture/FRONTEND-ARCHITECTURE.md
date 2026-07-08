@@ -1,6 +1,6 @@
 # 前端架构文档
 
-> Speaking 项目前端基于 Next.js 14 App Router + React 18 + Tailwind CSS + Zustand 构建。
+> SeeWord 项目前端基于 Next.js 14 App Router + React 18 + Tailwind CSS + Zustand 构建。
 > 本文档描述页面结构、状态管理、组件契约、API 模式及样式约定。
 
 ---
@@ -100,7 +100,7 @@ WatchPage
 ├── Current Subtitle Display (内联)
 │   └── 逐词可点击 + 中文翻译
 ├── PlaybackControls
-├── Speaking 流程 (内联：activeSubtitle 时录音/评分)
+├── SeeWord 流程 (内联：activeSubtitle 时录音/评分)
 ├── Right Panel (可折叠)
 │   ├── SubtitleModeTabs (Zustand 驱动：双语/英文/中文 三模式)
 │   ├── Panel Tabs (字幕 / 测验)

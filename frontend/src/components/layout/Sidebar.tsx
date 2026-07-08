@@ -129,11 +129,8 @@ function SidebarNavContent({
       {/* Logo */}
       <div className="flex h-16 items-center border-b border-hairline px-5">
         <Link href="/" className="flex items-center gap-3 overflow-hidden">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-on-primary text-base font-extrabold flex-shrink-0 shadow-brand">
-            S
-          </span>
           <span className="nav-label text-[17px] font-display font-bold text-ink tracking-tight whitespace-nowrap">
-            Speaking
+            SeeWord
           </span>
         </Link>
       </div>

@@ -1,4 +1,4 @@
-# Glossary — Speaking 项目术语表
+# SeeWord 项目术语表
 
 > 配合 [ADR](adr/README.md) 与 [重设计计划](plans/REDESIGN-2026-07.md) 使用。决策生效后的术语定义。
 

@@ -1,4 +1,4 @@
-"""Seed a local video file into the Speaking app with full pipeline.
+"""Seed a local video file into the SeeWord app with full pipeline.
 
 Usage:
     cd backend && python scripts/seed_local_video.py media/videos/eHJnEHyyN1Y.mp4 \
@@ -200,7 +200,7 @@ async def seed_local_video(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Seed a local video into the Speaking app")
+    parser = argparse.ArgumentParser(description="Seed a local video into the SeeWord app")
     parser.add_argument("video_path", help="Path to the video file")
     parser.add_argument("--source-url", required=True, help="Original source URL")
     parser.add_argument("--title", default=None, help="Video title")

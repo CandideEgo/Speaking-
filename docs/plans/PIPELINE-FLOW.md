@@ -1,4 +1,4 @@
-# Speaking 完整管线流程
+# SeeWord 完整管线流程
 
 ## 入口 → Celery 管线 → 前端播放
 

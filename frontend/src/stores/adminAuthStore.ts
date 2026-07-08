@@ -3,7 +3,7 @@
  *
  * The admin console is an independent surface with its own login page and its
  * own session: tokens live under dedicated localStorage keys
- * (`speaking_admin_token`), so logging out of the user app does not log out
+ * (`seeword_admin_token`), so logging out of the user app does not log out
  * the admin (and vice versa). The backend still uses a single JWT/role system
  * — admin is simply a user with `role === "admin"`.
  */
@@ -36,8 +36,24 @@ interface AdminAuthActions {
   refreshAccessToken: () => Promise<boolean>;
 }
 
-const TOKEN_KEY = "speaking_admin_token";
-const REFRESH_TOKEN_KEY = "speaking_admin_refresh_token";
+const TOKEN_KEY = "seeword_admin_token";
+const REFRESH_TOKEN_KEY = "seeword_admin_refresh_token";
+
+/** One-time migration: move admin tokens from old "speaking_*" keys to new "seeword_*" keys. */
+function migrateAdminTokenKeys(): void {
+  if (typeof window === "undefined") return;
+  const mappings: [string, string][] = [
+    ["speaking_admin_token", "seeword_admin_token"],
+    ["speaking_admin_refresh_token", "seeword_admin_refresh_token"],
+  ];
+  for (const [oldKey, newKey] of mappings) {
+    const val = localStorage.getItem(oldKey);
+    if (val) {
+      localStorage.setItem(newKey, val);
+      localStorage.removeItem(oldKey);
+    }
+  }
+}
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -110,6 +126,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>(
     },
 
     bootstrap() {
+      migrateAdminTokenKeys();
+
       if (typeof window === "undefined") {
         set({ isLoading: false });
         return;

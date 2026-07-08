@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory records architectural decisions for the Speaking app, dated 2026-07-03.
+This directory records architectural decisions for the SeeWord app, dated 2026-07-03.
 Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Consequences.
 
 ## Index

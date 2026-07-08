@@ -27,11 +27,8 @@ export function LandingFooter() {
           {/* Brand + blurb */}
           <div className="col-span-2 sm:col-span-1">
             <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-on-primary text-base font-extrabold shadow-brand">
-                S
-              </span>
               <span className="text-[17px] font-display font-bold text-ink tracking-tight">
-                Speaking
+                SeeWord
               </span>
             </Link>
             <p className="text-[13px] text-muted leading-relaxed mt-3 max-w-[280px]">
@@ -60,7 +57,7 @@ export function LandingFooter() {
 
         <div className="mt-10 pt-6 border-t border-hairline text-center">
           <div className="text-[12px] text-muted-soft">
-            © {new Date().getFullYear()} Speaking. All rights reserved.
+            © {new Date().getFullYear()} SeeWord. All rights reserved.
           </div>
           <ComplianceInfo className="mt-2" />
         </div>

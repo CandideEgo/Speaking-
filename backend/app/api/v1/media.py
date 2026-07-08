@@ -87,7 +87,7 @@ async def proxy_image(
         raise HTTPException(status_code=400, detail="Host not allowed")
 
     headers = {
-        "User-Agent": "Mozilla/5.0 Speaking/1.0 (thumbnail proxy)",
+        "User-Agent": "Mozilla/5.0 SeeWord/1.0 (thumbnail proxy)",
         "Referer": _referer_for(parsed.hostname),
         "Accept": "image/*,*/*;q=0.8",
     }

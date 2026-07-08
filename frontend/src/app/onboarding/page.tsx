@@ -99,12 +99,12 @@ export default function OnboardingPage() {
         {step === 0 && (
           <div className="space-y-6 text-center">
             <div className="flex justify-center">
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-500 text-white text-2xl font-bold">
-                S
+              <span className="font-display text-4xl font-bold text-ink tracking-tight">
+                SeeWord
               </span>
             </div>
             <h1 className="font-display text-3xl font-normal text-ink tracking-tight">
-              欢迎来到 Speaking
+              欢迎来到 SeeWord
             </h1>
             <p className="text-muted-foreground">
               用真实视频学英语。让我们先了解一下你的水平。

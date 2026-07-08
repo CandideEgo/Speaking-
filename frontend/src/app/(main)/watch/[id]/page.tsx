@@ -352,7 +352,7 @@ export default function WatchPage() {
 
         {/* meta 细行 */}
         <div className="flex items-center gap-2 text-[12px] text-muted mt-2">
-          <span className="font-semibold text-ink">Speaking</span>
+          <span className="font-semibold text-ink">SeeWord</span>
           <span>·</span>
           <span>{video.difficulty_level || "B2"}</span>
           <span>·</span>

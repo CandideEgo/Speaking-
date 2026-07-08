@@ -1,4 +1,4 @@
-"""Seed official videos for the Speaking app homepage.
+"""Seed official videos for the SeeWord app homepage.
 
 Selection criteria (in order of priority):
 1. Content quality: Real, natural English conversation/speech; avoid memes/music-only.
@@ -167,7 +167,7 @@ def _download_thumbnail(url: str, dest: Path, video_id: str) -> bool:
             resp = client.get(
                 url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 Speaking/1.0 (thumbnail download)",
+                    "User-Agent": "Mozilla/5.0 SeeWord/1.0 (thumbnail download)",
                     "Referer": "https://www.youtube.com/",
                     "Accept": "image/*,*/*;q=0.8",
                 },
@@ -482,14 +482,14 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
 async def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Seed official videos for the Speaking homepage")
+    parser = argparse.ArgumentParser(description="Seed official videos for the SeeWord homepage")
     parser.add_argument("--force", action="store_true", help="Force re-seed existing videos")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be seeded without writing to DB")
     parser.add_argument("--category", type=str, help="Only seed videos from a specific category (ted, interview, etc.)")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("[SEED] Seeding official videos for the Speaking homepage")
+    print("[SEED] Seeding official videos for the SeeWord homepage")
     print("=" * 60)
 
     # Filter videos by category if specified

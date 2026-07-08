@@ -53,7 +53,7 @@ def main():
     settings = get_settings()
 
     print("=" * 60)
-    print("Speaking — Local GPU Worker + Heartbeat")
+    print("SeeWord — Local GPU Worker + Heartbeat")
     print("=" * 60)
     print(f"  Redis:  {settings.redis_url}")
     print(f"  Queue:  {settings.transcription_gpu_queue_name}")

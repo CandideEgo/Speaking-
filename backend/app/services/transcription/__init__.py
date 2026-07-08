@@ -1,4 +1,4 @@
-"""Unified transcription service for Speaking app.
+"""Unified transcription service for SeeWord app.
 
 Uses WhisperX for high-quality transcription with:
 - VAD preprocessing (pyannote/silero) to reduce hallucination

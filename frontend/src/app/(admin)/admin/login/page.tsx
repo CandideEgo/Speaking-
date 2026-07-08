@@ -12,13 +12,10 @@ interface LoginResponse {
   refresh_token?: string;
 }
 
-// CN mobile pattern — same routing rule as the user-side login page.
-const PHONE_RE = /^1[3-9]\d{9}$/;
-
 export default function AdminLoginPage() {
   const router = useRouter();
   const login = useAdminAuthStore((s) => s.login);
-  const [identifier, setIdentifier] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,27 +24,18 @@ export default function AdminLoginPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Route to the phone or email login endpoint based on the identifier,
-      // mirroring the user-side login page. Both endpoints return the same
-      // TokenResponse; the shell guard verifies role === admin afterward.
-      const isPhone = PHONE_RE.test(identifier);
-      const path = isPhone ? "/api/v1/auth/phone-login" : "/api/v1/auth/login";
-      const body = isPhone
-        ? { phone: identifier, password }
-        : { email: identifier, password };
-      const data = await adminApi<LoginResponse>(path, {
+      const data = await adminApi<LoginResponse>("/api/v1/auth/phone-login", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ phone, password }),
       });
       login(data.token, data.refresh_token ?? null);
-      // The shell guard verifies role === admin and redirects back here if not.
       toast.success("登录成功");
       router.replace("/admin");
     } catch (err) {
       const msg =
         err instanceof AdminApiError
           ? err.status === 401
-            ? "账号或密码错误"
+            ? "手机号或密码错误"
             : err.message
           : "登录失败，请重试";
       toast.error(msg);
@@ -60,11 +48,11 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface-dark px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500 text-on-primary text-xl font-extrabold shadow-brand">
-            S
+          <span className="font-display text-3xl font-bold text-on-dark tracking-tight">
+            SeeWord
           </span>
           <h1 className="mt-4 font-display text-2xl font-medium text-on-dark">
-            Speaking 管理后台
+            管理后台
           </h1>
           <p className="mt-1 text-sm text-on-dark/60">仅限管理员登录</p>
         </div>
@@ -76,16 +64,18 @@ export default function AdminLoginPage() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-on-dark/60">
-                手机号或邮箱
+                手机号
               </label>
               <input
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                type="tel"
+                inputMode="numeric"
+                maxLength={11}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                 required
-                autoComplete="username"
+                autoComplete="tel"
                 className="w-full rounded-sm border border-white/10 bg-surface-dark-soft px-3 py-2.5 text-sm text-on-dark placeholder:text-on-dark/40 focus:border-coral focus:outline-none"
-                placeholder="手机号或邮箱"
+                placeholder="请输入手机号"
               />
             </div>
             <div>

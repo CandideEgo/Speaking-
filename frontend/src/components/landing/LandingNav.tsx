@@ -38,11 +38,8 @@ export function LandingNav() {
       <div className="container-page flex items-center justify-between h-16">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-on-primary text-base font-extrabold shadow-brand">
-            S
-          </span>
           <span className="text-[17px] font-display font-bold text-ink tracking-tight">
-            Speaking
+            SeeWord
           </span>
         </Link>
 

@@ -1,4 +1,4 @@
-# 设计 Token — Speaking 前端
+# SeeWord 前端
 
 > 单一事实来源：`frontend/tailwind.config.ts`（color/spacing/radius/typography/shadow）+ `frontend/src/app/globals.css`（CSS 变量）。本文档是导航地图，不是配置本身——改 token 改 Tailwind 配置，不是改本文档。
 >

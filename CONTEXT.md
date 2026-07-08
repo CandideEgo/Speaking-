@@ -1,4 +1,4 @@
-# CONTEXT.md — Speaking 项目领域上下文
+# CONTEXT.md — SeeWord 项目领域上下文
 
 > 本文件为工程 skill（`/improve-codebase-architecture`、`/diagnosing-bugs`、`/tdd` 等）提供领域语言和核心概念。
 > 术语定义以 [Glossary](docs/GLOSSARY.md) 为准；架构决策见 [docs/adr/](docs/adr/)。

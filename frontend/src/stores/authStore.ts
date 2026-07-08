@@ -72,8 +72,24 @@ interface AuthActions {
   setOnboardingCompleted: () => void;
 }
 
-const TOKEN_KEY = "speaking_token";
-const REFRESH_TOKEN_KEY = "speaking_refresh_token";
+const TOKEN_KEY = "seeword_token";
+const REFRESH_TOKEN_KEY = "seeword_refresh_token";
+
+/** One-time migration: move tokens from old "speaking_*" keys to new "seeword_*" keys. */
+function migrateTokenKeys(): void {
+  if (typeof window === "undefined") return;
+  const mappings: [string, string][] = [
+    ["speaking_token", "seeword_token"],
+    ["speaking_refresh_token", "seeword_refresh_token"],
+  ];
+  for (const [oldKey, newKey] of mappings) {
+    const val = localStorage.getItem(oldKey);
+    if (val) {
+      localStorage.setItem(newKey, val);
+      localStorage.removeItem(oldKey);
+    }
+  }
+}
 
 type AuthStore = AuthState & AuthActions;
 
@@ -183,6 +199,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   initialize() {
+    migrateTokenKeys();
+
     if (typeof window === "undefined") {
       set({ isLoading: false });
       return;

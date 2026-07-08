@@ -52,12 +52,9 @@ export function AdminSidebar() {
     <aside className="hidden md:flex h-full w-60 flex-shrink-0 flex-col border-r border-hairline bg-canvas">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 border-b border-hairline px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-on-primary text-base font-extrabold shadow-brand">
-          S
-        </span>
         <div className="leading-tight">
           <div className="text-[15px] font-display font-bold text-ink">
-            Speaking
+            SeeWord
           </div>
           <div className="text-[10px] uppercase tracking-wider text-muted-soft">
             管理后台

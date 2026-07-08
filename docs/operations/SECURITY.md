@@ -1,6 +1,6 @@
-# 安全策略 — Speaking
+# SeeWord
 
-> 本文档定义 Speaking 应用的安全态势、威胁模型和响应流程。
+> 本文档定义 SeeWord 应用的安全态势、威胁模型和响应流程。
 >
 > 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
 

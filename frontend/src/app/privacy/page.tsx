@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/lib/siteConfig";
 
 export const metadata: Metadata = {
-  title: "隐私政策 — Speaking",
-  description: "Speaking 隐私政策",
+  title: "隐私政策 — SeeWord",
+  description: "SeeWord 隐私政策",
 };
 
 // 主体名称：已配置则显示具体名称，未配置时用中性表述（上线可用，
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
             <p>
               本政策适用于 {operatorName}
               {uscc ? `（统一社会信用代码：${uscc}）` : ""} 运营的
-              Speaking（以下简称"本站"）。
+              SeeWord（以下简称"本站"）。
               本站为非经营性工具展示平台，重视用户隐私保护。
             </p>
           </section>

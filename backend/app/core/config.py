@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Speaking"
+    app_name: str = "SeeWord"
     debug: bool = False
 
     database_url: str = ""
@@ -15,10 +15,22 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     jwt_refresh_expire_days: int = 7
-    email_verification_enabled: bool = True
     jwt_blacklist_enabled: bool = True
-    password_reset_expire_minutes: int = 30
     bcrypt_rounds: int = 12
+
+    # Alibaba Cloud Dysmsapi — SMS verification code for phone login / change
+    # phone / reset password. When sms_login_enabled is False (or AK/SK
+    # missing), sms_service falls back to a dev fake that logs/accepts the
+    # fixed code "1234" — no Aliyun calls.
+    sms_login_enabled: bool = False
+    aliyun_sms_access_key: str = ""
+    aliyun_sms_secret_key: str = ""
+    aliyun_sms_sign_name: str = "速通互联验证码"
+    aliyun_sms_template_register: str = "100001"
+    aliyun_sms_template_change_phone: str = "100002"
+    aliyun_sms_template_reset_password: str = "100003"
+    sms_code_expire_seconds: int = 300  # 5 minutes
+    aliyun_sms_endpoint: str = "dysmsapi.aliyuncs.com"
 
     openai_api_key: str = ""
     openai_base_url: str = ""
@@ -72,16 +84,6 @@ class Settings(BaseSettings):
     # ICP 合规：个体工商户无 ICP 经营许可证，不能站内收款。默认禁用站内支付，
     # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
     payments_enabled: bool = False
-
-    # Alibaba Cloud Dypnsapi — SMS verification code for phone login.
-    # When sms_login_enabled is False (or AK/SK missing), sms_service falls back
-    # to a dev fake that logs/accepts the fixed code "1234" — no Aliyun calls.
-    sms_login_enabled: bool = False
-    aliyun_sms_access_key: str = ""
-    aliyun_sms_secret_key: str = ""
-    aliyun_sms_sign_name: str = "速通互联验证码"
-    aliyun_sms_template_code: str = "100001"
-    aliyun_sms_endpoint: str = "dypnsapi.aliyuncs.com"
 
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897

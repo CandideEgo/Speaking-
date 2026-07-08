@@ -132,7 +132,7 @@ export function VideoCard({
         </p>
         {footer ?? (
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span>{video.channel_title || "Speaking"}</span>
+            <span>{video.channel_title || "SeeWord"}</span>
             <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
             <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
               {category}
