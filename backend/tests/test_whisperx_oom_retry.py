@@ -97,9 +97,19 @@ class TestTranscribeAudioRetry:
     def _settings(self, monkeypatch, engine="whisperx", batch=8):
         from app.core.config import get_settings
 
-        monkeypatch.setattr(get_settings(), "whisper_engine", engine, raising=False)
-        # whisperx_batch_size is read inside transcribe_audio via get_settings().
-        monkeypatch.setattr(type(get_settings()), "whisperx_batch_size", batch, raising=False)
+        # get_settings() returns a new Settings() each call.  Pydantic
+        # BaseSettings reads env vars at __init__ and writes them into the
+        # instance __dict__, so patching the class attribute is insufficient
+        # when WHISPERX_BATCH_SIZE is set in the environment.  Instead, patch
+        # get_settings to return a single pre-configured instance whose
+        # __dict__ already has the test values.
+        s = get_settings()
+        monkeypatch.setattr(s, "whisper_engine", engine, raising=False)
+        monkeypatch.setattr(s, "whisperx_batch_size", batch, raising=False)
+        # Patch at the source module.  Function-local ``from app.core.config
+        # import get_settings`` resolves via sys.modules each call, so patching
+        # the module attribute is sufficient.
+        monkeypatch.setattr("app.core.config.get_settings", lambda: s)
 
     def test_oom_retries_then_succeeds_no_sticky(self, monkeypatch):
         """OOM on batch=8 and 4, success on 2 — no sticky disable, returns WhisperX result."""

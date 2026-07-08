@@ -22,7 +22,7 @@ from app.models.video_standard import VideoStandard
 
 
 async def _owner_id(db) -> str:
-    user = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+    user = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
     return user.id
 
 

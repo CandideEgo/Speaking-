@@ -77,7 +77,7 @@ async def list_admin_users(
     page_size: int = Query(20, ge=1, le=100),
     role: str | None = Query(None, description="Filter by role: user / admin"),
     plan: str | None = Query(None, description="Filter by plan: free / pro"),
-    keyword: str | None = Query(None, description="Search name or email"),
+    keyword: str | None = Query(None, description="Search name or phone"),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -269,5 +269,5 @@ async def list_admin_orders(
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all orders with user email. Admin only."""
+    """List all orders with user phone. Admin only."""
     return await admin_service.list_admin_orders(db, page=page, page_size=page_size)

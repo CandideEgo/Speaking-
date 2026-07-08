@@ -8,7 +8,6 @@ from app.models.invite import InviteCode
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.notification import Notification
 from app.models.order import Order
-from app.models.password_reset import PasswordResetToken
 from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle

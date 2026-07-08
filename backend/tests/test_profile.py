@@ -1,4 +1,4 @@
-"""Tests for the profile endpoints: avatar upload + email binding."""
+"""Tests for the profile endpoints: avatar upload + change phone."""
 
 import pytest
 from httpx import AsyncClient
@@ -48,57 +48,110 @@ class TestAvatarUpload:
         assert resp.status_code == 401
 
 
-class TestBindEmail:
-    async def test_bind_email_to_phone_account(self, client: AsyncClient):
-        """A phone-only user binds an email; afterwards email+password login works."""
-        # Register a phone-only account.
+class TestChangePhone:
+    async def test_change_phone_success(self, client: AsyncClient):
+        """A user changes their phone number via SMS verification."""
+        # Register with phone A.
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138001", "purpose": "register"},
+        )
         reg = await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": "13800138001", "code": "1234", "password": "Testpass123!"},
         )
         headers = {"Authorization": f"Bearer {reg.json()['token']}"}
 
+        # Send code to new phone B.
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138002", "purpose": "change_phone"},
+        )
+
+        # Change phone.
         resp = await client.post(
-            "/api/v1/users/me/bind-email",
+            "/api/v1/auth/sms/change-phone",
             headers=headers,
-            json={"email": "bound@example.com", "password": "Testpass123!"},
+            json={"new_phone": "13800138002", "code": "1234", "password": "Testpass123!"},
         )
         assert resp.status_code == 200, resp.text
-        assert resp.json()["email"] == "bound@example.com"
+        assert resp.json()["phone"] == "13800138002"
 
-        # Email login works with the same password.
-        login = await client.post(
-            "/api/v1/auth/login",
-            json={"email": "bound@example.com", "password": "Testpass123!"},
+    async def test_change_phone_wrong_password(self, client: AsyncClient):
+        """Wrong current password returns 400."""
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138003", "purpose": "register"},
         )
-        assert login.status_code == 200
-
-    async def test_bind_email_wrong_password_rejected(self, client: AsyncClient):
-        reg = await client.post(
-            "/api/v1/auth/sms/register",
-            json={"phone": "13800138002", "code": "1234", "password": "Testpass123!"},
-        )
-        headers = {"Authorization": f"Bearer {reg.json()['token']}"}
-        resp = await client.post(
-            "/api/v1/users/me/bind-email",
-            headers=headers,
-            json={"email": "x@example.com", "password": "WrongPass1!"},
-        )
-        assert resp.status_code == 400
-
-    async def test_bind_email_taken_by_another_user(self, client: AsyncClient, test_user_data: dict):
-        # First user owns test_user_data["email"].
-        await client.post("/api/v1/auth/register", json=test_user_data)
-
-        # A phone-only user tries to bind the same email.
         reg = await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": "13800138003", "code": "1234", "password": "Testpass123!"},
         )
         headers = {"Authorization": f"Bearer {reg.json()['token']}"}
+
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138004", "purpose": "change_phone"},
+        )
+
         resp = await client.post(
-            "/api/v1/users/me/bind-email",
+            "/api/v1/auth/sms/change-phone",
             headers=headers,
-            json={"email": test_user_data["email"], "password": "Testpass123!"},
+            json={"new_phone": "13800138004", "code": "1234", "password": "WrongPass1!"},
+        )
+        assert resp.status_code == 400
+
+    async def test_change_phone_wrong_code(self, client: AsyncClient):
+        """Wrong SMS code returns 400."""
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138005", "purpose": "register"},
+        )
+        reg = await client.post(
+            "/api/v1/auth/sms/register",
+            json={"phone": "13800138005", "code": "1234", "password": "Testpass123!"},
+        )
+        headers = {"Authorization": f"Bearer {reg.json()['token']}"}
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            headers=headers,
+            json={"new_phone": "13800138006", "code": "999999", "password": "Testpass123!"},
+        )
+        assert resp.status_code == 400
+
+    async def test_change_phone_already_registered(self, client: AsyncClient):
+        """Changing to a phone already registered returns 409."""
+        # Register phone A.
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138007", "purpose": "register"},
+        )
+        reg_a = await client.post(
+            "/api/v1/auth/sms/register",
+            json={"phone": "13800138007", "code": "1234", "password": "Testpass123!"},
+        )
+        headers_a = {"Authorization": f"Bearer {reg_a.json()['token']}"}
+
+        # Register phone B.
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138008", "purpose": "register"},
+        )
+        await client.post(
+            "/api/v1/auth/sms/register",
+            json={"phone": "13800138008", "code": "1234", "password": "Testpass123!"},
+        )
+
+        # Try to change A's phone to B.
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13800138008", "purpose": "change_phone"},
+        )
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            headers=headers_a,
+            json={"new_phone": "13800138008", "code": "1234", "password": "Testpass123!"},
         )
         assert resp.status_code == 409

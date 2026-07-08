@@ -1,4 +1,9 @@
-"""Tests for the practice-mode AI methods and endpoints."""
+"""Tests for the practice-mode AI methods and endpoints.
+
+Grading is client-side; the server only generates items and accepts SM-2
+submissions.  The old ``grade_answer`` / ``/practice/grade`` endpoint has been
+removed — those tests are deleted.
+"""
 
 from unittest.mock import AsyncMock, patch
 
@@ -57,106 +62,6 @@ async def test_generate_practice_questions_accepts_raw_list(fake_redis):
     assert questions[0]["question"] == "Q?"
 
 
-# --- AIService.grade_answer ---
-
-
-@pytest.mark.asyncio
-async def test_grade_fill_blank_lenient_local_match(fake_redis):
-    """Fill-in-the-blank with the lemma/inflection is graded locally — no AI call."""
-    from unittest.mock import patch
-
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {"type": "fill_blank", "question": "She ___ a company.", "answer": "run"}
-    chat_mock = AsyncMock()
-    with patch.object(service, "_chat", new=chat_mock):
-        result = await service.grade_answer(question, "runs")
-    assert result["correct"] is True
-    chat_mock.assert_not_called()  # local match, no LLM
-
-
-@pytest.mark.asyncio
-async def test_grade_fill_blank_wrong_falls_to_ai(fake_redis):
-    """Fill-in-the-blank miss with no options falls through to open-ended AI grading."""
-    from unittest.mock import patch
-
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {"type": "fill_blank", "question": "She ___ a company.", "answer": "run"}
-    ai_return = '{"correct": false, "explanation": "应为 run"}'
-    with patch.object(service, "_chat", new=AsyncMock(return_value=ai_return)):
-        result = await service.grade_answer(question, "totally wrong")
-    assert result["correct"] is False
-    assert "run" in result["explanation"]
-
-
-@pytest.mark.asyncio
-async def test_grade_multiple_choice_exact_match(fake_redis):
-    from unittest.mock import patch
-
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {"type": "qa", "question": "Q?", "answer": "B", "options": ["A", "B", "C", "D"]}
-    chat_mock = AsyncMock()
-    with patch.object(service, "_chat", new=chat_mock):
-        result = await service.grade_answer(question, "b")
-    assert result["correct"] is True
-    chat_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_grade_open_ended_calls_ai(fake_redis):
-    from unittest.mock import patch
-
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {"type": "qa", "question": "What is the talk about?", "answer": "关于创业"}
-    ai_return = '{"correct": true, "explanation": "语义正确"}'
-    with patch.object(service, "_chat", new=AsyncMock(return_value=ai_return)):
-        result = await service.grade_answer(question, "entrepreneurship")
-    assert result["correct"] is True
-    assert result["explanation"] == "语义正确"
-
-
-@pytest.mark.asyncio
-async def test_grade_sentence_building_local_match(fake_redis):
-    """sentence_building is graded locally by normalized token order — no AI."""
-    from unittest.mock import patch
-
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {
-        "type": "sentence_building",
-        "question": "用这些词造句",
-        "answer": "She runs a company.",
-        "tokens": ["company", "a", "runs", "She"],
-    }
-    chat_mock = AsyncMock()
-    with patch.object(service, "_chat", new=chat_mock):
-        result = await service.grade_answer(question, "she runs a company")
-    assert result["correct"] is True
-    chat_mock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_grade_sentence_building_wrong_order(fake_redis):
-    from app.services.ai_service import AIService
-
-    service = AIService()
-    question = {
-        "type": "sentence_building",
-        "answer": "She runs a company.",
-        "tokens": ["company", "a", "runs", "She"],
-    }
-    result = await service.grade_answer(question, "a company runs she")
-    assert result["correct"] is False
-
-
 @pytest.mark.asyncio
 async def test_generate_practice_questions_preserves_reading_fields(fake_redis):
     """Reading/sentence_building questions carry passage/tokens through normalization."""
@@ -184,19 +89,20 @@ async def test_generate_practice_questions_preserves_reading_fields(fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_get_practice_requires_pro(client, auth_headers):
-    """Free user (auth_headers) is not pro -> 403."""
+async def test_get_practice_free_user_allowed(client, auth_headers):
+    """Practice is free-tier (not Pro-gated). A non-existent video returns 404."""
     resp = await client.get(
-        "/api/v1/videos/some-video/practice",
+        "/api/v1/videos/nonexistent-video/practice",
         params={"level": "cet4"},
         headers=auth_headers,
     )
-    assert resp.status_code == 403
+    # Video doesn't exist → 404 (not 403 Pro-gate).
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_get_practice_rejects_invalid_level(client, admin_headers):
-    # admin_headers is pro; invalid level -> 422
+    # invalid level -> 422
     resp = await client.get(
         "/api/v1/videos/some-video/practice",
         params={"level": "not-real"},
@@ -206,25 +112,21 @@ async def test_get_practice_rejects_invalid_level(client, admin_headers):
 
 
 @pytest.mark.asyncio
-async def test_get_practice_caches_after_generation(client, admin_headers, monkeypatch):
-    """First call generates + caches; second call returns the cache without AI."""
+async def test_get_practice_new_word_returns_recognition(client, admin_headers, monkeypatch):
+    """A new word (no vocabulary record) returns a recognition-type item — no AI needed."""
     from app.models.subtitle import Subtitle
     from app.models.video import Video, VideoStatus
     from app.services import ecdict
-    from app.services import practice_service as practice_service_mod
     from tests.conftest import TestSessionLocal
 
-    # A subtitle with a target-level word.
     monkeypatch.setattr(
         ecdict,
         "lookup",
         lambda token: {"lemma": "run", "translation": "跑"} if token.lower() in ("run", "runs") else None,
     )
 
-    # Seed a real ready official video + subtitle (official => any authed user
-    # can access it via check_video_access; admin is pro so the Pro gate passes).
     async with TestSessionLocal() as db:
-        vid = "vid-practice-test"
+        vid = "vid-practice-new"
         db.add(Video(id=vid, title="t", source_url="x", status=VideoStatus.ready, is_official=True, is_published=True))
         db.add(
             Subtitle(
@@ -239,7 +141,81 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
         )
         await db.commit()
 
-    canned = [{"type": "qa", "question": "Q?", "answer": "A", "options": None, "cet_words": []}]
+    resp = await client.get(
+        f"/api/v1/videos/{vid}/practice",
+        params={"level": "cet4"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["exam_level"] == "cet4"
+    items = body["items"]
+    assert len(items) >= 1
+    # New word → recognition category
+    runs_items = [i for i in items if i["word"] == "runs"]
+    assert runs_items
+    assert runs_items[0]["category"] == "recognition"
+    assert runs_items[0]["type"] in ("listen_choose_meaning", "see_word_choose_meaning")
+
+
+@pytest.mark.asyncio
+async def test_get_practice_context_fill_caches_after_generation(client, admin_headers, monkeypatch):
+    """When a word is in reviewing/mastered state, context_fill is generated via
+    AI and cached. Second call returns the cache without AI."""
+    from app.models.learning import Vocabulary
+    from app.models.subtitle import Subtitle
+    from app.models.user import User
+    from app.models.video import Video, VideoStatus
+    from app.services import ecdict
+    from app.services import practice_service as practice_service_mod
+    from tests.conftest import TestSessionLocal
+
+    monkeypatch.setattr(
+        ecdict,
+        "lookup",
+        lambda token: {"lemma": "run", "translation": "跑"} if token.lower() in ("run", "runs") else None,
+    )
+
+    async with TestSessionLocal() as db:
+        vid = "vid-practice-cache"
+        db.add(Video(id=vid, title="t", source_url="x", status=VideoStatus.ready, is_official=True, is_published=True))
+        db.add(
+            Subtitle(
+                id="s1",
+                video_id=vid,
+                start_time=0,
+                end_time=1,
+                text_en="She runs a company.",
+                sentence_index=0,
+                word_levels={"runs": ["cet4", "cet6"]},
+            )
+        )
+        # Make "runs" a reviewing word so it gets context_fill (needs AI).
+        admin = (await db.execute(select(User).where(User.phone == "13900139000"))).scalar_one()
+        db.add(
+            Vocabulary(
+                user_id=admin.id,
+                word="runs",
+                translation="跑",
+                mastery_level="reviewing",
+                review_count=3,
+                ease_factor=2.5,
+                interval_days=7,
+            )
+        )
+        await db.commit()
+
+    # Mock AI to return context_fill items.
+    canned = [
+        {
+            "type": "context_fill",
+            "word": "runs",
+            "question": "She ___ a company.",
+            "answer": "runs",
+            "options": ["runs", "walks", "sits", "stands"],
+            "cet_words": ["runs"],
+        },
+    ]
     gen_mock = AsyncMock(return_value=canned)
     monkeypatch.setattr(
         practice_service_mod,
@@ -254,7 +230,7 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
     )
     assert resp1.status_code == 200, resp1.text
     body1 = resp1.json()
-    assert len(body1["questions"]) == 1
+    assert len(body1["items"]) >= 1
     assert gen_mock.await_count == 1
 
     # Second call: cached, no regeneration.
@@ -266,31 +242,6 @@ async def test_get_practice_caches_after_generation(client, admin_headers, monke
     assert resp2.status_code == 200
     assert resp2.json() == body1
     assert gen_mock.await_count == 1  # still only one AI call
-
-
-@pytest.mark.asyncio
-async def test_grade_endpoint(client, admin_headers, monkeypatch):
-    from app.services import practice_service as practice_service_mod
-
-    async def _fake_get_accessible(db, vid, current_user=None):
-        return object()
-
-    monkeypatch.setattr(practice_service_mod, "get_accessible_video", _fake_get_accessible)
-    grade_mock = AsyncMock(return_value={"correct": True, "explanation": "对"})
-    monkeypatch.setattr(
-        practice_service_mod, "get_ai_service", lambda: type("FakeAI", (), {"grade_answer": grade_mock})()
-    )
-
-    resp = await client.post(
-        "/api/v1/videos/vid/practice/grade",
-        headers=admin_headers,
-        json={
-            "question": {"type": "qa", "question": "Q?", "answer": "A"},
-            "user_answer": "something",
-        },
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["correct"] is True
 
 
 # --- UGC practice editing (Phase 2B) ---
@@ -324,7 +275,7 @@ async def test_edit_practice_owner_overwrites(client, auth_headers):
     from tests.conftest import TestSessionLocal
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = await _seed_own_ready_video(db, owner.id)
         vid = v.id
         # seed an existing cached set
@@ -332,15 +283,36 @@ async def test_edit_practice_owner_overwrites(client, auth_headers):
             VideoPracticeQuestion(
                 video_id=vid,
                 exam_level="cet4",
-                questions=[{"type": "qa", "question": "old", "answer": "A"}],
+                questions=[
+                    {
+                        "word": "run",
+                        "type": "context_fill",
+                        "question": "She ___ a company.",
+                        "answer": "runs",
+                        "options": ["runs", "walks", "sits", "stands"],
+                    },
+                ],
                 question_count=1,
             )
         )
         await db.commit()
 
+    # New questions must match ContextFillItem schema (word, type=context_fill, question, answer, options).
     new_questions = [
-        {"type": "qa", "question": "New Q?", "answer": "New A", "options": None, "cet_words": []},
-        {"type": "fill_blank", "question": "She ___.", "answer": "runs", "options": ["runs"], "cet_words": ["runs"]},
+        {
+            "word": "run",
+            "type": "context_fill",
+            "question": "She ___ fast.",
+            "answer": "runs",
+            "options": ["runs", "walks"],
+        },
+        {
+            "word": "company",
+            "type": "context_fill",
+            "question": "She runs a ___.",
+            "answer": "company",
+            "options": ["company", "business"],
+        },
     ]
     resp = await client.patch(
         f"/api/v1/videos/{vid}/practice",
@@ -350,8 +322,8 @@ async def test_edit_practice_owner_overwrites(client, auth_headers):
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    assert len(data["questions"]) == 2
-    assert data["questions"][0]["question"] == "New Q?"
+    assert len(data["items"]) == 2
+    assert data["items"][0]["sentence_template"] == "She ___ fast."
 
     # Persisted.
     async with TestSessionLocal() as db:
@@ -372,7 +344,7 @@ async def test_edit_practice_blocked_when_published(client, auth_headers):
     from tests.conftest import TestSessionLocal
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = await _seed_own_ready_video(db, owner.id, review=VideoReviewStatus.published)
         vid = v.id
 
@@ -392,7 +364,7 @@ async def test_edit_practice_non_owner_forbidden(client, auth_headers):
     from tests.conftest import TestSessionLocal
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = await _seed_own_ready_video(db, owner.id)
         vid = v.id
 
@@ -414,7 +386,7 @@ async def _make_other_headers() -> dict:
 
     async with TestSessionLocal() as db:
         user = User(
-            email="other-prac@example.com",
+            phone="13800138006",
             hashed_password=hash_password("Otherpass1!"),
             name="Other",
             plan=PlanType.free,
@@ -438,7 +410,17 @@ async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
         "lookup",
         lambda token: {"lemma": "run", "translation": "跑"} if token.lower() in ("run", "runs") else None,
     )
-    canned = [{"type": "qa", "question": "Fresh Q?", "answer": "A", "options": None, "cet_words": []}]
+    # Mock AI to return context_fill items.
+    canned = [
+        {
+            "type": "context_fill",
+            "word": "runs",
+            "question": "She ___ a company.",
+            "answer": "runs",
+            "options": ["runs", "walks", "sits", "stands"],
+            "cet_words": ["runs"],
+        },
+    ]
     gen_mock = AsyncMock(return_value=canned)
     monkeypatch.setattr(
         practice_service_mod,
@@ -449,7 +431,7 @@ async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
     async with TestSessionLocal() as db:
         from app.models.user import User
 
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = await _seed_own_ready_video(db, owner.id, vid="vid-regen")
         db.add(
             Subtitle(
@@ -471,7 +453,11 @@ async def test_regenerate_practice_owner(client, auth_headers, monkeypatch):
         headers=auth_headers,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["questions"][0]["question"] == "Fresh Q?"
+    # Response uses "items" (UnifiedPracticeSet), not "questions".
+    items = resp.json()["items"]
+    # AI returns context_fill items; regenerate filters to context_fill only.
+    assert len(items) >= 1
+    assert items[0]["type"] == "context_fill"
     assert gen_mock.await_count == 1
 
 
@@ -485,14 +471,24 @@ async def test_public_reads_snapshot_practice_during_rereview(client, auth_heade
     from tests.conftest import TestSessionLocal
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = await _seed_own_ready_video(db, owner.id, review=VideoReviewStatus.pending_review)
         # live draft (what owner is editing)
         db.add(
             VideoPracticeQuestion(
                 video_id=v.id,
                 exam_level="cet4",
-                questions=[{"type": "qa", "question": "LIVE DRAFT", "answer": "A"}],
+                questions=[
+                    {
+                        "word": "run",
+                        "category": "context",
+                        "type": "context_fill",
+                        "translation": "跑",
+                        "question": "LIVE DRAFT",
+                        "answer": "runs",
+                        "options": None,
+                    },
+                ],
                 question_count=1,
             )
         )
@@ -501,7 +497,17 @@ async def test_public_reads_snapshot_practice_during_rereview(client, auth_heade
             "version": 1,
             "subtitles": [],
             "practice": {
-                "cet4": [{"type": "qa", "question": "APPROVED PUBLIC", "answer": "A", "options": None, "cet_words": []}]
+                "cet4": [
+                    {
+                        "word": "run",
+                        "category": "context",
+                        "type": "context_fill",
+                        "translation": "跑",
+                        "question": "APPROVED PUBLIC",
+                        "answer": "runs",
+                        "options": None,
+                    },
+                ],
             },
         }
         await db.commit()
@@ -510,10 +516,11 @@ async def test_public_reads_snapshot_practice_during_rereview(client, auth_heade
     # Admin (a non-owner pro viewer) fetches practice → sees the snapshot.
     resp = await client.get(f"/api/v1/videos/{vid}/practice", params={"level": "cet4"}, headers=admin_headers)
     assert resp.status_code == 200, resp.text
-    assert resp.json()["questions"][0]["question"] == "APPROVED PUBLIC"
+    # Response uses "items" (UnifiedPracticeSet), not "questions".
+    assert resp.json()["items"][0]["sentence_template"] == "APPROVED PUBLIC"
 
 
-# --- vocabulary drill (Phase 4) ---
+# --- vocabulary drill (unified into /practice) ---
 
 
 @pytest.mark.asyncio
@@ -532,7 +539,7 @@ async def test_vocabulary_drill_free_user_allowed(client, auth_headers, monkeypa
     )
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = Video(
             id="vid-vocab-drill",
             title="Vocab Drill",
@@ -558,15 +565,15 @@ async def test_vocabulary_drill_free_user_allowed(client, auth_headers, monkeypa
         vid = v.id
 
     # Free user (auth_headers) can access the drill — not 403.
-    resp = await client.get(f"/api/v1/videos/{vid}/vocabulary-drill", params={"level": "cet4"}, headers=auth_headers)
+    # Route is now /practice (unified), not /vocabulary-drill.
+    resp = await client.get(f"/api/v1/videos/{vid}/practice", params={"level": "cet4"}, headers=auth_headers)
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["exam_level"] == "cet4"
     items = data["items"]
-    # At least one spelling item for "runs".
-    spelling = [i for i in items if i["kind"] == "spelling"]
-    assert spelling and spelling[0]["word"] == "runs"
-    assert spelling[0]["answer"] == "runs"
+    # At least one item for "runs" (type depends on mastery, but word must be present).
+    runs_items = [i for i in items if i["word"] == "runs"]
+    assert runs_items, f"expected at least one item for 'runs', got items: {items}"
 
 
 @pytest.mark.asyncio
@@ -578,7 +585,7 @@ async def test_vocabulary_drill_no_target_words(client, auth_headers):
     from tests.conftest import TestSessionLocal
 
     async with TestSessionLocal() as db:
-        owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+        owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
         v = Video(
             id="vid-vocab-empty",
             title="Empty",
@@ -603,5 +610,6 @@ async def test_vocabulary_drill_no_target_words(client, auth_headers):
         await db.commit()
         vid = v.id
 
-    resp = await client.get(f"/api/v1/videos/{vid}/vocabulary-drill", params={"level": "cet4"}, headers=auth_headers)
+    # Route is now /practice (unified), not /vocabulary-drill.
+    resp = await client.get(f"/api/v1/videos/{vid}/practice", params={"level": "cet4"}, headers=auth_headers)
     assert resp.status_code == 409

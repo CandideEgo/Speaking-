@@ -12,13 +12,11 @@ import { Input } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 
-const PHONE_RE = /^1[3-9]\d{9}$/;
-
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const { isAuthenticated, isLoading } = useRedirectIfAuthenticated();
-  const [identifier, setIdentifier] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,18 +36,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      // Route to the phone or email login endpoint based on the identifier.
-      // A phone is all digits matching the CN mobile pattern; anything with "@"
-      // (or otherwise) is treated as an email.
-      const isPhone = PHONE_RE.test(identifier);
-      const path = isPhone ? "/api/v1/auth/phone-login" : "/api/v1/auth/login";
-      const body = isPhone
-        ? { phone: identifier, password }
-        : { email: identifier, password };
-      const res = await api<{ token: string; refresh_token: string }>(path, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const res = await api<{ token: string; refresh_token: string }>(
+        "/api/v1/auth/phone-login",
+        {
+          method: "POST",
+          body: JSON.stringify({ phone, password }),
+        },
+      );
       login(res.token, res.refresh_token);
       router.push("/");
     } catch (err) {
@@ -76,16 +69,16 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-ink">
-            手机号或邮箱
-          </label>
+          <label className="block text-sm font-medium text-ink">手机号</label>
           <Input
-            type="text"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
+            type="tel"
+            inputMode="numeric"
+            maxLength={11}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
             required
             className="mt-1.5"
-            placeholder="手机号或邮箱"
+            placeholder="请输入手机号"
           />
         </div>
         <div>

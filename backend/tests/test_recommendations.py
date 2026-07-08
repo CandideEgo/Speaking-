@@ -48,7 +48,7 @@ def _tag_of(topic_tags: str | None) -> str:
 
 
 async def _owner(db) -> User:
-    return (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+    return (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
 
 
 async def _make_video(

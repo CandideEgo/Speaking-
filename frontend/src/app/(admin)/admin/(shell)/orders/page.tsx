@@ -87,7 +87,7 @@ export default function AdminOrdersPage() {
             <tr className="text-xs align-top">
               <td className="py-3 pr-4 font-mono text-ink">{o.order_number}</td>
               <td className="py-3 pr-4 text-muted-foreground truncate max-w-[180px]">
-                {o.user_email || o.user_id.slice(0, 8)}
+                {o.user_phone || o.user_id.slice(0, 8)}
               </td>
               <td className="py-3 pr-4 text-muted-foreground">
                 {PLAN_LABEL[o.plan] || o.plan}

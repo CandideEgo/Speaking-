@@ -22,15 +22,8 @@ class RoleType(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        # Partial unique indexes: allow multiple NULLs (phone-only accounts have
-        # no email; email-only accounts have no phone) while still enforcing
-        # uniqueness among non-NULL values.
-        Index(
-            "uq_users_email_partial",
-            "email",
-            unique=True,
-            postgresql_where=text("email IS NOT NULL"),
-        ),
+        # Partial unique index: allow multiple NULLs while still enforcing
+        # uniqueness among non-NULL phone values.
         Index(
             "uq_users_phone_partial",
             "phone",
@@ -40,8 +33,6 @@ class User(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    # Email + password are nullable to support phone-only (SMS) accounts.
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -49,7 +40,6 @@ class User(Base):
     plan: Mapped[PlanType] = mapped_column(SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     role: Mapped[RoleType] = mapped_column(SAEnum(RoleType, name="roletype"), default=RoleType.user, nullable=False)
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Timestamp of the last password change/reset. Tokens issued before this
     # moment are rejected by the auth dependency, effectively invalidating all
     # active sessions when a user changes or resets their password.

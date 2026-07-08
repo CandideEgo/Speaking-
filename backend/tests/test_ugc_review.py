@@ -17,7 +17,7 @@ from app.models.video import Video, VideoReviewStatus, VideoStatus
 
 async def _owner_id(db) -> str:
     """Look up the regular test user (created by the auth_headers fixture)."""
-    user = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+    user = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
     return user.id
 
 
@@ -136,7 +136,7 @@ async def _make_other_user_headers() -> dict:
         from app.models.user import PlanType, RoleType, User
 
         user = User(
-            email="other@example.com",
+            phone="13800138007",
             hashed_password=hash_password("Otherpass1!"),
             name="Other",
             plan=PlanType.free,

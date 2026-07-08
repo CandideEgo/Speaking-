@@ -68,6 +68,10 @@ class TestRedeemCode:
         assert resp.status_code == 404
 
     async def test_redeem_already_used_code(self, client: AsyncClient, auth_headers: dict, admin_headers: dict):
+        from app.core.security import create_token
+        from app.models.user import PlanType, RoleType, User
+        from tests.conftest import TestSessionLocal, hash_password
+
         code = await self._generate_code(client, admin_headers)
 
         # First redeem — success
@@ -77,22 +81,20 @@ class TestRedeemCode:
             json={"code": code},
         )
 
-        # Create another user and try to use same code
-        await client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": "another@example.com",
-                "password": "Anotherpass1!",
-            },
-        )
-        login_resp = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "email": "another@example.com",
-                "password": "Anotherpass1!",
-            },
-        )
-        token = login_resp.json()["token"]
+        # Create another user directly in DB and try to use same code
+        async with TestSessionLocal() as db:
+            other = User(
+                phone="13800138020",
+                hashed_password=hash_password("Anotherpass1!"),
+                name="Other",
+                plan=PlanType.free,
+                role=RoleType.user,
+            )
+            db.add(other)
+            await db.commit()
+            await db.refresh(other)
+            token = create_token(other.id)
+
         headers = {"Authorization": f"Bearer {token}"}
 
         resp = await client.post(

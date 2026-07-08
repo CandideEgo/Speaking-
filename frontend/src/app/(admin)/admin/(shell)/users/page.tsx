@@ -86,7 +86,7 @@ export default function AdminUsersPage() {
     if (next) {
       setConfirmPrompt({
         title: "封禁用户",
-        message: `确认封禁用户「${user.name || user.email}」？`,
+        message: `确认封禁用户「${user.name || user.phone}」？`,
         tone: "danger",
         confirmLabel: "确认封禁",
         onConfirm: () => doBan(user),
@@ -112,7 +112,7 @@ export default function AdminUsersPage() {
     const verb = next === "admin" ? "提升为管理员" : "降级为普通用户";
     setConfirmPrompt({
       title: verb,
-      message: `确认将「${user.name || user.email}」${verb}？`,
+      message: `确认将「${user.name || user.phone}」${verb}？`,
       tone: "default",
       confirmLabel: "确认",
       onConfirm: () => doPromote(user),
@@ -143,7 +143,7 @@ export default function AdminUsersPage() {
   async function handleRevokePro(user: AdminUser) {
     setConfirmPrompt({
       title: "撤销 Pro",
-      message: `确认撤销「${user.name || user.email}」的 Pro 会员？`,
+      message: `确认撤销「${user.name || user.phone}」的 Pro 会员？`,
       tone: "danger",
       confirmLabel: "确认撤销",
       onConfirm: () => doRevokePro(user),
@@ -228,14 +228,14 @@ export default function AdminUsersPage() {
                   <ChevronRight size={12} className="text-muted-foreground" />
                 )}
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
-                  {(u.name || u.email || "U").slice(0, 1).toUpperCase()}
+                  {(u.name || u.phone || "U").slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0">
                   <div className="font-medium text-ink truncate max-w-[160px]">
                     {u.name || "未命名"}
                   </div>
                   <div className="text-muted-foreground truncate max-w-[160px]">
-                    {u.phone || u.email || "-"}
+                    {u.phone || "-"}
                   </div>
                 </div>
               </button>

@@ -8,10 +8,10 @@ const CODE_COOLDOWN = 60;
 
 /**
  * Shared SMS verification-code logic: send a code to a phone and track the
- * 60s per-phone cooldown. Used by the register and forgot-password forms
- * (both reuse `POST /api/v1/auth/sms/send-code`).
+ * 60s per-phone cooldown. Used by the register, forgot-password, and
+ * change-phone forms (all reuse `POST /api/v1/auth/sms/send-code`).
  *
- * Returns the cooldown counter, a `sending` flag, a `sendCode(phone)` action,
+ * Returns the cooldown counter, a `sending` flag, a `sendCode(phone, purpose)` action,
  * and any error from the last send attempt.
  */
 export function useSmsCode() {
@@ -26,7 +26,7 @@ export function useSmsCode() {
     return () => clearInterval(t);
   }, [cooldown]);
 
-  async function sendCode(phone: string) {
+  async function sendCode(phone: string, purpose: string = "register") {
     if (!/^1[3-9]\d{9}$/.test(phone)) {
       setError("请输入正确的手机号");
       return false;
@@ -36,7 +36,7 @@ export function useSmsCode() {
     try {
       await api<{ message: string }>("/api/v1/auth/sms/send-code", {
         method: "POST",
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, purpose }),
       });
       setCooldown(CODE_COOLDOWN);
       return true;

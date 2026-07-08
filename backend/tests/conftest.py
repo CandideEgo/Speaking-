@@ -255,7 +255,7 @@ def test_password() -> str:
 @pytest.fixture
 def test_user_data() -> dict:
     return {
-        "email": "test@example.com",
+        "phone": "13800138000",
         "password": "Testpass123!",
         "name": "Test User",
     }
@@ -268,7 +268,7 @@ async def auth_headers(client: AsyncClient, test_user_data: dict, test_password:
 
     async with TestSessionLocal() as db:
         user = User(
-            email=test_user_data["email"],
+            phone=test_user_data["phone"],
             hashed_password=hash_password(test_password),
             name=test_user_data["name"],
             plan=PlanType.free,
@@ -288,7 +288,7 @@ async def admin_headers(client: AsyncClient) -> dict:
 
     async with TestSessionLocal() as db:
         user = User(
-            email="admin@example.com",
+            phone="13900139000",
             hashed_password=hash_password("Adminpass1!"),
             name="Admin",
             plan=PlanType.pro,
@@ -309,7 +309,7 @@ async def pro_headers(client: AsyncClient) -> dict:
 
     async with TestSessionLocal() as db:
         user = User(
-            email="pro@example.com",
+            phone="13700137000",
             hashed_password=hash_password("Propass1!"),
             name="Pro User",
             plan=PlanType.pro,

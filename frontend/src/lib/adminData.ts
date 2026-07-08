@@ -417,7 +417,9 @@ export async function resegmentSubtitles(
 ): Promise<ResegmentResult> {
   return adminApi<ResegmentResult>(
     `/api/v1/videos/admin/${videoId}/subtitles/resegment`,
-    { method: "POST" },
+    {
+      method: "POST",
+    },
   );
 }
 

@@ -18,7 +18,8 @@ tenacity>=8.2.0
 faster-whisper>=1.0.0
 whisperx>=3.8.0
 slowapi==0.1.9
-aiosmtplib>=3.0.0
+# Alibaba Cloud Dysmsapi — SMS verification code (phone login / change phone / reset password)
+alibabacloud_dysmsapi20170525>=3.0.0
 # yt-dlp site extractors rot fast — track latest instead of pinning to a date.
 yt-dlp>=2025.0.0
 
@@ -31,4 +32,3 @@ prometheus-fastapi-instrumentator>=7.0.0
 oss2>=2.18.0
 
 # Alibaba Cloud Dypnsapi — SMS verification code (phone login)
-alibabacloud_dypnsapi20170525>=2.0.0

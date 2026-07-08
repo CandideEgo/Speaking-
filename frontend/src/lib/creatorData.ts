@@ -147,7 +147,9 @@ export async function rollbackSubtitle(
 ): Promise<Subtitle> {
   return api<Subtitle>(
     `/api/v1/videos/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`,
-    { method: "POST" },
+    {
+      method: "POST",
+    },
   );
 }
 

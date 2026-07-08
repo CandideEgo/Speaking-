@@ -20,7 +20,8 @@ httpx==0.27.0
 openai==1.30.0
 tenacity>=8.2.0
 slowapi==0.1.9
-aiosmtplib>=3.0.0
+# Alibaba Cloud Dysmsapi — SMS verification code (phone login / change phone / reset password)
+alibabacloud_dysmsapi20170525>=3.0.0
 yt-dlp>=2025.0.0
 
 # Observability
@@ -30,6 +31,3 @@ prometheus-fastapi-instrumentator>=7.0.0
 
 # Alibaba Cloud OSS
 oss2>=2.18.0
-
-# Alibaba Cloud Dypnsapi — SMS verification code (phone login)
-alibabacloud_dypnsapi20170525>=2.0.0

@@ -134,7 +134,7 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
             {
                 "id": f"signup-{u.id}",
                 "type": "signup",
-                "summary": f"新用户 {u.name or u.email} 注册",
+                "summary": f"新用户 {u.name or u.phone} 注册",
                 "created_at": _dt_iso(u.created_at),
             }
         )
@@ -146,13 +146,13 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # Posts
     for p in (
         await db.execute(
-            select(Post, User.name, User.email)
+            select(Post, User.name, User.phone)
             .join(User, Post.user_id == User.id)
             .order_by(Post.created_at.desc())
             .limit(8)
         )
     ).all():
-        post, name, email = p
+        post, name, phone = p
         post_type_labels = {
             "text": "帖子",
             "progress_share": "学习打卡",
@@ -163,7 +163,7 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
             {
                 "id": f"post-{post.id}",
                 "type": "post",
-                "summary": f"{name or email} 发布了{post_type_labels.get(post.post_type, '帖子')}",
+                "summary": f"{name or phone} 发布了{post_type_labels.get(post.post_type, '帖子')}",
                 "created_at": _dt_iso(post.created_at),
             }
         )
@@ -171,18 +171,18 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # Reports
     for r in (
         await db.execute(
-            select(CommentReport, User.name, User.email)
+            select(CommentReport, User.name, User.phone)
             .join(User, CommentReport.reporter_id == User.id)
             .order_by(CommentReport.created_at.desc())
             .limit(8)
         )
     ).all():
-        report, name, email = r
+        report, name, phone = r
         recent.append(
             {
                 "id": f"report-{report.id}",
                 "type": "report",
-                "summary": f"{name or email} 举报了一条评论",
+                "summary": f"{name or phone} 举报了一条评论",
                 "created_at": _dt_iso(report.created_at),
             }
         )
@@ -190,19 +190,19 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # Orders (paid)
     for o in (
         await db.execute(
-            select(Order, User.name, User.email)
+            select(Order, User.name, User.phone)
             .join(User, Order.user_id == User.id)
             .where(Order.status == "paid")
             .order_by(Order.created_at.desc())
             .limit(8)
         )
     ).all():
-        order, name, email = o
+        order, name, phone = o
         recent.append(
             {
                 "id": f"payment-{order.id}",
                 "type": "payment",
-                "summary": f"{name or email} 升级 Pro (¥{order.amount / 100:.0f})",
+                "summary": f"{name or phone} 升级 Pro (¥{order.amount / 100:.0f})",
                 "created_at": _dt_iso(order.created_at),
             }
         )
@@ -281,9 +281,7 @@ async def list_admin_users(
             stmt = stmt.where(User.plan == plan_enum)
     if keyword and keyword.strip():
         k = keyword.strip().lower()
-        stmt = stmt.where(
-            (func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)) | (User.phone.contains(k))
-        )
+        stmt = stmt.where((func.lower(User.name).contains(k)) | (User.phone.contains(k)))
 
     # Count total for has_more
     count_stmt = select(func.count(User.id))
@@ -299,9 +297,7 @@ async def list_admin_users(
             pass
     if keyword and keyword.strip():
         k = keyword.strip().lower()
-        count_stmt = count_stmt.where(
-            (func.lower(User.name).contains(k)) | (func.lower(User.email).contains(k)) | (User.phone.contains(k))
-        )
+        count_stmt = count_stmt.where((func.lower(User.name).contains(k)) | (User.phone.contains(k)))
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Paginate
@@ -314,7 +310,6 @@ async def list_admin_users(
         items.append(
             {
                 "id": user.id,
-                "email": user.email,
                 "phone": user.phone,
                 "name": user.name,
                 "bio": user.bio,
@@ -398,7 +393,7 @@ async def list_admin_reports(
             UserComment.content.label("comment_content"),
             UserComment.post_id.label("comment_post_id"),
             User.name.label("comment_author_name"),
-            User.email.label("comment_author_email"),
+            User.phone.label("comment_author_phone"),
         )
         .join(UserComment, CommentReport.comment_id == UserComment.id)
         .join(User, UserComment.user_id == User.id, isouter=True)
@@ -407,7 +402,7 @@ async def list_admin_reports(
     # Also join reporter
     stmt = stmt.add_columns(
         User.name.label("reporter_name"),
-        User.email.label("reporter_email"),
+        User.phone.label("reporter_phone"),
     ).join(User, CommentReport.reporter_id == User.id, isouter=True, from_joinpoint=True)
 
     # Actually we need a second User join for the reporter.
@@ -424,7 +419,7 @@ async def list_admin_reports(
             UserComment.post_id.label("comment_post_id"),
             CommentAuthor.name.label("comment_author_name"),
             Reporter.name.label("reporter_name"),
-            Reporter.email.label("reporter_email"),
+            Reporter.phone.label("reporter_phone"),
         )
         .join(UserComment, CommentReport.comment_id == UserComment.id)
         .join(CommentAuthor, UserComment.user_id == CommentAuthor.id, isouter=True)
@@ -460,7 +455,7 @@ async def list_admin_reports(
                 "comment_content": row.comment_content or "",
                 "comment_author_name": row.comment_author_name,
                 "reporter_id": report.reporter_id,
-                "reporter_name": row.reporter_name or row.reporter_email,
+                "reporter_name": row.reporter_name or row.reporter_phone,
                 "reason": report.reason,
                 "status": report.status,
                 "created_at": _dt_iso(report.created_at),
@@ -530,7 +525,7 @@ async def list_admin_posts(
     stmt = select(
         Post,
         User.name.label("author_name"),
-        User.email.label("author_email"),
+        User.phone.label("author_phone"),
         User.avatar_url.label("author_avatar_url"),
         User.level.label("author_level"),
         report_count_sub.label("report_count"),
@@ -539,9 +534,7 @@ async def list_admin_posts(
     if keyword and keyword.strip():
         k = keyword.strip().lower()
         stmt = stmt.where(
-            (func.lower(Post.content).contains(k))
-            | (func.lower(User.email).contains(k))
-            | (func.lower(User.name).contains(k))
+            (func.lower(Post.content).contains(k)) | (User.phone.contains(k)) | (func.lower(User.name).contains(k))
         )
 
     # Count total
@@ -549,9 +542,7 @@ async def list_admin_posts(
     if keyword and keyword.strip():
         k = keyword.strip().lower()
         count_stmt = count_stmt.join(User, Post.user_id == User.id, isouter=True).where(
-            (func.lower(Post.content).contains(k))
-            | (func.lower(User.email).contains(k))
-            | (func.lower(User.name).contains(k))
+            (func.lower(Post.content).contains(k)) | (User.phone.contains(k)) | (func.lower(User.name).contains(k))
         )
     total = (await db.execute(count_stmt)).scalar_one()
 
@@ -572,7 +563,7 @@ async def list_admin_posts(
                 "user_avatar_url": row.author_avatar_url,
                 "user_level": row.author_level,
                 "user_id": post.user_id,
-                "author_email": row.author_email,
+                "author_phone": row.author_phone,
                 "is_pinned": False,
                 "is_liked": False,
                 "report_count": row.report_count or 0,
@@ -669,9 +660,9 @@ async def list_admin_orders(
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
-    """List all orders with user email, paginated."""
+    """List all orders with user phone, paginated."""
     stmt = (
-        select(Order, User.email.label("user_email"))
+        select(Order, User.phone.label("user_phone"))
         .join(User, Order.user_id == User.id, isouter=True)
         .order_by(Order.created_at.desc())
     )
@@ -689,7 +680,7 @@ async def list_admin_orders(
                 "id": order.id,
                 "order_number": order.order_number,
                 "user_id": order.user_id,
-                "user_email": row.user_email,
+                "user_phone": row.user_phone,
                 "plan": order.plan,
                 "amount": order.amount,
                 "status": order.status.value if order.status else "pending",

@@ -37,11 +37,11 @@ export function Avatar({
   src?: string | null;
   /** Display name (or user object) — first char becomes the fallback initial. */
   name?:
-    | { name?: string | null; email?: string | null }
+    | { name?: string | null; phone?: string | null }
     | string
     | null
     | undefined;
-  /** Stable id for deterministic color. Defaults to name/email. */
+  /** Stable id for deterministic color. Defaults to name/phone. */
   seed?: string | null | undefined;
   size?: AvatarSize;
   className?: string;
@@ -54,7 +54,7 @@ export function Avatar({
   const initial = userInitial(name);
   const colorSeed =
     seed ??
-    (typeof name === "string" ? name : (name?.name ?? name?.email ?? null));
+    (typeof name === "string" ? name : (name?.name ?? name?.phone ?? null));
   const color = avatarColor(colorSeed);
 
   return (

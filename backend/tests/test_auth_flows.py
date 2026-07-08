@@ -1,22 +1,44 @@
-"""Tests for the remaining auth flows: refresh, logout, change-password, forgot/reset-password.
+"""Tests for auth flows: refresh, logout, change-password, session invalidation.
 
-These were previously untested and exercise the JWT blacklist (Redis) and the
-password-reset token flow.
+These exercise the JWT blacklist (Redis) and the password-change / SMS-reset
+session-invalidation logic.  SMS-based registration and reset-password are
+tested in test_auth_sms.py; this file focuses on token lifecycle.
+
+Dev-fake SMS mode is forced on (no Aliyun credentials), so the fixed code
+"1234" is accepted by verify_code. The production .env has
+SMS_LOGIN_ENABLED=true with real Aliyun credentials, which would otherwise
+make these tests call the live Aliyun SDK (and fail without network).
 """
 
+import pytest
 from httpx import AsyncClient
 
-from app.core.security import create_token, decode_token, token_lookup_hash
-from app.models.password_reset import PasswordResetToken
-from app.models.user import User
-from tests.conftest import TestSessionLocal, hash_password
+from tests.conftest import TestSessionLocal
+
+
+@pytest.fixture(autouse=True)
+def _force_dev_fake_sms(monkeypatch):
+    """Force the SMS service into dev-fake mode (accept code '1234')."""
+    import app.services.sms_service as sms_svc
+
+    monkeypatch.setattr(sms_svc, "_real_send_enabled", lambda: False)
+
+
+async def _sms_register(client: AsyncClient, phone: str, password: str, name: str = "Test User"):
+    """Helper: register a user via SMS flow and return the JSON response."""
+    await client.post("/api/v1/auth/sms/send-code", json={"phone": phone, "purpose": "register"})
+    resp = await client.post(
+        "/api/v1/auth/sms/register",
+        json={"phone": phone, "code": "1234", "password": password, "name": name},
+    )
+    assert resp.status_code == 201, f"SMS register failed: {resp.text}"
+    return resp.json()
 
 
 class TestRefreshToken:
     async def test_refresh_returns_new_access_token(self, client: AsyncClient, test_user_data: dict):
-        # Register to get a refresh token
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        refresh_token = resp.json()["refresh_token"]
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        refresh_token = data["refresh_token"]
 
         resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
         assert resp.status_code == 200
@@ -27,8 +49,8 @@ class TestRefreshToken:
         assert data["token"] != refresh_token
 
     async def test_refresh_with_access_token_rejected(self, client: AsyncClient, test_user_data: dict):
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        access_token = resp.json()["token"]
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        access_token = data["token"]
 
         resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": access_token})
         assert resp.status_code == 401
@@ -40,8 +62,8 @@ class TestRefreshToken:
 
     async def test_refresh_blacklists_old_refresh_token(self, client: AsyncClient, test_user_data: dict):
         """Rotating a refresh token must invalidate the old one."""
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        old_refresh = resp.json()["refresh_token"]
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        old_refresh = data["refresh_token"]
 
         # Rotate once
         await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
@@ -53,13 +75,13 @@ class TestRefreshToken:
 
 class TestLogout:
     async def test_logout_requires_auth(self, client: AsyncClient):
-        # logout is behind get_current_user; calling without auth → 401
+        # logout is behind get_current_user; calling without auth -> 401
         resp = await client.post("/api/v1/auth/logout", json={})
         assert resp.status_code == 401
 
     async def test_logout_blacklists_access_token(self, client: AsyncClient, test_user_data: dict):
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        token = resp.json()["token"]
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        token = data["token"]
         headers = {"Authorization": f"Bearer {token}"}
 
         # Token works before logout
@@ -82,8 +104,8 @@ class TestChangePassword:
         assert resp.status_code == 401
 
     async def test_change_password_wrong_current_rejected(self, client: AsyncClient, test_user_data: dict):
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        headers = {"Authorization": f"Bearer {resp.json()['token']}"}
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        headers = {"Authorization": f"Bearer {data['token']}"}
 
         resp = await client.post(
             "/api/v1/auth/change-password",
@@ -94,8 +116,8 @@ class TestChangePassword:
         assert "incorrect" in resp.json()["detail"].lower()
 
     async def test_change_password_success(self, client: AsyncClient, test_user_data: dict):
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        headers = {"Authorization": f"Bearer {resp.json()['token']}"}
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        headers = {"Authorization": f"Bearer {data['token']}"}
 
         resp = await client.post(
             "/api/v1/auth/change-password",
@@ -104,96 +126,19 @@ class TestChangePassword:
         )
         assert resp.status_code == 200, f"change-password failed: {resp.text}"
 
-        # Old password no longer works at login
+        # Old password no longer works at phone-login
         login_resp = await client.post(
-            "/api/v1/auth/login",
-            json={"email": test_user_data["email"], "password": test_user_data["password"]},
+            "/api/v1/auth/phone-login",
+            json={"phone": test_user_data["phone"], "password": test_user_data["password"]},
         )
         assert login_resp.status_code == 401
 
         # New password works
         login_resp = await client.post(
-            "/api/v1/auth/login",
-            json={"email": test_user_data["email"], "password": "BrandNew123!"},
+            "/api/v1/auth/phone-login",
+            json={"phone": test_user_data["phone"], "password": "BrandNew123!"},
         )
         assert login_resp.status_code == 200
-
-
-class TestForgotResetPassword:
-    async def test_forgot_password_unknown_email_returns_same_message(self, client: AsyncClient):
-        """Must not reveal whether an email is registered."""
-        resp = await client.post(
-            "/api/v1/auth/forgot-password",
-            json={"email": "nobody@example.com"},
-        )
-        assert resp.status_code == 200
-        assert "reset link" in resp.json()["message"].lower()
-
-    async def test_reset_password_with_invalid_token_rejected(self, client: AsyncClient):
-        resp = await client.post(
-            "/api/v1/auth/reset-password",
-            json={"token": "invalid-token", "new_password": "Newpass123!"},
-        )
-        assert resp.status_code == 400
-
-    async def test_full_reset_flow(self, client: AsyncClient, test_user_data: dict, test_password: str):
-        # Create a user directly
-        async with TestSessionLocal() as db:
-            user = User(
-                email="resetflow@example.com",
-                hashed_password=hash_password(test_password),
-                name="Reset User",
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-
-        # Simulate the reset token that forgot-password would issue: store a
-        # hashed token (the API hashes the raw token before persisting).
-        from app.core.security import hash_password as hp
-
-        raw_token = "raw-reset-token-123"
-        from datetime import UTC, datetime, timedelta
-
-        async with TestSessionLocal() as db:
-            db.add(
-                PasswordResetToken(
-                    user_id=user.id,
-                    token_hash=hp(raw_token),
-                    token_lookup=token_lookup_hash(raw_token),
-                    expires_at=datetime.now(UTC) + timedelta(minutes=30),
-                )
-            )
-            await db.commit()
-
-        # Reset the password
-        new_pw = "CompletelyNew123!"
-        resp = await client.post(
-            "/api/v1/auth/reset-password",
-            json={"token": raw_token, "new_password": new_pw},
-        )
-        assert resp.status_code == 200
-
-        # New password works at login, old does not
-        assert (
-            await client.post(
-                "/api/v1/auth/login",
-                json={"email": "resetflow@example.com", "password": new_pw},
-            )
-        ).status_code == 200
-        assert (
-            await client.post(
-                "/api/v1/auth/login",
-                json={"email": "resetflow@example.com", "password": test_password},
-            )
-        ).status_code == 401
-
-        # Token cannot be reused
-        resp = await client.post(
-            "/api/v1/auth/reset-password",
-            json={"token": raw_token, "new_password": "Another123!"},
-        )
-        assert resp.status_code == 400
 
 
 class TestSessionInvalidation:
@@ -228,8 +173,8 @@ class TestSessionInvalidation:
 
     async def test_change_password_invalidates_old_access_token(self, client: AsyncClient, test_user_data: dict):
         # Register so the user exists, then mint an "old" access token (iat 60s ago).
-        resp = await client.post("/api/v1/auth/register", json=test_user_data)
-        user_id = resp.json()["user"]["id"]
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        user_id = data["user"]["id"]
         old_token = self._make_token_with_old_iat(user_id, token_type="access")
         old_headers = {"Authorization": f"Bearer {old_token}"}
 
@@ -261,50 +206,33 @@ class TestSessionInvalidation:
         resp = await client.get("/api/v1/users/me", headers=old_headers)
         assert resp.status_code == 401
 
-        # A fresh login yields a working token.
+        # A fresh phone-login yields a working token.
         login = await client.post(
-            "/api/v1/auth/login",
-            json={"email": test_user_data["email"], "password": "BrandNew123!"},
+            "/api/v1/auth/phone-login",
+            json={"phone": test_user_data["phone"], "password": "BrandNew123!"},
         )
         assert login.status_code == 200
         new_headers = {"Authorization": f"Bearer {login.json()['token']}"}
         assert (await client.get("/api/v1/users/me", headers=new_headers)).status_code == 200
 
-    async def test_reset_password_invalidates_old_refresh_token(
+    async def test_sms_reset_password_invalidates_old_refresh_token(
         self, client: AsyncClient, test_user_data: dict, test_password: str
     ):
-        from datetime import UTC, datetime, timedelta
+        # Register a user via SMS
+        data = await _sms_register(client, test_user_data["phone"], test_password, "Reset Inval")
+        user_id = data["user"]["id"]
 
-        from app.core.security import hash_password as hp
+        # Mint an "old" refresh token (iat 60s ago) — predates the reset.
+        old_refresh = self._make_token_with_old_iat(user_id, token_type="refresh")
 
-        # Create a user directly.
-        async with TestSessionLocal() as db:
-            user = User(
-                email="reset-inval@example.com",
-                hashed_password=hash_password(test_password),
-                name="Reset Inval",
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-
-            # Mint an "old" refresh token (iat 60s ago) — predates the reset.
-            old_refresh = self._make_token_with_old_iat(user.id, token_type="refresh")
-            raw_token = "raw-reset-inval"
-            db.add(
-                PasswordResetToken(
-                    user_id=user.id,
-                    token_hash=hp(raw_token),
-                    token_lookup=token_lookup_hash(raw_token),
-                    expires_at=datetime.now(UTC) + timedelta(minutes=30),
-                )
-            )
-            await db.commit()
-
-        # Perform the reset (sets password_changed_at = now, well after the old iat).
+        # Send reset code and perform the reset (sets password_changed_at = now).
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": test_user_data["phone"], "purpose": "reset_password"},
+        )
         resp = await client.post(
-            "/api/v1/auth/reset-password",
-            json={"token": raw_token, "new_password": "FreshPass123!"},
+            "/api/v1/auth/sms/reset-password",
+            json={"phone": test_user_data["phone"], "code": "1234", "new_password": "FreshPass123!"},
         )
         assert resp.status_code == 200
 

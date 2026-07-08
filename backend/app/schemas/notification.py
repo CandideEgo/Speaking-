@@ -23,7 +23,6 @@ class UnreadCountResponse(BaseModel):
 
 
 class NotificationPreferencesResponse(BaseModel):
-    email_notifications: bool = True
     push_notifications: bool = True
     streak_reminder: bool = True
     weekly_report: bool = True
@@ -35,7 +34,6 @@ class NotificationPreferencesResponse(BaseModel):
 
 
 class NotificationPreferencesUpdate(BaseModel):
-    email_notifications: bool | None = None
     push_notifications: bool | None = None
     streak_reminder: bool | None = None
     weekly_report: bool | None = None

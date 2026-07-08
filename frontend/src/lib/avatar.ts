@@ -21,17 +21,17 @@ export function avatarColor(seed: string | null | undefined): string {
 }
 
 /**
- * Extract the first character of a user's display name (or email) for an avatar.
- * Accepts either a user object with `name`/`email` or a plain string.
+ * Extract the first character of a user's display name (or phone suffix) for an avatar.
+ * Accepts either a user object with `name`/`phone` or a plain string.
  */
 export function userInitial(
   user:
-    | { name?: string | null; email?: string | null }
+    | { name?: string | null; phone?: string | null }
     | string
     | null
     | undefined,
 ): string {
   if (!user) return "U";
   if (typeof user === "string") return (user[0] || "U").toUpperCase();
-  return (user.name?.[0] || user.email?.[0] || "U").toUpperCase();
+  return (user.name?.[0] || user.phone?.slice(-1) || "U").toUpperCase();
 }

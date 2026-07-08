@@ -78,7 +78,7 @@ class TestMarkAsRead:
             from app.models.user import PlanType, RoleType, User
 
             other = User(
-                email="other@example.com",
+                phone="13800138005",
                 hashed_password="x",
                 name="Other",
                 plan=PlanType.free,
@@ -124,7 +124,7 @@ class TestPreferences:
         assert resp.status_code == 200
         prefs = resp.json()
         # Defaults from the route
-        assert prefs["email_notifications"] is True
+        assert prefs["push_notifications"] is True
         assert prefs["streak_reminder"] is True
 
     async def test_update_preferences(self, client: AsyncClient, auth_headers: dict):
@@ -138,7 +138,7 @@ class TestPreferences:
         assert prefs["weekly_report"] is False
         assert prefs["comment_reply"] is False
         # Untouched keys preserved
-        assert prefs["email_notifications"] is True
+        assert prefs["push_notifications"] is True
 
     async def test_preferences_persist(self, client: AsyncClient, auth_headers: dict):
         await client.put(

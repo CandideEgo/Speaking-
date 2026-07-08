@@ -1,4 +1,5 @@
-"""Tests for the phone-based auth flows: SMS register, phone-login, SMS reset-password.
+"""Tests for the phone-based auth flows: SMS register, phone-login, SMS reset-password,
+and change-phone.
 
 Dev-fake SMS mode is forced on (no Aliyun credentials), so the fixed code "1234"
 is accepted by verify_code. The production .env has SMS_LOGIN_ENABLED=true with
@@ -14,6 +15,7 @@ from tests.conftest import TestSessionLocal
 _DEV_FAKE_CODE = "1234"
 _TEST_PASSWORD = "Testpass123!"
 _TEST_PHONE = "13800138000"
+_TEST_PHONE_B = "13800138001"
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +28,11 @@ def _force_dev_fake_sms(monkeypatch):
 
 class TestSmsRegister:
     async def test_register_creates_user_and_returns_token(self, client: AsyncClient):
+        # Send code with purpose=register
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/register",
             json={
@@ -38,10 +45,13 @@ class TestSmsRegister:
         data = resp.json()
         assert "token" in data
         assert data["user"]["phone"] == _TEST_PHONE
-        assert data["user"]["email"] is None
         assert data["user"]["plan"] == "free"
 
     async def test_register_with_name(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/register",
             json={
@@ -56,8 +66,16 @@ class TestSmsRegister:
 
     async def test_register_duplicate_phone_returns_409(self, client: AsyncClient):
         await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
+        await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
+        )
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
         )
         resp = await client.post(
             "/api/v1/auth/sms/register",
@@ -67,6 +85,10 @@ class TestSmsRegister:
         assert "已注册" in resp.json()["detail"]
 
     async def test_register_wrong_code_returns_400(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": "0000", "password": _TEST_PASSWORD},
@@ -74,6 +96,10 @@ class TestSmsRegister:
         assert resp.status_code == 400
 
     async def test_register_weak_password_rejected(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": "weak"},
@@ -83,6 +109,10 @@ class TestSmsRegister:
 
 class TestPhoneLogin:
     async def test_login_with_valid_credentials(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
@@ -95,6 +125,10 @@ class TestPhoneLogin:
         assert "token" in resp.json()
 
     async def test_login_wrong_password_returns_401(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
@@ -126,6 +160,10 @@ class TestSmsLoginNoAutoCreate:
 
     async def test_sms_login_registered_returns_token(self, client: AsyncClient):
         await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
+        await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
         )
@@ -140,10 +178,18 @@ class TestSmsLoginNoAutoCreate:
 class TestSmsResetPassword:
     async def test_reset_password_then_login_with_new(self, client: AsyncClient):
         await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
+        await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
         )
         new_pw = "BrandNew123!"
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "reset_password"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/reset-password",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "new_password": new_pw},
@@ -167,6 +213,10 @@ class TestSmsResetPassword:
 
     async def test_reset_password_unregistered_returns_same_message(self, client: AsyncClient):
         """Must not reveal whether the phone is registered (anti-enumeration)."""
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13900000000", "purpose": "reset_password"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/reset-password",
             json={"phone": "13900000000", "code": _DEV_FAKE_CODE, "new_password": "AnyNew123!"},
@@ -175,6 +225,10 @@ class TestSmsResetPassword:
         assert "已注册" in resp.json()["message"]
 
     async def test_reset_password_wrong_code_returns_400(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "reset_password"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/reset-password",
             json={"phone": _TEST_PHONE, "code": "0000", "new_password": "AnyNew123!"},
@@ -191,6 +245,10 @@ class TestSmsResetPassword:
         from app.core.config import get_settings
 
         # Register, then mint an "old" access token (iat 60s ago).
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
@@ -225,9 +283,114 @@ class TestSmsResetPassword:
 
         # Reset the password (sets password_changed_at = now).
         await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "reset_password"},
+        )
+        await client.post(
             "/api/v1/auth/sms/reset-password",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "new_password": "FreshPass123!"},
         )
 
         # Old token must now be rejected.
         assert (await client.get("/api/v1/users/me", headers=old_headers)).status_code == 401
+
+
+class TestChangePhone:
+    """Tests for the /auth/sms/change-phone endpoint."""
+
+    async def _register_and_get_headers(self, client: AsyncClient, phone: str = _TEST_PHONE):
+        """Helper: register a user and return auth headers."""
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": phone, "purpose": "register"},
+        )
+        resp = await client.post(
+            "/api/v1/auth/sms/register",
+            json={"phone": phone, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
+        )
+        token = resp.json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    async def test_change_phone_success(self, client: AsyncClient):
+        headers = await self._register_and_get_headers(client, phone=_TEST_PHONE)
+
+        # Send change_phone code to the NEW phone
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE_B, "purpose": "change_phone"},
+        )
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            json={
+                "new_phone": _TEST_PHONE_B,
+                "code": _DEV_FAKE_CODE,
+                "password": _TEST_PASSWORD,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["phone"] == _TEST_PHONE_B
+
+    async def test_change_phone_wrong_password(self, client: AsyncClient):
+        headers = await self._register_and_get_headers(client, phone=_TEST_PHONE)
+
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE_B, "purpose": "change_phone"},
+        )
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            json={
+                "new_phone": _TEST_PHONE_B,
+                "code": _DEV_FAKE_CODE,
+                "password": "WrongPass1!",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "密码错误" in resp.json()["detail"]
+
+    async def test_change_phone_wrong_code(self, client: AsyncClient):
+        headers = await self._register_and_get_headers(client, phone=_TEST_PHONE)
+
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE_B, "purpose": "change_phone"},
+        )
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            json={
+                "new_phone": _TEST_PHONE_B,
+                "code": "0000",
+                "password": _TEST_PASSWORD,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "验证码" in resp.json()["detail"]
+
+    async def test_change_phone_phone_already_registered(self, client: AsyncClient):
+        # Register two users: A and B
+        headers_a = await self._register_and_get_headers(client, phone=_TEST_PHONE)
+        await self._register_and_get_headers(client, phone=_TEST_PHONE_B)
+
+        # Try to change A's phone to B's phone (already registered)
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE_B, "purpose": "change_phone"},
+        )
+
+        resp = await client.post(
+            "/api/v1/auth/sms/change-phone",
+            json={
+                "new_phone": _TEST_PHONE_B,
+                "code": _DEV_FAKE_CODE,
+                "password": _TEST_PASSWORD,
+            },
+            headers=headers_a,
+        )
+        assert resp.status_code == 409
+        assert "已被注册" in resp.json()["detail"]

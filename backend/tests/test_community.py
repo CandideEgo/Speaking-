@@ -6,12 +6,12 @@ from app.models.user import PlanType, RoleType, User
 from tests.conftest import TestSessionLocal, hash_password
 
 
-async def _make_user(email: str) -> str:
+async def _make_user(phone: str) -> str:
     async with TestSessionLocal() as db:
         u = User(
-            email=email,
+            phone=phone,
             hashed_password=hash_password("Pass123!"),
-            name=email.split("@")[0],
+            name=phone,
             level="B1",
             plan=PlanType.free,
             role=RoleType.user,
@@ -78,7 +78,7 @@ class TestPosts:
         # Try to delete as a different user
         from app.core.security import create_token
 
-        other_id = await _make_user("deleter@example.com")
+        other_id = await _make_user("13800138001")
         other_headers = {"Authorization": f"Bearer {create_token(other_id)}"}
         resp = await client.delete(f"/api/v1/community/posts/{pid}", headers=other_headers)
         assert resp.status_code == 403
@@ -194,7 +194,7 @@ class TestComments:
 
 class TestFollows:
     async def test_follow_and_unfollow(self, client: AsyncClient, auth_headers: dict):
-        target_id = await _make_user("target@example.com")
+        target_id = await _make_user("13800138002")
         # Follow
         resp = await client.post(f"/api/v1/community/follow/{target_id}", headers=auth_headers)
         assert resp.status_code == 200
@@ -218,7 +218,7 @@ class TestFollows:
 
         me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
         # another user follows me
-        follower_id = await _make_user("follower@example.com")
+        follower_id = await _make_user("13800138003")
         follower_headers = {"Authorization": f"Bearer {create_token(follower_id)}"}
         await client.post(f"/api/v1/community/follow/{me['id']}", headers=follower_headers)
 
@@ -281,7 +281,7 @@ class TestVideoShare:
         from app.models.user import User
 
         async with TestSessionLocal() as db:
-            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
             vid = await _seed_ugc_video(owner.id)
 
         resp = await client.post(
@@ -303,7 +303,7 @@ class TestVideoShare:
         from app.models.user import User
 
         async with TestSessionLocal() as db:
-            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
             vid = await _seed_ugc_video(owner.id, review="draft", vid="vid-share-draft")
 
         resp = await client.post(
@@ -315,7 +315,7 @@ class TestVideoShare:
 
     async def test_share_others_private_video_rejected(self, client: AsyncClient, auth_headers: dict):
         """A second user must not attach another user's private video (400)."""
-        other_id = await _make_user("other-share@example.com")
+        other_id = await _make_user("13800138004")
         vid = await _seed_ugc_video(other_id, vid="vid-share-other")
 
         resp = await client.post(
@@ -340,7 +340,7 @@ class TestVideoShare:
         from app.models.user import User
 
         async with TestSessionLocal() as db:
-            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
             vid = await _seed_ugc_video(owner.id, vid="vid-share-feed")
 
         await client.post(
@@ -362,7 +362,7 @@ class TestCommunityVideos:
         from app.models.user import User
 
         async with TestSessionLocal() as db:
-            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
             await _seed_ugc_video(owner.id, vid="vid-comm-list")
 
         resp = await client.get("/api/v1/community/videos")
@@ -378,7 +378,7 @@ class TestCommunityVideos:
         from app.models.user import User
 
         async with TestSessionLocal() as db:
-            owner = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+            owner = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
             await _seed_ugc_video(owner.id, review="draft", vid="vid-comm-draft")
 
         resp = await client.get("/api/v1/community/videos")

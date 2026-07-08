@@ -25,12 +25,12 @@ from app.models.video_standard import VideoStandard
 
 
 async def _owner_id(db) -> str:
-    user = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+    user = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
     return user.id
 
 
 async def _pro_user(db) -> User:
-    return (await db.execute(select(User).where(User.email == "pro@example.com"))).scalar_one()
+    return (await db.execute(select(User).where(User.phone == "13700137000"))).scalar_one()
 
 
 async def _make_standard_with_subtitles(db, *, owner_id: str, source_url: str) -> Video:

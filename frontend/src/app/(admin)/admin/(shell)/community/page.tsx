@@ -412,7 +412,7 @@ function PostsManager() {
             <td className="py-3 pr-4 text-muted-foreground">
               {p.user_name}
               <div className="text-[10px] text-muted-soft">
-                {p.author_email}
+                {p.author_phone}
               </div>
             </td>
             <td className="py-3 pr-4 text-muted-foreground">

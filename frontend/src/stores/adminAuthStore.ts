@@ -14,7 +14,6 @@ import { decodeJwt, isTokenExpired } from "@/lib/jwt";
 export interface AdminAuthUser {
   sub?: string;
   role?: string;
-  email?: string;
   name?: string;
   exp?: number;
   [key: string]: unknown;

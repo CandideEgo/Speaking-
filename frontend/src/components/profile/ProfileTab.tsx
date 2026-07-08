@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Mail } from "lucide-react";
+import { Camera, Phone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Avatar } from "@/components/ui/Avatar";
 import { api, isProUser } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { useSmsCode } from "@/hooks/useSmsCode";
 import type { User } from "@/types";
 
 interface ProfileTabProps {
@@ -26,10 +27,13 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Email binding (for phone-only accounts)
-  const [bindEmail, setBindEmail] = useState("");
-  const [bindPassword, setBindPassword] = useState("");
-  const [binding, setBinding] = useState(false);
+  // Change phone
+  const [showChangePhone, setShowChangePhone] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [changePhoneCode, setChangePhoneCode] = useState("");
+  const [changePhonePassword, setChangePhonePassword] = useState("");
+  const [changingPhone, setChangingPhone] = useState(false);
+  const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
 
   async function handleSave() {
     setSaving(true);
@@ -72,22 +76,28 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     }
   }
 
-  async function handleBindEmail(e: React.FormEvent) {
+  async function handleChangePhone(e: React.FormEvent) {
     e.preventDefault();
-    setBinding(true);
+    setChangingPhone(true);
     try {
-      const updated = await api<User>("/api/v1/users/me/bind-email", {
+      const updated = await api<User>("/api/v1/auth/sms/change-phone", {
         method: "POST",
-        body: JSON.stringify({ email: bindEmail, password: bindPassword }),
+        body: JSON.stringify({
+          new_phone: newPhone,
+          code: changePhoneCode,
+          password: changePhonePassword,
+        }),
       });
       onUpdate(updated);
-      setBindEmail("");
-      setBindPassword("");
-      toast.success("邮箱已绑定，验证邮件已发送");
+      setShowChangePhone(false);
+      setNewPhone("");
+      setChangePhoneCode("");
+      setChangePhonePassword("");
+      toast.success("手机号已更换");
     } catch (err) {
-      toast.error(apiErrorMessage(err, "绑定失败"));
+      toast.error(apiErrorMessage(err, "更换手机号失败"));
     } finally {
-      setBinding(false);
+      setChangingPhone(false);
     }
   }
 
@@ -179,51 +189,94 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </Select>
       </div>
 
-      {/* Email — bound or bindable */}
+      {/* Phone — display + change */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">邮箱</label>
-        {user.email ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Mail size={14} />
-            <span>{user.email}</span>
+        <label className="block text-sm font-medium text-ink mb-2">
+          手机号
+        </label>
+        {user.phone && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <Phone size={14} />
+            <span>{user.phone}</span>
           </div>
+        )}
+        {!showChangePhone ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowChangePhone(true)}
+          >
+            更换手机号
+          </Button>
         ) : (
-          <form onSubmit={handleBindEmail} className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              绑定邮箱后可用手机号或邮箱登录（同一密码）。
-            </p>
+          <form onSubmit={handleChangePhone} className="space-y-2 mt-2">
             <Input
-              type="email"
-              value={bindEmail}
-              onChange={(e) => setBindEmail(e.target.value)}
-              placeholder="邮箱地址"
+              type="tel"
+              inputMode="numeric"
+              maxLength={11}
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ""))}
+              placeholder="新手机号"
               required
               className="w-full"
             />
+            <div className="flex gap-2">
+              <Input
+                inputMode="numeric"
+                maxLength={6}
+                value={changePhoneCode}
+                onChange={(e) =>
+                  setChangePhoneCode(e.target.value.replace(/\D/g, ""))
+                }
+                placeholder="验证码"
+                required
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={sending || cooldown > 0 || newPhone.length !== 11}
+                onClick={() => sendCode(newPhone, "change_phone")}
+                className="shrink-0"
+              >
+                {cooldown > 0
+                  ? `${cooldown}s`
+                  : sending
+                    ? "发送中..."
+                    : "获取验证码"}
+              </Button>
+            </div>
             <Input
               type="password"
-              value={bindPassword}
-              onChange={(e) => setBindPassword(e.target.value)}
+              value={changePhonePassword}
+              onChange={(e) => setChangePhonePassword(e.target.value)}
               placeholder="当前密码（用于验证身份）"
               required
               className="w-full"
             />
-            <Button type="submit" variant="outline" disabled={binding}>
-              {binding ? "绑定中..." : "绑定邮箱"}
-            </Button>
+            {smsError && <p className="text-sm text-red-600">{smsError}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={changingPhone}>
+                {changingPhone ? "更换中..." : "确认更换"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowChangePhone(false);
+                  setNewPhone("");
+                  setChangePhoneCode("");
+                  setChangePhonePassword("");
+                }}
+              >
+                取消
+              </Button>
+            </div>
           </form>
         )}
       </div>
-
-      {/* Phone (read-only) */}
-      {user.phone && (
-        <div>
-          <label className="block text-sm font-medium text-ink mb-2">
-            手机号
-          </label>
-          <p className="text-sm text-muted-foreground">{user.phone}</p>
-        </div>
-      )}
 
       {/* Plan */}
       <div>

@@ -97,7 +97,7 @@ export default function ForgotPasswordPage() {
                 type="button"
                 variant="outline"
                 disabled={sending || cooldown > 0 || phone.length !== 11}
-                onClick={() => sendCode(phone)}
+                onClick={() => sendCode(phone, "reset_password")}
                 className="shrink-0"
               >
                 {cooldown > 0

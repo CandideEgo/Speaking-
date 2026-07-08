@@ -127,6 +127,26 @@ def _raise_for_permission_error(exc: PermissionError) -> None:
     raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def _to_practice_item(q: dict) -> PracticeItem:
+    """Convert a persisted question dict to a PracticeItem, filling defaults.
+
+    Persisted context_fill questions may lack ``category`` / ``translation``
+    (they were stored from ContextFillEdit which only has word/type/question/
+    answer/options).  Fill those with sensible defaults so PracticeItem validates.
+
+    Also maps ``question`` → ``sentence_template`` for context_fill items,
+    since the edit schema uses ``question`` but PracticeItem uses
+    ``sentence_template``.
+    """
+    q = {**q}  # shallow copy — don't mutate the original dict
+    q.setdefault("category", "context")
+    q.setdefault("translation", "")
+    # Map ContextFillItem.question → PracticeItem.sentence_template
+    if "question" in q and "sentence_template" not in q:
+        q["sentence_template"] = q.pop("question")
+    return PracticeItem(**q)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -164,7 +184,7 @@ async def get_practice(
     return UnifiedPracticeSet(
         video_id=video_id,
         exam_level=level,
-        items=[PracticeItem(**i) for i in items],
+        items=[_to_practice_item(i) for i in items],
     )
 
 
@@ -229,11 +249,8 @@ async def edit_practice(
 
     questions_json = [q.model_dump() for q in payload.questions]
     persisted = await practice_service.update_practice_set(db, video_id, level, questions_json)
-    return UnifiedPracticeSet(
-        video_id=video_id,
-        exam_level=level,
-        items=[PracticeItem(**q) for q in persisted],
-    )
+    items = [_to_practice_item(q) for q in persisted]
+    return UnifiedPracticeSet(video_id=video_id, exam_level=level, items=items)
 
 
 @router.post("/{video_id}/practice/regenerate", response_model=UnifiedPracticeSet)
@@ -262,8 +279,5 @@ async def regenerate_practice(
     except AIServiceError as e:
         raise HTTPException(status_code=502, detail=f"练习题生成失败：{e}") from e
 
-    return UnifiedPracticeSet(
-        video_id=video_id,
-        exam_level=level,
-        items=[PracticeItem(**q) for q in questions],
-    )
+    items = [_to_practice_item(q) for q in questions]
+    return UnifiedPracticeSet(video_id=video_id, exam_level=level, items=items)

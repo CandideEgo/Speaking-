@@ -1,6 +1,5 @@
 export interface User {
   id: string;
-  email: string | null;
   phone: string | null;
   name: string | null;
   bio: string | null;
@@ -277,7 +276,7 @@ export interface AdminPost {
   user_avatar_url: string | null;
   user_level: string | null;
   user_id: string;
-  author_email: string | null;
+  author_phone: string | null;
   is_pinned: boolean;
   report_count: number;
   created_at: string;
@@ -348,7 +347,7 @@ export interface AdminOrder {
   id: string;
   order_number: string;
   user_id: string;
-  user_email: string | null;
+  user_phone: string | null;
   plan: string;
   /** Amount in fen (cents). Display as ¥{amount/100}. */
   amount: number;

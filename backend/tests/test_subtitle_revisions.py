@@ -19,7 +19,7 @@ from app.models.video import Video, VideoReviewStatus, VideoStatus
 
 
 async def _owner_id(db) -> str:
-    user = (await db.execute(select(User).where(User.email == "test@example.com"))).scalar_one()
+    user = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
     return user.id
 
 

@@ -46,7 +46,7 @@ async def test_vocabulary_drill_filters_by_target_level(fake_redis, monkeypatch)
 
     async with TestSessionLocal() as db:
         user = User(
-            email="vocab-level@example.com",
+            phone="13800138010",
             hashed_password=hash_password("Vocabpass1!"),
             name="Vocab",
             plan=PlanType.free,
@@ -80,7 +80,7 @@ async def test_vocabulary_drill_falls_back_when_too_few_matches(fake_redis, monk
 
     async with TestSessionLocal() as db:
         user = User(
-            email="vocab-fallback@example.com",
+            phone="13800138011",
             hashed_password=hash_password("Vocabpass1!"),
             name="Vocab",
             plan=PlanType.free,
@@ -113,7 +113,7 @@ async def test_vocabulary_drill_no_level_returns_all(fake_redis, monkeypatch):
 
     async with TestSessionLocal() as db:
         user = User(
-            email="vocab-nolevel@example.com",
+            phone="13800138012",
             hashed_password=hash_password("Vocabpass1!"),
             name="Vocab",
             plan=PlanType.free,

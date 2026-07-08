@@ -70,7 +70,6 @@ class AdminStatsResponse(BaseModel):
 
 class AdminUserResponse(BaseModel):
     id: str
-    email: str | None = None
     phone: str | None = None
     name: str | None = None
     bio: str | None = None
@@ -109,7 +108,7 @@ class AdminPostResponse(BaseModel):
     user_avatar_url: str | None = None
     user_level: str | None = None
     user_id: str
-    author_email: str | None = None
+    author_phone: str | None = None
     is_pinned: bool = False  # Not a DB field; always false for now
     is_liked: bool = False  # Not relevant for admin view
     report_count: int = 0
@@ -152,7 +151,7 @@ class AdminOrderResponse(BaseModel):
     id: str
     order_number: str
     user_id: str
-    user_email: str | None = None
+    user_phone: str | None = None
     plan: str
     amount: int
     status: str

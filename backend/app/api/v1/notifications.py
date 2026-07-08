@@ -204,7 +204,6 @@ async def mark_all_as_read(
 
 # Default notification preferences
 DEFAULT_PREFS = {
-    "email_notifications": True,
     "push_notifications": True,
     "streak_reminder": True,
     "weekly_report": True,

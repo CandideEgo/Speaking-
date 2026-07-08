@@ -1,5 +1,4 @@
-import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -12,29 +11,24 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.core.redis import get_redis
-from app.core.security import create_token, decode_token, hash_password, token_lookup_hash, verify_password
+from app.core.security import create_token, decode_token, hash_password, verify_password
 from app.core.token_blacklist import blacklist_token, is_token_blacklisted
-from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 from app.schemas.user import (
     ChangePasswordRequest,
-    ForgotPasswordRequest,
+    ChangePhoneRequest,
     LogoutRequest,
     MessageResponse,
     PhoneLoginRequest,
     RefreshRequest,
     RefreshResponse,
-    ResetPasswordRequest,
     SendSmsCodeRequest,
     SmsLoginRequest,
     SmsRegisterRequest,
     SmsResetPasswordRequest,
     TokenResponse,
-    UserCreate,
-    UserLogin,
     UserResponse,
 )
-from app.services.email_service import send_password_reset_email, send_verification_email
 from app.services.sms_service import send_verify_code
 from app.services.sms_service import verify_code as verify_sms_code
 
@@ -46,55 +40,10 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("3/minute")
-async def register(request: Request, data: UserCreate, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(User).where(User.email == data.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-
-    user = User(
-        email=data.email,
-        hashed_password=hash_password(data.password),
-        name=data.name,
-    )
-    db.add(user)
-    try:
-        await db.commit()
-    except Exception as exc:
-        # Concurrent registration with the same email can race past the check
-        # above and hit the unique constraint — convert to a clean 409.
-        await db.rollback()
-        if "uq_users_email" in str(exc) or "unique" in str(exc).lower():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from exc
-        raise
-    await db.refresh(user)
-
-    token = create_token(user.id)
-    refresh_token = create_token(user.id, token_type="refresh")
-    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
-
-
-@router.post("/login", response_model=TokenResponse)
-@rate_limit("5/minute")
-async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-
-    if not user or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
-    if user.is_banned:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已被封禁")
-
-    token = create_token(user.id)
-    refresh_token = create_token(user.id, token_type="refresh")
-    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
-
-
-# Per-phone send cooldown (seconds). Redis key sms:cooldown:{phone} is set on
-# send and its existence blocks resends. Aliyun also rate-limits server-side;
-# this is a local first line of defense against billing abuse.
+# Per-phone-per-purpose send cooldown (seconds). Redis key
+# sms:cooldown:{phone}:{purpose} is set on send and its existence blocks
+# resends. Aliyun also rate-limits server-side; this is a local first line
+# of defense against billing abuse.
 _SMS_COOLDOWN_SECONDS = 60
 
 
@@ -103,16 +52,16 @@ _SMS_COOLDOWN_SECONDS = 60
 async def sms_send_code(request: Request, data: SendSmsCodeRequest):
     """Send an SMS verification code to the given phone number.
 
-    A 60s per-phone cooldown (Redis) prevents rapid resends. In dev-fake mode
-    (no Aliyun credentials) the code is logged instead of sent.
+    A 60s per-phone-per-purpose cooldown (Redis) prevents rapid resends.
+    In dev-fake mode (no Aliyun credentials) the code is logged instead of sent.
     """
     redis = get_redis()
-    cooldown_key = f"sms:cooldown:{data.phone}"
+    cooldown_key = f"sms:cooldown:{data.phone}:{data.purpose}"
     if await redis.exists(cooldown_key):
         raise HTTPException(status_code=429, detail="发送过于频繁，请稍后再试")
 
     try:
-        await send_verify_code(data.phone)
+        await send_verify_code(data.phone, purpose=data.purpose)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -122,9 +71,9 @@ async def sms_send_code(request: Request, data: SendSmsCodeRequest):
     except Exception:
         # Fail-open: Redis outage must not block login. Aliyun's own rate
         # limit still protects us.
-        logger.warning("sms_cooldown_set_failed", phone=data.phone)
+        logger.warning("sms_cooldown_set_failed", phone=data.phone, purpose=data.purpose)
 
-    logger.info("sms_code_sent", phone=data.phone)
+    logger.info("sms_code_sent", phone=data.phone, purpose=data.purpose)
     return MessageResponse(message="验证码已发送")
 
 
@@ -134,10 +83,9 @@ async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = 
     """Log in via phone number + SMS code.
 
     Login-only — does NOT auto-create accounts. Registration is via
-    /auth/sms/register (which sets a password). Aliyun verifies the code
-    (or the dev-fake code is accepted locally).
+    /auth/sms/register (which sets a password).
     """
-    if not await verify_sms_code(data.phone, data.code):
+    if not await verify_sms_code(data.phone, data.code, purpose="register"):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
     result = await db.execute(select(User).where(User.phone == data.phone))
@@ -160,10 +108,9 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
     """Register with phone + SMS code + password (phone-only registration).
 
     The SMS code proves phone ownership; the password is set now (used for
-    subsequent /auth/phone-login). No email is collected at registration —
-    users may bind an email later from their profile.
+    subsequent /auth/phone-login).
     """
-    if not await verify_sms_code(data.phone, data.code):
+    if not await verify_sms_code(data.phone, data.code, purpose="register"):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
     existing = await db.execute(select(User).where(User.phone == data.phone))
@@ -284,129 +231,6 @@ async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession
     return RefreshResponse(token=new_token, refresh_token=new_refresh_token)
 
 
-@router.post("/forgot-password", response_model=MessageResponse)
-@rate_limit("3/hour")
-async def forgot_password(
-    request: Request,
-    data: ForgotPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Request a password reset link.
-
-    Always returns 200 with the same message to prevent email enumeration.
-    """
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-
-    if user:
-        # Generate a cryptographically secure random token
-        raw_token = secrets.token_urlsafe(32)
-        token_hash = hash_password(raw_token)
-        # Deterministic lookup key — indexed so reset can find the candidate
-        # row in O(1) instead of bcrypt-verifying every unexpired token.
-        lookup = token_lookup_hash(raw_token)
-        expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_expire_minutes)
-
-        reset_token = PasswordResetToken(
-            user_id=user.id,
-            token_hash=token_hash,
-            token_lookup=lookup,
-            expires_at=expires_at,
-        )
-        db.add(reset_token)
-        await db.commit()
-
-        # Build the reset URL — frontend route that will present the reset form
-        reset_url = f"{settings.frontend_url}/reset-password?token={raw_token}"
-
-        # Send email (or log to stdout in dev)
-        await send_password_reset_email(email=user.email, reset_url=reset_url)
-
-        logger.info("password_reset_requested", user_id=user.id)
-    else:
-        # Deliberately do nothing — same response prevents enumeration
-        logger.info("password_reset_requested_email_not_found", email=data.email)
-
-    return MessageResponse(message="If that email is registered, a reset link has been sent.")
-
-
-@router.post("/reset-password", response_model=MessageResponse)
-@rate_limit("5/minute")
-async def reset_password(
-    request: Request,
-    data: ResetPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Reset a user's password using a valid reset token."""
-    now = datetime.now(UTC)
-
-    # Indexed lookup by the token's deterministic hash — O(1) query + a single
-    # bcrypt verify, instead of loading every unexpired token and bcrypt-checking
-    # each (O(n) slow + timing leak).
-    # Lock the token row to prevent double-use race (two concurrent reset
-    # requests with the same token could both pass the used_at check).
-    lookup = token_lookup_hash(data.token)
-    result = await db.execute(
-        select(PasswordResetToken)
-        .where(
-            PasswordResetToken.token_lookup == lookup,
-            PasswordResetToken.used_at.is_(None),
-            PasswordResetToken.expires_at > now,
-        )
-        .with_for_update()
-    )
-    matched_token = result.scalar_one_or_none()
-
-    if matched_token is not None:
-        # Candidate found by index — confirm with the authoritative bcrypt check.
-        if not verify_password(data.token, matched_token.token_hash):
-            matched_token = None
-    else:
-        # Legacy fallback: tokens without a token_lookup (created before this
-        # column existed) can't be found by index. Scan unexpired tokens lacking
-        # a lookup. Empty for fresh deployments; disappears once old tokens
-        # expire (password_reset_expire_minutes, default 30).
-        legacy_result = await db.execute(
-            select(PasswordResetToken).where(
-                PasswordResetToken.token_lookup.is_(None),
-                PasswordResetToken.used_at.is_(None),
-                PasswordResetToken.expires_at > now,
-            )
-        )
-        for t in legacy_result.scalars().all():
-            if verify_password(data.token, t.token_hash):
-                matched_token = t
-                break
-
-    if matched_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token",
-        )
-
-    # Look up the user (lock row to serialize concurrent password changes)
-    result = await db.execute(select(User).where(User.id == matched_token.user_id).with_for_update())
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token",
-        )
-
-    # Update password and mark token as used
-    user.hashed_password = hash_password(data.new_password)
-    # Invalidate all sessions issued before this moment (tokens with an earlier
-    # ``iat`` are rejected by the auth dependency).
-    user.password_changed_at = now
-    matched_token.used_at = now
-    db.add(user)
-    db.add(matched_token)
-    await db.commit()
-
-    logger.info("password_reset_completed", user_id=user.id)
-    return MessageResponse(message="Password has been reset successfully.")
-
-
 @router.post("/sms/reset-password", response_model=MessageResponse)
 @rate_limit("5/minute")
 async def sms_reset_password(
@@ -414,13 +238,12 @@ async def sms_reset_password(
     data: SmsResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Reset password via phone + SMS code (no email link).
+    """Reset password via phone + SMS code.
 
-    The code is sent via /auth/sms/send-code (reused). Returns the same message
-    whether or not the phone is registered, to prevent enumeration (consistent
-    with the email forgot-password flow).
+    Returns the same message whether or not the phone is registered, to prevent
+    enumeration.
     """
-    if not await verify_sms_code(data.phone, data.code):
+    if not await verify_sms_code(data.phone, data.code, purpose="reset_password"):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
     result = await db.execute(select(User).where(User.phone == data.phone).with_for_update())
@@ -436,6 +259,41 @@ async def sms_reset_password(
         logger.info("sms_password_reset", user_id=user.id, phone=data.phone)
 
     return MessageResponse(message="如果该手机号已注册，密码已重置。")
+
+
+@router.post("/sms/change-phone", response_model=UserResponse)
+@rate_limit("5/minute")
+async def change_phone(
+    request: Request,
+    data: ChangePhoneRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the current user's phone number.
+
+    Requires: current password (re-authentication) + SMS code sent to the NEW
+    phone (proves ownership of the new number).
+    """
+    # 1. Verify current password
+    if not current_user.hashed_password or not verify_password(data.password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="密码错误")
+
+    # 2. Verify SMS code sent to the new phone
+    if not await verify_sms_code(data.new_phone, data.code, purpose="change_phone"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误或已失效")
+
+    # 3. Check new phone is not already registered
+    existing = await db.execute(select(User).where(User.phone == data.new_phone))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该手机号已被注册")
+
+    # 4. Update phone number
+    current_user.phone = data.new_phone
+    await db.commit()
+    await db.refresh(current_user)
+
+    logger.info("phone_changed", user_id=current_user.id, new_phone=data.new_phone)
+    return UserResponse.model_validate(current_user)
 
 
 @router.post("/logout", response_model=MessageResponse)
@@ -509,71 +367,3 @@ async def change_password(
 
     logger.info("password_changed", user_id=current_user.id)
     return MessageResponse(message="Password changed successfully")
-
-
-@router.post("/verify-email", response_model=MessageResponse)
-@rate_limit("5/minute")
-async def verify_email(
-    request: Request,
-    token: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """Verify a user's email address using the token from the verification link."""
-    payload = decode_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification token",
-        )
-
-    if payload.get("type") != "email_verification":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not a verification token",
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid verification token payload",
-        )
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User not found",
-        )
-
-    if user.email_verified_at is not None:
-        return MessageResponse(message="Email already verified")
-
-    from datetime import UTC
-
-    user.email_verified_at = datetime.now(UTC)
-    await db.commit()
-
-    logger.info("email_verified", user_id=user.id)
-    return MessageResponse(message="Email verified successfully")
-
-
-@router.post("/resend-verification", response_model=MessageResponse)
-@rate_limit("3/hour")
-async def resend_verification(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-):
-    """Resend the email verification link to the current user."""
-    if current_user.email_verified_at is not None:
-        return MessageResponse(message="Email already verified")
-
-    await send_verification_email(
-        user_id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-    )
-
-    logger.info("verification_resent", user_id=current_user.id)
-    return MessageResponse(message="Verification email sent")

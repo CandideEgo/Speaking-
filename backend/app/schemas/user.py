@@ -1,31 +1,15 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from app.core.exam_levels import EXAM_LEVEL_KEYS
 from app.core.security import validate_password_strength
 
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    name: str | None = Field(default=None, max_length=100)
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        validate_password_strength(v)
-        return v
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
 class SendSmsCodeRequest(BaseModel):
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    purpose: str = Field(default="register", pattern=r"^(register|change_phone|reset_password)$")
 
 
 class SmsLoginRequest(BaseModel):
@@ -69,6 +53,14 @@ class SmsResetPasswordRequest(BaseModel):
         return v
 
 
+class ChangePhoneRequest(BaseModel):
+    """Change phone number: requires SMS code sent to the NEW phone + current password."""
+
+    new_phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
+    code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
+    password: str
+
+
 class UserUpdate(BaseModel):
     name: str | None = None
     level: str | None = None
@@ -84,17 +76,8 @@ class UserUpdate(BaseModel):
         return v.upper() if v else v
 
 
-class BindEmailRequest(BaseModel):
-    """Bind an email to a phone-only account (so the user can log in with email
-    as well as phone, using the same password). Requires the current password."""
-
-    email: EmailStr
-    password: str
-
-
 class UserResponse(BaseModel):
     id: str
-    email: str | None = None
     phone: str | None = None
     name: str | None
     level: str | None
@@ -130,21 +113,6 @@ class RefreshRequest(BaseModel):
 class RefreshResponse(BaseModel):
     token: str
     refresh_token: str | None = None
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str = Field(min_length=8, max_length=128)
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        validate_password_strength(v)
-        return v
 
 
 class ChangePasswordRequest(BaseModel):

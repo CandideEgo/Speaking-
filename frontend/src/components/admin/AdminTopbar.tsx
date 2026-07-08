@@ -19,13 +19,13 @@ const TITLES: Record<string, string> = {
 export function AdminTopbar({ pathname }: { pathname: string }) {
   const logout = useAdminAuthStore((s) => s.logout);
   const authUser = useAdminAuthStore((s) => s.user);
-  const [me, setMe] = useState<{ name?: string; email?: string } | null>(null);
+  const [me, setMe] = useState<{ name?: string } | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   // Best-effort display name from the JWT; the shell already verified the role.
   useEffect(() => {
-    if (authUser?.email) {
-      setMe((prev) => prev ?? { email: authUser.email, name: authUser.name });
+    if (authUser?.name) {
+      setMe((prev) => prev ?? { name: authUser.name });
     }
   }, [authUser]);
 
@@ -50,7 +50,7 @@ export function AdminTopbar({ pathname }: { pathname: string }) {
   }, []);
 
   const title = TITLES[pathname] || "管理后台";
-  const displayName = me?.name || me?.email || "管理员";
+  const displayName = me?.name || "管理员";
 
   return (
     <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-hairline bg-canvas px-6">

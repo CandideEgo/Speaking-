@@ -18,7 +18,6 @@ import { decodeJwt, isTokenExpired } from "@/lib/jwt";
 export interface AuthUser {
   sub?: string;
   role?: string;
-  email?: string;
   name?: string;
   exp?: number;
   iat?: number;
