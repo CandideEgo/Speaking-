@@ -28,7 +28,9 @@ export class AdminApiError extends ApiClientError {
 // ---------------------------------------------------------------------------
 
 export function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  // Empty string = relative paths. nginx proxies in production, next.config.js
+  // rewrites in development. No build-time API URL configuration needed.
+  return "";
 }
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,10 @@ import {
   type AuthAdapter,
 } from "@/lib/createApiClient";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Empty string = relative paths (e.g. "/api/v1/..."). In production, nginx
+// proxies /api/ and /media/ to the backend. In development, next.config.js
+// rewrites handle the proxying. No build-time API URL configuration needed.
+const API_URL = "";
 
 // ---------------------------------------------------------------------------
 // ApiError — structured error for API responses (backward-compatible)

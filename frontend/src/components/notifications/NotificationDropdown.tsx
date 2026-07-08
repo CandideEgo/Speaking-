@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import { api, getApiUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -23,15 +23,14 @@ interface NotificationDropdownProps {
 }
 
 /**
- * Build WebSocket URL from the API base URL.
- * Replaces http(s) with ws(s) and appends the notification WS path.
+ * Build WebSocket URL from the current page origin.
+ * Detects ws:/wss: from the page protocol and uses the same host,
+ * so nginx (prod) or Next.js rewrites (dev) route to the backend.
  */
 function buildWsUrl(token: string): string {
-  const apiUrl = getApiUrl();
-  const wsBase = apiUrl
-    .replace(/^http:\/\//, "ws://")
-    .replace(/^https:\/\//, "wss://");
-  return `${wsBase}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  return `${protocol}//${host}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
 }
 
 export function NotificationDropdown({

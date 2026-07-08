@@ -187,8 +187,6 @@ jobs:
           done
 
       - name: Start frontend server
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
         run: |
           cd frontend
           npm run dev &

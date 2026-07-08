@@ -80,12 +80,10 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>(
       const currentToken = get().token;
       const currentRefreshToken = get().refreshToken;
       if (currentToken && typeof window !== "undefined") {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const body = currentRefreshToken
           ? JSON.stringify({ refresh_token: currentRefreshToken })
           : "{}";
-        fetch(`${apiUrl}/api/v1/auth/logout`, {
+        fetch("/api/v1/auth/logout", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${currentToken}`,
@@ -151,7 +149,6 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>(
 
     async refreshAccessToken(): Promise<boolean> {
       if (refreshPromise) return refreshPromise;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       refreshPromise = (async () => {
         const { refreshToken } = get();
         if (!refreshToken) {
@@ -159,7 +156,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>(
           return false;
         }
         try {
-          const res = await fetch(`${apiUrl}/api/v1/auth/refresh`, {
+          const res = await fetch("/api/v1/auth/refresh", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh_token: refreshToken }),

@@ -14,6 +14,19 @@ try {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // In development, proxy /api/ and /media/ to the backend so the frontend
+  // can use relative paths without nginx. Production standalone output ignores
+  // rewrites — nginx handles the proxying there.
+  async rewrites() {
+    if (process.env.NODE_ENV === "development") {
+      return [
+        { source: "/api/:path*", destination: "http://localhost:8000/api/:path*" },
+        { source: "/media/:path*", destination: "http://localhost:8000/media/:path*" },
+        { source: "/health", destination: "http://localhost:8000/health" },
+      ];
+    }
+    return [];
+  },
   images: {
     remotePatterns: [
       // Backend media + image proxy (relative paths + proxied CDN URLs resolve

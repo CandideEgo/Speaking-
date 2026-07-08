@@ -136,10 +136,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             const body = currentRefreshToken
               ? JSON.stringify({ refresh_token: currentRefreshToken })
               : "{}";
-            const apiUrl =
-              process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             try {
-              await fetch(`${apiUrl}/api/v1/auth/logout`, {
+              await fetch("/api/v1/auth/logout", {
                 method: "POST",
                 headers: {
                   Authorization: `Bearer ${currentToken}`,
@@ -268,8 +266,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     // If already refreshing, return the existing promise
     if (refreshPromise) return refreshPromise;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
     refreshPromise = (async () => {
       const { refreshToken } = get();
       if (!refreshToken) {
@@ -277,7 +273,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         return false;
       }
       try {
-        const res = await fetch(`${apiUrl}/api/v1/auth/refresh`, {
+        const res = await fetch("/api/v1/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
