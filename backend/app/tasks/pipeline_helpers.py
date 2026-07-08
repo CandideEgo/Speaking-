@@ -92,21 +92,25 @@ async def update_progress(video_id: str, step: str, extra: dict | None = None) -
 async def is_step_done(video_id: str, step: str) -> bool:
     """Check if a step has already been completed (for resume).
 
-    On Redis failure, returns True (conservative: assume the step is done so
-    we skip re-running it).  This prevents wasteful re-execution of expensive
-    steps (translation, transcoding) when Redis is temporarily unavailable.
+    On Redis failure, returns False (fail-closed): we re-run the step rather
+    than skipping it.  All pipeline steps are idempotent (translation
+    overwrites, annotation overwrites, downloading is a no-op if the file
+    exists, transcoding overwrites), so re-execution is safe.  The previous
+    fail-open (return True) could skip steps that were never actually
+    completed, producing videos marked "ready" with missing
+    translations/annotations/transcodes.
     """
     try:
         r = get_pipeline_redis()
         return r.sismember(f"video:steps:{video_id}", step)
     except Exception:
         logger.warning(
-            "Redis unavailable when checking step %s for video %s; assuming done",
+            "Redis unavailable when checking step %s for video %s; assuming NOT done (will re-run the step)",
             step,
             video_id,
             exc_info=True,
         )
-        return True
+        return False
 
 
 # ---------------------------------------------------------------------------

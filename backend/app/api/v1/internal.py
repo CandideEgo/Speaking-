@@ -32,7 +32,10 @@ _CALLBACK_LOCK_TTL = 5 * 60  # 5 minutes — more than enough for the DB work
 
 def _acquire_callback_lock(video_id: str) -> bool:
     """Try to acquire a Redis SETNX lock for the callback.  Returns True if
-    acquired, False if another callback is already in-flight."""
+    acquired, False if another callback is already in-flight **or Redis is
+    down** (fail-closed).  When Redis is unavailable we reject the callback
+    rather than allowing a concurrent double-insert / double-enqueue.  The
+    GPU worker will retry after its own backoff."""
     try:
         import redis as redis_lib
 
@@ -41,9 +44,15 @@ def _acquire_callback_lock(video_id: str) -> bool:
         lock_key = f"video:callback:{video_id}"
         return bool(r.set(lock_key, "1", nx=True, ex=_CALLBACK_LOCK_TTL))
     except Exception:
-        # If Redis is down, allow the callback through — the status check
-        # below still provides a basic idempotency guard.
-        return True
+        # Fail-closed: refuse the callback so the GPU worker retries later.
+        # The DB status check alone is insufficient — two concurrent
+        # callbacks can both read status==processing before either commits.
+        logger.warning(
+            "Redis unavailable for callback lock on video %s; rejecting callback (GPU worker will retry)",
+            video_id,
+            exc_info=True,
+        )
+        return False
 
 
 def _release_callback_lock(video_id: str) -> None:
@@ -92,8 +101,12 @@ async def transcription_callback(
 
     # Acquire a Redis dedup lock to prevent two concurrent callbacks from both
     # passing the status check and proceeding to double-insert subtitles.
+    # If Redis is down (fail-closed), return 503 so the GPU worker retries.
     if not _acquire_callback_lock(payload.video_id):
-        return {"acknowledged": True}
+        raise HTTPException(
+            status_code=503,
+            detail="Callback lock unavailable; retry after Redis recovers",
+        )
 
     try:
         if payload.status == "error":
