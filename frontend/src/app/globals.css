@@ -1,9 +1,173 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================================
+   Theme — migrated from tailwind.config.ts
+   ============================================================ */
+@theme {
+  /* --- Font families --- */
+  --font-display:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
+  /* --- Brand (vivid orange) --- */
+  --color-brand-50: #fff1eb;
+  --color-brand-100: #ffe0d3;
+  --color-brand-200: #ffc1a8;
+  --color-brand-300: #ff9b76;
+  --color-brand-400: #ff7a45;
+  --color-brand-500: #ff5a1f;
+  --color-brand-600: #e84a10;
+  --color-brand-700: #c33c0c;
+  --color-brand-800: #9a3210;
+  --color-brand-900: #7d2c12;
+  --color-brand-950: #441405;
+
+  /* --- Indigo (secondary accent) — override DEFAULT + add soft --- */
+  --color-indigo: #6366f1;
+  --color-indigo-soft: #eef2ff;
+
+  /* --- Surfaces --- */
+  --color-canvas: #ffffff;
+  --color-surface-soft: #fafafa;
+  --color-surface-card: #f4f4f5;
+  --color-surface-cream-strong: #ededed;
+  --color-surface-dark: #0a0a0a;
+  --color-surface-dark-elevated: #161616;
+  --color-surface-dark-soft: #1c1c1c;
+
+  /* --- Backward-compatible aliases --- */
+  --color-cream-soft: #fafafa;
+  --color-cream-card: #f4f4f5;
+  --color-cream-strong: #ededed;
+  --color-cream: #f4f4f5;
+  --color-parchment: #fafafa;
+  --color-navy: #0a0a0a;
+  --color-navy-elevated: #161616;
+
+  /* --- Text --- */
+  --color-ink: #0a0a0a;
+  --color-body: #27272a;
+  --color-body-strong: #18181b;
+  --color-muted: #71717a;
+  --color-muted-soft: #a1a1aa;
+  --color-muted-foreground: #71717a;
+
+  /* --- Text aliases --- */
+  --color-olive: #71717a;
+  --color-olive-soft: #a1a1aa;
+  --color-ivory: #fafafa;
+  --color-terracotta: #ff5a1f;
+
+  /* --- Primary --- */
+  --color-primary: #ff5a1f;
+  --color-primary-active: #e84a10;
+  --color-primary-disabled: #f4f4f5;
+
+  /* --- Coral = primary alias --- */
+  --color-coral: #ff5a1f;
+  --color-coral-active: #e84a10;
+  --color-coral-soft: #fff1eb;
+
+  /* --- Semantic --- */
+  --color-success: #16a34a;
+  --color-success-soft: #ecfdf5;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+  --color-error: #dc2626;
+  --color-danger: #dc2626;
+
+  /* --- Soft-background pairs --- */
+  --color-sky-soft: #f0f9ff;
+  --color-red-soft: #fef2f2;
+
+  /* --- Teal / amber (legacy) --- */
+  --color-teal: #10b981;
+  --color-accent-teal: #10b981;
+  --color-accent-amber: #f59e0b;
+
+  /* --- On-colors --- */
+  --color-on-primary: #ffffff;
+  --color-on-dark: #fafafa;
+  --color-on-dark-soft: #a1a1aa;
+
+  /* --- Borders --- */
+  --color-hairline: #ededed;
+  --color-hairline-soft: #f4f4f5;
+  --color-hairline-cream: #ededed;
+
+  /* --- Learning mode highlights --- */
+  --color-learn-highlight: #4ade80;
+  --color-learn-highlight-hover: #22c55e;
+  --color-learn-phrase: #facc15;
+  --color-learn-grammar: #f97316;
+  --color-learn-correct: #22c55e;
+  --color-learn-wrong: #ef4444;
+
+  /* --- CSS variable-backed colors (runtime theme) --- */
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-muted-foreground-var: rgb(var(--muted-foreground));
+  --color-border: rgb(var(--border));
+  --color-surface: rgb(var(--surface));
+  --color-sidebar-bg: rgb(var(--sidebar-bg));
+  --color-topbar-bg: rgb(var(--topbar-bg));
+
+  /* --- Border radius (override defaults) --- */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 24px;
+  --radius-pill: 9999px;
+
+  /* --- Spacing --- */
+  --spacing-section: 96px;
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+  --spacing-128: 32rem;
+
+  /* --- Max width --- */
+  --max-width-page: 1320px;
+
+  /* --- Letter spacing --- */
+  --tracking-display-xl: -0.035em;
+  --tracking-display-lg: -0.03em;
+  --tracking-display-md: -0.025em;
+  --tracking-display-sm: -0.02em;
+  --tracking-caption-wide: 0.08em;
+
+  /* --- Box shadows --- */
+  --shadow-soft:
+    0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.04);
+  --shadow-card:
+    0 2px 8px rgba(10, 10, 10, 0.05), 0 1px 2px rgba(10, 10, 10, 0.04);
+  --shadow-lift:
+    0 12px 32px rgba(10, 10, 10, 0.08), 0 2px 8px rgba(10, 10, 10, 0.04);
+  --shadow-brand: 0 8px 24px rgba(255, 90, 31, 0.28);
+  --shadow-coral: 0 8px 24px rgba(255, 90, 31, 0.28);
+
+  /* --- Keyframes --- */
+  --animate-wave-bar: wave-bar 1s ease-in-out infinite;
+
+  @keyframes wave-bar {
+    0%,
+    100% {
+      transform: scaleY(0.5);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+}
+
+/* ============================================================
+   Base layer
+   ============================================================ */
 @layer base {
   :root {
     --background: 255 255 255;
@@ -68,6 +232,9 @@
   }
 }
 
+/* ============================================================
+   Utilities layer
+   ============================================================ */
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -95,33 +262,121 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgb(var(--scrollbar-thumb) / 0.8);
   }
+
+  /* Subtitle panel scrollbar */
+  .subtitle-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .subtitle-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .subtitle-scroll::-webkit-scrollbar-thumb {
+    background: rgba(10, 10, 10, 0.1);
+    border-radius: 3px;
+  }
+  .subtitle-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(10, 10, 10, 0.2);
+  }
+
+  /* Skeleton shimmer */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* Stagger animation */
+  .stagger-container > * {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: stagger-fade-in 0.3s ease-out forwards;
+  }
+  .stagger-container > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .stagger-container > *:nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .stagger-container > *:nth-child(3) {
+    animation-delay: 80ms;
+  }
+  .stagger-container > *:nth-child(4) {
+    animation-delay: 120ms;
+  }
+  .stagger-container > *:nth-child(5) {
+    animation-delay: 160ms;
+  }
+  .stagger-container > *:nth-child(6) {
+    animation-delay: 200ms;
+  }
+  .stagger-container > *:nth-child(7) {
+    animation-delay: 240ms;
+  }
+  .stagger-container > *:nth-child(8) {
+    animation-delay: 280ms;
+  }
+  .stagger-container > *:nth-child(n + 9) {
+    animation-delay: 320ms;
+  }
+
+  /* Fade-in animation */
+  .animate-fade-in {
+    animation: fade-in 0.25s ease-out forwards;
+  }
 }
 
+/* Keyframes must be outside @layer for global scope */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes stagger-fade-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   Components layer
+   ============================================================ */
 @layer components {
   /* === Container === */
   .container-page {
     @apply max-w-page mx-auto px-4 sm:px-7;
   }
-
-  /* === Cards === */
-
-  /* === Filter bar === */
-
-  /* === Inputs === */
-
-  /* === Badges / Pills === */
-
-  /* === Action pills === */
-
-  /* === Page header === */
-
-  /* === Section headings === */
-
-  /* === Greeting bar === */
-
-  /* === Category quick band === */
-
-  /* === Video card === */
 
   /* === Filter bar (browse) === */
   .filter-bar {
@@ -145,8 +400,6 @@
     @apply text-sm text-muted mt-1.5;
   }
 
-  /* === SeeWord block === */
-
   /* === Quiz block === */
   .q-opt {
     @apply block px-3.5 py-2.5 border border-hairline rounded-sm text-[13px]
@@ -156,8 +409,6 @@
   .q-opt-selected {
     @apply border-brand-500 bg-brand-50 text-brand-500 font-semibold;
   }
-
-  /* === Dashboard stat === */
 
   /* === Bar chart === */
   .bar-chart {
@@ -181,16 +432,6 @@
   .bar-label {
     @apply text-[11px] text-muted-soft font-medium;
   }
-
-  /* === Heatmap === */
-
-  /* === Timeline === */
-
-  /* === Community === */
-
-  /* === Pricing === */
-
-  /* === Legacy category tabs (backward compat) === */
 
   /* ============================================================
      HOME — bento 首屏 (variant 03)
@@ -348,106 +589,5 @@
     .vcard-feat {
       grid-row: auto / auto;
     }
-  }
-}
-
-/* === Subtitle panel scrollbar === */
-.subtitle-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.subtitle-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.subtitle-scroll::-webkit-scrollbar-thumb {
-  background: rgba(10, 10, 10, 0.1);
-  border-radius: 3px;
-}
-.subtitle-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(10, 10, 10, 0.2);
-}
-
-/* === Skeleton shimmer === */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 25%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-/* === Stagger animation === */
-.stagger-container > * {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: stagger-fade-in 0.3s ease-out forwards;
-}
-.stagger-container > *:nth-child(1) {
-  animation-delay: 0ms;
-}
-.stagger-container > *:nth-child(2) {
-  animation-delay: 40ms;
-}
-.stagger-container > *:nth-child(3) {
-  animation-delay: 80ms;
-}
-.stagger-container > *:nth-child(4) {
-  animation-delay: 120ms;
-}
-.stagger-container > *:nth-child(5) {
-  animation-delay: 160ms;
-}
-.stagger-container > *:nth-child(6) {
-  animation-delay: 200ms;
-}
-.stagger-container > *:nth-child(7) {
-  animation-delay: 240ms;
-}
-.stagger-container > *:nth-child(8) {
-  animation-delay: 280ms;
-}
-.stagger-container > *:nth-child(n + 9) {
-  animation-delay: 320ms;
-}
-@keyframes stagger-fade-in {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* === Fade-in animation === */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.animate-fade-in {
-  animation: fade-in 0.25s ease-out forwards;
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

@@ -246,12 +246,10 @@ export default function HomePage() {
           <SectionHeader
             title="按难度精选"
             action={
-              <Link href="/browse">
-                <SectionLink>
-                  更多
-                  <ArrowRight size={15} />
-                </SectionLink>
-              </Link>
+              <SectionLink href="/browse">
+                更多
+                <ArrowRight size={15} />
+              </SectionLink>
             }
           />
 

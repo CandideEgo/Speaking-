@@ -68,7 +68,7 @@ export interface UsePaginatedListReturn<T> {
   reload: () => void;
 
   /** Sentinel ref for IntersectionObserver-based infinite scroll. */
-  loaderRef: React.RefObject<HTMLDivElement>;
+  loaderRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // ---------------------------------------------------------------------------

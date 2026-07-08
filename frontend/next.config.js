@@ -28,6 +28,12 @@ const nextConfig = {
     return [];
   },
   images: {
+    localPatterns: [
+      // /media/ paths proxied to backend (thumbnails, avatars, etc.)
+      // Next 16+ requires localPatterns for local images with query strings.
+      // Omitting `search` skips query-string validation (allows any ?...).
+      { pathname: "/media/**" },
+    ],
     remotePatterns: [
       // Backend media + image proxy (relative paths + proxied CDN URLs resolve
       // here). Allowed in both protocols so dev (http) and prod (https) work.

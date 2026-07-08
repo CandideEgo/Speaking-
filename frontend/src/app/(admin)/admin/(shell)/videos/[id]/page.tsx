@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
@@ -31,7 +31,8 @@ import type { Subtitle, VideoWithSubtitles } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
-export default function VideoEditPage({ params }: { params: { id: string } }) {
+export default function VideoEditPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
