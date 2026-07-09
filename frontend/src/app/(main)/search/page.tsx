@@ -175,7 +175,7 @@ export default function SearchPage() {
       </div>
 
       {/* Results */}
-      <div className="px-4 py-4">
+      <div className="container-page py-4">
         {/* Loading */}
         {isSearching && (
           <div className="flex items-center justify-center gap-2 py-12">

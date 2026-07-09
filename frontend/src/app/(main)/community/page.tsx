@@ -82,9 +82,8 @@ interface CommunityVideo {
 // --- Helpers ---
 
 const TABS = [
-  { key: "feed", label: "Feed" },
-  { key: "following", label: "Following" },
-  { key: "trending", label: "Trending" },
+  { key: "feed", label: "动态" },
+  { key: "trending", label: "热门" },
   { key: "videos", label: "视频" },
 ];
 
@@ -498,15 +497,6 @@ export default function CommunityPage() {
                     <span>友善交流，共同进步</span>
                   </li>
                 </ul>
-              </div>
-
-              <div className="bg-canvas border border-hairline rounded-lg p-[18px]">
-                <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
-                  热门话题
-                </h4>
-                <p className="text-[13px] text-muted">
-                  话题榜即将上线，敬请期待。
-                </p>
               </div>
             </div>
           </div>
