@@ -195,7 +195,7 @@ export default function AdminUsersPage() {
           onKeyDown={(e) => {
             if (e.key === "Enter") reload();
           }}
-          placeholder="搜索姓名/邮箱/手机号..."
+          placeholder="搜索姓名/手机号..."
           className="!py-1.5 max-w-xs ml-auto"
         />
       </div>

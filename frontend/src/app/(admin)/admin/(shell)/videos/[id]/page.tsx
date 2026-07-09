@@ -23,6 +23,7 @@ import {
 } from "@/lib/adminData";
 import { VideoSubtitleEditorPanel } from "@/components/video-edit/VideoSubtitleEditorPanel";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -36,6 +37,11 @@ export default function VideoEditPage() {
   const router = useRouter();
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +60,7 @@ export default function VideoEditPage() {
     };
   }, [params.id]);
 
-  const handleRecomputeAll = useCallback(async () => {
+  const doRecomputeAll = useCallback(async () => {
     try {
       const res = await recomputeWordLevels(params.id);
       toast.success(
@@ -65,6 +71,14 @@ export default function VideoEditPage() {
       toastApiError(err, "重算失败");
     }
   }, [params.id]);
+
+  const handleRecomputeAll = useCallback(() => {
+    setConfirmState({
+      title: "重算全部高亮",
+      message: "用 ECDICT 重新计算所有字幕的单词高亮，将覆盖手动标注。继续？",
+      onConfirm: doRecomputeAll,
+    });
+  }, [doRecomputeAll]);
 
   // Split/merge/rollback change the subtitle LIST structure (row count), so
   // re-fetch the whole video rather than patching in place.
@@ -120,14 +134,7 @@ export default function VideoEditPage() {
     await refreshVideo();
   };
 
-  const handleResegment = useCallback(async () => {
-    if (
-      !confirm(
-        "重新断句会把所有字幕按句末标点重新切分，并清空中文翻译（断句变了需重译）。可在管理员审核后用「回滚重断句」恢复。继续？",
-      )
-    ) {
-      return;
-    }
+  const doResegment = useCallback(async () => {
     try {
       const res = await resegmentSubtitles(params.id);
       toast.success(
@@ -139,10 +146,16 @@ export default function VideoEditPage() {
     }
   }, [params.id, refreshVideo]);
 
-  const handleRollbackResegment = useCallback(async () => {
-    if (!confirm("回滚到上次重断句前的字幕状态？")) {
-      return;
-    }
+  const handleResegment = useCallback(() => {
+    setConfirmState({
+      title: "重新断句",
+      message:
+        "重新断句会把所有字幕按句末标点重新切分，并清空中文翻译（断句变了需重译）。可在管理员审核后用「回滚重断句」恢复。继续？",
+      onConfirm: doResegment,
+    });
+  }, [doResegment]);
+
+  const doRollbackResegment = useCallback(async () => {
     try {
       const res = await rollbackResegment(params.id);
       toast.success(`已回滚（恢复 ${res.restored_count} 句）`);
@@ -151,6 +164,14 @@ export default function VideoEditPage() {
       toastApiError(err, "回滚失败");
     }
   }, [params.id, refreshVideo]);
+
+  const handleRollbackResegment = useCallback(() => {
+    setConfirmState({
+      title: "回滚重断句",
+      message: "回滚到上次重断句前的字幕状态？",
+      onConfirm: doRollbackResegment,
+    });
+  }, [doRollbackResegment]);
 
   if (loading) {
     return (
@@ -222,6 +243,20 @@ export default function VideoEditPage() {
         onListRevisions={handleListRevisions}
         onRollback={handleRollback}
         headerExtra={headerExtra}
+      />
+
+      <ConfirmDialog
+        open={!!confirmState}
+        tone="danger"
+        title={confirmState?.title}
+        message={confirmState?.message ?? ""}
+        confirmLabel="确认"
+        onClose={() => setConfirmState(null)}
+        onConfirm={() => {
+          const s = confirmState;
+          setConfirmState(null);
+          s?.onConfirm();
+        }}
       />
     </div>
   );

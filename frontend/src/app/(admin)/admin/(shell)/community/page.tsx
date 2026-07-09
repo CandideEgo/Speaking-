@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import {
@@ -262,8 +262,6 @@ function ReportQueue() {
 // ---------------------------------------------------------------------------
 
 function PostsManager() {
-  const [posts, setPosts] = useState<AdminPost[]>([]);
-  const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [postComments, setPostComments] = useState<
@@ -279,21 +277,19 @@ function PostsManager() {
     comment: AdminComment;
   } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listPosts({ page: 1, page_size: 20, keyword });
-      setPosts(data.items);
-    } catch {
-      toast.error("加载帖子失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [keyword]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    items: posts,
+    setItems: setPosts,
+    page,
+    setPage,
+    hasMore,
+    loading,
+    reload,
+  } = usePaginatedList<AdminPost>({
+    fetcher: (pg) => listPosts({ page: pg, page_size: 20, keyword }),
+    mode: "replace",
+    filters: [keyword],
+  });
 
   async function toggleExpand(post: AdminPost) {
     if (expandedId === post.id) {
@@ -343,7 +339,7 @@ function PostsManager() {
       description="强制删除违规帖子及其评论。"
       actions={
         <Button
-          onClick={load}
+          onClick={reload}
           disabled={loading}
           variant="secondary"
           size="sm"
@@ -360,7 +356,7 @@ function PostsManager() {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") load();
+            if (e.key === "Enter") reload();
           }}
           placeholder="搜索内容/作者..."
           className="!py-1.5 max-w-xs"
@@ -483,6 +479,14 @@ function PostsManager() {
             )}
           </>
         )}
+      />
+
+      <Pagination
+        page={page}
+        hasMore={hasMore}
+        loading={loading}
+        onPrev={() => setPage((p) => Math.max(1, p - 1))}
+        onNext={() => setPage((p) => p + 1)}
       />
 
       <ConfirmDialog
