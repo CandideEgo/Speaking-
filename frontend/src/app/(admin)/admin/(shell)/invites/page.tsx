@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { Download, RefreshCw, Ticket } from "lucide-react";
 
 import { SectionCard } from "@/components/admin/SectionCard";
+import { Pagination } from "@/components/admin/Pagination";
 import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { RedeemCode } from "@/types";
@@ -15,31 +17,36 @@ import {
   exportRedeemCsv,
   generateRedeemCodes,
   listRedeemCodes,
+  refundRedeemCode,
+  revokeRedeemCode,
 } from "@/lib/adminData";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+
+const PAGE_SIZE = 20;
 
 export default function AdminInvitesPage() {
   const [codeCount, setCodeCount] = useState(10);
   const [codeDuration, setCodeDuration] = useState(30);
   const [codeLabel, setCodeLabel] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [codes, setCodes] = useState<RedeemCode[]>([]);
-  const [loadingCodes, setLoadingCodes] = useState(false);
+  const [action, setAction] = useState<{
+    type: "revoke" | "refund";
+    code: RedeemCode;
+  } | null>(null);
+  const [acting, setActing] = useState(false);
 
-  const loadCodes = useCallback(async () => {
-    setLoadingCodes(true);
-    try {
-      const data = await listRedeemCodes({ page: 1, page_size: 100 });
-      setCodes(data.items);
-    } catch {
-      toast.error("加载兑换码失败");
-    } finally {
-      setLoadingCodes(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCodes();
-  }, [loadCodes]);
+  const {
+    items: codes,
+    setItems,
+    page,
+    setPage,
+    hasMore,
+    loading,
+    reload,
+  } = usePaginatedList<RedeemCode>({
+    fetcher: (pg) => listRedeemCodes({ page: pg, page_size: PAGE_SIZE }),
+    mode: "replace",
+  });
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +59,12 @@ export default function AdminInvitesPage() {
         batch_label: codeLabel || undefined,
       });
       toast.success(`已生成 ${generated.length} 个兑换码`);
-      setCodes((prev) => [...generated, ...prev]);
+      // Prepend on page 1; otherwise reload to surface the new batch.
+      if (page === 1) {
+        setItems((prev) => [...generated, ...prev]);
+      } else {
+        reload();
+      }
     } catch (err) {
       toastApiError(err, "生成失败");
     } finally {
@@ -75,6 +87,33 @@ export default function AdminInvitesPage() {
       toast.error("导出失败");
     }
   }
+
+  async function confirmAction() {
+    if (!action) return;
+    setActing(true);
+    try {
+      if (action.type === "revoke") {
+        await revokeRedeemCode(action.code.id, "error");
+        toast.success("兑换码已作废");
+      } else {
+        const res = await refundRedeemCode(action.code.id);
+        toast.success(`已退款撤销，用户方案：${res.plan}`);
+      }
+      reload();
+      setAction(null);
+    } catch (err) {
+      toastApiError(err, "操作失败");
+    } finally {
+      setActing(false);
+    }
+  }
+
+  const actionMessage =
+    action?.type === "revoke"
+      ? "作废此未使用兑换码？作废后不可恢复，使用者将无法激活。"
+      : action?.type === "refund"
+        ? "退款撤销此已使用兑换码？将全额追回时长（扣减 duration_days，到期则降为 Free）。"
+        : "";
 
   return (
     <div className="space-y-6">
@@ -128,8 +167,8 @@ export default function AdminInvitesPage() {
         actions={
           <div className="flex gap-2">
             <Button
-              onClick={loadCodes}
-              disabled={loadingCodes}
+              onClick={reload}
+              disabled={loading}
               variant="secondary"
               icon={RefreshCw}
               size="sm"
@@ -155,10 +194,11 @@ export default function AdminInvitesPage() {
             { label: "批次" },
             { label: "状态" },
             { label: "使用者" },
+            { label: "操作" },
           ]}
           rows={codes}
           rowKey={(c) => c.id}
-          loading={loadingCodes}
+          loading={loading}
           emptyText="暂无兑换码"
           renderRow={(c) => (
             <tr className="text-xs">
@@ -194,10 +234,52 @@ export default function AdminInvitesPage() {
               <td className="py-2 text-muted-foreground font-mono">
                 {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
               </td>
+              <td className="py-2">
+                {c.status === "unused" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAction({ type: "revoke", code: c })}
+                  >
+                    作废
+                  </Button>
+                ) : c.status === "redeemed" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAction({ type: "refund", code: c })}
+                  >
+                    退款撤销
+                  </Button>
+                ) : (
+                  <span className="text-muted-soft">-</span>
+                )}
+              </td>
             </tr>
           )}
         />
+
+        <Pagination
+          page={page}
+          hasMore={hasMore}
+          loading={loading}
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => p + 1)}
+        />
       </SectionCard>
+
+      <ConfirmDialog
+        open={action !== null}
+        title={action?.type === "revoke" ? "作废兑换码" : "退款撤销"}
+        message={actionMessage}
+        confirmLabel={action?.type === "revoke" ? "作废" : "退款撤销"}
+        tone="danger"
+        busy={acting}
+        onConfirm={confirmAction}
+        onClose={() => {
+          if (!acting) setAction(null);
+        }}
+      />
     </div>
   );
 }

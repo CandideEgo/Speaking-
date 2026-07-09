@@ -16,6 +16,8 @@ import {
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { FilterPills } from "@/components/admin/FilterPills";
+import { Pagination } from "@/components/admin/Pagination";
+import { SectionCard } from "@/components/admin/SectionCard";
 import { DataTable } from "@/components/admin/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -29,6 +31,7 @@ import type { VideoAdmin } from "@/types";
 import {
   approveReview,
   deleteVideo,
+  getAdminStats,
   getWorkerStatus,
   listVideos,
   localizeVideo,
@@ -75,8 +78,10 @@ export default function VideoManager() {
   // Expanded (editing) video id — null when no row is open.
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // GPU worker online status (refreshed every 30s).
+  // GPU worker online status + pipeline health (refreshed every 30s).
   const [workerOnline, setWorkerOnline] = useState(false);
+  const [queueDepth, setQueueDepth] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
 
   // "添加视频" dialog (one-click seed-full: transcribe + translate + publish).
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -87,8 +92,16 @@ export default function VideoManager() {
     let mounted = true;
     const check = async () => {
       try {
-        const { worker_online } = await getWorkerStatus();
-        if (mounted) setWorkerOnline(worker_online);
+        const [ws, stats] = await Promise.all([
+          getWorkerStatus(),
+          getAdminStats().catch(() => null),
+        ]);
+        if (!mounted) return;
+        setWorkerOnline(ws.worker_online);
+        if (stats) {
+          setQueueDepth(stats.gpu_queue_depth);
+          setErrorCount(stats.videos_error_count);
+        }
       } catch {
         /* swallow — redis may be unavailable */
       }
@@ -101,26 +114,34 @@ export default function VideoManager() {
     };
   }, []);
 
-  const loadVideos = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listVideos({
-        page: 1,
-        page_size: 50,
-        status: statusFilter,
-        review_status: reviewStatusFilter,
-        keyword,
-      });
-      setVideos(data.items);
-    } catch {
-      toast.error("加载视频列表失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, reviewStatusFilter, keyword]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const loadVideos = useCallback(
+    async (pg: number) => {
+      setLoading(true);
+      try {
+        const data = await listVideos({
+          page: pg,
+          page_size: 20,
+          status: statusFilter,
+          review_status: reviewStatusFilter,
+          keyword,
+        });
+        setVideos(data.items);
+        setHasMore(data.has_more);
+        setPage(pg);
+      } catch {
+        toast.error("加载视频列表失败");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [statusFilter, reviewStatusFilter, keyword],
+  );
 
   useEffect(() => {
-    loadVideos();
+    loadVideos(1);
   }, [loadVideos]);
 
   // Delete-confirmation state (replaces native window.confirm).
@@ -186,7 +207,7 @@ export default function VideoManager() {
       toast.success("已提交，处理进度将自动更新");
       setAddDialogOpen(false);
       setAddUrl("");
-      loadVideos();
+      loadVideos(1);
     } catch (err) {
       toastApiError(err, "添加失败");
     } finally {
@@ -237,20 +258,44 @@ export default function VideoManager() {
 
   return (
     <div className="space-y-6">
+      {/* Pipeline health */}
+      <SectionCard title="管线健康">
+        <div className="flex flex-wrap items-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "w-2.5 h-2.5 rounded-full",
+                workerOnline ? "bg-green-500" : "bg-red-400",
+              )}
+            />
+            <span className="text-muted-foreground">GPU Worker</span>
+            <span className="font-medium text-ink">
+              {workerOnline ? "在线" : "离线"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">转录队列</span>
+            <span className="font-medium text-ink">{queueDepth}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">失败视频</span>
+            <span
+              className={cn(
+                "font-medium",
+                errorCount > 0 ? "text-red-600" : "text-ink",
+              )}
+            >
+              {errorCount}
+            </span>
+          </div>
+        </div>
+      </SectionCard>
+
       {/* List + filters */}
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h2 className="font-display text-2xl text-ink">视频管理</h2>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span
-                className={cn(
-                  "w-2 h-2 rounded-full",
-                  workerOnline ? "bg-green-500" : "bg-red-400",
-                )}
-              />
-              GPU Worker: {workerOnline ? "在线" : "离线"}
-            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -264,7 +309,7 @@ export default function VideoManager() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={loadVideos}
+              onClick={() => loadVideos(page)}
               disabled={loading}
             >
               <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -291,7 +336,7 @@ export default function VideoManager() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") loadVideos();
+              if (e.key === "Enter") loadVideos(1);
             }}
             placeholder="搜索标题/标签..."
             className="!py-1.5 max-w-xs ml-auto"
@@ -440,7 +485,7 @@ export default function VideoManager() {
             <VideoDetailRow
               video={v}
               patchVideo={patchVideo}
-              onSaved={loadVideos}
+              onSaved={() => loadVideos(page)}
               onLocalize={handleLocalize}
               onDelete={(vid) => setDeleteTarget(vid)}
               onApprove={handleApprove}
@@ -456,6 +501,14 @@ export default function VideoManager() {
               onEditSubtitles={(id) => router.push(`/admin/videos/${id}`)}
             />
           )}
+        />
+
+        <Pagination
+          page={page}
+          hasMore={hasMore}
+          loading={loading}
+          onPrev={() => loadVideos(Math.max(1, page - 1))}
+          onNext={() => loadVideos(page + 1)}
         />
       </Card>
 
