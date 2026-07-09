@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -71,7 +72,7 @@ export default function HistoryPage() {
           ) : (
             <div className="space-y-2">
               {records.map((record) => (
-                <a
+                <Link
                   key={record.id}
                   href={`/watch/${record.video_id}`}
                   className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-cream-soft transition-colors"
@@ -96,7 +97,6 @@ export default function HistoryPage() {
                       {record.video?.title || "未知视频"}
                     </p>
                     <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                      <span>{record.speaking_attempts} 次跟读</span>
                       <span>{record.words_learned} 个生词</span>
                       {record.quiz_score !== null && (
                         <span>测验 {Math.round(record.quiz_score)} 分</span>
@@ -123,7 +123,7 @@ export default function HistoryPage() {
                       {Math.round(record.progress_percentage)}%
                     </span>
                   </div>
-                </a>
+                </Link>
               ))}
 
               {/* Pagination */}

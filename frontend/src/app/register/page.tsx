@@ -43,6 +43,15 @@ export default function RegisterPage() {
       setError("请先阅读并同意《用户协议》与《隐私政策》");
       return;
     }
+    if (
+      password.length < 8 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/\d/.test(password)
+    ) {
+      setError("密码至少 8 位，需含大小写字母和数字");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("两次输入的密码不一致");
       return;

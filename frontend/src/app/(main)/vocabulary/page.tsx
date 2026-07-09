@@ -99,10 +99,6 @@ export default function VocabularyPage() {
   });
   const { speak } = useSpeech();
 
-  const nextDueWord = words.find(
-    (w) => !w.next_review_at || new Date(w.next_review_at) <= new Date(),
-  );
-
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
     loadWords();
@@ -204,32 +200,6 @@ export default function VocabularyPage() {
             variant="label-top"
           />
         </div>
-
-        {/* Review bar */}
-        {stats.due > 0 && nextDueWord && (
-          <div className="flex items-center justify-between gap-4 flex-wrap bg-canvas border border-hairline rounded-lg p-5 mb-6">
-            <div>
-              <div className="text-sm font-semibold">复习下一个单词</div>
-              <div className="text-xs text-muted mt-0.5">
-                <b className="text-brand-500">{nextDueWord.word}</b> · 还有{" "}
-                <b className="text-brand-500">{stats.due}</b> 个待复习 ·
-                建议用时 {Math.max(1, Math.ceil(stats.due / 3))} 分钟
-              </div>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {QUALITY_BUTTONS.map((q) => (
-                <Button
-                  key={q.value}
-                  variant={q.variant}
-                  size="sm"
-                  onClick={() => handleReview(nextDueWord.id, q.value)}
-                >
-                  {q.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Practice button */}
         {stats.due > 0 && !practiceOpen && (

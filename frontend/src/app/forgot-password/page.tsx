@@ -24,8 +24,13 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 8) {
-      setError("密码至少需要 8 位，含大小写字母和数字");
+    if (
+      password.length < 8 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/\d/.test(password)
+    ) {
+      setError("密码至少 8 位，需含大小写字母和数字");
       return;
     }
     if (password !== confirmPassword) {
@@ -50,7 +55,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthCard
       title="重置密码"
-      subtitle={done ? "密码已重置，请用新密码登录" : "用手机号验证码重置密码"}
+      subtitle={done ? "请用新密码登录" : "用手机号验证码重置密码"}
     >
       {done ? (
         <div className="mt-8 text-center space-y-4">
