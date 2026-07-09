@@ -28,7 +28,7 @@ const testimonials = [
 
 export function TestimonialGrid() {
   return (
-    <section className="py-[88px] bg-surface-soft">
+    <section id="testimonials" className="py-[88px] bg-surface-soft">
       <div className="container-page">
         <div className="text-center mb-14">
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">

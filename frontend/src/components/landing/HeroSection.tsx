@@ -28,7 +28,7 @@ export function HeroSection() {
                 icon={ArrowRight}
                 iconRight
               >
-                进入应用
+                免费试用
               </LinkButton>
               <LinkButton href="/browse" variant="outline" size="lg">
                 浏览视频内容
@@ -37,21 +37,25 @@ export function HeroSection() {
             <div className="flex gap-9 mt-12 pt-7 border-t border-hairline">
               <div>
                 <div className="text-[28px] font-extrabold tracking-display-md">
-                  12,400+
+                  WhisperX
                 </div>
-                <div className="text-[13px] text-muted mt-0.5">精选视频</div>
+                <div className="text-[13px] text-muted mt-0.5">
+                  双语字幕转录
+                </div>
               </div>
               <div>
                 <div className="text-[28px] font-extrabold tracking-display-md">
-                  98%
+                  SM-2
                 </div>
-                <div className="text-[13px] text-muted mt-0.5">字幕准确率</div>
+                <div className="text-[13px] text-muted mt-0.5">间隔复习</div>
               </div>
               <div>
                 <div className="text-[28px] font-extrabold tracking-display-md">
-                  4.9 ★
+                  ECDICT
                 </div>
-                <div className="text-[13px] text-muted mt-0.5">用户评分</div>
+                <div className="text-[13px] text-muted mt-0.5">
+                  考级词汇标注
+                </div>
               </div>
             </div>
           </div>

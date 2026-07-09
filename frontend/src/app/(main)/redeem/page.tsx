@@ -9,6 +9,18 @@ import { Sparkles, Loader2, CheckCircle2, Gift } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+/** Map backend English redeem errors to friendly Chinese (ADR-0007 UX). */
+function localizeRedeemMessage(msg: string): string {
+  const map: Record<string, string> = {
+    "Invalid redeem code": "兑换码无效",
+    "This code has already been used": "该兑换码已被使用",
+    "This code has been revoked": "该兑换码已被作废",
+    "This code has expired": "该兑换码已过期",
+    "This code is no longer valid": "该兑换码已失效",
+  };
+  return map[msg] || msg;
+}
+
 export default function RedeemPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -25,19 +37,35 @@ export default function RedeemPage() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await api<{ success: boolean; message: string }>(
-        "/api/v1/redeem-codes/redeem",
-        {
-          method: "POST",
-          body: JSON.stringify({ code: code.trim() }),
-        },
-      );
-      setResult(res);
-      if (res.success) setTimeout(() => router.push("/"), 2000);
+      const res = await api<{
+        success: boolean;
+        message: string;
+        plan_expires_at?: string | null;
+      }>("/api/v1/redeem-codes/redeem", {
+        method: "POST",
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      if (res.success) {
+        const expiry = res.plan_expires_at
+          ? new Date(res.plan_expires_at).toLocaleDateString("zh-CN")
+          : null;
+        setResult({
+          success: true,
+          message: expiry
+            ? `Pro 会员已激活！有效期至 ${expiry}`
+            : "Pro 会员已激活！",
+        });
+        setTimeout(() => router.push("/"), 2000);
+      } else {
+        setResult({
+          success: false,
+          message: localizeRedeemMessage(res.message),
+        });
+      }
     } catch (err) {
       setResult({
         success: false,
-        message: apiErrorMessage(err, "兑换失败"),
+        message: localizeRedeemMessage(apiErrorMessage(err, "兑换失败")),
       });
     } finally {
       setLoading(false);

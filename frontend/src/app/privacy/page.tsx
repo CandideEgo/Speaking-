@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <h1 className="font-display text-3xl font-normal text-ink tracking-display-md">
           隐私政策
         </h1>
-        <p className="mt-2 text-sm text-muted">最后更新：2026 年 6 月 29 日</p>
+        <p className="mt-2 text-sm text-muted">最后更新：2026 年 7 月 9 日</p>
 
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-body">
           <section className="space-y-2">
@@ -36,10 +36,8 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold text-ink">二、收集的信息</h2>
             <p>在您使用本站时，我们可能收集以下信息：</p>
             <ul className="list-disc space-y-1 pl-5">
-              <li>账号信息：邮箱、昵称、加密后的密码；</li>
-              <li>
-                学习数据：观看记录、口语练习音频与评分、词汇本、学习目标；
-              </li>
+              <li>账号信息：手机号、昵称、加密后的密码；</li>
+              <li>学习数据：观看记录、词汇本、练习记录、学习偏好；</li>
               <li>
                 设备与日志：访问时间、浏览器类型等用于运行维护的基础信息。
               </li>
@@ -56,7 +54,7 @@ export default function PrivacyPage() {
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">四、第三方服务</h2>
             <p>
-              为提供 AI 评测、翻译、字幕转写等功能，本站会调用第三方 AI
+              为提供翻译、字幕转写、AI 词汇注释等功能，本站会调用第三方 AI
               与语音识别服务处理必要的数据。
               视频内容来源自第三方平台。这些服务有其各自的隐私政策，本站不对其数据处理行为承担责任。
             </p>

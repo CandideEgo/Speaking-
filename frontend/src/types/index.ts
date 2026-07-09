@@ -339,6 +339,12 @@ export interface AdminStats {
   pending_reports: number;
   active_users_today: number;
   active_users_7d: number;
+  // Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2)
+  online_now: number;
+  gpu_queue_depth: number;
+  videos_error_count: number;
+  signups_today: number;
+  redeems_today: number;
   trend: AdminStatsTrend;
   videos_by_status: { status: string; count: number }[];
   users_by_plan: { plan: string; count: number }[];

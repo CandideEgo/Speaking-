@@ -13,45 +13,29 @@ const PLANS = [
   {
     id: "pro_monthly",
     name: "Pro 月度",
-    price: "¥39",
-    priceFen: 3900,
+    price: "¥9.9",
+    priceFen: 990,
     period: "/月",
     duration_days: 30,
-    desc: "每月续费,可随时取消",
+    desc: "30 天有效,可叠加续期",
     features: [
-      "无限视频与口语评测",
-      "逐词评分与反馈",
-      "AI 词汇查询",
-      "每日学习总结",
-      "学习推荐",
+      "无限视频与双语字幕",
+      "AI 词汇注释查询",
+      "SM-2 无限词汇复习",
+      "考级词汇标注",
+      "创作者优先审核",
     ],
     popular: true,
-  },
-  {
-    id: "pro_yearly",
-    name: "Pro 年度 · 省 ¥169",
-    price: "¥299",
-    priceFen: 29900,
-    period: "/年",
-    duration_days: 365,
-    desc: "月均仅 ¥24.9 · 最划算",
-    features: [
-      "月度 Pro 全部功能",
-      "优先客服支持",
-      "优先新功能体验",
-      "专属学习报告",
-      "省 ¥169(对比月度)",
-    ],
-    popular: false,
   },
 ];
 
 const COMPARISON = [
   { feature: "每日视频观看", free: "3 个", pro: "无限" },
   { feature: "双语字幕", free: true, pro: true },
-  { feature: "AI 口语评测", free: false, pro: true },
-  { feature: "逐词发音反馈", free: false, pro: true },
-  { feature: "学习推荐与总结", free: false, pro: true },
+  { feature: "考级词汇标注", free: true, pro: true },
+  { feature: "AI 词汇注释", free: false, pro: true },
+  { feature: "SM-2 词汇复习", free: "基础", pro: "无限" },
+  { feature: "创作者优先审核", free: false, pro: true },
 ];
 
 function CheckOrDash({ value }: { value: boolean | string }) {
@@ -81,7 +65,7 @@ export default function PricingPage() {
         <PageHeader
           crumb="升级"
           title="选择适合你的计划"
-          description="免费开始,需要更多 AI 功能再升级。已订阅可随时取消。"
+          description="免费开始,需要更多功能再升级。Pro 会员 ¥9.9/月,30 天/码,可叠加。"
           centered
         />
 
@@ -107,7 +91,7 @@ export default function PricingPage() {
         )}
 
         {/* Plan cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[820px] mx-auto mt-9">
+        <div className="max-w-[400px] mx-auto mt-9">
           {PLANS.map((plan) => (
             <PriceCard key={plan.id} popular={plan.popular}>
               <div className="text-[15px] font-bold text-muted">

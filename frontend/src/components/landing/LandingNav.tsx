@@ -9,9 +9,9 @@ import { LinkButton } from "@/components/ui/LinkButton";
 
 const NAV_LINKS = [
   { label: "功能", href: "#features" },
-  { label: "内容库", href: "#content" },
+  { label: "产品", href: "#showcase" },
+  { label: "评价", href: "#testimonials" },
   { label: "价格", href: "#pricing" },
-  { label: "关于", href: "#about" },
 ];
 
 export function LandingNav() {

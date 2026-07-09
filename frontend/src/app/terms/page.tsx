@@ -19,7 +19,7 @@ export default function TermsPage() {
         <h1 className="font-display text-3xl font-normal text-ink tracking-display-md">
           用户协议
         </h1>
-        <p className="mt-2 text-sm text-muted">最后更新：2026 年 6 月 29 日</p>
+        <p className="mt-2 text-sm text-muted">最后更新：2026 年 7 月 9 日</p>
 
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-body">
           <section className="space-y-2">
@@ -27,9 +27,9 @@ export default function TermsPage() {
             <p>
               SeeWord（以下简称"本站"）由 {operatorName}
               {uscc ? `（统一社会信用代码：${uscc}）` : ""}{" "}
-              运营，是面向中文用户的英语口语学习工具。 本站为
+              运营，是面向中文用户的英语学习工具。 本站为
               <strong>非经营性工具展示平台</strong>
-              ，提供视频字幕、口语评测、词汇学习等功能展示与使用，
+              ，提供视频字幕、词汇学习、翻译注释等功能展示与使用，
               <strong>不涉及任何资金收付</strong>。
             </p>
           </section>
@@ -69,8 +69,8 @@ export default function TermsPage() {
           <section className="space-y-2">
             <h2 className="text-base font-semibold text-ink">五、免责声明</h2>
             <p>
-              本站提供的 AI
-              评测、翻译、词汇标注等功能仅供参考学习，不构成专业语言评判。
+              本站提供的翻译、词汇标注、AI
+              词汇注释等功能仅供参考学习，不构成专业语言评判。
               因网络、设备或第三方服务原因导致的功能中断，本站不承担责任。
             </p>
           </section>

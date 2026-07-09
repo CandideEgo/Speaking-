@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  Activity,
   BarChart3,
   BookOpen,
+  Cpu,
   Crown,
   Flag,
   Loader2,
@@ -70,21 +72,21 @@ export default function AdminStatsPage() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<7 | 30>(30);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async (days: number) => {
     setLoading(true);
     try {
-      const data = await getAdminStats();
+      const data = await getAdminStats(days);
       setStats(data);
     } catch {
       toast.error("加载统计数据失败");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load(range);
+  }, [range, load]);
 
   if (loading || !stats) {
     return (
@@ -134,7 +136,7 @@ export default function AdminStatsPage() {
     <div className="space-y-6">
       <div className="flex justify-end">
         <Button
-          onClick={load}
+          onClick={() => load(range)}
           disabled={loading}
           variant="secondary"
           size="sm"
@@ -146,26 +148,33 @@ export default function AdminStatsPage() {
       </div>
 
       {/* KPI grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Users}
           label="总用户数"
           value={stats.total_users.toLocaleString()}
-          delta="+12% 较上月"
+          delta={`今日 +${stats.signups_today}`}
           tone="coral"
         />
         <StatCard
           icon={UserPlus}
-          label="7 日新增"
-          value={stats.new_users_7d}
-          delta="+5 今日"
+          label="今日新增"
+          value={stats.signups_today}
+          delta={`7 日 ${stats.new_users_7d}`}
           tone="green"
         />
         <StatCard
           icon={Crown}
           label="Pro 用户"
           value={stats.pro_users.toLocaleString()}
+          delta={`今日兑换 ${stats.redeems_today}`}
           tone="amber"
+        />
+        <StatCard
+          icon={Activity}
+          label="实时在线"
+          value={stats.online_now}
+          tone="coral"
         />
         <StatCard
           icon={Video}
@@ -185,6 +194,13 @@ export default function AdminStatsPage() {
           label="待处理举报"
           value={stats.pending_reports}
           tone={stats.pending_reports > 0 ? "amber" : "default"}
+        />
+        <StatCard
+          icon={Cpu}
+          label="GPU 队列"
+          value={stats.gpu_queue_depth}
+          delta={`${stats.videos_error_count} 失败`}
+          tone={stats.videos_error_count > 0 ? "amber" : "default"}
         />
       </div>
 

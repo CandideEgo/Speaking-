@@ -4,7 +4,7 @@ const features = [
   {
     icon: <ListFilter size={24} />,
     title: "智能双语字幕",
-    desc: "逐句中英对照，生词点击即查，长按看语法解析。跟读字幕还能高亮当前句，学得更准。",
+    desc: "逐句中英对照，生词点击即查，长按看语法解析。字幕同步高亮当前句，跟着视频学得更准。",
     color: "bg-brand-500",
   },
   {
@@ -23,7 +23,7 @@ const features = [
 
 export function FeatureGrid() {
   return (
-    <section className="py-[88px]">
+    <section id="features" className="py-[88px]">
       <div className="container-page">
         <div className="text-center max-w-[640px] mx-auto mb-14">
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">
