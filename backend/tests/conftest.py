@@ -79,6 +79,19 @@ class _FakeRedis:
     async def ping(self) -> bool:
         return True
 
+    async def scan(self, cursor: int = 0, match: str | None = None, count: int | None = None):
+        """SCAN: return (0, matching keys) in one page (fake has no cursor)."""
+        import fnmatch
+
+        keys = list(self._store.keys())
+        if match:
+            keys = [k for k in keys if fnmatch.fnmatch(k, match)]
+        return (0, keys)
+
+    async def llen(self, key: str) -> int:
+        """LLEN: Celery broker lists aren't modelled; tests don't enqueue real tasks."""
+        return 0
+
     async def aclose(self) -> None:
         return None
 

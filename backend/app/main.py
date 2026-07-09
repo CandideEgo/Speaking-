@@ -20,13 +20,14 @@ from app.api.v1 import (
     community,
     favorites,
     internal,
-    invite,
     learning,
     media,
     notifications,
     payments,
     practice,
+    presence,
     recommendations,
+    redeem,
     users,
     videos,
     vocabulary,
@@ -172,7 +173,8 @@ def create_app() -> FastAPI:
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(favorites.router, prefix="/api/v1")
     app.include_router(ai.router, prefix="/api/v1")
-    app.include_router(invite.router, prefix="/api/v1")
+    app.include_router(redeem.router, prefix="/api/v1")
+    app.include_router(presence.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
     if settings.env in ("development", "testing"):
         from app.api.v1 import mock_payments

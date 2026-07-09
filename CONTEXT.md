@@ -44,6 +44,19 @@
 | **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释，支持双引擎（agnes + qwen）并发 |
 | **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读 |
 
+### 会员与兑换
+
+| 术语 | 含义 |
+|------|------|
+| **PlanType** | `free` / `pro` 两档（无月/年之分）。Pro 靠 `plan_expires_at` 控到期 |
+| **Pro 会员** | ¥9.9/月，30 天/码，可叠加续期（多码顺延）。无在线支付，走兑换码 |
+| **兑换码 (RedeemCode)** | 代码现名 `InviteCode`（"邀请码"，语义不符，待改名）。一张码 = 30 天 Pro |
+| **兑换码状态机** | `unused`（生成未用）-> `redeemed`（核销成功，终态）；`revoked`（管理员作废 / 退款撤销，终态，带 reason）；`expired`（未用超 N 天自动作废，终态） |
+| **核销** | 用户在 `/redeem` 输入码 -> `plan=pro` + `plan_expires_at` 顺延 30 天。`with_for_update` 行锁防并发 |
+| **退款撤销** | 管理员对已核销码触发：码置 `revoked(reason=refund)` + 从 `plan_expires_at` 扣 30 天 + 若到期则降 `free`。原子事务，全额追回 |
+| **到期主动降级** | beat 任务把 `plan_expires_at < now` 的用户 `plan` 置 `free`（修"被动检查致虚高"洞） |
+| **售卖步（不建模）** | 生成 -> CSV 导出 -> 小商店外部售卖/发送 -> 核销。系统只记生成/核销，跳过 `sold` 态 |
+
 ### 前端
 
 | 术语 | 含义 |

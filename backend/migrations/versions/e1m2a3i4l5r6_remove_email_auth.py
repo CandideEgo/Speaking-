@@ -6,7 +6,7 @@
 - Drop column ``users.email_verified_at`` (email verification no longer exists).
 - Drop column ``users.email`` (phone is now the sole identity).
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: e1m2a3i4l5r6
 Revises: 3909bc9d97cd
 Create Date: 2026-07-08 12:00:00.000000
 """
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
-revision: str = "a1b2c3d4e5f6"
+revision: str = "e1m2a3i4l5r6"
 down_revision: str | None = "3909bc9d97cd"
 branch_labels = None
 depends_on = None

@@ -26,14 +26,6 @@ from app.schemas.community import (
     UserProfileBrief,
 )
 
-# ── 邀请码 ──
-from app.schemas.invite import (
-    InviteCodeGenerate,
-    InviteCodeRedeem,
-    InviteCodeResponse,
-    RedeemResponse,
-)
-
 # ── 学习记录 ──
 from app.schemas.learning import (
     LearningRecordListResponse,
@@ -62,6 +54,17 @@ from app.schemas.payment import (
     CreateOrderResponse,
     OrderStatusResponse,
     PaymentStatusResponse,
+)
+
+# ── 兑换码 ──
+from app.schemas.redeem import (
+    RedeemCodeGenerate,
+    RedeemCodeRedeem,
+    RedeemCodeResponse,
+    RedeemRefundResponse,
+    RedeemResponse,
+    RedeemRevokeRequest,
+    RedeemRevokeResponse,
 )
 from app.schemas.user import (
     ChangePasswordRequest,

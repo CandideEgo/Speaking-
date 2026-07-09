@@ -14,8 +14,8 @@ import type {
   AdminStats,
   AdminUser,
   CommentReport,
-  InviteCode,
   Paginated,
+  RedeemCode,
   Subtitle,
   SubtitleRevision,
   SubtitleRevisionPage,
@@ -489,41 +489,75 @@ export function listOrders(
 }
 
 // ---------------------------------------------------------------------------
-// Invite codes (existing admin endpoints in invite.py)
+// Redeem codes (admin endpoints in redeem.py, ADR-0007)
 // ---------------------------------------------------------------------------
 
-export function listInviteCodes(
+export function listRedeemCodes(
   opts: {
     page?: number;
     page_size?: number;
+    status?: RedeemCode["status"];
+    batch_label?: string;
   } = {},
-): Promise<Paginated<InviteCode>> {
+): Promise<Paginated<RedeemCode>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
   if (opts.page_size) params.set("page_size", String(opts.page_size));
+  if (opts.status) params.set("status", opts.status);
+  if (opts.batch_label) params.set("batch_label", opts.batch_label);
   const qs = params.toString();
-  return adminApi<Paginated<InviteCode>>(
-    `/api/v1/invite-codes${qs ? `?${qs}` : ""}`,
+  return adminApi<Paginated<RedeemCode>>(
+    `/api/v1/redeem-codes${qs ? `?${qs}` : ""}`,
   );
 }
 
-export async function generateInviteCodes(opts: {
+export async function generateRedeemCodes(opts: {
   count: number;
   plan: "free" | "pro";
   duration_days: number;
   batch_label?: string;
-}): Promise<InviteCode[]> {
-  return adminApi<InviteCode[]>("/api/v1/invite-codes/generate", {
+}): Promise<RedeemCode[]> {
+  return adminApi<RedeemCode[]>("/api/v1/redeem-codes/generate", {
     method: "POST",
     body: JSON.stringify(opts),
   });
 }
 
-export async function exportInviteCsv(): Promise<{
+export async function exportRedeemCsv(): Promise<{
   csv: string;
   total: number;
 }> {
   return adminApi<{ csv: string; total: number }>(
-    "/api/v1/invite-codes/export",
+    "/api/v1/redeem-codes/export",
   );
+}
+
+/** Admin voids an *unused* code (leak / error). Terminal -> revoked. */
+export async function revokeRedeemCode(
+  codeId: string,
+  reason: "leak" | "error" = "error",
+): Promise<{
+  success: boolean;
+  message: string;
+  code_id: string;
+  status: string;
+}> {
+  return adminApi(`/api/v1/redeem-codes/${codeId}/revoke`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/** Admin refund clawback on a redeemed code (claws back time, ADR-0007). */
+export async function refundRedeemCode(codeId: string): Promise<{
+  success: boolean;
+  message: string;
+  code_id: string;
+  user_id: string;
+  plan: string;
+  plan_expires_at: string | null;
+}> {
+  return adminApi(`/api/v1/redeem-codes/${codeId}/refund`, {
+    method: "POST",
+  });
 }

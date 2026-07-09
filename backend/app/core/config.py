@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
     payments_enabled: bool = False
 
+    # Redeem code lifecycle (ADR-0007). Pro is sold via WeChat mini-shop +
+    # redeem codes (no on-site payment per ICP compliance).
+    redeem_code_unused_expiry_days: int = 180  # unused codes auto-expire after N days
+
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt

@@ -15,6 +15,7 @@ from app.core.database import commit_refresh
 from app.models.community import CommentReport, Post, UserComment
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
+from app.models.redeem import RedeemCode, RedeemStatus, RevokedReason
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import has_more, paginated
@@ -29,6 +30,45 @@ def _dt_iso(v: object) -> str | None:
     if isinstance(v, datetime):
         return v.isoformat()
     return str(v)
+
+
+async def _count_online() -> int:
+    """Count currently-online users via Redis ``presence:*`` keys (DEV-FLOW B2).
+
+    Each heartbeat sets ``presence:{uid}`` with a 5-min TTL, so the key count
+    is the real-time online number. Fails open to 0 if Redis is unavailable.
+    """
+    try:
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        count = 0
+        cursor = 0
+        while True:
+            cursor, keys = await redis.scan(cursor=cursor, match="presence:*", count=1000)
+            count += len(keys)
+            if cursor == 0:
+                break
+        return count
+    except Exception:
+        return 0
+
+
+async def _gpu_queue_depth() -> int:
+    """Depth of the ``transcription_gpu`` Celery queue (pending GPU work).
+
+    Celery's Redis broker stores pending tasks in a list keyed by the queue
+    name, so ``LLEN`` gives the backlog. Fails open to 0 if Redis is
+    unavailable.
+    """
+    try:
+        from app.core.config import get_settings
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        return int(await redis.llen(get_settings().transcription_gpu_queue_name))
+    except Exception:
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +105,24 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         await db.execute(select(func.count(User.id)).where(func.date(User.last_active_at) == today))
     ).scalar_one()
     active_users_7d = (await db.execute(select(func.count(User.id)).where(User.last_active_at >= ago_7d))).scalar_one()
+
+    # --- Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2) ---
+    online_now = await _count_online()
+    gpu_queue_depth = await _gpu_queue_depth()
+    videos_error_count = (
+        await db.execute(select(func.count(Video.id)).where(Video.status == VideoStatus.error))
+    ).scalar_one()
+    signups_today = (
+        await db.execute(select(func.count(User.id)).where(func.date(User.created_at) == today))
+    ).scalar_one()
+    redeems_today = (
+        await db.execute(
+            select(func.count(RedeemCode.id)).where(
+                RedeemCode.status == RedeemStatus.redeemed,
+                func.date(RedeemCode.used_at) == today,
+            )
+        )
+    ).scalar_one()
 
     # --- Trend data ---
     # Signup trend: count users created per day
@@ -222,6 +280,11 @@ async def get_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         "pending_reports": pending_reports,
         "active_users_today": active_users_today,
         "active_users_7d": active_users_7d,
+        "online_now": online_now,
+        "gpu_queue_depth": gpu_queue_depth,
+        "videos_error_count": videos_error_count,
+        "signups_today": signups_today,
+        "redeems_today": redeems_today,
         "trend": {
             "dates": dates_list,
             "signups": signups_list,
@@ -372,6 +435,84 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
         user.plan_expires_at = None
     await commit_refresh(db, user)
     return user
+
+
+# ---------------------------------------------------------------------------
+# Redeem code management (ADR-0007)
+# ---------------------------------------------------------------------------
+
+
+async def revoke_redeem_code(db: AsyncSession, code_id: str, reason: str) -> RedeemCode:
+    """Admin voids an *unused* code (leak / error). Terminal -> revoked.
+
+    Only unused codes can be voided this way; refunding an already-redeemed
+    code (clawing back the granted time) is a separate operation
+    (``refund_redeem_code``) because it must also mutate the user's plan.
+    """
+    result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
+    code = result.scalar_one_or_none()
+    if not code:
+        raise ValueError("Redeem code not found")
+    if code.status != RedeemStatus.unused:
+        raise ValueError(f"Only unused codes can be revoked (current status: {code.status.value})")
+
+    code.status = RedeemStatus.revoked
+    code.revoked_reason = RevokedReason(reason)
+    await commit_refresh(db, code)
+    return code
+
+
+async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode, User]:
+    """Admin refund clawback on an already-REDEEMED code (ADR-0007).
+
+    Atomic within one transaction: lock the code row, then the user row, set
+    the code to ``revoked(reason=refund)``, and claw back ``duration_days``
+    from ``user.plan_expires_at`` (not below now). If the remaining expiry
+    drops to <= now, downgrade the user to free. Full refund == full
+    clawback; fair and simple (no pro-rating).
+
+    Returns ``(code, user)``. Raises ``ValueError`` if the code is not in the
+    redeemed state, or if its user no longer exists (the code is still revoked
+    in that case but no plan change is possible).
+    """
+    result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
+    code = result.scalar_one_or_none()
+    if not code:
+        raise ValueError("Redeem code not found")
+    if code.status != RedeemStatus.redeemed:
+        raise ValueError(f"Only redeemed codes can be refunded (current status: {code.status.value})")
+
+    # Mark the code revoked regardless of what happens to the user.
+    code.status = RedeemStatus.revoked
+    code.revoked_reason = RevokedReason.refund
+
+    if not code.used_by:
+        # Redeemed but no user recorded (data integrity edge): revoke only.
+        await commit_refresh(db, code)
+        raise ValueError("Redeem code has no associated user; revoked without plan change")
+
+    user_result = await db.execute(select(User).where(User.id == code.used_by).with_for_update())
+    user = user_result.scalar_one_or_none()
+    if not user:
+        # User was deleted; the FK on redeem_codes.used_by is SET NULL, but we
+        # still hold the in-memory used_by from before the lock. Revoke only.
+        await commit_refresh(db, code)
+        raise ValueError("Redeem code's user no longer exists; revoked without plan change")
+
+    now = datetime.now(UTC)
+    current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+    new_expires = current_expires - timedelta(days=code.duration_days)
+    if new_expires <= now:
+        user.plan = PlanType.free
+        user.plan_expires_at = None
+    else:
+        # Keep plan=pro with the shortened expiry. (If the user was somehow
+        # already free, leave the plan but record the remaining time.)
+        if user.plan == PlanType.pro:
+            user.plan_expires_at = new_expires
+
+    await commit_refresh(db, code)
+    return code, user
 
 
 # ---------------------------------------------------------------------------

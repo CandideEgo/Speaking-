@@ -248,13 +248,16 @@ export interface UserStats {
 }
 
 /* ── Admin ── */
-export interface InviteCode {
+export interface RedeemCode {
   id: string;
   code: string;
   plan: "free" | "pro";
   duration_days: number;
-  is_used: boolean;
+  status: "unused" | "redeemed" | "revoked" | "expired";
+  revoked_reason: "leak" | "error" | "refund" | null;
+  expires_at: string | null;
   used_by: string | null;
+  used_at: string | null;
   batch_label: string | null;
   created_at: string;
 }
