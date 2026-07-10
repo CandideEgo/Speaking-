@@ -4,12 +4,12 @@ from app.models.comment import VideoComment, VideoCommentStats
 from app.models.community import CommentLike, CommentReport, Follow, Post, PostLike, UserComment, VideoLike
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote
-from app.models.invite import InviteCode
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
+from app.models.redeem import RedeemCode
 from app.models.subtitle import Subtitle
 from app.models.subtitle_change_proposal import SubtitleChangeProposal
 from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate

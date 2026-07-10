@@ -26,7 +26,7 @@ export default function RedeemPage() {
     setResult(null);
     try {
       const res = await api<{ success: boolean; message: string }>(
-        "/api/v1/invite-codes/redeem",
+        "/api/v1/redeem-codes/redeem",
         {
           method: "POST",
           body: JSON.stringify({ code: code.trim() }),

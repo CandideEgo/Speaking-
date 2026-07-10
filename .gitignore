@@ -3,6 +3,7 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+.env.gpu-worker
 *.egg-info/
 dist/
 build/

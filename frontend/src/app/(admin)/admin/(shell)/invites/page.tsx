@@ -10,11 +10,11 @@ import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import type { InviteCode } from "@/types";
+import type { RedeemCode } from "@/types";
 import {
-  exportInviteCsv,
-  generateInviteCodes,
-  listInviteCodes,
+  exportRedeemCsv,
+  generateRedeemCodes,
+  listRedeemCodes,
 } from "@/lib/adminData";
 
 export default function AdminInvitesPage() {
@@ -22,13 +22,13 @@ export default function AdminInvitesPage() {
   const [codeDuration, setCodeDuration] = useState(30);
   const [codeLabel, setCodeLabel] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [codes, setCodes] = useState<InviteCode[]>([]);
+  const [codes, setCodes] = useState<RedeemCode[]>([]);
   const [loadingCodes, setLoadingCodes] = useState(false);
 
   const loadCodes = useCallback(async () => {
     setLoadingCodes(true);
     try {
-      const data = await listInviteCodes({ page: 1, page_size: 100 });
+      const data = await listRedeemCodes({ page: 1, page_size: 100 });
       setCodes(data.items);
     } catch {
       toast.error("加载兑换码失败");
@@ -45,7 +45,7 @@ export default function AdminInvitesPage() {
     e.preventDefault();
     setGenerating(true);
     try {
-      const generated = await generateInviteCodes({
+      const generated = await generateRedeemCodes({
         count: codeCount,
         plan: "pro",
         duration_days: codeDuration,
@@ -62,12 +62,12 @@ export default function AdminInvitesPage() {
 
   async function exportCsv() {
     try {
-      const data = await exportInviteCsv();
+      const data = await exportRedeemCsv();
       const blob = new Blob([data.csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `invite-codes-${new Date().toISOString().split("T")[0]}.csv`;
+      a.download = `redeem-codes-${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(`已导出 ${data.total} 个兑换码`);
@@ -171,8 +171,24 @@ export default function AdminInvitesPage() {
                 {c.batch_label || "-"}
               </td>
               <td className="py-2">
-                <Badge tone={c.is_used ? "neutral" : "green"}>
-                  {c.is_used ? "已使用" : "可用"}
+                <Badge
+                  tone={
+                    c.status === "unused"
+                      ? "green"
+                      : c.status === "revoked"
+                        ? "red"
+                        : c.status === "expired"
+                          ? "amber"
+                          : "neutral"
+                  }
+                >
+                  {c.status === "unused"
+                    ? "可用"
+                    : c.status === "redeemed"
+                      ? "已使用"
+                      : c.status === "revoked"
+                        ? "已作废"
+                        : "已过期"}
                 </Badge>
               </td>
               <td className="py-2 text-muted-foreground font-mono">

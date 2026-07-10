@@ -62,6 +62,12 @@ class AdminStatsResponse(BaseModel):
     pending_reports: int
     active_users_today: int
     active_users_7d: int
+    # Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2)
+    online_now: int = 0
+    gpu_queue_depth: int = 0
+    videos_error_count: int = 0
+    signups_today: int = 0
+    redeems_today: int = 0
     trend: AdminStatsTrendResponse
     videos_by_status: list[dict]
     users_by_plan: list[dict]

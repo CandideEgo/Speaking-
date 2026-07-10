@@ -57,6 +57,19 @@ celery_app.conf.update(
             "task": "app.tasks.scoring_tasks.compute_all_scores",
             "schedule": 86400,  # every day — full recompute
         },
+        # ADR-0007: write back plan=free for users whose Pro has expired.
+        # require_pro_user only blocks expired Pro on access; it never wrote
+        # back free, so pro_users was inflated. Hourly downgrade closes that.
+        "downgrade-expired-pro": {
+            "task": "app.tasks.redeem_tasks.downgrade_expired_pro",
+            "schedule": 3600,  # every hour
+        },
+        # ADR-0007: flip unused codes past their expires_at to expired so
+        # stale inventory can't be redeemed.
+        "expire-unused-redeem-codes": {
+            "task": "app.tasks.redeem_tasks.expire_unused_redeem_codes",
+            "schedule": 86400,  # every day
+        },
     },
 )
 
@@ -66,5 +79,7 @@ celery_app.conf.update(
 # automatically includes request_id for traceability.
 import app.core.logging as _logging
 import app.models
+import app.tasks.order_tasks
+import app.tasks.redeem_tasks
 import app.tasks.scoring_tasks
 import app.tasks.video_processing
