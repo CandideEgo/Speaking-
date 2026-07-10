@@ -21,7 +21,7 @@ export function FinalCTA() {
               今天开始，开口说英语
             </h2>
             <p className="text-[17px] text-on-dark-soft mb-9 max-w-[500px] mx-auto">
-              免费注册，无需信用卡。12,400+ 精选视频等着你。
+              免费注册，无需信用卡。看真实视频，学地道英语。
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
               <LinkButton

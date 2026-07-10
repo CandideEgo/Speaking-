@@ -1,6 +1,6 @@
 export function BentoShowcase() {
   return (
-    <section className="py-[88px] bg-surface-soft">
+    <section id="showcase" className="py-[88px] bg-surface-soft">
       <div className="container-page">
         <div className="text-center mb-14">
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">
@@ -41,10 +41,12 @@ export function BentoShowcase() {
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
             <div className="text-[13px] text-muted mb-1.5">社区贡献</div>
             <div>
-              <div className="text-[44px] font-extrabold tracking-display-lg text-brand-500">
-                120+
+              <div className="text-[22px] font-bold tracking-tight text-brand-500">
+                用户提交
               </div>
-              <div className="text-[13px] text-muted">用户提交的视频</div>
+              <div className="text-[13px] text-muted mt-1">
+                真实视频持续积累
+              </div>
             </div>
           </div>
 
@@ -53,9 +55,11 @@ export function BentoShowcase() {
             <div className="text-[13px] text-muted mb-1.5">词汇本</div>
             <div>
               <div className="text-[22px] font-bold tracking-tight">
-                1,240 个
+                SM-2 复习
               </div>
-              <div className="text-[13px] text-muted">已收集 · 84% 已掌握</div>
+              <div className="text-[13px] text-muted mt-1">
+                生词自动归类记忆
+              </div>
               <div className="flex gap-1 mt-2.5">
                 {[0.84, 0.68, 0.45, 0.92, 0.7, 0.55, 0.8].map((v, i) => (
                   <div
@@ -92,29 +96,23 @@ export function BentoShowcase() {
 
           {/* Community creators */}
           <div className="sm:col-span-2 md:col-span-2 bg-canvas border border-hairline rounded-xl p-6 flex flex-col min-h-[160px]">
-            <div className="text-[13px] text-muted mb-3">社区创作者</div>
-            <div className="flex gap-3">
-              {[
-                { name: "小明", contributed: 12, color: "bg-brand-500" },
-                { name: "Yuki", contributed: 8, color: "bg-indigo" },
-                { name: "Sarah", contributed: 21, color: "bg-success" },
-                { name: "Alex", contributed: 5, color: "bg-warning" },
-              ].map((u) => (
-                <div
-                  key={u.name}
-                  className="flex flex-col items-center gap-1.5"
-                >
-                  <div
-                    className={`w-10 h-10 rounded-full ${u.color} text-on-primary flex items-center justify-center text-sm font-bold`}
-                  >
-                    {u.name[0]}
-                  </div>
-                  <div className="text-[11px] font-medium">{u.name}</div>
-                  <div className="text-[10px] text-muted">
-                    贡献 {u.contributed} 个视频
-                  </div>
-                </div>
-              ))}
+            <div className="text-[13px] text-muted mb-3">社区创作</div>
+            <div className="flex items-center gap-4">
+              <div className="flex -space-x-2">
+                {["bg-brand-500", "bg-indigo", "bg-success", "bg-warning"].map(
+                  (color, i) => (
+                    <div
+                      key={i}
+                      className={`w-10 h-10 rounded-full ${color} text-on-primary flex items-center justify-center text-sm font-bold border-2 border-canvas`}
+                    >
+                      {["看", "学", "练", "享"][i]}
+                    </div>
+                  ),
+                )}
+              </div>
+              <div className="text-[13px] text-muted leading-relaxed">
+                提交你喜欢的视频，经审核后发布到社区，大家一起积累真实语料。
+              </div>
             </div>
           </div>
         </div>

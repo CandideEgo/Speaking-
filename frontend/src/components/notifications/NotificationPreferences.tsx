@@ -17,56 +17,56 @@ interface NotificationType {
 const NOTIFICATION_TYPES: NotificationType[] = [
   {
     id: "system",
-    label: "System",
-    description: "Important updates and maintenance notices",
+    label: "系统通知",
+    description: "重要更新与维护公告",
     icon: Bell,
   },
   {
     id: "video_ready",
-    label: "Video Ready",
-    description: "When your submitted video finishes processing",
+    label: "视频就绪",
+    description: "你提交的视频处理完成时通知",
     icon: Bell,
   },
   {
     id: "pro_expiring",
-    label: "Pro Expiring",
-    description: "Reminder before your Pro subscription expires",
+    label: "Pro 即将到期",
+    description: "Pro 会员到期前提醒",
     icon: Bell,
   },
   {
     id: "vocabulary_reminder",
-    label: "Vocabulary Reminder",
-    description: "Daily reminder to review your vocabulary",
+    label: "词汇复习提醒",
+    description: "每日提醒复习词汇",
     icon: Bell,
   },
   {
     id: "streak_warning",
-    label: "Streak Warning",
-    description: "Alert when your learning streak is about to break",
+    label: "连续学习提醒",
+    description: "学习连续记录即将中断时提醒",
     icon: Bell,
   },
   {
     id: "comment_replies",
-    label: "Comment Replies",
-    description: "When someone replies to your comment",
+    label: "评论回复",
+    description: "有人回复你的评论时通知",
     icon: Bell,
   },
   {
     id: "new_followers",
-    label: "New Followers",
-    description: "When someone starts following you",
+    label: "新增关注",
+    description: "有人关注你时通知",
     icon: Bell,
   },
   {
     id: "post_likes",
-    label: "Post Likes",
-    description: "When someone likes your post",
+    label: "帖子点赞",
+    description: "有人点赞你的帖子时通知",
     icon: Bell,
   },
   {
     id: "achievements",
-    label: "Achievements",
-    description: "Milestones and badges you have earned",
+    label: "成就达成",
+    description: "解锁的里程碑与徽章",
     icon: Bell,
   },
 ];
@@ -115,9 +115,9 @@ export function NotificationPreferences() {
         method: "PUT",
         body: JSON.stringify(preferences),
       });
-      toast.success("Notification preferences saved");
+      toast.success("通知偏好已保存");
     } catch (err) {
-      toastApiError(err, "Failed to save preferences");
+      toastApiError(err, "保存失败");
     } finally {
       setSaving(false);
     }
@@ -134,9 +134,7 @@ export function NotificationPreferences() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl text-ink">
-          Notification Preferences
-        </h2>
+        <h2 className="font-display text-2xl text-ink">通知偏好设置</h2>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -152,13 +150,12 @@ export function NotificationPreferences() {
           ) : (
             <Save size={16} />
           )}
-          Save
+          保存
         </button>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Choose which notifications you want to receive. You can update these at
-        any time.
+        选择你想接收的通知，可随时更新。
       </p>
 
       <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas">

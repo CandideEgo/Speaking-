@@ -18,9 +18,7 @@ export default function LearningPrefsTab({
   onUpdate,
 }: LearningPrefsTabProps) {
   const [goalType, setGoalType] = useState<UserPreferences["daily_goal_type"]>(
-    preferences?.daily_goal_type === "speaking_attempts"
-      ? "words"
-      : preferences?.daily_goal_type || "words",
+    preferences?.daily_goal_type === "minutes" ? "minutes" : "words",
   );
   const [goalValue, setGoalValue] = useState(
     preferences?.daily_goal_value || 5,
@@ -70,7 +68,7 @@ export default function LearningPrefsTab({
           每日目标
         </h3>
         <p className="text-sm text-muted-foreground">
-          设置每日学习目标。只有达标的日子才会计入连续学习天数 (streak)。
+          设置每日学习目标，养成坚持学习的好习惯。
         </p>
 
         <div className="flex items-end gap-4">
