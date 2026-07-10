@@ -11,11 +11,13 @@ repos:
       - id: ruff-format
         files: ^backend/
 
-  # Frontend formatting
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
+  # Frontend formatting — local prettier so version matches package.json (^3.9.5)
+  - repo: local
     hooks:
       - id: prettier
+        name: prettier
+        entry: npx prettier --write
+        language: system
         files: ^frontend/
         types_or: [ts, tsx, css, json, markdown]
 

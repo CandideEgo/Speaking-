@@ -11,15 +11,18 @@ $ErrorActionPreference = "Continue"
 
 while ($true) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Output "[$ts][tunnel] starting ssh -L 16379:127.0.0.1:6379 seeword"
+    Write-Output "[$ts][tunnel] starting ssh -L 16379:127.0.0.1:6379 admin@47.122.127.105"
     # -N: no remote command. ExitOnForwardFailure: exit (so we retry) if the
     # local port is already taken. ServerAlive*: detect a dead connection.
+    # Use IP directly (not SSH alias) so NSSM SYSTEM account can resolve it.
     ssh -N `
         -L 16379:127.0.0.1:6379 `
+        -i "C:\Tools\seeword-gpu\id_ed25519" `
         -o ServerAliveInterval=15 `
         -o ServerAliveCountMax=3 `
         -o ExitOnForwardFailure=yes `
-        seeword
+        -o StrictHostKeyChecking=accept-new `
+        admin@47.122.127.105
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-Output "[$ts][tunnel] ssh exited (code $LASTEXITCODE); reconnecting in 5s"
     Start-Sleep -Seconds 5
