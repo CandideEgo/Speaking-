@@ -38,6 +38,7 @@ logs/*.log
 backend/temp/
 backend/tmp/
 backend/transcripts/
+backend/reprocess_export/
 
 # ECDICT word database (downloaded via scripts/download_ecdict.py, ~30MB)
 backend/data/
