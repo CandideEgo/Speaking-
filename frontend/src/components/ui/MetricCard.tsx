@@ -15,10 +15,7 @@ type Tone =
   | "purple"
   | "blue";
 
-const TONE_MAP: Record<
-  Tone,
-  { icon: string; value?: string; border?: string }
-> = {
+const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> = {
   default: { icon: "bg-cream-soft text-muted", value: "text-ink" },
   brand: {
     icon: "bg-brand-50 text-brand-500",
@@ -96,22 +93,19 @@ export function MetricCard({
         className={cn(
           "bg-canvas rounded-lg p-5 border border-hairline hover:shadow-soft transition-all duration-150",
           t.border && `!${t.border}`,
-          className,
+          className
         )}
       >
         <div
           className={cn(
             "flex items-center gap-2 text-xs font-semibold mb-2",
-            t.value ?? "text-muted",
+            t.value ?? "text-muted"
           )}
         >
           <Icon size={14} /> {label}
         </div>
         <div
-          className={cn(
-            "text-[28px] font-extrabold tracking-display-md",
-            t.value ?? "text-ink",
-          )}
+          className={cn("text-[28px] font-extrabold tracking-display-md", t.value ?? "text-ink")}
         >
           {value}
           {suffix}
@@ -125,14 +119,14 @@ export function MetricCard({
     <div
       className={cn(
         "bg-canvas border border-hairline rounded-lg p-[22px] hover:shadow-soft transition-all duration-150",
-        className,
+        className
       )}
     >
       <div className="flex items-center justify-between mb-3.5">
         <div
           className={cn(
             "w-[38px] h-[38px] rounded-[10px] flex items-center justify-center",
-            t.icon,
+            t.icon
           )}
         >
           <Icon size={19} />
@@ -141,7 +135,7 @@ export function MetricCard({
       <div
         className={cn(
           "text-[30px] font-extrabold tracking-display-lg leading-none",
-          t.value ?? "text-ink",
+          t.value ?? "text-ink"
         )}
       >
         {value}

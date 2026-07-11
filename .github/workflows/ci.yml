@@ -63,11 +63,13 @@ jobs:
 
       - name: Run tests
         working-directory: backend
+        timeout-minutes: 10
         env:
           DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-for-ci
-          ENV: development
+          ENV: testing
+          PUNCTUATION_MODEL_DISABLED: "1"
         run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
 
   frontend:
@@ -87,7 +89,6 @@ jobs:
 
       - name: Format check
         working-directory: frontend
-        continue-on-error: true  # prettier v3(pkg) vs v4(pre-commit) 版本不一致 + 155 文件待统一格式化, 不阻塞 CI
         run: npm run format:check
 
       - name: Type check

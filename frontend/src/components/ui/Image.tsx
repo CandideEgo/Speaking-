@@ -67,10 +67,7 @@ export function Image({
   const [errored, setErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const transition = cn(
-    "transition-opacity duration-300",
-    loaded ? "opacity-100" : "opacity-0",
-  );
+  const transition = cn("transition-opacity duration-300", loaded ? "opacity-100" : "opacity-0");
 
   if (!src || errored) {
     if (fallback) return <>{fallback}</>;
@@ -102,12 +99,7 @@ export function Image({
 
   return (
     <>
-      {!loaded && (
-        <div
-          className="absolute inset-0 animate-pulse bg-surface-card"
-          aria-hidden
-        />
-      )}
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-surface-card" aria-hidden />}
       <NextImage
         src={mediaUrl(src)}
         alt={alt}

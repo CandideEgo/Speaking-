@@ -16,11 +16,6 @@ export default function Error({
   }, [error]);
 
   return (
-    <ErrorState
-      title="出错了"
-      message={error.message || "页面加载失败"}
-      onRetry={reset}
-      fullPage
-    />
+    <ErrorState title="出错了" message={error.message || "页面加载失败"} onRetry={reset} fullPage />
   );
 }

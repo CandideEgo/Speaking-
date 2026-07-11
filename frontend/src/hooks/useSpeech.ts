@@ -22,9 +22,7 @@ interface UseSpeechReturn {
  * Hook for SpeechSynthesis boilerplate.
  * Handles creating utterance, speaking, stopping, and isPlaying state.
  */
-export function useSpeech(
-  defaultOptions: UseSpeechOptions = {},
-): UseSpeechReturn {
+export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechReturn {
   const { lang = "en-US", rate = 0.9, onEnd } = defaultOptions;
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentText, setCurrentText] = useState<string | null>(null);
@@ -56,7 +54,7 @@ export function useSpeech(
       utteranceRef.current = u;
       speechSynthesis.speak(u);
     },
-    [lang, rate, onEnd],
+    [lang, rate, onEnd]
   );
 
   const stop = useCallback(() => {

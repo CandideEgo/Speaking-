@@ -60,7 +60,7 @@ export function MobileTabBar() {
               href={tab.href}
               className={cn(
                 "relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[44px] transition-colors",
-                active ? "text-brand-500" : "text-muted hover:text-ink",
+                active ? "text-brand-500" : "text-muted hover:text-ink"
               )}
             >
               <div className="relative">

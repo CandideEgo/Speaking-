@@ -31,16 +31,11 @@ export function StatCard({
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
-          <p className="mt-2 font-display text-3xl font-normal text-ink">
-            {value}
-          </p>
+          <p className="mt-2 font-display text-3xl font-normal text-ink">{value}</p>
           {delta && <p className="mt-1 text-xs text-green-600">{delta}</p>}
         </div>
         <span
-          className={cn(
-            "inline-flex h-10 w-10 items-center justify-center rounded-sm",
-            toneClass,
-          )}
+          className={cn("inline-flex h-10 w-10 items-center justify-center rounded-sm", toneClass)}
         >
           <Icon size={18} />
         </span>

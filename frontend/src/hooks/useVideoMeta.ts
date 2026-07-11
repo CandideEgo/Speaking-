@@ -20,9 +20,7 @@ export function useVideoMeta(videoId: string | undefined) {
     (async () => {
       try {
         const [meta, likeStatus] = await Promise.all([
-          api<{ is_favorited: boolean; note: string }>(
-            `/api/v1/videos/${videoId}/watch-meta`,
-          ),
+          api<{ is_favorited: boolean; note: string }>(`/api/v1/videos/${videoId}/watch-meta`),
           getVideoLikeStatus(videoId).catch(() => ({ is_liked: false })),
         ]);
         if (cancelled) return;

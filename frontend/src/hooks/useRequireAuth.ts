@@ -36,9 +36,7 @@ interface UseRequireAuthReturn {
   isLoading: boolean;
 }
 
-export function useRequireAuth(
-  options: UseRequireAuthOptions = {},
-): UseRequireAuthReturn {
+export function useRequireAuth(options: UseRequireAuthOptions = {}): UseRequireAuthReturn {
   const { redirectTo = "/login", replace = false } = options;
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -64,9 +62,7 @@ export function useRequireAuth(
  * Redirects authenticated users away to the app home. (Was /dashboard; the
  * dashboard is being removed per ADR-0003, so the app entry is now `/`.)
  */
-export function useRedirectIfAuthenticated(
-  redirectTo = "/",
-): UseRequireAuthReturn {
+export function useRedirectIfAuthenticated(redirectTo = "/"): UseRequireAuthReturn {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const router = useRouter();

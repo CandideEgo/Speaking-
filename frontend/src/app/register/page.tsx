@@ -82,10 +82,7 @@ export default function RegisterPage() {
       subtitle={
         <>
           已有账号？{" "}
-          <Link
-            href="/login"
-            className="text-brand-500 hover:underline font-medium"
-          >
+          <Link href="/login" className="text-brand-500 hover:underline font-medium">
             登录
           </Link>
         </>
@@ -123,11 +120,7 @@ export default function RegisterPage() {
               onClick={() => sendCode(phone)}
               className="shrink-0"
             >
-              {cooldown > 0
-                ? `${cooldown}s`
-                : sending
-                  ? "发送中..."
-                  : "获取验证码"}
+              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
             </Button>
           </div>
         </div>
@@ -156,9 +149,7 @@ export default function RegisterPage() {
           />
         </div>
 
-        {(error || smsError) && (
-          <p className="text-sm text-red-600">{error || smsError}</p>
-        )}
+        {(error || smsError) && <p className="text-sm text-red-600">{error || smsError}</p>}
 
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input
@@ -169,30 +160,17 @@ export default function RegisterPage() {
           />
           <span>
             我已阅读并同意
-            <Link
-              href="/terms"
-              className="text-brand-500 hover:underline"
-              target="_blank"
-            >
+            <Link href="/terms" className="text-brand-500 hover:underline" target="_blank">
               《用户协议》
             </Link>
             与
-            <Link
-              href="/privacy"
-              className="text-brand-500 hover:underline"
-              target="_blank"
-            >
+            <Link href="/privacy" className="text-brand-500 hover:underline" target="_blank">
               《隐私政策》
             </Link>
           </span>
         </label>
 
-        <Button
-          type="submit"
-          fullWidth
-          disabled={loading || !agreed}
-          className="mt-2"
-        >
+        <Button type="submit" fullWidth disabled={loading || !agreed} className="mt-2">
           {loading ? "注册中..." : "注册"}
         </Button>
       </form>

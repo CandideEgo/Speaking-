@@ -55,13 +55,7 @@ export function DataTable<T>({
         <thead>
           <tr className="border-b border-hairline text-left text-xs text-muted-foreground uppercase tracking-wider">
             {columns.map((c, i) => (
-              <th
-                key={i}
-                className={cn(
-                  "pb-2 font-medium",
-                  c.align === "right" && "text-right",
-                )}
-              >
+              <th key={i} className={cn("pb-2 font-medium", c.align === "right" && "text-right")}>
                 {c.label}
               </th>
             ))}
@@ -70,10 +64,7 @@ export function DataTable<T>({
         <tbody className="divide-y divide-hairline">
           {rows.length === 0 ? (
             <tr>
-              <td
-                colSpan={colSpan}
-                className="py-8 text-center text-muted-foreground"
-              >
+              <td colSpan={colSpan} className="py-8 text-center text-muted-foreground">
                 {loading ? "加载中..." : emptyText}
               </td>
             </tr>
@@ -95,9 +86,7 @@ export function DataTable<T>({
               ];
             })
           ) : (
-            rows.map((item) => (
-              <RowGroup key={rowKey(item)}>{renderRow(item, false)}</RowGroup>
-            ))
+            rows.map((item) => <RowGroup key={rowKey(item)}>{renderRow(item, false)}</RowGroup>)
           )}
         </tbody>
       </table>

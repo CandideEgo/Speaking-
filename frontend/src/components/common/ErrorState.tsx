@@ -43,7 +43,7 @@ export function ErrorState({
       className={cn(
         "flex flex-col items-center justify-center text-center",
         fullPage ? "" : "py-20",
-        className,
+        className
       )}
     >
       <Icon size={48} className="text-muted mb-4" />
@@ -61,9 +61,7 @@ export function ErrorState({
 
   if (fullPage) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
-        {content}
-      </main>
+      <main className="flex min-h-screen items-center justify-center bg-canvas">{content}</main>
     );
   }
 

@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  TARGET_LEVEL_OPTIONS,
-  levelMeta,
-  levelDotClass,
-} from "@/lib/examLevels";
+import { TARGET_LEVEL_OPTIONS, levelMeta, levelDotClass } from "@/lib/examLevels";
 
 /** 考试目标层级选择器：播放器右上角收起药丸，点开下拉，不干扰观看。 */
 export function ExamLevelSelector({
@@ -25,14 +21,9 @@ export function ExamLevelSelector({
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-black/55 backdrop-blur text-white text-xs font-medium hover:bg-black/70 transition-colors cursor-pointer"
       >
-        <span
-          className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))}
-        />
+        <span className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))} />
         {current.label}
-        <ChevronDown
-          size={13}
-          className={cn("transition-transform", open && "rotate-180")}
-        />
+        <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <>
@@ -49,15 +40,10 @@ export function ExamLevelSelector({
                   "w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left cursor-pointer transition-colors",
                   opt.key === current.key
                     ? "bg-brand-50 text-brand-600 font-semibold"
-                    : "text-ink hover:bg-surface-soft",
+                    : "text-ink hover:bg-surface-soft"
                 )}
               >
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    levelDotClass(opt.color),
-                  )}
-                />
+                <span className={cn("w-2 h-2 rounded-full", levelDotClass(opt.color))} />
                 {opt.label}
               </button>
             ))}

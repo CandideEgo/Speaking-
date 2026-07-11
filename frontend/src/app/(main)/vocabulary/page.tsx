@@ -5,15 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVocabularyPractice } from "@/hooks/usePractice";
-import {
-  BookOpen,
-  Trash2,
-  Volume2,
-  Target,
-  CheckCircle2,
-  Flame,
-  Dumbbell,
-} from "lucide-react";
+import { BookOpen, Trash2, Volume2, Target, CheckCircle2, Flame, Dumbbell } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -108,9 +100,7 @@ export default function VocabularyPage() {
   async function loadWords() {
     setLoading(true);
     try {
-      const data = await api<VocabListResponse>(
-        `/api/v1/vocabulary?due_only=${dueOnly}&limit=100`,
-      );
+      const data = await api<VocabListResponse>(`/api/v1/vocabulary?due_only=${dueOnly}&limit=100`);
       setWords(data.words);
     } catch {
       toast.error("加载词汇失败");
@@ -172,12 +162,7 @@ export default function VocabularyPage() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-          <MetricCard
-            icon={BookOpen}
-            label="总计"
-            value={stats.total}
-            variant="label-top"
-          />
+          <MetricCard icon={BookOpen} label="总计" value={stats.total} variant="label-top" />
           <MetricCard
             icon={Target}
             label="待复习"
@@ -245,9 +230,7 @@ export default function VocabularyPage() {
           <EmptyState
             icon={BookOpen}
             title={
-              dueOnly
-                ? "今天没有需要复习的单词！"
-                : "词汇本为空。观看视频时点击单词即可收藏。"
+              dueOnly ? "今天没有需要复习的单词！" : "词汇本为空。观看视频时点击单词即可收藏。"
             }
           />
         ) : (
@@ -255,12 +238,7 @@ export default function VocabularyPage() {
             {words.map((w) => {
               const mb = masteryBadge(w.mastery_level);
               return (
-                <Card
-                  key={w.id}
-                  variant="outline"
-                  padding={5}
-                  className="flex flex-col gap-3"
-                >
+                <Card key={w.id} variant="outline" padding={5} className="flex flex-col gap-3">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="text-lg font-bold tracking-tight flex items-center gap-2">
@@ -281,9 +259,7 @@ export default function VocabularyPage() {
                       <p className="text-[13px] text-body leading-relaxed mt-1.5">
                         {w.translation ||
                           w.definition ||
-                          (w.context_sentence
-                            ? `"${w.context_sentence}"`
-                            : "—")}
+                          (w.context_sentence ? `"${w.context_sentence}"` : "—")}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -325,9 +301,7 @@ export default function VocabularyPage() {
         tone="danger"
         title="删除单词"
         confirmLabel="确认删除"
-        message={
-          deleteTarget ? `确定要删除单词「${deleteTarget.word}」吗？` : ""
-        }
+        message={deleteTarget ? `确定要删除单词「${deleteTarget.word}」吗？` : ""}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
           const target = deleteTarget;

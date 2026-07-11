@@ -20,9 +20,7 @@ function loadSeen(): string[] {
     const raw = window.localStorage.getItem(SEEN_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((x) => typeof x === "string")
-      : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
   } catch {
     return [];
   }
@@ -61,10 +59,7 @@ export const useFeedStore = create<FeedStore>((set) => ({
  * (in feed order). Does NOT drop any video — the pool is small, hiding
  * content would empty the rail.
  */
-export function recommendWithSeenSink(
-  feed: Video[],
-  seenIds: string[],
-): Video[] {
+export function recommendWithSeenSink(feed: Video[], seenIds: string[]): Video[] {
   if (seenIds.length === 0) return feed;
   const seen = new Set(seenIds);
   const unseen: Video[] = [];

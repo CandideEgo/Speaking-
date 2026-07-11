@@ -15,15 +15,9 @@ export function Container({
   as?: ElementType;
   className?: string;
   children?: ReactNode;
-} & Omit<
-  React.ComponentPropsWithoutRef<ElementType>,
-  "className" | "children"
->) {
+} & Omit<React.ComponentPropsWithoutRef<ElementType>, "className" | "children">) {
   return (
-    <Tag
-      className={cn("max-w-page mx-auto px-4 sm:px-7", className)}
-      {...props}
-    >
+    <Tag className={cn("max-w-page mx-auto px-4 sm:px-7", className)} {...props}>
       {children}
     </Tag>
   );

@@ -13,39 +13,31 @@ interface LearningPrefsTabProps {
   onUpdate: (prefs: UserPreferences) => void;
 }
 
-export default function LearningPrefsTab({
-  preferences,
-  onUpdate,
-}: LearningPrefsTabProps) {
+export default function LearningPrefsTab({ preferences, onUpdate }: LearningPrefsTabProps) {
   const [goalType, setGoalType] = useState<UserPreferences["daily_goal_type"]>(
-    preferences?.daily_goal_type === "minutes" ? "minutes" : "words",
+    preferences?.daily_goal_type === "minutes" ? "minutes" : "words"
   );
-  const [goalValue, setGoalValue] = useState(
-    preferences?.daily_goal_value || 5,
-  );
+  const [goalValue, setGoalValue] = useState(preferences?.daily_goal_value || 5);
   const [subtitleMode, setSubtitleMode] = useState(
-    preferences?.subtitle_mode_default || "bilingual",
+    preferences?.subtitle_mode_default || "bilingual"
   );
   const [preferredDifficulty, setPreferredDifficulty] = useState(
-    preferences?.preferred_difficulty || "",
+    preferences?.preferred_difficulty || ""
   );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     setSaving(true);
     try {
-      const updated = await api<UserPreferences>(
-        "/api/v1/users/me/preferences",
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            daily_goal_type: goalType,
-            daily_goal_value: goalValue,
-            subtitle_mode_default: subtitleMode,
-            preferred_difficulty: preferredDifficulty || null,
-          }),
-        },
-      );
+      const updated = await api<UserPreferences>("/api/v1/users/me/preferences", {
+        method: "PUT",
+        body: JSON.stringify({
+          daily_goal_type: goalType,
+          daily_goal_value: goalValue,
+          subtitle_mode_default: subtitleMode,
+          preferred_difficulty: preferredDifficulty || null,
+        }),
+      });
       onUpdate(updated);
       toast.success("偏好已保存");
     } catch {
@@ -64,24 +56,16 @@ export default function LearningPrefsTab({
     <div className="max-w-2xl space-y-8">
       {/* Daily Goal */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
-          每日目标
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          设置每日学习目标，养成坚持学习的好习惯。
-        </p>
+        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">每日目标</h3>
+        <p className="text-sm text-muted-foreground">设置每日学习目标，养成坚持学习的好习惯。</p>
 
         <div className="flex items-end gap-4">
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
-              目标类型
-            </label>
+            <label className="block text-sm font-medium text-ink mb-1">目标类型</label>
             <Select
               value={goalType}
               onChange={(e) => {
-                setGoalType(
-                  e.target.value as UserPreferences["daily_goal_type"],
-                );
+                setGoalType(e.target.value as UserPreferences["daily_goal_type"]);
                 // Reset value to sensible defaults per type
                 if (e.target.value === "minutes") setGoalValue(15);
                 else if (e.target.value === "words") setGoalValue(10);
@@ -96,9 +80,7 @@ export default function LearningPrefsTab({
             </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
-              目标数值
-            </label>
+            <label className="block text-sm font-medium text-ink mb-1">目标数值</label>
             <Input
               type="number"
               min={1}
@@ -116,16 +98,10 @@ export default function LearningPrefsTab({
 
       {/* Default Subtitle Mode */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
-          默认字幕模式
-        </h3>
+        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">默认字幕模式</h3>
         <Select
           value={subtitleMode}
-          onChange={(e) =>
-            setSubtitleMode(
-              e.target.value as "bilingual" | "english" | "chinese",
-            )
-          }
+          onChange={(e) => setSubtitleMode(e.target.value as "bilingual" | "english" | "chinese")}
           className="w-48"
         >
           <option value="bilingual">双语字幕</option>
@@ -136,9 +112,7 @@ export default function LearningPrefsTab({
 
       {/* Preferred Difficulty */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
-          偏好难度
-        </h3>
+        <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">偏好难度</h3>
         <Select
           value={preferredDifficulty}
           onChange={(e) => setPreferredDifficulty(e.target.value)}

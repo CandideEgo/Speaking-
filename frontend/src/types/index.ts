@@ -24,12 +24,7 @@ export interface Video {
   thumbnail_url: string | null;
   duration: number | null;
   difficulty_level: string | null;
-  status:
-    | "pending_processing"
-    | "processing"
-    | "ready_subtitles"
-    | "ready"
-    | "error";
+  status: "pending_processing" | "processing" | "ready_subtitles" | "ready" | "error";
   error_message: string | null;
   topic_tags: string | null;
   is_official: boolean;
@@ -185,11 +180,7 @@ export interface VocabularyWord {
 }
 
 /* ── Community ── */
-export type PostType =
-  | "text"
-  | "progress_share"
-  | "vocabulary_share"
-  | "video_share";
+export type PostType = "text" | "progress_share" | "vocabulary_share" | "video_share";
 
 export interface Post {
   id: string;

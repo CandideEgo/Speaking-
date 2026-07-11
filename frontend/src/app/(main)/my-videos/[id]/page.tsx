@@ -4,16 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { toastApiError, apiErrorMessage } from "@/lib/errors";
-import {
-  ArrowLeft,
-  Loader2,
-  Send,
-  Undo2,
-  Pencil,
-  Plus,
-  Trash2,
-  RefreshCw,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Send, Undo2, Pencil, Plus, Trash2, RefreshCw } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -57,9 +48,7 @@ export default function MyVideoEditorPage() {
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"subtitles" | "practice">(
-    "subtitles",
-  );
+  const [activeTab, setActiveTab] = useState<"subtitles" | "practice">("subtitles");
 
   const load = useCallback(async () => {
     try {
@@ -103,12 +92,11 @@ export default function MyVideoEditorPage() {
               ...v,
               status: patch.status as VideoWithSubtitles["status"],
               processing_step: patch.processing_step,
-              processing_progress:
-                patch.processing_progress ?? v.processing_progress,
+              processing_progress: patch.processing_progress ?? v.processing_progress,
               error_message: patch.error_message ?? v.error_message,
               video_url_720p: patch.video_url_720p ?? v.video_url_720p,
             }
-          : v,
+          : v
       );
     },
   });
@@ -134,8 +122,7 @@ export default function MyVideoEditorPage() {
     );
   }
 
-  const isProcessing =
-    video.status === "processing" || video.status === "ready_subtitles";
+  const isProcessing = video.status === "processing" || video.status === "ready_subtitles";
   const isPublished = video.review_status === "published";
   const isPending = video.review_status === "pending_review";
   // Editable only in draft / rejected review states (aligns with the list
@@ -155,7 +142,7 @@ export default function MyVideoEditorPage() {
             ...v,
             subtitles: v.subtitles.map((s) => (s.id === subId ? updated : s)),
           }
-        : v,
+        : v
     );
     return updated;
   };
@@ -167,10 +154,7 @@ export default function MyVideoEditorPage() {
     await mergeSubtitle(videoId, subId);
     setVideo(await getMyVideoDetail(videoId));
   };
-  const handleSaveWordLevels = async (
-    subId: string,
-    levels: Record<string, string[]> | null,
-  ) => {
+  const handleSaveWordLevels = async (subId: string, levels: Record<string, string[]> | null) => {
     const updated = await updateWordLevels(videoId, subId, levels);
     setVideo((v) =>
       v
@@ -178,21 +162,17 @@ export default function MyVideoEditorPage() {
             ...v,
             subtitles: v.subtitles.map((s) => (s.id === subId ? updated : s)),
           }
-        : v,
+        : v
     );
     return updated;
   };
-  const handleListRevisions = (subId: string) =>
-    listSubtitleRevisions(videoId, subId);
+  const handleListRevisions = (subId: string) => listSubtitleRevisions(videoId, subId);
   const handleRollback = async (subId: string, revisionId: string) => {
     await rollbackSubtitle(videoId, subId, revisionId);
     setVideo(await getMyVideoDetail(videoId));
   };
 
-  const reviewAction = async (
-    fn: (id: string) => Promise<Video>,
-    label: string,
-  ) => {
+  const reviewAction = async (fn: (id: string) => Promise<Video>, label: string) => {
     try {
       const updated = await fn(videoId);
       setVideo((v) => (v ? { ...v, ...updated } : v));
@@ -205,12 +185,7 @@ export default function MyVideoEditorPage() {
   return (
     <main className="min-h-full bg-canvas">
       <div className="container-page py-8">
-        <LinkButton
-          href="/my-videos"
-          variant="outline"
-          icon={ArrowLeft}
-          className="mb-5"
-        >
+        <LinkButton href="/my-videos" variant="outline" icon={ArrowLeft} className="mb-5">
           返回我的视频
         </LinkButton>
 
@@ -242,10 +217,7 @@ export default function MyVideoEditorPage() {
               </Button>
             )}
             {editable && (
-              <Button
-                onClick={() => reviewAction(submitForReview, "提交审核")}
-                icon={Send}
-              >
+              <Button onClick={() => reviewAction(submitForReview, "提交审核")} icon={Send}>
                 提交审核
               </Button>
             )}
@@ -269,22 +241,19 @@ export default function MyVideoEditorPage() {
               {video.processing_step
                 ? ` · ${STEP_LABELS_SHORT[video.processing_step] || video.processing_step}`
                 : ""}
-              {video.processing_progress
-                ? `（${video.processing_progress}%）`
-                : ""}
+              {video.processing_progress ? `（${video.processing_progress}%）` : ""}
               ，完成后即可编辑。
             </div>
-            {video.processing_progress != null &&
-              video.processing_progress > 0 && (
-                <div className="h-1.5 w-full rounded-full bg-brand-500/20">
-                  <div
-                    className="h-full rounded-full bg-brand-500 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(video.processing_progress, 100)}%`,
-                    }}
-                  />
-                </div>
-              )}
+            {video.processing_progress != null && video.processing_progress > 0 && (
+              <div className="h-1.5 w-full rounded-full bg-brand-500/20">
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                  style={{
+                    width: `${Math.min(video.processing_progress, 100)}%`,
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -297,12 +266,8 @@ export default function MyVideoEditorPage() {
                 ? ` · 卡在 ${STEP_LABELS_SHORT[video.processing_step] || video.processing_step}`
                 : ""}
             </div>
-            {video.error_message && (
-              <div className="text-xs break-all">{video.error_message}</div>
-            )}
-            <div className="text-xs text-red-500">
-              请返回创作者中心重新提交该视频链接。
-            </div>
+            {video.error_message && <div className="text-xs break-all">{video.error_message}</div>}
+            <div className="text-xs text-red-500">请返回创作者中心重新提交该视频链接。</div>
           </div>
         )}
 
@@ -372,13 +337,7 @@ function ReviewBadge({
 // Practice editor
 // ---------------------------------------------------------------------------
 
-function PracticeEditor({
-  videoId,
-  editable,
-}: {
-  videoId: string;
-  editable: boolean;
-}) {
+function PracticeEditor({ videoId, editable }: { videoId: string; editable: boolean }) {
   const [level, setLevel] = useState(TARGET_LEVEL_OPTIONS[0]?.key ?? "cet4");
   const [questions, setQuestions] = useState<PracticeItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -389,7 +348,7 @@ function PracticeEditor({
     setLoading(true);
     try {
       const set = await api<{ items: PracticeItem[] }>(
-        `/api/v1/videos/${videoId}/practice?level=${level}`,
+        `/api/v1/videos/${videoId}/practice?level=${level}`
       );
       setQuestions(set.items ?? []);
     } catch (err) {
@@ -404,9 +363,7 @@ function PracticeEditor({
   }, [loadPractice]);
 
   const updateQuestion = (i: number, patch: Partial<PracticeItem>) => {
-    setQuestions((prev) =>
-      prev.map((q, idx) => (idx === i ? { ...q, ...patch } : q)),
-    );
+    setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
   };
 
   const addQuestion = () => {
@@ -457,11 +414,7 @@ function PracticeEditor({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">考级</span>
-          <Select
-            value={level}
-            onChange={(e) => setLevel(e.target.value)}
-            className="w-32"
-          >
+          <Select value={level} onChange={(e) => setLevel(e.target.value)} className="w-32">
             {TARGET_LEVEL_OPTIONS.map((l) => (
               <option key={l.key} value={l.key}>
                 {l.label}
@@ -492,9 +445,7 @@ function PracticeEditor({
             <Card key={i} padding={3} className="space-y-2">
               <div className="flex items-center gap-2">
                 <Badge tone="brand">语境填空</Badge>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  第 {i + 1} 题
-                </span>
+                <span className="text-xs text-muted-foreground ml-auto">第 {i + 1} 题</span>
                 {editable && (
                   <button
                     onClick={() => removeQuestion(i)}
@@ -540,11 +491,7 @@ function PracticeEditor({
           <Button onClick={() => addQuestion()} variant="outline" icon={Plus}>
             添加题目
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            icon={saving ? Loader2 : undefined}
-          >
+          <Button onClick={handleSave} disabled={saving} icon={saving ? Loader2 : undefined}>
             保存练习题
           </Button>
         </div>

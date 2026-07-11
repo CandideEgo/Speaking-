@@ -67,13 +67,9 @@ function PasswordChangeForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
-        修改密码
-      </h3>
+      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">修改密码</h3>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">
-          当前密码
-        </label>
+        <label className="block text-sm font-medium text-ink mb-1">当前密码</label>
         <Input
           type="password"
           value={currentPassword}
@@ -83,9 +79,7 @@ function PasswordChangeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">
-          新密码
-        </label>
+        <label className="block text-sm font-medium text-ink mb-1">新密码</label>
         <Input
           type="password"
           value={newPassword}
@@ -96,9 +90,7 @@ function PasswordChangeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-ink mb-1">
-          确认新密码
-        </label>
+        <label className="block text-sm font-medium text-ink mb-1">确认新密码</label>
         <Input
           type="password"
           value={confirmPassword}
@@ -150,23 +142,15 @@ function TimezoneSection({ user }: { user: User }) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">
-        时区
-      </h3>
-      <Select
-        value={timezone}
-        onChange={(e) => setTimezone(e.target.value)}
-        className="w-64"
-      >
+      <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">时区</h3>
+      <Select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="w-64">
         {COMMON_TIMEZONES.map((tz) => (
           <option key={tz} value={tz}>
             {tz}
           </option>
         ))}
       </Select>
-      <p className="text-xs text-muted-foreground">
-        影响每日活动统计的时间划分
-      </p>
+      <p className="text-xs text-muted-foreground">影响每日活动统计的时间划分</p>
       <Button onClick={handleSave} disabled={saving}>
         {saving ? "保存中..." : "保存时区"}
       </Button>

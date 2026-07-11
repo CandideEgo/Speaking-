@@ -76,7 +76,7 @@ export interface UsePaginatedListReturn<T> {
 // ---------------------------------------------------------------------------
 
 export function usePaginatedList<T>(
-  options: UsePaginatedListOptions<T>,
+  options: UsePaginatedListOptions<T>
 ): UsePaginatedListReturn<T> {
   const { fetcher, mode = "replace", filters = [], enabled = true } = options;
 
@@ -133,7 +133,7 @@ export function usePaginatedList<T>(
         if (fetchId === fetchIdRef.current) setLoading(false);
       }
     },
-    [mode],
+    [mode]
   );
 
   // -----------------------------------------------------------------------
@@ -179,7 +179,7 @@ export function usePaginatedList<T>(
           fetchPage(nextPage);
         }
       },
-      { threshold: 0.1 },
+      { threshold: 0.1 }
     );
 
     observer.observe(el);

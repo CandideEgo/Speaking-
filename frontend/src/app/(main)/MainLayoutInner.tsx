@@ -41,9 +41,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
 
     async function checkOnboarding() {
       try {
-        const user = await api<{ onboarding_completed?: boolean }>(
-          "/api/v1/users/me",
-        );
+        const user = await api<{ onboarding_completed?: boolean }>("/api/v1/users/me");
         if (!cancelled && user.onboarding_completed === false) {
           router.replace("/onboarding");
         }
@@ -82,9 +80,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0">{children}</main>
       </div>
       <MobileTabBar />
     </div>

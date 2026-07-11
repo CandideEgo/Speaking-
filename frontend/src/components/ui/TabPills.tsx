@@ -63,7 +63,7 @@ export function TabPills<K extends string = string>({
         "inline-flex gap-1 p-1",
         variant === "default" && "bg-surface-card rounded-pill",
         variant === "ghost" && "bg-transparent p-0",
-        className,
+        className
       )}
     >
       {tabs.map((tab) => {
@@ -76,7 +76,7 @@ export function TabPills<K extends string = string>({
               "inline-flex items-center rounded-pill text-[13px] font-semibold text-muted hover:text-ink transition-colors duration-150 cursor-pointer",
               SIZE_CLASSES[size],
               shape === "rect" && "rounded-sm",
-              isActive && ACTIVE_CLASSES[activeStyle],
+              isActive && ACTIVE_CLASSES[activeStyle]
             )}
           >
             {tab.label}

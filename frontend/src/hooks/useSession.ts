@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { api } from "@/lib/api";
+import { useState, useEffect, useCallback } from "react";
 import type { GradedResult } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +14,7 @@ import type { GradedResult } from "@/types";
 export type SessionItem = object;
 
 /** The result of grading one item. */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface SessionGradedResult extends GradedResult {}
 
 /** Fetcher: returns the items array for the session. */
@@ -24,7 +24,7 @@ export type SessionFetcher<I extends SessionItem> = () => Promise<I[]>;
  *  May be async (server-side grading) or sync (client-side). */
 export type SessionGrader<I extends SessionItem> = (
   item: I,
-  userAnswer: string,
+  userAnswer: string
 ) => Promise<GradedResult> | GradedResult;
 
 /** The shared session state machine returned by useSession. */
@@ -115,7 +115,6 @@ export function useSession<I extends SessionItem>({
 
   useEffect(() => {
     refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refetch]);
 
   const setAnswer = useCallback((index: number, answer: string) => {
@@ -148,7 +147,7 @@ export function useSession<I extends SessionItem>({
         });
       }
     },
-    [items, answers, graded, grading, grader],
+    [items, answers, graded, grading, grader]
   );
 
   const reset = useCallback(() => {
@@ -160,12 +159,8 @@ export function useSession<I extends SessionItem>({
   const answeredCount = Object.keys(graded).length;
   const correctCount = Object.values(graded).filter((g) => g.correct).length;
   const allGraded = items.length > 0 && answeredCount === items.length;
-  const score = items.length
-    ? Math.round((correctCount / items.length) * 100)
-    : null;
-  const accuracy = answeredCount
-    ? Math.round((correctCount / answeredCount) * 100)
-    : null;
+  const score = items.length ? Math.round((correctCount / items.length) * 100) : null;
+  const accuracy = answeredCount ? Math.round((correctCount / answeredCount) * 100) : null;
 
   return {
     loading,

@@ -304,7 +304,7 @@ class TranslationService:
         """Create an ``AsyncOpenAI`` client for the given engine config."""
         kwargs: dict = {
             "api_key": engine.api_key,
-            "timeout": 30.0,
+            "timeout": 300.0,  # 5 min — large batches need more time
         }
         if engine.base_url:
             kwargs["base_url"] = engine.base_url

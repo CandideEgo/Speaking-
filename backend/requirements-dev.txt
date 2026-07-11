@@ -5,6 +5,7 @@
 pytest>=8.2.0
 pytest-asyncio>=0.23.7
 pytest-cov>=5.0.0
+pytest-timeout>=2.3.1
 aiosqlite>=0.20.0
 
 # Linting & formatting

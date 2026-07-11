@@ -63,7 +63,7 @@ export class ApiClientError extends Error {
     message: string,
     status: number = 0,
     code: string | null = null,
-    response: Response | null = null,
+    response: Response | null = null
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -93,16 +93,11 @@ export interface ApiClientRequestOptions extends Omit<RequestInit, "signal"> {
 }
 
 export function createApiClient(options: CreateApiClientOptions) {
-  const {
-    baseUrl,
-    auth,
-    ErrorClass = ApiClientError,
-    handleNonJsonResponses = false,
-  } = options;
+  const { baseUrl, auth, ErrorClass = ApiClientError, handleNonJsonResponses = false } = options;
 
   async function request<T = unknown>(
     path: string,
-    reqOptions: ApiClientRequestOptions = {},
+    reqOptions: ApiClientRequestOptions = {}
   ): Promise<T> {
     const { signal, ...restOptions } = reqOptions;
     const headers = new Headers(restOptions.headers as HeadersInit);
@@ -151,7 +146,7 @@ export function createApiClient(options: CreateApiClientOptions) {
           "网络连接失败，请检查网络或稍后重试",
           0,
           null,
-          null,
+          null
         ) as InstanceType<typeof ErrorClass>;
 
         if (attempt < MAX_RETRIES) {
@@ -174,12 +169,9 @@ export function createApiClient(options: CreateApiClientOptions) {
         }
         // Refresh failed — session is over
         auth.onSessionExpired();
-        throw new ErrorClass(
-          "登录已过期，请重新登录",
-          401,
-          null,
-          res,
-        ) as InstanceType<typeof ErrorClass>;
+        throw new ErrorClass("登录已过期，请重新登录", 401, null, res) as InstanceType<
+          typeof ErrorClass
+        >;
       }
 
       // Non-ok response
@@ -196,13 +188,10 @@ export function createApiClient(options: CreateApiClientOptions) {
             // "[object Object]". Strip Pydantic's "Value error, " prefix.
             detail = d
               .map((e: { loc?: unknown[]; msg?: unknown }) => {
-                const rawMsg =
-                  typeof e.msg === "string" ? e.msg : JSON.stringify(e.msg);
+                const rawMsg = typeof e.msg === "string" ? e.msg : JSON.stringify(e.msg);
                 const cleanMsg = rawMsg.replace(/^Value error,\s*/, "");
                 const field =
-                  Array.isArray(e.loc) && e.loc.length > 1
-                    ? String(e.loc[e.loc.length - 1])
-                    : null;
+                  Array.isArray(e.loc) && e.loc.length > 1 ? String(e.loc[e.loc.length - 1]) : null;
                 return field ? `${field}: ${cleanMsg}` : cleanMsg;
               })
               .join("; ");
@@ -215,12 +204,9 @@ export function createApiClient(options: CreateApiClientOptions) {
           /* non-JSON error body */
         }
 
-        lastError = new ErrorClass(
-          detail,
-          res.status,
-          code,
-          res,
-        ) as InstanceType<typeof ErrorClass>;
+        lastError = new ErrorClass(detail, res.status, code, res) as InstanceType<
+          typeof ErrorClass
+        >;
 
         // Retry on 5xx (server errors), not 4xx (client errors)
         if (isRetryableStatus(res.status) && attempt < MAX_RETRIES) {
@@ -235,8 +221,7 @@ export function createApiClient(options: CreateApiClientOptions) {
       if (handleNonJsonResponses) {
         if (res.status === 204) return undefined as T;
         const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json"))
-          return (await res.json()) as T;
+        if (contentType.includes("application/json")) return (await res.json()) as T;
         return (await res.text()) as unknown as T;
       }
 

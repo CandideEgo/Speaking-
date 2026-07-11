@@ -35,11 +35,7 @@ interface LinkUploadDialogProps {
   onImported: () => void;
 }
 
-export function LinkUploadDialog({
-  open,
-  onClose,
-  onImported,
-}: LinkUploadDialogProps) {
+export function LinkUploadDialog({ open, onClose, onImported }: LinkUploadDialogProps) {
   const [url, setUrl] = useState("");
   const [seeding, setSeeding] = useState(false);
 
@@ -65,12 +61,8 @@ export function LinkUploadDialog({
       <div className="space-y-5">
         {/* URL input */}
         <div>
-          <label className="block text-sm font-medium text-ink mb-1.5">
-            粘贴视频链接
-          </label>
-          <p className="text-xs text-muted mb-2">
-            支持 YouTube、Bilibili 等平台链接
-          </p>
+          <label className="block text-sm font-medium text-ink mb-1.5">粘贴视频链接</label>
+          <p className="text-xs text-muted mb-2">支持 YouTube、Bilibili 等平台链接</p>
           <div className="flex gap-2">
             <Input
               type="url"
@@ -96,12 +88,8 @@ export function LinkUploadDialog({
 
         {/* Recommended videos */}
         <div>
-          <label className="block text-sm font-medium text-ink mb-2">
-            推荐视频
-          </label>
-          <p className="text-xs text-muted mb-3">
-            精选英语学习视频，点击导入到你的创作空间
-          </p>
+          <label className="block text-sm font-medium text-ink mb-2">推荐视频</label>
+          <p className="text-xs text-muted mb-3">精选英语学习视频，点击导入到你的创作空间</p>
           <div className="flex flex-col gap-2">
             {RECOMMENDED_VIDEOS.map((video) => (
               <div

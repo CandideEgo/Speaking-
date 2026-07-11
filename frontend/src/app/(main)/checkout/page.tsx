@@ -23,22 +23,12 @@ export default function CheckoutPage() {
           <LinkButton href="/upgrade" icon={ShoppingBag} fullWidth>
             前往微信小商店
           </LinkButton>
-          <LinkButton
-            href="/redeem"
-            variant="secondaryDark"
-            icon={Gift}
-            fullWidth
-          >
+          <LinkButton href="/redeem" variant="secondaryDark" icon={Gift} fullWidth>
             使用兑换码激活
           </LinkButton>
         </div>
 
-        <LinkButton
-          href="/pricing"
-          variant="text"
-          icon={ArrowLeft}
-          className="mt-6"
-        >
+        <LinkButton href="/pricing" variant="text" icon={ArrowLeft} className="mt-6">
           返回定价页
         </LinkButton>
       </div>

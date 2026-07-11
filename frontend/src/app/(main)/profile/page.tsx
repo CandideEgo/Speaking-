@@ -70,11 +70,7 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <ErrorState
-        title="加载账户信息失败"
-        onRetry={() => window.location.reload()}
-        fullPage
-      />
+      <ErrorState title="加载账户信息失败" onRetry={() => window.location.reload()} fullPage />
     );
   }
 
@@ -85,9 +81,7 @@ export default function ProfilePage() {
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
             <UserIcon size={18} />
-            <span className="text-xs font-semibold tracking-caption-wide uppercase">
-              个人设置
-            </span>
+            <span className="text-xs font-semibold tracking-caption-wide uppercase">个人设置</span>
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">
             账户管理
@@ -115,15 +109,10 @@ export default function ProfilePage() {
         </div>
 
         {/* Tab content */}
-        {activeTab === "profile" && (
-          <ProfileTab user={user} onUpdate={setUser} />
-        )}
+        {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
         {activeTab === "settings" && <SettingsTab user={user} />}
         {activeTab === "learning" && (
-          <LearningPrefsTab
-            preferences={preferences}
-            onUpdate={setPreferences}
-          />
+          <LearningPrefsTab preferences={preferences} onUpdate={setPreferences} />
         )}
       </section>
     </main>

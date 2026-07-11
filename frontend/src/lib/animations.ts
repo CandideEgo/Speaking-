@@ -23,9 +23,6 @@ export const MEDIA = {
   desktop: "(min-width: 768px)",
 } as const;
 
-export function motionDuration(
-  normalDuration: number,
-  reduceMotion: boolean,
-): number {
+export function motionDuration(normalDuration: number, reduceMotion: boolean): number {
   return reduceMotion ? 0 : normalDuration;
 }

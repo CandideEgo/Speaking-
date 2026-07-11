@@ -85,7 +85,7 @@ export interface SubtitlePatch {
 export async function updateSubtitle(
   videoId: string,
   subtitleId: string,
-  patch: SubtitlePatch,
+  patch: SubtitlePatch
 ): Promise<Subtitle> {
   return api<Subtitle>(`/api/v1/videos/${videoId}/subtitles/${subtitleId}`, {
     method: "PATCH",
@@ -102,27 +102,18 @@ export interface SubtitleSplitPayload {
 export async function splitSubtitle(
   videoId: string,
   subtitleId: string,
-  payload: SubtitleSplitPayload,
+  payload: SubtitleSplitPayload
 ): Promise<Subtitle[]> {
-  return api<Subtitle[]>(
-    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/split`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    },
-  );
+  return api<Subtitle[]>(`/api/v1/videos/${videoId}/subtitles/${subtitleId}/split`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export async function mergeSubtitle(
-  videoId: string,
-  subtitleId: string,
-): Promise<Subtitle> {
-  return api<Subtitle>(
-    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/merge`,
-    {
-      method: "POST",
-    },
-  );
+export async function mergeSubtitle(videoId: string, subtitleId: string): Promise<Subtitle> {
+  return api<Subtitle>(`/api/v1/videos/${videoId}/subtitles/${subtitleId}/merge`, {
+    method: "POST",
+  });
 }
 
 /** List edit revisions for one subtitle on your own video (newest first).
@@ -131,10 +122,10 @@ export async function listSubtitleRevisions(
   videoId: string,
   subtitleId: string,
   page = 1,
-  pageSize = 50,
+  pageSize = 50
 ): Promise<SubtitleRevisionPage> {
   return api<SubtitleRevisionPage>(
-    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`,
+    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`
   );
 }
 
@@ -143,28 +134,22 @@ export async function listSubtitleRevisions(
 export async function rollbackSubtitle(
   videoId: string,
   subtitleId: string,
-  revisionId: string,
+  revisionId: string
 ): Promise<Subtitle> {
-  return api<Subtitle>(
-    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`,
-    {
-      method: "POST",
-    },
-  );
+  return api<Subtitle>(`/api/v1/videos/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`, {
+    method: "POST",
+  });
 }
 
 export async function updateWordLevels(
   videoId: string,
   subtitleId: string,
-  wordLevels: Record<string, string[]> | null,
+  wordLevels: Record<string, string[]> | null
 ): Promise<Subtitle> {
-  return api<Subtitle>(
-    `/api/v1/videos/${videoId}/subtitles/${subtitleId}/word-levels`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ word_levels: wordLevels }),
-    },
-  );
+  return api<Subtitle>(`/api/v1/videos/${videoId}/subtitles/${subtitleId}/word-levels`, {
+    method: "PATCH",
+    body: JSON.stringify({ word_levels: wordLevels }),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -172,18 +157,14 @@ export async function updateWordLevels(
 // ---------------------------------------------------------------------------
 
 /** Toggle like on a video. Returns {liked: bool}. */
-export async function toggleVideoLike(
-  videoId: string,
-): Promise<{ liked: boolean }> {
+export async function toggleVideoLike(videoId: string): Promise<{ liked: boolean }> {
   return api<{ liked: boolean }>(`/api/v1/videos/${videoId}/like`, {
     method: "POST",
   });
 }
 
 /** Check if the current user has liked a video. */
-export async function getVideoLikeStatus(
-  videoId: string,
-): Promise<{ is_liked: boolean }> {
+export async function getVideoLikeStatus(videoId: string): Promise<{ is_liked: boolean }> {
   return api<{ is_liked: boolean }>(`/api/v1/videos/${videoId}/like-status`);
 }
 
@@ -210,24 +191,21 @@ export function withdrawSubmission(videoId: string): Promise<Video> {
 export function editPractice(
   videoId: string,
   level: string,
-  questions: PracticeItem[],
+  questions: PracticeItem[]
 ): Promise<UnifiedPracticeSet> {
-  return api<UnifiedPracticeSet>(
-    `/api/v1/videos/${videoId}/practice?level=${level}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ questions }),
-    },
-  );
+  return api<UnifiedPracticeSet>(`/api/v1/videos/${videoId}/practice?level=${level}`, {
+    method: "PATCH",
+    body: JSON.stringify({ questions }),
+  });
 }
 
 export function regeneratePractice(
   videoId: string,
   level: string,
-  count = 6,
+  count = 6
 ): Promise<UnifiedPracticeSet> {
   return api<UnifiedPracticeSet>(
     `/api/v1/videos/${videoId}/practice/regenerate?level=${level}&count=${count}`,
-    { method: "POST" },
+    { method: "POST" }
   );
 }

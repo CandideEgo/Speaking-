@@ -12,11 +12,7 @@ export interface SectionHeaderProps {
   className?: string;
 }
 
-export function SectionHeader({
-  title,
-  action,
-  className,
-}: SectionHeaderProps) {
+export function SectionHeader({ title, action, className }: SectionHeaderProps) {
   return (
     <div className={cn("flex items-end justify-between mt-10 mb-5", className)}>
       <h2 className="text-[26px] font-bold tracking-display-md">{title}</h2>
@@ -35,7 +31,7 @@ export function SectionLink({
     <a
       className={cn(
         "text-sm font-medium text-muted inline-flex items-center gap-1 hover:text-ink transition-colors duration-150 cursor-pointer",
-        className,
+        className
       )}
       {...props}
     >

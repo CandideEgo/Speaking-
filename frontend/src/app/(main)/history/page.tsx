@@ -22,7 +22,7 @@ export default function HistoryPage() {
   } = usePaginatedList<LearningRecord>({
     fetcher: async (pg) => {
       const data = await api<{ records: LearningRecord[]; total: number }>(
-        `/api/v1/learning/records?page=${pg}&page_size=20`,
+        `/api/v1/learning/records?page=${pg}&page_size=20`
       );
       return {
         items: data.records,
@@ -42,9 +42,7 @@ export default function HistoryPage() {
         <div className="container-page py-8 sm:py-12">
           <div className="flex items-center gap-2 text-coral mb-3">
             <Calendar size={18} />
-            <span className="text-xs font-semibold tracking-caption-wide uppercase">
-              学习历史
-            </span>
+            <span className="text-xs font-semibold tracking-caption-wide uppercase">学习历史</span>
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">
             学习记录
@@ -64,11 +62,7 @@ export default function HistoryPage() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coral" />
             </div>
           ) : records.length === 0 ? (
-            <EmptyState
-              icon={Calendar}
-              title="暂无学习记录"
-              className="py-12"
-            />
+            <EmptyState icon={Calendar} title="暂无学习记录" className="py-12" />
           ) : (
             <div className="space-y-2">
               {records.map((record) => (
@@ -101,9 +95,7 @@ export default function HistoryPage() {
                       {record.quiz_score !== null && (
                         <span>测验 {Math.round(record.quiz_score)} 分</span>
                       )}
-                      {record.completed && (
-                        <span className="text-green-600">✓ 已完成</span>
-                      )}
+                      {record.completed && <span className="text-green-600">✓ 已完成</span>}
                     </div>
                   </div>
 

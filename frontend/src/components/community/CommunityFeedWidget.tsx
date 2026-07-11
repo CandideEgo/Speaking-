@@ -42,7 +42,7 @@ export function CommunityFeedWidget() {
     (async () => {
       try {
         const data = await api<{ items: FeedPost[]; has_more: boolean }>(
-          "/api/v1/community/feed?page=1&page_size=5",
+          "/api/v1/community/feed?page=1&page_size=5"
         );
         if (!cancelled) setPosts(data.items || []);
       } catch {
@@ -61,13 +61,7 @@ export function CommunityFeedWidget() {
       <SectionHeader
         title="社区动态"
         action={
-          <LinkButton
-            href="/community"
-            variant="text"
-            size="sm"
-            icon={ArrowRight}
-            iconRight
-          >
+          <LinkButton href="/community" variant="text" size="sm" icon={ArrowRight} iconRight>
             查看全部
           </LinkButton>
         }
@@ -93,22 +87,11 @@ export function CommunityFeedWidget() {
               className="bg-canvas border border-hairline rounded-lg p-4 hover:border-ink hover:shadow-soft transition-all duration-150"
             >
               <div className="flex items-center gap-2 mb-2">
-                <Avatar
-                  src={p.user.avatar_url}
-                  name={p.user}
-                  seed={p.user.id}
-                  size="sm"
-                />
-                <span className="text-xs font-semibold">
-                  {p.user.name || "用户"}
-                </span>
-                <span className="text-[11px] text-muted ml-auto">
-                  {timeAgo(p.created_at)}
-                </span>
+                <Avatar src={p.user.avatar_url} name={p.user} seed={p.user.id} size="sm" />
+                <span className="text-xs font-semibold">{p.user.name || "用户"}</span>
+                <span className="text-[11px] text-muted ml-auto">{timeAgo(p.created_at)}</span>
               </div>
-              <p className="text-[13px] text-body line-clamp-2 mb-2">
-                {p.content}
-              </p>
+              <p className="text-[13px] text-body line-clamp-2 mb-2">{p.content}</p>
               <div className="flex items-center gap-3 text-[11px] text-muted">
                 <span className="inline-flex items-center gap-1">
                   <Heart size={12} /> {p.like_count}
@@ -116,11 +99,7 @@ export function CommunityFeedWidget() {
                 <span className="inline-flex items-center gap-1">
                   <MessageCircle size={12} /> {p.comment_count}
                 </span>
-                {p.video && (
-                  <span className="text-brand-500 truncate">
-                    · {p.video.title}
-                  </span>
-                )}
+                {p.video && <span className="text-brand-500 truncate">· {p.video.title}</span>}
               </div>
             </Link>
           ))}

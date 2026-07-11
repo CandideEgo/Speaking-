@@ -30,10 +30,7 @@ function normalizeWord(s: string): string {
 // Client-side grader
 // ---------------------------------------------------------------------------
 
-function gradePracticeItem(
-  item: PracticeItem,
-  userAnswer: string,
-): GradedResult {
+function gradePracticeItem(item: PracticeItem, userAnswer: string): GradedResult {
   const ua = userAnswer.trim();
   const expected = item.answer.trim();
 
@@ -103,24 +100,16 @@ export interface UsePracticeReturn {
   submitResults: () => Promise<void>;
 }
 
-export function usePractice({
-  videoId,
-  level,
-}: UsePracticeOptions): UsePracticeReturn {
+export function usePractice({ videoId, level }: UsePracticeOptions): UsePracticeReturn {
   const fetcher = useCallback(async (): Promise<PracticeItem[]> => {
     if (!level) return [];
-    const data = await api<UnifiedPracticeSet>(
-      `/api/v1/videos/${videoId}/practice?level=${level}`,
-    );
+    const data = await api<UnifiedPracticeSet>(`/api/v1/videos/${videoId}/practice?level=${level}`);
     return data.items ?? [];
   }, [videoId, level]);
 
-  const grader = useCallback(
-    (item: PracticeItem, userAnswer: string): GradedResult => {
-      return gradePracticeItem(item, userAnswer);
-    },
-    [],
-  );
+  const grader = useCallback((item: PracticeItem, userAnswer: string): GradedResult => {
+    return gradePracticeItem(item, userAnswer);
+  }, []);
 
   const session = useSession<PracticeItem>({
     fetcher,
@@ -178,10 +167,7 @@ interface UseVocabularyPracticeOptions {
   enabled?: boolean;
 }
 
-export interface UseVocabularyPracticeReturn extends Omit<
-  UsePracticeReturn,
-  "submitResults"
-> {
+export interface UseVocabularyPracticeReturn extends Omit<UsePracticeReturn, "submitResults"> {
   submitResults: () => Promise<void>;
 }
 
@@ -196,18 +182,13 @@ export function useVocabularyPractice({
     if (level) params.set("level", level);
     params.set("count", String(count));
     if (dueOnly) params.set("due_only", "true");
-    const data = await api<VocabularyPracticeSet>(
-      `/api/v1/vocabulary/practice?${params}`,
-    );
+    const data = await api<VocabularyPracticeSet>(`/api/v1/vocabulary/practice?${params}`);
     return data.items ?? [];
   }, [level, count, dueOnly]);
 
-  const grader = useCallback(
-    (item: PracticeItem, userAnswer: string): GradedResult => {
-      return gradePracticeItem(item, userAnswer);
-    },
-    [],
-  );
+  const grader = useCallback((item: PracticeItem, userAnswer: string): GradedResult => {
+    return gradePracticeItem(item, userAnswer);
+  }, []);
 
   const session = useSession<PracticeItem>({
     fetcher,

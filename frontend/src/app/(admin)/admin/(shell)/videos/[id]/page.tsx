@@ -64,7 +64,7 @@ export default function VideoEditPage() {
     try {
       const res = await recomputeWordLevels(params.id);
       toast.success(
-        `已重算 ${res.subtitles_updated} 条字幕的高亮（${res.exam_words_found} 个考级词）`,
+        `已重算 ${res.subtitles_updated} 条字幕的高亮（${res.exam_words_found} 个考级词）`
       );
       setVideo(await getVideoDetail(params.id));
     } catch (err) {
@@ -91,11 +91,9 @@ export default function VideoEditPage() {
       v
         ? {
             ...v,
-            subtitles: v.subtitles.map((s) =>
-              s.id === updated.id ? updated : s,
-            ),
+            subtitles: v.subtitles.map((s) => (s.id === updated.id ? updated : s)),
           }
-        : v,
+        : v
     );
 
   // --- Subtitle edit callbacks (admin API). Errors propagate to
@@ -110,25 +108,21 @@ export default function VideoEditPage() {
       await splitSubtitle(params.id, subId, payload);
       await refreshVideo();
     },
-    [params.id, refreshVideo],
+    [params.id, refreshVideo]
   );
   const handleMerge = useCallback(
     async (subId: string) => {
       await mergeSubtitle(params.id, subId);
       await refreshVideo();
     },
-    [params.id, refreshVideo],
+    [params.id, refreshVideo]
   );
-  const handleSaveWordLevels = async (
-    subId: string,
-    levels: Record<string, string[]> | null,
-  ) => {
+  const handleSaveWordLevels = async (subId: string, levels: Record<string, string[]> | null) => {
     const updated = await updateWordLevels(video!.id, subId, levels);
     handleSubtitleSaved(updated);
     return updated;
   };
-  const handleListRevisions = (subId: string) =>
-    listSubtitleRevisions(video!.id, subId);
+  const handleListRevisions = (subId: string) => listSubtitleRevisions(video!.id, subId);
   const handleRollback = async (subId: string, revisionId: string) => {
     await rollbackSubtitle(video!.id, subId, revisionId);
     await refreshVideo();
@@ -137,9 +131,7 @@ export default function VideoEditPage() {
   const doResegment = useCallback(async () => {
     try {
       const res = await resegmentSubtitles(params.id);
-      toast.success(
-        `已重断句：${res.before_count} → ${res.after_count} 句（翻译已清空，请重译）`,
-      );
+      toast.success(`已重断句：${res.before_count} → ${res.after_count} 句（翻译已清空，请重译）`);
       await refreshVideo();
     } catch (err) {
       toastApiError(err, "重断句失败");
@@ -181,9 +173,7 @@ export default function VideoEditPage() {
     );
   }
   if (!video) {
-    return (
-      <div className="py-20 text-center text-muted-foreground">视频未找到</div>
-    );
+    return <div className="py-20 text-center text-muted-foreground">视频未找到</div>;
   }
 
   const headerExtra = (
@@ -278,14 +268,14 @@ function MetadataForm({
   const [topicTags, setTopicTags] = useState(video.topic_tags || "");
   const [isOfficial, setIsOfficial] = useState(video.is_official);
   const [isFeatured, setIsFeatured] = useState(
-    "is_featured" in video ? (video.is_featured as boolean) : false,
+    "is_featured" in video ? (video.is_featured as boolean) : false
   );
   const [showOnHomepage, setShowOnHomepage] = useState(
-    "show_on_homepage" in video ? (video.show_on_homepage as boolean) : false,
+    "show_on_homepage" in video ? (video.show_on_homepage as boolean) : false
   );
   const [isPublished, setIsPublished] = useState(video.is_published);
   const [adminNotes, setAdminNotes] = useState(
-    "admin_notes" in video ? ((video.admin_notes as string | null) ?? "") : "",
+    "admin_notes" in video ? ((video.admin_notes as string | null) ?? "") : ""
   );
   const [saving, setSaving] = useState(false);
 
@@ -318,23 +308,12 @@ function MetadataForm({
     <Card as="form" padding={4} className="space-y-4" onSubmit={handleSave}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            标题
-          </label>
-          <Input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <label className="block text-xs font-medium text-muted-foreground mb-1">标题</label>
+          <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            难度
-          </label>
-          <Select
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value)}
-          >
+          <label className="block text-xs font-medium text-muted-foreground mb-1">难度</label>
+          <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
             <option value="">未设置</option>
             {DIFFICULTY_OPTIONS.map((d) => (
               <option key={d} value={d}>
@@ -344,9 +323,7 @@ function MetadataForm({
           </Select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            标签
-          </label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">标签</label>
           <Input
             type="text"
             value={topicTags}
@@ -355,14 +332,8 @@ function MetadataForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            备注
-          </label>
-          <Input
-            type="text"
-            value={adminNotes}
-            onChange={(e) => setAdminNotes(e.target.value)}
-          />
+          <label className="block text-xs font-medium text-muted-foreground mb-1">备注</label>
+          <Input type="text" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
         </div>
       </div>
 
@@ -400,20 +371,13 @@ function MetadataForm({
           />
           已发布
           {!canPublish && !isPublished && (
-            <span className="text-xs text-muted-foreground">
-              （需 status=ready）
-            </span>
+            <span className="text-xs text-muted-foreground">（需 status=ready）</span>
           )}
         </label>
       </div>
 
       <div className="flex justify-end">
-        <Button
-          type="submit"
-          disabled={saving}
-          size="sm"
-          icon={saving ? Loader2 : Save}
-        >
+        <Button type="submit" disabled={saving} size="sm" icon={saving ? Loader2 : Save}>
           保存元数据
         </Button>
       </div>

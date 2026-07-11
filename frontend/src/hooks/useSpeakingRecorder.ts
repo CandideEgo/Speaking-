@@ -13,18 +13,11 @@ import { toast } from "sonner";
  * @param options.timer — if true, track recording duration in seconds
  *   (currently unused; the watch-page recording panel records without a timer).
  */
-export function useSpeakingRecorder(
-  requireAuth: () => boolean,
-  options?: { timer?: boolean },
-) {
+export function useSpeakingRecorder(requireAuth: () => boolean, options?: { timer?: boolean }) {
   const [speakingActive, setSpeakingActive] = useState(false);
-  const [speakingState, setSpeakingState] = useState<
-    "idle" | "listening" | "reviewing"
-  >("idle");
+  const [speakingState, setSpeakingState] = useState<"idle" | "listening" | "reviewing">("idle");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
-    null,
-  );
+  const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const [seconds, setSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -46,8 +39,7 @@ export function useSpeakingRecorder(
   }, []);
 
   function stopSpeaking() {
-    if (mediaRecorderRef.current?.state === "recording")
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     recordingStream?.getTracks().forEach((t) => t.stop());
     setRecordingStream(null);
     setSpeakingState("idle");
@@ -78,9 +70,7 @@ export function useSpeakingRecorder(
         : MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
           : "";
-      const r = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
+      const r = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       mediaRecorderRef.current = r;
       chunksRef.current = [];
       r.ondataavailable = (e) => {
@@ -88,9 +78,7 @@ export function useSpeakingRecorder(
       };
       r.onstop = () => {
         setAudioUrl(
-          URL.createObjectURL(
-            new Blob(chunksRef.current, { type: mimeType || "audio/webm" }),
-          ),
+          URL.createObjectURL(new Blob(chunksRef.current, { type: mimeType || "audio/webm" }))
         );
         setSpeakingState("reviewing");
         stream.getTracks().forEach((t) => t.stop());

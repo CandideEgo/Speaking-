@@ -80,12 +80,8 @@ export function WordTooltipInline({
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-base font-bold text-ink">
-              {gloss?.lemma || word}
-            </span>
-            {gloss?.phonetic && (
-              <span className="text-xs text-muted">/{gloss.phonetic}/</span>
-            )}
+            <span className="text-base font-bold text-ink">{gloss?.lemma || word}</span>
+            {gloss?.phonetic && <span className="text-xs text-muted">/{gloss.phonetic}/</span>}
             {gloss?.pos && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-soft text-muted">
                 {gloss.pos}
@@ -102,15 +98,10 @@ export function WordTooltipInline({
                     key={lv}
                     className={cn(
                       "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded",
-                      wordHighlightClass([lv]),
+                      wordHighlightClass([lv])
                     )}
                   >
-                    <span
-                      className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        levelDotClass(meta.color),
-                      )}
-                    />
+                    <span className={cn("w-1.5 h-1.5 rounded-full", levelDotClass(meta.color))} />
                     {meta.label}
                   </span>
                 );
@@ -137,14 +128,10 @@ export function WordTooltipInline({
       ) : (
         <div className="mb-3 space-y-1.5">
           {gloss?.definition && (
-            <p className="text-xs text-muted leading-relaxed">
-              {gloss.definition}
-            </p>
+            <p className="text-xs text-muted leading-relaxed">{gloss.definition}</p>
           )}
           {gloss?.translation && (
-            <p className="text-sm text-ink leading-relaxed">
-              {gloss.translation}
-            </p>
+            <p className="text-sm text-ink leading-relaxed">{gloss.translation}</p>
           )}
           {gloss?.contextual_note && (
             <p className="text-xs text-ink/80 leading-relaxed">
@@ -171,17 +158,13 @@ export function WordTooltipInline({
                 <p className="text-muted mt-0.5">{gloss.example_sentence_zh}</p>
               )}
               {gloss.example_source && (
-                <p className="text-[10px] text-muted/70 mt-0.5">
-                  — {gloss.example_source}
-                </p>
+                <p className="text-[10px] text-muted/70 mt-0.5">— {gloss.example_source}</p>
               )}
             </div>
           )}
-          {!gloss?.definition &&
-            !gloss?.translation &&
-            !gloss?.contextual_note && (
-              <p className="text-sm text-muted">暂无释义</p>
-            )}
+          {!gloss?.definition && !gloss?.translation && !gloss?.contextual_note && (
+            <p className="text-sm text-muted">暂无释义</p>
+          )}
         </div>
       )}
 

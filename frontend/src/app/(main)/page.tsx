@@ -22,8 +22,7 @@ export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
 
-  const { videos, loading, error, retry, activeGroup, setActiveGroup } =
-    useHomeFeed();
+  const { videos, loading, error, retry, activeGroup, setActiveGroup } = useHomeFeed();
 
   // P2 "为你推荐": algorithmic feed with seen videos soft-sunk to the back.
   const feed = useFeedStore((s) => s.feed);
@@ -31,23 +30,19 @@ export default function HomePage() {
   const markSeen = useFeedStore((s) => s.markSeen);
   const recommended = useMemo(
     () => recommendWithSeenSink(feed, seenIds).slice(0, 8),
-    [feed, seenIds],
+    [feed, seenIds]
   );
 
   const [vocabDue, setVocabDue] = useState<number | null>(null);
-  const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>(
-    [],
-  );
+  const [inProgressRecords, setInProgressRecords] = useState<LearningRecord[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
         const [vocabRes, recordsRes] = await Promise.all([
-          api<{ due_count?: number; total?: number }>(
-            "/api/v1/vocabulary/stats",
-          ).catch(() => null),
+          api<{ due_count?: number; total?: number }>("/api/v1/vocabulary/stats").catch(() => null),
           api<{ records: LearningRecord[] }>(
-            "/api/v1/learning/records?page=1&page_size=4&completed=false",
+            "/api/v1/learning/records?page=1&page_size=4&completed=false"
           ).catch(() => ({ records: [] })),
         ]);
         if (vocabRes) setVocabDue(vocabRes.due_count ?? 0);
@@ -121,16 +116,10 @@ export default function HomePage() {
                 用真实视频<em>学英语</em>。
               </h1>
               <p className="b-hero-sub">
-                双语字幕、生词自动标注与 SM-2
-                复习，社区贡献真实视频——一段视频，完整学习闭环。
+                双语字幕、生词自动标注与 SM-2 复习，社区贡献真实视频——一段视频，完整学习闭环。
               </p>
               <div className="b-hero-cta">
-                <LinkButton
-                  href="/browse"
-                  variant="primary"
-                  icon={Play}
-                  size="nav"
-                >
+                <LinkButton href="/browse" variant="primary" icon={Play} size="nav">
                   开始练习
                 </LinkButton>
                 <LinkButton href="/browse" variant="ghostDark" size="nav">
@@ -152,9 +141,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-[44px] font-extrabold tracking-display-lg leading-none mt-2.5 text-brand-600">
                   {vocabDue ?? "—"}
-                  <small className="text-[16px] font-semibold ml-1 text-brand-500">
-                    词
-                  </small>
+                  <small className="text-[16px] font-semibold ml-1 text-brand-500">词</small>
                 </div>
               </div>
               <div className="text-xs font-medium mt-2 text-brand-700">
@@ -175,14 +162,10 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-2 mt-2.5">
                   <Users size={24} className="text-brand-500" />
-                  <span className="text-[20px] font-bold tracking-tight">
-                    发现新视频
-                  </span>
+                  <span className="text-[20px] font-bold tracking-tight">发现新视频</span>
                 </div>
               </div>
-              <div className="text-xs text-muted mt-2">
-                看看大家贡献的内容 →
-              </div>
+              <div className="text-xs text-muted mt-2">看看大家贡献的内容 →</div>
             </Link>
           </div>
         </div>
@@ -272,11 +255,7 @@ export default function HomePage() {
               action={<Button onClick={retry}>重试</Button>}
             />
           ) : curatedVideos.length === 0 ? (
-            <EmptyState
-              icon={Play}
-              title="暂无视频"
-              description="内容正在准备中，请稍后再来"
-            />
+            <EmptyState icon={Play} title="暂无视频" description="内容正在准备中，请稍后再来" />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {curatedVideos.map((v) => (

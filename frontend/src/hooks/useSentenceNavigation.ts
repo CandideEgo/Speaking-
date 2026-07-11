@@ -35,7 +35,7 @@ export function useSentenceNavigation({
       setSelectedIndex(index);
       onChange?.(index);
     },
-    [totalSentences, onChange],
+    [totalSentences, onChange]
   );
 
   const nextSentence = useCallback(() => {

@@ -57,9 +57,7 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     set({ loading: true });
     try {
       const params = dueOnly ? "?due_only=true" : "";
-      const data = await api<{ words: VocabularyWord[] }>(
-        `/api/v1/vocabulary${params}`,
-      );
+      const data = await api<{ words: VocabularyWord[] }>(`/api/v1/vocabulary${params}`);
       set({ words: data.words, loading: false });
     } catch {
       set({ loading: false });

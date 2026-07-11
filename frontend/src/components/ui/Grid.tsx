@@ -45,10 +45,7 @@ export function Grid({
   as?: ElementType;
   className?: string;
   children?: ReactNode;
-} & Omit<
-  React.ComponentPropsWithoutRef<ElementType>,
-  "className" | "children"
->) {
+} & Omit<React.ComponentPropsWithoutRef<ElementType>, "className" | "children">) {
   return (
     <Tag className={cn("grid", COLS[cols], GAP[gap], className)} {...props}>
       {children}

@@ -28,8 +28,7 @@ function formatValue(field: string, v: unknown): string {
   if (v == null || v === "") return "—";
   if (field === "word_levels") return "(词级标注)";
   if (typeof v === "string") return v.length > 40 ? `${v.slice(0, 40)}…` : v;
-  if (typeof v === "number")
-    return field.endsWith("time") ? `${v.toFixed(1)}s` : String(v);
+  if (typeof v === "number") return field.endsWith("time") ? `${v.toFixed(1)}s` : String(v);
   return String(v);
 }
 
@@ -40,9 +39,7 @@ export function SubtitleHistory({
   onRolledBack,
 }: {
   subtitleId: string;
-  onListRevisions: (
-    subId: string,
-  ) => Promise<{ items: SubtitleRevision[]; has_more: boolean }>;
+  onListRevisions: (subId: string) => Promise<{ items: SubtitleRevision[]; has_more: boolean }>;
   onRollback: (subId: string, revisionId: string) => Promise<void>;
   onRolledBack?: () => void;
 }) {
@@ -72,8 +69,7 @@ export function SubtitleHistory({
   };
 
   const handleRollback = async (revisionId: string) => {
-    if (!confirm("回滚到此版本？当前内容会被覆盖（会再生成一条修订记录）。"))
-      return;
+    if (!confirm("回滚到此版本？当前内容会被覆盖（会再生成一条修订记录）。")) return;
     setRollingBackId(revisionId);
     try {
       await onRollback(subtitleId, revisionId);
@@ -96,13 +92,8 @@ export function SubtitleHistory({
       >
         <History size={12} />
         修订历史
-        {items.length > 0 && (
-          <span className="text-muted">({items.length})</span>
-        )}
-        <ChevronDown
-          size={12}
-          className={cn("transition-transform", open && "rotate-180")}
-        />
+        {items.length > 0 && <span className="text-muted">({items.length})</span>}
+        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
@@ -114,10 +105,7 @@ export function SubtitleHistory({
             <p className="text-[11px] text-muted">暂无修订记录。</p>
           ) : (
             items.map((rev) => (
-              <div
-                key={rev.id}
-                className="text-[11px] bg-surface-soft rounded p-2"
-              >
+              <div key={rev.id} className="text-[11px] bg-surface-soft rounded p-2">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-muted">
                     {new Date(rev.created_at).toLocaleString()}
@@ -141,16 +129,12 @@ export function SubtitleHistory({
                 <div className="space-y-0.5">
                   {Object.keys(rev.after).map((field) => (
                     <div key={field} className="flex gap-1 flex-wrap">
-                      <span className="text-muted shrink-0">
-                        {FIELD_LABELS[field] ?? field}:
-                      </span>
+                      <span className="text-muted shrink-0">{FIELD_LABELS[field] ?? field}:</span>
                       <span className="line-through text-muted">
                         {formatValue(field, rev.before[field])}
                       </span>
                       <span className="text-muted">→</span>
-                      <span className="text-ink">
-                        {formatValue(field, rev.after[field])}
-                      </span>
+                      <span className="text-ink">{formatValue(field, rev.after[field])}</span>
                     </div>
                   ))}
                 </div>

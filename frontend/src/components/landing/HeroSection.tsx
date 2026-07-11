@@ -22,12 +22,7 @@ export function HeroSection() {
               间隔复习帮你记住。还能在社区发现、贡献更多真实视频。
             </p>
             <div className="flex gap-3 flex-wrap">
-              <LinkButton
-                href="/register"
-                size="lg"
-                icon={ArrowRight}
-                iconRight
-              >
+              <LinkButton href="/register" size="lg" icon={ArrowRight} iconRight>
                 免费试用
               </LinkButton>
               <LinkButton href="/browse" variant="outline" size="lg">
@@ -36,26 +31,16 @@ export function HeroSection() {
             </div>
             <div className="flex gap-9 mt-12 pt-7 border-t border-hairline">
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">
-                  WhisperX
-                </div>
-                <div className="text-[13px] text-muted mt-0.5">
-                  双语字幕转录
-                </div>
+                <div className="text-[28px] font-extrabold tracking-display-md">WhisperX</div>
+                <div className="text-[13px] text-muted mt-0.5">双语字幕转录</div>
               </div>
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">
-                  SM-2
-                </div>
+                <div className="text-[28px] font-extrabold tracking-display-md">SM-2</div>
                 <div className="text-[13px] text-muted mt-0.5">间隔复习</div>
               </div>
               <div>
-                <div className="text-[28px] font-extrabold tracking-display-md">
-                  ECDICT
-                </div>
-                <div className="text-[13px] text-muted mt-0.5">
-                  考级词汇标注
-                </div>
+                <div className="text-[28px] font-extrabold tracking-display-md">ECDICT</div>
+                <div className="text-[13px] text-muted mt-0.5">考级词汇标注</div>
               </div>
             </div>
           </div>

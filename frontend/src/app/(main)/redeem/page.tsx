@@ -51,9 +51,7 @@ export default function RedeemPage() {
           : null;
         setResult({
           success: true,
-          message: expiry
-            ? `Pro 会员已激活！有效期至 ${expiry}`
-            : "Pro 会员已激活！",
+          message: expiry ? `Pro 会员已激活！有效期至 ${expiry}` : "Pro 会员已激活！",
         });
         setTimeout(() => router.push("/"), 2000);
       } else {
@@ -82,9 +80,7 @@ export default function RedeemPage() {
           <h1 className="mt-5 font-display text-3xl font-normal text-ink tracking-display-md">
             兑换 Pro 会员
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            输入购买获得的兑换码，立即升级
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">输入购买获得的兑换码，立即升级</p>
         </div>
 
         {!isAuthenticated ? (
@@ -104,9 +100,7 @@ export default function RedeemPage() {
         ) : (
           <form onSubmit={handleRedeem} className="mt-8 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink">
-                兑换码
-              </label>
+              <label className="block text-sm font-medium text-ink">兑换码</label>
               <Input
                 type="text"
                 value={code}
@@ -122,19 +116,13 @@ export default function RedeemPage() {
               <div
                 className={`rounded-md p-3 text-sm ${result.success ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-600 border border-red-200"}`}
               >
-                {result.success && (
-                  <CheckCircle2 size={16} className="inline mr-1 -mt-0.5" />
-                )}
+                {result.success && <CheckCircle2 size={16} className="inline mr-1 -mt-0.5" />}
                 {result.message}
               </div>
             )}
 
             <Button type="submit" fullWidth disabled={loading || !code.trim()}>
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Sparkles size={16} />
-              )}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               {loading ? "兑换中..." : "激活 Pro"}
             </Button>
           </form>

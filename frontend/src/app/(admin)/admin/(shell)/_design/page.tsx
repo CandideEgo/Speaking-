@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Download,
-  Heart,
-  Mail,
-  Plus,
-  Settings,
-  Trash2,
-} from "lucide-react";
+import { ArrowRight, Check, Download, Heart, Mail, Plus, Settings, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -85,21 +76,15 @@ export default function DesignSystemPage() {
         <Grid cols={3} gap={4} className="mt-4">
           <Card variant="outline" padding={5}>
             <Eyebrow>outline</Eyebrow>
-            <p className="mt-2 text-sm text-body">
-              bg-canvas + hairline border，hover 抬升。
-            </p>
+            <p className="mt-2 text-sm text-body">bg-canvas + hairline border，hover 抬升。</p>
           </Card>
           <Card variant="soft" padding={5}>
             <Eyebrow>soft</Eyebrow>
-            <p className="mt-2 text-sm text-body">
-              bg-surface-soft + hairline border。
-            </p>
+            <p className="mt-2 text-sm text-body">bg-surface-soft + hairline border。</p>
           </Card>
           <Card variant="dark" padding={5}>
             <Eyebrow>dark</Eyebrow>
-            <p className="mt-2 text-sm text-on-dark-soft">
-              bg-surface-dark，反色文字。
-            </p>
+            <p className="mt-2 text-sm text-on-dark-soft">bg-surface-dark，反色文字。</p>
           </Card>
         </Grid>
       </section>
@@ -110,11 +95,7 @@ export default function DesignSystemPage() {
         <Card className="mt-4 space-y-4">
           <Stack gap={2}>
             <label className="text-sm font-medium text-ink">昵称</label>
-            <Input
-              placeholder="输入昵称"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
+            <Input placeholder="输入昵称" value={text} onChange={(e) => setText(e.target.value)} />
           </Stack>
           <Stack gap={2}>
             <label className="text-sm font-medium text-ink">简介</label>
@@ -164,15 +145,8 @@ export default function DesignSystemPage() {
             <Avatar name="Diana" seed="u4" size="lg" />
             <Avatar name="Evan" seed="u5" size="xl" />
             <div className="ml-6 flex items-center gap-3">
-              <Avatar
-                src="/media/avatars/sample.jpg"
-                name="Fallback"
-                seed="u6"
-                size="lg"
-              />
-              <span className="text-xs text-muted">
-                src 指向不存在的路径 → 自动回退
-              </span>
+              <Avatar src="/media/avatars/sample.jpg" name="Fallback" seed="u6" size="lg" />
+              <span className="text-xs text-muted">src 指向不存在的路径 → 自动回退</span>
             </div>
           </Stack>
         </Card>

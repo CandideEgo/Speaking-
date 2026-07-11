@@ -43,9 +43,7 @@ export function usePlatformFeed({
 }: UsePlatformFeedOptions) {
   const router = useRouter();
 
-  const [categories, setCategories] = useState<Category[]>(
-    FALLBACK_CATEGORIES[platform] || [],
-  );
+  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES[platform] || []);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [activeLevel, setActiveLevel] = useState(initialLevel);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -64,10 +62,9 @@ export function usePlatformFeed({
         category: activeCategory,
         page: String(pg),
       });
-      if (activeLevel && activeLevel !== "all")
-        params.set("level", activeLevel);
+      if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
       const data = await api<FeedResponse & { total?: number }>(
-        `/api/v1/${platform}/feed?${params.toString()}`,
+        `/api/v1/${platform}/feed?${params.toString()}`
       );
       return { items: data.items, has_more: data.has_more, total: data.total };
     },
@@ -80,9 +77,7 @@ export function usePlatformFeed({
     let cancelled = false;
     async function load() {
       try {
-        const data = await api<CategoryResponse>(
-          `/api/v1/${platform}/categories`,
-        );
+        const data = await api<CategoryResponse>(`/api/v1/${platform}/categories`);
         if (!cancelled && data.categories?.length) {
           setCategories(data.categories);
         }
@@ -118,7 +113,7 @@ export function usePlatformFeed({
         setAddingId(null);
       }
     },
-    [router],
+    [router]
   );
 
   return {

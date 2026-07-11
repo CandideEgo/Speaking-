@@ -26,12 +26,12 @@ export const EXAM_LEVELS: ExamLevelMeta[] = [
 ];
 
 const LEVEL_BY_KEY: Record<string, ExamLevelMeta> = Object.fromEntries(
-  EXAM_LEVELS.map((l) => [l.key, l]),
+  EXAM_LEVELS.map((l) => [l.key, l])
 );
 
 /** Levels offered as a user "target" in the selector (zhongkao/toefl excluded). */
 export const TARGET_LEVEL_OPTIONS: ExamLevelMeta[] = EXAM_LEVELS.filter(
-  (l) => l.key !== "zhongkao" && l.key !== "toefl",
+  (l) => l.key !== "zhongkao" && l.key !== "toefl"
 );
 
 export function levelMeta(key: string): ExamLevelMeta | undefined {
@@ -44,16 +44,11 @@ export function levelOrder(key: string): number {
 
 export function maxLevel(levels: string[]): string | null {
   if (!levels.length) return null;
-  return levels.reduce((best, cur) =>
-    levelOrder(cur) > levelOrder(best) ? cur : best,
-  );
+  return levels.reduce((best, cur) => (levelOrder(cur) > levelOrder(best) ? cur : best));
 }
 
 /** Display rule: word's max level order >= target level order. */
-export function shouldDisplay(
-  wordLevels: string[],
-  targetLevel: string | null,
-): boolean {
+export function shouldDisplay(wordLevels: string[], targetLevel: string | null): boolean {
   if (!wordLevels.length || !targetLevel) return false;
   const top = maxLevel(wordLevels);
   return top !== null && levelOrder(top) >= levelOrder(targetLevel);

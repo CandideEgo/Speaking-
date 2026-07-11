@@ -28,7 +28,7 @@ export function FilterPills({
             "inline-flex items-center rounded-sm px-3 py-1.5 text-xs font-medium transition-colors border",
             value === f.key
               ? "bg-coral text-white border-coral"
-              : "bg-canvas text-muted-foreground border-hairline hover:text-ink",
+              : "bg-canvas text-muted-foreground border-hairline hover:text-ink"
           )}
         >
           {f.label}

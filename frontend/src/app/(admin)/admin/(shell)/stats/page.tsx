@@ -112,9 +112,7 @@ export default function AdminStatsPage() {
   // Real 7-day new-vocabulary count (sum of the last 7 trend points) — replaces
   // the hardcoded "+8.4%" speaking delta. The backend always returns a 30-day
   // trend, so slice(-7) is the last 7 days regardless of the chart range toggle.
-  const newVocab7d = stats.trend.vocabulary
-    .slice(-7)
-    .reduce((a, b) => a + b, 0);
+  const newVocab7d = stats.trend.vocabulary.slice(-7).reduce((a, b) => a + b, 0);
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
@@ -170,12 +168,7 @@ export default function AdminStatsPage() {
           delta={`今日兑换 ${stats.redeems_today}`}
           tone="amber"
         />
-        <StatCard
-          icon={Activity}
-          label="实时在线"
-          value={stats.online_now}
-          tone="coral"
-        />
+        <StatCard icon={Activity} label="实时在线" value={stats.online_now} tone="coral" />
         <StatCard
           icon={Video}
           label="视频总数"
@@ -216,9 +209,7 @@ export default function AdminStatsPage() {
                 onClick={() => setRange(r)}
                 className={cn(
                   "rounded-sm px-3 py-1 text-xs font-medium transition-colors",
-                  range === r
-                    ? "bg-coral text-white"
-                    : "text-muted-foreground hover:text-ink",
+                  range === r ? "bg-coral text-white" : "text-muted-foreground hover:text-ink"
                 )}
               >
                 {r} 天
@@ -228,10 +219,7 @@ export default function AdminStatsPage() {
         }
       >
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart
-            data={trend}
-            margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
-          >
+          <AreaChart data={trend} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
             <defs>
               <linearGradient id="gSignups" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#ff5a1f" stopOpacity={0.3} />
@@ -253,10 +241,7 @@ export default function AdminStatsPage() {
               tick={{ fontSize: 11, fill: "#71717a" }}
               axisLine={{ stroke: "#ededed" }}
             />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#71717a" }}
-              axisLine={{ stroke: "#ededed" }}
-            />
+            <YAxis tick={{ fontSize: 11, fill: "#71717a" }} axisLine={{ stroke: "#ededed" }} />
             <Tooltip
               contentStyle={{
                 background: "#fafafa",
@@ -327,10 +312,7 @@ export default function AdminStatsPage() {
 
         <SectionCard title="视频状态分布">
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart
-              data={statusData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
-            >
+            <BarChart data={statusData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#ededed" />
               <XAxis
                 dataKey="name"

@@ -4,14 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import {
-  Loader2,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Video as VideoIcon,
-  X,
-} from "lucide-react";
+import { Loader2, Pencil, Plus, RefreshCw, Video as VideoIcon, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
@@ -137,7 +130,7 @@ export default function VideoManager() {
         setLoading(false);
       }
     },
-    [statusFilter, reviewStatusFilter, keyword],
+    [statusFilter, reviewStatusFilter, keyword]
   );
 
   useEffect(() => {
@@ -217,9 +210,7 @@ export default function VideoManager() {
 
   // Mutate a single video in the list (used by polling + edit-save).
   const patchVideo = useCallback((id: string, patch: Partial<VideoAdmin>) => {
-    setVideos((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, ...patch } : v)),
-    );
+    setVideos((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
   }, []);
 
   // Reject dialog state.
@@ -265,13 +256,11 @@ export default function VideoManager() {
             <span
               className={cn(
                 "w-2.5 h-2.5 rounded-full",
-                workerOnline ? "bg-green-500" : "bg-red-400",
+                workerOnline ? "bg-green-500" : "bg-red-400"
               )}
             />
             <span className="text-muted-foreground">GPU Worker</span>
-            <span className="font-medium text-ink">
-              {workerOnline ? "在线" : "离线"}
-            </span>
+            <span className="font-medium text-ink">{workerOnline ? "在线" : "离线"}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">转录队列</span>
@@ -279,12 +268,7 @@ export default function VideoManager() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">失败视频</span>
-            <span
-              className={cn(
-                "font-medium",
-                errorCount > 0 ? "text-red-600" : "text-ink",
-              )}
-            >
+            <span className={cn("font-medium", errorCount > 0 ? "text-red-600" : "text-ink")}>
               {errorCount}
             </span>
           </div>
@@ -298,12 +282,7 @@ export default function VideoManager() {
             <h2 className="font-display text-2xl text-ink">视频管理</h2>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Plus}
-              onClick={() => setAddDialogOpen(true)}
-            >
+            <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddDialogOpen(true)}>
               添加视频
             </Button>
             <Button
@@ -320,11 +299,7 @@ export default function VideoManager() {
 
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3 flex-wrap">
-          <FilterPills
-            options={STATUS_FILTERS}
-            value={statusFilter}
-            onChange={setStatusFilter}
-          />
+          <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
           <span className="text-xs text-muted-foreground">审核：</span>
           <FilterPills
             options={REVIEW_FILTERS}
@@ -376,10 +351,7 @@ export default function VideoManager() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <div
-                      className="font-medium text-ink truncate max-w-[280px]"
-                      title={v.title}
-                    >
+                    <div className="font-medium text-ink truncate max-w-[280px]" title={v.title}>
                       {v.title}
                     </div>
                     <div
@@ -393,28 +365,23 @@ export default function VideoManager() {
               </td>
               <td className="py-3 pr-4">
                 <VideoStatusBadge status={v.status} />
-                {(v.status === "processing" ||
-                  v.status === "ready_subtitles") &&
+                {(v.status === "processing" || v.status === "ready_subtitles") &&
                   v.processing_step && (
                     <div className="mt-1 space-y-0.5">
                       <div className="text-[10px] text-muted-foreground">
-                        {STEP_LABELS_SHORT[v.processing_step] ||
-                          v.processing_step}
-                        {v.processing_progress
-                          ? `（${v.processing_progress}%）`
-                          : ""}
+                        {STEP_LABELS_SHORT[v.processing_step] || v.processing_step}
+                        {v.processing_progress ? `（${v.processing_progress}%）` : ""}
                       </div>
-                      {v.processing_progress != null &&
-                        v.processing_progress > 0 && (
-                          <div className="h-1 w-full max-w-[120px] rounded-full bg-ink/10">
-                            <div
-                              className="h-full rounded-full bg-brand-500 transition-all duration-500"
-                              style={{
-                                width: `${Math.min(v.processing_progress, 100)}%`,
-                              }}
-                            />
-                          </div>
-                        )}
+                      {v.processing_progress != null && v.processing_progress > 0 && (
+                        <div className="h-1 w-full max-w-[120px] rounded-full bg-ink/10">
+                          <div
+                            className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                            style={{
+                              width: `${Math.min(v.processing_progress, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 {v.status === "error" && v.error_message && (
@@ -426,9 +393,7 @@ export default function VideoManager() {
                   </div>
                 )}
               </td>
-              <td className="py-3 pr-4 text-muted-foreground">
-                {v.difficulty_level || "-"}
-              </td>
+              <td className="py-3 pr-4 text-muted-foreground">{v.difficulty_level || "-"}</td>
               <td className="py-3 pr-4">
                 <div className="flex flex-col gap-1">
                   {v.is_official && (
@@ -436,16 +401,11 @@ export default function VideoManager() {
                       官方
                     </Badge>
                   )}
-                  {!v.is_official &&
-                    v.review_status &&
-                    REVIEW_BADGE[v.review_status] && (
-                      <Badge
-                        tone={REVIEW_BADGE[v.review_status].tone}
-                        className="w-fit"
-                      >
-                        {REVIEW_BADGE[v.review_status].label}
-                      </Badge>
-                    )}
+                  {!v.is_official && v.review_status && REVIEW_BADGE[v.review_status] && (
+                    <Badge tone={REVIEW_BADGE[v.review_status].tone} className="w-fit">
+                      {REVIEW_BADGE[v.review_status].label}
+                    </Badge>
+                  )}
                   {v.is_official && !v.is_published && (
                     <Badge tone="orange" className="w-fit">
                       待审
@@ -607,8 +567,7 @@ export default function VideoManager() {
         }
       >
         <p className="text-xs text-muted-foreground mb-3">
-          粘贴视频链接（YouTube /
-          Bilibili）。将自动转录、翻译并发布为官方视频，需 GPU Worker 在线。
+          粘贴视频链接（YouTube / Bilibili）。将自动转录、翻译并发布为官方视频，需 GPU Worker 在线。
         </p>
         <Input
           type="url"

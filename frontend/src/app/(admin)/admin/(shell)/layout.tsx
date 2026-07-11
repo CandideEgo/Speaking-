@@ -15,20 +15,14 @@ import { AdminTopbar } from "@/components/admin/AdminTopbar";
  * the session is an admin via `/users/me`, then renders the sidebar + topbar
  * + content. Any failure redirects to `/admin/login`.
  */
-export default function AdminShellLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const bootstrap = useAdminAuthStore((s) => s.bootstrap);
   const isAuthenticated = useAdminAuthStore((s) => s.isAuthenticated);
   const isLoading = useAdminAuthStore((s) => s.isLoading);
 
-  const [status, setStatus] = useState<"checking" | "ok" | "denied">(
-    "checking",
-  );
+  const [status, setStatus] = useState<"checking" | "ok" | "denied">("checking");
 
   useEffect(() => {
     bootstrap();

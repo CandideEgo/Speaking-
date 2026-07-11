@@ -53,16 +53,11 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthCard
-      title="重置密码"
-      subtitle={done ? "请用新密码登录" : "用手机号验证码重置密码"}
-    >
+    <AuthCard title="重置密码" subtitle={done ? "请用新密码登录" : "用手机号验证码重置密码"}>
       {done ? (
         <div className="mt-8 text-center space-y-4">
           <div className="rounded-lg bg-success-soft border border-success/30 p-4">
-            <p className="text-sm text-success">
-              如果该手机号已注册，密码已重置。请用新密码登录。
-            </p>
+            <p className="text-sm text-success">如果该手机号已注册，密码已重置。请用新密码登录。</p>
           </div>
           <Link
             href="/login"
@@ -105,11 +100,7 @@ export default function ForgotPasswordPage() {
                 onClick={() => sendCode(phone, "reset_password")}
                 className="shrink-0"
               >
-                {cooldown > 0
-                  ? `${cooldown}s`
-                  : sending
-                    ? "发送中..."
-                    : "获取验证码"}
+                {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
               </Button>
             </div>
           </div>
@@ -126,9 +117,7 @@ export default function ForgotPasswordPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink">
-              确认密码
-            </label>
+            <label className="block text-sm font-medium text-ink">确认密码</label>
             <Input
               type="password"
               value={confirmPassword}
@@ -140,9 +129,7 @@ export default function ForgotPasswordPage() {
             />
           </div>
 
-          {(error || smsError) && (
-            <p className="text-sm text-red-600">{error || smsError}</p>
-          )}
+          {(error || smsError) && <p className="text-sm text-red-600">{error || smsError}</p>}
 
           <Button type="submit" fullWidth disabled={loading} className="mt-2">
             {loading ? "重置中..." : "重置密码"}

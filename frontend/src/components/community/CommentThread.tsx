@@ -56,13 +56,10 @@ export function CommentThread({
     const content = draft.trim();
     if (!content) return;
     try {
-      const created = await api<Comment>(
-        `/api/v1/community/posts/${postId}/comments`,
-        {
-          method: "POST",
-          body: JSON.stringify({ content }),
-        },
-      );
+      const created = await api<Comment>(`/api/v1/community/posts/${postId}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      });
       onCommentAdded(created);
       toast.success("评论已发布");
     } catch {
@@ -101,9 +98,7 @@ export function CommentThread({
       ) : (
         <div className="space-y-3">
           {comments.length === 0 ? (
-            <p className="text-xs text-muted text-center py-2">
-              暂无评论，来抢沙发吧
-            </p>
+            <p className="text-xs text-muted text-center py-2">暂无评论，来抢沙发吧</p>
           ) : (
             comments.map((comment) => (
               <div key={comment.id} className="flex gap-2.5">
@@ -112,16 +107,12 @@ export function CommentThread({
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold">
-                      {comment.user?.name || "用户"}
-                    </span>
+                    <span className="text-xs font-semibold">{comment.user?.name || "用户"}</span>
                     <span className="text-[11px] text-muted-soft">
                       {timeAgo(comment.created_at)}
                     </span>
                   </div>
-                  <p className="text-[13px] text-body leading-relaxed mt-0.5">
-                    {comment.content}
-                  </p>
+                  <p className="text-[13px] text-body leading-relaxed mt-0.5">{comment.content}</p>
                 </div>
               </div>
             ))

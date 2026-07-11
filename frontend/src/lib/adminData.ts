@@ -43,7 +43,7 @@ export function listUsers(
     role?: string;
     plan?: string;
     keyword?: string;
-  } = {},
+  } = {}
 ): Promise<Paginated<AdminUser>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
@@ -52,25 +52,17 @@ export function listUsers(
   if (opts.plan) params.set("plan", opts.plan);
   if (opts.keyword) params.set("keyword", opts.keyword);
   const qs = params.toString();
-  return adminApi<Paginated<AdminUser>>(
-    `/api/v1/admin/users${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<AdminUser>>(`/api/v1/admin/users${qs ? `?${qs}` : ""}`);
 }
 
-export async function setUserBanned(
-  id: string,
-  banned: boolean,
-): Promise<Partial<AdminUser>> {
+export async function setUserBanned(id: string, banned: boolean): Promise<Partial<AdminUser>> {
   return adminApi<Partial<AdminUser>>(`/api/v1/admin/users/${id}/ban`, {
     method: "PATCH",
     body: JSON.stringify({ is_banned: banned }),
   });
 }
 
-export async function promoteUser(
-  id: string,
-  role: "user" | "admin",
-): Promise<Partial<AdminUser>> {
+export async function promoteUser(id: string, role: "user" | "admin"): Promise<Partial<AdminUser>> {
   return adminApi<Partial<AdminUser>>(`/api/v1/admin/users/${id}/role`, {
     method: "PATCH",
     body: JSON.stringify({ role }),
@@ -80,7 +72,7 @@ export async function promoteUser(
 export async function setUserPlan(
   id: string,
   plan: "free" | "pro",
-  days: number,
+  days: number
 ): Promise<Partial<AdminUser>> {
   const res = await adminApi<{
     id: string;
@@ -106,29 +98,24 @@ export function listReports(
     page?: number;
     page_size?: number;
     status?: string;
-  } = {},
+  } = {}
 ): Promise<Paginated<CommentReport>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
   if (opts.page_size) params.set("page_size", String(opts.page_size));
   if (opts.status) params.set("status", opts.status);
   const qs = params.toString();
-  return adminApi<Paginated<CommentReport>>(
-    `/api/v1/admin/reports${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<CommentReport>>(`/api/v1/admin/reports${qs ? `?${qs}` : ""}`);
 }
 
 export async function resolveReport(
   id: string,
-  action: "remove" | "dismiss",
+  action: "remove" | "dismiss"
 ): Promise<{ id: string; status: string }> {
-  return adminApi<{ id: string; status: string }>(
-    `/api/v1/admin/reports/${id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ action }),
-    },
-  );
+  return adminApi<{ id: string; status: string }>(`/api/v1/admin/reports/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action }),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -140,16 +127,14 @@ export function listPosts(
     page?: number;
     page_size?: number;
     keyword?: string;
-  } = {},
+  } = {}
 ): Promise<Paginated<AdminPost>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
   if (opts.page_size) params.set("page_size", String(opts.page_size));
   if (opts.keyword) params.set("keyword", opts.keyword);
   const qs = params.toString();
-  return adminApi<Paginated<AdminPost>>(
-    `/api/v1/admin/posts${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<AdminPost>>(`/api/v1/admin/posts${qs ? `?${qs}` : ""}`);
 }
 
 export async function deletePost(id: string): Promise<void> {
@@ -217,7 +202,7 @@ export function listVideos(
     status?: string;
     review_status?: string;
     keyword?: string;
-  } = {},
+  } = {}
 ): Promise<Paginated<VideoAdmin>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
@@ -226,9 +211,7 @@ export function listVideos(
   if (opts.review_status) params.set("review_status", opts.review_status);
   if (opts.keyword) params.set("keyword", opts.keyword);
   const qs = params.toString();
-  return adminApi<Paginated<VideoAdmin>>(
-    `/api/v1/videos/admin${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<VideoAdmin>>(`/api/v1/videos/admin${qs ? `?${qs}` : ""}`);
 }
 
 export function getVideoStatus(id: string): Promise<{
@@ -259,21 +242,16 @@ export async function seedVideoFull(source_url: string): Promise<string> {
   return data.id;
 }
 
-export async function updateVideo(
-  id: string,
-  patch: Partial<VideoAdmin>,
-): Promise<VideoAdmin> {
+export async function updateVideo(id: string, patch: Partial<VideoAdmin>): Promise<VideoAdmin> {
   // Map admin-only fields to the VideoAdminUpdate schema
   const body: Record<string, unknown> = {};
   if (patch.title !== undefined) body.title = patch.title;
-  if (patch.difficulty_level !== undefined)
-    body.difficulty_level = patch.difficulty_level;
+  if (patch.difficulty_level !== undefined) body.difficulty_level = patch.difficulty_level;
   if (patch.topic_tags !== undefined) body.topic_tags = patch.topic_tags;
   if (patch.is_official !== undefined) body.is_official = patch.is_official;
   if (patch.is_featured !== undefined) body.is_featured = patch.is_featured;
   if (patch.is_published !== undefined) body.is_published = patch.is_published;
-  if (patch.show_on_homepage !== undefined)
-    body.show_on_homepage = patch.show_on_homepage;
+  if (patch.show_on_homepage !== undefined) body.show_on_homepage = patch.show_on_homepage;
   if (patch.admin_notes !== undefined) body.admin_notes = patch.admin_notes;
 
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}`, {
@@ -338,15 +316,12 @@ export interface SubtitlePatch {
 export async function updateSubtitle(
   videoId: string,
   subtitleId: string,
-  patch: SubtitlePatch,
+  patch: SubtitlePatch
 ): Promise<Subtitle> {
-  return adminApi<Subtitle>(
-    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    },
-  );
+  return adminApi<Subtitle>(`/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
 export interface SubtitleSplitPayload {
@@ -358,27 +333,18 @@ export interface SubtitleSplitPayload {
 export async function splitSubtitle(
   videoId: string,
   subtitleId: string,
-  payload: SubtitleSplitPayload,
+  payload: SubtitleSplitPayload
 ): Promise<Subtitle[]> {
-  return adminApi<Subtitle[]>(
-    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/split`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    },
-  );
+  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/split`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export async function mergeSubtitle(
-  videoId: string,
-  subtitleId: string,
-): Promise<Subtitle> {
-  return adminApi<Subtitle>(
-    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/merge`,
-    {
-      method: "POST",
-    },
-  );
+export async function mergeSubtitle(videoId: string, subtitleId: string): Promise<Subtitle> {
+  return adminApi<Subtitle>(`/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/merge`, {
+    method: "POST",
+  });
 }
 
 /** List edit revisions for one subtitle (newest first). Admin only. */
@@ -386,10 +352,10 @@ export async function listSubtitleRevisions(
   videoId: string,
   subtitleId: string,
   page = 1,
-  pageSize = 50,
+  pageSize = 50
 ): Promise<SubtitleRevisionPage> {
   return adminApi<SubtitleRevisionPage>(
-    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`,
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`
   );
 }
 
@@ -397,11 +363,11 @@ export async function listSubtitleRevisions(
 export async function rollbackSubtitle(
   videoId: string,
   subtitleId: string,
-  revisionId: string,
+  revisionId: string
 ): Promise<Subtitle> {
   return adminApi<Subtitle>(
     `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/rollback/${revisionId}`,
-    { method: "POST" },
+    { method: "POST" }
   );
 }
 
@@ -412,29 +378,22 @@ export interface ResegmentResult {
   snapshot_id: string;
 }
 
-export async function resegmentSubtitles(
-  videoId: string,
-): Promise<ResegmentResult> {
-  return adminApi<ResegmentResult>(
-    `/api/v1/videos/admin/${videoId}/subtitles/resegment`,
-    {
-      method: "POST",
-    },
-  );
+export async function resegmentSubtitles(videoId: string): Promise<ResegmentResult> {
+  return adminApi<ResegmentResult>(`/api/v1/videos/admin/${videoId}/subtitles/resegment`, {
+    method: "POST",
+  });
 }
 
-export async function rollbackResegment(
-  videoId: string,
-): Promise<{ restored_count: number }> {
+export async function rollbackResegment(videoId: string): Promise<{ restored_count: number }> {
   return adminApi<{ restored_count: number }>(
     `/api/v1/videos/admin/${videoId}/subtitles/resegment/rollback`,
-    { method: "POST" },
+    { method: "POST" }
   );
 }
 
 export async function updateSubtitlesBatch(
   videoId: string,
-  updates: (SubtitlePatch & { id: string })[],
+  updates: (SubtitlePatch & { id: string })[]
 ): Promise<Subtitle[]> {
   return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles`, {
     method: "PATCH",
@@ -445,27 +404,24 @@ export async function updateSubtitlesBatch(
 export async function updateWordLevels(
   videoId: string,
   subtitleId: string,
-  wordLevels: Record<string, string[]> | null,
+  wordLevels: Record<string, string[]> | null
 ): Promise<Subtitle> {
-  return adminApi<Subtitle>(
-    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/word-levels`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ word_levels: wordLevels }),
-    },
-  );
+  return adminApi<Subtitle>(`/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/word-levels`, {
+    method: "PATCH",
+    body: JSON.stringify({ word_levels: wordLevels }),
+  });
 }
 
 export async function recomputeWordLevels(
   videoId: string,
-  subtitleIds?: string[],
+  subtitleIds?: string[]
 ): Promise<{ subtitles_updated: number; exam_words_found: number }> {
   return adminApi<{ subtitles_updated: number; exam_words_found: number }>(
     `/api/v1/videos/admin/${videoId}/subtitles/word-levels/recompute`,
     {
       method: "POST",
       body: JSON.stringify(subtitleIds ? { subtitle_ids: subtitleIds } : {}),
-    },
+    }
   );
 }
 
@@ -477,15 +433,13 @@ export function listOrders(
   opts: {
     page?: number;
     page_size?: number;
-  } = {},
+  } = {}
 ): Promise<Paginated<AdminOrder>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
   if (opts.page_size) params.set("page_size", String(opts.page_size));
   const qs = params.toString();
-  return adminApi<Paginated<AdminOrder>>(
-    `/api/v1/admin/orders${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<AdminOrder>>(`/api/v1/admin/orders${qs ? `?${qs}` : ""}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -498,7 +452,7 @@ export function listRedeemCodes(
     page_size?: number;
     status?: RedeemCode["status"];
     batch_label?: string;
-  } = {},
+  } = {}
 ): Promise<Paginated<RedeemCode>> {
   const params = new URLSearchParams();
   if (opts.page) params.set("page", String(opts.page));
@@ -506,9 +460,7 @@ export function listRedeemCodes(
   if (opts.status) params.set("status", opts.status);
   if (opts.batch_label) params.set("batch_label", opts.batch_label);
   const qs = params.toString();
-  return adminApi<Paginated<RedeemCode>>(
-    `/api/v1/redeem-codes${qs ? `?${qs}` : ""}`,
-  );
+  return adminApi<Paginated<RedeemCode>>(`/api/v1/redeem-codes${qs ? `?${qs}` : ""}`);
 }
 
 export async function generateRedeemCodes(opts: {
@@ -527,15 +479,13 @@ export async function exportRedeemCsv(): Promise<{
   csv: string;
   total: number;
 }> {
-  return adminApi<{ csv: string; total: number }>(
-    "/api/v1/redeem-codes/export",
-  );
+  return adminApi<{ csv: string; total: number }>("/api/v1/redeem-codes/export");
 }
 
 /** Admin voids an *unused* code (leak / error). Terminal -> revoked. */
 export async function revokeRedeemCode(
   codeId: string,
-  reason: "leak" | "error" = "error",
+  reason: "leak" | "error" = "error"
 ): Promise<{
   success: boolean;
   message: string;

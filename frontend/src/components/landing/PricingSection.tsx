@@ -35,12 +35,7 @@ const plans: {
     price: "¥9.9",
     period: "/月",
     desc: "解锁全部学习功能",
-    features: [
-      "无限视频与双语字幕",
-      "AI 词汇注释查询",
-      "SM-2 无限词汇复习",
-      "创作者优先审核",
-    ],
+    features: ["无限视频与双语字幕", "AI 词汇注释查询", "SM-2 无限词汇复习", "创作者优先审核"],
     cta: "升级 Pro",
     ctaAuthed: "前往升级",
     hrefAuthed: "/upgrade",
@@ -72,21 +67,13 @@ export function PricingSection() {
               <div className="text-[15px] font-bold text-muted">{p.name}</div>
               <div className="text-[42px] font-extrabold tracking-display-lg mt-2.5 mb-1">
                 {p.price}
-                <small className="text-[15px] font-medium text-muted">
-                  {p.period}
-                </small>
+                <small className="text-[15px] font-medium text-muted">{p.period}</small>
               </div>
               <div className="text-[13px] text-muted mb-5">{p.desc}</div>
               <ul className="flex-1 flex flex-col gap-2.5 mb-6">
                 {p.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex gap-2 items-start text-sm text-body"
-                  >
-                    <Check
-                      size={16}
-                      className="text-success mt-0.5 flex-shrink-0"
-                    />
+                  <li key={f} className="flex gap-2 items-start text-sm text-body">
+                    <Check size={16} className="text-success mt-0.5 flex-shrink-0" />
                     {f}
                   </li>
                 ))}

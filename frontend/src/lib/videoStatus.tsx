@@ -11,15 +11,7 @@
  * All consumers now import from this module.
  */
 
-import {
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Clock,
-  FileEdit,
-  Eye,
-  Ban,
-} from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Clock, FileEdit, Eye, Ban } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Processing step labels (backend step key → Chinese label)
@@ -138,13 +130,9 @@ export const VIDEO_STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
 /** Determine the display status key for a video.
  *  Maps raw processing statuses into a stable key, then falls back to
  *  review_status for ready videos. */
-export function displayStatusOf(video: {
-  status: string;
-  review_status: string;
-}): string {
+export function displayStatusOf(video: { status: string; review_status: string }): string {
   if (video.status === "pending_processing") return "pending_processing";
-  if (video.status === "processing" || video.status === "ready_subtitles")
-    return "processing";
+  if (video.status === "processing" || video.status === "ready_subtitles") return "processing";
   if (video.status === "error") return "error";
   return video.review_status;
 }

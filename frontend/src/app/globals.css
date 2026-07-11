@@ -6,10 +6,8 @@
    ============================================================ */
 @theme {
   /* --- Font families --- */
-  --font-display:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-sans:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   /* --- Brand (vivid orange) --- */
@@ -142,12 +140,9 @@
   --tracking-caption-wide: 0.08em;
 
   /* --- Box shadows --- */
-  --shadow-soft:
-    0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.04);
-  --shadow-card:
-    0 2px 8px rgba(10, 10, 10, 0.05), 0 1px 2px rgba(10, 10, 10, 0.04);
-  --shadow-lift:
-    0 12px 32px rgba(10, 10, 10, 0.08), 0 2px 8px rgba(10, 10, 10, 0.04);
+  --shadow-soft: 0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.04);
+  --shadow-card: 0 2px 8px rgba(10, 10, 10, 0.05), 0 1px 2px rgba(10, 10, 10, 0.04);
+  --shadow-lift: 0 12px 32px rgba(10, 10, 10, 0.08), 0 2px 8px rgba(10, 10, 10, 0.04);
   --shadow-brand: 0 8px 24px rgba(255, 90, 31, 0.28);
   --shadow-coral: 0 8px 24px rgba(255, 90, 31, 0.28);
 

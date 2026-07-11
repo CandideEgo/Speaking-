@@ -1,8 +1,4 @@
-import {
-  createApiClient,
-  ApiClientError,
-  type AuthAdapter,
-} from "@/lib/createApiClient";
+import { createApiClient, ApiClientError, type AuthAdapter } from "@/lib/createApiClient";
 
 // Empty string = relative paths (e.g. "/api/v1/..."). In production, nginx
 // proxies /api/ and /media/ to the backend. In development, next.config.js
@@ -18,7 +14,7 @@ export class ApiError extends ApiClientError {
     message: string,
     status: number = 0,
     code: string | null = null,
-    response: Response | null = null,
+    response: Response | null = null
   ) {
     super(message, status, code, response);
     this.name = "ApiError";
@@ -85,7 +81,7 @@ export function mediaUrl(path: string): string {
  * must be in the future.
  */
 export function isProUser(
-  user: { plan: string; plan_expires_at: string | null } | null | undefined,
+  user: { plan: string; plan_expires_at: string | null } | null | undefined
 ): boolean {
   if (!user || user.plan !== "pro") return false;
   if (!user.plan_expires_at) return false;
@@ -137,9 +133,6 @@ export interface ApiOptions extends Omit<RequestInit, "signal"> {
   signal?: AbortSignal;
 }
 
-export async function api<T = unknown>(
-  path: string,
-  options: ApiOptions = {},
-): Promise<T> {
+export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
   return client.request<T>(path, options);
 }

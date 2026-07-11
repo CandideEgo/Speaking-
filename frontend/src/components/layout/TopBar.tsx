@@ -28,9 +28,7 @@ export function TopBar() {
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-  const [subtitleResults, setSubtitleResults] = useState<
-    SubtitleSearchResult[]
-  >([]);
+  const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -58,11 +56,9 @@ export function TopBar() {
     setIsSearching(true);
     try {
       const [videoResults, subResults] = await Promise.all([
-        api<SearchResultItem[]>(
-          `/api/v1/videos/search?q=${encodeURIComponent(query)}&limit=10`,
-        ),
+        api<SearchResultItem[]>(`/api/v1/videos/search?q=${encodeURIComponent(query)}&limit=10`),
         api<SubtitleSearchResult[]>(
-          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(query)}&limit=5`,
+          `/api/v1/videos/search/subtitles?q=${encodeURIComponent(query)}&limit=5`
         ).catch(() => [] as SubtitleSearchResult[]),
       ]);
       setSearchResults(videoResults);
@@ -93,16 +89,13 @@ export function TopBar() {
         performSearch(value);
       }, 300);
     },
-    [performSearch],
+    [performSearch]
   );
 
   // Close dropdown on click-away
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(e.target as Node)
-      ) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     }
@@ -128,9 +121,7 @@ export function TopBar() {
     let cancelled = false;
     async function fetchUnreadCount() {
       try {
-        const data = await api<{ count: number }>(
-          "/api/v1/notifications/unread-count",
-        );
+        const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
         if (!cancelled) setUnreadCount(data.count);
       } catch {
         // silently fail
@@ -213,20 +204,12 @@ export function TopBar() {
         <div className="flex flex-1 justify-center max-w-[520px] mx-auto">
           {/* Mobile: search icon button */}
           <div className="md:hidden flex items-center">
-            <LinkButton
-              href="/search"
-              variant="ghost"
-              size="icon"
-              aria-label="搜索"
-            >
+            <LinkButton href="/search" variant="ghost" size="icon" aria-label="搜索">
               <Search size={17} />
             </LinkButton>
           </div>
           {/* Desktop: search input */}
-          <div
-            ref={searchContainerRef}
-            className="hidden md:block relative w-full"
-          >
+          <div ref={searchContainerRef} className="hidden md:block relative w-full">
             <input
               ref={searchInputRef}
               type="text"
@@ -309,11 +292,7 @@ export function TopBar() {
             </div>
 
             {/* Avatar */}
-            <Link
-              href="/profile"
-              aria-label="个人中心"
-              className="ml-1.5 flex-shrink-0"
-            >
+            <Link href="/profile" aria-label="个人中心" className="ml-1.5 flex-shrink-0">
               <Avatar src={avatarUrl} name={user} seed={user?.sub} size="md" />
             </Link>
           </>

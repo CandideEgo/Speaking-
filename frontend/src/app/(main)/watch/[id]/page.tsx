@@ -8,7 +8,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { useStickyPip } from "@/hooks/useStickyPip";
-import { useVideoPlayer, bestVideoUrl } from "@/hooks/useVideoPlayer";
+import { useVideoPlayer, bestVideoUrl, youtubeId } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePractice } from "@/hooks/usePractice";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
@@ -19,18 +19,11 @@ import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import SubtitleModeTabs, {
-  SubtitleModeRail,
-} from "@/components/subtitle/SubtitleModeTabs";
+import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
-import {
-  levelMeta,
-  shouldDisplay,
-  wordHighlightClass,
-  cleanToken,
-} from "@/lib/examLevels";
+import { levelMeta, shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
 import type { WordGloss } from "@/types";
 import {
   ArrowLeft,
@@ -96,18 +89,14 @@ export default function WatchPage() {
   // scrolls out of view. Desktop keeps its in-flow sticky layout.
   const slotRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 1023px)");
-  const { isPip, dismiss } = useStickyPip(
-    slotRef,
-    isMobile && playbackMode === "ready",
-  );
+  const { isPip, dismiss } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
   useEffect(() => {
     const container = subtitleListRef.current;
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
     if (!container || !el) return;
     const elTop = el.getBoundingClientRect().top;
     const cTop = container.getBoundingClientRect().top;
-    const offset =
-      elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
+    const offset = elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
     // 仅当目标句偏离容器中心超过半句高时才滚，避免每次 timeUpdate 都抖动
     if (Math.abs(offset) > el.clientHeight / 2) {
       container.scrollBy({ top: offset, behavior: "smooth" });
@@ -124,18 +113,12 @@ export default function WatchPage() {
     saveNote,
     clearNote,
   } = useVideoMeta(id);
-  const {
-    selectedWord,
-    wordGloss,
-    handleWordClick,
-    saveToVocabulary,
-    speakWord,
-    clearWord,
-  } = useWordLookup({
-    requireAuth,
-    getSubtitles: () => video?.subtitles,
-    videoId: id,
-  });
+  const { selectedWord, wordGloss, handleWordClick, saveToVocabulary, speakWord, clearWord } =
+    useWordLookup({
+      requireAuth,
+      getSubtitles: () => video?.subtitles,
+      videoId: id,
+    });
 
   const subtitleMode = useWatchStore((s) => s.subtitleMode);
   const panelCollapsed = useWatchStore((s) => s.panelCollapsed);
@@ -155,9 +138,7 @@ export default function WatchPage() {
     let cancelled = false;
     (async () => {
       try {
-        const prefs = await api<{ target_exam: string | null }>(
-          "/api/v1/users/me/preferences",
-        );
+        const prefs = await api<{ target_exam: string | null }>("/api/v1/users/me/preferences");
         if (cancelled) return;
         setSelectedExamLevel(prefs.target_exam ?? "cet4");
       } catch {
@@ -183,7 +164,7 @@ export default function WatchPage() {
   }
 
   function handleShare() {
-    requireAuth() && setShareOpen(true);
+    if (requireAuth()) setShareOpen(true);
   }
 
   function handleNextSubtitle() {
@@ -201,10 +182,7 @@ export default function WatchPage() {
 
   // Exam-level word highlight: returns tailwind class if the word should be
   // highlighted for the user's selected target level, else "".
-  function levelClassFor(
-    word: string,
-    wordLevels: Record<string, string[]> | null,
-  ): string {
+  function levelClassFor(word: string, wordLevels: Record<string, string[]> | null): string {
     if (!wordLevels || !selectedExamLevel) return "";
     const levels = wordLevels[cleanToken(word)];
     if (!levels || !shouldDisplay(levels, selectedExamLevel)) return "";
@@ -245,13 +223,9 @@ export default function WatchPage() {
         <div className="text-center">
           <Loader2 size={32} className="mx-auto animate-spin text-brand-500" />
           <p className="mt-4 text-ink">{stepLabel}</p>
-          <p className="mt-1 text-sm text-muted">
-            视频下载和转码需要几分钟，请稍候
-          </p>
+          <p className="mt-1 text-sm text-muted">视频下载和转码需要几分钟，请稍候</p>
           {video.status === "ready_subtitles" && (
-            <p className="mt-2 text-xs text-accent-teal">
-              字幕已就绪，视频处理中...
-            </p>
+            <p className="mt-2 text-xs text-accent-teal">字幕已就绪，视频处理中...</p>
           )}
         </div>
       </main>
@@ -302,10 +276,7 @@ export default function WatchPage() {
               aria-label={isLiked ? "取消点赞" : "点赞"}
               title={isLiked ? "取消点赞" : "点赞"}
             >
-              <Heart
-                size={18}
-                className={cn(isLiked && "fill-current text-red-500")}
-              />
+              <Heart size={18} className={cn(isLiked && "fill-current text-red-500")} />
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
@@ -313,10 +284,7 @@ export default function WatchPage() {
               aria-label={isFavorited ? "取消收藏" : "收藏视频"}
               title={isFavorited ? "取消收藏" : "收藏"}
             >
-              <Bookmark
-                size={18}
-                className={cn(isFavorited && "fill-current text-brand-500")}
-              />
+              <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
@@ -339,7 +307,7 @@ export default function WatchPage() {
                 "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
                 noteOpen
                   ? "bg-brand-50 text-brand-500"
-                  : "text-muted hover:bg-surface-card hover:text-ink",
+                  : "text-muted hover:bg-surface-card hover:text-ink"
               )}
               onClick={() => setNoteOpen((v) => !v)}
               aria-label="笔记"
@@ -359,18 +327,12 @@ export default function WatchPage() {
           <span>{formatDuration(video.duration)}</span>
           <span>·</span>
           <span className="inline-flex items-center gap-0.5">
-            <Heart
-              size={11}
-              className={cn(isLiked && "fill-current text-red-500")}
-            />
+            <Heart size={11} className={cn(isLiked && "fill-current text-red-500")} />
             {video.like_count}
           </span>
           <span>·</span>
           <span className="inline-flex items-center gap-0.5">
-            <Bookmark
-              size={11}
-              className={cn(isFavorited && "fill-current text-brand-500")}
-            />
+            <Bookmark size={11} className={cn(isFavorited && "fill-current text-brand-500")} />
             {video.favorite_count}
           </span>
         </div>
@@ -411,7 +373,7 @@ export default function WatchPage() {
       <div
         className={cn(
           "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
-          panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]",
+          panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
         )}
       >
         {/* ========== LEFT COLUMN ========== */}
@@ -428,7 +390,7 @@ export default function WatchPage() {
                 "transition-all duration-300",
                 isPip
                   ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
-                  : "absolute inset-0",
+                  : "absolute inset-0"
               )}
             >
               {playbackMode === "ready" && bestVideoUrl(video) ? (
@@ -445,32 +407,16 @@ export default function WatchPage() {
                       trackWatchTime(id, t);
                     }}
                     onPlay={() =>
-                      track(
-                        "play",
-                        { position_s: videoRef.current?.currentTime ?? 0 },
-                        id,
-                      )
+                      track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
                     onPause={() =>
-                      track(
-                        "pause",
-                        { position_s: videoRef.current?.currentTime ?? 0 },
-                        id,
-                      )
+                      track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
                     onSeeked={() =>
-                      track(
-                        "seek",
-                        { position_s: videoRef.current?.currentTime ?? 0 },
-                        id,
-                      )
+                      track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
                     onEnded={() =>
-                      track(
-                        "complete",
-                        { position_s: videoRef.current?.currentTime ?? 0 },
-                        id,
-                      )
+                      track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
                   />
                   {isPip && (
@@ -484,6 +430,13 @@ export default function WatchPage() {
                     </button>
                   )}
                 </>
+              ) : playbackMode === "ready" && youtubeId(video) ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${youtubeId(video)}?rel=0`}
+                  className="h-full w-full"
+                  allowFullScreen
+                  title={video.title}
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <div className="text-center">
@@ -495,10 +448,7 @@ export default function WatchPage() {
             </div>
             {/* 考试目标层级选择器：右上角收起药丸，不干扰观看（mini-player 时隐藏） */}
             {!isPip && (
-              <ExamLevelSelector
-                level={selectedExamLevel}
-                onChange={handleExamLevelChange}
-              />
+              <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
             )}
           </div>
 
@@ -514,7 +464,7 @@ export default function WatchPage() {
                         className={cn(
                           "now-sub-word",
                           levelClassFor(word, currentSubtitle.word_levels),
-                          isSelectedWord(word) && "now-sub-word-hl",
+                          isSelectedWord(word) && "now-sub-word-hl"
                         )}
                         onClick={() => handleWordClick(word)}
                       >
@@ -522,12 +472,9 @@ export default function WatchPage() {
                       </span>
                     ))}
                   </div>
-                  {(subtitleMode === "bilingual" ||
-                    subtitleMode === "chinese") &&
+                  {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                     currentSubtitle.text_zh && (
-                      <div className="now-sub-zh !mt-1.5">
-                        {currentSubtitle.text_zh}
-                      </div>
+                      <div className="now-sub-zh !mt-1.5">{currentSubtitle.text_zh}</div>
                     )}
                 </div>
 
@@ -537,7 +484,7 @@ export default function WatchPage() {
                     "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
                     speakingActive
                       ? "bg-brand-500 text-white shadow-brand"
-                      : "text-brand-500 bg-brand-50 hover:bg-brand-100",
+                      : "text-brand-500 bg-brand-50 hover:bg-brand-100"
                   )}
                   onClick={() => {
                     if (speakingActive) stopSpeaking();
@@ -561,12 +508,8 @@ export default function WatchPage() {
                         <Mic size={20} />
                       </button>
                       <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">
-                          点击麦克风开始录音
-                        </p>
-                        <p className="text-xs text-muted mt-0.5">
-                          朗读上方高亮字幕
-                        </p>
+                        <p className="text-[13px] font-semibold text-ink">点击麦克风开始录音</p>
+                        <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
                       </div>
                     </div>
                   )}
@@ -580,14 +523,9 @@ export default function WatchPage() {
                         <Mic size={20} />
                       </button>
                       <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">
-                          录音中…
-                        </p>
+                        <p className="text-[13px] font-semibold text-ink">录音中…</p>
                         <div className="mt-1">
-                          <AudioWaveform
-                            stream={recordingStream}
-                            barCount={24}
-                          />
+                          <AudioWaveform stream={recordingStream} barCount={24} />
                         </div>
                       </div>
                       <button
@@ -602,15 +540,9 @@ export default function WatchPage() {
                   {speakingState === "reviewing" && (
                     <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-ink mb-2">
-                          录音完成，回放听自己的发音
-                        </p>
+                        <p className="text-[13px] text-ink mb-2">录音完成，回放听自己的发音</p>
                         {audioUrl && (
-                          <audio
-                            src={audioUrl}
-                            controls
-                            className="h-8 w-full max-w-md"
-                          />
+                          <audio src={audioUrl} controls className="h-8 w-full max-w-md" />
                         )}
                       </div>
                       <div className="flex gap-2 shrink-0">
@@ -660,35 +592,26 @@ export default function WatchPage() {
                       }}
                       className={cn(
                         "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
-                        i === currentSubtitleIndex &&
-                          "bg-brand-50 border-l-brand-500",
+                        i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
                       )}
                     >
                       {subtitleMode !== "chinese" && (
                         <div
                           className={cn(
                             "font-medium text-sm leading-relaxed",
-                            i === currentSubtitleIndex
-                              ? "text-brand-500"
-                              : "text-ink",
+                            i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
                           )}
                         >
                           {sub.text_en.split(" ").map((word, wi) => (
-                            <span
-                              key={wi}
-                              className={levelClassFor(word, sub.word_levels)}
-                            >
+                            <span key={wi} className={levelClassFor(word, sub.word_levels)}>
                               {word}{" "}
                             </span>
                           ))}
                         </div>
                       )}
-                      {(subtitleMode === "bilingual" ||
-                        subtitleMode === "chinese") &&
+                      {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                         sub.text_zh && (
-                          <div className="text-muted mt-0.5 text-xs">
-                            {sub.text_zh}
-                          </div>
+                          <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
                         )}
                     </button>
                   ))}

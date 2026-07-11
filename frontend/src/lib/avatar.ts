@@ -25,11 +25,7 @@ export function avatarColor(seed: string | null | undefined): string {
  * Accepts either a user object with `name`/`phone` or a plain string.
  */
 export function userInitial(
-  user:
-    | { name?: string | null; phone?: string | null }
-    | string
-    | null
-    | undefined,
+  user: { name?: string | null; phone?: string | null } | string | null | undefined
 ): string {
   if (!user) return "U";
   if (typeof user === "string") return (user[0] || "U").toUpperCase();

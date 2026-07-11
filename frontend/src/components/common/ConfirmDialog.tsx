@@ -53,13 +53,7 @@ export function ConfirmDialog({
       }
       footer={
         <>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={busy}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={busy}>
             {cancelLabel}
           </Button>
           <Button

@@ -73,13 +73,7 @@ export function ShareToCommunityDialog({
       }
       footer={
         <>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={submitting}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={submitting}>
             取消
           </Button>
           <Button
@@ -95,9 +89,7 @@ export function ShareToCommunityDialog({
         </>
       }
     >
-      <p className="text-xs text-muted-foreground">
-        将{subject}分享到社区，让同学看到你的学习。
-      </p>
+      <p className="text-xs text-muted-foreground">将{subject}分享到社区，让同学看到你的学习。</p>
 
       <Textarea
         value={content}

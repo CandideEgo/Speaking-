@@ -53,12 +53,8 @@ export function AdminSidebar() {
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 border-b border-hairline px-5">
         <div className="leading-tight">
-          <div className="text-[15px] font-display font-bold text-ink">
-            SeeWord
-          </div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-soft">
-            管理后台
-          </div>
+          <div className="text-[15px] font-display font-bold text-ink">SeeWord</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-soft">管理后台</div>
         </div>
       </div>
 
@@ -81,7 +77,7 @@ export function AdminSidebar() {
                       "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium transition-colors",
                       active
                         ? "bg-ink text-on-primary"
-                        : "text-olive hover:bg-surface-card hover:text-ink",
+                        : "text-olive hover:bg-surface-card hover:text-ink"
                     )}
                   >
                     <Icon className="h-[18px] w-[18px] flex-shrink-0" />

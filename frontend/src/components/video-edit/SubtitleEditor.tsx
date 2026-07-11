@@ -43,9 +43,7 @@ export function SubtitleEditor({
 }: {
   subtitle: Subtitle;
   onSave: (patch: SubtitlePatch) => Promise<Subtitle>;
-  onSaveWordLevels: (
-    wordLevels: Record<string, string[]> | null,
-  ) => Promise<Subtitle>;
+  onSaveWordLevels: (wordLevels: Record<string, string[]> | null) => Promise<Subtitle>;
   /** Split this subtitle into two at a time. Parent refreshes the list. */
   onSplit?: (payload: SubtitleSplitPayload) => Promise<void>;
   /** Merge with the next subtitle. Parent refreshes the list. */
@@ -77,9 +75,7 @@ export function SubtitleEditor({
 
   const captureCurrentTime = (): number | null => {
     const t = videoRef?.current?.currentTime;
-    return typeof t === "number" && Number.isFinite(t)
-      ? Math.round(t * 10) / 10
-      : null;
+    return typeof t === "number" && Number.isFinite(t) ? Math.round(t * 10) / 10 : null;
   };
 
   const handleSave = async () => {
@@ -119,8 +115,8 @@ export function SubtitleEditor({
     // Compute text_before/text_after. Prefer word timestamps (precise cut at
     // the first word whose start >= t); fall back to a proportional word-count
     // split so the feature still works on legacy rows without `words`.
-    let textBefore = "";
-    let textAfter = "";
+    let textBefore: string;
+    let textAfter: string;
     const words = subtitle.words;
     if (words && words.length) {
       const idx = words.findIndex((w) => w.start >= t);
@@ -136,12 +132,8 @@ export function SubtitleEditor({
     } else {
       const tokens = textEn.split(/\s+/).filter(Boolean);
       const ratio =
-        (t - subtitle.start_time) /
-        Math.max(0.1, subtitle.end_time - subtitle.start_time);
-      const cut = Math.max(
-        1,
-        Math.min(tokens.length - 1, Math.round(tokens.length * ratio)),
-      );
+        (t - subtitle.start_time) / Math.max(0.1, subtitle.end_time - subtitle.start_time);
+      const cut = Math.max(1, Math.min(tokens.length - 1, Math.round(tokens.length * ratio)));
       textBefore = tokens.slice(0, cut).join(" ");
       textAfter = tokens.slice(cut).join(" ");
     }
@@ -324,9 +316,7 @@ export function SubtitleEditor({
         </div>
       )}
 
-      {editingLevels && (
-        <WordLevelsEditor subtitle={subtitle} onSave={onSaveWordLevels} />
-      )}
+      {editingLevels && <WordLevelsEditor subtitle={subtitle} onSave={onSaveWordLevels} />}
     </Card>
   );
 }

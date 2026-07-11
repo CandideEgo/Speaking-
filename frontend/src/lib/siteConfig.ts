@@ -22,5 +22,5 @@ export const siteConfig = {
 
 /** 是否已有任意备案/主体信息可公示。 */
 export const hasComplianceInfo = Boolean(
-  siteConfig.companyName || siteConfig.icpBeian || siteConfig.policeBeian,
+  siteConfig.companyName || siteConfig.icpBeian || siteConfig.policeBeian
 );

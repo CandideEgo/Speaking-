@@ -40,10 +40,7 @@ export default function TrendChart({ stats }: TrendChartProps) {
         本周趋势
       </h3>
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart
-          data={data}
-          margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
-        >
+        <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e6dfd8" />
           <XAxis
             dataKey="date"

@@ -134,9 +134,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             >
               {uploading ? "上传中..." : "上传头像"}
             </Button>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              支持 JPG/PNG/WebP/GIF，最大 5MB
-            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
           </div>
         </div>
       </div>
@@ -165,21 +163,13 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
           rows={3}
           className="w-full resize-none"
         />
-        <p className="mt-1 text-xs text-muted-foreground text-right">
-          {bio.length}/300
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground text-right">{bio.length}/300</p>
       </div>
 
       {/* Level */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">
-          英语等级
-        </label>
-        <Select
-          value={level}
-          onChange={(e) => setLevel(e.target.value)}
-          className="w-40"
-        >
+        <label className="block text-sm font-medium text-ink mb-2">英语等级</label>
+        <Select value={level} onChange={(e) => setLevel(e.target.value)} className="w-40">
           <option value="">未设置</option>
           {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
             <option key={l} value={l}>
@@ -191,9 +181,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
 
       {/* Phone — display + change */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">
-          手机号
-        </label>
+        <label className="block text-sm font-medium text-ink mb-2">手机号</label>
         {user.phone && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
             <Phone size={14} />
@@ -226,9 +214,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
                 inputMode="numeric"
                 maxLength={6}
                 value={changePhoneCode}
-                onChange={(e) =>
-                  setChangePhoneCode(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => setChangePhoneCode(e.target.value.replace(/\D/g, ""))}
                 placeholder="验证码"
                 required
                 className="flex-1"
@@ -240,11 +226,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
                 onClick={() => sendCode(newPhone, "change_phone")}
                 className="shrink-0"
               >
-                {cooldown > 0
-                  ? `${cooldown}s`
-                  : sending
-                    ? "发送中..."
-                    : "获取验证码"}
+                {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
               </Button>
             </div>
             <Input
@@ -283,9 +265,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">会员</label>
         <span
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium ${
-            isPro
-              ? "bg-coral/10 text-coral"
-              : "bg-cream-card text-muted-foreground"
+            isPro ? "bg-coral/10 text-coral" : "bg-cream-card text-muted-foreground"
           }`}
         >
           {isPro ? "Pro 会员" : "免费用户"}
@@ -299,9 +279,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
 
       {/* Member since */}
       <div>
-        <label className="block text-sm font-medium text-ink mb-2">
-          注册时间
-        </label>
+        <label className="block text-sm font-medium text-ink mb-2">注册时间</label>
         <p className="text-sm text-muted-foreground">
           {new Date(user.created_at).toLocaleDateString("zh-CN")}
         </p>

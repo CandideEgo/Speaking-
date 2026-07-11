@@ -6,11 +6,7 @@
  * login flow and the role check hit the backend directly through this client.
  */
 
-import {
-  createApiClient,
-  ApiClientError,
-  type AuthAdapter,
-} from "@/lib/createApiClient";
+import { createApiClient, ApiClientError, type AuthAdapter } from "@/lib/createApiClient";
 
 // ---------------------------------------------------------------------------
 // AdminApiError — backward-compatible error class
@@ -66,7 +62,7 @@ const client = createApiClient({
 
 export async function adminApi<T>(
   path: string,
-  options: Omit<RequestInit, "signal"> & { signal?: AbortSignal } = {},
+  options: Omit<RequestInit, "signal"> & { signal?: AbortSignal } = {}
 ): Promise<T> {
   return client.request<T>(path, options);
 }

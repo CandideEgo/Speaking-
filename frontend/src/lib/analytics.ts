@@ -24,10 +24,7 @@ const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE = 20;
 
 function makeSessionId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2);
@@ -51,7 +48,7 @@ function getToken(): string | null {
 export function track(
   eventType: string,
   payload: Record<string, unknown> = {},
-  videoId?: string,
+  videoId?: string
 ): void {
   if (typeof window === "undefined") return;
   QUEUE.push({

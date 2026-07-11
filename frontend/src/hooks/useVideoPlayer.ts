@@ -12,6 +12,19 @@ export function bestVideoUrl(v: VideoWithSubtitles): string | null {
   return v.video_url_1080p || v.video_url_720p || v.video_url_480p || null;
 }
 
+/** Extract YouTube video ID from a URL. */
+export function youtubeId(v: VideoWithSubtitles): string | null {
+  const m = v.source_url?.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/
+  );
+  return m ? m[1] : null;
+}
+
+/** Whether the video can be played (local file or YouTube embed). */
+export function canPlay(v: VideoWithSubtitles): boolean {
+  return !!bestVideoUrl(v) || !!youtubeId(v);
+}
+
 interface UseVideoPlayerOptions {
   videoId: string;
   setVideoAspectRatio: (ratio: number) => void;
@@ -56,8 +69,7 @@ export function useVideoPlayer({
   // Detect desktop layout
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
-    const check = (e: MediaQueryListEvent | MediaQueryList) =>
-      setIsDesktop(e.matches);
+    const check = (e: MediaQueryListEvent | MediaQueryList) => setIsDesktop(e.matches);
     check(mql);
     mql.addEventListener("change", check);
     return () => mql.removeEventListener("change", check);
@@ -69,7 +81,7 @@ export function useVideoPlayer({
     api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
-        if (v.status === "ready" && bestVideoUrl(v)) setPlaybackMode("ready");
+        if (v.status === "ready" && canPlay(v)) setPlaybackMode("ready");
         else if (v.status === "ready_subtitles" || v.status === "processing")
           setPlaybackMode("processing");
         else setPlaybackMode("loading");
@@ -86,23 +98,13 @@ export function useVideoPlayer({
 
   // Poll for video status when processing
   useEffect(() => {
-    if (
-      !video ||
-      (video.status !== "processing" && video.status !== "ready_subtitles")
-    )
-      return;
+    if (!video || (video.status !== "processing" && video.status !== "ready_subtitles")) return;
     const interval = setInterval(async () => {
       try {
-        const updated = await api<VideoWithSubtitles>(
-          `/api/v1/videos/${videoId}`,
-        );
+        const updated = await api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`);
         setVideo(updated);
-        if (updated.status === "ready" && bestVideoUrl(updated))
-          setPlaybackMode("ready");
-        else if (
-          updated.status === "ready_subtitles" ||
-          updated.status === "processing"
-        )
+        if (updated.status === "ready" && canPlay(updated)) setPlaybackMode("ready");
+        else if (updated.status === "ready_subtitles" || updated.status === "processing")
           setPlaybackMode("processing");
         else if (updated.status === "error") setPlaybackMode("loading");
       } catch {
@@ -119,10 +121,7 @@ export function useVideoPlayer({
 
   const seekBy = useCallback((delta: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(
-        0,
-        videoRef.current.currentTime + delta,
-      );
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + delta);
     }
   }, []);
 
@@ -141,17 +140,14 @@ export function useVideoPlayer({
       // The state updater is pure — the seekTo side effect runs outside it.
       let newTime: number | null = null;
       setCurrentSubtitleIndex((prevIdx) => {
-        const newIndex = Math.max(
-          0,
-          Math.min(vd.subtitles!.length - 1, prevIdx + delta),
-        );
+        const newIndex = Math.max(0, Math.min(vd.subtitles!.length - 1, prevIdx + delta));
         newTime = vd.subtitles![newIndex].start_time;
         return newIndex;
       });
       // Side effect: seek the video player (must be outside the updater)
       if (newTime !== null) seekTo(newTime);
     },
-    [seekTo],
+    [seekTo]
   );
 
   // Keyboard shortcuts (skip when focus is on interactive elements)
@@ -196,7 +192,7 @@ export function useVideoPlayer({
     (async () => {
       try {
         const data = await api<{ position_seconds: number | null }>(
-          `/api/v1/learning/progress/${videoId}`,
+          `/api/v1/learning/progress/${videoId}`
         );
         if (cancelled) return;
         const pos = data.position_seconds;

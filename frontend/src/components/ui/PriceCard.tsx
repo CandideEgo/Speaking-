@@ -24,7 +24,7 @@ export function PriceCard({
       className={cn(
         "bg-canvas border border-hairline rounded-lg p-[30px] flex flex-col",
         popular && "border-ink border-2 relative",
-        className,
+        className
       )}
     >
       {popular && (

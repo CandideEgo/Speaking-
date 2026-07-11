@@ -92,7 +92,7 @@ export function Button({
         SIZE[size],
         fullWidth && "w-full justify-center",
         "disabled:cursor-not-allowed",
-        className,
+        className
       )}
       {...props}
     >

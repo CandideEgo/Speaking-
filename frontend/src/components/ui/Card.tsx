@@ -40,17 +40,14 @@ export function Card({
   as?: ElementType;
   className?: string;
   children: ReactNode;
-} & Omit<
-  React.ComponentPropsWithoutRef<ElementType>,
-  "className" | "children"
->) {
+} & Omit<React.ComponentPropsWithoutRef<ElementType>, "className" | "children">) {
   return (
     <Tag
       className={cn(
         "rounded-lg transition-all duration-150",
         VARIANT[variant],
         PADDING[padding],
-        className,
+        className
       )}
       {...props}
     >

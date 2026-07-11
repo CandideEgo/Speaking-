@@ -38,7 +38,7 @@ interface UseVideoStatusPollingOptions {
 export function useVideoStatusPolling(
   videoId: string,
   currentStatus: string,
-  options: UseVideoStatusPollingOptions,
+  options: UseVideoStatusPollingOptions
 ) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const optionsRef = useRef(options);

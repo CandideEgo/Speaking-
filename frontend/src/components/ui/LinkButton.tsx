@@ -50,7 +50,7 @@ export function LinkButton({
         VARIANT[variant],
         SIZE[size],
         fullWidth && "w-full justify-center",
-        className,
+        className
       )}
       {...props}
     >

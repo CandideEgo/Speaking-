@@ -13,10 +13,7 @@ import {
   shouldDisplay,
   wordHighlightClass,
 } from "@/lib/examLevels";
-import {
-  SubtitleEditor,
-  type SubtitleSplitPayload,
-} from "@/components/video-edit/SubtitleEditor";
+import { SubtitleEditor, type SubtitleSplitPayload } from "@/components/video-edit/SubtitleEditor";
 import { SubtitleHistory } from "@/components/video-edit/SubtitleHistory";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -52,13 +49,8 @@ export interface VideoSubtitleEditorPanelProps {
   onSaveSubtitle: (subId: string, patch: SubtitlePatch) => Promise<Subtitle>;
   onSplit: (subId: string, payload: SubtitleSplitPayload) => Promise<void>;
   onMerge: (subId: string) => Promise<void>;
-  onSaveWordLevels: (
-    subId: string,
-    levels: Record<string, string[]> | null,
-  ) => Promise<Subtitle>;
-  onListRevisions?: (
-    subId: string,
-  ) => Promise<{ items: SubtitleRevision[]; has_more: boolean }>;
+  onSaveWordLevels: (subId: string, levels: Record<string, string[]> | null) => Promise<Subtitle>;
+  onListRevisions?: (subId: string) => Promise<{ items: SubtitleRevision[]; has_more: boolean }>;
   onRollback?: (subId: string, revisionId: string) => Promise<void>;
   /** Page-level actions rendered above the panel (e.g. resegment, recompute). */
   headerExtra?: ReactNode;
@@ -83,9 +75,7 @@ export function VideoSubtitleEditorPanel({
   const [editId, setEditId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [mode, setMode] = useState<SubtitleMode>("bilingual");
-  const [level, setLevel] = useState<string>(
-    TARGET_LEVEL_OPTIONS[0]?.key ?? "cet4",
-  );
+  const [level, setLevel] = useState<string>(TARGET_LEVEL_OPTIONS[0]?.key ?? "cet4");
 
   // Clear a stale editId if the edited subtitle no longer exists after a
   // structural refresh (defensive — split/merge keep the edited row, but a
@@ -112,8 +102,7 @@ export function VideoSubtitleEditorPanel({
     if (!container || !el) return;
     const elTop = el.getBoundingClientRect().top;
     const cTop = container.getBoundingClientRect().top;
-    const offset =
-      elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
+    const offset = elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
     if (Math.abs(offset) > el.clientHeight / 2) {
       container.scrollBy({ top: offset, behavior: "smooth" });
     }
@@ -127,10 +116,7 @@ export function VideoSubtitleEditorPanel({
     }
   };
 
-  const levelClassFor = (
-    word: string,
-    wl: Record<string, string[]> | null,
-  ): string => {
+  const levelClassFor = (word: string, wl: Record<string, string[]> | null): string => {
     if (!wl || !level) return "";
     const levels = wl[cleanToken(word)];
     if (!levels || !shouldDisplay(levels, level)) return "";
@@ -138,12 +124,8 @@ export function VideoSubtitleEditorPanel({
   };
 
   const currentSub: Subtitle | undefined = video.subtitles[currentIdx];
-  const editSub = editId
-    ? video.subtitles.find((s) => s.id === editId)
-    : undefined;
-  const editIdx = editSub
-    ? video.subtitles.findIndex((s) => s.id === editId)
-    : -1;
+  const editSub = editId ? video.subtitles.find((s) => s.id === editId) : undefined;
+  const editIdx = editSub ? video.subtitles.findIndex((s) => s.id === editId) : -1;
   const canMerge = editIdx >= 0 && editIdx < video.subtitles.length - 1;
 
   const handleSplit = async (payload: SubtitleSplitPayload) => {
@@ -165,9 +147,7 @@ export function VideoSubtitleEditorPanel({
   return (
     <div className="space-y-3">
       {headerExtra && (
-        <div className="flex items-center justify-end gap-2 flex-wrap">
-          {headerExtra}
-        </div>
+        <div className="flex items-center justify-end gap-2 flex-wrap">{headerExtra}</div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
@@ -181,10 +161,7 @@ export function VideoSubtitleEditorPanel({
                 controls
                 className="h-full w-full object-contain"
                 onTimeUpdate={(e) => {
-                  const idx = findSubtitleIndex(
-                    video.subtitles,
-                    e.currentTarget.currentTime,
-                  );
+                  const idx = findSubtitleIndex(video.subtitles, e.currentTarget.currentTime);
                   if (idx !== -1) setCurrentIdx(idx);
                 }}
               />
@@ -196,20 +173,14 @@ export function VideoSubtitleEditorPanel({
           </div>
 
           {video.subtitles.length === 0 ? (
-            <div className="text-center text-muted py-6 text-sm">
-              {emptyHint}
-            </div>
+            <div className="text-center text-muted py-6 text-sm">{emptyHint}</div>
           ) : editSub ? (
             <div className="bg-canvas border border-hairline rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted">
                   编辑字幕 #{editSub.sentence_index + 1}
                 </span>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setEditId(null)}
-                >
+                <Button variant="outline" size="xs" onClick={() => setEditId(null)}>
                   完成
                 </Button>
               </div>
@@ -219,9 +190,7 @@ export function VideoSubtitleEditorPanel({
                 videoRef={videoRef}
                 onSeekTo={seekTo}
                 onSave={(patch) => onSaveSubtitle(editSub.id, patch)}
-                onSaveWordLevels={(levels) =>
-                  onSaveWordLevels(editSub.id, levels)
-                }
+                onSaveWordLevels={(levels) => onSaveWordLevels(editSub.id, levels)}
                 onSplit={handleSplit}
                 onMerge={handleMerge}
                 canMerge={canMerge}
@@ -239,8 +208,7 @@ export function VideoSubtitleEditorPanel({
             <div className="bg-canvas border border-hairline rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] text-muted">
-                  #{currentSub.sentence_index + 1} ·{" "}
-                  {currentSub.start_time.toFixed(1)}s–
+                  #{currentSub.sentence_index + 1} · {currentSub.start_time.toFixed(1)}s–
                   {currentSub.end_time.toFixed(1)}s
                 </span>
                 {canEdit && (
@@ -256,20 +224,14 @@ export function VideoSubtitleEditorPanel({
               </div>
               <div className="text-base leading-relaxed text-ink">
                 {currentSub.text_en.split(" ").map((word, i) => (
-                  <span
-                    key={i}
-                    className={levelClassFor(word, currentSub.word_levels)}
-                  >
+                  <span key={i} className={levelClassFor(word, currentSub.word_levels)}>
                     {word}{" "}
                   </span>
                 ))}
               </div>
-              {(mode === "bilingual" || mode === "chinese") &&
-                currentSub.text_zh && (
-                  <div className="text-sm text-muted mt-1.5">
-                    {currentSub.text_zh}
-                  </div>
-                )}
+              {(mode === "bilingual" || mode === "chinese") && currentSub.text_zh && (
+                <div className="text-sm text-muted mt-1.5">{currentSub.text_zh}</div>
+              )}
             </div>
           ) : null}
         </div>
@@ -279,23 +241,19 @@ export function VideoSubtitleEditorPanel({
           <div className="border-b border-hairline p-2 flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold">字幕</span>
             <div className="flex gap-0.5">
-              {(["english", "bilingual", "chinese"] as SubtitleMode[]).map(
-                (m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMode(m)}
-                    className={cn(
-                      "text-[11px] px-2 py-0.5 rounded transition-colors",
-                      mode === m
-                        ? "bg-brand-500 text-white"
-                        : "text-muted hover:bg-surface-soft",
-                    )}
-                  >
-                    {MODE_LABEL[m]}
-                  </button>
-                ),
-              )}
+              {(["english", "bilingual", "chinese"] as SubtitleMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={cn(
+                    "text-[11px] px-2 py-0.5 rounded transition-colors",
+                    mode === m ? "bg-brand-500 text-white" : "text-muted hover:bg-surface-soft"
+                  )}
+                >
+                  {MODE_LABEL[m]}
+                </button>
+              ))}
             </div>
             <div className="ml-auto flex items-center gap-1">
               <span className="text-[11px] text-muted">考级</span>
@@ -325,27 +283,21 @@ export function VideoSubtitleEditorPanel({
                   }}
                   className={cn(
                     "w-full text-left rounded-lg border-l-[3px] border-transparent p-2 transition-colors hover:bg-surface-soft",
-                    i === currentIdx && "bg-brand-50 border-l-brand-500",
+                    i === currentIdx && "bg-brand-50 border-l-brand-500"
                   )}
                 >
                   {mode !== "chinese" && (
                     <div className="text-xs leading-relaxed text-ink">
                       {sub.text_en.split(" ").map((word, wi) => (
-                        <span
-                          key={wi}
-                          className={levelClassFor(word, sub.word_levels)}
-                        >
+                        <span key={wi} className={levelClassFor(word, sub.word_levels)}>
                           {word}{" "}
                         </span>
                       ))}
                     </div>
                   )}
-                  {(mode === "bilingual" || mode === "chinese") &&
-                    sub.text_zh && (
-                      <div className="text-[11px] text-muted mt-0.5">
-                        {sub.text_zh}
-                      </div>
-                    )}
+                  {(mode === "bilingual" || mode === "chinese") && sub.text_zh && (
+                    <div className="text-[11px] text-muted mt-0.5">{sub.text_zh}</div>
+                  )}
                   <div className="text-[10px] text-muted/70 mt-0.5">
                     {sub.start_time.toFixed(1)}s
                   </div>

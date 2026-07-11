@@ -18,14 +18,11 @@ interface SubtitleListProps {
 }
 
 /** Parse difficulty_words JSON string into array of words to highlight */
-function parseDifficultyWords(
-  difficultyWords: string | null | undefined,
-): string[] {
+function parseDifficultyWords(difficultyWords: string | null | undefined): string[] {
   if (!difficultyWords) return [];
   try {
     const parsed = JSON.parse(difficultyWords);
-    if (Array.isArray(parsed))
-      return parsed.map((w: unknown) => String(w).toLowerCase());
+    if (Array.isArray(parsed)) return parsed.map((w: unknown) => String(w).toLowerCase());
     return [];
   } catch {
     return [];
@@ -63,7 +60,7 @@ function getInitials(name: string): string {
 
 /** Group subtitles by speaker */
 function groupSubtitlesBySpeaker(
-  subtitles: Subtitle[],
+  subtitles: Subtitle[]
 ): { speaker: string | null; subtitles: Subtitle[]; startIndex: number }[] {
   const groups: {
     speaker: string | null;
@@ -104,7 +101,7 @@ const HighlightedText = memo(function HighlightedText({
         if (/^\s+$/.test(word)) {
           return <span key={wi}>{word}</span>;
         }
-        const cleanWord = word.replace(/[.,!?;:'"()\[\]]/g, "").toLowerCase();
+        const cleanWord = word.replace(/[.,!?;:'"()[\]]/g, "").toLowerCase();
         const isHighlighted = highlightWords.includes(cleanWord);
         const isSelected = selectedWord === cleanWord;
 
@@ -127,7 +124,7 @@ const HighlightedText = memo(function HighlightedText({
               "cursor-pointer rounded transition-colors duration-150",
               isHighlighted && "bg-red-100 text-red-700 px-0.5",
               isSelected && "bg-coral/20 text-coral",
-              !isHighlighted && !isSelected && "hover:bg-coral/10",
+              !isHighlighted && !isSelected && "hover:bg-coral/10"
             )}
           >
             {word}
@@ -169,7 +166,7 @@ const SubtitleItem = memo(function SubtitleItem({
 }: SubtitleItemProps) {
   const highlightWords = useMemo(
     () => parseDifficultyWords(sub.difficulty_words),
-    [sub.difficulty_words],
+    [sub.difficulty_words]
   );
 
   return (
@@ -177,9 +174,7 @@ const SubtitleItem = memo(function SubtitleItem({
       id={`subtitle-${index}`}
       className={cn(
         "group relative rounded-xl transition-all duration-200",
-        isActive
-          ? "bg-cream-card shadow-sm border border-coral/30"
-          : "hover:bg-cream-soft/50",
+        isActive ? "bg-cream-card shadow-sm border border-coral/30" : "hover:bg-cream-soft/50"
       )}
     >
       {/* Main content area */}
@@ -206,9 +201,7 @@ const SubtitleItem = memo(function SubtitleItem({
 
         {/* Grammar note */}
         {sub.grammar_note && (
-          <p className="mt-1.5 text-xs text-amber-600/80">
-            提示：{sub.grammar_note}
-          </p>
+          <p className="mt-1.5 text-xs text-amber-600/80">提示：{sub.grammar_note}</p>
         )}
       </button>
 
@@ -216,9 +209,7 @@ const SubtitleItem = memo(function SubtitleItem({
       <div className="flex items-center justify-between px-4 pb-3">
         {/* Timestamp and index */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-mono">
-            {index + 1}
-          </span>
+          <span className="text-[11px] text-muted-foreground font-mono">{index + 1}</span>
           <span className="text-[11px] text-muted-foreground font-mono">
             {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
           </span>
@@ -261,7 +252,7 @@ const SubtitleItem = memo(function SubtitleItem({
               "p-1.5 rounded-lg transition-colors",
               favorited
                 ? "text-coral bg-coral/10"
-                : "text-ink/70 hover:text-coral hover:bg-coral/10",
+                : "text-ink/70 hover:text-coral hover:bg-coral/10"
             )}
             title="收藏"
             aria-label="收藏字幕"
@@ -364,14 +355,12 @@ export default function SubtitleList({
                 <div
                   className={cn(
                     "flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold border",
-                    speakerColor,
+                    speakerColor
                   )}
                 >
                   {getInitials(speaker)}
                 </div>
-                <span className="text-sm font-medium text-ink/80">
-                  {speaker}
-                </span>
+                <span className="text-sm font-medium text-ink/80">{speaker}</span>
               </div>
             )}
 

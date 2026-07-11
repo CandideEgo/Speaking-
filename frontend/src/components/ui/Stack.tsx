@@ -4,13 +4,7 @@ import { cn } from "@/lib/utils";
 export type StackDirection = "row" | "col";
 export type StackGap = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8;
 export type StackAlign = "start" | "center" | "end" | "stretch" | "baseline";
-export type StackJustify =
-  | "start"
-  | "center"
-  | "end"
-  | "between"
-  | "around"
-  | "evenly";
+export type StackJustify = "start" | "center" | "end" | "between" | "around" | "evenly";
 
 // Static class maps so Tailwind's JIT can detect them (no `gap-${gap}`).
 const GAP: Record<StackGap, string> = {
@@ -65,10 +59,7 @@ export function Stack({
   as?: ElementType;
   className?: string;
   children?: ReactNode;
-} & Omit<
-  React.ComponentPropsWithoutRef<ElementType>,
-  "className" | "children"
->) {
+} & Omit<React.ComponentPropsWithoutRef<ElementType>, "className" | "children">) {
   return (
     <Tag
       className={cn(
@@ -77,7 +68,7 @@ export function Stack({
         GAP[gap],
         align && ALIGN[align],
         justify && JUSTIFY[justify],
-        className,
+        className
       )}
       {...props}
     >

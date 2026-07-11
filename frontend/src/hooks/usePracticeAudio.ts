@@ -34,7 +34,7 @@ export function usePracticeAudio(): UsePracticeAudioReturn {
       if (!word) return;
       speak(word, { rate: 0.85 });
     },
-    [speak],
+    [speak]
   );
 
   const playSentence = useCallback(
@@ -42,7 +42,7 @@ export function usePracticeAudio(): UsePracticeAudioReturn {
       if (!sentence) return;
       speak(sentence, { rate: 0.8 });
     },
-    [speak],
+    [speak]
   );
 
   return { playWord, playSentence, playingText: currentText, isPlaying, stop };

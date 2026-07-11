@@ -47,17 +47,12 @@ export function Modal({
       }}
     >
       <div
-        className={cn(
-          "w-full rounded-lg bg-canvas border border-hairline p-5 space-y-3",
-          maxWidth,
-        )}
+        className={cn("w-full rounded-lg bg-canvas border border-hairline p-5 space-y-3", maxWidth)}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold flex items-center gap-1.5">
-              {title}
-            </h3>
+            <h3 className="text-sm font-bold flex items-center gap-1.5">{title}</h3>
             <button
               type="button"
               onClick={onClose}

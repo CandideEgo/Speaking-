@@ -22,9 +22,7 @@ logger = get_logger(__name__)
 
 # Resolutions to transcode
 TRANSCODE_PROFILES = {
-    "480p": {"height": 480, "bitrate": "800k"},
     "720p": {"height": 720, "bitrate": "1500k"},
-    "1080p": {"height": 1080, "bitrate": "3000k"},
 }
 
 
@@ -508,7 +506,13 @@ def finalize_video(self, video_id: str):
                     if video.video_source == VideoSource.imported:
                         video_path = await _download_video(video.source_url, video.id)
                         if not video_path:
-                            raise Exception(f"Failed to download video from {video.source_url}")
+                            # Imported (YouTube) videos can be played via embed
+                            # without a local file.  Log and continue rather than
+                            # failing the entire pipeline.
+                            logger.warning(
+                                "Video %s: download failed — continuing without local file (embed playback)",
+                                video_id,
+                            )
                     else:
                         # Local upload: raw file already staged by the head.
                         video_path = _find_local_raw(video.id)

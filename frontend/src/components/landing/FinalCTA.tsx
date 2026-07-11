@@ -24,13 +24,7 @@ export function FinalCTA() {
               免费注册，无需信用卡。看真实视频，学地道英语。
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <LinkButton
-                href="/register"
-                variant="dark"
-                size="lg"
-                icon={ArrowRight}
-                iconRight
-              >
+              <LinkButton href="/register" variant="dark" size="lg" icon={ArrowRight} iconRight>
                 免费试用
               </LinkButton>
               <LinkButton href="/browse" variant="ghostDark" size="lg">

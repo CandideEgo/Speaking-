@@ -61,9 +61,7 @@ export default function MyVideosPage() {
   // useVideoStatusPolling hook, but shares ACTIVE_POLLING_STATUSES.
   useEffect(() => {
     const currentVideos = videosRef.current;
-    const hasProcessing = currentVideos.some((v) =>
-      ACTIVE_POLLING_STATUSES.has(v.status),
-    );
+    const hasProcessing = currentVideos.some((v) => ACTIVE_POLLING_STATUSES.has(v.status));
     if (!hasProcessing) {
       if (pollRef.current) clearInterval(pollRef.current);
       return;
@@ -79,8 +77,7 @@ export default function MyVideosPage() {
               ...v,
               status: st.status as Video["status"],
               processing_step: st.processing_step,
-              processing_progress:
-                st.processing_progress ?? v.processing_progress,
+              processing_progress: st.processing_progress ?? v.processing_progress,
               error_message: st.error_message ?? v.error_message,
               video_url_720p: st.video_url_720p ?? v.video_url_720p,
             });
@@ -157,11 +154,7 @@ export default function MyVideosPage() {
             >
               {uploading ? "上传中…" : "本地上传"}
             </Button>
-            <Button
-              onClick={() => setLinkDialogOpen(true)}
-              disabled={uploading}
-              icon={Link2}
-            >
+            <Button onClick={() => setLinkDialogOpen(true)} disabled={uploading} icon={Link2}>
               链接导入
             </Button>
           </div>
@@ -205,18 +198,14 @@ export default function MyVideosPage() {
                       <Icon
                         size={11}
                         className={
-                          s === "processing" || s === "pending_processing"
-                            ? "animate-spin"
-                            : ""
+                          s === "processing" || s === "pending_processing" ? "animate-spin" : ""
                         }
                       />
                       {meta.label}
                     </span>
                   </div>
                   <div className="p-3.5">
-                    <p className="text-sm font-semibold line-clamp-1">
-                      {v.title}
-                    </p>
+                    <p className="text-sm font-semibold line-clamp-1">{v.title}</p>
                     <p className="text-xs text-muted mt-1">
                       {s === "pending_processing"
                         ? "等待管理员启动处理"

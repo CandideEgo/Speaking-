@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
-import {
-  Volume2,
-  Check,
-  X,
-  RotateCcw,
-  Loader2,
-  Trophy,
-  Mic,
-  MicOff,
-} from "lucide-react";
+import { Volume2, Check, X, RotateCcw, Loader2, Trophy, Mic, MicOff } from "lucide-react";
 import type { GradedResult, PracticeItem } from "@/types";
 import { usePracticeAudio } from "@/hooks/usePracticeAudio";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
@@ -77,8 +68,7 @@ function OptionList({
     <div className="space-y-1.5">
       {options.map((opt, i) => {
         const isSelected = selected === opt;
-        const isCorrect =
-          graded?.correctAnswer === opt || (graded?.correct && isSelected);
+        const isCorrect = graded?.correctAnswer === opt || (graded?.correct && isSelected);
         const isWrong = isSelected && graded && !graded.correct;
         return (
           <label
@@ -118,20 +108,9 @@ function OptionList({
   );
 }
 
-function CheckButton({
-  onClick,
-  disabled,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+function CheckButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   return (
-    <Button
-      variant="outline"
-      size="compact"
-      onClick={onClick}
-      disabled={disabled}
-    >
+    <Button variant="outline" size="compact" onClick={onClick} disabled={disabled}>
       检查答案
     </Button>
   );
@@ -166,15 +145,8 @@ function CompletionSummary({
             保存学习记录
           </Button>
         )}
-        {submitted && (
-          <span className="text-xs text-emerald-600">✓ 已同步</span>
-        )}
-        <Button
-          variant="outline"
-          size="compact"
-          onClick={onRetry}
-          icon={RotateCcw}
-        >
+        {submitted && <span className="text-xs text-emerald-600">✓ 已同步</span>}
+        <Button variant="outline" size="compact" onClick={onRetry} icon={RotateCcw}>
           重新练习
         </Button>
       </div>
@@ -186,13 +158,7 @@ function CompletionSummary({
 // Practice-specific sub-components
 // ---------------------------------------------------------------------------
 
-function AudioPlayButton({
-  onPlay,
-  isPlaying,
-}: {
-  onPlay: () => void;
-  isPlaying: boolean;
-}) {
+function AudioPlayButton({ onPlay, isPlaying }: { onPlay: () => void; isPlaying: boolean }) {
   return (
     <button
       type="button"
@@ -206,19 +172,11 @@ function AudioPlayButton({
   );
 }
 
-function WordDisplay({
-  word,
-  phonetic,
-}: {
-  word: string;
-  phonetic?: string | null;
-}) {
+function WordDisplay({ word, phonetic }: { word: string; phonetic?: string | null }) {
   return (
     <span>
       <span className="font-semibold text-ink">{word}</span>
-      {phonetic && (
-        <span className="ml-1.5 text-xs text-muted">/{phonetic}/</span>
-      )}
+      {phonetic && <span className="ml-1.5 text-xs text-muted">/{phonetic}/</span>}
     </span>
   );
 }
@@ -278,8 +236,9 @@ function RecordAndEvaluate({
   sentence: string;
   onResult: (correct: boolean) => void;
 }) {
-  const { speakingState, startRecording, stopRecording, audioUrl } =
-    useSpeakingRecorder(() => true);
+  const { speakingState, startRecording, stopRecording, audioUrl } = useSpeakingRecorder(
+    () => true
+  );
   const isRecording = speakingState === "listening";
   const [hasRecorded, setHasRecorded] = useState(false);
 
@@ -306,13 +265,8 @@ function RecordAndEvaluate({
       {hasRecorded && audioUrl && (
         <div className="space-y-2">
           <audio controls src={audioUrl} className="h-8 w-full" />
-          <div className="text-xs text-muted mb-1">
-            回放你的录音，然后自评：
-          </div>
-          <SelfEvaluateButtons
-            onCorrect={() => onResult(true)}
-            onWrong={() => onResult(false)}
-          />
+          <div className="text-xs text-muted mb-1">回放你的录音，然后自评：</div>
+          <SelfEvaluateButtons onCorrect={() => onResult(true)} onWrong={() => onResult(false)} />
         </div>
       )}
     </div>
@@ -432,12 +386,7 @@ function PracticeItemRenderer({
                 if (e.key === "Enter" && !locked && answer.trim()) onGrade();
               }}
             />
-            {!locked && (
-              <CheckButton
-                onClick={() => onGrade()}
-                disabled={!answer.trim()}
-              />
-            )}
+            {!locked && <CheckButton onClick={() => onGrade()} disabled={!answer.trim()} />}
           </div>
         </QuestionCard>
       );
@@ -468,12 +417,7 @@ function PracticeItemRenderer({
                 if (e.key === "Enter" && !locked && answer.trim()) onGrade();
               }}
             />
-            {!locked && (
-              <CheckButton
-                onClick={() => onGrade()}
-                disabled={!answer.trim()}
-              />
-            )}
+            {!locked && <CheckButton onClick={() => onGrade()} disabled={!answer.trim()} />}
           </div>
         </QuestionCard>
       );
@@ -516,12 +460,7 @@ function PracticeItemRenderer({
                   if (e.key === "Enter" && !locked && answer.trim()) onGrade();
                 }}
               />
-              {!locked && (
-                <CheckButton
-                  onClick={() => onGrade()}
-                  disabled={!answer.trim()}
-                />
-              )}
+              {!locked && <CheckButton onClick={() => onGrade()} disabled={!answer.trim()} />}
             </div>
           )}
         </QuestionCard>
@@ -533,12 +472,8 @@ function PracticeItemRenderer({
           prompt={
             <div className="flex items-center gap-2">
               <AudioPlayButton
-                onPlay={() =>
-                  audio.playSentence(item.full_sentence ?? item.word)
-                }
-                isPlaying={
-                  audio.playingText === (item.full_sentence ?? item.word)
-                }
+                onPlay={() => audio.playSentence(item.full_sentence ?? item.word)}
+                isPlaying={audio.playingText === (item.full_sentence ?? item.word)}
               />
               <span className="text-sm text-muted">听句子，跟读并自评</span>
             </div>
@@ -593,10 +528,7 @@ interface UnifiedPracticePanelProps {
   levelLabel: string;
 }
 
-export function UnifiedPracticePanel({
-  session,
-  levelLabel,
-}: UnifiedPracticePanelProps) {
+export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePanelProps) {
   const audio = usePracticeAudio();
   const [submitted, setSubmitted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -642,12 +574,7 @@ export function UnifiedPracticePanel({
     return (
       <div className="text-sm text-red-500 py-4">
         {session.error}
-        <Button
-          variant="outline"
-          size="compact"
-          className="ml-2"
-          onClick={() => session.refetch()}
-        >
+        <Button variant="outline" size="compact" className="ml-2" onClick={() => session.refetch()}>
           重试
         </Button>
       </div>
@@ -655,11 +582,7 @@ export function UnifiedPracticePanel({
   }
 
   if (!total) {
-    return (
-      <div className="text-sm text-muted py-4">
-        该视频暂无目标等级词汇可供练习。
-      </div>
-    );
+    return <div className="text-sm text-muted py-4">该视频暂无目标等级词汇可供练习。</div>;
   }
 
   // Completion screen — show once every item has been graded.
@@ -672,10 +595,7 @@ export function UnifiedPracticePanel({
             return (
               <span
                 key={i}
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  g?.correct ? "bg-emerald-500" : "bg-red-400",
-                )}
+                className={cn("h-2 w-2 rounded-full", g?.correct ? "bg-emerald-500" : "bg-red-400")}
               />
             );
           })}
@@ -701,9 +621,7 @@ export function UnifiedPracticePanel({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-ink">练习</span>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-ink/5 text-muted">
-            {levelLabel}
-          </span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-ink/5 text-muted">{levelLabel}</span>
           <span className="text-xs text-muted">
             {currentIndex + 1} / {total}
           </span>
@@ -711,12 +629,7 @@ export function UnifiedPracticePanel({
         <div className="flex items-center gap-3 text-sm text-muted">
           <span className="text-emerald-600">✓ {session.correctCount}</span>
           <span className="text-red-500">✗ {wrongCount}</span>
-          <Button
-            variant="ghost"
-            size="compact"
-            onClick={handleRetry}
-            icon={RotateCcw}
-          >
+          <Button variant="ghost" size="compact" onClick={handleRetry} icon={RotateCcw}>
             重置
           </Button>
         </div>
@@ -738,7 +651,7 @@ export function UnifiedPracticePanel({
                 isCurrent ? "w-6 bg-ink" : "w-2",
                 !isCurrent && g?.correct && "bg-emerald-500",
                 !isCurrent && g && !g.correct && "bg-red-400",
-                !isCurrent && !g && "bg-hairline",
+                !isCurrent && !g && "bg-hairline"
               )}
             />
           );

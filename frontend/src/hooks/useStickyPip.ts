@@ -27,7 +27,7 @@ interface StickyPipResult {
  */
 export function useStickyPip<T extends HTMLElement>(
   slotRef: RefObject<T | null>,
-  enabled: boolean,
+  enabled: boolean
 ): StickyPipResult {
   const [pinned, setPinned] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -47,7 +47,7 @@ export function useStickyPip<T extends HTMLElement>(
         if (entry.isIntersecting) setDismissed(false);
       },
       // Trigger when the slot leaves the top 20% of the viewport.
-      { threshold: 0, rootMargin: "0px 0px -80% 0px" },
+      { threshold: 0, rootMargin: "0px 0px -80% 0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();

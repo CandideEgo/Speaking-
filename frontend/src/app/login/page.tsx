@@ -36,13 +36,10 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await api<{ token: string; refresh_token: string }>(
-        "/api/v1/auth/phone-login",
-        {
-          method: "POST",
-          body: JSON.stringify({ phone, password }),
-        },
-      );
+      const res = await api<{ token: string; refresh_token: string }>("/api/v1/auth/phone-login", {
+        method: "POST",
+        body: JSON.stringify({ phone, password }),
+      });
       login(res.token, res.refresh_token);
       router.push("/");
     } catch (err) {
@@ -58,10 +55,7 @@ export default function LoginPage() {
       subtitle={
         <>
           还没有账号？{" "}
-          <Link
-            href="/register"
-            className="text-brand-500 hover:underline font-medium"
-          >
+          <Link href="/register" className="text-brand-500 hover:underline font-medium">
             注册
           </Link>
         </>

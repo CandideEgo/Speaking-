@@ -33,10 +33,7 @@ function buildWsUrl(token: string): string {
   return `${protocol}//${host}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
 }
 
-export function NotificationDropdown({
-  onClose,
-  onUnreadCountChange,
-}: NotificationDropdownProps) {
+export function NotificationDropdown({ onClose, onUnreadCountChange }: NotificationDropdownProps) {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -62,9 +59,7 @@ export function NotificationDropdown({
   // Fetch unread count and propagate to parent
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const data = await api<{ count: number }>(
-        "/api/v1/notifications/unread-count",
-      );
+      const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
       onUnreadCountChange(data.count);
     } catch {
       // Silently fail
@@ -184,10 +179,7 @@ export function NotificationDropdown({
   // Click-away and Escape to close
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         onClose();
       }
     }
@@ -210,16 +202,14 @@ export function NotificationDropdown({
           method: "PATCH",
         });
         setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notification.id ? { ...n, is_read: true } : n,
-          ),
+          prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
         );
         await fetchUnreadCount();
       } catch {
         // Silently fail
       }
     },
-    [fetchUnreadCount],
+    [fetchUnreadCount]
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -243,7 +233,7 @@ export function NotificationDropdown({
         router.push(notification.related_url);
       }
     },
-    [markAsRead, onClose, router],
+    [markAsRead, onClose, router]
   );
 
   const hasUnread = notifications.some((n) => !n.is_read);
@@ -302,9 +292,7 @@ export function NotificationDropdown({
                     {!notification.is_read && (
                       <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-coral" />
                     )}
-                    <div
-                      className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}
-                    >
+                    <div className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}>
                       <p
                         className={`text-sm ${notification.is_read ? "text-muted-foreground" : "text-ink font-medium"}`}
                       >

@@ -3,13 +3,7 @@
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
-import {
-  Languages,
-  BookOpen,
-  FileText,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
+import { Languages, BookOpen, FileText, PanelRightClose, PanelRightOpen } from "lucide-react";
 
 const modes: { key: SubtitleMode; label: string; icon: React.ReactNode }[] = [
   { key: "bilingual", label: "双语", icon: <Languages size={14} /> },
@@ -35,7 +29,7 @@ export default function SubtitleModeTabs({
 
   function handleKeyDown(e: React.KeyboardEvent) {
     const currentIndex = modes.findIndex((m) => m.key === subtitleMode);
-    let nextIndex = currentIndex;
+    let nextIndex: number;
 
     if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -79,7 +73,7 @@ export default function SubtitleModeTabs({
             compact && "px-2",
             subtitleMode === m.key
               ? "bg-coral/10 text-coral shadow-sm"
-              : "text-muted-foreground hover:text-ink hover:bg-cream-soft",
+              : "text-muted-foreground hover:text-ink hover:bg-cream-soft"
           )}
           title={compact ? m.label : undefined}
         >
@@ -95,11 +89,7 @@ export default function SubtitleModeTabs({
           title={collapsed ? "展开字幕面板" : "收起为字幕轨"}
           aria-label={collapsed ? "展开字幕面板" : "收起为字幕轨"}
         >
-          {collapsed ? (
-            <PanelRightOpen size={16} />
-          ) : (
-            <PanelRightClose size={16} />
-          )}
+          {collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
         </button>
       )}
     </div>
@@ -129,7 +119,7 @@ export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
             "w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 cursor-pointer",
             subtitleMode === m.key
               ? "bg-coral/10 text-coral"
-              : "text-muted-foreground hover:text-ink hover:bg-cream-soft",
+              : "text-muted-foreground hover:text-ink hover:bg-cream-soft"
           )}
           title={m.label}
           aria-label={m.label}

@@ -36,11 +36,7 @@ export function Avatar({
 }: {
   src?: string | null;
   /** Display name (or user object) — first char becomes the fallback initial. */
-  name?:
-    | { name?: string | null; phone?: string | null }
-    | string
-    | null
-    | undefined;
+  name?: { name?: string | null; phone?: string | null } | string | null | undefined;
   /** Stable id for deterministic color. Defaults to name/phone. */
   seed?: string | null | undefined;
   size?: AvatarSize;
@@ -52,9 +48,7 @@ export function Avatar({
   const showImage = !!src && !errored;
 
   const initial = userInitial(name);
-  const colorSeed =
-    seed ??
-    (typeof name === "string" ? name : (name?.name ?? name?.phone ?? null));
+  const colorSeed = seed ?? (typeof name === "string" ? name : (name?.name ?? name?.phone ?? null));
   const color = avatarColor(colorSeed);
 
   return (
@@ -63,16 +57,13 @@ export function Avatar({
         "relative inline-flex items-center justify-center rounded-full overflow-hidden font-semibold text-on-primary flex-shrink-0 select-none",
         !showImage && color,
         SIZE[size],
-        className,
+        className
       )}
     >
       {showImage ? (
         <>
           {!loaded && (
-            <span
-              className="absolute inset-0 animate-pulse bg-surface-card"
-              aria-hidden
-            />
+            <span className="absolute inset-0 animate-pulse bg-surface-card" aria-hidden />
           )}
           <NextImage
             src={mediaUrl(src)}
@@ -83,7 +74,7 @@ export function Avatar({
             onLoad={() => setLoaded(true)}
             className={cn(
               "object-cover transition-opacity duration-200",
-              loaded ? "opacity-100" : "opacity-0",
+              loaded ? "opacity-100" : "opacity-0"
             )}
           />
         </>

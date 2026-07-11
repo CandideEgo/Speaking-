@@ -63,14 +63,14 @@ export function VideoCard({
       onClick={() => trackClick(videoId, clickSource())}
       className={cn(
         "bg-canvas border border-hairline rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lift hover:border-transparent transition-all duration-150 group",
-        className,
+        className
       )}
     >
       {/* Thumbnail */}
       <div
         className={cn(
           "relative aspect-video bg-surface-card overflow-hidden",
-          feat && "aspect-[16/10]",
+          feat && "aspect-[16/10]"
         )}
       >
         <Image
@@ -125,7 +125,7 @@ export function VideoCard({
         <p
           className={cn(
             "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight",
-            feat && "text-lg min-h-[50px]",
+            feat && "text-lg min-h-[50px]"
           )}
         >
           {video.title}

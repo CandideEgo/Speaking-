@@ -15,7 +15,7 @@ export function useVideoPolling(
   videoId: string,
   status: string,
   patchVideo: (id: string, patch: Partial<VideoAdmin>) => void,
-  onReady?: () => void,
+  onReady?: () => void
 ) {
   const fetchStatus = useCallback(
     async (id: string) => {
@@ -28,7 +28,7 @@ export function useVideoPolling(
         error_message: st.error_message,
       };
     },
-    [videoId],
+    [videoId]
   );
 
   useVideoStatusPolling(videoId, status, {

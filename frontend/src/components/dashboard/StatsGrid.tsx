@@ -72,23 +72,15 @@ export default function StatsGrid({ stats }: StatsGridProps) {
         const value = typeof rawValue === "number" ? Math.round(rawValue) : 0;
 
         return (
-          <Card
-            key={card.key}
-            padding={4}
-            className="flex flex-col items-center text-center"
-          >
-            <div
-              className={`h-9 w-9 rounded-lg ${card.bg} flex items-center justify-center mb-2`}
-            >
+          <Card key={card.key} padding={4} className="flex flex-col items-center text-center">
+            <div className={`h-9 w-9 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
               <card.icon size={18} className={card.color} />
             </div>
             <span className="font-display text-2xl text-ink">
               {value}
               {card.suffix || ""}
             </span>
-            <span className="text-xs text-muted-foreground mt-0.5">
-              {card.label}
-            </span>
+            <span className="text-xs text-muted-foreground mt-0.5">{card.label}</span>
           </Card>
         );
       })}

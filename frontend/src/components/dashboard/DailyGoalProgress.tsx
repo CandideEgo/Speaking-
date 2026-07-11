@@ -59,15 +59,9 @@ export default function DailyGoalProgress({
   return (
     <div className="inline-flex items-center gap-3 rounded-full bg-cream-card border border-hairline px-4 py-2">
       {/* Circular progress */}
-      <ProgressRing
-        progress={progress}
-        isMet={isMet}
-        label={`${Math.round(progress * 100)}%`}
-      />
+      <ProgressRing progress={progress} isMet={isMet} label={`${Math.round(progress * 100)}%`} />
       <div className="flex flex-col">
-        <span
-          className={`text-sm font-medium ${isMet ? "text-green-600" : "text-ink"}`}
-        >
+        <span className={`text-sm font-medium ${isMet ? "text-green-600" : "text-ink"}`}>
           {isMet ? "✓ 今日目标已达成" : `${current}/${goalValue} ${unit}`}
         </span>
       </div>

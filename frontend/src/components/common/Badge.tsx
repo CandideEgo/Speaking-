@@ -3,13 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type BadgeTone =
-  | "brand"
-  | "amber"
-  | "orange"
-  | "green"
-  | "red"
-  | "neutral";
+export type BadgeTone = "brand" | "amber" | "orange" | "green" | "red" | "neutral";
 
 const TONE: Record<BadgeTone, string> = {
   brand: "bg-brand-50 text-brand-600",
@@ -41,7 +35,7 @@ export function Badge({
       className={cn(
         "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-medium",
         TONE[tone],
-        className,
+        className
       )}
     >
       {Icon && <Icon size={11} />}

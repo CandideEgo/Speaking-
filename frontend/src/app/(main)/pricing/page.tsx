@@ -39,8 +39,7 @@ const COMPARISON = [
 ];
 
 function CheckOrDash({ value }: { value: boolean | string }) {
-  if (typeof value === "string")
-    return <span className="text-ink">{value}</span>;
+  if (typeof value === "string") return <span className="text-ink">{value}</span>;
   if (value) return <CheckCircle2 size={15} className="text-success mx-auto" />;
   return <span className="text-muted-soft">—</span>;
 }
@@ -82,10 +81,7 @@ export default function PricingPage() {
 
         {isPro && (
           <div className="mt-6 rounded-lg border border-green-200 bg-success-soft p-4 text-center">
-            <CheckCircle2
-              size={18}
-              className="inline mr-1.5 -mt-0.5 text-success"
-            />
+            <CheckCircle2 size={18} className="inline mr-1.5 -mt-0.5 text-success" />
             <span className="text-sm text-success">你已是 Pro 会员</span>
           </div>
         )}
@@ -94,28 +90,16 @@ export default function PricingPage() {
         <div className="max-w-[400px] mx-auto mt-9">
           {PLANS.map((plan) => (
             <PriceCard key={plan.id} popular={plan.popular}>
-              <div className="text-[15px] font-bold text-muted">
-                {plan.name}
-              </div>
+              <div className="text-[15px] font-bold text-muted">{plan.name}</div>
               <div className="mt-2.5 mb-1">
-                <span className="text-[42px] font-extrabold tracking-display-lg">
-                  {plan.price}
-                </span>
-                <small className="text-[15px] font-medium text-muted">
-                  {plan.period}
-                </small>
+                <span className="text-[42px] font-extrabold tracking-display-lg">{plan.price}</span>
+                <small className="text-[15px] font-medium text-muted">{plan.period}</small>
               </div>
               <div className="text-[13px] text-muted mb-5">{plan.desc}</div>
               <ul className="flex-1 flex flex-col gap-2.5 mb-6">
                 {plan.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex gap-2 items-start text-sm text-body"
-                  >
-                    <CheckCircle2
-                      size={16}
-                      className="text-success mt-0.5 flex-shrink-0"
-                    />
+                  <li key={f} className="flex gap-2 items-start text-sm text-body">
+                    <CheckCircle2 size={16} className="text-success mt-0.5 flex-shrink-0" />
                     {f}
                   </li>
                 ))}
@@ -124,9 +108,7 @@ export default function PricingPage() {
                 <div
                   className={cn(
                     "w-full justify-center !py-2.5 text-sm block text-center rounded-sm font-semibold opacity-50 cursor-not-allowed",
-                    plan.popular
-                      ? "bg-brand-500 text-on-primary"
-                      : "bg-ink text-on-primary",
+                    plan.popular ? "bg-brand-500 text-on-primary" : "bg-ink text-on-primary"
                   )}
                 >
                   已是 Pro
@@ -138,7 +120,7 @@ export default function PricingPage() {
                     "w-full justify-center !py-2.5 text-sm flex items-center gap-1.5 text-center rounded-sm font-semibold transition-all duration-150",
                     plan.popular
                       ? "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5"
-                      : "bg-ink text-on-primary hover:bg-black hover:-translate-y-0.5",
+                      : "bg-ink text-on-primary hover:bg-black hover:-translate-y-0.5"
                   )}
                 >
                   <ShoppingBag size={15} />
@@ -152,13 +134,9 @@ export default function PricingPage() {
         {/* Feature comparison */}
         <div className="bg-canvas border border-hairline rounded-lg p-6 max-w-[820px] mx-auto mt-9">
           <h3 className="!text-base !font-bold !m-0 !mb-1">功能对比</h3>
-          <p className="text-[13px] text-muted !m-0 !mb-5">
-            看看免费版和 Pro 版的区别
-          </p>
+          <p className="text-[13px] text-muted !m-0 !mb-5">看看免费版和 Pro 版的区别</p>
           <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-0 text-[13px]">
-            <div className="py-3 border-b border-hairline font-semibold hidden sm:block">
-              功能
-            </div>
+            <div className="py-3 border-b border-hairline font-semibold hidden sm:block">功能</div>
             <div className="py-3 border-b border-hairline text-center font-semibold text-muted hidden sm:block">
               Free
             </div>

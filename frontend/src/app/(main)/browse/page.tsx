@@ -48,9 +48,7 @@ export default function BrowsePage() {
         <div className="filter-bar">
           {/* Category row */}
           <div className="flex gap-1.5 overflow-x-auto items-center">
-            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">
-              分类
-            </span>
+            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">分类</span>
             <TabPills
               tabs={categories.map((cat) => ({
                 key: cat.id,
@@ -65,9 +63,7 @@ export default function BrowsePage() {
           </div>
           {/* Difficulty row */}
           <div className="flex gap-1.5 overflow-x-auto items-center">
-            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">
-              难度
-            </span>
+            <span className="text-xs font-semibold text-muted pr-2 flex-shrink-0">难度</span>
             <TabPills
               tabs={DIFFICULTY_LEVELS.map((lv) => ({
                 key: lv.id,
@@ -113,9 +109,7 @@ export default function BrowsePage() {
         {/* Empty state */}
         {!loading && videos.length === 0 && !error && (
           <div className="text-center py-16">
-            <p className="text-sm text-muted">
-              该分类下暂无视频,请尝试其他筛选条件
-            </p>
+            <p className="text-sm text-muted">该分类下暂无视频,请尝试其他筛选条件</p>
           </div>
         )}
 
@@ -138,9 +132,7 @@ export default function BrowsePage() {
               加载更多
             </Button>
           )}
-          {!hasMore && videos.length > 0 && (
-            <p className="text-sm text-muted">已加载全部内容</p>
-          )}
+          {!hasMore && videos.length > 0 && <p className="text-sm text-muted">已加载全部内容</p>}
         </div>
       </main>
     </PageTransition>

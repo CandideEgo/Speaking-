@@ -23,12 +23,7 @@ import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import type {
-  AdminComment,
-  AdminPost,
-  CommentReport,
-  ReportStatus,
-} from "@/types";
+import type { AdminComment, AdminPost, CommentReport, ReportStatus } from "@/types";
 import {
   deleteComment,
   deletePost,
@@ -84,16 +79,12 @@ function ReportQueue() {
     loading,
     reload,
   } = usePaginatedList<CommentReport>({
-    fetcher: (pg) =>
-      listReports({ page: pg, page_size: 20, status: statusFilter }),
+    fetcher: (pg) => listReports({ page: pg, page_size: 20, status: statusFilter }),
     mode: "replace",
     filters: [statusFilter],
   });
 
-  async function handleResolve(
-    report: CommentReport,
-    action: "remove" | "dismiss",
-  ) {
+  async function handleResolve(report: CommentReport, action: "remove" | "dismiss") {
     try {
       await resolveReport(report.id, action);
       toast.success(action === "remove" ? "已删除评论" : "已驳回举报");
@@ -148,11 +139,7 @@ function ReportQueue() {
           >
             <td className="py-3 pr-4">
               <div className="flex items-center gap-1.5 text-ink">
-                {isExpanded ? (
-                  <ChevronDown size={12} />
-                ) : (
-                  <ChevronRight size={12} />
-                )}
+                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 <Flag size={12} className="text-amber-500" />
                 <span className="truncate max-w-[120px]">{r.reason}</span>
               </div>
@@ -160,35 +147,22 @@ function ReportQueue() {
             <td className="py-3 pr-4 text-muted-foreground truncate max-w-[200px]">
               {r.comment_content}
             </td>
-            <td className="py-3 pr-4 text-muted-foreground">
-              {r.comment_author_name}
-            </td>
-            <td className="py-3 pr-4 text-muted-foreground">
-              {r.reporter_name}
-            </td>
+            <td className="py-3 pr-4 text-muted-foreground">{r.comment_author_name}</td>
+            <td className="py-3 pr-4 text-muted-foreground">{r.reporter_name}</td>
             <td className="py-3 pr-4">
-              <Badge tone={STATUS_LABEL[r.status].tone}>
-                {STATUS_LABEL[r.status].label}
-              </Badge>
+              <Badge tone={STATUS_LABEL[r.status].tone}>{STATUS_LABEL[r.status].label}</Badge>
             </td>
-            <td
-              className="py-3 text-right"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
               {r.status === "pending" ? (
                 <div className="inline-flex gap-1">
                   <button
-                    onClick={() =>
-                      setResolvePrompt({ report: r, action: "remove" })
-                    }
+                    onClick={() => setResolvePrompt({ report: r, action: "remove" })}
                     className="inline-flex items-center gap-1 rounded-sm bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-100"
                   >
                     <Check size={11} /> 通过
                   </button>
                   <button
-                    onClick={() =>
-                      setResolvePrompt({ report: r, action: "dismiss" })
-                    }
+                    onClick={() => setResolvePrompt({ report: r, action: "dismiss" })}
                     className="inline-flex items-center gap-1 rounded-sm bg-surface-soft px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-ink"
                   >
                     <X size={11} /> 驳回
@@ -238,13 +212,9 @@ function ReportQueue() {
         open={!!resolvePrompt}
         tone={resolvePrompt?.action === "remove" ? "danger" : "default"}
         title={resolvePrompt?.action === "remove" ? "通过举报" : "驳回举报"}
-        confirmLabel={
-          resolvePrompt?.action === "remove" ? "通过并删除" : "驳回"
-        }
+        confirmLabel={resolvePrompt?.action === "remove" ? "通过并删除" : "驳回"}
         message={
-          resolvePrompt?.action === "remove"
-            ? "确认通过举报并删除该评论？"
-            : "确认驳回该举报？"
+          resolvePrompt?.action === "remove" ? "确认通过举报并删除该评论？" : "确认驳回该举报？"
         }
         onClose={() => setResolvePrompt(null)}
         onConfirm={() => {
@@ -264,14 +234,10 @@ function ReportQueue() {
 function PostsManager() {
   const [keyword, setKeyword] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [postComments, setPostComments] = useState<
-    Record<string, AdminComment[]>
-  >({});
+  const [postComments, setPostComments] = useState<Record<string, AdminComment[]>>({});
   const [loadingComments, setLoadingComments] = useState<string | null>(null);
   // Delete-confirmation state (replaces native window.confirm).
-  const [deletePostTarget, setDeletePostTarget] = useState<AdminPost | null>(
-    null,
-  );
+  const [deletePostTarget, setDeletePostTarget] = useState<AdminPost | null>(null);
   const [deleteCommentTarget, setDeleteCommentTarget] = useState<{
     postId: string;
     comment: AdminComment;
@@ -385,15 +351,9 @@ function PostsManager() {
                 className="flex items-start gap-1.5 text-left"
               >
                 {isExpanded ? (
-                  <ChevronDown
-                    size={12}
-                    className="mt-0.5 text-muted-foreground"
-                  />
+                  <ChevronDown size={12} className="mt-0.5 text-muted-foreground" />
                 ) : (
-                  <ChevronRight
-                    size={12}
-                    className="mt-0.5 text-muted-foreground"
-                  />
+                  <ChevronRight size={12} className="mt-0.5 text-muted-foreground" />
                 )}
                 <span className="text-ink truncate max-w-[280px]">
                   {p.is_pinned && (
@@ -407,9 +367,7 @@ function PostsManager() {
             </td>
             <td className="py-3 pr-4 text-muted-foreground">
               {p.user_name}
-              <div className="text-[10px] text-muted-soft">
-                {p.author_phone}
-              </div>
+              <div className="text-[10px] text-muted-soft">{p.author_phone}</div>
             </td>
             <td className="py-3 pr-4 text-muted-foreground">
               {POST_TYPE_META[p.post_type]?.labelFull || p.post_type}
@@ -461,14 +419,11 @@ function PostsManager() {
                     <div className="min-w-0">
                       <p className="text-xs text-ink">{c.content}</p>
                       <p className="mt-0.5 text-[10px] text-muted-soft">
-                        {c.user_name} ·{" "}
-                        {new Date(c.created_at).toLocaleString()}
+                        {c.user_name} · {new Date(c.created_at).toLocaleString()}
                       </p>
                     </div>
                     <button
-                      onClick={() =>
-                        setDeleteCommentTarget({ postId: p.id, comment: c })
-                      }
+                      onClick={() => setDeleteCommentTarget({ postId: p.id, comment: c })}
                       className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 flex-shrink-0"
                     >
                       <Trash2 size={11} /> 删除

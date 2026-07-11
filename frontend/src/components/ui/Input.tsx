@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  forwardRef,
-  type InputHTMLAttributes,
-  type TextareaHTMLAttributes,
-} from "react";
+import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,21 +9,20 @@ import { cn } from "@/lib/utils";
  * sites can drop the `className="input-field"` boilerplate. textarea variant
  * for multi-line.
  */
-export const Input = forwardRef<
-  HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement>
->(function Input({ className, ...props }, ref) {
-  return (
-    <input
-      ref={ref}
-      className={cn(
-        "w-full rounded-sm border border-hairline bg-surface-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:bg-canvas focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)] transition-colors duration-150",
-        className,
-      )}
-      {...props}
-    />
-  );
-});
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={cn(
+          "w-full rounded-sm border border-hairline bg-surface-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:bg-canvas focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)] transition-colors duration-150",
+          className
+        )}
+        {...props}
+      />
+    );
+  }
+);
 
 export const Textarea = forwardRef<
   HTMLTextAreaElement,
@@ -38,7 +33,7 @@ export const Textarea = forwardRef<
       ref={ref}
       className={cn(
         "w-full rounded-sm border border-hairline bg-surface-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:bg-canvas focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)] transition-colors duration-150",
-        className,
+        className
       )}
       {...props}
     />

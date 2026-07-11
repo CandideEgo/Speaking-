@@ -30,7 +30,7 @@ const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 /** Extract a YouTube video id from a URL, or null if it isn't a YouTube link. */
 function youtubeId(url: string): string | null {
   const m = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/,
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/
   );
   return m ? m[1] : null;
 }
@@ -67,11 +67,8 @@ export function VideoDetailRow({
   onRetry,
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
-  const hasLocal = Boolean(
-    video.video_url_720p || video.video_url_480p || video.video_url_1080p,
-  );
-  const isProcessing =
-    video.status === "processing" || video.status === "ready_subtitles";
+  const hasLocal = Boolean(video.video_url_720p || video.video_url_480p || video.video_url_1080p);
+  const isProcessing = video.status === "processing" || video.status === "ready_subtitles";
   const stepLabel = video.processing_step
     ? STEP_LABELS_SHORT[video.processing_step] || video.processing_step
     : "";
@@ -83,9 +80,7 @@ export function VideoDetailRow({
   const [isOfficial, setIsOfficial] = useState(video.is_official);
   const [isFeatured, setIsFeatured] = useState(video.is_featured);
   const [isPublished, setIsPublished] = useState(video.is_published);
-  const [showOnHomepage, setShowOnHomepage] = useState(
-    video.show_on_homepage ?? false,
-  );
+  const [showOnHomepage, setShowOnHomepage] = useState(video.show_on_homepage ?? false);
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -141,9 +136,7 @@ export function VideoDetailRow({
             ) : (
               <div className="text-center p-4">
                 <VideoIcon size={32} className="mx-auto text-muted-soft" />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  无本地视频文件
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">无本地视频文件</p>
                 <a
                   href={video.source_url}
                   target="_blank"
@@ -164,17 +157,16 @@ export function VideoDetailRow({
                   ? `（${video.processing_progress}%）`
                   : "（进度自动更新）"}
               </div>
-              {video.processing_progress != null &&
-                video.processing_progress > 0 && (
-                  <div className="h-1 w-full rounded-full bg-ink/10">
-                    <div
-                      className="h-full rounded-full bg-brand-500 transition-all duration-500"
-                      style={{
-                        width: `${Math.min(video.processing_progress, 100)}%`,
-                      }}
-                    />
-                  </div>
-                )}
+              {video.processing_progress != null && video.processing_progress > 0 && (
+                <div className="h-1 w-full rounded-full bg-ink/10">
+                  <div
+                    className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(video.processing_progress, 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -185,13 +177,7 @@ export function VideoDetailRow({
             size="sm"
             onClick={() => onLocalize(video)}
             disabled={hasLocal || isProcessing}
-            title={
-              hasLocal
-                ? "已有本地视频"
-                : isProcessing
-                  ? "搬运进行中"
-                  : "下载并转码到本地存储"
-            }
+            title={hasLocal ? "已有本地视频" : isProcessing ? "搬运进行中" : "下载并转码到本地存储"}
           >
             <Download size={12} />
             {isProcessing ? "搬运中..." : hasLocal ? "已有本地" : "搬运到本地"}
@@ -222,9 +208,7 @@ export function VideoDetailRow({
           <div className="rounded-sm border border-orange-200 bg-orange-50/50 p-3 space-y-2">
             <div className="text-xs font-medium text-orange-800">
               待审核 · 提交于{" "}
-              {video.submitted_at
-                ? new Date(video.submitted_at).toLocaleString()
-                : "未知时间"}
+              {video.submitted_at ? new Date(video.submitted_at).toLocaleString() : "未知时间"}
             </div>
             <div className="flex gap-2">
               <Button
@@ -256,11 +240,7 @@ export function VideoDetailRow({
             <div className="text-xs font-medium text-blue-800">
               视频等待处理 · {workerOnline ? "Worker 在线" : "Worker 离线"}
             </div>
-            {!workerOnline && (
-              <div className="text-[11px] text-blue-600">
-                请先启动本地处理服务
-              </div>
-            )}
+            {!workerOnline && <div className="text-[11px] text-blue-600">请先启动本地处理服务</div>}
             <Button
               type="button"
               size="sm"
@@ -273,27 +253,23 @@ export function VideoDetailRow({
           </div>
         )}
         {/* Processing / ready_subtitles: normal progress with optional recover link */}
-        {(video.status === "processing" ||
-          video.status === "ready_subtitles") && (
+        {(video.status === "processing" || video.status === "ready_subtitles") && (
           <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-3 space-y-2">
             <div className="flex items-center gap-2 text-xs font-medium text-amber-800">
               <Loader2 size={12} className="animate-spin" />
               处理中{stepLabel ? ` · ${stepLabel}` : ""}
-              {video.processing_progress
-                ? `（${video.processing_progress}%）`
-                : ""}
+              {video.processing_progress ? `（${video.processing_progress}%）` : ""}
             </div>
-            {video.processing_progress != null &&
-              video.processing_progress > 0 && (
-                <div className="h-1.5 w-full rounded-full bg-ink/10">
-                  <div
-                    className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(video.processing_progress, 100)}%`,
-                    }}
-                  />
-                </div>
-              )}
+            {video.processing_progress != null && video.processing_progress > 0 && (
+              <div className="h-1.5 w-full rounded-full bg-ink/10">
+                <div
+                  className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                  style={{
+                    width: `${Math.min(video.processing_progress, 100)}%`,
+                  }}
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => onRecover(video)}
@@ -315,9 +291,7 @@ export function VideoDetailRow({
                 : ""}
             </div>
             {video.error_message && (
-              <div className="text-xs text-red-600 break-all">
-                {video.error_message}
-              </div>
+              <div className="text-xs text-red-600 break-all">{video.error_message}</div>
             )}
             <Button
               type="button"
@@ -330,35 +304,21 @@ export function VideoDetailRow({
             </Button>
           </div>
         )}
-        {video.review_status === "rejected" &&
-          !video.is_official &&
-          video.rejection_reason && (
-            <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 text-xs text-red-700">
-              已驳回：{video.rejection_reason}
-            </div>
-          )}
+        {video.review_status === "rejected" && !video.is_official && video.rejection_reason && (
+          <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 text-xs text-red-700">
+            已驳回：{video.rejection_reason}
+          </div>
+        )}
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            标题
-          </label>
-          <Input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
+          <label className="block text-xs font-medium text-muted-foreground mb-1">标题</label>
+          <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              难度
-            </label>
-            <Select
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value)}
-            >
+            <label className="block text-xs font-medium text-muted-foreground mb-1">难度</label>
+            <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               <option value="">-</option>
               {DIFFICULTY_OPTIONS.map((d) => (
                 <option key={d} value={d}>
@@ -368,9 +328,7 @@ export function VideoDetailRow({
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              标签
-            </label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">标签</label>
             <Input
               type="text"
               value={topicTags}
@@ -409,9 +367,7 @@ export function VideoDetailRow({
             />
             已发布
             {video.status !== "ready" && !isPublished && (
-              <span className="text-xs text-muted-foreground">
-                （需 ready）
-              </span>
+              <span className="text-xs text-muted-foreground">（需 ready）</span>
             )}
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
@@ -426,9 +382,7 @@ export function VideoDetailRow({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            管理员备注
-          </label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">管理员备注</label>
           <Textarea
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}

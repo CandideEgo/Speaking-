@@ -30,12 +30,8 @@ export function PageHeader({
           {crumb}
         </div>
       )}
-      <h1 className="text-[34px] font-extrabold tracking-display-lg">
-        {title}
-      </h1>
-      {description && (
-        <p className="text-[15px] text-muted mt-2">{description}</p>
-      )}
+      <h1 className="text-[34px] font-extrabold tracking-display-lg">{title}</h1>
+      {description && <p className="text-[15px] text-muted mt-2">{description}</p>}
     </div>
   );
 }

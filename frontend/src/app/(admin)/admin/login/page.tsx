@@ -51,9 +51,7 @@ export default function AdminLoginPage() {
           <span className="font-display text-3xl font-bold text-on-dark tracking-tight">
             SeeWord
           </span>
-          <h1 className="mt-4 font-display text-2xl font-medium text-on-dark">
-            管理后台
-          </h1>
+          <h1 className="mt-4 font-display text-2xl font-medium text-on-dark">管理后台</h1>
           <p className="mt-1 text-sm text-on-dark/60">仅限管理员登录</p>
         </div>
 
@@ -99,11 +97,7 @@ export default function AdminLoginPage() {
             disabled={submitting}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-sm bg-coral px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
           >
-            {submitting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Lock size={16} />
-            )}
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
             {submitting ? "登录中..." : "管理员登录"}
           </button>
 

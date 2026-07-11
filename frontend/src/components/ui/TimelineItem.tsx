@@ -35,7 +35,7 @@ export function TimelineItem({
         <div
           className={cn(
             "w-8 h-8 rounded-full flex items-center justify-center text-[13px]",
-            dotColor,
+            dotColor
           )}
         >
           {dot}
@@ -43,14 +43,8 @@ export function TimelineItem({
         {!isLast && <div className="w-0.5 flex-1 bg-hairline min-h-6 my-1" />}
       </div>
       <div className="flex-1 pb-1">
-        {typeof title === "string" ? (
-          <div className="text-sm font-semibold">{title}</div>
-        ) : (
-          title
-        )}
-        {description && (
-          <div className="text-[13px] text-muted mt-0.5">{description}</div>
-        )}
+        {typeof title === "string" ? <div className="text-sm font-semibold">{title}</div> : title}
+        {description && <div className="text-[13px] text-muted mt-0.5">{description}</div>}
         {time && <div className="text-xs text-muted-soft mt-1">{time}</div>}
       </div>
     </div>

@@ -38,7 +38,7 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
     setError(null);
     try {
       const data = await api<{ items: Video[] }>(
-        "/api/v1/recommendations/home?page=1&page_size=50",
+        "/api/v1/recommendations/home?page=1&page_size=50"
       );
       if (!cancelledRef.current) {
         setFeed(data.items);
@@ -70,10 +70,7 @@ export function useHomeFeed({ initialGroup = "all" }: UseHomeFeedOptions = {}) {
   const filtered =
     levels.length === 0
       ? feed
-      : feed.filter(
-          (v) =>
-            v.difficulty_level != null && levels.includes(v.difficulty_level),
-        );
+      : feed.filter((v) => v.difficulty_level != null && levels.includes(v.difficulty_level));
 
   // Group by first topic tag
   const grouped: Record<string, Video[]> = {};

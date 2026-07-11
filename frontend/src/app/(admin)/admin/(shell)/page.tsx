@@ -23,11 +23,7 @@ import { SectionCard } from "@/components/admin/SectionCard";
 import { StatCard } from "@/components/admin/StatCard";
 import { Button } from "@/components/ui/Button";
 import type { AdminStats } from "@/types";
-import {
-  getAdminStats,
-  getUgcPendingCount,
-  getWorkerStatus,
-} from "@/lib/adminData";
+import { getAdminStats, getUgcPendingCount, getWorkerStatus } from "@/lib/adminData";
 
 interface UgcPending {
   pending_processing: number;
@@ -81,9 +77,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl text-ink">运营概览</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            实时掌握平台运行状态
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">实时掌握平台运行状态</p>
         </div>
         <Button
           onClick={load}
@@ -99,18 +93,11 @@ export default function AdminDashboardPage() {
 
       {/* 实时在线 + 管线健康 */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={Activity}
-          label="实时在线"
-          value={stats.online_now}
-          tone="coral"
-        />
+        <StatCard icon={Activity} label="实时在线" value={stats.online_now} tone="coral" />
         <StatCard
           icon={ServerCog}
           label="GPU Worker"
-          value={
-            workerOnline === null ? "未知" : workerOnline ? "在线" : "离线"
-          }
+          value={workerOnline === null ? "未知" : workerOnline ? "在线" : "离线"}
           tone={workerOnline ? "green" : "amber"}
         />
         <StatCard
@@ -144,26 +131,13 @@ export default function AdminDashboardPage() {
             delta={`今日兑换 ${stats.redeems_today}`}
             tone="amber"
           />
-          <StatCard
-            icon={UserPlus}
-            label="今日新增"
-            value={stats.signups_today}
-            tone="green"
-          />
-          <StatCard
-            icon={CreditCard}
-            label="今日兑换"
-            value={stats.redeems_today}
-            tone="green"
-          />
+          <StatCard icon={UserPlus} label="今日新增" value={stats.signups_today} tone="green" />
+          <StatCard icon={CreditCard} label="今日兑换" value={stats.redeems_today} tone="green" />
         </div>
       </SectionCard>
 
       {/* UGC 待处理 */}
-      <SectionCard
-        title="UGC 待处理"
-        description="待处理与待审核的用户提交视频"
-      >
+      <SectionCard title="UGC 待处理" description="待处理与待审核的用户提交视频">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             icon={Video}

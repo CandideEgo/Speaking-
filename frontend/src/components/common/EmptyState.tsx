@@ -16,13 +16,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-  className,
-}: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -43,7 +37,7 @@ export function EmptyState({
       });
       return () => mm.revert();
     },
-    { scope: ref },
+    { scope: ref }
   );
 
   return (
@@ -51,14 +45,12 @@ export function EmptyState({
       ref={ref}
       className={cn(
         "flex flex-col items-center justify-center py-20 text-center animate-fade-in",
-        className,
+        className
       )}
     >
       {Icon && <Icon size={48} className="mx-auto text-muted mb-4" />}
       <p className="text-muted">{title}</p>
-      {description && (
-        <p className="mt-1 text-xs text-muted max-w-xs">{description}</p>
-      )}
+      {description && <p className="mt-1 text-xs text-muted max-w-xs">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );

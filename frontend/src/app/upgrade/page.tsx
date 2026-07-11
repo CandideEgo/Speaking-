@@ -28,17 +28,11 @@ export default function UpgradePage() {
 
           {/* 合规告知 */}
           <div className="mt-5 flex gap-2.5 rounded-md border border-hairline bg-canvas p-3.5">
-            <ShieldCheck
-              size={16}
-              className="mt-0.5 flex-shrink-0 text-success"
-            />
+            <ShieldCheck size={16} className="mt-0.5 flex-shrink-0 text-success" />
             <p className="text-[13px] leading-relaxed text-muted">
               本网站为
-              <strong className="font-medium text-ink">
-                非经营性工具展示平台
-              </strong>
-              ， 不提供在线支付功能。Pro
-              会员通过微信小商店购买，购买后使用兑换码激活。
+              <strong className="font-medium text-ink">非经营性工具展示平台</strong>，
+              不提供在线支付功能。Pro 会员通过微信小商店购买，购买后使用兑换码激活。
             </p>
           </div>
 
@@ -59,12 +53,7 @@ export default function UpgradePage() {
 
           {/* 兑换码入口 */}
           <div className="mt-3.5">
-            <LinkButton
-              href="/redeem"
-              variant="secondaryDark"
-              icon={Gift}
-              fullWidth
-            >
+            <LinkButton href="/redeem" variant="secondaryDark" icon={Gift} fullWidth>
               已购买？使用兑换码激活
             </LinkButton>
           </div>

@@ -11,9 +11,7 @@ interface RecentActivityTimelineProps {
   records: LearningRecord[];
 }
 
-export default function RecentActivityTimeline({
-  records,
-}: RecentActivityTimelineProps) {
+export default function RecentActivityTimeline({ records }: RecentActivityTimelineProps) {
   if (records.length === 0) {
     return (
       <Card className="text-center">
@@ -57,9 +55,7 @@ export default function RecentActivityTimeline({
             </p>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
               <span>{record.speaking_attempts} 次跟读</span>
-              {record.quiz_score !== null && (
-                <span>测验 {Math.round(record.quiz_score)} 分</span>
-              )}
+              {record.quiz_score !== null && <span>测验 {Math.round(record.quiz_score)} 分</span>}
               {record.progress_percentage > 0 && (
                 <span>进度 {Math.round(record.progress_percentage)}%</span>
               )}

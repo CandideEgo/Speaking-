@@ -16,12 +16,9 @@ export function BentoShowcase() {
           <div className="sm:col-span-2 md:col-span-2 bg-ink rounded-xl p-7 min-h-[300px] flex flex-col justify-between text-on-dark">
             <div>
               <div className="text-[13px] text-on-dark-soft mb-1.5">播放器</div>
-              <h3 className="text-[22px] font-bold tracking-tight mb-3">
-                沉浸式播放
-              </h3>
+              <h3 className="text-[22px] font-bold tracking-tight mb-3">沉浸式播放</h3>
               <p className="text-[13px] text-on-dark-soft leading-relaxed max-w-[340px]">
-                逐句双语字幕，AB
-                循环复读，变速播放，一键收藏生词——看视频就是学英语。
+                逐句双语字幕，AB 循环复读，变速播放，一键收藏生词——看视频就是学英语。
               </p>
             </div>
             <div className="flex gap-2 mt-5">
@@ -41,12 +38,8 @@ export function BentoShowcase() {
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
             <div className="text-[13px] text-muted mb-1.5">社区贡献</div>
             <div>
-              <div className="text-[22px] font-bold tracking-tight text-brand-500">
-                用户提交
-              </div>
-              <div className="text-[13px] text-muted mt-1">
-                真实视频持续积累
-              </div>
+              <div className="text-[22px] font-bold tracking-tight text-brand-500">用户提交</div>
+              <div className="text-[13px] text-muted mt-1">真实视频持续积累</div>
             </div>
           </div>
 
@@ -54,12 +47,8 @@ export function BentoShowcase() {
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
             <div className="text-[13px] text-muted mb-1.5">词汇本</div>
             <div>
-              <div className="text-[22px] font-bold tracking-tight">
-                SM-2 复习
-              </div>
-              <div className="text-[13px] text-muted mt-1">
-                生词自动归类记忆
-              </div>
+              <div className="text-[22px] font-bold tracking-tight">SM-2 复习</div>
+              <div className="text-[13px] text-muted mt-1">生词自动归类记忆</div>
               <div className="flex gap-1 mt-2.5">
                 {[0.84, 0.68, 0.45, 0.92, 0.7, 0.55, 0.8].map((v, i) => (
                   <div
@@ -99,16 +88,14 @@ export function BentoShowcase() {
             <div className="text-[13px] text-muted mb-3">社区创作</div>
             <div className="flex items-center gap-4">
               <div className="flex -space-x-2">
-                {["bg-brand-500", "bg-indigo", "bg-success", "bg-warning"].map(
-                  (color, i) => (
-                    <div
-                      key={i}
-                      className={`w-10 h-10 rounded-full ${color} text-on-primary flex items-center justify-center text-sm font-bold border-2 border-canvas`}
-                    >
-                      {["看", "学", "练", "享"][i]}
-                    </div>
-                  ),
-                )}
+                {["bg-brand-500", "bg-indigo", "bg-success", "bg-warning"].map((color, i) => (
+                  <div
+                    key={i}
+                    className={`w-10 h-10 rounded-full ${color} text-on-primary flex items-center justify-center text-sm font-bold border-2 border-canvas`}
+                  >
+                    {["看", "学", "练", "享"][i]}
+                  </div>
+                ))}
               </div>
               <div className="text-[13px] text-muted leading-relaxed">
                 提交你喜欢的视频，经审核后发布到社区，大家一起积累真实语料。

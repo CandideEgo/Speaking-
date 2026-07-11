@@ -80,9 +80,7 @@ export default function OnboardingPage() {
             <h1 className="font-display text-3xl font-normal text-ink tracking-tight">
               欢迎来到 SeeWord
             </h1>
-            <p className="text-muted-foreground">
-              用真实视频学英语。让我们先了解一下你的水平。
-            </p>
+            <p className="text-muted-foreground">用真实视频学英语。让我们先了解一下你的水平。</p>
             <Button onClick={() => setStep(1)} fullWidth>
               开始设置
             </Button>
@@ -93,9 +91,7 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">
-                你的英语水平
-              </h2>
+              <h2 className="font-display text-2xl text-ink mb-1">你的英语水平</h2>
               <p className="text-sm text-muted-foreground">选择最接近的级别</p>
             </div>
             <div className="space-y-2">
@@ -110,25 +106,15 @@ export default function OnboardingPage() {
                   }`}
                 >
                   <span className="font-medium">{l.label}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">
-                    {l.description}
-                  </span>
+                  <span className="ml-2 text-sm text-muted-foreground">{l.description}</span>
                 </button>
               ))}
             </div>
             <div className="flex gap-3">
-              <Button
-                onClick={() => setStep(0)}
-                variant="secondaryDark"
-                fullWidth
-              >
+              <Button onClick={() => setStep(0)} variant="secondaryDark" fullWidth>
                 上一步
               </Button>
-              <Button
-                onClick={handleComplete}
-                disabled={!level || saving}
-                fullWidth
-              >
+              <Button onClick={handleComplete} disabled={!level || saving} fullWidth>
                 {saving ? "保存中..." : "开始学习"}
               </Button>
             </div>

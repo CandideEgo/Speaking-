@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
 interface SidebarContextValue {
   collapsed: boolean;
@@ -35,15 +28,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("sidebar-collapsed", String(v));
   }, []);
 
-  const toggle = useCallback(
-    () => setCollapsed(!collapsed),
-    [collapsed, setCollapsed],
-  );
+  const toggle = useCallback(() => setCollapsed(!collapsed), [collapsed, setCollapsed]);
 
   return (
-    <SidebarContext.Provider
-      value={{ collapsed, toggle, setCollapsed, mobileOpen, setMobileOpen }}
-    >
+    <SidebarContext.Provider value={{ collapsed, toggle, setCollapsed, mobileOpen, setMobileOpen }}>
       <div suppressHydrationWarning>{children}</div>
     </SidebarContext.Provider>
   );

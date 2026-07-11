@@ -97,13 +97,9 @@ export default function CommunityPage() {
   const [communityVideos, setCommunityVideos] = useState<CommunityVideo[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
-  const [commentsByPost, setCommentsByPost] = useState<
-    Record<string, Comment[]>
-  >({});
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
-  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
 
   const {
     items: posts,
@@ -150,12 +146,10 @@ export default function CommunityPage() {
           v.id === videoId
             ? {
                 ...v,
-                like_count: res.liked
-                  ? v.like_count + 1
-                  : Math.max(0, v.like_count - 1),
+                like_count: res.liked ? v.like_count + 1 : Math.max(0, v.like_count - 1),
               }
-            : v,
-        ),
+            : v
+        )
       );
     } catch {
       toast.error("操作失败");
@@ -164,24 +158,19 @@ export default function CommunityPage() {
 
   async function handleLike(postId: string) {
     try {
-      const res = await api<{ liked: boolean }>(
-        `/api/v1/community/posts/${postId}/like`,
-        {
-          method: "POST",
-        },
-      );
+      const res = await api<{ liked: boolean }>(`/api/v1/community/posts/${postId}/like`, {
+        method: "POST",
+      });
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
             ? {
                 ...p,
                 is_liked: res.liked,
-                like_count: res.liked
-                  ? p.like_count + 1
-                  : Math.max(0, p.like_count - 1),
+                like_count: res.liked ? p.like_count + 1 : Math.max(0, p.like_count - 1),
               }
-            : p,
-        ),
+            : p
+        )
       );
     } catch (err) {
       toastApiError(err, "操作失败");
@@ -191,9 +180,7 @@ export default function CommunityPage() {
   async function loadComments(postId: string) {
     setCommentLoading((prev) => ({ ...prev, [postId]: true }));
     try {
-      const data = await api<Comment[]>(
-        `/api/v1/community/posts/${postId}/comments`,
-      );
+      const data = await api<Comment[]>(`/api/v1/community/posts/${postId}/comments`);
       setCommentsByPost((prev) => ({ ...prev, [postId]: data }));
     } catch {
       toast.error("加载评论失败");
@@ -220,9 +207,7 @@ export default function CommunityPage() {
     }));
     setCommentDraft((prev) => ({ ...prev, [postId]: "" }));
     setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
-      ),
+      prev.map((p) => (p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p))
     );
   }
 
@@ -256,12 +241,7 @@ export default function CommunityPage() {
         />
 
         {/* Tab bar */}
-        <TabPills
-          tabs={TABS}
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          className="mb-6"
-        />
+        <TabPills tabs={TABS} activeKey={activeTab} onChange={setActiveTab} className="mb-6" />
 
         {/* Videos tab content */}
         {activeTab === "videos" && (
@@ -296,14 +276,8 @@ export default function CommunityPage() {
                       )}
                     </div>
                     <div className="p-3">
-                      <p className="text-sm font-semibold text-ink truncate">
-                        {v.title}
-                      </p>
-                      {v.user && (
-                        <p className="text-xs text-muted mt-1 truncate">
-                          {v.user.name}
-                        </p>
-                      )}
+                      <p className="text-sm font-semibold text-ink truncate">{v.title}</p>
+                      {v.user && <p className="text-xs text-muted mt-1 truncate">{v.user.name}</p>}
                       <div className="flex items-center gap-3 mt-2 text-xs text-muted">
                         <span className="inline-flex items-center gap-0.5">
                           <Heart size={12} />
@@ -327,10 +301,7 @@ export default function CommunityPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
             {/* Posts column */}
             <div>
-              <PostComposer
-                userInitial={currentUserInitial}
-                onCreated={reloadPosts}
-              />
+              <PostComposer userInitial={currentUserInitial} onCreated={reloadPosts} />
 
               {/* Posts list */}
               {loading ? (
@@ -355,18 +326,14 @@ export default function CommunityPage() {
                           className="w-[38px] h-[38px] text-[14px]"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold">
-                            {post.user.name ?? "用户"}
-                          </div>
-                          <div className="text-xs text-muted">
-                            {timeAgo(post.created_at)}
-                          </div>
+                          <div className="text-sm font-semibold">{post.user.name ?? "用户"}</div>
+                          <div className="text-xs text-muted">{timeAgo(post.created_at)}</div>
                         </div>
                         {tag && (
                           <span
                             className={cn(
                               "text-[11px] font-bold px-2.5 py-1 rounded-pill",
-                              tag.color,
+                              tag.color
                             )}
                           >
                             {tag.label}
@@ -375,9 +342,7 @@ export default function CommunityPage() {
                       </div>
 
                       {/* Content */}
-                      <p className="text-sm text-body leading-relaxed mb-3.5">
-                        {post.content}
-                      </p>
+                      <p className="text-sm text-body leading-relaxed mb-3.5">{post.content}</p>
 
                       {/* Video preview */}
                       {post.video && (
@@ -410,15 +375,10 @@ export default function CommunityPage() {
                           onClick={() => handleLike(post.id)}
                           className={cn(
                             "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
-                            post.is_liked
-                              ? "text-brand-500"
-                              : "text-muted hover:text-ink",
+                            post.is_liked ? "text-brand-500" : "text-muted hover:text-ink"
                           )}
                         >
-                          <Heart
-                            size={16}
-                            className={post.is_liked ? "fill-brand-500" : ""}
-                          />
+                          <Heart size={16} className={post.is_liked ? "fill-brand-500" : ""} />
                           {post.like_count}
                         </button>
                         <button
@@ -427,7 +387,7 @@ export default function CommunityPage() {
                             "flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer transition-colors",
                             expandedPostId === post.id
                               ? "text-brand-500"
-                              : "text-muted hover:text-ink",
+                              : "text-muted hover:text-ink"
                           )}
                         >
                           <MessageCircle size={16} />
@@ -455,9 +415,7 @@ export default function CommunityPage() {
                               [post.id]: value,
                             }))
                           }
-                          onCommentAdded={(comment) =>
-                            handleCommentAdded(post.id, comment)
-                          }
+                          onCommentAdded={(comment) => handleCommentAdded(post.id, comment)}
                         />
                       )}
                     </div>
@@ -467,11 +425,7 @@ export default function CommunityPage() {
 
               {/* Load more */}
               {hasMore && !loading && (
-                <Button
-                  variant="secondary"
-                  onClick={loadMore}
-                  className="w-full mt-2"
-                >
+                <Button variant="secondary" onClick={loadMore} className="w-full mt-2">
                   加载更多
                 </Button>
               )}

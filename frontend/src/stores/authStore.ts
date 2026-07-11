@@ -96,10 +96,7 @@ type AuthStore = AuthState & AuthActions;
  * Derive isAuthenticated from token + user state.
  * A token is only "authenticated" if it exists AND is not expired.
  */
-function deriveAuthenticated(
-  token: string | null,
-  user: AuthUser | null,
-): boolean {
+function deriveAuthenticated(token: string | null, user: AuthUser | null): boolean {
   if (!token || !user) return false;
   // If we have a decoded user with exp, double-check it's still valid
   if (typeof user.exp === "number") {
@@ -179,12 +176,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     // Reset sibling stores to avoid stale user data after logout.
     // Dynamic imports prevent circular dependency issues.
     const resetPromise = Promise.all([
-      import("@/stores/watchStore").then((m) =>
-        m.useWatchStore.getState().reset(),
-      ),
-      import("@/stores/vocabularyStore").then((m) =>
-        m.useVocabularyStore.getState().reset(),
-      ),
+      import("@/stores/watchStore").then((m) => m.useWatchStore.getState().reset()),
+      import("@/stores/vocabularyStore").then((m) => m.useVocabularyStore.getState().reset()),
     ]);
 
     // Wait for blacklist + store resets, then navigate.

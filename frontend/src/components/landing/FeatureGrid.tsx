@@ -33,8 +33,7 @@ export function FeatureGrid() {
             看 · 查 · 懂，三位一体
           </h2>
           <p className="text-[17px] text-muted leading-relaxed">
-            沉浸式双语字幕阅读，生词自动标注与 SM-2
-            复习，社区贡献真实视频——一段视频，完整学习闭环。
+            沉浸式双语字幕阅读，生词自动标注与 SM-2 复习，社区贡献真实视频——一段视频，完整学习闭环。
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
@@ -48,9 +47,7 @@ export function FeatureGrid() {
               >
                 {f.icon}
               </div>
-              <h3 className="!text-[19px] !font-bold !tracking-tight mb-2">
-                {f.title}
-              </h3>
+              <h3 className="!text-[19px] !font-bold !tracking-tight mb-2">{f.title}</h3>
               <p className="text-muted text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}

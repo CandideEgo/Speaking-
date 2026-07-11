@@ -175,12 +175,7 @@ export default function AdminInvitesPage() {
             >
               刷新
             </Button>
-            <Button
-              onClick={exportCsv}
-              variant="secondary"
-              icon={Download}
-              size="sm"
-            >
+            <Button onClick={exportCsv} variant="secondary" icon={Download} size="sm">
               导出 CSV
             </Button>
           </div>
@@ -204,12 +199,8 @@ export default function AdminInvitesPage() {
             <tr className="text-xs">
               <td className="py-2 font-mono text-ink">{c.code}</td>
               <td className="py-2 text-muted-foreground">{c.plan}</td>
-              <td className="py-2 text-muted-foreground">
-                {c.duration_days}天
-              </td>
-              <td className="py-2 text-muted-foreground">
-                {c.batch_label || "-"}
-              </td>
+              <td className="py-2 text-muted-foreground">{c.duration_days}天</td>
+              <td className="py-2 text-muted-foreground">{c.batch_label || "-"}</td>
               <td className="py-2">
                 <Badge
                   tone={

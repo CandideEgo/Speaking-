@@ -61,16 +61,14 @@ export function useWordLookup({
         const params = new URLSearchParams({ word: clean });
         if (ctx?.text_en) params.set("context_sentence", ctx.text_en);
         if (videoId) params.set("video_id", videoId);
-        const res = await api<WordGloss>(
-          `/api/v1/words/gloss?${params.toString()}`,
-        );
+        const res = await api<WordGloss>(`/api/v1/words/gloss?${params.toString()}`);
         setWordGloss(res);
       } catch {
         setWordGloss(null);
         toast.error("单词查询失败");
       }
     },
-    [selectedWord, clearWord, speakWord, getSubtitles, videoId],
+    [selectedWord, clearWord, speakWord, getSubtitles, videoId]
   );
 
   const saveToVocabulary = useCallback(async () => {

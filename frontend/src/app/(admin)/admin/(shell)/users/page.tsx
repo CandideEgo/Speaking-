@@ -24,12 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
-import {
-  listUsers,
-  promoteUser,
-  setUserBanned,
-  setUserPlan,
-} from "@/lib/adminData";
+import { listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
 
 const ROLE_FILTERS = [
   { key: "", label: "全部" },
@@ -165,29 +160,15 @@ export default function AdminUsersPage() {
       title="用户管理"
       description="管理用户角色、封禁状态与 Pro 会员。"
       actions={
-        <Button
-          onClick={reload}
-          disabled={loading}
-          variant="secondary"
-          icon={RefreshCw}
-          size="sm"
-        >
+        <Button onClick={reload} disabled={loading} variant="secondary" icon={RefreshCw} size="sm">
           刷新
         </Button>
       }
     >
       <div className="mb-4 flex items-center gap-3 flex-wrap">
-        <FilterPills
-          options={ROLE_FILTERS}
-          value={roleFilter}
-          onChange={setRoleFilter}
-        />
+        <FilterPills options={ROLE_FILTERS} value={roleFilter} onChange={setRoleFilter} />
         <span className="text-xs text-muted-soft">·</span>
-        <FilterPills
-          options={PLAN_FILTERS}
-          value={planFilter}
-          onChange={setPlanFilter}
-        />
+        <FilterPills options={PLAN_FILTERS} value={planFilter} onChange={setPlanFilter} />
         <Input
           type="text"
           value={keyword}
@@ -269,9 +250,7 @@ export default function AdminUsersPage() {
               {new Date(u.created_at).toLocaleDateString()}
             </td>
             <td className="py-3 pr-4 text-muted-foreground">
-              {u.last_active_at
-                ? new Date(u.last_active_at).toLocaleDateString()
-                : "-"}
+              {u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "-"}
             </td>
             <td className="py-3 text-right">
               <div className="inline-flex gap-1">
@@ -299,11 +278,7 @@ export default function AdminUsersPage() {
           </tr>
         )}
         renderDetail={(u) => (
-          <UserDetailRow
-            user={u}
-            onGrantPro={handleGrantPro}
-            onRevokePro={handleRevokePro}
-          />
+          <UserDetailRow user={u} onGrantPro={handleGrantPro} onRevokePro={handleRevokePro} />
         )}
       />
 
@@ -349,10 +324,7 @@ function UserDetailRow({
         <Stat label="发帖数" value={user.posts_count} />
         <Stat label="等级" value={user.level || "-"} />
         {user.plan_expires_at && (
-          <Stat
-            label="Pro 到期"
-            value={new Date(user.plan_expires_at).toLocaleDateString()}
-          />
+          <Stat label="Pro 到期" value={new Date(user.plan_expires_at).toLocaleDateString()} />
         )}
       </div>
       <div>
@@ -361,9 +333,7 @@ function UserDetailRow({
         </h4>
         <div className="flex items-end gap-2">
           <div>
-            <label className="block text-[11px] text-muted-foreground mb-1">
-              赠送天数
-            </label>
+            <label className="block text-[11px] text-muted-foreground mb-1">赠送天数</label>
             <Input
               type="number"
               value={days}
@@ -393,9 +363,7 @@ function UserDetailRow({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-canvas border border-hairline rounded-sm p-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-sm font-medium text-ink">{value}</div>
     </div>
   );

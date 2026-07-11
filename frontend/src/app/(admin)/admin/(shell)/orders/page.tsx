@@ -89,21 +89,13 @@ export default function AdminOrdersPage() {
               <td className="py-3 pr-4 text-muted-foreground truncate max-w-[180px]">
                 {o.user_phone || o.user_id.slice(0, 8)}
               </td>
-              <td className="py-3 pr-4 text-muted-foreground">
-                {PLAN_LABEL[o.plan] || o.plan}
-              </td>
-              <td className="py-3 pr-4 font-medium text-ink">
-                {formatAmount(o.amount)}
-              </td>
+              <td className="py-3 pr-4 text-muted-foreground">{PLAN_LABEL[o.plan] || o.plan}</td>
+              <td className="py-3 pr-4 font-medium text-ink">{formatAmount(o.amount)}</td>
               <td className="py-3 pr-4">
                 <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
               </td>
-              <td className="py-3 pr-4 text-muted-foreground">
-                {formatDateTime(o.created_at)}
-              </td>
-              <td className="py-3 pr-4 text-muted-foreground">
-                {formatDateTime(o.paid_at)}
-              </td>
+              <td className="py-3 pr-4 text-muted-foreground">{formatDateTime(o.created_at)}</td>
+              <td className="py-3 pr-4 text-muted-foreground">{formatDateTime(o.paid_at)}</td>
             </tr>
           );
         }}
