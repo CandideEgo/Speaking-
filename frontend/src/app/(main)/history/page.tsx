@@ -21,12 +21,12 @@ export default function HistoryPage() {
     loading,
   } = usePaginatedList<LearningRecord>({
     fetcher: async (pg) => {
-      const data = await api<{ records: LearningRecord[]; total: number }>(
+      const data = await api<{ items: LearningRecord[]; has_more: boolean; total: number }>(
         `/api/v1/learning/records?page=${pg}&page_size=20`
       );
       return {
-        items: data.records,
-        has_more: data.total > pg * 20,
+        items: data.items,
+        has_more: data.has_more,
         total: data.total,
       };
     },

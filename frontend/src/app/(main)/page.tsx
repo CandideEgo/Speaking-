@@ -41,12 +41,12 @@ export default function HomePage() {
       try {
         const [vocabRes, recordsRes] = await Promise.all([
           api<{ due_count?: number; total?: number }>("/api/v1/vocabulary/stats").catch(() => null),
-          api<{ records: LearningRecord[] }>(
+          api<{ items: LearningRecord[] }>(
             "/api/v1/learning/records?page=1&page_size=4&completed=false"
-          ).catch(() => ({ records: [] })),
+          ).catch(() => ({ items: [] })),
         ]);
         if (vocabRes) setVocabDue(vocabRes.due_count ?? 0);
-        setInProgressRecords(recordsRes.records);
+        setInProgressRecords(recordsRes.items);
       } catch {
         // silent fallback
       }

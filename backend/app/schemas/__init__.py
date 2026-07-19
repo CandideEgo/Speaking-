@@ -28,7 +28,6 @@ from app.schemas.community import (
 
 # ── 学习记录 ──
 from app.schemas.learning import (
-    LearningRecordListResponse,
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,

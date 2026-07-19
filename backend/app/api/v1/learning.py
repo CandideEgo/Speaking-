@@ -14,16 +14,16 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.community import VideoBrief
 from app.schemas.learning import (
-    LearningRecordListResponse,
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,
 )
+from app.schemas.pagination import PaginatedResponse, paginated
 
 router = APIRouter(prefix="/learning", tags=["learning"])
 
 
-@router.get("/records", response_model=LearningRecordListResponse)
+@router.get("/records", response_model=PaginatedResponse[LearningRecordResponse])
 @rate_limit("30/minute")
 async def list_learning_records(
     request: Request,
@@ -76,12 +76,7 @@ async def list_learning_records(
         )
         records.append(record_resp)
 
-    return LearningRecordListResponse(
-        records=records,
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    return paginated(records, page=page, page_size=page_size, total=total)
 
 
 @router.get("/records/{record_id}", response_model=LearningRecordResponse)

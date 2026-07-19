@@ -68,6 +68,8 @@ export interface Paginated<T> {
   page: number;
   page_size: number;
   has_more: boolean;
+  /** 总数（后端 PaginatedResponse.total 可选；列表端点不一定返回）。 */
+  total?: number;
 }
 
 export interface Subtitle {

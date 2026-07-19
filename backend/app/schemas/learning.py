@@ -26,13 +26,6 @@ class LearningRecordResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class LearningRecordListResponse(BaseModel):
-    records: list[LearningRecordResponse]
-    total: int
-    page: int
-    page_size: int
-
-
 class SaveProgressRequest(BaseModel):
     """Request body for saving video watch progress."""
 

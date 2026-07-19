@@ -35,7 +35,7 @@ class TestListLearningRecords:
         resp = await client.get("/api/v1/learning/records", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["records"] == []
+        assert data["items"] == []
         assert data["total"] == 0
 
     async def test_returns_records_with_video_info(self, client: AsyncClient, auth_headers: dict):
@@ -59,7 +59,7 @@ class TestListLearningRecords:
 
         resp = await client.get("/api/v1/learning/records", headers=auth_headers)
         assert resp.status_code == 200
-        records = resp.json()["records"]
+        records = resp.json()["items"]
         assert len(records) == 1
         rec = records[0]
         assert rec["video_id"] == video_id
