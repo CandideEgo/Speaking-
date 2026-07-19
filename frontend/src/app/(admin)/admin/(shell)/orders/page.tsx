@@ -84,7 +84,7 @@ export default function AdminOrdersPage() {
             tone: "neutral" as BadgeTone,
           };
           return (
-            <tr className="text-xs align-top">
+            <tr className="text-xs align-top hover:bg-surface-soft/40 transition-colors">
               <td className="py-3 pr-4 font-mono text-ink">{o.order_number}</td>
               <td className="py-3 pr-4 text-muted-foreground truncate max-w-[180px]">
                 {o.user_phone || o.user_id.slice(0, 8)}

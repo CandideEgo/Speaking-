@@ -196,7 +196,7 @@ export default function AdminInvitesPage() {
           loading={loading}
           emptyText="暂无兑换码"
           renderRow={(c) => (
-            <tr className="text-xs">
+            <tr className="text-xs hover:bg-surface-soft/40 transition-colors">
               <td className="py-2 font-mono text-ink">{c.code}</td>
               <td className="py-2 text-muted-foreground">{c.plan}</td>
               <td className="py-2 text-muted-foreground">{c.duration_days}天</td>

@@ -332,7 +332,7 @@ export default function VideoManager() {
           emptyText="暂无视频"
           expandedId={editingId}
           renderRow={(v, isExpanded) => (
-            <tr className="text-xs align-top">
+            <tr className="text-xs align-top hover:bg-surface-soft/40 transition-colors">
               <td className="py-3 pr-4">
                 <div className="flex items-start gap-3">
                   <div className="relative h-12 w-20 rounded-sm bg-surface-soft overflow-hidden flex-shrink-0">

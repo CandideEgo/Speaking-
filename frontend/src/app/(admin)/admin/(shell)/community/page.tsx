@@ -344,7 +344,7 @@ function PostsManager() {
         emptyText="暂无帖子"
         expandedId={expandedId}
         renderRow={(p, isExpanded) => (
-          <tr className="text-xs align-top">
+          <tr className="text-xs align-top hover:bg-surface-soft/40 transition-colors">
             <td className="py-3 pr-4">
               <button
                 onClick={() => toggleExpand(p)}
