@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
 import { Loader2, FileSearch, Subtitles } from "lucide-react";
@@ -38,16 +38,16 @@ interface SearchDropdownProps {
 function DifficultyBadge({ level }: { level: string | null }) {
   if (!level) return null;
   const colors: Record<string, string> = {
-    A1: "bg-green-100 text-green-700",
-    A2: "bg-green-100 text-green-700",
-    B1: "bg-blue-100 text-blue-700",
-    B2: "bg-amber-100 text-amber-700",
-    C1: "bg-red-100 text-red-700",
-    C2: "bg-red-100 text-red-700",
+    A1: "bg-success-soft text-success",
+    A2: "bg-success-soft text-success",
+    B1: "bg-indigo-soft text-indigo",
+    B2: "bg-warning-soft text-warning",
+    C1: "bg-red-soft text-error",
+    C2: "bg-red-soft text-error",
   };
   return (
     <span
-      className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${colors[level] || "bg-gray-100 text-gray-600"}`}
+      className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${colors[level] || "bg-surface-card text-muted"}`}
     >
       {level}
     </span>

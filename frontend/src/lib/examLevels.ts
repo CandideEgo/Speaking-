@@ -61,13 +61,13 @@ export function displayLevel(wordLevels: string[]): ExamLevelMeta | null {
 
 // Static class strings (one per color token) so Tailwind JIT detects them.
 const WORD_COLOR_CLASSES: Record<string, string> = {
-  slate: "bg-slate-100 text-slate-700",
-  green: "bg-green-100 text-green-700",
-  blue: "bg-blue-100 text-blue-700",
-  purple: "bg-purple-100 text-purple-700",
-  orange: "bg-orange-100 text-orange-700",
-  red: "bg-red-100 text-red-700",
-  rose: "bg-rose-100 text-rose-700",
+  slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  green: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+  red: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  rose: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
 };
 
 const DOT_COLOR_CLASSES: Record<string, string> = {

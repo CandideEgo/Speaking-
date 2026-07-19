@@ -186,7 +186,7 @@ export function TopBar() {
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-white/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
+    <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-topbar-bg/85 backdrop-blur-[10px] flex items-center gap-4 px-4 sm:px-7">
       {/* Mobile sidebar trigger — opens the slide-in nav overlay (Sidebar.tsx).
           Without this, dashboard / creator center / pricing are unreachable on mobile. */}
       <Button

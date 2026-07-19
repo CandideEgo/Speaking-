@@ -1,8 +1,8 @@
 # SeeWord 前端
 
-> 单一事实来源：`frontend/tailwind.config.ts`（color/spacing/radius/typography/shadow）+ `frontend/src/app/globals.css`（CSS 变量）。本文档是导航地图，不是配置本身——改 token 改 Tailwind 配置，不是改本文档。
+> 单一事实来源：`frontend/src/app/globals.css` 的 `@theme` 块（token 定义）+ `@layer base` 的 `:root` / `.dark` 变量块（亮/暗取值）。Tailwind v4 CSS-first，**无 `tailwind.config.ts`**。本文档是导航地图，不是配置本身——改 token 改 Tailwind 配置，不是改本文档。
 >
-> 色系：**coral / cream / brand**（ADR-0005 不换色系）。watch 页为风格锚点。
+> 色系：**zinc 中性色 + 品牌橙 `#ff5a1f`**（ADR-0005 不换色系）。watch 页为风格锚点。**暗色模式已落地**（见下「暗色模式」）。
 
 ## 使用原则
 
@@ -81,6 +81,40 @@
 
 ---
 
+## 暗色模式 (Dark mode)
+
+语义 token 通过 CSS 变量翻转：`@theme` 中 `--color-canvas: var(--canvas)`，`:root` 给亮值，`.dark` 给暗值。**类名不变，值随 `html.dark` 翻转**，组件零改动即获暗色。`html.dark` 由 `app/layout.tsx` 首绘前内联脚本设置（反 FOUC），`useTheme` hook 运行时切换。
+
+**静态不动**（两主题通用）：`brand-300~600`（CTA）、`surface-dark` 三件套（暗色 hero/播放器卡，亮暗皆黑）、`on-primary` / `on-dark` / `on-dark-soft`、`shadow-brand`、selection 橙。
+
+**翻转映射**（`globals.css` `:root` -> `.dark`）：
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `canvas` | `#ffffff` | `#0a0a0a` |
+| `surface-soft` | `#fafafa` | `#111112` |
+| `surface-card` | `#f4f4f5` | `#1a1a1c` |
+| `surface-cream-strong` | `#ededed` | `#262628` |
+| `ink` | `#0a0a0a` | `#fafafa` |
+| `body` | `#27272a` | `#d4d4d8` |
+| `body-strong` | `#18181b` | `#e4e4e7` |
+| `muted` | `#71717a` | `#a1a1aa` |
+| `muted-soft` | `#a1a1aa` | `#6b6b72` |
+| `hairline` | `#ededed` | `#242426` |
+| `hairline-soft` | `#f4f4f5` | `#1c1c1e` |
+| `brand-50/100/200` | 软填充 | 暗橙半透明底 |
+| `brand-700/800` | 深色文字 | 提亮至 `brand-400/300` 档 |
+| `success` / `warning` / `error` | `#16a34a` / `#d97706` / `#dc2626` | 提亮 `#22c55e` / `#f59e0b` / `#ef4444` |
+| `*-soft` | 浅底半透明 | 暗底半透明 |
+| `shadow-soft/card/lift` | 浅黑影 | 加深 (`rgba(0,0,0,.5~.6)`) |
+| scrollbar-thumb | `212 212 216` | `82 82 91` |
+
+**例外**：功能性多色 chip（examLevels 7 色、SubtitleList 说话人 8 色）超出语义 token 体系，用 `dark:` 变体手动配对（`@custom-variant dark` 已在 `globals.css` 顶部启用）。
+
+**`bg-ink` 语义陷阱**：`ink` 既是前景色又被当最深表面用。翻转 `ink` 会让播放器变白。故「最暗表面」场景（播放器容器、暗卡）一律用静态 `bg-surface-dark`，`text-ink` 才翻转。
+
+---
+
 ## Radius
 
 | Token | 值 | 用途 |
@@ -130,7 +164,7 @@ Tailwind 默认间距刻度之上：
 
 ## CSS 变量（runtime 主题，`globals.css`）
 
-`:root` 暴露 RGB 三元组供 Tailwind `<alpha-value>` 引用：`--background` `--foreground` `--muted` `--muted-foreground` `--border` `--surface` `--accent` `--sidebar-bg` `--topbar-bg`。暗模式接入时（optimization roadmap 后续项）通过覆盖这些变量切换主题，无需改组件。
+`:root` 暴露 RGB 三元组供 Tailwind `<alpha-value>` 引用：`--background` `--foreground` `--muted` `--muted-foreground` `--border` `--surface` `--accent` `--sidebar-bg` `--topbar-bg`。暗色模式**已落地**：`.dark` 选择器覆盖这些变量（见上「暗色模式」），组件类名不变即翻转。`--scrollbar-thumb` / `--scrollbar-track` 为 RGB 三元组供 `rgb(var(...) / alpha)` 使用，其余为 hex。
 
 ---
 

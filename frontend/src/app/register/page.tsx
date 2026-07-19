@@ -149,7 +149,7 @@ export default function RegisterPage() {
           />
         </div>
 
-        {(error || smsError) && <p className="text-sm text-red-600">{error || smsError}</p>}
+        {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
 
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input

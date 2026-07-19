@@ -42,13 +42,13 @@ const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> 
     icon: "bg-teal/10 text-teal",
   },
   amber: {
-    icon: "bg-amber-50 text-amber-600",
+    icon: "bg-warning-soft text-warning",
   },
   purple: {
-    icon: "bg-purple-50 text-purple-600",
+    icon: "bg-indigo-soft text-indigo",
   },
   blue: {
-    icon: "bg-blue-50 text-blue-600",
+    icon: "bg-sky-soft text-sky-600 dark:text-sky-400",
   },
 };
 

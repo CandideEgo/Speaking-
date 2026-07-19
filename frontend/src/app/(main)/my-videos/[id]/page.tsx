@@ -192,7 +192,7 @@ export default function MyVideoEditorPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
           <div>
-            <h1 className="page-title !mb-1">{video.title}</h1>
+            <h1 className="text-2xl font-bold tracking-display-sm text-ink mb-1">{video.title}</h1>
             <ReviewBadge
               status={video.review_status}
               processing={isProcessing}
@@ -259,7 +259,7 @@ export default function MyVideoEditorPage() {
 
         {/* Error state */}
         {video.status === "error" && (
-          <div className="bg-red-50 text-red-700 rounded-lg p-4 mb-6 space-y-2">
+          <div className="bg-red-soft text-error rounded-lg p-4 mb-6 space-y-2">
             <div className="text-sm font-medium">
               视频处理失败
               {video.processing_step
@@ -267,7 +267,7 @@ export default function MyVideoEditorPage() {
                 : ""}
             </div>
             {video.error_message && <div className="text-xs break-all">{video.error_message}</div>}
-            <div className="text-xs text-red-500">请返回创作者中心重新提交该视频链接。</div>
+            <div className="text-xs text-error">请返回创作者中心重新提交该视频链接。</div>
           </div>
         )}
 

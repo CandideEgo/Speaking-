@@ -250,7 +250,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
           {/* WebSocket connection indicator */}
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${
-              wsConnected ? "bg-green-400" : "bg-muted-foreground/30"
+              wsConnected ? "bg-success" : "bg-muted-foreground/30"
             }`}
             title={wsConnected ? "实时连接" : "轮询模式"}
           />

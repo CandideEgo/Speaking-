@@ -6,14 +6,12 @@ export function BentoShowcase() {
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">
             产品一览
           </span>
-          <h2 className="!text-[44px] !font-extrabold !tracking-[-0.03em] !leading-tight mt-3.5">
-            每个细节都在帮你进步
-          </h2>
+          <h2 className="display-xl mt-3.5">每个细节都在帮你进步</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {/* Player (large) */}
-          <div className="sm:col-span-2 md:col-span-2 bg-ink rounded-xl p-7 min-h-[300px] flex flex-col justify-between text-on-dark">
+          <div className="sm:col-span-2 md:col-span-2 bg-surface-dark rounded-xl p-7 min-h-[300px] flex flex-col justify-between text-on-dark">
             <div>
               <div className="text-[13px] text-on-dark-soft mb-1.5">播放器</div>
               <h3 className="text-[22px] font-bold tracking-tight mb-3">沉浸式播放</h3>

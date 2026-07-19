@@ -87,11 +87,11 @@ function NavLink({
       className={cn(
         "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium",
         "transition-colors duration-150",
-        isActive ? "bg-ink text-on-primary" : "text-olive hover:bg-surface-card hover:text-ink",
+        isActive ? "bg-ink text-canvas" : "text-olive hover:bg-surface-card hover:text-ink",
         collapsed && "justify-center px-2"
       )}
     >
-      <item.icon size={18} className={cn("flex-shrink-0", isActive && "text-on-primary")} />
+      <item.icon size={18} className={cn("flex-shrink-0", isActive && "text-canvas")} />
       <span className="nav-label truncate">{item.label}</span>
       {item.badge && !collapsed && (
         <span className="nav-badge ml-auto text-[11px] font-semibold bg-brand-500 text-on-primary px-[7px] py-0.5 rounded-pill">
@@ -160,7 +160,7 @@ function SidebarNavContent({
             <div className="text-xs text-muted mt-0.5">解锁无限词汇复习</div>
             <Link
               href="/pricing"
-              className="block w-full mt-2.5 bg-ink text-on-primary text-[13px] font-semibold py-2 rounded-sm text-center hover:bg-black transition-colors duration-150"
+              className="block w-full mt-2.5 bg-ink text-canvas text-[13px] font-semibold py-2 rounded-sm text-center hover:bg-ink/90 transition-colors duration-150"
             >
               升级 Pro →
             </Link>
@@ -168,7 +168,7 @@ function SidebarNavContent({
         ) : (
           <Link
             href="/pricing"
-            className="flex items-center justify-center w-10 h-10 mx-auto rounded-sm bg-ink text-on-primary hover:bg-black transition-colors duration-150"
+            className="flex items-center justify-center w-10 h-10 mx-auto rounded-sm bg-ink text-canvas hover:bg-ink/90 transition-colors duration-150"
             aria-label="升级 Pro"
           >
             <Crown size={16} />

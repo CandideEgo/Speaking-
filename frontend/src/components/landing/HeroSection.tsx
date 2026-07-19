@@ -12,7 +12,7 @@ export function HeroSection() {
           {/* Copy */}
           <div>
             <Eyebrow>用真实视频学英语 · 双语字幕 + 词汇</Eyebrow>
-            <h1 className="!text-[36px] sm:!text-[52px] lg:!text-[68px] !font-black !tracking-[-0.04em] !leading-none mt-6 mb-6">
+            <h1 className="text-[36px] sm:text-[52px] lg:text-[68px] font-black tracking-[-0.04em] leading-none mt-6 mb-6">
               Learn English
               <br />
               with <em className="not-italic text-brand-500">Real Speech.</em>
@@ -47,7 +47,7 @@ export function HeroSection() {
 
           {/* Player mock */}
           <div className="relative">
-            <div className="bg-ink rounded-xl overflow-hidden shadow-lift aspect-[4/3] relative">
+            <div className="bg-surface-dark rounded-xl overflow-hidden shadow-lift aspect-[4/3] relative">
               {/* Gradient scrim */}
               <div
                 className="absolute inset-0"

@@ -350,7 +350,7 @@ export default function CommunityPage() {
                           href={`/watch/${post.video.id}`}
                           className="flex gap-3 items-center bg-surface-soft border border-hairline rounded-lg px-3 py-3 mb-3.5 hover:bg-canvas hover:border-ink transition-colors"
                         >
-                          <div className="w-[84px] h-[48px] rounded-lg bg-ink flex-shrink-0 relative overflow-hidden">
+                          <div className="w-[84px] h-[48px] rounded-lg bg-surface-dark flex-shrink-0 relative overflow-hidden">
                             <Image
                               src={post.video.thumbnail_url}
                               alt={post.video.title || "视频"}
@@ -434,7 +434,7 @@ export default function CommunityPage() {
             {/* Sidebar */}
             <div className="sticky top-[88px] flex flex-col gap-4 hidden lg:block">
               <div className="bg-canvas border border-hairline rounded-lg p-[18px]">
-                <h4 className="!text-[13px] !font-bold uppercase tracking-[0.02em] text-muted !m-0 !mb-3.5">
+                <h4 className="text-[13px] font-bold uppercase tracking-[0.02em] text-muted m-0 mb-3.5">
                   社区指南
                 </h4>
                 <ul className="space-y-2 text-[13px] text-muted">

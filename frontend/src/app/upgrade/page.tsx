@@ -43,7 +43,7 @@ export default function UpgradePage() {
                 前往微信小商店购买
               </Button>
             ) : (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3.5 text-center text-[13px] leading-relaxed text-amber-800">
+              <div className="rounded-md border border-amber-200 bg-warning-soft p-3.5 text-center text-[13px] leading-relaxed text-amber-800 dark:border-amber-900 dark:text-amber-300">
                 微信小商店即将开通，暂未开放购买。
                 <br />
                 如需提前开通会员，请联系客服。

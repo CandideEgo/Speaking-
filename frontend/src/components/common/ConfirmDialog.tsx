@@ -44,7 +44,7 @@ export function ConfirmDialog({
       title={
         tone === "danger" ? (
           <>
-            <AlertTriangle size={15} className="text-red-500" />
+            <AlertTriangle size={15} className="text-error" />
             {title ?? "确认操作"}
           </>
         ) : (

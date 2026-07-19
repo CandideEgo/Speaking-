@@ -7,6 +7,7 @@ import { TestimonialGrid } from "@/components/landing/TestimonialGrid";
 import { PricingSection } from "@/components/landing/PricingSection";
 import { FinalCTA } from "@/components/landing/FinalCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { ScrollReveal } from "@/components/common/ScrollReveal";
 
 /**
  * Landing page marketing content — shared between:
@@ -23,11 +24,21 @@ export function LandingContent() {
       <LandingNav />
       <HeroSection />
       <TrustStrip />
-      <FeatureGrid />
-      <BentoShowcase />
-      <TestimonialGrid />
-      <PricingSection />
-      <FinalCTA />
+      <ScrollReveal>
+        <FeatureGrid />
+      </ScrollReveal>
+      <ScrollReveal>
+        <BentoShowcase />
+      </ScrollReveal>
+      <ScrollReveal>
+        <TestimonialGrid />
+      </ScrollReveal>
+      <ScrollReveal>
+        <PricingSection />
+      </ScrollReveal>
+      <ScrollReveal>
+        <FinalCTA />
+      </ScrollReveal>
       <LandingFooter />
     </div>
   );

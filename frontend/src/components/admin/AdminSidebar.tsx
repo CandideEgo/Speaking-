@@ -76,7 +76,7 @@ export function AdminSidebar() {
                     className={cn(
                       "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium transition-colors",
                       active
-                        ? "bg-ink text-on-primary"
+                        ? "bg-ink text-canvas"
                         : "text-olive hover:bg-surface-card hover:text-ink"
                     )}
                   >

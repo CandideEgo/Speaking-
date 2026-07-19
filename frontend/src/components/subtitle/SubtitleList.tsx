@@ -32,14 +32,14 @@ function parseDifficultyWords(difficultyWords: string | null | undefined): strin
 /** Generate color for speaker avatar based on name */
 function getSpeakerColor(name: string): string {
   const colors = [
-    "bg-blue-100 text-blue-700 border-blue-200",
-    "bg-green-100 text-green-700 border-green-200",
-    "bg-purple-100 text-purple-700 border-purple-200",
-    "bg-orange-100 text-orange-700 border-orange-200",
-    "bg-pink-100 text-pink-700 border-pink-200",
-    "bg-teal-100 text-teal-700 border-teal-200",
-    "bg-indigo-100 text-indigo-700 border-indigo-200",
-    "bg-rose-100 text-rose-700 border-rose-200",
+    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800",
+    "bg-green-100 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800",
+    "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-800",
+    "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-300 dark:border-orange-800",
+    "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900 dark:text-pink-300 dark:border-pink-800",
+    "bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:border-teal-800",
+    "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-800",
+    "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900 dark:text-rose-300 dark:border-rose-800",
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -122,7 +122,7 @@ const HighlightedText = memo(function HighlightedText({
             }}
             className={cn(
               "cursor-pointer rounded transition-colors duration-150",
-              isHighlighted && "bg-red-100 text-red-700 px-0.5",
+              isHighlighted && "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-0.5",
               isSelected && "bg-coral/20 text-coral",
               !isHighlighted && !isSelected && "hover:bg-coral/10"
             )}
@@ -201,7 +201,7 @@ const SubtitleItem = memo(function SubtitleItem({
 
         {/* Grammar note */}
         {sub.grammar_note && (
-          <p className="mt-1.5 text-xs text-amber-600/80">提示：{sub.grammar_note}</p>
+          <p className="mt-1.5 text-xs text-warning/80">提示：{sub.grammar_note}</p>
         )}
       </button>
 
@@ -238,7 +238,7 @@ const SubtitleItem = memo(function SubtitleItem({
             aria-label="复制字幕"
           >
             {copiedId === sub.id ? (
-              <Check size={14} className="text-green-500" />
+              <Check size={14} className="text-success" />
             ) : (
               <Copy size={14} />
             )}

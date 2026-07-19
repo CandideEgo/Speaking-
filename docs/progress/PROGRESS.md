@@ -4,6 +4,16 @@
 
 ---
 
+## Recent Changes (2026-07-19)
+
+- **前端深度设计开发**（接续 Kimi-Code 因配额中断的 5 阶段方案 P0-P4）：
+  - **暗色模式完整落地**（P0）：`globals.css` 语义 token 原地变量化（`@theme inline` + `:root`/`.dark`），一份 `.dark` 变量块级联全站，组件零改动即获暗色；`layout.tsx` 首绘前内联脚本反 FOUC；`bg-ink` 语义陷阱拆分（最暗表面迁移静态 `bg-surface-dark`）。
+  - **暗色正确性清扫**（P1）：40+ 文件静态色值（`bg-white`/`bg-gray-*`/`text-red-500`/`bg-emerald-500` 等）迁移到语义 token；recharts 经新建 `lib/chart-theme.ts` 主题化；功能性多色 chip 用 `dark:` 变体配对。
+  - **设计系统深化**（P2）：删除死代码 `components/player/`（3）+ `components/dashboard/`（5）+ `SubtitleOverlay`/`WordTooltip`；歼灭 landing 6 组件 `!important`（迁移到 `.display-2xl/xl/lg` 组件类）；`page-title` 死类清除。
+  - **视觉质感打磨**（P3）：`globals.css` 加 reduced-motion 守卫 + `.hover-lift` 工具类；Button 加 `active:scale-[0.98]` 按压态；新建 `ScrollReveal`（gsap ScrollTrigger，reduce-motion 守卫，SSR 安全）应用到 landing 5 区段。
+  - **验证与文档**（P4）：`npm run check`（0 错误）+ `npm run build`（32/32 页面）全绿；`DESIGN-TOKENS.md` 补暗色映射表、`AGENTS.md` 栈修正为 Next 16 / React 19 / Tailwind 4。
+  - 待办：Playwright 截图矩阵（13 路由 × 亮/暗 × 桌面/移动）需交互式执行 + image-vision 审阅。
+
 ## Recent Changes (2026-06-29)
 
 - **项目深度整理**: 清理 ~800MB 临时文件、移除 11 个未使用前端组件、修复安全项（untrack cookies、redact API key）

@@ -205,8 +205,8 @@ export function VideoDetailRow({
 
         {/* UGC review actions (pending_review only) */}
         {video.review_status === "pending_review" && !video.is_official && (
-          <div className="rounded-sm border border-orange-200 bg-orange-50/50 p-3 space-y-2">
-            <div className="text-xs font-medium text-orange-800">
+          <div className="rounded-sm border border-orange-200 bg-brand-50 p-3 space-y-2 dark:border-orange-900">
+            <div className="text-xs font-medium text-orange-800 dark:text-orange-300">
               待审核 · 提交于{" "}
               {video.submitted_at ? new Date(video.submitted_at).toLocaleString() : "未知时间"}
             </div>
@@ -236,11 +236,15 @@ export function VideoDetailRow({
 
         {/* Pending-processing: admin can trigger GPU processing */}
         {video.status === "pending_processing" && (
-          <div className="rounded-sm border border-blue-200 bg-blue-50/50 p-3 space-y-2">
-            <div className="text-xs font-medium text-blue-800">
+          <div className="rounded-sm border border-blue-200 bg-sky-soft p-3 space-y-2 dark:border-blue-900">
+            <div className="text-xs font-medium text-blue-800 dark:text-blue-300">
               视频等待处理 · {workerOnline ? "Worker 在线" : "Worker 离线"}
             </div>
-            {!workerOnline && <div className="text-[11px] text-blue-600">请先启动本地处理服务</div>}
+            {!workerOnline && (
+              <div className="text-[11px] text-blue-600 dark:text-blue-400">
+                请先启动本地处理服务
+              </div>
+            )}
             <Button
               type="button"
               size="sm"
@@ -254,8 +258,8 @@ export function VideoDetailRow({
         )}
         {/* Processing / ready_subtitles: normal progress with optional recover link */}
         {(video.status === "processing" || video.status === "ready_subtitles") && (
-          <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-amber-800">
+          <div className="rounded-sm border border-amber-200 bg-warning-soft p-3 space-y-2 dark:border-amber-900">
+            <div className="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
               <Loader2 size={12} className="animate-spin" />
               处理中{stepLabel ? ` · ${stepLabel}` : ""}
               {video.processing_progress ? `（${video.processing_progress}%）` : ""}
@@ -263,7 +267,7 @@ export function VideoDetailRow({
             {video.processing_progress != null && video.processing_progress > 0 && (
               <div className="h-1.5 w-full rounded-full bg-ink/10">
                 <div
-                  className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                  className="h-full rounded-full bg-warning transition-all duration-500"
                   style={{
                     width: `${Math.min(video.processing_progress, 100)}%`,
                   }}
@@ -273,7 +277,7 @@ export function VideoDetailRow({
             <button
               type="button"
               onClick={() => onRecover(video)}
-              className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 underline underline-offset-2"
+              className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 underline underline-offset-2"
             >
               <RefreshCw size={10} />
               卡住了？重新恢复处理
@@ -282,8 +286,8 @@ export function VideoDetailRow({
         )}
         {/* Error state: show error_message + retry button */}
         {video.status === "error" && (
-          <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-red-800">
+          <div className="rounded-sm border border-red-200 bg-red-soft p-3 space-y-2 dark:border-red-900">
+            <div className="flex items-center gap-2 text-xs font-medium text-red-800 dark:text-red-300">
               <AlertCircle size={12} />
               处理失败
               {video.processing_step
@@ -291,7 +295,9 @@ export function VideoDetailRow({
                 : ""}
             </div>
             {video.error_message && (
-              <div className="text-xs text-red-600 break-all">{video.error_message}</div>
+              <div className="text-xs text-red-600 dark:text-red-400 break-all">
+                {video.error_message}
+              </div>
             )}
             <Button
               type="button"
@@ -305,7 +311,7 @@ export function VideoDetailRow({
           </div>
         )}
         {video.review_status === "rejected" && !video.is_official && video.rejection_reason && (
-          <div className="rounded-sm border border-red-200 bg-red-50/50 p-3 text-xs text-red-700">
+          <div className="rounded-sm border border-red-200 bg-red-soft p-3 text-xs text-red-700 dark:border-red-900 dark:text-red-300">
             已驳回：{video.rejection_reason}
           </div>
         )}
@@ -396,7 +402,7 @@ export function VideoDetailRow({
           <button
             type="button"
             onClick={() => onDelete(video)}
-            className="inline-flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700"
+            className="inline-flex items-center gap-1.5 text-xs text-error hover:text-error/80"
           >
             <Trash2 size={12} />
             删除视频

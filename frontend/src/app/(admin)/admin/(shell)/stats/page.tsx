@@ -40,18 +40,7 @@ import { StatCard } from "@/components/admin/StatCard";
 import { Button } from "@/components/ui/Button";
 import type { AdminStats, RecentActivityType } from "@/types";
 import { getAdminStats } from "@/lib/adminData";
-
-const PLAN_COLORS: Record<string, string> = {
-  free: "#a1a1aa",
-  pro: "#ff5a1f",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  ready: "#16a34a",
-  ready_subtitles: "#d97706",
-  processing: "#eab308",
-  error: "#dc2626",
-};
+import { useChartTheme } from "@/lib/chart-theme";
 
 const STATUS_LABEL: Record<string, string> = {
   ready: "就绪",
@@ -71,6 +60,19 @@ export default function AdminStatsPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<7 | 30>(30);
+  const ct = useChartTheme();
+
+  const PLAN_COLORS: Record<string, string> = {
+    free: ct.series.neutral,
+    pro: ct.series.brand,
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    ready: ct.series.success,
+    ready_subtitles: ct.series.warning,
+    processing: ct.series.yellow,
+    error: ct.series.error,
+  };
 
   const load = useCallback(async (days: number) => {
     setLoading(true);
@@ -91,7 +93,7 @@ export default function AdminStatsPage() {
   if (loading || !stats) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-coral" />
+        <Loader2 size={24} className="animate-spin text-brand-500" />
       </div>
     );
   }
@@ -122,12 +124,12 @@ export default function AdminStatsPage() {
   const planData = stats.users_by_plan.map((p) => ({
     name: p.plan === "pro" ? "Pro" : "Free",
     value: p.count,
-    color: PLAN_COLORS[p.plan] || "#a1a1aa",
+    color: PLAN_COLORS[p.plan] || ct.series.neutral,
   }));
   const statusData = stats.videos_by_status.map((s) => ({
     name: STATUS_LABEL[s.status] || s.status,
     value: s.count,
-    color: STATUS_COLORS[s.status] || "#a1a1aa",
+    color: STATUS_COLORS[s.status] || ct.series.neutral,
   }));
 
   return (
@@ -209,7 +211,9 @@ export default function AdminStatsPage() {
                 onClick={() => setRange(r)}
                 className={cn(
                   "rounded-sm px-3 py-1 text-xs font-medium transition-colors",
-                  range === r ? "bg-coral text-white" : "text-muted-foreground hover:text-ink"
+                  range === r
+                    ? "bg-brand-500 text-on-primary"
+                    : "text-muted-foreground hover:text-ink"
                 )}
               >
                 {r} 天
@@ -222,39 +226,34 @@ export default function AdminStatsPage() {
           <AreaChart data={trend} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
             <defs>
               <linearGradient id="gSignups" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ff5a1f" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#ff5a1f" stopOpacity={0} />
+                <stop offset="5%" stopColor={ct.series.brand} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={ct.series.brand} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gVocab" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#5db8a6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#5db8a6" stopOpacity={0} />
+                <stop offset="5%" stopColor={ct.series.success} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={ct.series.success} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gActive" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="5%" stopColor={ct.series.indigo} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={ct.series.indigo} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ededed" />
+            <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
             <XAxis
               dataKey="date"
               tickFormatter={formatDate}
-              tick={{ fontSize: 11, fill: "#71717a" }}
-              axisLine={{ stroke: "#ededed" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
+              axisLine={{ stroke: ct.axis }}
             />
-            <YAxis tick={{ fontSize: 11, fill: "#71717a" }} axisLine={{ stroke: "#ededed" }} />
+            <YAxis tick={{ fontSize: 11, fill: ct.tick }} axisLine={{ stroke: ct.axis }} />
             <Tooltip
-              contentStyle={{
-                background: "#fafafa",
-                border: "1px solid #ededed",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
+              contentStyle={ct.tooltipStyle}
               labelFormatter={(label) => formatDate(String(label))}
             />
             <Area
               type="monotone"
               dataKey="vocabulary"
-              stroke="#5db8a6"
+              stroke={ct.series.success}
               strokeWidth={2}
               fill="url(#gVocab)"
               name="新增词汇"
@@ -262,7 +261,7 @@ export default function AdminStatsPage() {
             <Area
               type="monotone"
               dataKey="active"
-              stroke="#6366f1"
+              stroke={ct.series.indigo}
               strokeWidth={2}
               fill="url(#gActive)"
               name="活跃用户"
@@ -270,7 +269,7 @@ export default function AdminStatsPage() {
             <Area
               type="monotone"
               dataKey="signups"
-              stroke="#ff5a1f"
+              stroke={ct.series.brand}
               strokeWidth={2}
               fill="url(#gSignups)"
               name="新增注册"
@@ -298,14 +297,7 @@ export default function AdminStatsPage() {
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: "#fafafa",
-                  border: "1px solid #ededed",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
+              <Tooltip contentStyle={ct.tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -313,25 +305,18 @@ export default function AdminStatsPage() {
         <SectionCard title="视频状态分布">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={statusData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ededed" />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: "#71717a" }}
-                axisLine={{ stroke: "#ededed" }}
+                tick={{ fontSize: 11, fill: ct.tick }}
+                axisLine={{ stroke: ct.axis }}
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 11, fill: "#71717a" }}
-                axisLine={{ stroke: "#ededed" }}
+                tick={{ fontSize: 11, fill: ct.tick }}
+                axisLine={{ stroke: ct.axis }}
               />
-              <Tooltip
-                contentStyle={{
-                  background: "#fafafa",
-                  border: "1px solid #ededed",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
+              <Tooltip contentStyle={ct.tooltipStyle} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {statusData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />

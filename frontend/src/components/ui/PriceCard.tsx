@@ -28,7 +28,7 @@ export function PriceCard({
       )}
     >
       {popular && (
-        <div className="absolute -top-[13px] left-1/2 -translate-x-1/2 bg-ink text-on-primary text-[11px] font-bold px-3 py-1 rounded-pill tracking-caption-wide">
+        <div className="absolute -top-[13px] left-1/2 -translate-x-1/2 bg-ink text-canvas text-[11px] font-bold px-3 py-1 rounded-pill tracking-caption-wide">
           {ribbonText}
         </div>
       )}

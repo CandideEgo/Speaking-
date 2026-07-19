@@ -38,7 +38,7 @@ export interface TabPillsProps<K extends string = string> {
 
 const ACTIVE_CLASSES: Record<ActiveStyle, string> = {
   default: "bg-canvas text-ink shadow-soft",
-  dark: "bg-ink text-on-primary",
+  dark: "bg-ink text-canvas",
   brand: "bg-brand-500 text-on-primary",
 };
 

@@ -66,7 +66,7 @@ export function MobileTabBar() {
               <div className="relative">
                 <tab.icon size={20} />
                 {tab.showBadge && mounted && dueCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-error text-on-primary text-[9px] font-bold leading-none">
                     {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}

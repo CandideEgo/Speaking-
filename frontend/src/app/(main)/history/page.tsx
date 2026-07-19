@@ -95,7 +95,7 @@ export default function HistoryPage() {
                       {record.quiz_score !== null && (
                         <span>测验 {Math.round(record.quiz_score)} 分</span>
                       )}
-                      {record.completed && <span className="text-green-600">✓ 已完成</span>}
+                      {record.completed && <span className="text-success">✓ 已完成</span>}
                     </div>
                   </div>
 

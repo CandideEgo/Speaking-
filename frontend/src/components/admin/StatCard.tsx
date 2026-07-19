@@ -20,8 +20,8 @@ export function StatCard({
   const toneClass = {
     default: "bg-surface-soft text-muted-foreground",
     coral: "bg-brand-50 text-brand-600",
-    green: "bg-green-50 text-green-600",
-    amber: "bg-amber-50 text-amber-600",
+    green: "bg-success-soft text-success",
+    amber: "bg-warning-soft text-warning",
   }[tone];
 
   return (
@@ -32,7 +32,7 @@ export function StatCard({
             {label}
           </p>
           <p className="mt-2 font-display text-3xl font-normal text-ink">{value}</p>
-          {delta && <p className="mt-1 text-xs text-green-600">{delta}</p>}
+          {delta && <p className="mt-1 text-xs text-success">{delta}</p>}
         </div>
         <span
           className={cn("inline-flex h-10 w-10 items-center justify-center rounded-sm", toneClass)}

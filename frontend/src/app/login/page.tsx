@@ -94,7 +94,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
 
         <Button type="submit" fullWidth disabled={loading} className="mt-2">
           {loading ? "登录中..." : "登录"}

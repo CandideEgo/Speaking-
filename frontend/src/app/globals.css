@@ -1,8 +1,15 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
+/* 类式暗色变体：dark:* 响应 html.dark（供功能性多色 chip 等例外场景使用；
+   核心语义色一律走 var 翻转，不用 dark: 变体） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
-   Theme — migrated from tailwind.config.ts
+   Theme — Tailwind v4 CSS-first config
+   语义色 token 通过 var(--x) 引用 :root / .dark 中的变量，
+   实现亮/暗双主题：类名不变，值随 html.dark 翻转。
+   静态 token（brand 主刻度、surface-dark 系、on-dark 系）两主题通用。
    ============================================================ */
 @theme {
   /* --- Font families --- */
@@ -10,93 +17,98 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* --- Brand (vivid orange) --- */
-  --color-brand-50: #fff1eb;
-  --color-brand-100: #ffe0d3;
-  --color-brand-200: #ffc1a8;
+  /* --- Brand (vivid orange) ---
+     300~600 + 900/950 静态（CTA 两主题通用）；
+     50/100/200（软填充）与 700/800（软底上文）随主题翻转 */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
   --color-brand-300: #ff9b76;
   --color-brand-400: #ff7a45;
   --color-brand-500: #ff5a1f;
   --color-brand-600: #e84a10;
-  --color-brand-700: #c33c0c;
-  --color-brand-800: #9a3210;
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
   --color-brand-900: #7d2c12;
   --color-brand-950: #441405;
 
-  /* --- Indigo (secondary accent) — override DEFAULT + add soft --- */
+  /* --- Indigo (secondary accent) --- */
   --color-indigo: #6366f1;
-  --color-indigo-soft: #eef2ff;
+  --color-indigo-soft: var(--indigo-soft);
 
-  /* --- Surfaces --- */
-  --color-canvas: #ffffff;
-  --color-surface-soft: #fafafa;
-  --color-surface-card: #f4f4f5;
-  --color-surface-cream-strong: #ededed;
+  /* --- Surfaces (theme-aware) --- */
+  --color-canvas: var(--canvas);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-card: var(--surface-card);
+  --color-surface-cream-strong: var(--surface-strong);
+
+  /* --- Dark surfaces (static — 暗色卡片/播放器，两主题皆为黑) --- */
   --color-surface-dark: #0a0a0a;
   --color-surface-dark-elevated: #161616;
   --color-surface-dark-soft: #1c1c1c;
 
   /* --- Backward-compatible aliases --- */
-  --color-cream-soft: #fafafa;
-  --color-cream-card: #f4f4f5;
-  --color-cream-strong: #ededed;
-  --color-cream: #f4f4f5;
-  --color-parchment: #fafafa;
+  --color-cream-soft: var(--surface-soft);
+  --color-cream-card: var(--surface-card);
+  --color-cream-strong: var(--surface-strong);
+  --color-cream: var(--surface-card);
+  --color-parchment: var(--surface-soft);
   --color-navy: #0a0a0a;
   --color-navy-elevated: #161616;
 
-  /* --- Text --- */
-  --color-ink: #0a0a0a;
-  --color-body: #27272a;
-  --color-body-strong: #18181b;
-  --color-muted: #71717a;
-  --color-muted-soft: #a1a1aa;
-  --color-muted-foreground: #71717a;
+  /* --- Text (theme-aware) --- */
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-body-strong: var(--body-strong);
+  --color-muted: var(--muted-c);
+  --color-muted-soft: var(--muted-soft);
+  --color-muted-foreground: var(--muted-c);
 
   /* --- Text aliases --- */
-  --color-olive: #71717a;
-  --color-olive-soft: #a1a1aa;
+  --color-olive: var(--muted-c);
+  --color-olive-soft: var(--muted-soft);
   --color-ivory: #fafafa;
   --color-terracotta: #ff5a1f;
 
   /* --- Primary --- */
   --color-primary: #ff5a1f;
   --color-primary-active: #e84a10;
-  --color-primary-disabled: #f4f4f5;
+  --color-primary-disabled: var(--surface-card);
 
   /* --- Coral = primary alias --- */
   --color-coral: #ff5a1f;
   --color-coral-active: #e84a10;
-  --color-coral-soft: #fff1eb;
+  --color-coral-soft: var(--brand-50);
 
-  /* --- Semantic --- */
-  --color-success: #16a34a;
-  --color-success-soft: #ecfdf5;
-  --color-warning: #d97706;
-  --color-warning-soft: #fffbeb;
-  --color-error: #dc2626;
-  --color-danger: #dc2626;
+  /* --- Semantic (theme-aware) --- */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-error: var(--error);
+  --color-danger: var(--error);
 
   /* --- Soft-background pairs --- */
-  --color-sky-soft: #f0f9ff;
-  --color-red-soft: #fef2f2;
+  --color-sky-soft: var(--sky-soft);
+  --color-red-soft: var(--red-soft);
 
-  /* --- Teal / amber (legacy) --- */
+  /* --- Teal / amber (legacy, static accents) --- */
   --color-teal: #10b981;
   --color-accent-teal: #10b981;
   --color-accent-amber: #f59e0b;
 
-  /* --- On-colors --- */
+  /* --- On-colors (static) ---
+     on-primary: 品牌按钮上的文字；on-dark*: 暗表面上的文字 */
   --color-on-primary: #ffffff;
   --color-on-dark: #fafafa;
   --color-on-dark-soft: #a1a1aa;
 
-  /* --- Borders --- */
-  --color-hairline: #ededed;
-  --color-hairline-soft: #f4f4f5;
-  --color-hairline-cream: #ededed;
+  /* --- Borders (theme-aware) --- */
+  --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
+  --color-hairline-cream: var(--hairline);
 
-  /* --- Learning mode highlights --- */
+  /* --- Learning mode highlights (static — 高亮色两主题可读) --- */
   --color-learn-highlight: #4ade80;
   --color-learn-highlight-hover: #22c55e;
   --color-learn-phrase: #facc15;
@@ -104,14 +116,14 @@
   --color-learn-correct: #22c55e;
   --color-learn-wrong: #ef4444;
 
-  /* --- CSS variable-backed colors (runtime theme) --- */
-  --color-background: rgb(var(--background));
-  --color-foreground: rgb(var(--foreground));
-  --color-muted-foreground-var: rgb(var(--muted-foreground));
-  --color-border: rgb(var(--border));
-  --color-surface: rgb(var(--surface));
-  --color-sidebar-bg: rgb(var(--sidebar-bg));
-  --color-topbar-bg: rgb(var(--topbar-bg));
+  /* --- Chrome (runtime theme vars) --- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground-var: var(--muted-c);
+  --color-border: var(--hairline);
+  --color-surface: var(--surface-soft);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-topbar-bg: var(--topbar-bg);
 
   /* --- Border radius (override defaults) --- */
   --radius-xs: 4px;
@@ -139,10 +151,10 @@
   --tracking-display-sm: -0.02em;
   --tracking-caption-wide: 0.08em;
 
-  /* --- Box shadows --- */
-  --shadow-soft: 0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.04);
-  --shadow-card: 0 2px 8px rgba(10, 10, 10, 0.05), 0 1px 2px rgba(10, 10, 10, 0.04);
-  --shadow-lift: 0 12px 32px rgba(10, 10, 10, 0.08), 0 2px 8px rgba(10, 10, 10, 0.04);
+  /* --- Box shadows (theme-aware elevation + static brand glow) --- */
+  --shadow-soft: var(--elevation-soft);
+  --shadow-card: var(--elevation-card);
+  --shadow-lift: var(--elevation-lift);
   --shadow-brand: 0 8px 24px rgba(255, 90, 31, 0.28);
   --shadow-coral: 0 8px 24px rgba(255, 90, 31, 0.28);
 
@@ -161,21 +173,115 @@
 }
 
 /* ============================================================
-   Base layer
+   Base layer — 亮/暗主题变量
    ============================================================ */
 @layer base {
   :root {
-    --background: 255 255 255;
-    --foreground: 10 10 10;
-    --muted: 244 244 245;
-    --muted-foreground: 113 113 122;
-    --border: 237 237 237;
-    --surface: 250 250 250;
-    --accent: 255 90 31;
-    --sidebar-bg: 255 255 255;
-    --topbar-bg: 255 255 255;
+    color-scheme: light;
+
+    /* Surfaces */
+    --canvas: #ffffff;
+    --surface-soft: #fafafa;
+    --surface-card: #f4f4f5;
+    --surface-strong: #ededed;
+
+    /* Text */
+    --ink: #0a0a0a;
+    --body: #27272a;
+    --body-strong: #18181b;
+    --muted-c: #71717a;
+    --muted-soft: #a1a1aa;
+
+    /* Borders */
+    --hairline: #ededed;
+    --hairline-soft: #f4f4f5;
+
+    /* Brand soft band */
+    --brand-50: #fff1eb;
+    --brand-100: #ffe0d3;
+    --brand-200: #ffc1a8;
+    --brand-700: #c33c0c;
+    --brand-800: #9a3210;
+
+    /* Semantic */
+    --success: #16a34a;
+    --success-soft: #ecfdf5;
+    --warning: #d97706;
+    --warning-soft: #fffbeb;
+    --error: #dc2626;
+    --sky-soft: #f0f9ff;
+    --red-soft: #fef2f2;
+    --indigo-soft: #eef2ff;
+
+    /* Chrome */
+    --background: #ffffff;
+    --foreground: #0a0a0a;
+    --sidebar-bg: #ffffff;
+    --topbar-bg: #ffffff;
+
+    /* Elevation */
+    --elevation-soft: 0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.04);
+    --elevation-card: 0 2px 8px rgba(10, 10, 10, 0.05), 0 1px 2px rgba(10, 10, 10, 0.04);
+    --elevation-lift: 0 12px 32px rgba(10, 10, 10, 0.08), 0 2px 8px rgba(10, 10, 10, 0.04);
+
+    /* Misc (scrollbar-thumb 为 RGB 三元组，供 rgb(var(...) / alpha) 使用) */
     --scrollbar-thumb: 212 212 216;
     --scrollbar-track: transparent;
+    --skeleton-sheen: rgba(255, 255, 255, 0.4);
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* Surfaces — 与 surface-dark 三件套同源的 zinc 深色阶 */
+    --canvas: #0a0a0a;
+    --surface-soft: #111112;
+    --surface-card: #1a1a1c;
+    --surface-strong: #262628;
+
+    /* Text */
+    --ink: #fafafa;
+    --body: #d4d4d8;
+    --body-strong: #e4e4e7;
+    --muted-c: #a1a1aa;
+    --muted-soft: #6b6b72;
+
+    /* Borders */
+    --hairline: #242426;
+    --hairline-soft: #1c1c1e;
+
+    /* Brand soft band — 暗橙底 + 提亮文本 */
+    --brand-50: #241109;
+    --brand-100: #2f170c;
+    --brand-200: #3d1d0f;
+    --brand-700: #ff7a45;
+    --brand-800: #ff9b76;
+
+    /* Semantic — 主色提亮，soft 改暗底 */
+    --success: #22c55e;
+    --success-soft: #0d2417;
+    --warning: #f59e0b;
+    --warning-soft: #241a08;
+    --error: #ef4444;
+    --sky-soft: #0c1a24;
+    --red-soft: #261212;
+    --indigo-soft: #16172b;
+
+    /* Chrome */
+    --background: #0a0a0a;
+    --foreground: #fafafa;
+    --sidebar-bg: #0e0e10;
+    --topbar-bg: #0e0e10;
+
+    /* Elevation — 深底需要更重的投影 */
+    --elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --elevation-card: 0 2px 8px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --elevation-lift: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
+
+    /* Misc */
+    --scrollbar-thumb: 82 82 91;
+    --scrollbar-track: transparent;
+    --skeleton-sheen: rgba(255, 255, 255, 0.08);
   }
 
   html {
@@ -196,7 +302,7 @@
   h2,
   h3,
   h4 {
-    @apply font-display font-normal;
+    @apply font-display font-semibold;
   }
 
   h1 {
@@ -224,6 +330,20 @@
   html.no-transitions *::before,
   html.no-transitions *::after {
     transition: none;
+  }
+
+  /* 尊重用户系统偏好：减少动效时，CSS 过渡/动画近乎瞬时。
+     GSAP 动画走 JS ticker 不受影响，且 ScrollReveal 等会在
+     prefers-reduced-motion: no-preference 守卫下跳过。 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -266,21 +386,16 @@
     background: transparent;
   }
   .subtitle-scroll::-webkit-scrollbar-thumb {
-    background: rgba(10, 10, 10, 0.1);
+    background: rgb(var(--scrollbar-thumb) / 0.5);
     border-radius: 3px;
   }
   .subtitle-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(10, 10, 10, 0.2);
+    background: rgb(var(--scrollbar-thumb) / 0.8);
   }
 
-  /* Skeleton shimmer */
+  /* Skeleton shimmer (sheen 随主题) */
   .skeleton-shimmer {
-    background: linear-gradient(
-      90deg,
-      transparent 25%,
-      rgba(255, 255, 255, 0.4) 50%,
-      transparent 75%
-    );
+    background: linear-gradient(90deg, transparent 25%, var(--skeleton-sheen) 50%, transparent 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
@@ -322,6 +437,12 @@
   /* Fade-in animation */
   .animate-fade-in {
     animation: fade-in 0.25s ease-out forwards;
+  }
+
+  /* 统一的卡片/可点击元素 hover 抬升语言（与 VideoCard 一致） */
+  .hover-lift {
+    @apply transition-all duration-150
+           hover:-translate-y-0.5 hover:shadow-lift hover:border-transparent;
   }
 }
 
@@ -373,11 +494,25 @@
     @apply max-w-page mx-auto px-4 sm:px-7;
   }
 
+  /* === Display headings (营销页大标题，替代 !font-extrabold 覆盖) === */
+  .display-2xl {
+    @apply font-display font-extrabold tracking-display-xl leading-[1.02]
+           text-[40px] sm:text-[56px] lg:text-[68px];
+  }
+  .display-xl {
+    @apply font-display font-extrabold tracking-display-lg leading-[1.05]
+           text-[32px] sm:text-[44px];
+  }
+  .display-lg {
+    @apply font-display font-extrabold tracking-display-lg leading-[1.08]
+           text-[28px] sm:text-[42px];
+  }
+
   /* === Filter bar (browse) === */
   .filter-bar {
     @apply sticky top-16 z-20 backdrop-blur-sm border border-hairline
            rounded-lg p-2.5 mb-6 flex flex-col gap-2;
-    background: rgba(255, 255, 255, 0.92);
+    background: color-mix(in oklab, var(--canvas) 92%, transparent);
   }
 
   /* === Current subtitle display === */
@@ -436,13 +571,16 @@
     @apply grid gap-4 mb-2;
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
-  /* hero 大卡 — 深色，占 4 列 */
+  /* hero 大卡 — 深色，占 4 列（亮暗主题皆为黑，暗色下提边框保持分界） */
   .b-hero {
     @apply relative min-h-[230px] p-8 rounded-lg flex flex-col justify-between overflow-hidden border;
     grid-column: span 4 / span 4;
     background: linear-gradient(135deg, #161616, #0a0a0a);
     border-color: #1c1c1c;
     color: #fafafa;
+  }
+  .dark .b-hero {
+    border-color: #2a2a2e;
   }
   .b-hero-tag {
     @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase font-mono;

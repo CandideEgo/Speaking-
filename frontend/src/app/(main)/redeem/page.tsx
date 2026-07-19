@@ -84,8 +84,8 @@ export default function RedeemPage() {
         </div>
 
         {!isAuthenticated ? (
-          <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
-            <p className="text-sm text-amber-800">
+          <div className="mt-8 rounded-lg border border-amber-200 bg-warning-soft p-4 text-center dark:border-amber-900">
+            <p className="text-sm text-amber-800 dark:text-amber-300">
               请先
               <a href="/login" className="font-semibold underline">
                 登录
@@ -114,7 +114,7 @@ export default function RedeemPage() {
 
             {result && (
               <div
-                className={`rounded-md p-3 text-sm ${result.success ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-600 border border-red-200"}`}
+                className={`rounded-md p-3 text-sm ${result.success ? "bg-success-soft text-success border border-success/30" : "bg-red-soft text-error border border-error/30"}`}
               >
                 {result.success && <CheckCircle2 size={16} className="inline mr-1 -mt-0.5" />}
                 {result.message}

@@ -44,7 +44,7 @@ export function PostComposer({ userInitial, onCreated }: PostComposerProps) {
           placeholder="分享你的学习心得..."
           value={newPost}
           onChange={(e) => setNewPost(e.target.value)}
-          className="flex-1 border-0 bg-surface-soft rounded-lg px-3.5 py-2.5 text-sm font-sans resize-none h-[42px] text-ink focus:bg-canvas focus:shadow-[0_0_0_2px_rgba(10,10,10,0.06)] focus:outline-none transition-colors"
+          className="flex-1 border-0 bg-surface-soft rounded-lg px-3.5 py-2.5 text-sm font-sans resize-none h-[42px] text-ink focus:bg-canvas focus:shadow-[0_0_0_2px_var(--surface-strong)] focus:outline-none transition-colors"
         />
       </div>
       <div className="flex justify-between items-center mt-3">

@@ -54,9 +54,7 @@ export function PricingSection() {
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">
             价格
           </span>
-          <h2 className="!text-[44px] !font-extrabold !tracking-[-0.03em] !leading-tight mt-3.5 mb-4">
-            简单透明的定价
-          </h2>
+          <h2 className="display-xl mt-3.5 mb-4">简单透明的定价</h2>
           <p className="text-[17px] text-muted leading-relaxed">
             免费开始，需要更多再升级。无隐藏费用。
           </p>

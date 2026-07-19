@@ -220,7 +220,7 @@ export default function VocabularyPage() {
               shape="rect"
             />
           }
-          className="!mt-0"
+          className="mt-0"
         />
 
         {/* Word grid */}
@@ -266,7 +266,7 @@ export default function VocabularyPage() {
                       <Badge tone={mb.tone}>{mb.text}</Badge>
                       <button
                         onClick={() => setDeleteTarget(w)}
-                        className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-red-500 hover:text-white transition-colors duration-100 cursor-pointer"
+                        className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"
                         aria-label={`删除 ${w.word}`}
                       >
                         <Trash2 size={13} />

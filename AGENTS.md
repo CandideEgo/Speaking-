@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI-powered English speaking practice app for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, and users practice speaking with AI pronunciation feedback, rubric scoring, and SM-2 spaced vocabulary review.
 
-**Stack**: Python FastAPI (async) + SQLAlchemy async + Celery + PostgreSQL + Redis | Next.js 14 (App Router) + React 18 + Tailwind CSS + Zustand v5
+**Stack**: Python FastAPI (async) + SQLAlchemy async + Celery + PostgreSQL + Redis | Next.js 16 (App Router) + React 19 + Tailwind CSS v4 (CSS-first, 无 tailwind.config) + Zustand v5
 
 **AI**: OpenAI-compatible API (Agnes AI via Agnes Gateway) | **Speech**: WhisperX + faster-whisper (local GPU) | **Media**: yt-dlp + ffmpeg
 

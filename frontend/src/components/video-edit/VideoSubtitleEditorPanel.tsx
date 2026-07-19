@@ -153,7 +153,7 @@ export function VideoSubtitleEditorPanel({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
         {/* LEFT: player + current subtitle card / editor */}
         <div className="min-w-0 space-y-3">
-          <div className="aspect-video w-full overflow-hidden rounded-xl bg-ink">
+          <div className="aspect-video w-full overflow-hidden rounded-xl bg-surface-dark">
             {url ? (
               <video
                 ref={videoRef}

@@ -37,9 +37,7 @@ function QuestionCard({
         </div>
       )}
       {graded && (
-        <div
-          className={`text-sm font-medium ${graded.correct ? "text-emerald-600" : "text-red-500"}`}
-        >
+        <div className={`text-sm font-medium ${graded.correct ? "text-success" : "text-error"}`}>
           {graded.correct
             ? "✓ 正确"
             : `✗ 正确答案：${graded.correctAnswer ?? graded.explanation ?? ""}`}
@@ -75,9 +73,9 @@ function OptionList({
             key={i}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm
               ${locked ? "cursor-default" : "hover:border-ink/30"}
-              ${isCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-700" : ""}
-              ${isWrong ? "border-red-400 bg-red-50 text-red-700" : ""}
-              ${!isCorrect && !isWrong ? "border-hairline bg-white" : ""}`}
+              ${isCorrect ? "border-success/50 bg-success-soft text-success" : ""}
+              ${isWrong ? "border-error/50 bg-red-soft text-error" : ""}
+              ${!isCorrect && !isWrong ? "border-hairline bg-canvas" : ""}`}
             onClick={(e) => {
               e.preventDefault();
               if (!locked) onSelect(opt);
@@ -95,10 +93,10 @@ function OptionList({
             <span
               className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0
                 ${isSelected ? "border-ink bg-ink" : "border-hairline"}
-                ${isCorrect ? "border-emerald-500 bg-emerald-500" : ""}
-                ${isWrong ? "border-red-500 bg-red-500" : ""}`}
+                ${isCorrect ? "border-success bg-success" : ""}
+                ${isWrong ? "border-error bg-error" : ""}`}
             >
-              {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+              {isSelected && <span className="w-2 h-2 rounded-full bg-canvas" />}
             </span>
             <span>{opt}</span>
           </label>
@@ -133,7 +131,7 @@ function CompletionSummary({
 }) {
   return (
     <div className="rounded-xl border border-hairline bg-surface-soft p-5 text-center space-y-3">
-      <Trophy className="mx-auto text-amber-500" size={32} />
+      <Trophy className="mx-auto text-warning" size={32} />
       <div className="text-lg font-semibold text-ink">练习完成！</div>
       <div className="text-sm text-muted">
         {correct} / {total} 正确
@@ -145,7 +143,7 @@ function CompletionSummary({
             保存学习记录
           </Button>
         )}
-        {submitted && <span className="text-xs text-emerald-600">✓ 已同步</span>}
+        {submitted && <span className="text-xs text-success">✓ 已同步</span>}
         <Button variant="outline" size="compact" onClick={onRetry} icon={RotateCcw}>
           重新练习
         </Button>
@@ -164,7 +162,7 @@ function AudioPlayButton({ onPlay, isPlaying }: { onPlay: () => void; isPlaying:
       type="button"
       onClick={onPlay}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors
-        ${isPlaying ? "bg-ink text-white" : "bg-ink/5 text-ink hover:bg-ink/10"}`}
+        ${isPlaying ? "bg-ink text-canvas" : "bg-ink/5 text-ink hover:bg-ink/10"}`}
     >
       <Volume2 size={14} />
       {isPlaying ? "播放中…" : "播放"}
@@ -212,7 +210,7 @@ function SelfEvaluateButtons({
         size="compact"
         onClick={onCorrect}
         icon={Check}
-        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+        className="text-success border-success/40 hover:bg-success-soft"
       >
         读对了
       </Button>
@@ -221,7 +219,7 @@ function SelfEvaluateButtons({
         size="compact"
         onClick={onWrong}
         icon={X}
-        className="text-red-500 border-red-300 hover:bg-red-50"
+        className="text-error border-error/40 hover:bg-red-soft"
       >
         需练习
       </Button>
@@ -258,7 +256,7 @@ function RecordAndEvaluate({
         size="compact"
         onClick={handleRecord}
         icon={isRecording ? MicOff : Mic}
-        className={isRecording ? "text-red-500" : ""}
+        className={isRecording ? "text-error" : ""}
       >
         {isRecording ? "停止录音" : "录音"}
       </Button>
@@ -572,7 +570,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
 
   if (session.error) {
     return (
-      <div className="text-sm text-red-500 py-4">
+      <div className="text-sm text-error py-4">
         {session.error}
         <Button variant="outline" size="compact" className="ml-2" onClick={() => session.refetch()}>
           重试
@@ -595,7 +593,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
             return (
               <span
                 key={i}
-                className={cn("h-2 w-2 rounded-full", g?.correct ? "bg-emerald-500" : "bg-red-400")}
+                className={cn("h-2 w-2 rounded-full", g?.correct ? "bg-success" : "bg-error")}
               />
             );
           })}
@@ -627,8 +625,8 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
           </span>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted">
-          <span className="text-emerald-600">✓ {session.correctCount}</span>
-          <span className="text-red-500">✗ {wrongCount}</span>
+          <span className="text-success">✓ {session.correctCount}</span>
+          <span className="text-error">✗ {wrongCount}</span>
           <Button variant="ghost" size="compact" onClick={handleRetry} icon={RotateCcw}>
             重置
           </Button>
@@ -649,8 +647,8 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
               className={cn(
                 "h-2 rounded-full transition-all",
                 isCurrent ? "w-6 bg-ink" : "w-2",
-                !isCurrent && g?.correct && "bg-emerald-500",
-                !isCurrent && g && !g.correct && "bg-red-400",
+                !isCurrent && g?.correct && "bg-success",
+                !isCurrent && g && !g.correct && "bg-error",
                 !isCurrent && !g && "bg-hairline"
               )}
             />

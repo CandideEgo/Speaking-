@@ -220,7 +220,7 @@ export default function MyVideosPage() {
                               : ""}
                     </p>
                     {s === "rejected" && v.rejection_reason && (
-                      <p className="text-xs text-red-500 mt-0.5 line-clamp-1">
+                      <p className="text-xs text-error mt-0.5 line-clamp-1">
                         驳回原因：{v.rejection_reason}
                       </p>
                     )}

@@ -7,7 +7,7 @@ export function FinalCTA() {
   return (
     <section className="py-[88px]">
       <div className="container-page">
-        <div className="bg-ink rounded-2xl overflow-hidden relative px-6 sm:px-10 py-14 text-center">
+        <div className="bg-surface-dark rounded-2xl overflow-hidden relative px-6 sm:px-10 py-14 text-center">
           {/* Decorative gradient */}
           <div
             className="absolute inset-0 opacity-30"
@@ -17,9 +17,7 @@ export function FinalCTA() {
             }}
           />
           <div className="relative z-10">
-            <h2 className="!text-[28px] sm:!text-[42px] !font-extrabold !tracking-[-0.03em] !leading-tight text-on-dark mb-4">
-              今天开始，开口说英语
-            </h2>
+            <h2 className="display-lg text-on-dark mb-4">今天开始，开口说英语</h2>
             <p className="text-[17px] text-on-dark-soft mb-9 max-w-[500px] mx-auto">
               免费注册，无需信用卡。看真实视频，学地道英语。
             </p>

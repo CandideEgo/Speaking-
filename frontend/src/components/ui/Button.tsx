@@ -20,7 +20,7 @@ export type ButtonSize = "xs" | "sm" | "compact" | "md" | "nav" | "lg" | "icon";
 export const VARIANT: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted-foreground",
-  dark: "bg-ink text-on-dark hover:bg-black hover:-translate-y-0.5 disabled:opacity-50",
+  dark: "bg-ink text-canvas hover:bg-ink/90 hover:-translate-y-0.5 disabled:opacity-50",
   outline:
     "bg-canvas text-ink border border-hairline hover:border-ink hover:bg-surface-soft disabled:opacity-50",
   ghost: "text-body hover:bg-surface-card",
@@ -28,7 +28,7 @@ export const VARIANT: Record<ButtonVariant, string> = {
     "text-on-dark border border-[#2c2c2c] hover:border-[#4a4a4a] hover:bg-surface-dark-soft",
   text: "text-body hover:text-ink",
   destructive:
-    "bg-canvas text-red-600 border border-red-300 hover:border-red-500 hover:bg-red-50 disabled:opacity-50",
+    "bg-canvas text-error border border-error/40 hover:border-error hover:bg-red-soft disabled:opacity-50",
   secondary:
     "bg-canvas text-ink border border-hairline hover:border-ink hover:bg-surface-soft disabled:opacity-50",
   secondaryDark:
@@ -84,7 +84,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-sm font-semibold transition-all duration-150",
+        "inline-flex items-center justify-center rounded-sm font-semibold transition-all duration-150 active:scale-[0.98]",
         variant === "ghost" || variant === "ghostDark" || variant === "text"
           ? "font-medium"
           : "font-semibold",

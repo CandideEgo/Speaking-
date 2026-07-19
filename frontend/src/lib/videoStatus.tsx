@@ -58,27 +58,27 @@ export interface StatusBadgeConfig {
 export const PROCESSING_STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
   pending_processing: {
     label: "待处理",
-    className: "bg-gray-50 text-gray-600",
+    className: "bg-surface-card text-muted",
     icon: Clock,
   },
   processing: {
     label: "处理中",
-    className: "bg-amber-50 text-amber-700",
+    className: "bg-warning-soft text-warning",
     icon: Loader2,
   },
   ready_subtitles: {
     label: "视频处理中",
-    className: "bg-amber-50 text-amber-700",
+    className: "bg-warning-soft text-warning",
     icon: Loader2,
   },
   ready: {
     label: "就绪",
-    className: "bg-green-50 text-green-700",
+    className: "bg-success-soft text-success",
     icon: CheckCircle2,
   },
   error: {
     label: "失败",
-    className: "bg-red-50 text-red-700",
+    className: "bg-red-soft text-error",
     icon: AlertCircle,
   },
 };

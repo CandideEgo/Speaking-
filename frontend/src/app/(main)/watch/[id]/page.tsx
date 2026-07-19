@@ -276,7 +276,7 @@ export default function WatchPage() {
               aria-label={isLiked ? "取消点赞" : "点赞"}
               title={isLiked ? "取消点赞" : "点赞"}
             >
-              <Heart size={18} className={cn(isLiked && "fill-current text-red-500")} />
+              <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
@@ -327,7 +327,7 @@ export default function WatchPage() {
           <span>{formatDuration(video.duration)}</span>
           <span>·</span>
           <span className="inline-flex items-center gap-0.5">
-            <Heart size={11} className={cn(isLiked && "fill-current text-red-500")} />
+            <Heart size={11} className={cn(isLiked && "fill-current text-error")} />
             {video.like_count}
           </span>
           <span>·</span>
@@ -383,7 +383,7 @@ export default function WatchPage() {
               <video> 节点不换父，播放连续。 */}
           <div
             ref={slotRef}
-            className="relative w-full aspect-video bg-ink rounded-xl overflow-hidden shadow-lift"
+            className="relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift"
           >
             <div
               className={cn(
@@ -423,7 +423,7 @@ export default function WatchPage() {
                     <button
                       type="button"
                       onClick={dismiss}
-                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white shadow hover:bg-ink/80"
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
                       aria-label="关闭小窗播放"
                     >
                       <X size={14} />
@@ -457,7 +457,7 @@ export default function WatchPage() {
             <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="now-sub-en !text-left !leading-[1.7]">
+                  <div className="now-sub-en text-left leading-[1.7]">
                     {currentSubtitle.text_en.split(" ").map((word, i) => (
                       <span
                         key={i}
@@ -474,7 +474,7 @@ export default function WatchPage() {
                   </div>
                   {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                     currentSubtitle.text_zh && (
-                      <div className="now-sub-zh !mt-1.5">{currentSubtitle.text_zh}</div>
+                      <div className="now-sub-zh">{currentSubtitle.text_zh}</div>
                     )}
                 </div>
 
@@ -517,7 +517,7 @@ export default function WatchPage() {
                   {speakingState === "listening" && (
                     <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
                       <button
-                        className="w-11 h-11 rounded-full bg-red-500 text-white flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
+                        className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
                         onClick={stopRecording}
                       >
                         <Mic size={20} />

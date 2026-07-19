@@ -107,7 +107,7 @@ export function WordTooltipInline({
                 );
               })}
               {gloss?.is_high_freq && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-warning-soft text-warning font-semibold">
                   <GraduationCap size={10} /> 真题高频
                 </span>
               )}
@@ -140,7 +140,7 @@ export function WordTooltipInline({
             </p>
           )}
           {gloss?.pitfalls && (
-            <p className="text-xs text-orange-700/90 leading-relaxed">
+            <p className="text-xs text-brand-700/90 leading-relaxed">
               <span className="text-muted">易错点：</span>
               {gloss.pitfalls}
             </p>
@@ -152,7 +152,7 @@ export function WordTooltipInline({
             </p>
           )}
           {gloss?.example_sentence && (
-            <div className="text-xs leading-relaxed border-l-2 border-amber-300 pl-2">
+            <div className="text-xs leading-relaxed border-l-2 border-warning/50 pl-2">
               <p className="text-ink/80 italic">{gloss.example_sentence}</p>
               {gloss.example_sentence_zh && (
                 <p className="text-muted mt-0.5">{gloss.example_sentence_zh}</p>

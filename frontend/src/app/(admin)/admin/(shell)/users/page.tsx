@@ -259,7 +259,7 @@ export default function AdminUsersPage() {
                   title={u.is_banned ? "解封" : "封禁"}
                   variant="secondary"
                   size="compact"
-                  className={cn(u.is_banned && "text-green-600")}
+                  className={cn(u.is_banned && "text-success")}
                 >
                   {u.is_banned ? <ShieldOff size={11} /> : <Shield size={11} />}
                   {u.is_banned ? "解封" : "封禁"}
@@ -349,7 +349,7 @@ function UserDetailRow({
           {user.plan === "pro" && (
             <button
               onClick={() => onRevokePro(user)}
-              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 ml-auto"
+              className="inline-flex items-center gap-1 text-xs text-error hover:text-error/80 ml-auto"
             >
               撤销 Pro
             </button>

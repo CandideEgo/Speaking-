@@ -9,7 +9,7 @@ interface ProgressRingProps {
   strokeWidth?: number;
   /** Track color (Tailwind text-* class applied via `stroke="currentColor"`) */
   trackClass?: string;
-  /** Fill color when not met — CSS color string (default "#cc785c") */
+  /** Fill color when not met — CSS color string (default "#ff5a1f") */
   fillActive?: string;
   /** Fill color when met — CSS color string (default "#22c55e") */
   fillMet?: string;
@@ -24,7 +24,7 @@ export function ProgressRing({
   size = 36,
   strokeWidth = 3,
   trackClass = "text-hairline",
-  fillActive = "#cc785c",
+  fillActive = "#ff5a1f",
   fillMet = "#22c55e",
   isMet = false,
   label,

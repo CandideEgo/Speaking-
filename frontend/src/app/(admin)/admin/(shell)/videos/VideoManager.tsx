@@ -254,10 +254,7 @@ export default function VideoManager() {
         <div className="flex flex-wrap items-center gap-6 text-sm">
           <div className="flex items-center gap-2">
             <span
-              className={cn(
-                "w-2.5 h-2.5 rounded-full",
-                workerOnline ? "bg-green-500" : "bg-red-400"
-              )}
+              className={cn("w-2.5 h-2.5 rounded-full", workerOnline ? "bg-success" : "bg-error")}
             />
             <span className="text-muted-foreground">GPU Worker</span>
             <span className="font-medium text-ink">{workerOnline ? "在线" : "离线"}</span>
@@ -268,7 +265,7 @@ export default function VideoManager() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">失败视频</span>
-            <span className={cn("font-medium", errorCount > 0 ? "text-red-600" : "text-ink")}>
+            <span className={cn("font-medium", errorCount > 0 ? "text-error" : "text-ink")}>
               {errorCount}
             </span>
           </div>
@@ -386,7 +383,7 @@ export default function VideoManager() {
                   )}
                 {v.status === "error" && v.error_message && (
                   <div
-                    className="mt-1 text-[10px] text-red-600 truncate max-w-[180px]"
+                    className="mt-1 text-[10px] text-error truncate max-w-[180px]"
                     title={v.error_message}
                   >
                     {v.error_message}

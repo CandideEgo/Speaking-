@@ -237,7 +237,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
               required
               className="w-full"
             />
-            {smsError && <p className="text-sm text-red-600">{smsError}</p>}
+            {smsError && <p className="text-sm text-error">{smsError}</p>}
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={changingPhone}>
                 {changingPhone ? "更换中..." : "确认更换"}

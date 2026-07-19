@@ -80,7 +80,7 @@ export default function PricingPage() {
         </div>
 
         {isPro && (
-          <div className="mt-6 rounded-lg border border-green-200 bg-success-soft p-4 text-center">
+          <div className="mt-6 rounded-lg border border-success/30 bg-success-soft p-4 text-center">
             <CheckCircle2 size={18} className="inline mr-1.5 -mt-0.5 text-success" />
             <span className="text-sm text-success">你已是 Pro 会员</span>
           </div>
@@ -108,7 +108,7 @@ export default function PricingPage() {
                 <div
                   className={cn(
                     "w-full justify-center !py-2.5 text-sm block text-center rounded-sm font-semibold opacity-50 cursor-not-allowed",
-                    plan.popular ? "bg-brand-500 text-on-primary" : "bg-ink text-on-primary"
+                    plan.popular ? "bg-brand-500 text-on-primary" : "bg-ink text-canvas"
                   )}
                 >
                   已是 Pro
@@ -120,7 +120,7 @@ export default function PricingPage() {
                     "w-full justify-center !py-2.5 text-sm flex items-center gap-1.5 text-center rounded-sm font-semibold transition-all duration-150",
                     plan.popular
                       ? "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5"
-                      : "bg-ink text-on-primary hover:bg-black hover:-translate-y-0.5"
+                      : "bg-ink text-canvas hover:bg-ink/90 hover:-translate-y-0.5"
                   )}
                 >
                   <ShoppingBag size={15} />
@@ -133,8 +133,8 @@ export default function PricingPage() {
 
         {/* Feature comparison */}
         <div className="bg-canvas border border-hairline rounded-lg p-6 max-w-[820px] mx-auto mt-9">
-          <h3 className="!text-base !font-bold !m-0 !mb-1">功能对比</h3>
-          <p className="text-[13px] text-muted !m-0 !mb-5">看看免费版和 Pro 版的区别</p>
+          <h3 className="text-base font-bold m-0 mb-1">功能对比</h3>
+          <p className="text-[13px] text-muted m-0 mb-5">看看免费版和 Pro 版的区别</p>
           <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-0 text-[13px]">
             <div className="py-3 border-b border-hairline font-semibold hidden sm:block">功能</div>
             <div className="py-3 border-b border-hairline text-center font-semibold text-muted hidden sm:block">

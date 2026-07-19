@@ -33,9 +33,7 @@ export function TestimonialGrid() {
           <span className="text-[13px] font-bold text-brand-500 uppercase tracking-[0.04em]">
             用户评价
           </span>
-          <h2 className="!text-[44px] !font-extrabold !tracking-[-0.03em] !leading-tight mt-3.5">
-            学习者都在说
-          </h2>
+          <h2 className="display-xl mt-3.5">学习者都在说</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
           {testimonials.map((t) => (

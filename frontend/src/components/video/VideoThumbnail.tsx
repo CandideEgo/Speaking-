@@ -62,13 +62,13 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       <Image src={url} alt={title} fill fallback={placeholder} />
 
       {duration && duration > 0 && (
-        <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 text-[11px] font-medium text-ivory">
+        <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-surface-dark/80 px-1.5 py-0.5 text-[11px] font-medium text-ivory">
           {formatDuration(duration)}
         </span>
       )}
 
       {hoverOverlay && (
-        <div className="absolute inset-0 flex items-center justify-center bg-ink/0 transition-colors group-hover:bg-ink/20">
+        <div className="absolute inset-0 flex items-center justify-center bg-surface-dark/0 transition-colors group-hover:bg-surface-dark/20">
           {hoverOverlay}
         </div>
       )}

@@ -129,7 +129,7 @@ export default function ForgotPasswordPage() {
             />
           </div>
 
-          {(error || smsError) && <p className="text-sm text-red-600">{error || smsError}</p>}
+          {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
 
           <Button type="submit" fullWidth disabled={loading} className="mt-2">
             {loading ? "重置中..." : "重置密码"}

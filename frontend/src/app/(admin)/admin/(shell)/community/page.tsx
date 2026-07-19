@@ -140,7 +140,7 @@ function ReportQueue() {
             <td className="py-3 pr-4">
               <div className="flex items-center gap-1.5 text-ink">
                 {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <Flag size={12} className="text-amber-500" />
+                <Flag size={12} className="text-warning" />
                 <span className="truncate max-w-[120px]">{r.reason}</span>
               </div>
             </td>
@@ -157,7 +157,7 @@ function ReportQueue() {
                 <div className="inline-flex gap-1">
                   <button
                     onClick={() => setResolvePrompt({ report: r, action: "remove" })}
-                    className="inline-flex items-center gap-1 rounded-sm bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-100"
+                    className="inline-flex items-center gap-1 rounded-sm bg-red-soft px-2 py-1 text-[11px] font-medium text-error hover:bg-red-soft/70"
                   >
                     <Check size={11} /> 通过
                   </button>
@@ -390,7 +390,7 @@ function PostsManager() {
             <td className="py-3 text-right">
               <button
                 onClick={() => setDeletePostTarget(p)}
-                className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700"
+                className="inline-flex items-center gap-1 text-[11px] text-error hover:text-error/80"
               >
                 <Trash2 size={11} /> 删除
               </button>
@@ -424,7 +424,7 @@ function PostsManager() {
                     </div>
                     <button
                       onClick={() => setDeleteCommentTarget({ postId: p.id, comment: c })}
-                      className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 flex-shrink-0"
+                      className="inline-flex items-center gap-1 text-[11px] text-error hover:text-error/80 flex-shrink-0"
                     >
                       <Trash2 size={11} /> 删除
                     </button>
