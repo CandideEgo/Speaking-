@@ -12,9 +12,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: speaking
-      POSTGRES_PASSWORD: speaking_dev
-      POSTGRES_DB: speaking
+      POSTGRES_USER: seeword
+      POSTGRES_PASSWORD: seeword_dev
+      POSTGRES_DB: seeword
     ports:
       - "5432:5432"
     volumes:

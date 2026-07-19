@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { siteConfig } from "@/lib/siteConfig";
 
 /**
  * Shared outer shell for the auth pages (login / register / forgot-password /
@@ -20,10 +21,10 @@ export function AuthCard({
         <div className="text-center">
           <Link
             href="/"
-            aria-label="SeeWord 首页"
+            aria-label={`${siteConfig.brandName} 首页`}
             className="font-display text-2xl font-bold text-ink tracking-tight"
           >
-            SeeWord
+            {siteConfig.brandName}
           </Link>
           <h1 className="mt-4 font-display text-3xl font-bold text-ink tracking-display-md">
             {title}

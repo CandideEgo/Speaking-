@@ -8,6 +8,8 @@
  * 会员通过微信小商店购买后用兑换码激活。取得备案/开店后填入以下变量。
  */
 export const siteConfig = {
+  /** 产品品牌名（构建期固定常量，非 env 注入）。UI 品牌显示一律引用此常量。 */
+  brandName: "SeeWord",
   /** 微信小商店商品/店铺链接，未开店时留空。 */
   miniStoreUrl: process.env.NEXT_PUBLIC_MINI_STORE_URL || "",
   /** 个体工商户名称。 */

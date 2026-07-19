@@ -203,7 +203,7 @@ class Settings(BaseSettings):
         if self.env == "development":
             if not self.database_url:
                 object.__setattr__(
-                    self, "database_url", "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking"
+                    self, "database_url", "postgresql+asyncpg://seeword:seeword_dev@localhost:5432/seeword"
                 )
             if not self.jwt_secret:
                 object.__setattr__(self, "jwt_secret", "dev_secret_change_in_production")

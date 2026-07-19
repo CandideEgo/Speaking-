@@ -64,7 +64,7 @@
 | **统一组件库** | 以 watch 页为风格锚点，保持 coral/cream/brand 色系 |
 | **mediaUrl** | `api.ts` 的媒体 URL 解析 helper：相对路径→`${API_URL}${path}` |
 | **落地页** | `/landing`，营销页，接为公开首页（未登录 `/` → 落地页） |
-| **双 Auth 会话** | 用户端 `speaking_token` vs 管理端 `speaking_admin_*`，独立 localStorage |
+| **双 Auth 会话** | 用户端 `seeword_token` vs 管理端 `seeword_admin_*`，独立 localStorage |
 
 ### 推荐（ADR-0011，规划中）
 

@@ -118,12 +118,13 @@ export interface VideoWithSubtitles extends Video {
 
 export interface LearningRecord {
   id: string;
-  user_id: string;
   video_id: string;
   words_learned: number;
   speaking_attempts: number;
   quiz_score: number | null;
   completed: boolean;
+  time_spent_seconds: number;
+  position_seconds: number;
   created_at: string;
   progress_percentage: number;
   last_accessed_at: string | null;
@@ -180,11 +181,13 @@ export interface VocabularyWord {
 }
 
 /* ── Community ── */
-export type PostType = "text" | "progress_share" | "vocabulary_share" | "video_share";
+export type PostType =
+  "text" | "progress_share" | "vocabulary_share" | "speaking_share" | "video_share";
 
 export interface Post {
   id: string;
   content: string;
+  media_url: string | null;
   post_type: PostType;
   is_liked: boolean;
   like_count: number;
@@ -222,22 +225,6 @@ export interface UserComment {
   replies: UserComment[];
 }
 
-/* ── Dashboard ── */
-export interface UserStats {
-  total_speaking_attempts: number;
-  average_accuracy: number;
-  average_fluency: number;
-  average_completeness: number;
-  total_vocabulary: number;
-  total_videos_watched: number;
-  trend: {
-    dates: string[];
-    accuracy: number[];
-    fluency: number[];
-    completeness: number[];
-  };
-}
-
 /* ── Admin ── */
 export interface RedeemCode {
   id: string;
@@ -253,8 +240,21 @@ export interface RedeemCode {
   created_at: string;
 }
 
-export interface AdminUser extends User {
+// 与后端 AdminUserResponse 对齐（不 extends User：admin 响应不含
+// streak_count/longest_streak/onboarding_completed）。
+export interface AdminUser {
+  id: string;
+  phone: string | null;
+  name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  level: string | null;
+  plan: string;
+  plan_expires_at: string | null;
+  timezone: string | null;
+  role: string;
   is_banned: boolean;
+  created_at: string;
   last_active_at: string | null;
   videos_watched: number;
   posts_count: number;
@@ -358,9 +358,9 @@ export interface AdminOrder {
 
 /* ── Profile ── */
 export interface UserPreferences {
-  // "speaking_attempts" retained for legacy DB rows; UI no longer offers it
-  // (LearningPrefsTab sanitizes it to "words").
-  daily_goal_type: "speaking_attempts" | "minutes" | "words";
+  // 后端 UserPreferencesUpdate 限制为 minutes|words；历史 DB 行的
+  // speaking_attempts 由 LearningPrefsTab 读取时净化为 "words"。
+  daily_goal_type: "minutes" | "words";
   daily_goal_value: number;
   reminder_enabled: boolean;
   reminder_time: string | null;

@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File scripts\run_gpu_worker.ps1
 ```
 
 验证：
-- `ssh seeword "docker exec seeword-db-1 redis-cli -a <pw> LLEN transcription_gpu"` 队列可读。
+- `ssh seeword "docker exec speaking-redis-1 redis-cli -a <pw> LLEN transcription_gpu"` 队列可读。
 - 管理端 `/admin/worker-status` -> `worker_online: true`（心跳 `worker:gpu:heartbeat` TTL 90s）。
 - 提交一个视频触发转录，看 worker 日志是否消费 + 回调成功。
 

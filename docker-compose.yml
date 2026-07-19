@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: speaking
-      POSTGRES_PASSWORD: speaking_dev
-      POSTGRES_DB: speaking
+      POSTGRES_USER: seeword
+      POSTGRES_PASSWORD: seeword_dev
+      POSTGRES_DB: seeword
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -19,7 +19,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://speaking:speaking_dev@db:5432/speaking
+      DATABASE_URL: postgresql+asyncpg://seeword:seeword_dev@db:5432/seeword
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -33,7 +33,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql+asyncpg://speaking:speaking_dev@db:5432/speaking
+      DATABASE_URL: postgresql+asyncpg://seeword:seeword_dev@db:5432/seeword
       REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:

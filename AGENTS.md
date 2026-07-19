@@ -135,7 +135,7 @@ Route handlers (`api/v1/`) handle HTTP concerns (validation, status codes, auth 
 
 ### Dual Auth Sessions (Frontend)
 
-User app and admin console use separate localStorage token keys (`speaking_token` vs `speaking_admin_*`). Both use the same backend JWT/role system but independent sessions. Logging out of one doesn't affect the other.
+User app and admin console use separate localStorage token keys (`seeword_token` vs `seeword_admin_*`). Both use the same backend JWT/role system but independent sessions. Logging out of one doesn't affect the other.
 
 ### Frontend API Client (`lib/api.ts`)
 
