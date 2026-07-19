@@ -19,6 +19,7 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { Modal } from "@/components/common/Modal";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { useSpeech } from "@/hooks/useSpeech";
+import type { Paginated } from "@/types";
 
 interface VocabWord {
   id: string;
@@ -31,12 +32,6 @@ interface VocabWord {
   definition?: string | null;
   translation?: string | null;
   mastery_level?: string | null;
-}
-
-interface VocabListResponse {
-  words: VocabWord[];
-  // 后端 list 接口只返回 total/due；mastered/learning 由 /vocabulary/stats 提供
-  stats: { total: number; due: number };
 }
 
 interface VocabStatsResponse {
@@ -100,8 +95,10 @@ export default function VocabularyPage() {
   async function loadWords() {
     setLoading(true);
     try {
-      const data = await api<VocabListResponse>(`/api/v1/vocabulary?due_only=${dueOnly}&limit=100`);
-      setWords(data.words);
+      const data = await api<Paginated<VocabWord>>(
+        `/api/v1/vocabulary?due_only=${dueOnly}&page=1&page_size=100`
+      );
+      setWords(data.items);
     } catch {
       toast.error("加载词汇失败");
     } finally {

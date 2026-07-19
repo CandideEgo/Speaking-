@@ -10,6 +10,7 @@ from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.learning import Vocabulary
 from app.models.user import User
+from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.vocabulary import (
     VocabularyEnrichResponse,
     VocabularyResponse,
@@ -146,63 +147,35 @@ async def add_word(
     }
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[VocabularyResponse])
 @rate_limit("30/minute")
 async def list_vocabulary(
     request: Request,
     due_only: bool = Query(False, description="Only show words due for review"),
-    limit: int = Query(50, le=200),
+    pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List vocabulary words. Optionally filter to only due words."""
+    """List vocabulary words. Optionally filter to only due words.
+
+    Stats (total/due/mastery) live in ``GET /vocabulary/stats``.
+    """
     now = datetime.now(UTC)
+    due_filter = (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now)
+
     stmt = select(Vocabulary).where(Vocabulary.user_id == current_user.id)
-
+    count_stmt = select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id)
     if due_only:
-        stmt = stmt.where((Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now))
+        stmt = stmt.where(due_filter)
+        count_stmt = count_stmt.where(due_filter)
 
-    stmt = stmt.order_by(Vocabulary.created_at.desc()).limit(limit)
-    result = await db.execute(stmt)
-    words = result.scalars().all()
+    total = (await db.execute(count_stmt)).scalar() or 0
 
-    total_result = await db.execute(select(func.count(Vocabulary.id)).where(Vocabulary.user_id == current_user.id))
-    total = total_result.scalar() or 0
+    stmt = stmt.order_by(Vocabulary.created_at.desc()).offset(pagination.offset).limit(pagination.page_size)
+    words = (await db.execute(stmt)).scalars().all()
 
-    due_count_result = await db.execute(
-        select(func.count(Vocabulary.id)).where(
-            Vocabulary.user_id == current_user.id,
-            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
-        )
-    )
-    due_count = due_count_result.scalar() or 0
-
-    return {
-        "words": [
-            {
-                "id": w.id,
-                "word": w.word,
-                "definition": w.definition,
-                "translation": w.translation,
-                "part_of_speech": w.part_of_speech,
-                "ipa": w.ipa,
-                "example_sentences": w.example_sentences,
-                "collocations": w.collocations,
-                "difficulty_level": w.difficulty_level,
-                "mastery_level": w.mastery_level,
-                "context_sentence": w.context_sentence,
-                "video_id": w.video_id,
-                "review_count": w.review_count,
-                "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
-                "created_at": w.created_at.isoformat(),
-            }
-            for w in words
-        ],
-        "stats": {
-            "total": total,
-            "due": due_count,
-        },
-    }
+    items = [VocabularyResponse.model_validate(w) for w in words]
+    return paginated(items, pagination, total=total)
 
 
 @router.get("/{word_id}/enrich", response_model=VocabularyEnrichResponse)

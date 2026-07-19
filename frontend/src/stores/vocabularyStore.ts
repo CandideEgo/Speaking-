@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import type { VocabularyWord } from "@/types";
+import type { Paginated, VocabularyWord } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -57,8 +57,8 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     set({ loading: true });
     try {
       const params = dueOnly ? "?due_only=true" : "";
-      const data = await api<{ words: VocabularyWord[] }>(`/api/v1/vocabulary${params}`);
-      set({ words: data.words, loading: false });
+      const data = await api<Paginated<VocabularyWord>>(`/api/v1/vocabulary${params}`);
+      set({ words: data.items, loading: false });
     } catch {
       set({ loading: false });
     }

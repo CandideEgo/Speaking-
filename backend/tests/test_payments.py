@@ -135,11 +135,11 @@ class TestVocabulary:
         resp = await client.get("/api/v1/vocabulary", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        # The vocabulary list endpoint returns a paginated dict with stats
+        # Standard paginated envelope: {items, page, page_size, has_more, total}
         assert isinstance(data, dict)
-        assert data["stats"]["total"] >= 1
-        assert isinstance(data["words"], list)
-        assert len(data["words"]) >= 1
+        assert data["total"] >= 1
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) >= 1
 
     async def test_review_word(self, client: AsyncClient, auth_headers: dict):
         # Add word
