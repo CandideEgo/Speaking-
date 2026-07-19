@@ -19,20 +19,7 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { Modal } from "@/components/common/Modal";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { useSpeech } from "@/hooks/useSpeech";
-import type { Paginated } from "@/types";
-
-interface VocabWord {
-  id: string;
-  word: string;
-  context_sentence: string | null;
-  review_count: number;
-  next_review_at: string | null;
-  created_at: string;
-  part_of_speech?: string | null;
-  definition?: string | null;
-  translation?: string | null;
-  mastery_level?: string | null;
-}
+import type { Paginated, VocabularyWord } from "@/types";
 
 interface VocabStatsResponse {
   total: number;
@@ -68,7 +55,7 @@ function masteryBadge(level: string | null | undefined): {
 
 export default function VocabularyPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-  const [words, setWords] = useState<VocabWord[]>([]);
+  const [words, setWords] = useState<VocabularyWord[]>([]);
   const [stats, setStats] = useState({
     total: 0,
     due: 0,
@@ -77,7 +64,7 @@ export default function VocabularyPage() {
   });
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<VocabWord | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VocabularyWord | null>(null);
   const [practiceOpen, setPracticeOpen] = useState(false);
   const vocabPractice = useVocabularyPractice({
     count: 10,
@@ -95,7 +82,7 @@ export default function VocabularyPage() {
   async function loadWords() {
     setLoading(true);
     try {
-      const data = await api<Paginated<VocabWord>>(
+      const data = await api<Paginated<VocabularyWord>>(
         `/api/v1/vocabulary?due_only=${dueOnly}&page=1&page_size=100`
       );
       setWords(data.items);
