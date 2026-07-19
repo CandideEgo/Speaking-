@@ -1,5 +1,5 @@
 /**
- * Zustand auth store — single source of truth for authentication state.
+ * Zustand auth store - single source of truth for authentication state.
  *
  * Replaces scattered localStorage.getItem('token') / getToken() / manual JWT
  * decode patterns across the frontend. All auth state flows through here.
@@ -13,16 +13,10 @@
 
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
+import { migrateTokenKeys, deriveAuthenticated, type BaseAuthUser } from "@/lib/authHelpers";
 
-/** JWT payload shape we care about */
-export interface AuthUser {
-  sub?: string;
-  role?: string;
-  name?: string;
-  exp?: number;
-  iat?: number;
-  [key: string]: unknown;
-}
+/** JWT payload shape we care about (role 不在 JWT 里，见 authHelpers.BaseAuthUser) */
+export type AuthUser = BaseAuthUser;
 
 interface AuthState {
   /** Raw JWT access token string */
@@ -31,7 +25,7 @@ interface AuthState {
   refreshToken: string | null;
   /** Decoded JWT payload (null if no valid token) */
   user: AuthUser | null;
-  /** Convenience flag — true when token exists and is not expired */
+  /** Convenience flag - true when token exists and is not expired */
   isAuthenticated: boolean;
   /** True while initialize() is running on app load */
   isLoading: boolean;
@@ -52,14 +46,14 @@ interface AuthActions {
 
   /**
    * Check localStorage for existing tokens on app load.
-   * Validates expiry — if expired, clears state and redirects.
+   * Validates expiry - if expired, clears state and redirects.
    * Call once at app startup (e.g. in AuthInitializer component).
    */
   initialize: () => void;
 
   /**
    * Attempt to refresh the access token using the stored refresh token.
-   * Uses a mutex to prevent concurrent refresh calls — if a refresh is
+   * Uses a mutex to prevent concurrent refresh calls - if a refresh is
    * already in progress, returns the same promise.
    * Returns true on success, false on failure (logout is called).
    */
@@ -75,37 +69,12 @@ const TOKEN_KEY = "seeword_token";
 const REFRESH_TOKEN_KEY = "seeword_refresh_token";
 
 /** One-time migration: move tokens from old "speaking_*" keys to new "seeword_*" keys. */
-function migrateTokenKeys(): void {
-  if (typeof window === "undefined") return;
-  const mappings: [string, string][] = [
-    ["speaking_token", "seeword_token"],
-    ["speaking_refresh_token", "seeword_refresh_token"],
-  ];
-  for (const [oldKey, newKey] of mappings) {
-    const val = localStorage.getItem(oldKey);
-    if (val) {
-      localStorage.setItem(newKey, val);
-      localStorage.removeItem(oldKey);
-    }
-  }
-}
+const MIGRATION_MAPPINGS: [string, string][] = [
+  ["speaking_token", "seeword_token"],
+  ["speaking_refresh_token", "seeword_refresh_token"],
+];
 
 type AuthStore = AuthState & AuthActions;
-
-/**
- * Derive isAuthenticated from token + user state.
- * A token is only "authenticated" if it exists AND is not expired.
- */
-function deriveAuthenticated(token: string | null, user: AuthUser | null): boolean {
-  if (!token || !user) return false;
-  // If we have a decoded user with exp, double-check it's still valid
-  if (typeof user.exp === "number") {
-    const now = Math.floor(Date.now() / 1000);
-    return user.exp >= now;
-  }
-  // No exp claim — treat as valid (some tokens may not have exp)
-  return true;
-}
 
 /** Module-level mutex for preventing concurrent refresh calls */
 let refreshPromise: Promise<boolean> | null = null;
@@ -158,7 +127,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
                 body,
               });
             } catch {
-              /* ignore — token will expire naturally */
+              /* ignore - token will expire naturally */
             }
           })()
         : Promise.resolve();
@@ -191,7 +160,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   initialize() {
-    migrateTokenKeys();
+    migrateTokenKeys(MIGRATION_MAPPINGS);
 
     if (typeof window === "undefined") {
       set({ isLoading: false });
@@ -213,7 +182,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
     // Check expiry
     if (isTokenExpired(token)) {
-      // Access token expired — try refreshing before giving up
+      // Access token expired - try refreshing before giving up
       if (refreshToken) {
         // Store the refresh token temporarily so refreshAccessToken can use it
         set({ refreshToken });
@@ -221,14 +190,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           .refreshAccessToken()
           .then((success) => {
             if (!success) {
-              // Refresh failed — clear everything (logout already called)
+              // Refresh failed - clear everything (logout already called)
             }
             // On success, login() already updated the state
             set({ isLoading: false });
           });
         return;
       }
-      // No refresh token — clear and redirect (unless on the independent admin
+      // No refresh token - clear and redirect (unless on the independent admin
       // console, which manages its own auth via a separate token store).
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -247,7 +216,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
     const user = decodeJwt(token) as AuthUser | null;
     if (!user) {
-      // Token structurally invalid — clear and redirect
+      // Token structurally invalid - clear and redirect
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
       set({

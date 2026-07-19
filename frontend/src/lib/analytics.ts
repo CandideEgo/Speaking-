@@ -10,6 +10,7 @@
  * LearningRecord/Video by behavior_service on ingest.
  */
 import { api, getApiUrl } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 
 interface BehaviorEvent {
   video_id?: string;
@@ -42,7 +43,10 @@ function ensureTimer(): void {
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("seeword_token");
+  // Single source of truth: read from authStore (not raw localStorage).
+  // AuthInitializer runs in the root layout before any user interaction, so
+  // the store is populated by the time events fire.
+  return useAuthStore.getState().token;
 }
 
 export function track(

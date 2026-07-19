@@ -1,23 +1,21 @@
 /**
- * Admin auth store — separate from the user-side `authStore`.
+ * Admin auth store - separate from the user-side `authStore`.
  *
  * The admin console is an independent surface with its own login page and its
  * own session: tokens live under dedicated localStorage keys
  * (`seeword_admin_token`), so logging out of the user app does not log out
  * the admin (and vice versa). The backend still uses a single JWT/role system
- * — admin is simply a user with `role === "admin"`.
+ * - admin is simply a user with `role === "admin"`.
+ *
+ * 共享工具（migrateTokenKeys/deriveAuthenticated/BaseAuthUser）见 @/lib/authHelpers。
  */
 
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
+import { migrateTokenKeys, deriveAuthenticated, type BaseAuthUser } from "@/lib/authHelpers";
 
-export interface AdminAuthUser {
-  sub?: string;
-  role?: string;
-  name?: string;
-  exp?: number;
-  [key: string]: unknown;
-}
+/** JWT payload（role 不在 JWT 里，admin role 经 /users/me DB 查询 + get_admin_user 叠加）。 */
+export type AdminAuthUser = BaseAuthUser;
 
 interface AdminAuthState {
   token: string | null;
@@ -39,30 +37,12 @@ const TOKEN_KEY = "seeword_admin_token";
 const REFRESH_TOKEN_KEY = "seeword_admin_refresh_token";
 
 /** One-time migration: move admin tokens from old "speaking_*" keys to new "seeword_*" keys. */
-function migrateAdminTokenKeys(): void {
-  if (typeof window === "undefined") return;
-  const mappings: [string, string][] = [
-    ["speaking_admin_token", "seeword_admin_token"],
-    ["speaking_admin_refresh_token", "seeword_admin_refresh_token"],
-  ];
-  for (const [oldKey, newKey] of mappings) {
-    const val = localStorage.getItem(oldKey);
-    if (val) {
-      localStorage.setItem(newKey, val);
-      localStorage.removeItem(oldKey);
-    }
-  }
-}
+const MIGRATION_MAPPINGS: [string, string][] = [
+  ["speaking_admin_token", "seeword_admin_token"],
+  ["speaking_admin_refresh_token", "seeword_admin_refresh_token"],
+];
 
 let refreshPromise: Promise<boolean> | null = null;
-
-function deriveAuthenticated(token: string | null, user: AdminAuthUser | null): boolean {
-  if (!token || !user) return false;
-  if (typeof user.exp === "number") {
-    return user.exp >= Math.floor(Date.now() / 1000);
-  }
-  return true;
-}
 
 export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set, get) => ({
   token: null,
@@ -102,7 +82,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
         },
         body,
       }).catch(() => {
-        /* ignore — token will expire naturally */
+        /* ignore - token will expire naturally */
       });
     }
     if (typeof window !== "undefined") {
@@ -121,7 +101,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
   },
 
   bootstrap() {
-    migrateAdminTokenKeys();
+    migrateTokenKeys(MIGRATION_MAPPINGS);
 
     if (typeof window === "undefined") {
       set({ isLoading: false });
@@ -153,7 +133,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       if (refreshToken) {
         get().refreshAccessToken();
       } else {
-        // No refresh token available — clear stale state so the shell guard
+        // No refresh token available - clear stale state so the shell guard
         // redirects to /admin/login instead of showing a blank/loading page.
         get().logout();
       }
