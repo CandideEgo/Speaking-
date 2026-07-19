@@ -9,6 +9,7 @@ from app.core.cache import cached
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.video import Video, VideoStatus
+from app.schemas.pagination import PaginatedResponse, paginated
 
 logger = structlog.get_logger()
 
@@ -78,19 +79,15 @@ async def _browse_feed_query(
     result = await db.execute(stmt)
     videos = result.scalars().all()
 
-    cat = next((c for c in CATEGORIES if c["id"] == category), CATEGORIES[0])
-
-    return {
-        "items": [_video_to_dict(v) for v in videos],
-        "category": cat,
-        "page": page,
-        "page_size": page_size,
-        "total": total,
-        "has_more": total > page * page_size,
-    }
+    return paginated(
+        [_video_to_dict(v) for v in videos],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
-@router.get("/feed")
+@router.get("/feed", response_model=PaginatedResponse)
 @rate_limit("30/minute")
 async def browse_feed(
     request: Request,
