@@ -29,7 +29,7 @@ class TestCreateOrder:
             params={"plan": "pro_monthly"},
         )
         assert resp.status_code == 451
-        assert "不支持在线支付" in resp.json()["detail"]
+        assert "不支持在线支付" in resp.json()["message"]
 
     async def test_create_order_for_free_user(self, client: AsyncClient, auth_headers: dict, enable_payments):
         resp = await client.post(

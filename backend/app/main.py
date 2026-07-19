@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -34,6 +36,7 @@ from app.api.v1 import (
     words,
 )
 from app.core.config import get_settings
+from app.core.errors import AppError, ErrorCode, format_validation_errors
 from app.core.limiter import limiter
 from app.core.logging import configure_logging, get_logger
 from app.services.ai_service import AIServiceError
@@ -58,7 +61,7 @@ if settings.sentry_dsn:
 async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     return JSONResponse(
         status_code=429,
-        content={"detail": "Too many requests. Please try again later."},
+        content={"code": ErrorCode.RATE_LIMITED, "message": "请求过于频繁，请稍后再试"},
     )
 
 
@@ -68,7 +71,50 @@ async def _ai_service_error_handler(request: Request, exc: AIServiceError) -> JS
     logger.warning("ai_service_error path=%s detail=%s", request.url.path, exc)
     return JSONResponse(
         status_code=502,
-        content={"detail": "AI 服务暂不可用，请稍后重试"},
+        content={"code": ErrorCode.AI_SERVICE_UNAVAILABLE, "message": "AI 服务暂不可用，请稍后重试"},
+    )
+
+
+async def _app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
+    """业务异常 -> 统一 envelope {code, message, detail?}."""
+    body: dict = {"code": exc.code, "message": exc.message}
+    if exc.detail is not None:
+        body["detail"] = jsonable_encoder(exc.detail)
+    return JSONResponse(status_code=exc.status_code, content=body)
+
+
+async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """存量 HTTPException 兜底转 envelope。code = HTTP_{status}。
+
+    保留 detail 字段以向后兼容前端旧解析（422 数组 / 字符串）。
+    """
+    detail = exc.detail
+    if isinstance(detail, str):
+        body: dict = {"code": f"HTTP_{exc.status_code}", "message": detail, "detail": detail}
+    elif isinstance(detail, list):
+        enc = jsonable_encoder(detail)
+        body = {
+            "code": ErrorCode.VALIDATION_ERROR,
+            "message": format_validation_errors(enc),
+            "detail": enc,
+        }
+    else:
+        body = {"code": f"HTTP_{exc.status_code}", "message": str(detail) if detail is not None else ""}
+        if detail is not None:
+            body["detail"] = jsonable_encoder(detail)
+    return JSONResponse(status_code=exc.status_code, content=body)
+
+
+async def _validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Pydantic 422 校验错误 -> envelope {code: VALIDATION_ERROR, message, detail}."""
+    errors = jsonable_encoder(exc.errors())
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": ErrorCode.VALIDATION_ERROR,
+            "message": format_validation_errors(errors),
+            "detail": errors,
+        },
     )
 
 
@@ -102,6 +148,9 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
     app.add_exception_handler(AIServiceError, _ai_service_error_handler)
+    app.add_exception_handler(AppError, _app_exception_handler)
+    app.add_exception_handler(HTTPException, _http_exception_handler)
+    app.add_exception_handler(RequestValidationError, _validation_exception_handler)
 
     # Request ID middleware
     @app.middleware("http")

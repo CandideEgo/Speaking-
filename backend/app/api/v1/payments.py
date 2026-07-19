@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import _to_aware_utc, get_current_user
 from app.core.config import get_settings
 from app.core.database import commit_refresh, get_db
+from app.core.errors import AppError, ErrorCode
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
 from app.models.user import PlanType, User
@@ -106,7 +107,7 @@ async def create_order(
     """Create a payment order for the selected plan."""
     # ICP 合规：站内支付默认禁用，返回合规提示而非创建订单。
     if not settings.payments_enabled:
-        return JSONResponse(status_code=451, content={"detail": PAYMENTS_DISABLED_MESSAGE})
+        raise AppError(451, ErrorCode.PAYMENTS_DISABLED, PAYMENTS_DISABLED_MESSAGE)
 
     # Accept both JSON body and query param for backward compat
     plan = body.plan if body else request.query_params.get("plan", "pro_monthly")
@@ -165,7 +166,7 @@ async def create_order(
 async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Alipay payment callback handler."""
     if not settings.payments_enabled:
-        return JSONResponse(status_code=451, content={"status": "error", "message": PAYMENTS_DISABLED_MESSAGE})
+        raise AppError(451, ErrorCode.PAYMENTS_DISABLED, PAYMENTS_DISABLED_MESSAGE)
 
     from app.services.alipay_payment import AlipayPaymentProvider
 
@@ -198,7 +199,7 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
 async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """WeChat Pay v3 callback handler."""
     if not settings.payments_enabled:
-        return JSONResponse(status_code=451, content={"code": "FAIL", "message": PAYMENTS_DISABLED_MESSAGE})
+        raise AppError(451, ErrorCode.PAYMENTS_DISABLED, PAYMENTS_DISABLED_MESSAGE)
 
     from app.services.wechat_payment import WechatPaymentProvider
 
