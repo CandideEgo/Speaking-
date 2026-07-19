@@ -6,6 +6,7 @@ import { Bell } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useAuthStore } from "@/stores/authStore";
+import type { Paginated } from "@/types";
 
 interface Notification {
   id: string;
@@ -49,8 +50,8 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      const data = await api<Notification[]>("/api/v1/notifications?limit=20");
-      setNotifications(data);
+      const data = await api<Paginated<Notification>>("/api/v1/notifications?page=1&page_size=20");
+      setNotifications(data.items);
     } catch {
       // Silently fail — notifications are non-critical
     }

@@ -13,7 +13,7 @@ class TestListNotifications:
     async def test_empty_for_new_user(self, client: AsyncClient, auth_headers: dict):
         resp = await client.get("/api/v1/notifications", headers=auth_headers)
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json()["items"] == []
 
     async def test_returns_notifications_newest_first(self, client: AsyncClient, auth_headers: dict):
         from datetime import UTC, datetime, timedelta
@@ -29,7 +29,7 @@ class TestListNotifications:
 
         resp = await client.get("/api/v1/notifications", headers=auth_headers)
         assert resp.status_code == 200
-        items = resp.json()
+        items = resp.json()["items"]
         assert len(items) == 2
         # newest first — "Second" has the later timestamp
         assert items[0]["title"] == "Second"
@@ -114,7 +114,7 @@ class TestMarkAllAsRead:
         assert resp.json()["count"] == 0
 
         # All listed notifications are read
-        items = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
+        items = (await client.get("/api/v1/notifications", headers=auth_headers)).json()["items"]
         assert all(n["is_read"] for n in items)
 
 

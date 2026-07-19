@@ -21,6 +21,7 @@ from app.schemas.notification import (
     NotificationResponse,
     UnreadCountResponse,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -128,24 +129,26 @@ async def notification_websocket(
 # ── REST API endpoints ────────────────────────────────────────────────
 
 
-@router.get("", response_model=list[NotificationResponse])
+@router.get("", response_model=PaginatedResponse[NotificationResponse])
 @rate_limit("30/minute")
 async def list_notifications(
     request: Request,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List current user's notifications, newest first."""
+    base_where = Notification.user_id == current_user.id
+    total = (await db.execute(select(func.count()).where(base_where))).scalar() or 0
+
     result = await db.execute(
         select(Notification)
-        .where(Notification.user_id == current_user.id)
+        .where(base_where)
         .order_by(Notification.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
     )
-    return result.scalars().all()
+    return paginated(result.scalars().all(), pagination, total=total)
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
