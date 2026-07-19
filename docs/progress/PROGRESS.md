@@ -4,6 +4,16 @@
 
 ---
 
+## Recent Changes (2026-07-20)
+
+- **前后端统一方案落地**（`docs/plans/FRONTEND-BACKEND-UNIFICATION-2026-07.md`，4 期全部完成，按 P1->P3->P2->P4a->P4b 顺序执行）：
+  - **P1 品牌与命名统一**（`fa8688c`）：集中品牌常量 `lib/siteConfig.ts`（`brandName`/`userAgent`）替换前端 30 处硬编码 "SeeWord" + 后端 2 处 User-Agent；文档三件套 localStorage key 对齐 `seeword_token`（CLAUDE.md/AGENTS.md/CONTEXT.md）；dev DB 凭证 `speaking`->`seeword`（重建 dev DB）；删 nginx 已删路由的限流死规则；README 重写（删已删功能/修定价 ¥9.9/修目录树）；TS 类型对齐后端 schema（`Post.media_url`/`LearningRecord` 去 `user_id` 加 `time_spent`/`AdminUser` 不再 extends User/`UserPreferences` 去 `speaking_attempts`/`PostType` 加 `speaking_share`/删孤儿 `UserStats`）。
+  - **P3 后台与用户端视觉统一**（`02463ef`）：`DataTable` 行 hover；admin 登录页改亮色用 `AuthCard`/`Button`/`Input` 与用户登录一致（保留 ShieldCheck 文案标识）；admin 暗色模式走查；StatCard delta 正负色对齐用户端 MetricCard。
+  - **P2 认证/会话统一**（`39e1b92`）：抽 `createAuthStore` 工厂收敛两 store 70% 重复逻辑（保留双会话隔离安全边界）；修 `analytics.ts` 绕过 store 直读 localStorage；去 `AdminAuthUser.role?` 误导类型（JWT 无 role claim）；`getApiUrl()` 去重到 `lib/apiUrl.ts`。
+  - **P4a 错误响应 envelope + 错误码**（`4f47033`）：新建 `core/errors.py`（`ErrorCode` 枚举 + `AppException` 基类）；`main.py` 全局 handler 统一 `{code, message, detail?}`（`AppException` 直出 / `HTTPException` 兜底按 status 推 code / `RequestValidationError` -> `VALIDATION_ERROR`）；`payments.py` 4 种 body 归一；前端 `apiErrorMessage` 读 `err.code` 精准中文映射。
+  - **P4b 分页统一**（`e5b8400`->`14e759d`，7 提交）：learning/vocabulary/notifications/browse 四个偏离端点归一为 `PaginatedResponse[T]` + `paginated()` helper；videos search 显式标非分页（`response_model`）；前端单一 `Paginated<T>` 类型，删 `PaginatedResponse`/`SubtitleRevisionPage`/`VocabWord`；vocabulary 页统一用全局 `VocabularyWord`。
+  - **验收**：`tsc --noEmit` 0 错 + `npm run build` exit 0（34 路由全编译）+ `pytest` **411 passed / 0 failed**（137s，零回归；旧 16 个预存 failed 已清零）。
+
 ## Recent Changes (2026-07-19)
 
 - **前端深度设计开发**（接续 Kimi-Code 因配额中断的 5 阶段方案 P0-P4）：
