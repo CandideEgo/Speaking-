@@ -20,6 +20,7 @@ from app.schemas.video import (
     ReviewRejectRequest,
     SubtitleBatchUpdate,
     SubtitleResponse,
+    SubtitleSearchResult,
     SubtitleSplit,
     SubtitleUpdate,
     VideoAdminResponse,
@@ -185,12 +186,15 @@ async def search_videos(
 
     Works for both authenticated and unauthenticated users.
     Authenticated users can also find their own non-official videos.
+
+    Intentionally non-paginated (top-N by relevance); returns a bare list,
+    not the PaginatedResponse envelope.
     """
     user_id = current_user.id if current_user else None
     return await _search_videos(db, query=q, limit=limit, user_id=user_id)
 
 
-@router.get("/search/subtitles")
+@router.get("/search/subtitles", response_model=list[SubtitleSearchResult])
 @rate_limit("20/minute")
 async def search_subtitles(
     request: Request,
@@ -199,7 +203,11 @@ async def search_subtitles(
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search subtitle text, return video + matching subtitle snippets."""
+    """Search subtitle text, return video + matching subtitle snippets.
+
+    Intentionally non-paginated (top-N grouped by video); returns a bare
+    list, not the PaginatedResponse envelope.
+    """
     user_id = current_user.id if current_user else None
     return await _search_subtitles(db, query=q, limit=limit, user_id=user_id)
 
