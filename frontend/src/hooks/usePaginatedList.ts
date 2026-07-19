@@ -1,17 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { Paginated } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-/** Response shape that every paginated API must return. */
-export interface PaginatedResponse<T> {
-  items: T[];
-  has_more: boolean;
-  total?: number;
-}
 
 /** Mode determines how new pages are merged into the items list. */
 export type PaginationMode = "replace" | "append";
@@ -21,7 +15,7 @@ export interface UsePaginatedListOptions<T> {
    * Function that fetches a single page. Receives the 1-based page number.
    * Must return `{ items, has_more, total? }`.
    */
-  fetcher: (page: number) => Promise<PaginatedResponse<T>>;
+  fetcher: (page: number) => Promise<Paginated<T>>;
 
   /** How to merge new pages into the items list.
    *  - "replace": each fetch replaces the list (page-based tables).

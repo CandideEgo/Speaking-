@@ -18,7 +18,6 @@ import type {
   RedeemCode,
   Subtitle,
   SubtitleRevision,
-  SubtitleRevisionPage,
   VideoAdmin,
   VideoWithSubtitles,
 } from "@/types";
@@ -353,8 +352,8 @@ export async function listSubtitleRevisions(
   subtitleId: string,
   page = 1,
   pageSize = 50
-): Promise<SubtitleRevisionPage> {
-  return adminApi<SubtitleRevisionPage>(
+): Promise<Paginated<SubtitleRevision>> {
+  return adminApi<Paginated<SubtitleRevision>>(
     `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`
   );
 }

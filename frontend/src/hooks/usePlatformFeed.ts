@@ -6,16 +6,12 @@ import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
+import type { Paginated } from "@/types";
 
 interface UsePlatformFeedOptions {
   platform: "browse";
   initialCategory?: string;
   initialLevel?: string;
-}
-
-interface FeedResponse {
-  items: VideoItem[];
-  has_more: boolean;
 }
 
 interface CategoryResponse {
@@ -63,10 +59,7 @@ export function usePlatformFeed({
         page: String(pg),
       });
       if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
-      const data = await api<FeedResponse & { total?: number }>(
-        `/api/v1/${platform}/feed?${params.toString()}`
-      );
-      return { items: data.items, has_more: data.has_more, total: data.total };
+      return api<Paginated<VideoItem>>(`/api/v1/${platform}/feed?${params.toString()}`);
     },
     mode: "append",
     filters: [activeCategory, activeLevel],

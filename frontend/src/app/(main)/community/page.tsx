@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { toggleVideoLike } from "@/lib/creatorData";
 import { PostComposer } from "@/components/community/PostComposer";
 import { CommentThread } from "@/components/community/CommentThread";
+import type { Paginated } from "@/types";
 
 // --- Types ---
 
@@ -50,11 +51,6 @@ interface Post {
   comment_count: number;
   created_at: string;
   is_liked?: boolean;
-}
-
-interface PostsResponse {
-  items: Post[];
-  has_more: boolean;
 }
 
 interface Comment {
@@ -112,7 +108,7 @@ export default function CommunityPage() {
     fetcher: async (pg) => {
       const params = new URLSearchParams({ page: String(pg), page_size: "20" });
       if (activeTab === "trending") params.set("sort", "trending");
-      return api<PostsResponse>(`/api/v1/community/feed?${params}`);
+      return api<Paginated<Post>>(`/api/v1/community/feed?${params}`);
     },
     mode: "append",
     filters: [activeTab],

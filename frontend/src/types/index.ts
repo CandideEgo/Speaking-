@@ -109,11 +109,6 @@ export interface SubtitleRevision {
   created_at: string;
 }
 
-export interface SubtitleRevisionPage {
-  items: SubtitleRevision[];
-  has_more: boolean;
-}
-
 export interface VideoWithSubtitles extends Video {
   subtitles: Subtitle[];
 }

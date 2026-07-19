@@ -8,7 +8,7 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { Pagination } from "@/components/admin/Pagination";
 import { Calendar } from "lucide-react";
 import { EmptyState } from "@/components/common/EmptyState";
-import type { LearningRecord } from "@/types";
+import type { LearningRecord, Paginated } from "@/types";
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
@@ -20,16 +20,8 @@ export default function HistoryPage() {
     hasMore,
     loading,
   } = usePaginatedList<LearningRecord>({
-    fetcher: async (pg) => {
-      const data = await api<{ items: LearningRecord[]; has_more: boolean; total: number }>(
-        `/api/v1/learning/records?page=${pg}&page_size=20`
-      );
-      return {
-        items: data.items,
-        has_more: data.has_more,
-        total: data.total,
-      };
-    },
+    fetcher: (pg) =>
+      api<Paginated<LearningRecord>>(`/api/v1/learning/records?page=${pg}&page_size=20`),
     mode: "replace",
     filters: [],
     enabled: isAuthenticated && !isLoading,

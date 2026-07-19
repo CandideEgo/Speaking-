@@ -12,9 +12,9 @@ import { api } from "@/lib/api";
 import type {
   PracticeItem,
   UnifiedPracticeSet,
+  Paginated,
   Subtitle,
   SubtitleRevision,
-  SubtitleRevisionPage,
   Video,
   VideoWithSubtitles,
 } from "@/types";
@@ -123,8 +123,8 @@ export async function listSubtitleRevisions(
   subtitleId: string,
   page = 1,
   pageSize = 50
-): Promise<SubtitleRevisionPage> {
-  return api<SubtitleRevisionPage>(
+): Promise<Paginated<SubtitleRevision>> {
+  return api<Paginated<SubtitleRevision>>(
     `/api/v1/videos/${videoId}/subtitles/${subtitleId}/revisions?page=${page}&page_size=${pageSize}`
   );
 }

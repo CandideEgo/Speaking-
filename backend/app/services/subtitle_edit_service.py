@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
 from app.models.subtitle_revision import AUDITED_FIELDS, SubtitleRevision
+from app.schemas.pagination import paginated
 from app.schemas.video import (
     SubtitleBatchUpdate,
     SubtitleResponse,
@@ -517,7 +518,7 @@ async def list_subtitle_revisions(
 ) -> dict:
     """List subtitle edit revisions for a video (optionally filtered to one subtitle).
 
-    Returns ``{"items": [...], "has_more": bool}``, newest first.
+    Returns the standard paginated envelope (items/page/page_size/has_more), newest first.
     """
     from app.models.subtitle_revision import SubtitleRevision
 
@@ -535,10 +536,12 @@ async def list_subtitle_revisions(
     has_more = len(rows) > page_size
     items = rows[:page_size]
 
-    return {
-        "items": [_revision_to_dict(r) for r in items],
-        "has_more": has_more,
-    }
+    return paginated(
+        [_revision_to_dict(r) for r in items],
+        page=page,
+        page_size=page_size,
+        has_more=has_more,
+    )
 
 
 # ---------------------------------------------------------------------------
