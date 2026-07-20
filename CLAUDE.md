@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-AI-powered English speaking practice app for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, and users practice speaking with AI pronunciation feedback, rubric scoring, and SM-2 spaced vocabulary review.
+AI-powered English vocabulary learning app for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, annotates exam-level vocabulary (CET/gaokao) via ECDICT, and drives SM-2 spaced repetition review + community UGC. Speaking recording is playback-only (no AI scoring - see ADR-0002).
 
-**Stack**: Python FastAPI (async) + SQLAlchemy async + Celery + PostgreSQL + Redis | Next.js 14 (App Router) + React 18 + Tailwind CSS + Zustand v5
+**Stack**: Python FastAPI (async) + SQLAlchemy async + Celery + PostgreSQL + Redis | Next.js 16 (App Router) + React 19 + Tailwind CSS v4 (CSS-first, 无 tailwind.config) + Zustand v5
 
 **AI**: OpenAI-compatible API (Agnes AI via Agnes Gateway) | **Speech**: WhisperX + faster-whisper (local GPU) | **Media**: yt-dlp + ffmpeg
 
@@ -119,8 +119,7 @@ async def _do_work(arg):
 Route handlers (`api/v1/`) handle HTTP concerns (validation, status codes, auth deps). Services (`services/`) handle domain logic. Keep route files thin.
 
 **Key services**:
-- `ai_service.py` — Central AI wrapper (AsyncOpenAI). Singleton via `get_ai_service()`. Redis caching for enrichment/gloss. Methods: translate_batch, pronunciation_feedback_rubric, free_speaking_feedback, gloss_word_context, generate_practice_questions, etc.
-- `speaking_service.py` — Pipeline: Whisper transcription → wav2vec2 forced alignment → AI rubric scoring. Free-tier limit (3/day).
+- `ai_service.py` — Central AI wrapper (AsyncOpenAI). Singleton via `get_ai_service()`. Redis caching for enrichment/gloss. Methods: translate_batch, gloss_word_context, generate_practice_questions, etc. (Speaking-scoring methods removed - ADR-0002.)
 - `video_service.py` — Video submit (dedup by URL), detail with Redis caching, search (PostgreSQL FTS + ILIKE fallback).
 - `vocabulary_service.py` — SM-2 spaced repetition, AI enrichment, quiz.
 - `transcription/` — Dedicated sub-service: WhisperX/faster-whisper, chunked transcription, forced alignment, punctuation restoration, audio extraction, segment formatting.
@@ -169,7 +168,8 @@ ECDICT dictionary annotations run locally (no AI) at ingest time, tagging each w
 
 | File | Role |
 |------|------|
-| `docs/api/REQUIREMENTS.md` | PRD — 92 项功能需求、数据模型、API 清单 |
+| `docs/PRD.md` | **PRD（权威）** - 重设计后产品需求（视频词汇 + 社区 UGC，v2.0） |
+| `docs/api/REQUIREMENTS.md` | 旧 PRD（已归档，重设计前，勿作现状参考） |
 | `docs/architecture/ARCHITECTURE.md` | 架构决策记录 (ADR) + 系统全景 |
 | `docs/progress/PROGRESS.md` | 开发进度追踪 (Phase 1-10 全部完成) |
 | `docs/architecture/FRONTEND-ARCHITECTURE.md` | 前端架构 + Watch 页面拆分计划 |

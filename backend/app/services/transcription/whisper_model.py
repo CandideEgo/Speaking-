@@ -4,8 +4,8 @@ Provides two model singletons:
 - get_whisperx_model(): WhisperX ASR pipeline (VAD + batched faster-whisper)
 - get_align_model(): wav2vec2 forced-alignment model for word-level timestamps
 
-Also keeps the legacy get_whisper_model() for speaking_service.py, which
-needs fast, lightweight transcription of short audio clips without alignment.
+Also keeps get_whisper_model() (reused by the ASR fallback get_asr_whisper_model), which
+needs fast, lightweight transcription without alignment.
 """
 
 from functools import lru_cache
@@ -23,7 +23,7 @@ _whisperx_lock = Lock()
 _align_models: dict[str, tuple] = {}  # language_code -> (model, metadata)
 _align_lock = Lock()
 
-# --- Legacy faster-whisper model singleton (for speaking_service) ---
+# --- Legacy faster-whisper model singleton (reused by ASR fallback) ---
 _whisper_model = None
 _whisper_lock = Lock()
 
@@ -481,17 +481,18 @@ def transcribe_audio(audio_path: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Legacy faster-whisper model (for speaking_service.py)
+# Legacy faster-whisper model (reused by ASR fallback get_asr_whisper_model)
 # ---------------------------------------------------------------------------
 
 
 def get_whisper_model():
-    """Lazy-load the raw faster-whisper model (legacy, for speaking practice).
+    """Lazy-load the raw faster-whisper model (reused by ASR fallback).
 
-    Speaking practice needs fast, lightweight transcription of short audio
-    clips (a few seconds). The full WhisperX pipeline (VAD + align) is
-    overkill and would add latency. This function provides the original
-    faster-whisper-only path.
+    ``get_asr_whisper_model()`` reuses this singleton when the resolved ASR
+    path equals ``whisper_model_path`` to avoid holding two model copies in
+    memory. The full WhisperX pipeline (VAD + align) is overkill for the
+    faster-whisper fallback path; this provides the lightweight single-model
+    path.
     """
     global _whisper_model
     if _whisper_model is not None:
@@ -558,7 +559,7 @@ def get_asr_whisper_model():
     """Lazy-load faster-whisper at the resolved ASR path (for the fallback engine).
 
     When the resolved path equals ``whisper_model_path`` (the common case where
-    ``whisperx_model`` is empty), reuses the legacy speaking-practice singleton
+    ``whisperx_model`` is empty), reuses the legacy faster-whisper singleton
     so we don't hold two copies of the same model in memory. Only when
     ``whisperx_model`` points elsewhere do we load a separate instance.
     """

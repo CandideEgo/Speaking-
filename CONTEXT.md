@@ -86,7 +86,7 @@
 | 层 | 技术 |
 |----|------|
 | 后端 | Python FastAPI (async) + SQLAlchemy async + Celery + PostgreSQL + Redis |
-| 前端 | Next.js 14 (App Router) + React 18 + Tailwind CSS + Zustand v5 |
+| 前端 | Next.js 16 (App Router) + React 19 + Tailwind CSS v4 (CSS-first) + Zustand v5 |
 | AI | OpenAI-compatible API（Agnes AI via Agnes Gateway） |
 | 语音 | WhisperX + faster-whisper（本地 GPU） |
 | 媒体 | yt-dlp + ffmpeg |

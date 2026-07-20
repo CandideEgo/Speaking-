@@ -10,8 +10,8 @@
 
 ### 1.1 前置依赖
 
-- Python 3.10+
-- Node.js 18+ & npm
+- Python 3.12+
+- Node.js 20 LTS+ & npm
 - Docker & Docker Compose
 - PostgreSQL 16（或使用 Docker）
 - Redis 7（或使用 Docker）

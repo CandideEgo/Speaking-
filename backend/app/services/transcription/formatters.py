@@ -5,9 +5,9 @@ Formatters provided:
   both WhisperX aligned output and faster-whisper fallback output). Uses
   word-level timestamps when present, else segment start/end.
 - faster_whisper_segments_to_dicts(): Raw faster-whisper Segment objects →
-  segment dicts (shared by the fallback transcriber and speaking_service).
+  segment dicts (shared by the fallback transcriber).
 - whisper_segments_to_subtitles(): Legacy, raw faster-whisper Segment objects
-  → subtitle dicts without word-level timestamps (used by speaking_service).
+  → subtitle dicts without word-level timestamps (legacy path).
 """
 
 import structlog
@@ -274,7 +274,7 @@ def merge_short_segments(
 def whisper_segments_to_subtitles(segments, offset: float = 0.0) -> list[dict]:
     """Convert raw faster-whisper segments to SeeWord subtitle format.
 
-    Legacy fallback used when WhisperX is unavailable (e.g. speaking_service
+    Legacy fallback used when WhisperX is unavailable (e.g. the ASR fallback
     uses raw faster-whisper for short user audio clips).
 
     Args:
