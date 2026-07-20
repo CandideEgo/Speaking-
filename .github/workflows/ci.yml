@@ -57,9 +57,22 @@ jobs:
         working-directory: backend
         run: ruff format --check app/ tests/
 
-      - name: Type check
+      - name: Type check (baseline gate - blocks new errors)
         working-directory: backend
-        run: mypy app/ --ignore-missing-imports || true
+        run: |
+          mypy app/ --ignore-missing-imports > /tmp/mypy.txt 2>&1 || true
+          # Extract "file:code" pairs (Linux mypy emits forward-slash paths, matching .mypy-baseline)
+          grep -E ": error:" /tmp/mypy.txt | sed -E 's/^([^:]+):[0-9]+:.*\[(.+)\][[:space:]]*$/\1:\2/' | sort -u > /tmp/mypy-new.txt
+          echo "--- mypy output (tail) ---"
+          tail -20 /tmp/mypy.txt
+          echo "--- new errors not in backend/.mypy-baseline ---"
+          comm -23 /tmp/mypy-new.txt .mypy-baseline > /tmp/mypy-issues.txt || true
+          if [ -s /tmp/mypy-issues.txt ]; then
+            echo "::error::New mypy errors introduced. Fix them, or add the file:code pair to backend/.mypy-baseline if intentional:"
+            cat /tmp/mypy-issues.txt
+            exit 1
+          fi
+          echo "No new mypy errors (baseline: $(wc -l < .mypy-baseline) file:code pairs). Lower the baseline as you fix existing ones."
 
       - name: Run tests
         working-directory: backend
@@ -102,3 +115,80 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+  e2e:
+    # End-to-end tests via Playwright against the full stack (postgres + redis +
+    # backend + frontend). Newly added - continue-on-error while the stack
+    # stabilises in CI; remove continue-on-error once consistently green so it
+    # becomes a hard gate.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seeword
+          POSTGRES_PASSWORD: seeword_test
+          POSTGRES_DB: seeword_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test-secret-for-ci
+      ENV: testing
+      PUNCTUATION_MODEL_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run database migrations
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Start services and run e2e
+        working-directory: frontend
+        run: |
+          (cd ../backend && nohup uvicorn app.main:app --port 8000 > /tmp/backend.log 2>&1 &)
+          curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health
+          nohup npm run start > /tmp/frontend.log 2>&1 &
+          curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3000
+          npx playwright test --project=chromium
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== backend.log (tail) ==="; tail -50 /tmp/backend.log 2>/dev/null || true
+          echo "=== frontend.log (tail) ==="; tail -50 /tmp/frontend.log 2>/dev/null || true
