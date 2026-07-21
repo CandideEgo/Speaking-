@@ -1,5 +1,13 @@
 # 系统流程 / 功能地图（架构审视）
 
+> ⚠️ **此文档已过时。** 2026-07-22 knowledge-verification 发现：17 个风险项中 13 个已修复，3 个未修，1 个部分修复。架构图和风险清单不再反映代码现实。
+>
+> **当前权威文档**：`.agent/system-map.md`（持续维护，经过隐含规则过滤器压缩）
+>
+> 本文档保留作为历史参考，不再更新。如需当前架构状态，请查阅 `.agent/` 目录。
+
+---
+
 > 目的：以**架构审视**视角呈现当前真实代码的结构、执行流、耦合与风险，服务于重构/上线前的盘点。
 > 粒度：总览用 service 级，视频管线详图下沉到 task/步骤级。
 > 这是「现状地图」，不是 PRD 理想态——两者偏差本身就是审视产出。
@@ -472,35 +480,35 @@ flowchart LR
 
 ### 🔴 高（策略性 bug / 数据风险）
 
-| # | 问题 | 域 | 位置 |
+| # | 问题 | 域 | 位置 | 状态 |
 |---|------|----|----|
-| 1 | UGC `auto_publish` 硬编码 True，绕过审核直接进社区流 | 视频管线 | `video_seed_service.py:165` + `video_processing.py:592-594` |
-| 2 | callback 端点无锁，双回调竞态致字幕表双删双插 | 视频管线 | `internal.py:53-54` |
-| 3 | Redis 故障时 resume + 锁双重 fail-open，重跑所有步骤 | 视频管线 | `video_processing.py:87-88, 98-101` |
+| 1 | UGC `auto_publish` 硬编码 True，绕过审核直接进社区流 | 视频管线 | `video_seed_service.py:165` + `video_processing.py:592-594` | ✅ 已修：现检查 is_official |
+| 2 | callback 端点无锁，双回调竞态致字幕表双删双插 | 视频管线 | `internal.py:53-54` | ✅ 已修：Redis dedup lock |
+| 3 | Redis 故障时 resume + 锁双重 fail-open，重跑所有步骤 | 视频管线 | `video_processing.py:87-88, 98-101` | ✅ 已修：fail-closed |
 
 ### 🟡 中（设计意图与实现脱节 / 可观测性缺口）
 
-| # | 问题 | 域 | 位置 |
+| # | 问题 | 域 | 位置 | 状态 | 状态 |
 |---|------|----|----|
-| 4 | TranslationService 引擎切换+fallback 未接入主管线，配置无效 | 视频管线 | `video_processing.py:138-150` |
-| 5 | 孤儿 pub-sub 通道，零订阅者，给人实时推送错觉 | 视频管线 | `video_processing.py:77` |
-| 6 | watchdog 用 `created_at` 近似入队时间，过早误杀正常转录 | 视频管线 | `video_processing.py:673-678` |
-| 7 | `STEP_PROGRESS` 常量漂移（10 vs 75），前端进度跳变 | 视频管线 | `video_service.py:441` |
-| 8 | 两条发布路径字段不一致（auto_publish 不设 reviewed_by/at/snapshot） | 跨域（管线↔admin） | `video_processing.py:592` vs `video_review_service.py:134` |
-| 9 | `query_order` 主动查单接口无 reconciliation 调度，回调丢失无对账 | 支付 | `payment_provider.py:61` |
-| 10 | Mock provider 兜底无生产白名单，配置拼错静默走 Mock | 支付 | `payment_provider.py:90` |
-| 11 | WS 推送异常静默吞，不可观测 | Admin/通知 | `notification_service.py:51` |
-| 12 | `run_async` RuntimeError fallback 违反禁止 per-task asyncio.run 约定 | 视频管线 | `video_processing.py:293` 等 |
+| 4 | TranslationService 引擎切换+fallback 未接入主管线，配置无效 | 视频管线 | `video_processing.py:138-150` | ✅ 已修 |
+| 5 | 孤儿 pub-sub 通道，零订阅者，给人实时推送错觉 | 视频管线 | `video_processing.py:77` | ✅ 已修：已删除 |
+| 6 | watchdog 用 `created_at` 近似入队时间，过早误杀正常转录 | 视频管线 | `video_processing.py:673-678` | ✅ 已修：用 processing_started_at |
+| 7 | `STEP_PROGRESS` 常量漂移（10 vs 75），前端进度跳变 | 视频管线 | `video_service.py:441` | ✅ 已修：pipeline_helpers 统一 |
+| 8 | 两条发布路径字段不一致（auto_publish 不设 reviewed_by/at/snapshot） | 跨域（管线↔admin） | `video_processing.py:592` vs `video_review_service.py:134` | ⚠️ 部分：仅限 official |
+| 9 | `query_order` 主动查单接口无 reconciliation 调度，回调丢失无对账 | 支付 | `payment_provider.py:61` | ✅ 已修：reconcile beat |
+| 10 | Mock provider 兜底无生产白名单，配置拼错静默走 Mock | 支付 | `payment_provider.py:90` | ✅ 已修：生产 guard |
+| 11 | WS 推送异常静默吞，不可观测 | Admin/通知 | `notification_service.py:51` | ❌ 未修 |
+| 12 | `run_async` RuntimeError fallback 违反禁止 per-task asyncio.run 约定 | 视频管线 | `video_processing.py:293` 等 | ✅ 已修：fallback 已删除 |
 
 ### 🟢 低（约定/边界）
 
-| # | 问题 | 域 | 位置 |
+| # | 问题 | 域 | 位置 | 状态 | 状态 |
 |---|------|----|----|
-| 13 | GPU worker「不碰 DB/OSS 凭证」靠 env 约定，无硬隔离 | 视频管线 | `config.py:162-172` |
-| 14 | `vocabulary_service` 模块级 `ai = get_ai_service()` 破坏懒加载 | 词汇 | `vocabulary_service.py:17` |
-| 15 | SM-2 从 `next_review_at - last_reviewed_at` 反推 interval，未用 interval_days 列 | 词汇 | `vocabulary_service.py:208-211` |
-| 16 | 评论质量评分纯关键词匹配，脆弱 | 社区 | `comment_service.py:18-91` |
-| 17 | step-set TTL(1h)/锁 TTL(30min) 可能短于长视频管线时长 | 视频管线 | `video_processing.py:37-38` |
+| 13 | GPU worker「不碰 DB/OSS 凭证」靠 env 约定，无硬隔离 | 视频管线 | `config.py:162-172` | ❌ 未修 |
+| 14 | `vocabulary_service` 模块级 `ai = get_ai_service()` 破坏懒加载 | 词汇 | `vocabulary_service.py:17` | ✅ 已修：_get_ai() |
+| 15 | SM-2 从 `next_review_at - last_reviewed_at` 反推 interval，未用 interval_days 列 | 词汇 | `vocabulary_service.py:208-211` | ✅ 已修 |
+| 16 | 评论质量评分纯关键词匹配，脆弱 | 社区 | `comment_service.py:18-91` | ❌ 未修 |
+| 17 | step-set TTL(1h)/锁 TTL(30min) 可能短于长视频管线时长 | 视频管线 | `video_processing.py:37-38` | ✅ 已修：3h/1h |
 
 ---
 
@@ -509,6 +517,7 @@ flowchart LR
 - `docs/architecture/ARCHITECTURE.md` — ADR 决策记录（**为何**这么设计）
 - `docs/api/REQUIREMENTS.md` — PRD 理想态（**应该**是什么样）
 - `docs/plans/PIPELINE-FLOW.md` — 视频管线流程（**计划**视角）
-- **本文 `SYSTEM-MAP.md`** — 当前真实代码的现状地图 + 风险（**实际**是什么样 + 哪里有偏差）
+- **`.agent/system-map.md`** — 当前权威架构文档（持续维护，经过隐含规则过滤器压缩）
+- **本文 `SYSTEM-MAP.md`** — 历史架构审视快照（风险项已部分过时，见状态列）
 
 本文与 memory 中 `optimization-roadmap` / `architecture-refactor-backlog` / `production-launch-blockers` 互为印证，可作为下一轮重构/上线的盘点依据。
