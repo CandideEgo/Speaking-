@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,3 +39,15 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     user = relationship("User", back_populates="notifications")
+
+    __table_args__ = (
+        # Composite index for notification dedup queries:
+        #   WHERE user_id = ? AND type = ? AND related_url = ? AND is_read = false
+        Index(
+            "ix_notifications_dedup",
+            "user_id",
+            "type",
+            "related_url",
+            "is_read",
+        ),
+    )

@@ -288,6 +288,7 @@ async def toggle_post_like(db: AsyncSession, user_id: str, post_id: str) -> dict
                 message=f"{actor_name or '有人'} 赞了你的帖子",
                 db=db,
                 related_url=f"/community?post={post_id}",
+                actor_id=user_id,
             )
         try:
             await db.commit()
@@ -374,6 +375,7 @@ async def add_comment(
             message=f"{actor_name or '有人'} 回复了你的评论",
             db=db,
             related_url=f"/community?post={post_id}",
+            actor_id=user_id,
         )
         notified.add(parent.user_id)
     # Top-level comment (or a reply whose parent author is the post owner) → notify post owner.
@@ -385,6 +387,7 @@ async def add_comment(
             message=f"{actor_name or '有人'} 评论了你的帖子",
             db=db,
             related_url=f"/community?post={post_id}",
+            actor_id=user_id,
         )
 
     await commit_refresh(db, comment)
@@ -621,6 +624,7 @@ async def toggle_follow(db: AsyncSession, follower_id: str, followee_id: str) ->
                 message=f"{actor_name or '有人'} 关注了你",
                 db=db,
                 related_url="/community",
+                actor_id=follower_id,
             )
             await db.commit()
         except Exception:
