@@ -137,20 +137,55 @@ Phase 4: 自动演化 Engineering Memory Agent
 
 ---
 
+
 ## 三、实验设计
 
 ### 3.1 方法
 
 A/B 对照实验。同一个项目、同一个任务，对比"有上下文系统"和"无上下文系统"的 Agent 表现。
 
-### 3.2 分支设置
+### 3.2 对照实验的控制变量
 
-| 分支 | 内容 | 用途 |
-|------|------|------|
-| `experiment/group-a-no-context` | 无 .agent/、无 wiki/、精简 AGENTS.md | 对照组 |
-| `experiment/group-b-with-context` | 完整 .agent/ + wiki/ + 全功能 AGENTS.md | 实验组 |
+实验的关键是**只改变一个变量：上下文系统是否存在**。其他所有条件保持一致。
 
-两组使用完全相同的代码库（同一 git commit），唯一区别是上下文系统是否存在。
+#### 保持一致的变量（控制组）
+
+| 变量 | 如何控制 |
+|------|----------|
+| 代码库 | 两组从同一个 git commit (`9fa7b7d`) 分出分支 |
+| 任务描述 | 完全相同的 `.agent/experiment-task.md` 文件 |
+| Agent 运行时 | 同一个 Pi Agent 实例，同一个 Claude 模型 |
+| 项目已有文档 | 两组都可以看到 `CLAUDE.md`、`CONTEXT.md`、`docs/adr/`——这些是项目原有的，不属于我们的上下文系统 |
+| GitNexus 工具 | 两组都可以使用（它是项目原有的代码智能工具，不在实验范围内） |
+
+#### 实验变量（自变量）
+
+| 条件 | Group A（对照组） | Group B（实验组） |
+|------|-----------------|------------------|
+| `.agent/` 目录 | ❌ 不存在（仅含任务文件） | ✅ 完整（context.md, decisions.md, state.md, system-map.md） |
+| `wiki/` 目录 | ❌ 不存在 | ✅ 完整（8 个知识文档） |
+| `AGENTS.md` | 精简版（无 Context/Skills/Knowledge Management 段落） | 完整版（含 system-map.md 引用 + 隐含规则过滤器） |
+| 4 个 Context Skills | ❌ 不在 Skill 发现路径中 | ✅ 在 `~/.agents/skills/` 中 |
+
+#### 分支操作细节
+
+```bash
+# 从 Phase 1 部署的 commit 创建两组分支
+
+# Group A：移除上下文系统
+$ git checkout -b experiment/group-a-no-context
+$ rm -rf .agent/ wiki/                    # 删除上下文文件
+$ git checkout HEAD -- docs/architecture/SYSTEM-MAP.md  # 恢复原始版本（含过时风险）
+# 替换 AGENTS.md 为精简版（移除 Context/Skills/Knowledge 段落）
+$ git commit -m "experiment: Group A setup — no context system"
+
+# Group B：保留完整上下文系统
+$ git checkout master
+$ git checkout -b experiment/group-b-with-context
+# 无需任何修改，master 已包含完整上下文
+```
+
+两组唯一的差异是 `.agent/`、`wiki/` 和 `AGENTS.md` 的内容。代码库本身完全相同。
 
 ### 3.3 实验任务
 
@@ -162,7 +197,7 @@ A/B 对照实验。同一个项目、同一个任务，对比"有上下文系统
 - 有 4 个调用点需要理解
 - 中等难度，既有简单部分也有需要判断的部分
 
-任务描述：
+任务描述（两组完全相同）：
 > 通知系统在每次 `create_notification` 调用时都创建新行。当用户重复操作（如点赞→取消→再点赞）时，同一目标产生多条通知，造成噪声。
 >
 > 添加去重逻辑：
@@ -173,7 +208,7 @@ A/B 对照实验。同一个项目、同一个任务，对比"有上下文系统
 ### 3.4 评分维度
 
 | 维度 | 测量内容 |
-|------|---------|
+|------|----------|
 | 首次行动时间 | Agent 开始修改代码前的探索时间 |
 | 错误假设 | 与代码现实矛盾的陈述数量 |
 | 重复探索 | 重复阅读已应了解的文件次数 |
@@ -187,50 +222,323 @@ A/B 对照实验。同一个项目、同一个任务，对比"有上下文系统
 
 ## 四、实验过程
 
-### 4.1 Group A（无上下文）
+### 4.1 Group A（无上下文）— 完整操作记录
 
-Agent 行为轨迹：
+**环境**：`experiment/group-a-no-context` 分支，无 `.agent/`（仅任务文件）、无 `wiki/`、精简 `AGENTS.md`。
 
-1. **探索阶段**（~3 分钟）
-   - 从零开始阅读 `notification_service.py`
-   - 阅读 `notification.py` 模型
-   - 用 `grep` 搜索所有 `create_notification` 调用点
-   - 阅读 `notifications.py` API 端点了解 WS push 模式
+#### Step 1：探索通知系统（~1 分钟）
 
-2. **实现阶段**
-   - 设计 dedup key：(user_id, type, related_url)
-   - 在 `create_notification` 中添加去重逻辑
-   - 添加复合索引
-   - 添加 4 个测试
+Agent 从零开始，没有任何项目认知。第一步是阅读核心源文件：
 
-3. **未做的事**
-   - 未考虑不同操作者的区分
-   - 未更新任何上下文文件（无机制）
-   - 未记录设计决策
+```bash
+$ cat backend/app/services/notification_service.py
+```
 
-### 4.2 Group B（有上下文）
+发现：`create_notification()` 函数接受 `user_id, type, title, message, db, related_url`，创建 Notification 行后通过 WebSocket 推送。调用者负责 commit session。
 
-Agent 行为轨迹：
+#### Step 2：阅读数据模型（~30 秒）
 
-1. **上下文读取**（~30 秒）
-   - 读 `.agent/context.md` — 已知：notification_service 是跨模块的
-   - 读 `.agent/system-map.md` — 已知：4 个触发点、WS push best-effort、data JSON 字段存在
-   - 无探索阶段，直接进入实现
+```bash
+$ cat backend/app/models/notification.py
+```
 
-2. **实现阶段**
-   - 设计 dedup key：(user_id, type, related_url, **actor_id**)
-   - 识别到 Notification 模型没有 actor_id 列 → 利用 data JSON 字段存储
-   - 在 `create_notification` 中添加 actor-aware 去重逻辑
-   - 更新所有 4 个 `community_service.py` 调用点传入 actor_id
-   - 添加复合索引
-   - 添加 6 个测试（比 Group A 多 2 个）
+发现：Notification 表有 `user_id, type, title, message, is_read, related_url, data(JSON), read_at, expires_at, created_at`。
 
-3. **知识维护**
-   - 更新 `.agent/decisions.md` 记录设计决策和权衡
-   - 更新 `.agent/state.md` 记录当前状态
+**关键发现**：没有 `actor_id` 列。但此时 Agent 未意识到这会导致问题。
+
+#### Step 3：搜索所有调用点（~30 秒）
+
+```bash
+$ grep -rn "create_notification" backend/app/ --include="*.py"
+```
+
+发现 4 个调用点，全在 `community_service.py`：
+- 行 284：`post_liked`（帖子点赞）
+- 行 370：`comment_reply`（回复评论）
+- 行 381：`comment_reply`（评论帖子）
+- 行 617：`social_follow`（新关注）
+
+#### Step 4：阅读 API 端点（~30 秒）
+
+```bash
+$ cat backend/app/api/v1/notifications.py
+```
+
+发现：WebSocket ConnectionManager、REST 端点（list/unread-count/mark-read/read-all/preferences）。
+
+#### Step 5：设计实现方案
+
+基于已读代码，Agent 设计了 dedup key：`(user_id, type, related_url)`。
+
+**此时 Agent 的推理过程**：
+- 同一用户 + 同一类型 + 同一目标 = 重复通知
+- 如果已读，创建新通知（用户应该看到新活动）
+- 如果未读，更新时间戳
+
+**未考虑的问题**：
+- 不同操作者（如 Alice 和 Bob 都点赞了同一帖子）是否应该区分？
+- Notification 模型没有 `actor_id` 列，无法存储操作者信息
+- `data` JSON 字段存在但未使用，可以用来存储 actor_id
+
+#### Step 6：编写实现代码
+
+修改了 3 个文件：
+
+**`notification_service.py`** — 添加去重逻辑：
+
+```python
+async def create_notification(...):
+    # Dedup check
+    if related_url is not None:
+        existing = await db.scalar(
+            select(Notification).where(
+                Notification.user_id == user_id,
+                Notification.type == type,
+                Notification.related_url == related_url,
+                Notification.is_read == False,
+            )
+        )
+        if existing is not None:
+            existing.title = title
+            existing.message = message
+            existing.created_at = datetime.now(UTC)
+            await db.flush()
+            await _push_notification(existing, user_id)
+            return existing
+    # ... create new notification
+```
+
+**`notification.py`（模型）** — 添加复合索引：
+
+```python
+__table_args__ = (
+    Index("ix_notifications_dedup", "user_id", "type", "related_url", "is_read"),
+)
+```
+
+**`test_notifications.py`** — 添加 4 个测试：
+- `test_duplicate_unread_updates_existing`
+- `test_read_notification_allows_new`
+- `test_different_related_url_creates_separate`
+- `test_no_related_url_always_creates`
+
+#### Step 7：提交
+
+```bash
+$ git commit -m "experiment: Group A implementation — notification dedup"
+# 3 files changed, 180 insertions(+), 5 deletions(-)
+```
+
+**未做的事**：
+- 未更新 `community_service.py`（dedup 是透明的，不需要修改调用方）
+- 未考虑不同操作者的区分
+- 未记录设计决策
+- 未更新任何上下文文件（没有这个机制）
 
 ---
 
+### 4.2 Group B（有上下文）— 完整操作记录
+
+**环境**：`experiment/group-b-with-context` 分支，完整 `.agent/`（6 文件）+ `wiki/`（9 文件）+ 完整 `AGENTS.md`。
+
+#### Step 1：读取项目上下文（~30 秒）
+
+Agent 按 `AGENTS.md` 的指引，首先读取上下文文件：
+
+```bash
+$ cat .agent/context.md   # 关键段落：
+# Important Constraints:
+# - GPU Worker must not have DB access
+# - Redis must not be single point of failure
+# - AI calls must go through ai_service.py
+
+$ cat .agent/system-map.md   # 关键段落：
+# | services/notification_service | Cross-cutting: DB write + WebSocket push (best-effort) |
+# | services/community_service + comment_service | UGC community + keyword-based comment quality scoring |
+#
+# notification_service ←── community_service (4 triggers)
+#                      ←── payment callbacks
+#                      ←── invite/redeem
+```
+
+**从上下文中获得的关键认知**：
+1. `notification_service` 是**跨模块**的，不只服务于 community → API 改动必须向后兼容
+2. 有 4 个 community 触发点 → 任务描述与实际一致
+3. WebSocket push 是 best-effort → 不需要为推送做特殊处理
+4. `notification_service` 还被 payment 和 invite 调用 → 新参数必须可选
+
+#### Step 2：验证性代码阅读（~1 分钟）
+
+Agent 已经知道架构，只需验证细节：
+
+```bash
+$ cat backend/app/services/notification_service.py   # 确认函数签名和 WS push 模式
+$ cat backend/app/models/notification.py              # 确认模型结构
+```
+
+**关键发现**：Notification 模型没有 `actor_id` 列，但有 `data` JSON 字段（未使用）。
+
+**Agent 的推理过程**：
+- 去重 key 需要 (user_id, type, related_url) → 但这不够
+- "Alice 赞了帖子 X" 和 "Bob 赞了帖子 X" 是不同事件
+- 如果只用 (user_id, type, related_url)，不同操作者的通知会被错误合并
+- 需要把 actor_id 纳入 dedup key
+- 但模型没有 actor_id 列 → 可以用 `data` JSON 字段存储
+- `data` 字段已经存在，只是没被使用 → 自然的选择
+
+#### Step 3：设计实现方案
+
+Dedup key：`(user_id, type, related_url, actor_id)`
+
+关键设计决策：
+1. `actor_id` 作为 `create_notification` 的**可选参数**添加 → 向后兼容
+2. `actor_id` 存储在 `data` JSON 字段中 → 不需要数据库迁移
+3. 当 `actor_id` 存在时，dedup 范围限定为同一操作者
+4. 当 `actor_id` 不存在时（payment/invite 调用者），降级为 (user_id, type, related_url)
+5. 竞态条件（check-then-insert 不原子）→ 文档化为可接受权衡
+
+#### Step 4：编写实现代码
+
+修改了 6 个文件：
+
+**`notification_service.py`** — 添加 actor-aware 去重逻辑：
+
+```python
+async def create_notification(
+    user_id, type, title, message, db,
+    related_url=None,
+    actor_id=None,       # 新增：可选参数，向后兼容
+) -> Notification:
+    data_json = _make_data(actor_id=actor_id)
+
+    if related_url is not None:
+        stmt = select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == type,
+            Notification.related_url == related_url,
+            Notification.is_read == False,
+        )
+        if actor_id is not None:
+            # actor_id 存在：在 Python 层过滤（JSON 列不可跨数据库移植查询）
+            candidates = (await db.scalars(stmt)).all()
+            existing = next(
+                (c for c in candidates if _extract_actor_id(c.data) == actor_id),
+                None
+            )
+        else:
+            # actor_id 不存在：降级为普通 dedup
+            existing = await db.scalar(stmt)
+
+        if existing is not None:
+            existing.title = title
+            existing.message = message
+            existing.data = data_json
+            existing.created_at = datetime.now(UTC)
+            await db.flush()
+            await _push_notification(existing, user_id)
+            return existing
+
+    # 创建新通知...
+```
+
+**`community_service.py`** — 更新所有 4 个调用点传入 `actor_id`：
+
+```python
+# 调用点 1：帖子点赞
+await create_notification(
+    ...,
+    actor_id=user_id,        # 新增
+)
+
+# 调用点 2：回复评论
+await create_notification(
+    ...,
+    actor_id=user_id,        # 新增
+)
+
+# 调用点 3：评论帖子
+await create_notification(
+    ...,
+    actor_id=user_id,        # 新增
+)
+
+# 调用点 4：新关注
+await create_notification(
+    ...,
+    actor_id=follower_id,    # 新增（注意：这里是 follower_id 不是 user_id）
+)
+```
+
+**`notification.py`（模型）** — 添加复合索引（与 Group A 相同）：
+
+```python
+__table_args__ = (
+    Index("ix_notifications_dedup", "user_id", "type", "related_url", "is_read"),
+)
+```
+
+**`test_notifications.py`** — 添加 6 个测试（比 Group A 多 2 个）：
+- `test_same_actor_same_target_dedupes` ← Group A 无此测试
+- `test_different_actors_same_target_creates_separate` ← **Group A 无此测试**
+- `test_read_notification_allows_new`
+- `test_no_related_url_always_creates`
+- `test_no_actor_id_dedupes_by_key_only` ← Group A 无此测试
+- `test_actor_id_stored_in_data` ← Group A 无此测试
+
+#### Step 5：更新上下文文件
+
+**`.agent/decisions.md`** — 记录设计决策：
+
+```markdown
+## 2026-07-22 — Notification dedup: actor-aware key
+
+**Problem**: Repeated actions create duplicate notifications
+**Options**: A) (user_id, type, related_url) vs B) (user_id, type, related_url, actor_id)
+**Decision**: B
+**Reason**: A incorrectly merges different actors' notifications
+**Trade-offs**: actor_id in JSON requires Python-level filtering. Race condition is
+acceptable (notifications are low-stakes, unlike payments which use with_for_update).
+```
+
+**`.agent/state.md`** — 更新当前状态：
+
+```markdown
+## Current Focus
+Experiment: notification dedup feature (Group B — with context)
+
+## Known Issues
++ WS push observability: notification_service now logs push failures, but no retry
+```
+
+#### Step 6：提交
+
+```bash
+$ git commit -m "experiment: Group B implementation — actor-aware notification dedup"
+# 6 files changed, 304 insertions(+), 11 deletions(-)
+```
+
+---
+
+### 4.3 两组操作过程对比
+
+| 操作步骤 | Group A | Group B |
+|---------|---------|--------|
+| **开始** | 无任何项目认知 | 已有 .agent/ 上下文 |
+| **第一步** | 读 notification_service.py（发现性） | 读 .agent/context.md + system-map.md（获取性） |
+| **第二步** | 读 notification.py 模型（发现性） | 读 notification_service.py（验证性） |
+| **第三步** | grep 搜索调用点（发现性） | 读 notification.py 模型（验证性） |
+| **第四步** | 读 notifications.py API（发现性） | — 无需更多探索 |
+| **设计 dedup key** | (user_id, type, related_url) | (user_id, type, related_url, actor_id) |
+| **考虑向后兼容** | 否（不知道跨模块） | 是（上下文告知跨模块性质） |
+| **修改调用方** | 否（dedup 透明） | 是（传入 actor_id） |
+| **测试数量** | 4 | 6 |
+| **记录决策** | 否 | 是（decisions.md + state.md） |
+
+**最关键的差异**：Group A 的每一步都是"发现"——它在探索未知领域。Group B 的每一步都是"验证"——它在确认已知的理解。这种差异直接导致了 dedup key 的设计差异。
+
+Group A 只看到了 `create_notification` 的函数签名和调用点，因此自然地选择了 (user_id, type, related_url) 作为 dedup key——这在局部视角下是合理的。
+
+Group B 看到了 `system-map.md` 中 notification_service 的跨模块依赖图，因此多问了一个问题："如果 payment 或 invite 也调用这个函数，我的 API 改动会不会破坏它们？"这个追问直接导向了 actor_id 的设计。
 ## 五、实验结果
 
 ### 5.1 评分对比
