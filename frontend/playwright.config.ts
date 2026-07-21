@@ -7,7 +7,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
-  timeout: 30000,
+  // 60s gives headroom for Next dev on-demand compilation of the first
+  // page visit (CI e2e runs against `next dev` so the /api rewrite proxy is
+  // active - see .github/workflows/ci.yml and next.config.ts rewrites).
+  timeout: 60000,
 
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",

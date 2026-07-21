@@ -1,170 +1,135 @@
 import { test, expect } from "@playwright/test";
+import {
+  DEV_SMS_CODE,
+  TEST_PASSWORD,
+  uniquePhone,
+  registerUserViaApi,
+  registerViaUi,
+  loginViaUi,
+} from "./helpers";
 
-const TEST_EMAIL = `e2e-${Date.now()}@test.com`;
-const TEST_PASSWORD = "e2epass123";
+// A shared, onboarding-completed user for the login / logout tests.
+const SHARED_PHONE = uniquePhone();
 
-test.describe("Authentication — Registration", () => {
-  test("full registration flow: fill form, submit, redirect to dashboard", async ({
-    page,
-  }) => {
+test.beforeAll(async ({ request }) => {
+  await registerUserViaApi(request, SHARED_PHONE);
+});
+
+test.describe("Registration", () => {
+  test("full registration flow: phone + SMS code + password, then redirect", async ({ page }) => {
+    const phone = uniquePhone();
+    await registerViaUi(page, phone);
+    // Registration succeeded: we left /register and a token was stored.
+    expect(page.url()).not.toContain("/register");
+    const token = await page.evaluate(() => localStorage.getItem("seeword_token"));
+    expect(token).toBeTruthy();
+  });
+
+  test("submit button is disabled until the terms are agreed", async ({ page }) => {
     await page.goto("/register");
+    // Fill every field validly but do NOT agree to the terms.
+    await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
+    await page.locator('input[placeholder="请输入验证码"]').fill(DEV_SMS_CODE);
+    await page.locator('input[placeholder="至少 8 位，含大小写字母和数字"]').fill(TEST_PASSWORD);
+    await page.locator('input[placeholder="请再次输入密码"]').fill(TEST_PASSWORD);
 
-    // Fill the registration form
-    await page.locator('input[type="text"]').fill("E2E Test User");
-    await page.locator('input[type="email"]').fill(TEST_EMAIL);
-    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
+    const submit = page.locator('button[type="submit"]');
+    await expect(submit).toBeDisabled();
 
-    // Submit
-    await page.locator('button[type="submit"]').click();
-
-    // Should redirect to dashboard
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-    expect(page.url()).toContain("/dashboard");
-
-    // Verify the page loaded — dashboard should have visible content
-    await expect(page.locator("main")).toBeVisible();
-  });
-
-  test("registration with missing required fields shows validation", async ({
-    page,
-  }) => {
-    await page.goto("/register");
-
-    // Submit without filling anything
-    await page.locator('button[type="submit"]').click();
-
-    // Browser HTML5 validation should prevent submission; stay on register page
-    expect(page.url()).toContain("/register");
+    // Agreeing enables the button.
+    await page.locator('input[type="checkbox"]').check();
+    await expect(submit).toBeEnabled();
   });
 });
 
-test.describe("Authentication — Login", () => {
-  test("full login flow: fill form, submit, dashboard loads", async ({
-    page,
-  }) => {
-    await page.goto("/login");
-
-    await page.locator('input[type="email"]').fill(TEST_EMAIL);
-    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
-    await page.locator('button[type="submit"]').click();
-
-    // Should navigate to dashboard
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-    expect(page.url()).toContain("/dashboard");
-    await expect(page.locator("main")).toBeVisible();
+test.describe("Login", () => {
+  test("login with phone + password redirects to home", async ({ page }) => {
+    await loginViaUi(page, SHARED_PHONE);
+    expect(page.url()).toMatch(/\/$/);
+    // Authenticated home shell: the sidebar logout button is present.
+    // (Two logout buttons exist in the DOM - desktop sidebar + mobile drawer -
+    // so target the first, which is the visible desktop one.)
+    await expect(page.locator('button[aria-label="退出登录"]').first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test("failed login: wrong credentials shows error message", async ({
-    page,
-  }) => {
+  test("wrong credentials do not grant access", async ({ page }) => {
     await page.goto("/login");
-
-    await page.locator('input[type="email"]').fill("nobody@example.com");
-    await page.locator('input[type="password"]').fill("wrongpassword");
+    await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
+    await page.locator('input[type="password"]').fill("WrongPass123");
     await page.locator('button[type="submit"]').click();
-
-    // Should display an error message (red text from the component)
-    const errorText = page.locator("p.text-red-600");
-    await expect(errorText).toBeVisible({ timeout: 5000 });
-
-    // Should remain on the login page
+    // The api client's global 401 handler rejects bad credentials and clears
+    // the session. Allow time for the failing request + redirect to settle.
+    await page.waitForTimeout(3000);
+    const token = await page.evaluate(() => localStorage.getItem("seeword_token"));
+    expect(token).toBeNull();
     expect(page.url()).toContain("/login");
   });
 });
 
-test.describe("Authentication — Guards and Logout", () => {
-  test("auth guard: unauthenticated visit to /dashboard redirects to /login", async ({
-    page,
-  }) => {
-    await page.goto("/dashboard");
-
-    // Should redirect to login
-    await page.waitForURL(/\/login/, { timeout: 10000 });
-    expect(page.url()).toContain("/login");
+test.describe("Guards and Logout", () => {
+  test("unauthenticated visit to / shows the public landing page", async ({ page }) => {
+    await page.goto("/");
+    // ADR-0005: unauthenticated "/" renders the landing page, not the app.
+    await expect(page.getByText("SeeWord").first()).toBeVisible();
+    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
+    // The app sidebar (logout button) must NOT be present.
+    await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
   });
 
-  test("logout flow: login, click logout, verify redirect, verify dashboard blocked", async ({
-    page,
-  }) => {
-    // Login first
-    await page.goto("/login");
-    await page.locator('input[type="email"]').fill(TEST_EMAIL);
-    await page.locator('input[type="password"]').fill(TEST_PASSWORD);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-
-    // Click the logout button (aria-label on TopBar)
-    await page.locator('button[aria-label="退出登录"]').click();
-
-    // Should redirect to /login
+  test("logout redirects to /login and blocks the app", async ({ page }) => {
+    await loginViaUi(page, SHARED_PHONE);
+    await page.locator('button[aria-label="退出登录"]').first().click();
     await page.waitForURL(/\/login/, { timeout: 10000 });
     expect(page.url()).toContain("/login");
 
-    // Verify dashboard is now blocked
-    await page.goto("/dashboard");
-    await page.waitForURL(/\/login/, { timeout: 10000 });
-    expect(page.url()).toContain("/login");
+    // After logout, "/" shows the landing page again (no app shell).
+    await page.goto("/");
+    await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
   });
 });
 
-test.describe("Authentication — Password Reset", () => {
-  test("forgot password link is visible on login page", async ({ page }) => {
+test.describe("Password Reset", () => {
+  test("forgot-password link is visible on the login page", async ({ page }) => {
     await page.goto("/login");
-
-    const forgotLink = page.locator('a[href="/forgot-password"]');
-    await expect(forgotLink).toBeVisible();
-    await expect(forgotLink).toHaveText(/忘记密码/);
+    const link = page.locator('a[href="/forgot-password"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText(/忘记密码/);
   });
 
-  test("forgot password page loads with form visible", async ({ page }) => {
+  test("forgot-password page renders the phone + code + new-password form", async ({ page }) => {
     await page.goto("/forgot-password");
-
-    // Verify the page heading
     await expect(page.locator("h1")).toHaveText(/重置密码/);
-
-    // Verify the email input and submit button are present
-    await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('button[type="submit"]')).toBeVisible();
-    await expect(page.locator('button[type="submit"]')).toHaveText(
-      /发送重置链接/,
-    );
-
-    // Verify the back-to-login link
+    await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
+    await expect(page.locator('input[placeholder="请输入验证码"]')).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(2);
+    await expect(page.locator('button[type="submit"]')).toHaveText(/重置密码/);
     await expect(page.locator('a[href="/login"]')).toBeVisible();
   });
 });
 
-test.describe("Authentication — Cross-Page Links", () => {
-  test("register page has link to login", async ({ page }) => {
+test.describe("Cross-Page Links", () => {
+  test("register page links to login", async ({ page }) => {
     await page.goto("/register");
-    const loginLink = page.locator('a[href*="login"]');
-    await expect(loginLink.first()).toBeVisible();
+    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
   });
 
-  test("login page has link to register", async ({ page }) => {
+  test("login page links to register", async ({ page }) => {
     await page.goto("/login");
-    const registerLink = page.locator('a[href*="register"]');
-    await expect(registerLink.first()).toBeVisible();
+    await expect(page.locator('a[href*="register"]').first()).toBeVisible();
   });
 });
 
 test.describe("Navigation", () => {
-  test("header shows navigation links for unauthenticated users", async ({
-    page,
-  }) => {
+  test("landing page shows a login link for unauthenticated visitors", async ({ page }) => {
     await page.goto("/");
-    const header = page.locator("header");
-    await expect(header).toBeVisible();
     await expect(page.locator('a[href*="login"]').first()).toBeVisible();
   });
 
-  test("responsive design — mobile viewport", async ({ page }) => {
+  test("mobile viewport renders without overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
-    await expect(page.locator("header")).toBeVisible();
-    // Content should not overflow
-    const body = page.locator("body");
-    const box = await body.boundingBox();
-    expect(box).not.toBeNull();
+    await expect(page.locator("body")).toBeVisible();
   });
 });

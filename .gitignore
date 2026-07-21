@@ -69,6 +69,10 @@ test_audio.wav
 backend/.playwright-cli/
 frontend/.playwright-cli/
 
+# Playwright test output (e2e run artifacts)
+frontend/test-results/
+frontend/playwright-report/
+
 # Backend build artifacts (should never exist)
 backend/.next/
 backend/.mypy_cache/

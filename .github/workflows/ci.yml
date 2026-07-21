@@ -118,11 +118,11 @@ jobs:
 
   e2e:
     # End-to-end tests via Playwright against the full stack (postgres + redis +
-    # backend + frontend). Newly added - continue-on-error while the stack
-    # stabilises in CI; remove continue-on-error once consistently green so it
-    # becomes a hard gate.
+    # backend + frontend). The frontend runs in dev mode so next.config.ts
+    # rewrites proxy /api and /media to the backend (a prod `next start` build
+    # has no proxy and there is no nginx in this job). Hard gate - failures
+    # block the PR.
     runs-on: ubuntu-latest
-    continue-on-error: true
     services:
       postgres:
         image: postgres:16-alpine
@@ -176,15 +176,16 @@ jobs:
       - name: Run database migrations
         working-directory: backend
         run: alembic upgrade head
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
       - name: Start services and run e2e
         working-directory: frontend
         run: |
+          # Backend (uvicorn) + frontend (next dev). The frontend MUST run in
+          # dev mode so next.config.ts rewrites proxy /api and /media to the
+          # backend - production `next start` has no proxy and there is no
+          # nginx in this job, so a prod build cannot reach the backend.
           (cd ../backend && nohup uvicorn app.main:app --port 8000 > /tmp/backend.log 2>&1 &)
           curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health
-          nohup npm run start > /tmp/frontend.log 2>&1 &
+          nohup npm run dev > /tmp/frontend.log 2>&1 &
           curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3000
           npx playwright test --project=chromium
       - name: Dump logs on failure

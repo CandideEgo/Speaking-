@@ -1,175 +1,102 @@
 import { test, expect } from "@playwright/test";
+import { uniquePhone, registerUserViaApi, loginViaUi } from "./helpers";
 
-// Use iPhone X viewport for all tests in this file
+// Mobile viewport for the whole file.
 test.use({ viewport: { width: 375, height: 812 } });
 
-test.describe("Mobile — Home Page", () => {
-  test("home page renders without horizontal overflow", async ({ page }) => {
+// A shared, onboarding-completed user for the authenticated sidebar tests.
+const MOBILE_PHONE = uniquePhone();
+
+test.beforeAll(async ({ request }) => {
+  await registerUserViaApi(request, MOBILE_PHONE);
+});
+
+test.describe("Mobile - Landing Page", () => {
+  test("renders without horizontal overflow", async ({ page }) => {
     await page.goto("/");
-
-    // The page should render
     await expect(page.locator("body")).toBeVisible();
-
-    // Check for horizontal overflow — the document width should not exceed the viewport
-    const scrollWidth = await page.evaluate(
-      () => document.documentElement.scrollWidth,
-    );
-    const clientWidth = await page.evaluate(
-      () => document.documentElement.clientWidth,
-    );
-    // Allow a small tolerance for sub-pixel rounding
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    // Allow a small tolerance for sub-pixel rounding.
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
   });
 
-  test("home page content is visible and usable", async ({ page }) => {
+  test("brand and mobile menu button are visible", async ({ page }) => {
     await page.goto("/");
-
-    // Header should be visible
-    await expect(page.locator("header")).toBeVisible();
-
-    // The Speaking logo/link should be visible
-    await expect(page.locator("text=Speaking").first()).toBeVisible();
+    // On mobile the login CTA lives inside the hamburger menu, so the
+    // hamburger trigger (not the desktop login link) is the visible affordance.
+    await expect(page.getByText("SeeWord").first()).toBeVisible();
+    await expect(page.locator('button[aria-label="菜单"]')).toBeVisible();
   });
 });
 
-test.describe("Mobile — Navigation", () => {
-  test("hamburger menu button is visible on mobile", async ({ page }) => {
-    await page.goto("/");
-
-    // The sidebar toggle button (hamburger) should be visible
-    const menuButton = page.locator(
-      'button[aria-label="展开侧边栏"], button[aria-label="折叠侧边栏"]',
-    );
-    await expect(menuButton.first()).toBeVisible();
-  });
-
-  test("sidebar opens when hamburger button is clicked", async ({ page }) => {
-    await page.goto("/");
-
-    // Click the hamburger menu button
-    const menuButton = page.locator(
-      'button[aria-label="展开侧边栏"], button[aria-label="折叠侧边栏"]',
-    );
-    await menuButton.first().click();
-
-    // The mobile sidebar overlay should become visible
-    // The sidebar contains nav links like "首页", "YouTube", etc.
-    const sidebarOverlay = page.locator(".fixed.inset-0.z-50");
-    await expect(sidebarOverlay).toBeVisible({ timeout: 3000 });
-
-    // Navigation items should be visible in the sidebar
-    await expect(page.locator("text=首页").first()).toBeVisible();
-  });
-
-  test("sidebar closes when overlay is clicked", async ({ page }) => {
-    await page.goto("/");
-
-    // Open the sidebar
-    const menuButton = page.locator(
-      'button[aria-label="展开侧边栏"], button[aria-label="折叠侧边栏"]',
-    );
-    await menuButton.first().click();
-
-    const sidebarOverlay = page.locator(".fixed.inset-0.z-50");
-    await expect(sidebarOverlay).toBeVisible({ timeout: 3000 });
-
-    // Click the overlay backdrop (the close button behind the sidebar panel)
-    const backdrop = page.locator('button[aria-label="关闭侧边栏"]');
-    await backdrop.click();
-
-    // Sidebar should close (fade out)
-    await expect(sidebarOverlay).not.toBeVisible({ timeout: 3000 });
-  });
-
-  test("sidebar navigation links work on mobile", async ({ page }) => {
-    await page.goto("/");
-
-    // Open the sidebar
-    const menuButton = page.locator(
-      'button[aria-label="展开侧边栏"], button[aria-label="折叠侧边栏"]',
-    );
-    await menuButton.first().click();
-
-    // Wait for sidebar to appear
-    await page.waitForTimeout(1000);
-
-    // Click a navigation link inside the sidebar
-    const browseLink = page.locator('.fixed a[href="/browse"]').first();
-    const browseVisible = await browseLink
-      .isVisible({ timeout: 3000 })
-      .catch(() => false);
-
-    if (browseVisible) {
-      await browseLink.click();
-      await page.waitForURL(/\/browse/, { timeout: 5000 });
-      expect(page.url()).toContain("/browse");
-    }
-  });
-});
-
-test.describe("Mobile — Login Form", () => {
-  test("login form is usable on mobile — inputs and submit button visible", async ({
-    page,
-  }) => {
+test.describe("Mobile - Login Form", () => {
+  test("phone + password inputs and submit are visible and within viewport", async ({ page }) => {
     await page.goto("/login");
-
-    // Email input should be visible and not cut off
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeVisible();
-    const emailBox = await emailInput.boundingBox();
-    expect(emailBox).not.toBeNull();
-    // Input should be within viewport width
-    expect(emailBox!.x + emailBox!.width).toBeLessThanOrEqual(375 + 10);
-
-    // Password input should be visible
-    const passwordInput = page.locator('input[type="password"]');
-    await expect(passwordInput).toBeVisible();
-
-    // Submit button should be visible
-    const submitButton = page.locator('button[type="submit"]');
-    await expect(submitButton).toBeVisible();
+    const phone = page.locator('input[placeholder="请输入手机号"]');
+    await expect(phone).toBeVisible();
+    const box = await phone.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375 + 10);
+    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
-  test("login form can be filled and submitted on mobile", async ({ page }) => {
+  test("login form can be filled and submitted (no crash)", async ({ page }) => {
     await page.goto("/login");
-
-    // Fill the form
-    await page.locator('input[type="email"]').fill("mobile@test.com");
-    await page.locator('input[type="password"]').fill("wrongpassword");
+    await page.locator('input[placeholder="请输入手机号"]').fill("13800000000");
+    await page.locator('input[type="password"]').fill("WrongPass123");
     await page.locator('button[type="submit"]').click();
-
-    // Should either show an error (wrong credentials) or redirect
-    // Either way, the page should not crash
     await page.waitForTimeout(3000);
     await expect(page.locator("body")).toBeVisible();
   });
 
-  test("register link is accessible on mobile login page", async ({ page }) => {
+  test("register and forgot-password links are accessible", async ({ page }) => {
     await page.goto("/login");
-
-    const registerLink = page.locator('a[href*="register"]');
-    await expect(registerLink.first()).toBeVisible();
-  });
-
-  test("forgot password link is accessible on mobile login page", async ({
-    page,
-  }) => {
-    await page.goto("/login");
-
-    const forgotLink = page.locator('a[href="/forgot-password"]');
-    await expect(forgotLink).toBeVisible();
+    await expect(page.locator('a[href*="register"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/forgot-password"]')).toBeVisible();
   });
 });
 
-test.describe("Mobile — Redeem Page", () => {
-  test("redeem page is usable on mobile", async ({ page }) => {
+test.describe("Mobile - Redeem Page", () => {
+  test("redeem page is gated for unauthenticated visitors (landing shown)", async ({ page }) => {
     await page.goto("/redeem");
+    // (main) routes render the public landing for unauthenticated visitors.
+    await expect(page.getByText("SeeWord").first()).toBeVisible();
+  });
+});
 
-    // Page should load
-    await expect(page.locator("h1")).toHaveText(/兑换 Pro 会员/);
+test.describe("Mobile - Sidebar (authenticated)", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUi(page, MOBILE_PHONE);
+  });
 
-    // Unauthenticated prompt should be visible and not overflow
-    const loginPrompt = page.locator("text=/请先.*登录.*注册/i");
-    await expect(loginPrompt).toBeVisible();
+  test("hamburger menu opens the sidebar drawer", async ({ page }) => {
+    await page.locator('button[aria-label="打开菜单"]').first().click();
+    // The drawer's close button only exists in the mobile overlay, so its
+    // visibility confirms the drawer opened.
+    const closeBtn = page.locator('button[aria-label="关闭侧边栏"]');
+    await expect(closeBtn).toBeVisible({ timeout: 5000 });
+    // A nav link is reachable inside the drawer (the last match - the desktop
+    // sidebar's copy is display:none on mobile).
+    await expect(page.locator('a[href="/browse"]').last()).toBeVisible({ timeout: 5000 });
+  });
+
+  test("sidebar closes via the backdrop close button", async ({ page }) => {
+    await page.locator('button[aria-label="打开菜单"]').first().click();
+    const closeBtn = page.locator('button[aria-label="关闭侧边栏"]');
+    await expect(closeBtn).toBeVisible({ timeout: 5000 });
+    await closeBtn.click();
+    await expect(closeBtn).toBeHidden({ timeout: 5000 });
+  });
+
+  test("mobile tab bar navigates to browse", async ({ page }) => {
+    // The bottom MobileTabBar is always visible on mobile (no GSAP drawer),
+    // so it is the reliable mobile navigation surface.
+    const browseTab = page.getByRole("link", { name: "浏览", exact: true });
+    await expect(browseTab).toBeVisible({ timeout: 5000 });
+    await browseTab.click();
+    await page.waitForURL(/\/browse/, { timeout: 10000 });
+    expect(page.url()).toContain("/browse");
   });
 });
