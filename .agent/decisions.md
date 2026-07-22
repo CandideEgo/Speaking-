@@ -95,3 +95,13 @@
 **Decision**: B
 **Reason**: One variable block cascades entire site, lowest maintenance cost
 **Trade-offs**: Less per-component control, but 40+ fewer file changes and automatic dark mode for new components
+
+---
+
+## 2026-07-22 — Actor-aware notification dedup
+
+**Problem**: Repeated actions by the same user (like→unlike→re-like) create duplicate notifications
+**Options**: A) No dedup (status quo); B) Full dedup (same type+related_url → single notification); C) Actor-aware dedup (same actor → update, different actors → separate)
+**Decision**: C
+**Reason**: "Alice liked your post" and "Bob liked your post" are distinct events; only same-actor repeats should merge
+**Trade-offs**: Non-atomic check-then-insert (rare concurrent duplicates possible), but avoids row-level locking on a high-write table; notifications are low-stakes so occasional duplicates are acceptable

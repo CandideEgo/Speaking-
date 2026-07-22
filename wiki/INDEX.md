@@ -10,17 +10,9 @@
 - [Frontend Architecture](architecture/frontend-architecture.md) — Next.js 16, Tailwind v4, dark mode, design system
 - [Exam-Level Vocabulary](architecture/exam-vocabulary.md) — ECDICT annotation, AI prewarming, user-level filtering
 
-## Decisions
-
-- (Decisions with long-term impact that warrant separate documents. For most decisions, see `.agent/decisions.md`)
-
 ## Problems
 
 - [Image Handling in Agent Sessions](problems/image-handling.md) — Why images corrupt sessions, how to handle, recovery
-
-## Patterns
-
-- (Reusable design patterns and engineering experiences, to be added as discovered)
 
 ## Guides
 

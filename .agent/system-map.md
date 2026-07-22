@@ -13,7 +13,7 @@
 | `services/ecdict` + `exam_corpus` | Local exam-level annotation (CET4/6/gaokao), no AI |
 | `services/payment_provider` + `alipay/wechat/mock` | Multi-provider payment with factory pattern |
 | `services/community_service` + `comment_service` | UGC community + keyword-based comment quality scoring |
-| `services/notification_service` | Cross-cutting: DB write + WebSocket push (best-effort) |
+| `services/notification_service` | Cross-cutting: DB write + WebSocket push (best-effort) + actor-aware dedup |
 | `tasks/video_processing` | Head/GPU/Tail pipeline + checkpoint resume + watchdog |
 | `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + redemption async |
 | `core/*` | Config, database, redis, security, errors, cache, limiter, logging |
@@ -38,6 +38,8 @@ transcription/whisper_model ←── video pipeline (GPU worker)
 notification_service ←── community_service (4 triggers)
                      ←── payment callbacks
                      ←── invite/redeem
+                     ←── comment_service
+                     (actor-aware dedup: same actor → update, different actors → separate)
 
 video_processing (finalize) → writes review_status=published directly
                             ≠ video_review_service.approve_review
@@ -72,3 +74,4 @@ video_processing (finalize) → writes review_status=published directly
 - AI calls MUST go through `ai_service.py`, never AsyncOpenAI directly in routes
 - Payment is ICP-compliant disabled — redemption code is the only channel
 - `with_for_update` row locks required for redemption and payment atomicity
+- Notification dedup is non-atomic (check-then-insert) — acceptable trade-off: low-stakes data, avoids contention on high-write table

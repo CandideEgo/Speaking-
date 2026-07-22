@@ -29,20 +29,27 @@ Before major work, read:
 
 .agent/system-map.md
 
-## Skills
+## Knowledge Management Rules
 
-Available capabilities:
+### MUST (强制执行)
 
-- project-context-bootstrap
-- engineering-decision-support
-- project-knowledge-maintenance
-- knowledge-verification
+- 修改 ≥3 文件或跨模块变更后，MUST 执行 `/knowledge-maintain` 再提交
+- 引入新功能/改架构/选技术/不可逆变更前，MUST 执行 `/decision-support`
+- 每 2 周执行一次 `/knowledge-verify`（或用户请求时）
 
-Use them when they improve results.
+### SHOULD (强烈建议)
 
-## Knowledge Management
+- 新会话首次进入项目时，SHOULD 执行 `/context-bootstrap`
+- `.agent/state.md` 的 Last Updated 超过 7 天时，SHOULD 执行 `/knowledge-verify`
 
-Record only knowledge that passes the Implicit Knowledge Filter:
+### NEVER
+
+- NEVER 在不检查 `.agent/decisions.md` 的情况下重做已被记录的决策
+- NEVER 记录不通过 Implicit Knowledge Filter 的知识
+
+### Implicit Knowledge Filter
+
+Record only knowledge that passes all three gates:
 
 1. Is it hidden from code? (If code directly expresses it, don't document it)
 2. Will future changes benefit? (If no decision impact, don't record)
@@ -65,7 +72,7 @@ and project history.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Speaking-** (9564 symbols, 20266 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Speaking-** (9838 symbols, 20804 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -118,4 +125,4 @@ Five canonical roles map 1:1 to label strings of the same name (`needs-triage`, 
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `.agent/context.md` (includes domain terms) + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
