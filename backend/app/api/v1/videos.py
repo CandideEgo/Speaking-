@@ -32,12 +32,6 @@ from app.schemas.video import (
     VideoStatusResponse,
     WordLevelsUpdate,
 )
-from app.services.community_service import (
-    get_video_like_status as _get_video_like_status,
-)
-from app.services.community_service import (
-    toggle_video_like as _toggle_video_like,
-)
 from app.services.proposal_service import (
     apply_mergeable_update as _apply_mergeable_update,
 )
@@ -96,6 +90,12 @@ from app.services.subtitle_edit_service import (
     update_word_levels as _update_word_levels,
 )
 from app.services.upload_service import handle_video_upload
+from app.services.video_like_service import (
+    get_video_like_status as _get_video_like_status,
+)
+from app.services.video_like_service import (
+    toggle_video_like as _toggle_video_like,
+)
 from app.services.video_review_service import (
     approve_review as _approve_review,
 )

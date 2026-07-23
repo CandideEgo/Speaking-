@@ -13,33 +13,10 @@ from sqlalchemy.orm import selectinload
 from app.core.database import commit_refresh
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
-from app.schemas.video import SubtitleResponse
 from app.services.video_cache import invalidate_video_detail_cache
+from app.services.video_publish import _publish_video
 
 _SNAPSHOT_VERSION = 1
-
-
-def subtitles_from_snapshot(snapshot: dict | None) -> list[SubtitleResponse]:
-    """Build SubtitleResponse list from a frozen published_snapshot."""
-    if not snapshot:
-        return []
-    raw = snapshot.get("subtitles") or []
-    out: list[SubtitleResponse] = []
-    for s in raw:
-        out.append(
-            SubtitleResponse(
-                id=s.get("id", ""),
-                start_time=s.get("start_time", 0.0),
-                end_time=s.get("end_time", 0.0),
-                text_en=s.get("text_en", ""),
-                text_zh=s.get("text_zh"),
-                sentence_index=s.get("sentence_index", 0),
-                grammar_note=s.get("grammar_note"),
-                speaker=s.get("speaker"),
-                word_levels=s.get("word_levels"),
-            )
-        )
-    return out
 
 
 async def _build_snapshot(db: AsyncSession, video: Video) -> dict:
@@ -133,18 +110,11 @@ async def withdraw_submission(db: AsyncSession, video: Video) -> Video:
 
 async def approve_review(db: AsyncSession, video: Video, admin: User) -> Video:
     """Admin approves a pending review: freeze live subtitles as the new public
-    version and mark published. (Both is_published and review_status are kept in
-    sync so existing listing filters keep working.)"""
+    version and mark published."""
     if video.review_status != VideoReviewStatus.pending_review.value:
         raise ValueError("仅待审核状态可批准")
     video.published_snapshot = await _build_snapshot(db, video)
-    video.review_status = VideoReviewStatus.published.value
-    video.is_published = True
-    video.reviewed_by = admin.id
-    video.reviewed_at = datetime.now(UTC)
-    video.rejection_reason = None
-    await commit_refresh(db, video)
-    await invalidate_video_detail_cache(video.id)
+    await _publish_video(db, video, reviewed_by=admin.id)
     return video
 
 

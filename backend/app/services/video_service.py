@@ -16,7 +16,7 @@ from app.core.database import commit_refresh
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
-from app.schemas.community import UserProfileBrief
+from app.schemas.common import UserProfileBrief
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
@@ -207,7 +207,7 @@ async def get_video_detail(
     use_snapshot = should_use_snapshot(video, current_user)
 
     if use_snapshot:
-        from app.services.video_review_service import subtitles_from_snapshot
+        from app.services.video_publish import subtitles_from_snapshot
 
         subtitle_responses = subtitles_from_snapshot(video.published_snapshot)
     else:
@@ -283,12 +283,14 @@ async def get_video_status(
         return None
     if not skip_access_check and not check_video_access(video, current_user):
         return None
+    subtitle_count = await count_subtitles(db, video_id)
     return VideoStatusResponse(
         status=video.status.value,
         video_url_720p=video.video_url_720p,
         processing_step=video.processing_step,
         processing_progress=video.processing_progress,
         error_message=video.error_message,
+        subtitle_count=subtitle_count,
     )
 
 

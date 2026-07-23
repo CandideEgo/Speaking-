@@ -10,20 +10,20 @@ from app.schemas.comment import (
     CommentUpdate,
     VideoWithCommentScoreResponse,
 )
+
+# ── 社区 ──
+from app.schemas.common import UserProfileBrief
 from app.schemas.community import (
     CommentCreate as CommunityCommentCreate,
 )
 from app.schemas.community import (
     CommentResponse as CommunityCommentResponse,
 )
-
-# ── 社区 ──
 from app.schemas.community import (
     FollowResponse,
     PostCreate,
     PostResponse,
     ReportCreate,
-    UserProfileBrief,
 )
 
 # ── 学习记录 ──

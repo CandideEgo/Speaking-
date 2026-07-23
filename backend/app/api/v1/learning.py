@@ -12,7 +12,7 @@ from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.community import VideoBrief
+from app.schemas.common import VideoBrief
 from app.schemas.learning import (
     LearningRecordResponse,
     SaveProgressRequest,

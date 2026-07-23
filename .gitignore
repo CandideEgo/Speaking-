@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .env
 .env.gpu-worker
+.env.fixed
 *.egg-info/
 dist/
 build/

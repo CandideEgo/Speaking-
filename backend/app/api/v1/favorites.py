@@ -107,7 +107,7 @@ async def add_favorite(
         db.add(UserFavorite(user_id=current_user.id, video_id=video_id))
         video.favorite_count = (video.favorite_count or 0) + 1
         # Auto-feature check
-        from app.services.community_service import FEATURE_THRESHOLD
+        from app.services.video_like_service import FEATURE_THRESHOLD
 
         if video.like_count >= FEATURE_THRESHOLD or video.favorite_count >= FEATURE_THRESHOLD:
             video.is_featured = True
