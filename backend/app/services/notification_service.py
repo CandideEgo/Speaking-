@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime
 
+from fastapi import WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -142,7 +143,16 @@ async def _push_notification(notification: Notification, user_id: str) -> None:
                 },
             },
         )
+    except WebSocketDisconnect:
+        # Normal disconnection — client closed the connection. No action needed.
+        pass
     except Exception:
-        # WebSocket push is best-effort; don't block notification creation
-        # but log so push failures are observable rather than silently swallowed.
-        logger.warning("WebSocket push failed for user %s", user_id, exc_info=True)
+        # Unexpected error (malformed JSON, auth issue, etc.) — log with exc_info
+        # so persistent failures are visible in monitoring.
+        logger.warning(
+            "WebSocket push failed for user %s, notification_id=%s, type=%s",
+            user_id,
+            notification.id,
+            notification.type,
+            exc_info=True,
+        )

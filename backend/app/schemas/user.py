@@ -87,8 +87,6 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     bio: str | None = None
     timezone: str | None = None
-    streak_count: int = 0
-    longest_streak: int = 0
     last_active_at: datetime | None = None
     onboarding_completed: bool = False
     created_at: datetime

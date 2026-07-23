@@ -50,8 +50,6 @@ class User(Base):
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    streak_count: Mapped[int] = mapped_column(Integer, default=0)
-    longest_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 

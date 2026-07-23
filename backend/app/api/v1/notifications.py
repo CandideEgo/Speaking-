@@ -52,14 +52,31 @@ class ConnectionManager:
         """Send a JSON message to all of a user's active connections."""
         connections = self._connections.get(user_id, [])
         disconnected = []
+        unexpected_errors = []
         for ws in connections:
             try:
                 await ws.send_json(message)
-            except Exception:
+            except WebSocketDisconnect:
+                # Normal disconnection — mark for cleanup
                 disconnected.append(ws)
+            except Exception:
+                # Unexpected error (malformed JSON, auth issue, etc.)
+                # Mark for cleanup and record for logging
+                disconnected.append(ws)
+                unexpected_errors.append(type(ws).__name__)
         # Clean up disconnected sockets
         for ws in disconnected:
             self.disconnect(user_id, ws)
+        # Log unexpected errors so persistent failures are visible
+        if unexpected_errors:
+            import logging
+
+            logging.warning(
+                "WebSocket push had %d unexpected error(s) for user %s: %s",
+                len(unexpected_errors),
+                user_id,
+                unexpected_errors,
+            )
 
 
 # Singleton instance

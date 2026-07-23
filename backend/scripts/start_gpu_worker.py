@@ -22,9 +22,6 @@ import time
 # Ensure backend/ is on sys.path so `from app.*` works when run as a script
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import get_settings
-from app.tasks.celery_app import celery_app
-
 _HEARTBEAT_KEY = "worker:gpu:heartbeat"
 _HEARTBEAT_INTERVAL = 60  # seconds between heartbeats
 _HEARTBEAT_TTL = 90  # seconds before key expires
@@ -49,7 +46,33 @@ def _heartbeat_loop(redis_url: str, stop_event: threading.Event):
         pass
 
 
+def _security_guard() -> None:
+    """Check that the GPU worker environment does NOT contain DB or OSS credentials.
+
+    This is a hard security boundary: the GPU worker must never touch the database
+    or object storage. It only receives tasks via Redis and POSTs results back
+    via the transcription callback endpoint.
+    """
+    FORBIDDEN_KEYS = ["DATABASE_URL", "OSS_ACCESS_KEY", "OSS_SECRET_KEY"]
+    found = [k for k in FORBIDDEN_KEYS if os.environ.get(k)]
+    if found:
+        print(
+            "\n[SECURITY] GPU worker must NOT have DB or OSS credentials.\n"
+            f"[SECURITY] Found forbidden env vars: {', '.join(found)}\n"
+            "[SECURITY] Remove them from the GPU worker environment and restart.\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main():
+    # ── Security guard: GPU worker must NOT have DB or OSS credentials ──
+    _security_guard()
+
+    # Lazy import to avoid side effects during module import
+    from app.core.config import get_settings
+    from app.tasks.celery_app import celery_app
+
     settings = get_settings()
 
     print("=" * 60)
