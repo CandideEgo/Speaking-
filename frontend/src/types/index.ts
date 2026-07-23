@@ -179,51 +179,6 @@ export interface VocabularyWord {
   created_at: string;
 }
 
-/* ── Community ── */
-export type PostType =
-  "text" | "progress_share" | "vocabulary_share" | "speaking_share" | "video_share";
-
-export interface Post {
-  id: string;
-  content: string;
-  media_url: string | null;
-  post_type: PostType;
-  is_liked: boolean;
-  like_count: number;
-  comment_count: number;
-  user: {
-    id: string;
-    name: string | null;
-    avatar_url: string | null;
-    level: string | null;
-  };
-  video?: {
-    id: string;
-    title: string;
-    thumbnail_url: string | null;
-    duration: number | null;
-    difficulty_level: string | null;
-    video_url_720p: string | null;
-  } | null;
-  created_at: string;
-}
-
-export interface UserComment {
-  id: string;
-  content: string;
-  user: {
-    id: string;
-    name: string | null;
-    avatar_url: string | null;
-    level: string | null;
-  };
-  is_liked: boolean;
-  like_count: number;
-  parent_id: string | null;
-  created_at: string;
-  replies: UserComment[];
-}
-
 /* ── Admin ── */
 export interface RedeemCode {
   id: string;
@@ -256,50 +211,6 @@ export interface AdminUser {
   created_at: string;
   last_active_at: string | null;
   videos_watched: number;
-  posts_count: number;
-}
-
-export interface AdminPost {
-  id: string;
-  content: string;
-  post_type: PostType;
-  like_count: number;
-  comment_count: number;
-  user_name: string | null;
-  user_avatar_url: string | null;
-  user_level: string | null;
-  user_id: string;
-  author_phone: string | null;
-  is_pinned: boolean;
-  report_count: number;
-  created_at: string;
-}
-
-export interface AdminComment {
-  id: string;
-  post_id: string;
-  content: string;
-  user_id: string;
-  user_name: string;
-  user_avatar_url: string | null;
-  created_at: string;
-  is_deleted: boolean;
-}
-
-export type ReportStatus = "pending" | "reviewed" | "dismissed";
-
-export interface CommentReport {
-  id: string;
-  post_id: string;
-  comment_id: string;
-  comment_content: string;
-  comment_author_name: string;
-  reporter_id: string;
-  reporter_name: string;
-  reason: string;
-  status: ReportStatus;
-  created_at: string;
-  post_snippet: string;
 }
 
 export interface AdminStatsTrend {
@@ -309,7 +220,7 @@ export interface AdminStatsTrend {
   active_users: number[];
 }
 
-export type RecentActivityType = "signup" | "post" | "report" | "payment";
+export type RecentActivityType = "signup" | "payment";
 
 export interface RecentActivity {
   id: string;
@@ -325,8 +236,6 @@ export interface AdminStats {
   total_videos: number;
   videos_ready: number;
   total_vocabulary: number;
-  total_posts: number;
-  pending_reports: number;
   active_users_today: number;
   active_users_7d: number;
   // Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2)

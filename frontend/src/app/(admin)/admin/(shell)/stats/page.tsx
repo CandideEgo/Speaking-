@@ -8,9 +8,7 @@ import {
   BookOpen,
   Cpu,
   Crown,
-  Flag,
   Loader2,
-  MessageSquare,
   TrendingUp,
   Users,
   Video,
@@ -51,8 +49,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 const ACTIVITY_ICON: Record<RecentActivityType, React.ElementType> = {
   signup: UserPlus,
-  post: MessageSquare,
-  report: Flag,
   payment: CreditCard,
 };
 
@@ -183,12 +179,6 @@ export default function AdminStatsPage() {
           value={stats.total_vocabulary.toLocaleString()}
           delta={`+${newVocab7d} 近7日`}
           tone="green"
-        />
-        <StatCard
-          icon={Flag}
-          label="待处理举报"
-          value={stats.pending_reports}
-          tone={stats.pending_reports > 0 ? "amber" : "default"}
         />
         <StatCard
           icon={Cpu}

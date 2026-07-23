@@ -13,7 +13,6 @@ import { useWordLookup } from "@/hooks/useWordLookup";
 import { usePractice } from "@/hooks/usePractice";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
-import { ShareToCommunityDialog } from "@/components/community/ShareToCommunityDialog";
 import { api, mediaUrl } from "@/lib/api";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
@@ -33,7 +32,6 @@ import {
   Mic,
   Bookmark,
   Heart,
-  Share2,
   BookOpen,
   Pencil,
   X,
@@ -67,7 +65,6 @@ export default function WatchPage() {
     reRecord,
   } = useSpeakingRecorder(requireAuth);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
 
   const setVideoAspectRatio = useWatchStore((s) => s.setVideoAspectRatio);
   const {
@@ -162,10 +159,6 @@ export default function WatchPage() {
     } catch {
       // non-fatal: selection still applies for this session
     }
-  }
-
-  function handleShare() {
-    if (requireAuth()) setShareOpen(true);
   }
 
   function handleNextSubtitle() {
@@ -286,14 +279,6 @@ export default function WatchPage() {
               title={isFavorited ? "取消收藏" : "收藏"}
             >
               <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
-            </button>
-            <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={handleShare}
-              aria-label="分享"
-              title="分享"
-            >
-              <Share2 size={18} />
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
@@ -647,14 +632,6 @@ export default function WatchPage() {
           onSave={saveToVocabulary}
         />
       )}
-
-      {/* Share-to-community dialog */}
-      <ShareToCommunityDialog
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        videoId={video.id}
-        videoTitle={video.title}
-      />
     </div>
   );
 }

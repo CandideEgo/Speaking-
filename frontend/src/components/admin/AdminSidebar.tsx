@@ -6,7 +6,6 @@ import { useState } from "react";
 import {
   BarChart3,
   CreditCard,
-  Flag,
   Menu,
   Palette,
   Ticket,
@@ -31,7 +30,6 @@ const NAV: { title: string; items: NavItem[] }[] = [
   {
     title: "运营",
     items: [
-      { label: "社区维护", href: "/admin/community", icon: Flag },
       { label: "用户管理", href: "/admin/users", icon: UserCog },
       { label: "订单管理", href: "/admin/orders", icon: CreditCard },
     ],

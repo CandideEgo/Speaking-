@@ -1,11 +1,5 @@
 export function TrustStrip() {
-  const stats = [
-    "WhisperX 双语字幕",
-    "SM-2 间隔复习",
-    "ECDICT 考级词汇标注",
-    "社区真实视频",
-    "兑换码激活会员",
-  ];
+  const stats = ["WhisperX 双语字幕", "SM-2 间隔复习", "ECDICT 考级词汇标注", "兑换码激活会员"];
 
   return (
     <div className="border-t border-b border-hairline py-8">

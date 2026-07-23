@@ -2,7 +2,7 @@
  * Creator data layer — user-scoped access to the UGC video lifecycle.
  *
  * Mirrors the admin data layer (lib/adminData.ts) but uses the *user* `api`
- * client and the owner endpoints (POST /videos/upload, GET /videos, PATCH
+ * client and the owner endpoints (GET /videos, PATCH
  * /videos/{id}/subtitles, submit-review / withdraw / begin-edit, practice
  * edit/regenerate). The owner can only touch their own videos; the backend
  * enforces ownership + review-state guards.
@@ -23,26 +23,8 @@ import type {
 export type { PracticeItem, UnifiedPracticeSet };
 
 // ---------------------------------------------------------------------------
-// Upload + list
+// List
 // ---------------------------------------------------------------------------
-
-/** Upload a local video file for processing. Multipart — the api client keeps
- * the browser-set multipart boundary when given a FormData body. */
-export async function uploadVideo(file: File, title: string): Promise<Video> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("title", title);
-  return api<Video>("/api/v1/videos/upload", { method: "POST", body: form });
-}
-
-/** One-click seed from URL: ensures cookies, runs full pipeline.
- * Returns the video ID for progress polling. */
-export async function seedFromUrlFull(source_url: string): Promise<Video> {
-  return api<Video>("/api/v1/videos/user-seed-full", {
-    method: "POST",
-    body: JSON.stringify({ source_url }),
-  });
-}
 
 /** List the current user's own videos (any status/processing state). */
 export async function listMyVideos(): Promise<Video[]> {
@@ -55,7 +37,7 @@ export function getMyVideoDetail(id: string): Promise<VideoWithSubtitles> {
   return api<VideoWithSubtitles>(`/api/v1/videos/${id}`);
 }
 
-/** Processing status (polled during upload/transcription). */
+/** Processing status (polled during processing). */
 export function getMyVideoStatus(id: string): Promise<{
   status: string;
   video_url_720p: string | null;

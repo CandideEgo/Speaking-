@@ -321,7 +321,6 @@ function UserDetailRow({
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="grid grid-cols-2 gap-3 text-xs">
         <Stat label="观看视频数" value={user.videos_watched} />
-        <Stat label="发帖数" value={user.posts_count} />
         <Stat label="等级" value={user.level || "-"} />
         {user.plan_expires_at && (
           <Stat label="Pro 到期" value={new Date(user.plan_expires_at).toLocaleDateString()} />

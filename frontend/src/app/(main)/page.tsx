@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Play, ArrowRight, Users, Sparkles } from "lucide-react";
+import { Play, ArrowRight, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useFeedStore, recommendWithSeenSink } from "@/stores/feedStore";
 import { useHomeFeed, DIFFICULTY_GROUPS } from "@/hooks/useHomeFeed";
@@ -10,7 +10,6 @@ import { api } from "@/lib/api";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 import { PageTransition } from "@/components/common/PageTransition";
-import { CommunityFeedWidget } from "@/components/community/CommunityFeedWidget";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { TabPills } from "@/components/ui/TabPills";
@@ -95,7 +94,7 @@ export default function HomePage() {
   return (
     <PageTransition>
       <main className="container-page py-7 pb-24">
-        {/* ── Bento 首屏：hero + 词汇/社区 ── */}
+        {/* ── Bento 首屏：hero + 词汇 ── */}
         <div className="bento">
           {/* hero 大卡 */}
           <div className="b-hero">
@@ -117,7 +116,7 @@ export default function HomePage() {
                 用真实视频<em>学英语</em>。
               </h1>
               <p className="b-hero-sub">
-                双语字幕、生词自动标注与 SM-2 复习，社区贡献真实视频——一段视频，完整学习闭环。
+                双语字幕、生词自动标注与 SM-2 复习，一段视频，完整学习闭环。
               </p>
               <div className="b-hero-cta">
                 <LinkButton href="/browse" variant="primary" icon={Play} size="nav">
@@ -130,7 +129,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 词汇待复习 + 社区 栈 */}
+          {/* 词汇待复习 栈 */}
           <div className="b-stack">
             <Link
               href="/vocabulary"
@@ -152,21 +151,6 @@ export default function HomePage() {
                     ? "趁热打铁，去复习 →"
                     : "暂无待复习，继续积累"}
               </div>
-            </Link>
-            <Link
-              href="/community"
-              className="flex-1 p-6 rounded-lg border bg-canvas border-hairline hover:border-ink transition-colors flex flex-col justify-between"
-            >
-              <div>
-                <div className="text-[11px] font-semibold uppercase font-mono tracking-[0.14em] text-muted-foreground">
-                  社区
-                </div>
-                <div className="flex items-center gap-2 mt-2.5">
-                  <Users size={24} className="text-brand-500" />
-                  <span className="text-[20px] font-bold tracking-tight">发现新视频</span>
-                </div>
-              </div>
-              <div className="text-xs text-muted mt-2">看看大家贡献的内容 →</div>
             </Link>
           </div>
         </div>
@@ -221,9 +205,6 @@ export default function HomePage() {
             </div>
           </section>
         )}
-
-        {/* ── 社区动态 ── */}
-        <CommunityFeedWidget />
 
         {/* ── 按难度精选 ── */}
         <section>

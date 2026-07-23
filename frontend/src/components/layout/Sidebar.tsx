@@ -8,17 +8,7 @@ import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { DURATIONS, EASES, MEDIA, motionDuration } from "@/lib/animations";
 import type { LucideIcon } from "lucide-react";
-import {
-  BookOpen,
-  Sparkles,
-  Users,
-  Compass,
-  Crown,
-  Upload,
-  User,
-  LogOut,
-  History,
-} from "lucide-react";
+import { BookOpen, Sparkles, Compass, Crown, Upload, User, LogOut, History } from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
@@ -42,10 +32,6 @@ const navigation: NavSection[] = [
       { label: "首页", href: "/", icon: Sparkles },
       { label: "浏览视频", href: "/browse", icon: Compass },
     ],
-  },
-  {
-    title: "社区",
-    items: [{ label: "社区精选", href: "/community", icon: Users }],
   },
   {
     title: "学习",

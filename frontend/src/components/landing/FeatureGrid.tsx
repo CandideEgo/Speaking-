@@ -1,4 +1,4 @@
-import { Users, Star, ListFilter } from "lucide-react";
+import { Star, ListFilter } from "lucide-react";
 
 const features = [
   {
@@ -6,12 +6,6 @@ const features = [
     title: "智能双语字幕",
     desc: "逐句中英对照，生词点击即查，长按看语法解析。字幕同步高亮当前句，跟着视频学得更准。",
     color: "bg-brand-500",
-  },
-  {
-    icon: <Users size={24} />,
-    title: "社区创作",
-    desc: "在创作者中心提交你喜欢的视频，经审核后发布到社区 feed。大家一起积累真实语料，学习资源越来越丰富。",
-    color: "bg-indigo",
   },
   {
     icon: <Star size={24} />,
@@ -31,10 +25,10 @@ export function FeatureGrid() {
           </span>
           <h2 className="display-xl mt-3.5 mb-4">看 · 查 · 懂，三位一体</h2>
           <p className="text-[17px] text-muted leading-relaxed">
-            沉浸式双语字幕阅读，生词自动标注与 SM-2 复习，社区贡献真实视频——一段视频，完整学习闭环。
+            沉浸式双语字幕阅读，生词自动标注与 SM-2 复习，一段视频，完整学习闭环。
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
           {features.map((f) => (
             <div
               key={f.title}

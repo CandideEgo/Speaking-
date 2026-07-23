@@ -9,7 +9,6 @@ import { getUgcPendingCount } from "@/lib/adminData";
 
 const TITLES: Record<string, string> = {
   "/admin/videos": "视频内容",
-  "/admin/community": "社区维护",
   "/admin/users": "用户管理",
   "/admin/orders": "订单管理",
   "/admin/stats": "数据统计",

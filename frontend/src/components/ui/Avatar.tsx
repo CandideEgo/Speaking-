@@ -18,8 +18,7 @@ const SIZE: Record<AvatarSize, string> = {
 
 /**
  * Avatar primitive — consolidates the `avatar_url ? <img> : <initial+gradient>`
- * pattern duplicated across TopBar / CommunityFeedWidget / community page /
- * ProfileTab / CommentThread. Renders the user's avatar image via `next/image`
+ * pattern duplicated across TopBar / ProfileTab. Renders the user's avatar image via `next/image`
  * (src routed through `mediaUrl`); falls back to a deterministic gradient +
  * first initial on missing src or load error. Color seed is usually the user
  * id; falls back to name/email so the same user always gets the same color.

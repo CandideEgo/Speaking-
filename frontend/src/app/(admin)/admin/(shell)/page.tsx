@@ -163,7 +163,6 @@ export default function AdminDashboardPage() {
             { href: "/admin/videos", label: "视频管理" },
             { href: "/admin/users", label: "用户管理" },
             { href: "/admin/invites", label: "兑换码管理" },
-            { href: "/admin/community", label: "社区管理" },
             { href: "/admin/orders", label: "订单管理" },
           ].map((l) => (
             <Link

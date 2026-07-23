@@ -32,15 +32,6 @@ export function BentoShowcase() {
             </div>
           </div>
 
-          {/* Community contributions */}
-          <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
-            <div className="text-[13px] text-muted mb-1.5">社区贡献</div>
-            <div>
-              <div className="text-[22px] font-bold tracking-tight text-brand-500">用户提交</div>
-              <div className="text-[13px] text-muted mt-1">真实视频持续积累</div>
-            </div>
-          </div>
-
           {/* Vocabulary */}
           <div className="bg-canvas border border-hairline rounded-xl p-6 flex flex-col justify-between min-h-[180px]">
             <div className="text-[13px] text-muted mb-1.5">词汇本</div>
@@ -78,26 +69,6 @@ export function BentoShowcase() {
             <div className="flex justify-between mt-2 text-[11px] text-muted-soft">
               <span>一月</span>
               <span>十二月</span>
-            </div>
-          </div>
-
-          {/* Community creators */}
-          <div className="sm:col-span-2 md:col-span-2 bg-canvas border border-hairline rounded-xl p-6 flex flex-col min-h-[160px]">
-            <div className="text-[13px] text-muted mb-3">社区创作</div>
-            <div className="flex items-center gap-4">
-              <div className="flex -space-x-2">
-                {["bg-brand-500", "bg-indigo", "bg-success", "bg-warning"].map((color, i) => (
-                  <div
-                    key={i}
-                    className={`w-10 h-10 rounded-full ${color} text-on-primary flex items-center justify-center text-sm font-bold border-2 border-canvas`}
-                  >
-                    {["看", "学", "练", "享"][i]}
-                  </div>
-                ))}
-              </div>
-              <div className="text-[13px] text-muted leading-relaxed">
-                提交你喜欢的视频，经审核后发布到社区，大家一起积累真实语料。
-              </div>
             </div>
           </div>
         </div>

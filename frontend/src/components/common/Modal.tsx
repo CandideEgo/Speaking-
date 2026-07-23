@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 /**
  * Shared modal/dialog shell. Renders a centered overlay with backdrop + a
  * bordered card container. Used by both admin (e.g. video reject dialog) and
- * user-side (e.g. ShareToCommunityDialog) — extracted from the byte-identical
+ * user-side — extracted from the byte-identical
  * chrome that was duplicated across those components.
  */
 export function Modal({

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Play, Check, Zap } from "lucide-react";
+import { ArrowRight, Play, Check } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 
@@ -18,8 +18,7 @@ export function HeroSection() {
               with <em className="not-italic text-brand-500">Real Speech.</em>
             </h1>
             <p className="text-lg text-muted leading-relaxed max-w-[500px] mb-9">
-              粘贴英文视频链接，自动生成双语字幕与生词标注，SM-2
-              间隔复习帮你记住。还能在社区发现、贡献更多真实视频。
+              粘贴英文视频链接，自动生成双语字幕与生词标注，SM-2 间隔复习帮你记住。
             </p>
             <div className="flex gap-3 flex-wrap">
               <LinkButton href="/register" size="lg" icon={ArrowRight} iconRight>
@@ -80,17 +79,6 @@ export function HeroSection() {
               <div>
                 <div className="font-semibold leading-tight">生词 1,240</div>
                 <div className="text-[11px] text-muted">SM-2 间隔复习</div>
-              </div>
-            </div>
-
-            {/* Float card 2 */}
-            <div className="absolute -left-[18px] bottom-[14%] bg-canvas rounded-lg shadow-lift p-3 flex items-center gap-2.5 text-[13px] hidden md:flex">
-              <div className="w-[34px] h-[34px] rounded-[9px] bg-brand-50 text-brand-500 flex items-center justify-center flex-shrink-0">
-                <Zap size={17} />
-              </div>
-              <div>
-                <div className="font-semibold leading-tight">社区创作</div>
-                <div className="text-[11px] text-muted">用户贡献视频</div>
               </div>
             </div>
           </div>

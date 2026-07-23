@@ -42,7 +42,6 @@ function clickSource(): string {
   if (p.startsWith("/browse")) return "browse";
   if (p.startsWith("/search")) return "search";
   if (p.startsWith("/vocabulary")) return "vocabulary";
-  if (p.startsWith("/community")) return "community";
   return "other";
 }
 

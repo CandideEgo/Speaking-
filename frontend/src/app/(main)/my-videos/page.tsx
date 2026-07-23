@@ -3,18 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { toastApiError } from "@/lib/errors";
-import { Loader2, Upload, Plus, PlayCircle, Link2 } from "lucide-react";
+import { Plus, PlayCircle } from "lucide-react";
 
-import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
-import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
-import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
+import { listMyVideos, getMyVideoStatus } from "@/lib/creatorData";
 import { ForkBadge } from "@/components/video/ForkBadge";
 import {
   VIDEO_STATUS_CONFIG,
@@ -34,9 +30,6 @@ export default function MyVideosPage() {
 
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Keep a live ref so the polling interval always reads the latest state
   const videosRef = useRef<Video[]>(videos);
@@ -101,22 +94,6 @@ export default function MyVideosPage() {
     };
   }, [videos, load]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const v = await uploadVideo(file, file.name.replace(/\.[^.]+$/, ""));
-      toast.success("上传成功，正在处理…");
-      setVideos((prev) => [v, ...prev]);
-    } catch (err) {
-      toastApiError(err, "上传失败");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
   }
@@ -127,39 +104,8 @@ export default function MyVideosPage() {
         <PageHeader
           crumb="创作"
           title="创作者中心"
-          description="上传你的视频，编辑字幕与练习题，提交审核后发布到社区。"
+          description="管理你的视频，编辑字幕与练习题，提交审核后发布。"
         />
-
-        {/* Upload */}
-        <div className="bg-canvas border border-hairline rounded-lg p-5 mb-6 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-sm font-semibold">上传新视频</div>
-            <div className="text-xs text-muted mt-0.5">
-              本地上传或从链接导入，系统自动转录翻译并生成练习题
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
-              onChange={handleUpload}
-              className="hidden"
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              variant="outline"
-              icon={uploading ? Loader2 : Upload}
-              className={uploading ? "[&_svg]:animate-spin" : ""}
-            >
-              {uploading ? "上传中…" : "本地上传"}
-            </Button>
-            <Button onClick={() => setLinkDialogOpen(true)} disabled={uploading} icon={Link2}>
-              链接导入
-            </Button>
-          </div>
-        </div>
 
         {/* List */}
         {loading ? (
@@ -235,13 +181,6 @@ export default function MyVideosPage() {
           </div>
         )}
       </div>
-
-      {/* Link import dialog */}
-      <LinkUploadDialog
-        open={linkDialogOpen}
-        onClose={() => setLinkDialogOpen(false)}
-        onImported={load}
-      />
     </main>
   );
 }

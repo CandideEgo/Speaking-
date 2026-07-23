@@ -8,12 +8,9 @@
 
 import { adminApi } from "@/lib/adminApi";
 import type {
-  AdminComment,
   AdminOrder,
-  AdminPost,
   AdminStats,
   AdminUser,
-  CommentReport,
   Paginated,
   RedeemCode,
   Subtitle,
@@ -86,66 +83,6 @@ export async function setUserPlan(
     plan: res.plan as "free" | "pro",
     plan_expires_at: res.plan_expires_at,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Community — Reports
-// ---------------------------------------------------------------------------
-
-export function listReports(
-  opts: {
-    page?: number;
-    page_size?: number;
-    status?: string;
-  } = {}
-): Promise<Paginated<CommentReport>> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.page_size) params.set("page_size", String(opts.page_size));
-  if (opts.status) params.set("status", opts.status);
-  const qs = params.toString();
-  return adminApi<Paginated<CommentReport>>(`/api/v1/admin/reports${qs ? `?${qs}` : ""}`);
-}
-
-export async function resolveReport(
-  id: string,
-  action: "remove" | "dismiss"
-): Promise<{ id: string; status: string }> {
-  return adminApi<{ id: string; status: string }>(`/api/v1/admin/reports/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ action }),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Community — Posts
-// ---------------------------------------------------------------------------
-
-export function listPosts(
-  opts: {
-    page?: number;
-    page_size?: number;
-    keyword?: string;
-  } = {}
-): Promise<Paginated<AdminPost>> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.page_size) params.set("page_size", String(opts.page_size));
-  if (opts.keyword) params.set("keyword", opts.keyword);
-  const qs = params.toString();
-  return adminApi<Paginated<AdminPost>>(`/api/v1/admin/posts${qs ? `?${qs}` : ""}`);
-}
-
-export async function deletePost(id: string): Promise<void> {
-  await adminApi<void>(`/api/v1/admin/posts/${id}`, { method: "DELETE" });
-}
-
-export function listComments(postId: string): Promise<AdminComment[]> {
-  return adminApi<AdminComment[]>(`/api/v1/admin/posts/${postId}/comments`);
-}
-
-export async function deleteComment(id: string): Promise<void> {
-  await adminApi<void>(`/api/v1/admin/comments/${id}`, { method: "DELETE" });
 }
 
 // ---------------------------------------------------------------------------
