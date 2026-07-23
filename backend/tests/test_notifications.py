@@ -1,5 +1,6 @@
 """Tests for the notifications API (/api/v1/notifications)."""
 
+from fastapi import WebSocketDisconnect
 from httpx import AsyncClient
 
 from app.models.notification import Notification
@@ -148,6 +149,51 @@ class TestPreferences:
         )
         resp = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
         assert resp.json()["new_follower"] is False
+
+
+class TestWebSocketPushErrorHandling:
+    """Tests for WebSocket push error handling (Phase 0.1 fix)."""
+
+    async def test_websocket_disconnect_is_silently_cleaned(self, client: AsyncClient, auth_headers: dict):
+        """WebSocketDisconnect should be silently cleaned up without logging."""
+        from app.api.v1.notifications import ConnectionManager, ws_manager
+
+        # Create a mock WebSocket that raises WebSocketDisconnect on send_json
+        class MockWS:
+            async def send_json(self, data):
+                raise WebSocketDisconnect()
+
+        mock_ws = MockWS()
+        ws_manager._connections["test-user"] = [mock_ws]
+
+        # Should not raise — disconnect is silently handled
+        await ws_manager.send_to_user("test-user", {"type": "test"})
+
+        # Connection should be removed
+        assert "test-user" not in ws_manager._connections
+
+    async def test_unexpected_error_is_logged(self, client: AsyncClient, auth_headers: dict, caplog):
+        """Unexpected errors during push should be logged with error details."""
+        from app.api.v1.notifications import ConnectionManager, ws_manager
+
+        class MockWS:
+            async def send_json(self, data):
+                raise ValueError("malformed JSON")
+
+        mock_ws = MockWS()
+        ws_manager._connections["test-user"] = [mock_ws]
+
+        await ws_manager.send_to_user("test-user", {"type": "test"})
+
+        # Connection should be removed
+        assert "test-user" not in ws_manager._connections
+        # Should have logged a warning with error details
+        import logging
+
+        assert any(
+            "unexpected error" in record.message.lower() or "WebSocket push had" in record.message
+            for record in caplog.records
+        )
 
 
 class TestNotificationDedup:

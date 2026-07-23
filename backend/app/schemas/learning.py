@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_serializer
 
-from app.schemas.community import VideoBrief
+from app.schemas.common import VideoBrief
 
 
 class LearningRecordResponse(BaseModel):
