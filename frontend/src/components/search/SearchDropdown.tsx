@@ -175,7 +175,7 @@ export function SearchDropdown({
                           {result.video.title}
                         </p>
                       )}
-                      <p className="text-xs text-olive line-clamp-1 mt-0.5">
+                      <p className="text-xs text-muted line-clamp-1 mt-0.5">
                         <span className="text-muted-foreground font-mono mr-1.5">
                           {formatTime(sub.start_time)}
                         </span>

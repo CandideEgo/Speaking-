@@ -18,7 +18,7 @@ export const SkeletonCard = memo(function SkeletonCard({
     <div
       className={cn(
         "rounded-lg border overflow-hidden",
-        isDouyin ? "border-hairline bg-canvas" : "border-hairline-cream bg-parchment",
+        isDouyin ? "border-hairline bg-canvas" : "border-hairline bg-surface-soft",
         className
       )}
     >
@@ -26,7 +26,7 @@ export const SkeletonCard = memo(function SkeletonCard({
         <div
           className={cn(
             "absolute inset-0 skeleton-shimmer",
-            isDouyin ? "bg-surface-card" : "bg-cream-soft"
+            isDouyin ? "bg-surface-card" : "bg-surface-soft"
           )}
         />
       </div>
@@ -34,26 +34,26 @@ export const SkeletonCard = memo(function SkeletonCard({
         <div
           className={cn(
             "h-4 skeleton-shimmer rounded-sm w-[92%]",
-            isDouyin ? "bg-surface-card" : "bg-cream-soft"
+            isDouyin ? "bg-surface-card" : "bg-surface-soft"
           )}
         />
         <div
           className={cn(
             "h-4 skeleton-shimmer rounded-sm w-[70%]",
-            isDouyin ? "bg-surface-card" : "bg-cream-soft"
+            isDouyin ? "bg-surface-card" : "bg-surface-soft"
           )}
         />
         <div className="flex items-center gap-2 pt-1">
           <div
             className={cn(
               "h-5 skeleton-shimmer rounded-sm w-16",
-              isDouyin ? "bg-surface-card" : "bg-cream-soft"
+              isDouyin ? "bg-surface-card" : "bg-surface-soft"
             )}
           />
           <div
             className={cn(
               "h-5 skeleton-shimmer rounded-sm w-12",
-              isDouyin ? "bg-surface-card" : "bg-cream-soft"
+              isDouyin ? "bg-surface-card" : "bg-surface-soft"
             )}
           />
         </div>

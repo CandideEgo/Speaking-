@@ -73,7 +73,7 @@ export default function SubtitleModeTabs({
             compact && "px-2",
             subtitleMode === m.key
               ? "bg-coral/10 text-coral shadow-sm"
-              : "text-muted-foreground hover:text-ink hover:bg-cream-soft"
+              : "text-muted-foreground hover:text-ink hover:bg-surface-soft"
           )}
           title={compact ? m.label : undefined}
         >
@@ -85,7 +85,7 @@ export default function SubtitleModeTabs({
       {onToggleCollapse && (
         <button
           onClick={onToggleCollapse}
-          className="ml-auto flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-ink hover:bg-cream-soft transition-colors duration-150 cursor-pointer"
+          className="ml-auto flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
           title={collapsed ? "展开字幕面板" : "收起为字幕轨"}
           aria-label={collapsed ? "展开字幕面板" : "收起为字幕轨"}
         >
@@ -119,7 +119,7 @@ export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
             "w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 cursor-pointer",
             subtitleMode === m.key
               ? "bg-coral/10 text-coral"
-              : "text-muted-foreground hover:text-ink hover:bg-cream-soft"
+              : "text-muted-foreground hover:text-ink hover:bg-surface-soft"
           )}
           title={m.label}
           aria-label={m.label}
@@ -129,7 +129,7 @@ export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
       ))}
       <button
         onClick={onExpand}
-        className="mt-1 w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-ink hover:bg-cream-soft transition-colors duration-150 cursor-pointer"
+        className="mt-1 w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
         title="展开字幕面板"
         aria-label="展开字幕面板"
       >

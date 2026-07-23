@@ -61,10 +61,10 @@ export default function HistoryPage() {
                 <Link
                   key={record.id}
                   href={`/watch/${record.video_id}`}
-                  className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-cream-soft transition-colors"
+                  className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-surface-soft transition-colors"
                 >
                   {/* Thumbnail */}
-                  <div className="relative h-12 w-20 rounded-md bg-cream-card overflow-hidden flex-shrink-0">
+                  <div className="relative h-12 w-20 rounded-md bg-surface-card overflow-hidden flex-shrink-0">
                     <Image
                       src={record.video?.thumbnail_url}
                       alt=""
@@ -94,7 +94,7 @@ export default function HistoryPage() {
                   {/* Progress */}
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="w-20">
-                      <div className="h-1.5 rounded-full bg-cream-card">
+                      <div className="h-1.5 rounded-full bg-surface-card">
                         <div
                           className="h-full rounded-full bg-coral transition-all"
                           style={{

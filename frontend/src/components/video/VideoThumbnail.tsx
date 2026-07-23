@@ -58,7 +58,7 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   );
 
   return (
-    <div className={cn("relative overflow-hidden bg-cream-soft", aspect, className)}>
+    <div className={cn("relative overflow-hidden bg-surface-soft", aspect, className)}>
       <Image src={url} alt={title} fill fallback={placeholder} />
 
       {duration && duration > 0 && (

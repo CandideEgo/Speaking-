@@ -284,7 +284,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
               <li key={notification.id}>
                 <button
                   onClick={() => handleNotificationClick(notification)}
-                  className={`w-full text-left px-4 py-3 hover:bg-cream-soft transition-colors ${
+                  className={`w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors ${
                     !notification.is_read ? "bg-coral/5" : ""
                   }`}
                 >

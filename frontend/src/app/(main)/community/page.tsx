@@ -310,7 +310,7 @@ export default function CommunityPage() {
                   return (
                     <div
                       key={post.id}
-                      className="bg-canvas border border-hairline rounded-lg p-[18px] mb-3.5 hover:border-surface-cream-strong transition-colors duration-150"
+                      className="bg-canvas border border-hairline rounded-lg p-[18px] mb-3.5 hover:border-surface-strong transition-colors duration-150"
                     >
                       {/* Author header */}
                       <div className="flex items-center gap-2.5 mb-3">

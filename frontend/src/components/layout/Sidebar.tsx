@@ -87,7 +87,7 @@ function NavLink({
       className={cn(
         "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium",
         "transition-colors duration-150",
-        isActive ? "bg-ink text-canvas" : "text-olive hover:bg-surface-card hover:text-ink",
+        isActive ? "bg-ink text-canvas" : "text-muted hover:bg-surface-card hover:text-ink",
         collapsed && "justify-center px-2"
       )}
     >
@@ -193,7 +193,7 @@ function SidebarNavContent({
             onNavClick?.();
           }}
           className={cn(
-            "mt-2.5 flex items-center gap-3 rounded-sm text-sm font-medium text-olive hover:bg-surface-card hover:text-ink transition-colors duration-150",
+            "mt-2.5 flex items-center gap-3 rounded-sm text-sm font-medium text-muted hover:bg-surface-card hover:text-ink transition-colors duration-150",
             collapsed ? "justify-center w-10 h-10 mx-auto" : "w-full px-3 py-2.5"
           )}
           aria-label="退出登录"

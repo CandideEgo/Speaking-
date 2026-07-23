@@ -174,7 +174,7 @@ const SubtitleItem = memo(function SubtitleItem({
       id={`subtitle-${index}`}
       className={cn(
         "group relative rounded-xl transition-all duration-200",
-        isActive ? "bg-cream-card shadow-sm border border-coral/30" : "hover:bg-cream-soft/50"
+        isActive ? "bg-surface-card shadow-sm border border-coral/30" : "hover:bg-surface-soft/50"
       )}
     >
       {/* Main content area */}

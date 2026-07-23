@@ -151,7 +151,7 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => handleInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full h-10 pl-10 pr-4 rounded-md bg-cream-soft border border-hairline
+              className="w-full h-10 pl-10 pr-4 rounded-md bg-surface-soft border border-hairline
                          text-sm text-ink placeholder:text-muted-foreground
                          focus:border-coral focus:outline-none focus:ring-[3px] focus:ring-coral/15
                          transition-colors duration-150"
@@ -197,7 +197,7 @@ export default function SearchPage() {
               {videoResults.map((video) => (
                 <li key={video.id}>
                   <button
-                    className="w-full flex items-center gap-3 px-2 py-2.5 hover:bg-cream-soft rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-2 py-2.5 hover:bg-surface-soft rounded-lg transition-colors text-left"
                     onClick={() => handleVideoClick(video.id)}
                   >
                     <div className="flex-shrink-0 w-24 h-14 rounded overflow-hidden">
@@ -238,7 +238,7 @@ export default function SearchPage() {
                   {result.matching_subtitles.map((sub) => (
                     <button
                       key={sub.id}
-                      className="w-full flex items-start gap-3 px-2 py-2.5 hover:bg-cream-soft rounded-lg transition-colors text-left"
+                      className="w-full flex items-start gap-3 px-2 py-2.5 hover:bg-surface-soft rounded-lg transition-colors text-left"
                       onClick={() => handleVideoClick(result.video.id, sub.start_time)}
                     >
                       <div className="flex-shrink-0 w-20 h-10 rounded overflow-hidden mt-0.5">
@@ -253,7 +253,7 @@ export default function SearchPage() {
                         <p className="text-xs font-medium text-ink line-clamp-1">
                           {result.video.title}
                         </p>
-                        <p className="text-xs text-olive line-clamp-1 mt-0.5">
+                        <p className="text-xs text-muted line-clamp-1 mt-0.5">
                           <span className="text-muted-foreground font-mono mr-1.5">
                             {formatTime(sub.start_time)}
                           </span>

@@ -16,7 +16,7 @@ type Tone =
   | "blue";
 
 const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> = {
-  default: { icon: "bg-cream-soft text-muted", value: "text-ink" },
+  default: { icon: "bg-surface-soft text-muted", value: "text-ink" },
   brand: {
     icon: "bg-brand-50 text-brand-500",
     value: "text-brand-500",

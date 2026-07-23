@@ -83,6 +83,7 @@ export default function HomePage() {
             score: null,
             score_updated_at: null,
             created_at: r.created_at,
+            forked_from: null,
           },
           progress: r.progress_percentage || undefined,
         }))

@@ -102,7 +102,7 @@ export default function OnboardingPage() {
                   className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                     level === l.value
                       ? "border-brand-500 bg-brand-500/5 text-ink"
-                      : "border-hairline text-ink hover:bg-cream-soft"
+                      : "border-hairline text-ink hover:bg-surface-soft"
                   }`}
                 >
                   <span className="font-medium">{l.label}</span>

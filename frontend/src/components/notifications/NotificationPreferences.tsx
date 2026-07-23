@@ -158,7 +158,7 @@ export function NotificationPreferences() {
           return (
             <div key={type.id} className="flex items-center justify-between px-5 py-4">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-cream-soft">
+                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-surface-soft">
                   <type.icon className="h-4 w-4 text-coral" />
                 </div>
                 <div>

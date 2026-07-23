@@ -49,7 +49,7 @@ export function LandingNav() {
             <a
               key={link.href}
               href={link.href}
-              className="text-[13px] font-semibold text-olive hover:text-ink transition-colors duration-150"
+              className="text-[13px] font-semibold text-muted hover:text-ink transition-colors duration-150"
             >
               {link.label}
             </a>
@@ -93,7 +93,7 @@ export function LandingNav() {
             <a
               key={link.href}
               href={link.href}
-              className="block py-2.5 text-sm font-semibold text-olive hover:text-ink"
+              className="block py-2.5 text-sm font-semibold text-muted hover:text-ink"
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}

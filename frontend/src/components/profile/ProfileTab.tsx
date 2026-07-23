@@ -265,7 +265,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">会员</label>
         <span
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium ${
-            isPro ? "bg-coral/10 text-coral" : "bg-cream-card text-muted-foreground"
+            isPro ? "bg-coral/10 text-coral" : "bg-surface-card text-muted-foreground"
           }`}
         >
           {isPro ? "Pro 会员" : "免费用户"}

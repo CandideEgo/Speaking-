@@ -8,6 +8,7 @@ import { NotificationPreferences } from "@/components/notifications/Notification
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { FormField } from "@/components/ui/FormField";
 import type { User } from "@/types";
 
 interface SettingsTabProps {
@@ -68,8 +69,7 @@ function PasswordChangeForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">修改密码</h3>
-      <div>
-        <label className="block text-sm font-medium text-ink mb-1">当前密码</label>
+      <FormField label="当前密码">
         <Input
           type="password"
           value={currentPassword}
@@ -77,9 +77,8 @@ function PasswordChangeForm() {
           required
           className="w-full max-w-md"
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-ink mb-1">新密码</label>
+      </FormField>
+      <FormField label="新密码">
         <Input
           type="password"
           value={newPassword}
@@ -88,9 +87,8 @@ function PasswordChangeForm() {
           minLength={8}
           className="w-full max-w-md"
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-ink mb-1">确认新密码</label>
+      </FormField>
+      <FormField label="确认新密码">
         <Input
           type="password"
           value={confirmPassword}
@@ -99,7 +97,7 @@ function PasswordChangeForm() {
           minLength={8}
           className="w-full max-w-md"
         />
-      </div>
+      </FormField>
       <Button type="submit" disabled={saving}>
         {saving ? "修改中..." : "修改密码"}
       </Button>
