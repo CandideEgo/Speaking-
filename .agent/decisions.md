@@ -155,3 +155,14 @@
 **Decision**: B
 **Reason**: Manual word_levels overrides are the result of admin review time — far more valuable than auto-computed baseline. ECDICT updates are rare (annual CET syllabus changes); when they happen, a targeted backfill script is more appropriate than always-recomputing on every re-run.
 **Trade-offs**: If ECDICT is updated and a video is re-processed for other reasons, the old word_levels remain. This is acceptable — the backfill script `recompute_word_levels` handles bulk updates when needed.
+
+---
+
+## 2026-07-24 - ADR-0012: Cut social community UGC, pivot to AI learning plan
+
+**Problem**: Social community UGC doesn't solve the core English-learning problem (find content / understand video / remember vocab / sustain learning), yet brings moderation cost + system complexity (6 tables, 4 notification triggers, admin review block, creator center, propose-back PRs).
+**Options**: A) Keep investing in community; B) Cut social community, keep VideoLike (feeds recommendation + watch-page like button), pivot to AI LearningPlan
+**Decision**: B
+**Reason**: Community doesn't serve the learning loop (goal -> plan -> watch -> vocab -> practice -> review -> adjust). The real long-term capability loop is AI-driven learning plans + spaced repetition, not social UGC. VideoLike kept because it feeds recommendation like_count / is_featured and the watch-page like button at near-zero ops cost.
+**Trade-offs**: Sunk cost (Phase 4 community alignment, actor-aware dedup's community triggers) discarded; dedup mechanism retained for non-community notifications. 6 tables dropped (irreversible - pg_dump backup taken); video_likes + Video UGC columns kept dormant to reduce irreversibility. comment_service (video comment quality scoring) retained - independent of social community.
+**ADR**: [0012](docs/adr/0012-cut-community-ugc-pivot-to-learning-plan.md)
