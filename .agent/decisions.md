@@ -105,3 +105,53 @@
 **Decision**: C
 **Reason**: "Alice liked your post" and "Bob liked your post" are distinct events; only same-actor repeats should merge
 **Trade-offs**: Non-atomic check-then-insert (rare concurrent duplicates possible), but avoids row-level locking on a high-write table; notifications are low-stakes so occasional duplicates are acceptable
+
+---
+
+## 2026-07-23 — Quality safety net: fail-fast vs fail-through
+
+**Problem**: Transcription/translation quality issues silently enter production (repetition hallucination, empty translations, lost word_levels on re-run)
+**Options**: A) Fail-fast (mark video error, stop pipeline); B) Fail-through (log warning, continue with degraded content); C) Hybrid (critical issues fail, minor issues warn)
+**Decision**: C
+**Reason**: Hallucination destroys user trust (repetitive nonsense subtitles), so it fails fast. Translation coverage issues may be transient (API rate limit), so they warn but continue — the per-item retry in `_translate_subtitles` may fill gaps on next run. Word_levels are compute-cheap to re-derive but expensive to manually curate, so they must be preserved on re-runs.
+**Trade-offs**: More complex quality gate logic (3 thresholds × 2 actions), but appropriate severity handling for each issue type
+
+---
+
+## 2026-07-23 — Translation retry: exponential backoff vs circuit breaker
+
+**Problem**: Translation APIs intermittently fail (network timeout, 5xx, rate limit)
+**Options**: A) Circuit breaker (stop calling after N failures); B) Exponential backoff per-request (2s → 4s → 8s); C) Concurrent dual-engine with cancellation (already implemented)
+**Decision**: B + C (layered)
+**Reason**: Circuit breakers add complexity (state machine, half-open recovery) for a problem that transient retries solve. Exponential backoff is simple and effective for API hiccups. Concurrent dual-engine (primary + fallback) handles engine-level outages, while per-request retry handles transient network issues within a single engine.
+**Trade-offs**: 3 retries × up to 8s delay adds latency, but only on failure paths; success path is unchanged. Permanent errors (4xx/auth) are detected and not retried.
+
+---
+
+## 2026-07-23 — Fork indicator display strategy: where and why
+
+**Problem**: `forked_from` exists in the data model but users can't tell if a video is forked from a standard version
+**Options**: A) Show everywhere (all video cards, lists, details); B) Show only in admin panel; C) Show in user-facing locations where lineage matters (watch page, my-videos, admin table)
+**Decision**: C
+**Reason**: Fork lineage matters most in three contexts: (1) watch page — learners should know if they're watching a fork or the original; (2) my-videos — creators need to distinguish their forks from originals; (3) admin table — admins managing the standard version ecosystem need visibility. Other locations (homepage feed, search results) don't need the noise — the badge adds cognitive load without value there.
+**Trade-offs**: Inconsistent badge presence across pages, but lower visual noise where lineage is irrelevant. A reusable `ForkBadge` component makes the decision reversible — adding/removing from a page is one line.
+
+---
+
+## 2026-07-23 — Video status response: subtitle_count for resume hint
+
+**Problem**: Admin retrying a failed video doesn't know whether transcription will be skipped
+**Options**: A) Add `subtitle_count` to status response; B) Infer from `processing_step` (unreliable — error paths clear it to null); C) Add a separate `can_resume` boolean
+**Decision**: A
+**Reason**: `processing_step` is unreliable as a resume signal because error paths (watchdog, callback failure) clear it. Subtitle existence in DB is ground truth — if subtitles exist, `retry_video` skips transcription. Exposing the count (not just boolean) lets the UI show "已有 47 条字幕" for richer feedback.
+**Trade-offs**: Extra DB query per status poll, but `count_subtitles` is a cheap indexed query. The alternative (inferring from `processing_step`) would create misleading UI when the step is null.
+
+---
+
+## 2026-07-23 — Word_levels preservation: compute-on-null vs always-recompute
+
+**Problem**: Re-running finalize_video (retry/recover) overwrites manually curated word_levels
+**Options**: A) Always recompute (simple, but destroys manual overrides); B) Compute only when null (preserves overrides, but may miss ECDICT updates); C) Versioned annotation (track ECDICT version, recompute when dictionary updates)
+**Decision**: B
+**Reason**: Manual word_levels overrides are the result of admin review time — far more valuable than auto-computed baseline. ECDICT updates are rare (annual CET syllabus changes); when they happen, a targeted backfill script is more appropriate than always-recomputing on every re-run.
+**Trade-offs**: If ECDICT is updated and a video is re-processed for other reasons, the old word_levels remain. This is acceptable — the backfill script `recompute_word_levels` handles bulk updates when needed.

@@ -6,8 +6,8 @@
 |--------|---------------|
 | `api/v1/*` | REST route handlers, thin layer delegating to services |
 | `services/video_*` | Video CRUD, seeding, review, upload, caching |
-| `services/transcription/*` | WhisperX transcription + wav2vec2 alignment |
-| `services/translation/*` | Pluggable translation (agnes/qwen/hy_mt2/custom) with fallback |
+| `services/transcription/*` | WhisperX transcription + wav2vec2 alignment + **hallucination detection** |
+| `services/translation/*` | Pluggable translation (agnes/qwen/hy_mt2/custom) with fallback + **exponential backoff retry** + **quality gate** |
 | `services/ai_service` | Central AI singleton — translate/enrich/rubric/quiz/prewarm, shared by 6+ callers |
 | `services/vocabulary_service` + `sr_service` | SM-2 spaced repetition + word enrichment |
 | `services/ecdict` + `exam_corpus` | Local exam-level annotation (CET4/6/gaokao), no AI |
@@ -69,9 +69,12 @@ video_processing (finalize) → writes review_status=published directly
 
 - GPU worker MUST NOT access DB or OSS credentials — security boundary enforced by env config, not hard isolation
 - All Redis dependencies MUST fail-open — never block on Redis unavailability
-- UGC videos MUST go through admin review before community feed — **VIOLATED by auto_publish=True hardcode** (see video_seed_service.py:165)
+- UGC videos MUST go through admin review before community feed — **enforced**: auto_publish only fires when `video.auto_publish and video.is_official`; UGC videos have `auto_publish=False`
 - Tailwind v4 is CSS-first — MUST NOT create tailwind.config.js
 - AI calls MUST go through `ai_service.py`, never AsyncOpenAI directly in routes
 - Payment is ICP-compliant disabled — redemption code is the only channel
 - `with_for_update` row locks required for redemption and payment atomicity
 - Notification dedup is non-atomic (check-then-insert) — acceptable trade-off: low-stakes data, avoids contention on high-write table
+- **Transcription quality**: hallucination detection runs at callback time; FAIL marks video error, stopping the pipeline
+- **Translation quality**: quality gate runs after batch translation; WARN logs issues but continues (transient API failures may resolve on retry)
+- **Word_levels preservation**: re-running finalize_video only computes when `word_levels is None`, preserving manual overrides

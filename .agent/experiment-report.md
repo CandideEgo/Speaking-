@@ -89,10 +89,10 @@ AI Coding Agent（如 Claude、GPT）在长期项目开发中存在一个核心�
 
 | Skill | 用途 | 大小 |
 |-------|------|------|
-| `project-context-bootstrap` | 新项目理解 + 上下文建立 | 4.9 KB |
-| `engineering-decision-support` | 工程决策分析 + 权衡 | 2.2 KB |
-| `project-knowledge-maintenance` | 知识维护 + 隐含规则过滤 | 6.2 KB |
-| `knowledge-verification` | 知识漂移检测 + 可信度验证 | 4.7 KB |
+| `context-bootstrap` | 新项目理解 + 上下文建立 | 4.9 KB |
+| `decision-support` | 工程决策分析 + 权衡 | 2.2 KB |
+| `knowledge-maintain` | 知识维护 + 隐含规则过滤 | 6.2 KB |
+| `knowledge-verify` | 知识漂移检测 + 可信度验证 | 4.7 KB |
 
 ### 2.4 .agent/ 目录（项目认知层）
 
@@ -604,7 +604,7 @@ Group B 代码量更多，但多出的是**必要的正确性保障**（actor_id
 
 ## 六、Knowledge Verification 实验结果
 
-在 A/B 实验之前，我们还在同一项目上运行了 knowledge-verification，验证了现有上下文的准确性。
+在 A/B 实验之前，我们还在同一项目上运行了 knowledge-verify，验证了现有上下文的准确性。
 
 ### 6.1 发现的漂移
 
@@ -727,9 +727,9 @@ docs/architecture/SYSTEM-MAP.md 风险项审计结果：
 | 8 | 两条发布路径不一致 | 🟡 中 | ⚠️ 部分 |
 | 9 | 无对账调度 | 🟡 中 | ✅ 已修 |
 | 10 | Mock provider 无生产 guard | 🟡 中 | ✅ 已修 |
-| 11 | WS 推送静默异常 | 🟡 中 | ❌ 未修 |
+| 11 | WS 推送静默异常 |  中 | ❌ 未修 |
 | 12 | run_async RuntimeError fallback | 🟡 中 | ✅ 已修 |
-| 13 | GPU worker env 隔离 | 🟢 低 | ❌ 未修 |
+| 13 | GPU worker env 隔离 | 🟢 低 |  未修 |
 | 14 | vocabulary_service 模块级初始化 | 🟢 低 | ✅ 已修 |
 | 15 | SM-2 interval 反推 | 🟢 低 | ✅ 已修 |
 | 16 | 评论评分关键词匹配 | 🟢 低 | ❌ 未修 |

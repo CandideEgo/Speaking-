@@ -124,7 +124,7 @@ If the hypothesis is wrong:
 | Task too simple (context doesn't matter) | Choose cross-module tasks with non-obvious constraints |
 | Task too hard (both groups fail) | Choose medium-difficulty tasks |
 | Scorer bias | Pre-define scoring criteria; ideally have independent scorer |
-| Context files are stale/wrong | Run knowledge-verification first (already done) |
+| Context files are stale/wrong | Run knowledge-verify first (already done) |
 
 ### Minimum Viable Experiment
 

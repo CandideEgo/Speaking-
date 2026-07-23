@@ -29,23 +29,36 @@ Before major work, read:
 
 .agent/system-map.md
 
+## Knowledge Layers
+
+Knowledge has three layers with distinct, non-overlapping responsibilities:
+
+| Layer | Location | Stores | Does NOT store |
+|-------|----------|--------|----------------|
+| **Architectural** | `.agent/` + `wiki/` (in repo) | Why things are designed this way; module connections; constraints; decisions | Environment-specific operations; deployment state |
+| **Operational** | `memory/` (user-level) | How to operate correctly in this environment; failure modes; user preferences | Architecture understanding; design decisions |
+| **Code** | The codebase itself | What exists; what functions do; what types are used | Why it was designed this way; non-obvious constraints |
+
+**Rule: Knowledge belongs in exactly one layer.** If architectural knowledge exists in .agent/ or wiki/, do not duplicate it in memory/. If code directly expresses something, do not document it in any layer.
+
 ## Knowledge Management Rules
 
 ### MUST (强制执行)
 
-- 修改 ≥3 文件或跨模块变更后，MUST 执行 `/knowledge-maintain` 再提交
+- 跨模块变更后（改动了 ≥2 个 service/模块的接口或行为），MUST 执行 `/knowledge-maintain` 再提交
 - 引入新功能/改架构/选技术/不可逆变更前，MUST 执行 `/decision-support`
 - 每 2 周执行一次 `/knowledge-verify`（或用户请求时）
 
 ### SHOULD (强烈建议)
 
-- 新会话首次进入项目时，SHOULD 执行 `/context-bootstrap`
-- `.agent/state.md` 的 Last Updated 超过 7 天时，SHOULD 执行 `/knowledge-verify`
+- 新会话首次进入项目时，SHOULD 读取 `.agent/` 文件（而非执行 `/context-bootstrap`）
+- `.agent/state.md` 的 Last Updated 超过 14 天时，SHOULD 执行 `/knowledge-verify`
 
 ### NEVER
 
 - NEVER 在不检查 `.agent/decisions.md` 的情况下重做已被记录的决策
 - NEVER 记录不通过 Implicit Knowledge Filter 的知识
+- NEVER 在 memory/ 中重复记录 .agent/ 或 wiki/ 已覆盖的架构知识
 
 ### Implicit Knowledge Filter
 

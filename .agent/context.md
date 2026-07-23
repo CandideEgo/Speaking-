@@ -71,10 +71,14 @@ For service layer details, see wiki/architecture/backend-services.md.
 ## Known Issues
 
 - `InviteCode` → renamed to `RedeemCode` — DONE
-- Community page had availability issues, current status unconfirmed
+- Community page is now functional (PostComposer, CommentThread components exist, communityStore replaced by feedStore+usePaginatedList)
 - docs/architecture/SYSTEM-MAP.md is explicitly marked outdated — `.agent/system-map.md` is the authoritative version
 - E2E test coverage is the only incomplete completion criteria item
 - Notification dedup is non-atomic (check-then-insert) — acceptable for low-stakes notifications, but rare concurrent duplicates possible
+- User model has dead columns `streak_count`/`longest_streak` (no write path after activity_service deletion)
+- ~~Transcription hallucinations silently enter production~~ → **FIXED** (Phase 2: quality check fails fast on callback)
+- ~~Translation API failures cause partial subtitle sets~~ → **FIXED** (Phase 2: exponential backoff retry + per-item fallback)
+- ~~Re-running finalize_video overwrites manual word_levels~~ → **FIXED** (Phase 2: compute-on-null only)
 
 ## Future Agent Notes
 
