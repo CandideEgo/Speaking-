@@ -55,6 +55,8 @@ class VideoResponse(BaseModel):
     score: float | None = None
     score_updated_at: str | None = None
     created_at: str
+    # Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks
+    forked_from: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -280,6 +282,8 @@ class VideoStatusResponse(BaseModel):
     processing_step: str | None = None
     processing_progress: int | None = None
     error_message: str | None = None
+    # Resume hint: number of existing subtitles (non-zero → resume from finalize)
+    subtitle_count: int = 0
 
 
 class VideoAdminStatusResponse(VideoStatusResponse):
@@ -322,6 +326,9 @@ class TranscriptionCallbackRequest(BaseModel):
     status: Literal["ok", "error"]
     segments: list[TranscriptionSegment] | None = None
     error: str | None = None
+    # Audio duration (seconds) from ffprobe, used by the cloud to sanity-check
+    # the transcription timeline and detect hallucinations.
+    audio_duration: float | None = None
 
 
 class SubtitleSnippet(BaseModel):

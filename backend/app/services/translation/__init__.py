@@ -180,76 +180,137 @@ class TranslationService:
         return out
 
     async def _call_engine(
-        self, client: AsyncOpenAI, engine: EngineConfig, texts: list[str]
+        self,
+        client: AsyncOpenAI,
+        engine: EngineConfig,
+        texts: list[str],
+        *,
+        _max_retries: int = 3,
+        _base_delay: float = 2.0,
     ) -> list[str | None] | None:
-        """Call one engine. Returns parsed list or ``None`` on failure."""
+        """Call one engine with exponential-backoff retry.
+
+        Retries on transient failures (network errors, 5xx, timeouts,
+        JSON parse errors). Does NOT retry on permanent errors (4xx,
+        authentication failures, malformed responses that parse but are
+        structurally wrong).
+
+        Args:
+            _max_retries: Maximum retry attempts (default 3).
+            _base_delay: Initial delay in seconds (doubles each retry).
+        """
         payload = json.dumps(texts, ensure_ascii=False)
         system = engine.system_prompt or DEFAULT_TRANSLATION_PROMPT
         user = f"Translate:\n{payload}\nReturn JSON array only."
 
-        try:
-            resp = await client.chat.completions.create(
-                model=engine.model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                temperature=engine.temperature,
-            )
-            raw = resp.choices[0].message.content or ""
-            cleaned = sanitize_json(raw)
-            parsed = json.loads(cleaned)
+        last_exception: Exception | None = None
+        for attempt in range(_max_retries + 1):
+            if attempt > 0:
+                delay = _base_delay * (2 ** (attempt - 1))
+                logger.info(
+                    "Translation retry %d/%d after %.1fs",
+                    attempt,
+                    _max_retries,
+                    delay,
+                    engine=engine.name,
+                    batch_size=len(texts),
+                )
+                await asyncio.sleep(delay)
 
-            if isinstance(parsed, list):
-                if len(parsed) == len(texts):
-                    return self._normalize_translations(parsed)
+            try:
+                resp = await client.chat.completions.create(
+                    model=engine.model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=engine.temperature,
+                )
+                raw = resp.choices[0].message.content or ""
+                cleaned = sanitize_json(raw)
+                parsed = json.loads(cleaned)
 
-                if len(parsed) > len(texts):
-                    # More results than expected — truncate
+                if isinstance(parsed, list):
+                    if len(parsed) == len(texts):
+                        return self._normalize_translations(parsed)
+
+                    if len(parsed) > len(texts):
+                        # More results than expected — truncate
+                        logger.warning(
+                            "Translation result longer than input",
+                            engine=engine.name,
+                            expected=len(texts),
+                            got=len(parsed),
+                        )
+                        return self._normalize_translations(parsed[: len(texts)])
+
+                    # Shorter result — pad missing slots with None instead of
+                    # discarding all valid translations.  The per-item retry in
+                    # _translate_subtitles will attempt to fill the gaps.
                     logger.warning(
-                        "Translation result longer than input",
+                        "Translation result shorter than input, padding with None",
                         engine=engine.name,
                         expected=len(texts),
                         got=len(parsed),
                     )
-                    return self._normalize_translations(parsed[: len(texts)])
+                    normalized = self._normalize_translations(parsed)
+                    padded = normalized + [None] * (len(parsed) - len(texts))
+                    return padded
 
-                # Shorter result — pad missing slots with None instead of
-                # discarding all valid translations.  The per-item retry in
-                # _translate_subtitles will attempt to fill the gaps.
+                # Not a list at all — don't retry, this is a structural issue
                 logger.warning(
-                    "Translation result shorter than input, padding with None",
+                    "Translation result not a list",
                     engine=engine.name,
-                    expected=len(texts),
-                    got=len(parsed),
+                    got_type=type(parsed).__name__,
                 )
-                normalized = self._normalize_translations(parsed)
-                padded = normalized + [None] * (len(texts) - len(parsed))
-                return padded
+                return None
 
-            # Not a list at all
-            logger.warning(
-                "Translation result not a list",
-                engine=engine.name,
-                got_type=type(parsed).__name__,
-            )
-            return None
+            except json.JSONDecodeError as exc:
+                last_exception = exc
+                logger.warning(
+                    "Translation JSON parse error (attempt %d/%d)",
+                    attempt + 1,
+                    _max_retries + 1,
+                    engine=engine.name,
+                    error=str(exc),
+                    raw_preview=raw[:200] if "raw" in dir() else "",
+                )
+                # JSON parse errors are retryable (often transient model glitches)
+                continue
+            except Exception as exc:
+                last_exception = exc
+                # Classify: 4xx / auth errors are permanent; others are retryable
+                is_permanent = False
+                if hasattr(exc, "status_code") and 400 <= exc.status_code < 500:
+                    is_permanent = True
+                elif "authentication" in str(exc).lower() or "api key" in str(exc).lower():
+                    is_permanent = True
 
-        except json.JSONDecodeError as exc:
-            logger.warning(
-                "Translation JSON parse error",
-                engine=engine.name,
-                error=str(exc),
-                raw_preview=raw[:200] if "raw" in dir() else "",
-            )
-            return None
-        except Exception as exc:
-            logger.warning(
-                "Translation engine call failed",
-                engine=engine.name,
-                error=str(exc),
-            )
-            return None
+                if is_permanent:
+                    logger.warning(
+                        "Translation engine permanent error (no retry)",
+                        engine=engine.name,
+                        error=str(exc),
+                    )
+                    return None
+
+                logger.warning(
+                    "Translation engine call failed (attempt %d/%d)",
+                    attempt + 1,
+                    _max_retries + 1,
+                    engine=engine.name,
+                    error=str(exc),
+                )
+                continue
+
+        # Exhausted all retries
+        logger.error(
+            "Translation engine exhausted all retries",
+            engine=engine.name,
+            attempts=_max_retries + 1,
+            last_error=str(last_exception) if last_exception else None,
+        )
+        return None
 
     @staticmethod
     def _resolve_engine(name: str, settings) -> EngineConfig:

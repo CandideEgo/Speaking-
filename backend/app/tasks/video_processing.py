@@ -37,7 +37,7 @@ def _find_local_raw(video_id: str) -> str | None:
     return None
 
 
-async def _translate_subtitles(texts: list[str]) -> list[str | None]:
+async def _translate_subtitles(texts: list[str], video_id: str | None = None) -> list[str | None]:
     """Translate subtitle texts in batches using TranslationService.
 
     Uses the pluggable TranslationService (with engine selection + fallback)
@@ -45,8 +45,12 @@ async def _translate_subtitles(texts: list[str]) -> list[str | None]:
 
     After the main batch pass, retries individual None entries with
     single-item batches to maximize fill rate.
+
+    Phase 2: quality gate runs after translation to detect common issues
+    (low coverage, mixed CJK/Latin, suspiciously short translations).
     """
     from app.services.translation import get_translation_service
+    from app.services.translation.quality import check_translation_quality, log_translation_quality
 
     service = get_translation_service()
     results: list[str | None] = [None] * len(texts)
@@ -72,6 +76,17 @@ async def _translate_subtitles(texts: list[str]) -> list[str | None]:
             retry = await service.translate_batch([texts[idx]])
             if retry and retry[0] is not None:
                 results[idx] = retry[0]
+
+    # Phase 2: translation quality gate
+    quality_report = check_translation_quality(texts, results)
+    if video_id:
+        log_translation_quality(video_id, quality_report)
+    if not quality_report.passed:
+        logger.warning(
+            "Translation quality issues detected but continuing pipeline",
+            video_id=video_id,
+            issues=quality_report.issues,
+        )
 
     return results
 
@@ -298,6 +313,8 @@ def _post_transcription_callback(
             else None
         ),
         "error": error,
+        # Phase 2: forward audio duration for hallucination detection
+        "audio_duration": segments[-1].get("end") if segments and status == "ok" else None,
     }
     headers = {"X-Callback-Secret": settings.transcription_callback_secret}
     max_retries = settings.transcription_callback_max_retries
@@ -430,7 +447,7 @@ def finalize_video(self, video_id: str):
                     # root cause of "some subtitles translated, some not").
                     indexed = [(i, s.text_en) for i, s in enumerate(sub_rows) if s.text_en]
                     texts = [t for _, t in indexed]
-                    translated = await _translate_subtitles(texts)
+                    translated = await _translate_subtitles(texts, video_id=video.id)
                     for j, t in enumerate(translated):
                         if t:
                             sub_rows[indexed[j][0]].text_zh = t
@@ -447,14 +464,31 @@ def finalize_video(self, video_id: str):
                 # (lemma -> exam level keys) once, level-agnostic, so the watch
                 # page can filter by the user's target exam at display time.
                 # Skipped gracefully when the ECDICT db is absent (word_levels null).
+                # Phase 2: preserve existing word_levels — only compute when null.
+                # This protects manual overrides (admin review) and re-translation
+                # scenarios where text_en didn't change but the pipeline re-ran.
                 if not await is_step_done(video_id, "annotating"):
                     if ecdict.is_available():
                         ann_result = await db.execute(
                             select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
                         )
+                        annotated_count = 0
+                        preserved_count = 0
                         for s in ann_result.scalars().all():
+                            if s.word_levels is not None:
+                                # Preserve existing annotation (manual override or prior compute)
+                                preserved_count += 1
+                                continue
                             levels = ecdict.annotate_text(s.text_en)
                             s.word_levels = levels or None
+                            annotated_count += 1
+                        if preserved_count > 0:
+                            logger.info(
+                                "Video %s: preserved %d existing word_levels, annotated %d new",
+                                video_id,
+                                preserved_count,
+                                annotated_count,
+                            )
                         video.processing_step = "annotating"
                         video.processing_progress = 72
                         await db.commit()
@@ -562,9 +596,9 @@ def finalize_video(self, video_id: str):
                 # always stay in draft after processing so the creator can
                 # edit subtitles/practice before submitting for admin review.
                 if video.auto_publish and not video.is_published and video.is_official:
-                    video.is_published = True
-                    video.review_status = VideoReviewStatus.published.value
-                    await db.commit()
+                    from app.services.video_publish import _publish_video
+
+                    await _publish_video(db, video, reviewed_by="system:auto_publish")
                     try:
                         from app.services.video_cache import invalidate_browse_cache
 

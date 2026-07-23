@@ -12,6 +12,7 @@ Covers:
 - UGC submissions always stay in draft (auto_publish=False).
 """
 
+import os
 from unittest.mock import patch
 
 from httpx import AsyncClient
@@ -197,6 +198,85 @@ class TestWorkerStatus:
             )
         assert resp.status_code == 200
         assert resp.json()["worker_online"] is False
+
+
+class TestGPUWorkerSecurity:
+    """Tests for GPU worker security guard (Phase 0.2)."""
+
+    async def test_gpu_worker_refuses_with_database_url(self):
+        """GPU worker should refuse to start if DATABASE_URL is set."""
+        import subprocess
+        import sys
+
+        env = os.environ.copy()
+        env["DATABASE_URL"] = "postgresql://fake:fake@localhost/db"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import os, sys; os.environ['DATABASE_URL']='postgresql://fake:fake@localhost/db'; "
+                "from scripts.start_gpu_worker import _security_guard; _security_guard()",
+            ],
+            capture_output=True,
+            text=True,
+            cwd="C:/Users/Administrator/Speaking/backend",
+            env=env,
+        )
+        assert result.returncode == 1
+        assert "SECURITY" in result.stderr
+        assert "DATABASE_URL" in result.stderr
+
+    async def test_gpu_worker_refuses_with_oss_credentials(self):
+        """GPU worker should refuse to start if OSS credentials are set."""
+        import subprocess
+        import sys
+
+        env = os.environ.copy()
+        env["OSS_ACCESS_KEY"] = "fake-access-key"
+        env["OSS_SECRET_KEY"] = "fake-secret-key"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import os; os.environ['OSS_ACCESS_KEY']='fake'; os.environ['OSS_SECRET_KEY']='fake'; "
+                "from scripts.start_gpu_worker import _security_guard; _security_guard()",
+            ],
+            capture_output=True,
+            text=True,
+            cwd="C:/Users/Administrator/Speaking/backend",
+            env=env,
+        )
+        assert result.returncode == 1
+        assert "SECURITY" in result.stderr
+        assert "OSS_ACCESS_KEY" in result.stderr
+
+    async def test_gpu_worker_starts_without_forbidden_vars(self):
+        """GPU worker should start normally when no forbidden vars are set."""
+        import subprocess
+        import sys
+
+        env = os.environ.copy()
+        # Remove any forbidden vars that might be set
+        for key in ["DATABASE_URL", "OSS_ACCESS_KEY", "OSS_SECRET_KEY"]:
+            env.pop(key, None)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import os; [os.environ.pop(k, None) for k in ['DATABASE_URL', 'OSS_ACCESS_KEY', 'OSS_SECRET_KEY']]; "
+                "from scripts.start_gpu_worker import _security_guard; _security_guard(); print('PASS')",
+            ],
+            capture_output=True,
+            text=True,
+            cwd="C:/Users/Administrator/Speaking/backend",
+            env=env,
+        )
+        assert result.returncode == 0
+        assert "PASS" in result.stdout
+        assert "SECURITY" not in result.stderr
 
 
 class TestAutoPublishSyncsReviewStatus:

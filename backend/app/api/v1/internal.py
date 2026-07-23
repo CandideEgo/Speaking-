@@ -18,6 +18,7 @@ from app.core.logging import get_logger
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.video import TranscriptionCallbackRequest
+from app.services.transcription.quality import check_transcription_quality, log_quality_report
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -122,6 +123,22 @@ async def transcription_callback(
         # rows behind), keep the existing set rather than wiping them —
         # deleting would discard any already-translated rows.
         segments = payload.segments or []
+
+        # --- Phase 2: hallucination detection ---
+        # Run quality checks before persisting. If critical issues are found,
+        # mark the video as error so an admin can re-trigger transcription.
+        quality_report = check_transcription_quality(segments, audio_duration=payload.audio_duration)
+        log_quality_report(payload.video_id, quality_report)
+
+        if not quality_report.passed:
+            video.status = VideoStatus.error
+            video.error_message = (
+                f"Transcription quality check failed: {', '.join(c.detail for c in quality_report.failed_checks)}"
+            )
+            video.processing_step = None
+            await db.commit()
+            return {"acknowledged": True, "quality_check": "failed"}
+
         existing = await db.scalar(
             select(func.count()).select_from(Subtitle).where(Subtitle.video_id == payload.video_id)
         )
