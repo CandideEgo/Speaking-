@@ -19,7 +19,6 @@ from app.api.v1 import (
     behavior,
     browse,
     comments,
-    community,
     favorites,
     internal,
     learning,
@@ -234,7 +233,6 @@ def create_app() -> FastAPI:
     app.include_router(practice.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
-    app.include_router(community.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")

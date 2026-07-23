@@ -211,7 +211,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=123",
+                related_url="/videos/123",
                 actor_id="actor-a",
             )
             await db.commit()
@@ -224,7 +224,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=123",
+                related_url="/videos/123",
                 actor_id="actor-a",
             )
             await db.commit()
@@ -243,7 +243,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=123",
+                related_url="/videos/123",
                 actor_id="actor-a",
             )
             n2 = await create_notification(
@@ -252,7 +252,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户B 赞了你的帖子",
                 db=db,
-                related_url="/community?post=123",
+                related_url="/videos/123",
                 actor_id="actor-b",
             )
             await db.commit()
@@ -271,7 +271,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=456",
+                related_url="/videos/456",
                 actor_id="actor-a",
             )
             n1.is_read = True
@@ -284,7 +284,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=456",
+                related_url="/videos/456",
                 actor_id="actor-a",
             )
             await db.commit()
@@ -331,7 +331,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="有人 赞了你的帖子",
                 db=db,
-                related_url="/community?post=789",
+                related_url="/videos/789",
             )
             await db.commit()
 
@@ -342,7 +342,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="另一个人 赞了你的帖子",
                 db=db,
-                related_url="/community?post=789",
+                related_url="/videos/789",
             )
             await db.commit()
 
@@ -360,7 +360,7 @@ class TestNotificationDedup:
                 title="收到点赞",
                 message="用户A 赞了你的帖子",
                 db=db,
-                related_url="/community?post=100",
+                related_url="/videos/100",
                 actor_id="actor-xyz",
             )
             await db.commit()

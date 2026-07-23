@@ -26,9 +26,6 @@ app/services/comment_service.py:arg-type
 app/services/comment_service.py:assignment
 app/services/comment_service.py:return-value
 app/services/comment_service.py:union-attr
-app/services/community_service.py:arg-type
-app/services/community_service.py:attr-defined
-app/services/community_service.py:misc
 app/services/oss_service.py:no-any-return
 app/services/practice_service.py:arg-type
 app/services/practice_service.py:no-any-return

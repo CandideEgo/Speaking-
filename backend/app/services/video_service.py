@@ -460,7 +460,6 @@ async def delete_video(db: AsyncSession, video_id: str) -> bool:
 
     # Explicit child-row cleanup for tables lacking ondelete CASCADE.
     # SpeakingAttempt -> subtitle (no ondelete), must go before subtitles.
-    from app.models.community import Post  # local import to avoid cycle risk
     from app.models.learning import SpeakingAttempt, Vocabulary
     from app.models.subtitle import Subtitle
 
@@ -471,7 +470,6 @@ async def delete_video(db: AsyncSession, video_id: str) -> bool:
     await db.execute(delete(Subtitle).where(Subtitle.video_id == video_id))
     await db.execute(delete(LearningRecord).where(LearningRecord.video_id == video_id))
     await db.execute(delete(Vocabulary).where(Vocabulary.video_id == video_id))
-    await db.execute(delete(Post).where(Post.video_id == video_id))
 
     # Remove the video row (comments/comment_stats cascade via ORM).
     await db.delete(video)

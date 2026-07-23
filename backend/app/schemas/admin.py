@@ -28,10 +28,6 @@ class AdminUserPlanRequest(BaseModel):
     duration_days: int = Field(default=30, ge=1, le=3650)
 
 
-class AdminReportResolveRequest(BaseModel):
-    action: Literal["remove", "dismiss"]
-
-
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -58,8 +54,6 @@ class AdminStatsResponse(BaseModel):
     total_videos: int
     videos_ready: int
     total_vocabulary: int
-    total_posts: int
-    pending_reports: int
     active_users_today: int
     active_users_7d: int
     # Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2)
@@ -92,7 +86,6 @@ class AdminUserResponse(BaseModel):
     # speaking_attempts intentionally omitted — AI speaking scoring removed
     # (ADR-0002/0003); the SpeakingAttempt table is frozen.
     videos_watched: int = 0
-    posts_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -102,55 +95,6 @@ class AdminUserResponse(BaseModel):
 
     # field_validators run before model_validation, so we use mode="before"
     # on datetime fields that come from SQLAlchemy model attributes.
-
-
-class AdminPostResponse(BaseModel):
-    id: str
-    content: str
-    post_type: str
-    like_count: int = 0
-    comment_count: int = 0
-    user_name: str | None = None
-    user_avatar_url: str | None = None
-    user_level: str | None = None
-    user_id: str
-    author_phone: str | None = None
-    is_pinned: bool = False  # Not a DB field; always false for now
-    is_liked: bool = False  # Not relevant for admin view
-    report_count: int = 0
-    created_at: str
-
-    model_config = {"from_attributes": True}
-
-
-class AdminCommentResponse(BaseModel):
-    id: str
-    post_id: str
-    content: str
-    user_id: str
-    user_name: str | None = None
-    user_avatar_url: str | None = None
-    created_at: str
-    is_deleted: bool = False  # Not a DB column; always false (comments are hard-deleted)
-
-    model_config = {"from_attributes": True}
-
-
-class AdminReportResponse(BaseModel):
-    id: str
-    comment_id: str
-    comment_content: str
-    comment_author_name: str | None = None
-    reporter_id: str
-    reporter_name: str | None = None
-    reason: str
-    status: str
-    created_at: str
-    # Denormalized parent post info for context
-    post_id: str | None = None
-    post_snippet: str | None = None
-
-    model_config = {"from_attributes": True}
 
 
 class AdminOrderResponse(BaseModel):

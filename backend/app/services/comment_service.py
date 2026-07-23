@@ -299,7 +299,7 @@ class CommentService:
         if video:
             video.comment_quality_score = overall_score
             # Note: do NOT overwrite video.comment_count here — that column
-            # tracks community comments and is managed by community_service.
+            # dormant (the social community was removed per ADR-0012).
             # The YouTube comment count is len(comments) but is not stored
             # separately at this time.
 

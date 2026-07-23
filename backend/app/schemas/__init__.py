@@ -11,20 +11,8 @@ from app.schemas.comment import (
     VideoWithCommentScoreResponse,
 )
 
-# ── 社区 ──
+# ── 通用 ──
 from app.schemas.common import UserProfileBrief
-from app.schemas.community import (
-    CommentCreate as CommunityCommentCreate,
-)
-from app.schemas.community import (
-    CommentResponse as CommunityCommentResponse,
-)
-from app.schemas.community import (
-    FollowResponse,
-    PostCreate,
-    PostResponse,
-    ReportCreate,
-)
 
 # ── 学习记录 ──
 from app.schemas.learning import (
