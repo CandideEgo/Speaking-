@@ -21,6 +21,7 @@ import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
+import { ForkBadge } from "@/components/video/ForkBadge";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { levelMeta, shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
@@ -225,7 +226,7 @@ export default function WatchPage() {
           <p className="mt-4 text-ink">{stepLabel}</p>
           <p className="mt-1 text-sm text-muted">视频下载和转码需要几分钟，请稍候</p>
           {video.status === "ready_subtitles" && (
-            <p className="mt-2 text-xs text-accent-teal">字幕已就绪，视频处理中...</p>
+            <p className="mt-2 text-xs text-success">字幕已就绪，视频处理中...</p>
           )}
         </div>
       </main>
@@ -335,6 +336,12 @@ export default function WatchPage() {
             <Bookmark size={11} className={cn(isFavorited && "fill-current text-brand-500")} />
             {video.favorite_count}
           </span>
+          {video.forked_from && (
+            <>
+              <span>·</span>
+              <ForkBadge forkedFrom={video.forked_from} />
+            </>
+          )}
         </div>
 
         {/* 笔记抽屉 */}

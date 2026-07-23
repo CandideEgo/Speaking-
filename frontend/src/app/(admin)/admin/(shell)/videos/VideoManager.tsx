@@ -8,6 +8,7 @@ import { Loader2, Pencil, Plus, RefreshCw, Video as VideoIcon, X } from "lucide-
 
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
+import { ForkBadge } from "@/components/video/ForkBadge";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { SectionCard } from "@/components/admin/SectionCard";
@@ -418,6 +419,7 @@ export default function VideoManager() {
                       精选
                     </Badge>
                   )}
+                  {v.forked_from && <ForkBadge forkedFrom={v.forked_from} size="sm" />}
                 </div>
               </td>
               <td className="py-3 pr-4 text-muted-foreground">

@@ -50,6 +50,8 @@ export interface Video {
   score: number | null;
   score_updated_at: string | null;
   created_at: string;
+  /** Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks */
+  forked_from: string | null;
 }
 
 export interface VideoAdmin extends Video {

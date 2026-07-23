@@ -15,6 +15,7 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { listMyVideos, uploadVideo, getMyVideoStatus } from "@/lib/creatorData";
 import { LinkUploadDialog } from "@/components/creator/LinkUploadDialog";
+import { ForkBadge } from "@/components/video/ForkBadge";
 import {
   VIDEO_STATUS_CONFIG,
   STEP_LABELS_SHORT,
@@ -205,7 +206,10 @@ export default function MyVideosPage() {
                     </span>
                   </div>
                   <div className="p-3.5">
-                    <p className="text-sm font-semibold line-clamp-1">{v.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold line-clamp-1 flex-1">{v.title}</p>
+                      {v.forked_from && <ForkBadge forkedFrom={v.forked_from} size="sm" />}
+                    </div>
                     <p className="text-xs text-muted mt-1">
                       {s === "pending_processing"
                         ? "等待管理员启动处理"

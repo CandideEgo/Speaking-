@@ -299,6 +299,26 @@ export function VideoDetailRow({
                 {video.error_message}
               </div>
             )}
+            {/* Resume hint: if subtitles exist, retry will skip transcription */}
+            {video.processing_step &&
+              (video.processing_step === "transcribing" ||
+                video.processing_step === "extracting") && (
+                <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+                  重新处理时将从转录步骤开始（无字幕缓存）
+                </div>
+              )}
+            {video.processing_step &&
+              video.processing_step !== "transcribing" &&
+              video.processing_step !== "extracting" && (
+                <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+                  重新处理将从转录后的步骤继续（已有字幕缓存，无需重新转录）
+                </div>
+              )}
+            {!video.processing_step && (
+              <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+                重新处理将从转录步骤开始（无字幕缓存）
+              </div>
+            )}
             <Button
               type="button"
               variant="secondary"
