@@ -2,7 +2,7 @@
 
 ## Purpose
 
-AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, annotates exam-level vocabulary (CET/gaokao) via ECDICT, and drives SM-2 spaced repetition review + community UGC. Speaking recording is playback-only (no AI scoring — ADR-0002).
+AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, annotates exam-level vocabulary (CET/gaokao) via ECDICT, and drives SM-2 spaced repetition review. Speaking recording is playback-only (no AI scoring — ADR-0002).
 
 ## System Understanding
 
@@ -71,7 +71,6 @@ For service layer details, see wiki/architecture/backend-services.md.
 ## Known Issues
 
 - `InviteCode` → renamed to `RedeemCode` — DONE
-- Community page is now functional (PostComposer, CommentThread components exist, communityStore replaced by feedStore+usePaginatedList)
 - docs/architecture/SYSTEM-MAP.md is explicitly marked outdated — `.agent/system-map.md` is the authoritative version
 - E2E test coverage is the only incomplete completion criteria item
 - Notification dedup is non-atomic (check-then-insert) — acceptable for low-stakes notifications, but rare concurrent duplicates possible
@@ -84,7 +83,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 
 - AI calls must go through `ai_service.py`, never AsyncOpenAI directly in routes
 - Dark mode: `.dark` variable block cascades entire site, new components auto-support
-- 5 Zustand stores: authStore, adminAuthStore, feedStore (replaces communityStore per ADR-0011), watchStore, vocabularyStore
+- 5 Zustand stores: authStore, adminAuthStore, feedStore (recommendation feed per ADR-0011), watchStore, vocabularyStore
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
 - ECDICT database ~30MB, downloaded via scripts, in `.gitignore`
@@ -114,7 +113,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 | 术语 | 含义 | 注意 |
 |------|------|------|
 | **Official 视频** | 管理员 seed 的官方视频（`is_official=True`），出现在首页/browse | |
-| **UGC 视频** | 用户提交的视频（`is_official=False`），审核后进社区 feed | |
+| **UGC 视频** | `is_official=False` 的视频；用户面 UGC 上传已砍（ADR-0012），列保留 dormant | |
 | **标准版 (Standard Version)** | 某 `source_url` 首个处理至 `ready` 的视频，作为该 URL 共享编辑起点 | 与 `is_official` 正交；UGC 亦可成标准版 |
 | **Fork（副本）** | 从标准版复制一份独立 Video 行（字幕+练习题快照），直接 ready、不触发 GPU | `forked_from` 记溯源 |
 | **提议回写 (Propose-back)** | fork 持有者向标准版提 PR（按批字幕修改）；管理员审/合/驳 | 合并后按行传播到未动该行的 fork |
@@ -172,4 +171,4 @@ For service layer details, see wiki/architecture/backend-services.md.
 - **AI 口语评分**：`speaking_service.py`、`rubrics.py`、`speaking_alignment.py` 已删（ADR-0002）
 - **跟读/Shadowing 模式**：watch 页"跟读"标签 + 首页 chip 已移除（ADR-0002）
 - **口语 streak/目标/统计**：dashboard 口语指标已移除（ADR-0003）
-- **自动 UGC 处理**：保持管理员触发，不自动 dispatch（ADR-0004）
+- **用户面 UGC**：已砍（ADR-0012）；Video.is_official / auto_publish 列保留 dormant；ADR-0004 事实失效

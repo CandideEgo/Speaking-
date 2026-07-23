@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-ADR-0012 实施：砍社区 UGC，转向 AI 学习计划。迁出前置已完成（VideoLike→engagement + video_like_service；发布逻辑→video_publish；schema→common，commit 0c67c6e），测试 433/0。下一步：pg_dump 备份 → 建删表迁移 → 删 6 张社区表 + community 模型/service/API/前端组件 → 同步文档。
+ADR-0012 实施完成：社区 UGC 已砍（6 表 + 后端代码 + 前端 UI 全删），VideoLike 迁出保留，video_likes 表 dormant。DB 迁移 b7c8d9e0f1g2 已应用，测试 409/0，tsc+lint 通过。下一步：转向 AI 学习计划（UserLearningProfile + LearningPlan + LearningEvent/WordMastery），推荐系统 P2。
 
 ## Completed Milestones
 
@@ -39,6 +39,12 @@ ADR-0012 实施：砍社区 UGC，转向 AI 学习计划。迁出前置已完成
   - Subtitle edit history viewer (SubtitleHistory.tsx in VideoSubtitleEditorPanel)
   - Fork indicator on video cards (watch page, my-videos, admin table)
   - Dead User columns dropped (streak_count/longest_streak)
+- **ADR-0012: 砍社区 UGC，转向 AI 学习计划 complete**
+  - 删 6 张社区表（posts/post_likes/user_comments/comment_likes/comment_reports/follows）+ 迁移 b7c8d9e0f1g2
+  - 删后端：community 模型/service/API(15 路由)/schemas/admin 社区字段/community 测试
+  - 删前端：community 组件/页面/导航/营销文案/creator 上传入口
+  - 保留 VideoLike（engagement.py）+ video_likes 表 dormant + comment_service（视频评论评分）
+  - 测试 409/0（-24 删除的 test_community.py）；tsc + lint 0 errors
 
 ## Known Issues
 
@@ -49,15 +55,12 @@ ADR-0012 实施：砍社区 UGC，转向 AI 学习计划。迁出前置已完成
 
 ## Next Steps
 
-1. **ADR-0012 删表主体**：pg_dump 备份 + 建迁移 drop 6 张纯社区表（posts/post_likes/user_comments/comment_likes/comment_reports/follows），保留 video_likes 与 Video UGC 列 dormant
-2. 删后端社区代码：community.py、community_service.py、api/v1/community.py(15 路由)、admin_service 审核、notification 4 个社区触发点（保留 dedup 机制用于非社区通知）
-3. 删前端社区/创作者组件：community/page.tsx、components/community/、components/creator/、导航入口
-4. 同步 .agent 文档反映 ADR-0012 完成
-5. Recommendation system P2 (ADR-0011)
-6. ICP-unblocked items (video storage, payment, frontend unit tests, E2E coverage)
+1. 转向 AI 学习计划（ADR-0012 Decision 3）：UserLearningProfile + AI LearningPlan + LearningEvent/WordMastery 数据闭环，解锁推荐系统 behavior_events P0
+2. Recommendation system P2 (ADR-0011)
+3. ICP-unblocked items (video storage, payment, frontend unit tests, E2E coverage)
 
 ## Last Updated
 
 Date: 2026-07-24
-- Phase 0-3 checkpoint committed (hardening / quality safety net / pipeline resume+fork / frontend design system)
-- ADR-0012 migration prep done (VideoLike + publish logic extracted); table drop pending
+- ADR-0012 complete: 6 community tables dropped (migration b7c8d9e0f1g2) + backend/frontend community code removed
+- Tests 409/0; tsc + lint 0 errors; DB at b7c8d9e0f1g2

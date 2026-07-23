@@ -12,13 +12,13 @@
 | `services/vocabulary_service` + `sr_service` | SM-2 spaced repetition + word enrichment |
 | `services/ecdict` + `exam_corpus` | Local exam-level annotation (CET4/6/gaokao), no AI |
 | `services/payment_provider` + `alipay/wechat/mock` | Multi-provider payment with factory pattern |
-| `services/community_service` + `comment_service` | UGC community + keyword-based comment quality scoring |
+| `services/comment_service` | Video comment quality scoring (keyword-based) |
 | `services/notification_service` | Cross-cutting: DB write + WebSocket push (best-effort) + actor-aware dedup |
 | `tasks/video_processing` | Head/GPU/Tail pipeline + checkpoint resume + watchdog |
 | `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + redemption async |
 | `core/*` | Config, database, redis, security, errors, cache, limiter, logging |
-| `frontend/src/app/(main)/*` | User-facing pages: watch/browse/vocabulary/community/history |
-| `frontend/src/app/(admin)/*` | Admin panel: videos/users/stats/community/invites |
+| `frontend/src/app/(main)/*` | User-facing pages: watch/browse/vocabulary/history |
+| `frontend/src/app/(admin)/*` | Admin panel: videos/users/stats/invites |
 | `frontend/src/stores/*` | 5 Zustand stores: auth, adminAuth, feed, watch, vocabulary |
 | `frontend/src/lib/api.ts` | API client with JWT auto-refresh |
 
@@ -35,8 +35,7 @@ ai_service ←── video pipeline (prewarm)
 transcription/whisper_model ←── video pipeline (GPU worker)
                             ←── speaking_service (alignment)
 
-notification_service ←── community_service (4 triggers)
-                     ←── payment callbacks
+notification_service ←── payment callbacks
                      ←── invite/redeem
                      ←── comment_service
                      (actor-aware dedup: same actor → update, different actors → separate)
