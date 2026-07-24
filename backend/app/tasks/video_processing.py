@@ -620,6 +620,15 @@ def finalize_video(self, video_id: str):
                 except Exception:
                     logger.warning("Video %s: failed to schedule scoring (continuing)", video_id, exc_info=True)
 
+                # Sprint 3: auto-compute CEFR difficulty from subtitle word_levels.
+                # Best-effort — never fails the pipeline.
+                try:
+                    from app.services.difficulty_service import compute_video_difficulty
+
+                    await compute_video_difficulty(db, video_id)
+                except Exception:
+                    logger.warning("Video %s: difficulty computation failed (continuing)", video_id, exc_info=True)
+
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:
                     await _cleanup_oss_raw(video.id, video.source_url)

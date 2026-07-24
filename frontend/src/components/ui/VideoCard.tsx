@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
+import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { cn } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 
@@ -83,12 +84,12 @@ export function VideoCard({
           }
         />
         {video.difficulty_level && (
-          <span
-            className="absolute left-2 top-2 backdrop-blur-sm text-[11px] font-bold text-ink px-2 py-1 rounded-pill"
+          <DifficultyBadge
+            level={video.difficulty_level}
+            size="sm"
+            className="absolute left-2 top-2 backdrop-blur-sm"
             style={{ background: "rgba(255, 255, 255, 0.92)" }}
-          >
-            {video.difficulty_level}
-          </span>
+          />
         )}
         {/* Duration badge */}
         {durationLabel ? (

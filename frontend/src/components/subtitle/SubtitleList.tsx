@@ -15,6 +15,8 @@ interface SubtitleListProps {
   onSubtitleClick: (index: number, startTime: number) => void;
   onWordClick: (word: string) => void;
   onStartSpeaking: (subtitleId: string) => void;
+  /** Words the user is actively learning (Sprint 3 vocab recurrence highlight). */
+  vocabWords?: Set<string>;
 }
 
 /** Parse difficulty_words JSON string into array of words to highlight */
@@ -87,11 +89,13 @@ const HighlightedText = memo(function HighlightedText({
   highlightWords,
   selectedWord,
   onWordClick,
+  vocabWords,
 }: {
   text: string;
   highlightWords: string[];
   selectedWord: string | null;
   onWordClick: (word: string) => void;
+  vocabWords?: Set<string>;
 }) {
   const words = text.split(/(\s+)/);
 
@@ -104,6 +108,7 @@ const HighlightedText = memo(function HighlightedText({
         const cleanWord = word.replace(/[.,!?;:'"()[\]]/g, "").toLowerCase();
         const isHighlighted = highlightWords.includes(cleanWord);
         const isSelected = selectedWord === cleanWord;
+        const isVocab = vocabWords?.has(cleanWord) ?? false;
 
         return (
           <span
@@ -122,10 +127,15 @@ const HighlightedText = memo(function HighlightedText({
             }}
             className={cn(
               "cursor-pointer rounded transition-colors duration-150",
-              isHighlighted && "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-0.5",
-              isSelected && "bg-coral/20 text-coral",
-              !isHighlighted && !isSelected && "hover:bg-coral/10"
+              isSelected
+                ? "bg-coral/20 text-coral"
+                : isVocab
+                  ? "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 px-0.5"
+                  : isHighlighted
+                    ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-0.5"
+                    : "hover:bg-coral/10"
             )}
+            title={isVocab ? "在你的词库中" : undefined}
           >
             {word}
           </span>
@@ -148,6 +158,7 @@ interface SubtitleItemProps {
   onCopy: (subtitleId: string, text: string) => void;
   onFavorite: (subtitleId: string) => void;
   onStartSpeaking: (subtitleId: string) => void;
+  vocabWords?: Set<string>;
 }
 
 const SubtitleItem = memo(function SubtitleItem({
@@ -163,6 +174,7 @@ const SubtitleItem = memo(function SubtitleItem({
   onCopy,
   onFavorite,
   onStartSpeaking,
+  vocabWords,
 }: SubtitleItemProps) {
   const highlightWords = useMemo(
     () => parseDifficultyWords(sub.difficulty_words),
@@ -190,6 +202,7 @@ const SubtitleItem = memo(function SubtitleItem({
               highlightWords={highlightWords}
               selectedWord={selectedWord}
               onWordClick={onWordClick}
+              vocabWords={vocabWords}
             />
           </div>
         </div>
@@ -294,6 +307,7 @@ export default function SubtitleList({
   onSubtitleClick,
   onWordClick,
   onStartSpeaking,
+  vocabWords,
 }: SubtitleListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [favorited, setFavorited] = useState<Set<string>>(new Set());
@@ -380,6 +394,7 @@ export default function SubtitleList({
                 onCopy={handleCopy}
                 onFavorite={handleFavorite}
                 onStartSpeaking={onStartSpeaking}
+                vocabWords={vocabWords}
               />
             ))}
           </div>

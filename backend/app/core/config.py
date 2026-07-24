@@ -187,6 +187,10 @@ class Settings(BaseSettings):
     recommend_consecutive_tag_max: int = 2  # max consecutive same first-topic
     recommend_min_clicks_for_personalization: int = 3  # below this → global sort
     recommend_home_ttl_seconds: int = 60  # Redis cache TTL for home feed
+    # Sprint 3: vocab recurrence boost — max score added to videos containing
+    # words the user is actively learning (mastery_level in learning/reviewing).
+    recommend_vocab_boost_max: float = 5.0
+    recommend_vocab_word_limit: int = 200  # max learning words to consider
 
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"

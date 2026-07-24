@@ -169,6 +169,26 @@ export default function WatchPage() {
     };
   }, [isAuthenticated, setSelectedExamLevel]);
 
+  // Sprint 3: Load the user's actively-learning vocabulary for subtitle highlight.
+  const [vocabWords, setVocabWords] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ words: string[] }>(
+          "/api/v1/vocabulary/words?mastery=learning,reviewing"
+        );
+        if (!cancelled) setVocabWords(new Set(res.words));
+      } catch {
+        // non-fatal: vocab highlight simply won't show
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
   // Persist a target-level change back to preferences (best-effort).
   async function handleExamLevelChange(lv: string) {
     setSelectedExamLevel(lv);
@@ -209,8 +229,13 @@ export default function WatchPage() {
   // Exam-level word highlight: returns tailwind class if the word should be
   // highlighted for the user's selected target level, else "".
   function levelClassFor(word: string, wordLevels: Record<string, string[]> | null): string {
+    const token = cleanToken(word);
+    // Sprint 3: vocab recurrence highlight takes priority over exam-level highlight.
+    if (vocabWords.has(token)) {
+      return "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 rounded px-0.5";
+    }
     if (!wordLevels || !selectedExamLevel) return "";
-    const levels = wordLevels[cleanToken(word)];
+    const levels = wordLevels[token];
     if (!levels || !shouldDisplay(levels, selectedExamLevel)) return "";
     return wordHighlightClass(levels);
   }

@@ -286,3 +286,34 @@ async def remove_word(
     await db.delete(vocab)
     await db.commit()
     return {"success": True}
+
+
+@router.get("/words")
+@rate_limit("30/minute")
+async def list_learning_words(
+    request: Request,
+    mastery: str = Query(
+        "learning,reviewing",
+        description="Comma-separated mastery levels to include",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lightweight endpoint returning just word strings for the user's vocabulary.
+
+    Used by the watch page to highlight words the user is actively learning
+    in subtitle text (Sprint 3 vocab recurrence UI). Returns only the word
+    strings — no full Vocabulary objects — to minimize payload.
+    """
+    levels = [lv.strip() for lv in mastery.split(",") if lv.strip()]
+    if not levels:
+        levels = ["learning", "reviewing"]
+
+    result = await db.execute(
+        select(Vocabulary.word).where(
+            Vocabulary.user_id == current_user.id,
+            Vocabulary.mastery_level.in_(levels),
+        )
+    )
+    words = [w.lower() for w in result.scalars().all()]
+    return {"words": words}

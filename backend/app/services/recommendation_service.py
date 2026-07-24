@@ -25,7 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import cache_get_json, cache_set_json
 from app.core.config import get_settings
 from app.models.behavior import BehaviorEvent
+from app.models.learning import Vocabulary
 from app.models.preferences import UserPreferences
+from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoStatus
 from app.schemas.video import VideoResponse
@@ -136,12 +138,14 @@ def _personalization_boost(
     topic_weights: dict[str, float],
     exam_band: set[str],
     user_level: str | None,
+    vocab_boosts: dict[str, float] | None = None,
 ) -> float:
     """Soft rank boost for a video matching the user's interests/level.
 
     ``topic_tags`` match is the main signal (weighted by click frequency);
-    level + exam-band matches are small tiebreakers. Returns a non-negative
-    delta added to the video's effective score — never excludes.
+    level + exam-band matches are small tiebreakers. Vocab recurrence (Sprint 3)
+    adds a configurable boost for videos containing the user's learning words.
+    Returns a non-negative delta added to the video's effective score — never excludes.
     """
     boost = 0.0
     if topic_weights and video.topic_tags:
@@ -153,6 +157,9 @@ def _personalization_boost(
         boost += 0.5
     if exam_band and video.difficulty_level in exam_band:
         boost += 0.5
+    # Sprint 3: vocab recurrence boost
+    if vocab_boosts and video.id in vocab_boosts:
+        boost += vocab_boosts[video.id]
     return boost
 
 
@@ -163,6 +170,7 @@ def _rank_sort(
     topic_weights: dict[str, float],
     exam_band: set[str],
     user_level: str | None,
+    vocab_boosts: dict[str, float] | None = None,
 ) -> list[Video]:
     """Stable sort by effective score (``score + boost``) desc, nulls last.
 
@@ -174,7 +182,7 @@ def _rank_sort(
     def key(v: Video):
         eff = v.score or 0
         if personalized:
-            eff += _personalization_boost(v, topic_weights, exam_band, user_level)
+            eff += _personalization_boost(v, topic_weights, exam_band, user_level, vocab_boosts)
         return (v.score is None and not personalized, -eff, 0 if v.is_featured else 1)
 
     return sorted(by_created, key=key)
@@ -332,6 +340,7 @@ def _build_mix(
     topic_weights: dict[str, float],
     exam_band: set[str],
     user_level: str | None,
+    vocab_boosts: dict[str, float] | None = None,
 ) -> list[Video]:
     """Assemble the page-1 mix: effective-score sort → buckets → diversify.
 
@@ -349,6 +358,7 @@ def _build_mix(
             topic_weights=topic_weights,
             exam_band=exam_band,
             user_level=user_level,
+            vocab_boosts=vocab_boosts,
         )
         if personalized
         else by_score
@@ -362,19 +372,77 @@ def _build_mix(
 
 async def _personalization_signals(
     db: AsyncSession, user: User | None
-) -> tuple[dict[str, float], set[str], str | None]:
-    """Collect (topic_weights, exam_band, user_level) for a user.
+) -> tuple[dict[str, float], set[str], str | None, set[str]]:
+    """Collect (topic_weights, exam_band, user_level, vocab_words) for a user.
 
     All empty/None for anonymous users. ``topic_weights`` is also empty when
-    the user has too few clicks to personalize.
+    the user has too few clicks to personalize. ``vocab_words`` is the set of
+    lowercase words the user is actively learning (Sprint 3 vocab recurrence).
     """
     if user is None:
-        return {}, set(), None
+        return {}, set(), None, set()
     topic_weights = await _user_topic_weights(db, user)
     prefs = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user.id))
     exam_band = _exam_band(prefs)
     user_level = user.level if user.level else None
-    return topic_weights, exam_band, user_level
+    vocab_words = await _user_learning_words(db, user)
+    return topic_weights, exam_band, user_level, vocab_words
+
+
+async def _user_learning_words(db: AsyncSession, user: User) -> set[str]:
+    """Load the user's actively-learning vocabulary words (lowercase).
+
+    Returns words with mastery_level in ('learning', 'reviewing'), capped at
+    ``recommend_vocab_word_limit`` to bound query cost.
+    """
+    s = get_settings()
+    result = await db.execute(
+        select(Vocabulary.word)
+        .where(
+            Vocabulary.user_id == user.id,
+            Vocabulary.mastery_level.in_(["learning", "reviewing"]),
+        )
+        .limit(s.recommend_vocab_word_limit)
+    )
+    return {w.lower() for w in result.scalars().all()}
+
+
+async def _vocab_recurrence_boosts(
+    db: AsyncSession, vocab_words: set[str], candidates: list[Video]
+) -> dict[str, float]:
+    """Compute per-video boost based on vocabulary recurrence.
+
+    For each candidate video, counts how many of the user's learning words
+    appear in the video's subtitle word_levels keys. The boost is:
+        (match_count / total_learning_words) * recommend_vocab_boost_max
+
+    Returns {video_id: boost} — only videos with boost > 0 are included.
+    """
+    if not vocab_words or not candidates:
+        return {}
+
+    s = get_settings()
+    video_ids = [v.id for v in candidates]
+
+    # Batch-load all subtitle word_levels for candidate videos in one query.
+    result = await db.execute(select(Subtitle.video_id, Subtitle.word_levels).where(Subtitle.video_id.in_(video_ids)))
+
+    # Build per-video set of annotated words.
+    video_words: dict[str, set[str]] = {}
+    for vid, wl in result.all():
+        if not wl:
+            continue
+        if vid not in video_words:
+            video_words[vid] = set()
+        video_words[vid].update(wl.keys())
+
+    total_learning = len(vocab_words)
+    boosts: dict[str, float] = {}
+    for vid, words in video_words.items():
+        matches = len(vocab_words & words)
+        if matches > 0:
+            boosts[vid] = (matches / total_learning) * s.recommend_vocab_boost_max
+    return boosts
 
 
 async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_size: int) -> dict:
@@ -400,8 +468,9 @@ async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_siz
 
     personalized = False
     if page == 1 and total >= page_size:
-        topic_weights, exam_band, user_level = await _personalization_signals(db, user)
-        personalized = bool(topic_weights or exam_band or user_level)
+        topic_weights, exam_band, user_level, vocab_words = await _personalization_signals(db, user)
+        personalized = bool(topic_weights or exam_band or user_level or vocab_words)
+        vocab_boosts = await _vocab_recurrence_boosts(db, vocab_words, pool) if vocab_words else None
         by_score = _score_ordered(pool)
         display = _build_mix(
             by_score,
@@ -410,6 +479,7 @@ async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_siz
             topic_weights=topic_weights,
             exam_band=exam_band,
             user_level=user_level,
+            vocab_boosts=vocab_boosts,
         )
     else:
         # page>1 or a pool too small to mix: plain score-desc + featured tiebreak.
@@ -460,14 +530,16 @@ async def get_category_feed(db: AsyncSession, user: User | None, tag: str, page:
     pool = list(result.scalars().all())
     total = len(pool)
 
-    topic_weights, exam_band, user_level = await _personalization_signals(db, user)
-    personalized = bool(topic_weights or exam_band or user_level)
+    topic_weights, exam_band, user_level, vocab_words = await _personalization_signals(db, user)
+    personalized = bool(topic_weights or exam_band or user_level or vocab_words)
+    vocab_boosts = await _vocab_recurrence_boosts(db, vocab_words, pool) if vocab_words else None
     ordered = _rank_sort(
         pool,
         personalized=personalized,
         topic_weights=topic_weights,
         exam_band=exam_band,
         user_level=user_level,
+        vocab_boosts=vocab_boosts,
     )
 
     offset = (page - 1) * page_size
