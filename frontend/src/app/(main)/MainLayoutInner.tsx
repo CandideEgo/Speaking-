@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
-import { FullPageSpinner } from "@/components/common/Spinner";
+import { ShellSkeleton } from "@/components/common/ShellSkeleton";
 import { LandingContent } from "@/components/landing/LandingContent";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
@@ -31,9 +31,10 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated]);
 
   // Onboarding redirect: after auth, check user.onboarding_completed
+  // Non-blocking: render the shell immediately, redirect in background.
   useEffect(() => {
     if (isLoading || !isAuthenticated) {
-      setCheckedOnboarding(false);
+      setCheckedOnboarding(true);
       return;
     }
 
@@ -59,9 +60,9 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
     };
   }, [isAuthenticated, isLoading, router]);
 
-  // Spinner while auth state is initializing
+  // Skeleton while auth state is initializing (replaces jarring FullPageSpinner)
   if (isLoading) {
-    return <FullPageSpinner />;
+    return <ShellSkeleton />;
   }
 
   // Unauthenticated visitors see the public landing page (with login/register CTAs)
@@ -70,11 +71,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
     return <LandingContent />;
   }
 
-  // Show spinner while checking onboarding status
-  if (!checkedOnboarding) {
-    return <FullPageSpinner />;
-  }
-
+  // Render shell immediately — onboarding check runs in background
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />

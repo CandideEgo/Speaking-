@@ -17,6 +17,7 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
   const [speakingActive, setSpeakingActive] = useState(false);
   const [speakingState, setSpeakingState] = useState<"idle" | "listening" | "reviewing">("idle");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const [seconds, setSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -77,9 +78,9 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       r.onstop = () => {
-        setAudioUrl(
-          URL.createObjectURL(new Blob(chunksRef.current, { type: mimeType || "audio/webm" }))
-        );
+        const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
         setSpeakingState("reviewing");
         stream.getTracks().forEach((t) => t.stop());
         setRecordingStream(null);
@@ -113,6 +114,7 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
     }
+    setAudioBlob(null);
     setSpeakingState("idle");
     setSeconds(0);
   }
@@ -121,6 +123,7 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
     speakingActive,
     speakingState,
     audioUrl,
+    audioBlob,
     recordingStream,
     seconds,
     startRecording,

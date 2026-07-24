@@ -582,6 +582,74 @@ class AIService:
             )
         return aligned
 
+    # -----------------------------------------------------------------------
+    # Learning plan generation (ADR-0012, Pro feature)
+    # -----------------------------------------------------------------------
+
+    async def generate_learning_plan(
+        self,
+        profile_summary: str,
+        vocabulary_summary: str,
+        recent_events_summary: str,
+        video_pool_summary: str,
+        daily_goal_type: str = "words",
+        daily_goal_value: int = 5,
+        target_exam: str | None = None,
+    ) -> list[dict]:
+        """Generate an AI-powered daily learning plan via LLM.
+
+        Returns a list of plan item dicts:
+          [{"item_type": "review_words", "count": N, "reason": "..."}, ...]
+        """
+        system = (
+            "You are an English learning plan generator for Chinese learners. "
+            "Generate a daily learning plan as a JSON array of items. "
+            "Each item must have: item_type (review_words/watch_video/practice/vocab_drill), "
+            "and a reason string. Review items need count. Watch items need video_id. "
+            "Practice items need exam_level and item_count. Vocab drill items need count and due_only.\n\n"
+            "Rules:\n"
+            "- Due reviews always come first\n"
+            "- Total estimated time should match the daily goal\n"
+            "- Interleave different activity types for engagement\n"
+            "- Prioritize weak areas\n"
+            "- Include at most 2 new videos\n"
+            "- Respond with ONLY the JSON array, no markdown fences"
+        )
+
+        user = (
+            f"User profile:\n{profile_summary}\n\n"
+            f"Vocabulary mastery:\n{vocabulary_summary}\n\n"
+            f"Recent activity (last 7 days):\n{recent_events_summary}\n\n"
+            f"Available videos (matching level):\n{video_pool_summary}\n\n"
+            f"Daily goal: {daily_goal_value} {daily_goal_type}\n"
+            f"Target exam: {target_exam or 'not set'}\n\n"
+            "Generate the daily learning plan:"
+        )
+
+        raw = await self._chat(
+            system,
+            user,
+            temperature=0.4,
+            response_format={"type": "json_object"},
+        )
+
+        # Parse response — the LLM may wrap the array in an object
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                items = parsed.get("items") or parsed.get("plan") or []
+            elif isinstance(parsed, list):
+                items = parsed
+            else:
+                items = []
+        except json.JSONDecodeError:
+            logger.warning("AI plan response not valid JSON: %s", raw[:200])
+            items = []
+
+        # Validate items
+        valid_types = {"review_words", "watch_video", "practice", "vocab_drill"}
+        return [i for i in items if isinstance(i, dict) and i.get("item_type") in valid_types]
+
 
 # --- Thread-safe singleton ---
 

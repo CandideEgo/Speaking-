@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -14,7 +14,6 @@ import { Card } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Modal } from "@/components/common/Modal";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
@@ -30,18 +29,17 @@ interface VocabStatsResponse {
   due_count: number;
 }
 
-// SM-2 review quality buttons, grouped into 3 visual tiers (fail / neutral / pass).
+// SM-2 review quality buttons — simplified to 3 tiers for faster review.
+// Keyboard shortcuts: 1=忘了, 2=模糊, 3=记住了
 const QUALITY_BUTTONS: {
   value: number;
   label: string;
   variant: ButtonVariant;
+  key: string;
 }[] = [
-  { value: 0, label: "Forgot", variant: "destructive" },
-  { value: 1, label: "Hard", variant: "outline" },
-  { value: 2, label: "Difficult", variant: "outline" },
-  { value: 3, label: "OK", variant: "primary" },
-  { value: 4, label: "Easy", variant: "primary" },
-  { value: 5, label: "Perfect", variant: "primary" },
+  { value: 1, label: "忘了", variant: "destructive", key: "1" },
+  { value: 3, label: "模糊", variant: "outline", key: "2" },
+  { value: 5, label: "记住了", variant: "primary", key: "3" },
 ];
 
 function masteryBadge(level: string | null | undefined): {
@@ -64,7 +62,7 @@ export default function VocabularyPage() {
   });
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<VocabularyWord | null>(null);
+  const undoneRef = useRef(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
   const vocabPractice = useVocabularyPractice({
     count: 10,
@@ -72,6 +70,23 @@ export default function VocabularyPage() {
     enabled: practiceOpen,
   });
   const { speak } = useSpeech();
+
+  // Keyboard shortcuts for review: 1=忘了, 2=模糊, 3=记住了
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const btn = QUALITY_BUTTONS.find((b) => b.key === e.key);
+      if (btn && words.length > 0) {
+        // Apply to the first due word, or first word if none due
+        const target = words.find((w) => w.mastery_level !== "mastered") ?? words[0];
+        if (target) handleReview(target.id, btn.value);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [words]);
 
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
@@ -122,12 +137,38 @@ export default function VocabularyPage() {
   async function handleDelete(wordId: string) {
     try {
       await api(`/api/v1/vocabulary/${wordId}`, { method: "DELETE" });
-      toast.success("已移除单词");
-      loadWords();
       loadStats();
     } catch {
       toast.error("移除失败");
     }
+  }
+
+  /** Optimistic delete with undo toast (Material Design: prefer undo over confirm). */
+  function handleDeleteWithUndo(word: VocabularyWord) {
+    // Remove from UI immediately
+    undoneRef.current = false;
+    setWords((prev) => prev.filter((w) => w.id !== word.id));
+    setStats((prev) => ({ ...prev, total: prev.total - 1 }));
+
+    // Show undo toast
+    toast(`已移除「${word.word}」`, {
+      duration: 5000,
+      action: {
+        label: "撤销",
+        onClick: () => {
+          // Undo: re-add the word to local state
+          undoneRef.current = true;
+          setWords((prev) => [word, ...prev]);
+          setStats((prev) => ({ ...prev, total: prev.total + 1 }));
+        },
+      },
+      onDismiss: () => {
+        // Only commit delete if undo was NOT clicked
+        if (!undoneRef.current) {
+          handleDelete(word.id);
+        }
+      },
+    });
   }
 
   if (isLoading || !isAuthenticated) {
@@ -249,7 +290,7 @@ export default function VocabularyPage() {
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <Badge tone={mb.tone}>{mb.text}</Badge>
                       <button
-                        onClick={() => setDeleteTarget(w)}
+                        onClick={() => handleDeleteWithUndo(w)}
                         className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"
                         aria-label={`删除 ${w.word}`}
                       >
@@ -258,41 +299,30 @@ export default function VocabularyPage() {
                     </div>
                   </div>
 
-                  {/* Inline review controls */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-hairline">
-                    <span className="text-xs text-muted mr-1">评分复习：</span>
-                    {QUALITY_BUTTONS.map((q) => (
-                      <Button
-                        key={q.value}
-                        variant={q.variant}
-                        size="sm"
-                        onClick={() => handleReview(w.id, q.value)}
-                      >
-                        {q.label}
-                      </Button>
-                    ))}
-                  </div>
+                  {/* Inline review controls — only show for words that need review */}
+                  {w.mastery_level !== "mastered" && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-hairline">
+                      <span className="text-xs text-muted mr-1">评分复习：</span>
+                      {QUALITY_BUTTONS.map((q) => (
+                        <Button
+                          key={q.value}
+                          variant={q.variant}
+                          size="sm"
+                          onClick={() => handleReview(w.id, q.value)}
+                          title={`快捷键 ${q.key}`}
+                        >
+                          {q.label}
+                          <kbd className="ml-1 text-[10px] opacity-50">{q.key}</kbd>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Delete confirmation */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        tone="danger"
-        title="删除单词"
-        confirmLabel="确认删除"
-        message={deleteTarget ? `确定要删除单词「${deleteTarget.word}」吗？` : ""}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          const target = deleteTarget;
-          setDeleteTarget(null);
-          if (target) handleDelete(target.id);
-        }}
-      />
     </main>
   );
 }

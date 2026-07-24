@@ -147,6 +147,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const resetPromise = Promise.all([
       import("@/stores/watchStore").then((m) => m.useWatchStore.getState().reset()),
       import("@/stores/vocabularyStore").then((m) => m.useVocabularyStore.getState().reset()),
+      import("@/stores/planStore").then((m) => m.usePlanStore.getState().reset()),
     ]);
 
     // Wait for blacklist + store resets, then navigate.

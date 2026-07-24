@@ -1,0 +1,22 @@
+schema_version: 1
+module_path: ""
+title: SeeWord 视频英语学习平台（全栈项目根）
+scope:
+    - README.md
+    - CONTRIBUTING.md
+    - .gitignore
+    - docker-compose.yml
+    - docker-compose.dev.yml
+    - docker-compose.prod.yml
+    - nginx.conf
+    - nginx.ssl.conf
+    - AGENTS.md
+    - CLAUDE.md
+    - CONTEXT.md
+    - .gitattributes
+    - .pre-commit-config.yaml
+    - LICENSE
+    - MVP架构图.png
+source_files: []
+depends_on: []
+related_to: []

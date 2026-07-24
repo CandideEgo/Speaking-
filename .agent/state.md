@@ -2,9 +2,21 @@
 
 ## Current Focus
 
-ADR-0012 实施完成：社区 UGC 已砍（6 表 + 后端代码 + 前端 UI 全删），VideoLike 迁出保留，video_likes 表 dormant。DB 迁移 b7c8d9e0f1g2 已应用，测试 409/0，tsc+lint 通过。下一步：转向 AI 学习计划（UserLearningProfile + LearningPlan + LearningEvent/WordMastery），推荐系统 P2。
+UX 设计方向落地（Apple HIG + Material Design + Linear）：10 项体验问题已修复——词汇复习 3 档中文+键盘快捷键、Onboarding 可跳过、ShellSkeleton 替代全屏 spinner、Watch 页练习区渐进披露、Undo toast 替代确认弹窗、首页主 CTA、导航标签统一、假“加载更多”修复、静默失败加 toast。tsc 0 errors。
 
 ## Completed Milestones
+
+- **UX 设计方向落地（Apple HIG + Material Design + Linear）**
+  - 词汇复习：6 英文按钮 → 3 档中文（忘了/模糊/记住了）+ 键盘 1/2/3 快捷键
+  - Onboarding：4 步强制 → 3 步 + “跳过，稍后设置”
+  - 加载状态：FullPageSpinner → ShellSkeleton（布局感知骨架屏）+ onboarding 检查非阻塞
+  - Watch 页：练习区默认折叠为“开始本句练习”CTA（渐进披露）
+  - 词汇删除：ConfirmDialog → 即时删除 + Undo toast（5s 撤销窗口）
+  - 首页：增加主行动 CTA（开始复习/继续学习），统计卡压缩为紧凑 3 列
+  - 导航标签统一：Sidebar “个人中心”→“我的”，与移动端 TabBar 一致
+  - 浏览页：“加载更多”直接调用 loadMore()，不再假滚动
+  - 静默失败：考试层级保存失败加 toast 反馈
+  - 新建 ShellSkeleton.tsx 组件；修改 9 个文件；tsc 0 errors
 
 - **Phase 3: Pipeline Phase 4 frontend UI complete**
   - Resume status display: error retry with step-aware resume hint (transcribing vs post-transcribing)
@@ -55,12 +67,21 @@ ADR-0012 实施完成：社区 UGC 已砍（6 表 + 后端代码 + 前端 UI 全
 
 ## Next Steps
 
-1. 转向 AI 学习计划（ADR-0012 Decision 3）：UserLearningProfile + AI LearningPlan + LearningEvent/WordMastery 数据闭环，解锁推荐系统 behavior_events P0
-2. Recommendation system P2 (ADR-0011)
-3. ICP-unblocked items (video storage, payment, frontend unit tests, E2E coverage)
+1. Recommendation system P2 (ADR-0011) — LearningEvent 已解锁 behavior_events P0
+2. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
+3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
+4. UX 后续：DailyProgressCard / WeeklyCycleCounter 组件内部适配紧凑布局（当前仅压缩了外层 grid）
 
 ## Last Updated
 
 Date: 2026-07-24
-- ADR-0012 complete: 6 community tables dropped (migration b7c8d9e0f1g2) + backend/frontend community code removed
-- Tests 409/0; tsc + lint 0 errors; DB at b7c8d9e0f1g2
+- **AI 学习计划实施完成（ADR-0012 Decision 3）**
+  - 4 张新表：user_learning_profiles, learning_plans, learning_plan_items, learning_events
+  - Vocabulary 增强 3 列：exam_level, first_seen_at, correct_count
+  - 3 个新服务：learning_plan_service（规则引擎）, learning_event_service（事件发射+日目标追踪）, profile_service（档案聚合）
+  - 7 个 API 端点：GET/POST /plan/today, /plan/items/{id}/complete, /plan/progress, /plan/profile, /plan/profile/refresh, /plan/history, POST /plan/generate/ai（Pro）
+  - AI 增强计划生成：ai_plan_service + Celery task + LLM JSON schema
+  - 前端首页改造：嵌入计划仪表盘（DailyProgressCard + WeeklyCycleCounter + StreakCard + PlanItemCard + MasteryBreakdown）
+  - Sidebar 移除创作 section（ADR-0012）
+  - 事件发射集成：practice_service, behavior_service, vocabulary API
+  - DB 迁移 d2e3f4g5h6i7 已应用；测试 409/0；tsc + lint 0 errors

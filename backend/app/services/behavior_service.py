@@ -100,3 +100,11 @@ async def _mirror_to_learning_record(
         # view_count increments per play-completion (not per unique user) —
         # matches the ADR's "播放完成次数" semantics.
         await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
+
+        # Emit learning event (ADR-0012 learning plan integration)
+        try:
+            from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
+
+            await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
+        except Exception:
+            pass  # Non-blocking — event emission must not disrupt behavior ingestion

@@ -51,6 +51,7 @@ export function usePlatformFeed({
     loading,
     error,
     reload,
+    loadMore,
     loaderRef,
   } = usePaginatedList<VideoItem>({
     fetcher: async (pg) => {
@@ -121,6 +122,7 @@ export function usePlatformFeed({
     total,
     error,
     retry: reload,
+    loadMore,
     loaderRef,
     addingId,
     startLearning,

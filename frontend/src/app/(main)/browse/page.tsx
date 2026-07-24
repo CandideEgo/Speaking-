@@ -31,6 +31,7 @@ export default function BrowsePage() {
     total,
     error,
     retry,
+    loadMore,
     loaderRef,
   } = usePlatformFeed({ platform: "browse" });
 
@@ -119,16 +120,7 @@ export default function BrowsePage() {
             <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
           )}
           {!loading && hasMore && videos.length > 0 && (
-            <Button
-              variant="outline"
-              className="mx-auto block"
-              onClick={() => {
-                const el = loaderRef.current;
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                }
-              }}
-            >
+            <Button variant="outline" className="mx-auto block" onClick={loadMore}>
               加载更多
             </Button>
           )}

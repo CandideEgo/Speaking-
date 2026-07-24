@@ -8,7 +8,7 @@ import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { DURATIONS, EASES, MEDIA, motionDuration } from "@/lib/animations";
 import type { LucideIcon } from "lucide-react";
-import { BookOpen, Sparkles, Compass, Crown, Upload, User, LogOut, History } from "lucide-react";
+import { BookOpen, Sparkles, Compass, Crown, User, LogOut, History } from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
@@ -41,13 +41,9 @@ const navigation: NavSection[] = [
     ],
   },
   {
-    title: "创作",
-    items: [{ label: "创作者中心", href: "/my-videos", icon: Upload }],
-  },
-  {
     title: "账户",
     items: [
-      { label: "个人中心", href: "/profile", icon: User },
+      { label: "我的", href: "/profile", icon: User },
       { label: "Pro 会员", href: "/pricing", icon: Crown },
     ],
   },

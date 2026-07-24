@@ -100,6 +100,11 @@ class Vocabulary(Base):
     ease_factor: Mapped[float] = mapped_column(Float, default=2.5)
     interval_days: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Learning plan enhancement fields (ADR-0012)
+    exam_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # e.g. "cet4"
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    correct_count: Mapped[int] = mapped_column(Integer, default=0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     user = relationship("User", back_populates="vocabulary")

@@ -32,11 +32,9 @@ export interface Video {
    * Official videos go through draft → review → publish; only published ones
    * appear on the homepage / browse feed. */
   is_published: boolean;
-  /** UGC review lifecycle for user-uploaded videos
-   * (draft/pending_review/published/rejected). Official videos mirror
-   * is_published here for consistency. */
+  /** Video review lifecycle (draft/pending_review/published/rejected). */
   review_status: "draft" | "pending_review" | "published" | "rejected";
-  /** Admin's rejection reason — only populated for the video owner (service-layer gate). */
+  /** Admin's rejection reason — only populated for the video owner. */
   rejection_reason: string | null;
   video_url_480p: string | null;
   video_url_720p: string | null;
@@ -60,7 +58,7 @@ export interface VideoAdmin extends Video {
   show_on_homepage: boolean;
   admin_notes: string | null;
   processing_progress: number;
-  /** UGC review audit fields (admin sees when a video was submitted/reviewed). */
+  /** Review audit fields (admin sees when a video was submitted/reviewed). */
   submitted_at: string | null;
   reviewed_at: string | null;
 }
@@ -357,4 +355,57 @@ export interface VocabularyPracticeSet {
 
 export interface VocabPracticeSubmitRequest {
   results: PracticeResultItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Learning Plan types (ADR-0012)
+// ---------------------------------------------------------------------------
+
+export interface LearningPlanItem {
+  id: string;
+  sort_order: number;
+  item_type: "review_words" | "watch_video" | "practice" | "vocab_drill" | "shadowing";
+  video_id: string | null;
+  item_config: Record<string, unknown> | null;
+  completed: boolean;
+  completed_at: string | null;
+}
+
+export interface LearningPlan {
+  id: string;
+  plan_date: string;
+  generation_method: "rule" | "ai";
+  total_review_words: number;
+  total_new_words: number;
+  total_practice_items: number;
+  estimated_minutes: number;
+  completed: boolean;
+  items: LearningPlanItem[];
+}
+
+export interface DailyProgress {
+  today_words_learned: number;
+  today_minutes_spent: number;
+  daily_goal_type: "words" | "minutes";
+  daily_goal_value: number;
+  goal_met: boolean;
+  goal_progress: number;
+  current_streak: number;
+  weekly_cycles_completed: number;
+}
+
+export interface LearningProfile {
+  estimated_level: string | null;
+  current_streak: number;
+  longest_streak: number;
+  weekly_cycles_completed: number;
+  mastery_by_level: Record<string, Record<string, number>> | null;
+  strengths: string[] | null;
+  weaknesses: string[] | null;
+}
+
+export interface TodayPlanResponse {
+  plan: LearningPlan | null;
+  progress: DailyProgress;
+  profile: LearningProfile;
 }

@@ -243,6 +243,18 @@ async def review_word(
 
     await db.commit()
 
+    # Emit learning event (ADR-0012 learning plan integration)
+    try:
+        from app.services.learning_event_service import EVENT_REVIEWED_WORDS, emit_event
+
+        await emit_event(db, current_user.id, EVENT_REVIEWED_WORDS, 1)
+        # Update correct_count
+        if quality >= 3:
+            vocab.correct_count = (vocab.correct_count or 0) + 1
+        await db.commit()
+    except Exception:
+        pass  # Non-blocking
+
     return {
         "id": vocab.id,
         "word": vocab.word,

@@ -7,6 +7,7 @@ import { useWatchStore } from "@/stores/watchStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
+import { useShadowing } from "@/hooks/useShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoPlayer, bestVideoUrl, youtubeId } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -23,6 +24,7 @@ import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ForkBadge } from "@/components/video/ForkBadge";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
+import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { levelMeta, shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
 import type { WordGloss } from "@/types";
 import {
@@ -36,6 +38,8 @@ import {
   Pencil,
   X,
   AlertCircle,
+  Check,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -58,13 +62,30 @@ export default function WatchPage() {
     speakingActive,
     speakingState,
     audioUrl,
+    audioBlob,
     recordingStream,
     startRecording,
     stopRecording,
     stopSpeaking,
     reRecord,
   } = useSpeakingRecorder(requireAuth);
+  const { uploadAndSave, uploading, attempts } = useShadowing(id);
+  const [shadowingSaved, setShadowingSaved] = useState(false);
+  const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [practiceExpanded, setPracticeExpanded] = useState(false);
+
+  // Auto-upload recording when entering reviewing state
+  useEffect(() => {
+    if (speakingState === "reviewing" && audioBlob && !shadowingSaved) {
+      setShadowingSaved(true); // prevent double-upload
+      uploadAndSave(audioBlob, {
+        videoId: id,
+        subtitleId: video?.subtitles?.[currentSubtitleIndex]?.id ?? null,
+        isSatisfied: false,
+      });
+    }
+  }, [speakingState, audioBlob]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setVideoAspectRatio = useWatchStore((s) => s.setVideoAspectRatio);
   const {
@@ -158,6 +179,7 @@ export default function WatchPage() {
       });
     } catch {
       // non-fatal: selection still applies for this session
+      toast.error("偏好保存失败，本次会话仍生效");
     }
   }
 
@@ -169,9 +191,19 @@ export default function WatchPage() {
       // Reset speaking state before advancing — otherwise the user is stuck
       // in the result view of the old sentence.
       if (speakingActive) reRecord();
+      setShadowingSaved(false);
+      setShadowingSatisfied(false);
       setCurrentSubtitleIndex(currentSubtitleIndex + 1);
       seekTo(next.start_time);
     }
+  }
+
+  /** Play the original audio by seeking the video to the current subtitle. */
+  function playOriginal() {
+    const sub = video?.subtitles?.[currentSubtitleIndex];
+    if (!sub) return;
+    seekTo(sub.start_time);
+    videoRef.current?.play();
   }
 
   // Exam-level word highlight: returns tailwind class if the word should be
@@ -530,16 +562,54 @@ export default function WatchPage() {
                   )}
 
                   {speakingState === "reviewing" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-ink mb-2">录音完成，回放听自己的发音</p>
-                        {audioUrl && (
-                          <audio src={audioUrl} controls className="h-8 w-full max-w-md" />
+                    <div className="bg-surface-soft rounded-lg p-3 space-y-3">
+                      {/* Status row */}
+                      <div className="flex items-center gap-2 text-[13px]">
+                        {uploading ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin text-brand-500" />
+                            <span className="text-muted">正在保存跟读录音…</span>
+                          </>
+                        ) : shadowingSaved ? (
+                          <>
+                            <Check size={14} className="text-success" />
+                            <span className="text-success font-medium">已保存</span>
+                          </>
+                        ) : (
+                          <span className="text-muted">录音完成，回放听自己的发音</span>
                         )}
                       </div>
-                      <div className="flex gap-2 shrink-0">
+
+                      {/* Audio players: original + mine */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                            bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors cursor-pointer"
+                          onClick={playOriginal}
+                        >
+                          <Volume2 size={13} />
+                          听原声
+                        </button>
+                        {audioUrl && (
+                          <audio src={audioUrl} controls className="h-8 flex-1 max-w-xs" />
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={reRecord}>
                           重录
+                        </Button>
+                        <Button
+                          variant={shadowingSatisfied ? "primary" : "outline"}
+                          size="sm"
+                          onClick={() => setShadowingSatisfied((v) => !v)}
+                          className={
+                            shadowingSatisfied ? "bg-success hover:bg-success/90 shadow-none" : ""
+                          }
+                        >
+                          <Check size={13} className="mr-1" />
+                          满意
                         </Button>
                         <Button size="sm" onClick={handleNextSubtitle}>
                           下一句
@@ -549,6 +619,9 @@ export default function WatchPage() {
                   )}
                 </div>
               )}
+
+              {/* Shadowing history: recent attempts for this video */}
+              <ShadowingHistory attempts={attempts} />
             </div>
           )}
         </div>
@@ -614,12 +687,36 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区：统一练习引擎 ===== */}
+      {/* ===== 练习区：渐进披露 — 默认折叠为 CTA，点击展开 ===== */}
       <div className="mt-6">
-        <UnifiedPracticePanel
-          session={practiceSession}
-          levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-        />
+        {practiceExpanded ? (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-ink">练习</span>
+              <button
+                onClick={() => setPracticeExpanded(false)}
+                className="text-xs text-muted hover:text-ink transition-colors cursor-pointer"
+              >
+                收起练习
+              </button>
+            </div>
+            <UnifiedPracticePanel
+              session={practiceSession}
+              levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setPracticeExpanded(true)}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border border-hairline
+              bg-surface-soft text-sm font-semibold text-muted
+              hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50
+              transition-all duration-150 cursor-pointer"
+          >
+            <BookOpen size={16} />
+            开始本句练习
+          </button>
+        )}
       </div>
 
       {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}

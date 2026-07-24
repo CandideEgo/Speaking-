@@ -47,7 +47,7 @@ AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese lear
           └──────────┘  └──────────────┘
 ```
 
-Key patterns: Fail-open Redis. Lazy initialization. Celery async bridge (`run_async()`). Pluggable translation engine. Dual auth sessions. Actor-aware notification dedup (same actor → update, different actors → separate notifications).
+Key patterns: Fail-open Redis. Lazy initialization. Celery async bridge (`run_async()`). Pluggable translation engine. Dual auth sessions. Actor-aware notification dedup (same actor → update, different actors → separate notifications). **Video media served from HK VPS** (source station nginx proxies `/media/` → HK VPS nginx static files, not through Python Range service).
 
 For pipeline details, see wiki/architecture/video-pipeline.md.
 For service layer details, see wiki/architecture/backend-services.md.
@@ -57,6 +57,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 1. **Video processing**: submit URL → dedup → Head/GPU/Tail → checkpoint resume → ready
 2. **Vocabulary learning**: watch video → click word → AI lookup (Pro) → vocabulary book → SM-2 review
 3. **Redemption code**: input code → row lock → plan=pro + extend 30 days → atomic
+4. **Learning plan loop (ADR-0012)**: generate daily plan (rule/AI) → execute plan items (watch/review/practice) → emit LearningEvent → update profile (streak/goal/mastery) → adjust next plan
 
 ## Important Constraints
 
@@ -66,7 +67,10 @@ For service layer details, see wiki/architecture/backend-services.md.
 - New components must use semantic tokens, not hardcoded color values
 - UGC videos must not be auto-processed — admin-triggered only (ADR-0004)
 - Payment disabled (ICP compliance) — redemption code channel only
+- Video media files stored on HK VPS (`/data/seeword_media/`), not source station — source nginx proxies `/media/` to HK VPS; new videos need manual SCP until automated
 - For image handling in agent sessions, see wiki/problems/image-handling.md
+- LearningEvent emission must be non-blocking (try/except, logged but never raised) — must not disrupt existing service flows (practice submission, video completion, vocabulary review)
+- LearningEvent is distinct from BehaviorEvent — different query patterns (daily aggregation vs analytics), different retention, different nullability (LearningEvent always has user_id)
 
 ## Known Issues
 
@@ -74,7 +78,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - docs/architecture/SYSTEM-MAP.md is explicitly marked outdated — `.agent/system-map.md` is the authoritative version
 - E2E test coverage is the only incomplete completion criteria item
 - Notification dedup is non-atomic (check-then-insert) — acceptable for low-stakes notifications, but rare concurrent duplicates possible
-- User model has dead columns `streak_count`/`longest_streak` (no write path after activity_service deletion)
+- User model dead columns `streak_count`/`longest_streak` replaced by `UserLearningProfile.current_streak`/`longest_streak` (ADR-0012)
 - ~~Transcription hallucinations silently enter production~~ → **FIXED** (Phase 2: quality check fails fast on callback)
 - ~~Translation API failures cause partial subtitle sets~~ → **FIXED** (Phase 2: exponential backoff retry + per-item fallback)
 - ~~Re-running finalize_video overwrites manual word_levels~~ → **FIXED** (Phase 2: compute-on-null only)
@@ -83,7 +87,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 
 - AI calls must go through `ai_service.py`, never AsyncOpenAI directly in routes
 - Dark mode: `.dark` variable block cascades entire site, new components auto-support
-- 5 Zustand stores: authStore, adminAuthStore, feedStore (recommendation feed per ADR-0011), watchStore, vocabularyStore
+- 6 Zustand stores: authStore, adminAuthStore, feedStore (recommendation feed per ADR-0011), watchStore, vocabularyStore, planStore (daily learning plan per ADR-0012)
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
 - ECDICT database ~30MB, downloaded via scripts, in `.gitignore`
@@ -137,6 +141,10 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
 | **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释，支持双引擎（agnes + glm）并发 |
 | **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读 |
+| **LearningEvent** | 结构化学习事件（completed_video/learned_words/practiced_items/reviewed_words），与 BehaviorEvent 分离，喂档案聚合+日目标+推荐 |
+| **LearningPlan** | 日计划缓存，规则引擎优先级：到期复习→继续观看→新视频→练习→词汇练习。AI 生成 Pro 专属 |
+| **UserLearningProfile** | 用户学习档案（streak, mastery_by_level, daily counters），增量更新 via LearningEvent |
+| **周循环** | 北极星指标：一天内有 4 种事件类型（watch+vocab+practice+review）= 1 完整闭环 |
 
 ### 会员与兑换
 

@@ -158,6 +158,16 @@
 
 ---
 
+## 2026-07-24 — Video storage: HK VPS file server vs OSS vs source station local
+
+**Problem**: Source station disk 78% full (29GB/40GB). Video files (1GB, growing) served through Python Range service consuming source station bandwidth+CPU. OSS not purchased.
+**Options**: A) Buy Alibaba Cloud OSS + CDN (monthly cost, best CDN performance for mainland users); B) Use HK VPS as file server (39GB free, zero cost, 46ms latency from source); C) Keep on source station + clean Docker cache (temporary, doesn't solve growth)
+**Decision**: B
+**Reason**: HK VPS has 39GB idle, zero marginal cost. Source→HK latency 46ms acceptable for video streaming (bandwidth matters more than first-byte latency). OSS would add monthly billing for a pre-revenue product. Source station nginx caches 7d, reducing HK bandwidth consumption.
+**Trade-offs**: Mainland users traverse source station→HK VPS for video bytes (vs direct CDN with OSS). New video files require manual SCP to HK VPS (not automated in pipeline). HK VPS is single point of failure for video playback (no replication). Can upgrade to OSS+CDN later if bandwidth/latency becomes an issue.
+
+---
+
 ## 2026-07-24 - ADR-0012: Cut social community UGC, pivot to AI learning plan
 
 **Problem**: Social community UGC doesn't solve the core English-learning problem (find content / understand video / remember vocab / sustain learning), yet brings moderation cost + system complexity (6 tables, 4 notification triggers, admin review block, creator center, propose-back PRs).
@@ -166,3 +176,43 @@
 **Reason**: Community doesn't serve the learning loop (goal -> plan -> watch -> vocab -> practice -> review -> adjust). The real long-term capability loop is AI-driven learning plans + spaced repetition, not social UGC. VideoLike kept because it feeds recommendation like_count / is_featured and the watch-page like button at near-zero ops cost.
 **Trade-offs**: Sunk cost (Phase 4 community alignment, actor-aware dedup's community triggers) discarded; dedup mechanism retained for non-community notifications. 6 tables dropped (irreversible - pg_dump backup taken); video_likes + Video UGC columns kept dormant to reduce irreversibility. comment_service (video comment quality scoring) retained - independent of social community.
 **ADR**: [0012](docs/adr/0012-cut-community-ugc-pivot-to-learning-plan.md)
+
+---
+
+## 2026-07-24 — LearningEvent vs BehaviorEvent: separate models
+
+**Problem**: ADR-,12 needs structured learning events (completed_video, learned_words, etc.) for profile aggregation, daily goal tracking, and recommendation system. BehaviorEvent already exists for raw interaction logging.
+**Options**: A) Add semantic event types to BehaviorEvent8; B) Separate LearningEvent model
+**Decision**: B
+**Reason**: Different query patterns (LearningEvent: daily aggregation, streak, cycle counting; BehaviorEvent: analytics, debugging, recommendation personalization), different retention policies (LearningEvent: long-lived for profile; BehaviorEvent: potentially high-write, shorter retention), different nullability (LearningEvent always has user_id; BehaviorEvent allows anonymous). Mixing would bloat BehaviorEvent with semantic events that have different access patterns.
+**Trade-offs**: Two event tables to maintain. Event emission from existing services (practice, behavior, vocabulary) must be non-blocking (try/except, logged but never raised) to avoid disrupting existing flows. LearningEvent emission is a side-channel, not a replacement for BehaviorEvent.
+
+---
+
+## 2026-07-24 — WordMastery: enhance Vocabulary vs new table
+
+**Problem**: ADR-0012 needs per-word mastery tracking (exam_level, first_seen_at, correct_count) for per-level mastery breakdowns and accuracy tracking. Vocabulary already has SM-2 fields (mastery_level, ease_factor, interval_days, review_count, next_review_at).
+**Options**: A) Separate WordMastery table with FK to Vocabulary; B) Add columns to existing Vocabulary model
+**Decision**: B
+**Reason**: Vocabulary already has the user-word unique constraint and SM-2 fields. A separate WordMastery table would duplicate the (user_id, word) unique constraint, creating a two-source-of-truth problem and requiring JOINs on every vocabulary query. Three additional columns (exam_level, first_seen_at, correct_count) are lightweight and naturally belong on the same row.
+**Trade-offs**: Vocabulary table grows wider (now 18+ columns). If mastery tracking needs fundamentally different semantics in the future (e.g., per-context mastery where the same word has different states in different videos), a separate model would be needed — but current SM-2 semantics are global per user-word.
+
+---
+
+## 2026-07-24 — UX design direction: Apple HIG + Material Design + Linear principles
+
+**Problem**: Frontend UX had accumulated anti-patterns: information overload on watch page, 6-button decision paralysis in vocab review, jarring full-page spinners, mandatory onboarding, inconsistent labels, silent failures, fake load-more buttons, and no undo for destructive actions.
+**Options**: A) Ad-hoc fixes as reported; B) Systematic UX audit against established design principles, then batch fix
+**Decision**: B — adopt three design principle frameworks as ongoing guidance:
+  - **Apple HIG**: Clarity (one focal point per screen), Deference (never block user from value), Depth (progressive disclosure)
+  - **Material Design**: Feedback (every action has visible result), Reversibility (prefer undo over confirm), Continuity (skeleton over spinner)
+  - **Linear**: Speed (keyboard shortcuts for high-freq ops), Cognitive load reduction (3 choices max for repeatable actions)
+**Reason**: These three frameworks complement each other — HIG for hierarchy/focus, Material for interaction feedback, Linear for speed/efficiency. They provide objective criteria for future UX decisions rather than subjective taste.
+**Trade-offs**: Some patterns require more code (undo toast > confirm dialog, skeleton > spinner). Watch page progressive disclosure adds one click to reach practice — acceptable because most viewing sessions don't need practice every sentence.
+**Established patterns (follow in future work)**:
+  - Destructive actions → optimistic delete + undo toast (5s window), NOT confirm dialog
+  - Loading states → ShellSkeleton (layout-aware), NOT FullPageSpinner
+  - High-frequency repeated actions → max 3 choices + keyboard shortcuts
+  - Complex pages → progressive disclosure (collapsed CTA → expand on demand)
+  - User-initiated saves → toast on failure, never silent catch
+  - Navigation labels → identical across mobile TabBar and desktop Sidebar

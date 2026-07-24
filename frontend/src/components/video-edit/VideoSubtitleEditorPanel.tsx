@@ -18,7 +18,7 @@ import { SubtitleHistory } from "@/components/video-edit/SubtitleHistory";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import type { Subtitle, SubtitleRevision, VideoWithSubtitles } from "@/types";
-import type { SubtitlePatch } from "@/lib/creatorData";
+import type { SubtitlePatch } from "@/lib/adminData";
 
 /**
  * Watch-format subtitle editing surface, shared by the creator center

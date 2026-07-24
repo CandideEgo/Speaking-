@@ -5,11 +5,13 @@ from app.models.engagement import VideoLike
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+from app.models.learning_plan import LearningEvent, LearningPlan, LearningPlanItem, UserLearningProfile
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
 from app.models.redeem import RedeemCode
+from app.models.shadowing import ShadowingAttempt
 from app.models.subtitle import Subtitle
 from app.models.subtitle_change_proposal import SubtitleChangeProposal
 from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate

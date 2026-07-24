@@ -631,6 +631,31 @@ async def submit_practice_results(
         updated += 1
 
     await db.commit()
+
+    # Emit learning events (ADR-0012 learning plan integration)
+    try:
+        from app.services.learning_event_service import EVENT_LEARNED_WORDS, EVENT_PRACTICED_ITEMS, emit_event
+
+        correct_count = sum(1 for r in results if r.get("correct"))
+        await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id)
+        if correct_count > 0:
+            await emit_event(db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id)
+        # Update Vocabulary.correct_count for each correct answer
+        for r in results:
+            if r.get("correct"):
+                v_result = await db.execute(
+                    select(Vocabulary).where(
+                        Vocabulary.user_id == user_id,
+                        Vocabulary.word == r["word"],
+                    )
+                )
+                v = v_result.scalar_one_or_none()
+                if v:
+                    v.correct_count = (v.correct_count or 0) + 1
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to emit learning events for practice results")
+
     return {"updated": updated, "auto_added": auto_added}
 
 

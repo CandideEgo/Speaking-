@@ -13,15 +13,18 @@ mounted unconditionally but costs nothing there since nginx serves media first.
 """
 
 import mimetypes
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.limiter import rate_limit
+from app.models.user import User
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -120,6 +123,61 @@ async def proxy_image(
         media_type=content_type,
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Shadowing audio upload — persists user recording blobs for read-along.
+# Must be defined BEFORE the catch-all serve_media route.
+# ---------------------------------------------------------------------------
+
+_SHADOWING_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap
+_SHADOWING_ALLOWED_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"}
+
+
+@router.post("/shadowing-audio")
+@rate_limit("30/minute")
+async def upload_shadowing_audio(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a shadowing recording blob. Returns the media URL for playback."""
+    content_type = file.content_type or ""
+    if content_type not in _SHADOWING_ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported audio type: {content_type}. Allowed: webm, ogg, mp4, mpeg, wav",
+        )
+
+    # Determine file extension from content type
+    ext_map = {
+        "audio/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".mp4",
+        "audio/mpeg": ".mp3",
+        "audio/wav": ".wav",
+    }
+    ext = ext_map.get(content_type, ".webm")
+
+    # Read and validate size
+    data = await file.read()
+    if len(data) > _SHADOWING_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Audio file too large (max 5MB)")
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    # Write to media/shadowing/{user_id}/{uuid}{ext}
+    settings = get_settings()
+    base = Path(settings.local_media_path).resolve()
+    user_dir = base / "shadowing" / current_user.id
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{uuid.uuid4()}{ext}"
+    file_path = user_dir / filename
+    file_path.write_bytes(data)
+
+    url = f"/media/shadowing/{current_user.id}/{filename}"
+    return {"url": url}
 
 
 @router.get("/{file_path:path}")

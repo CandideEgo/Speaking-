@@ -3,7 +3,16 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getVideoLikeStatus, toggleVideoLike } from "@/lib/creatorData";
+
+/** Check whether the current user has liked a video. */
+async function getVideoLikeStatus(videoId: string): Promise<{ is_liked: boolean }> {
+  return api<{ is_liked: boolean }>(`/api/v1/videos/${videoId}/like`);
+}
+
+/** Toggle like on a video; returns the new liked state. */
+async function toggleVideoLike(videoId: string): Promise<{ liked: boolean }> {
+  return api<{ liked: boolean }>(`/api/v1/videos/${videoId}/like`, { method: "POST" });
+}
 
 /** Hook for video meta interactions: favorite, like, note.
  *  Loads initial state on mount and provides toggle/save/clear actions

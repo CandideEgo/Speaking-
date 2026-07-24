@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
 import type { Subtitle } from "@/types";
-import type { SubtitlePatch } from "@/lib/creatorData";
+import type { SubtitlePatch } from "@/lib/adminData";
 
 /**
  * One editable subtitle row. Shared by the creator editor and the admin review
