@@ -402,10 +402,31 @@ export interface LearningProfile {
   mastery_by_level: Record<string, Record<string, number>> | null;
   strengths: string[] | null;
   weaknesses: string[] | null;
+  milestones?: Milestone[];
 }
 
 export interface TodayPlanResponse {
   plan: LearningPlan | null;
   progress: DailyProgress;
   profile: LearningProfile;
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 4: Milestones + Mastery Trend
+// ---------------------------------------------------------------------------
+
+export interface Milestone {
+  id: string;
+  milestone_type: string;
+  achieved_at: string | null;
+  metadata_json: Record<string, unknown> | null;
+}
+
+export interface MasterySnapshot {
+  date: string;
+  mastery_json: Record<string, Record<string, number>> | null;
+}
+
+export interface MasteryTrendResponse {
+  snapshots: MasterySnapshot[];
 }

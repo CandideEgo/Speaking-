@@ -108,6 +108,14 @@ async def emit_event(
                 )
                 db.add(meta_event)
 
+        # Sprint 4: Write daily mastery snapshot (once per day)
+        from app.services.milestone_service import check_and_award, ensure_today_snapshot
+
+        await ensure_today_snapshot(db, user_id, today, profile.mastery_by_level)
+
+        # Sprint 4: Check and award milestones
+        await check_and_award(db, user_id)
+
     except Exception:
         logger.exception("Failed to emit learning event: %s for user %s", event_type, user_id)
 

@@ -7,14 +7,17 @@ import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/common/ErrorState";
-import { User as UserIcon, Settings, BookOpen } from "lucide-react";
+import { User as UserIcon, Settings, BookOpen, TrendingUp } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import LearningPrefsTab from "@/components/profile/LearningPrefsTab";
-import type { User, UserPreferences } from "@/types";
+import { MasteryTrend } from "@/components/profile/MasteryTrend";
+import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
+import type { User, UserPreferences, Milestone } from "@/types";
 
 const TABS = [
   { key: "profile", label: "个人资料", icon: UserIcon },
+  { key: "progress", label: "学习进度", icon: TrendingUp },
   { key: "settings", label: "账户设置", icon: Settings },
   { key: "learning", label: "学习偏好", icon: BookOpen },
 ] as const;
@@ -27,6 +30,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch user + preferences once auth is initialized
@@ -38,14 +42,16 @@ export default function ProfilePage() {
 
     async function loadData() {
       try {
-        const [u, p] = await Promise.allSettled([
+        const [u, p, m] = await Promise.allSettled([
           api<User>("/api/v1/users/me"),
           api<UserPreferences>("/api/v1/users/me/preferences"),
+          api<Milestone[]>("/api/v1/plan/milestones"),
         ]);
         if (cancelled) return;
         if (u.status === "fulfilled") setUser(u.value);
         else router.push("/login");
         if (p.status === "fulfilled") setPreferences(p.value);
+        if (m.status === "fulfilled") setMilestones(m.value);
       } catch {
         toast.error("加载失败");
       } finally {
@@ -110,6 +116,18 @@ export default function ProfilePage() {
 
         {/* Tab content */}
         {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
+        {activeTab === "progress" && (
+          <div className="max-w-2xl space-y-8">
+            <div>
+              <h2 className="text-sm font-medium text-ink mb-4">掌握度趋势</h2>
+              <MasteryTrend weeks={8} />
+            </div>
+            <div>
+              <h2 className="text-sm font-medium text-ink mb-4">成就徽章</h2>
+              <MilestoneGrid milestones={milestones} />
+            </div>
+          </div>
+        )}
         {activeTab === "settings" && <SettingsTab user={user} />}
         {activeTab === "learning" && (
           <LearningPrefsTab preferences={preferences} onUpdate={setPreferences} />

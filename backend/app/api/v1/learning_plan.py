@@ -21,6 +21,9 @@ from app.schemas.learning_plan import (
     AIPlanGenerateResponse,
     DailyProgressResponse,
     LearningProfileResponse,
+    MasterySnapshotItem,
+    MasteryTrendResponse,
+    MilestoneResponse,
     PlanHistoryItem,
     PlanItemCompleteRequest,
     PlanItemCompleteResponse,
@@ -28,7 +31,7 @@ from app.schemas.learning_plan import (
     TodayPlanResponse,
 )
 from app.schemas.pagination import PaginatedResponse, paginated
-from app.services import learning_event_service, learning_plan_service, profile_service
+from app.services import learning_event_service, learning_plan_service, milestone_service, profile_service
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 
@@ -134,8 +137,9 @@ async def get_learning_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the user's learning profile."""
+    """Get the user's learning profile with milestones."""
     profile = await profile_service.get_or_create_profile(db, current_user.id)
+    milestones = await milestone_service.get_user_milestones(db, current_user.id)
     return LearningProfileResponse(
         estimated_level=profile.estimated_level,
         current_streak=profile.current_streak,
@@ -144,6 +148,7 @@ async def get_learning_profile(
         mastery_by_level=profile.mastery_by_level,
         strengths=profile.strengths,
         weaknesses=profile.weaknesses,
+        milestones=[MilestoneResponse(**m) for m in milestones],
     )
 
 
@@ -197,3 +202,28 @@ async def generate_ai_plan(
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI plan generation failed: {e}") from e
+
+
+@router.get("/mastery-trend", response_model=MasteryTrendResponse)
+@rate_limit("30/minute")
+async def get_mastery_trend(
+    request: Request,
+    weeks: int = Query(8, ge=1, le=52),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get mastery snapshots for the last N weeks (trend chart data)."""
+    snapshots = await milestone_service.get_mastery_trend(db, current_user.id, weeks)
+    return MasteryTrendResponse(snapshots=[MasterySnapshotItem(**s) for s in snapshots])
+
+
+@router.get("/milestones", response_model=list[MilestoneResponse])
+@rate_limit("30/minute")
+async def get_milestones(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all milestones achieved by the user."""
+    milestones = await milestone_service.get_user_milestones(db, current_user.id)
+    return [MilestoneResponse(**m) for m in milestones]

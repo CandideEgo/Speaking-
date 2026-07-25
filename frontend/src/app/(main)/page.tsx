@@ -2,7 +2,17 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, Sparkles, Target, Flame, Loader2, BookOpen, Play } from "lucide-react";
+import {
+  ArrowRight,
+  Sparkles,
+  Target,
+  Flame,
+  Loader2,
+  BookOpen,
+  Play,
+  Trophy,
+  X,
+} from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useFeedStore, recommendWithSeenSink } from "@/stores/feedStore";
 import { usePlan } from "@/hooks/usePlan";
@@ -14,6 +24,7 @@ import { DailyProgressCard } from "@/components/plan/DailyProgressCard";
 import { WeeklyCycleCounter } from "@/components/plan/WeeklyCycleCounter";
 import { PlanItemCard } from "@/components/plan/PlanItemCard";
 import { MasteryBreakdown } from "@/components/plan/MasteryBreakdown";
+import { getMilestoneLabel } from "@/components/profile/MilestoneBadge";
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -32,6 +43,19 @@ export default function HomePage() {
   );
 
   const [vocabDue, setVocabDue] = useState<number | null>(null);
+  const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
+
+  // Find milestones achieved in the last 24h for the banner
+  const recentMilestone = useMemo(() => {
+    if (!profile?.milestones?.length) return null;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return (
+      profile.milestones.find((m) => {
+        if (!m.achieved_at) return false;
+        return new Date(m.achieved_at).getTime() >= cutoff;
+      }) ?? null
+    );
+  }, [profile?.milestones]);
 
   useEffect(() => {
     (async () => {
@@ -77,6 +101,27 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
+
+        {/* ── 成就达成 Banner ── */}
+        {recentMilestone && !milestoneBannerDismissed && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-coral/20 bg-coral/5 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral/10">
+                <Trophy size={16} className="text-coral" />
+              </div>
+              <p className="text-sm font-medium text-ink">
+                恭喜达成「{getMilestoneLabel(recentMilestone.milestone_type)}」！
+              </p>
+            </div>
+            <button
+              onClick={() => setMilestoneBannerDismissed(true)}
+              className="rounded p-1 text-muted-foreground hover:text-ink transition-colors"
+              aria-label="关闭"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         {/* ── 今日计划仪表盘 ── */}
         <div className="mb-8">

@@ -6,6 +6,7 @@ from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.learning_plan import LearningEvent, LearningPlan, LearningPlanItem, UserLearningProfile
+from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.practice import VideoPracticeQuestion

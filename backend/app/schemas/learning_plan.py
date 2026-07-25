@@ -70,6 +70,7 @@ class LearningProfileResponse(BaseModel):
     mastery_by_level: dict | None = None
     strengths: list[str] | None = None
     weaknesses: list[str] | None = None
+    milestones: list["MilestoneResponse"] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -125,3 +126,24 @@ class AIPlanGenerateResponse(BaseModel):
     task_id: str | None = None
     status: str  # "generating" | "completed" | "failed"
     plan_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Milestones (Sprint 4)
+# ---------------------------------------------------------------------------
+
+
+class MilestoneResponse(BaseModel):
+    id: str
+    milestone_type: str
+    achieved_at: str | None = None
+    metadata_json: dict | None = None
+
+
+class MasterySnapshotItem(BaseModel):
+    date: str
+    mastery_json: dict | None = None
+
+
+class MasteryTrendResponse(BaseModel):
+    snapshots: list[MasterySnapshotItem]
