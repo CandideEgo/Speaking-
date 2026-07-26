@@ -378,6 +378,15 @@
     background: rgb(var(--scrollbar-thumb) / 0.8);
   }
 
+  /* Hide scrollbar utility */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Subtitle panel scrollbar */
   .subtitle-scroll::-webkit-scrollbar {
     width: 6px;

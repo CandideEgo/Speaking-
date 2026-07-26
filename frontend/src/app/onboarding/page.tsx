@@ -145,9 +145,7 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <div>
               <h2 className="font-display text-2xl text-ink mb-1">欢迎来到 SeeWord 👋</h2>
-              <p className="text-sm text-muted-foreground">
-                选择最接近你水平的级别，我们为你定制学习路线
-              </p>
+              <p className="text-sm text-muted">选择最接近你水平的级别，我们为你定制学习路线</p>
             </div>
             <div className="space-y-2">
               {LEVELS.map((l) => (
@@ -162,7 +160,7 @@ export default function OnboardingPage() {
                   )}
                 >
                   <span className="font-medium">{l.label}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">{l.description}</span>
+                  <span className="ml-2 text-sm text-muted">{l.description}</span>
                 </button>
               ))}
             </div>
@@ -177,7 +175,7 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <div>
               <h2 className="font-display text-2xl text-ink mb-1">学习目标</h2>
-              <p className="text-sm text-muted-foreground">你想准备哪个考试或目标？</p>
+              <p className="text-sm text-muted">你想准备哪个考试或目标？</p>
             </div>
             <div className="space-y-2">
               {EXAMS.map((e) => (
@@ -192,7 +190,7 @@ export default function OnboardingPage() {
                   )}
                 >
                   <span className="font-medium">{e.label}</span>
-                  <span className="ml-2 text-sm text-muted-foreground">{e.description}</span>
+                  <span className="ml-2 text-sm text-muted">{e.description}</span>
                 </button>
               ))}
             </div>
@@ -212,7 +210,7 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <div>
               <h2 className="font-display text-2xl text-ink mb-1">学习节奏</h2>
-              <p className="text-sm text-muted-foreground">设置每日学习时长和兴趣话题</p>
+              <p className="text-sm text-muted">设置每日学习时长和兴趣话题</p>
             </div>
 
             {/* Daily minutes */}
@@ -231,7 +229,7 @@ export default function OnboardingPage() {
                     )}
                   >
                     <div className="font-medium">{d.label}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{d.description}</div>
+                    <div className="text-xs text-muted mt-0.5">{d.description}</div>
                   </button>
                 ))}
               </div>
@@ -241,7 +239,7 @@ export default function OnboardingPage() {
             <div>
               <p className="text-sm font-medium text-ink mb-2">
                 兴趣话题
-                <span className="ml-1 text-xs text-muted-foreground font-normal">（可多选）</span>
+                <span className="ml-1 text-xs text-muted font-normal">（可多选）</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {TOPICS.map((t) => (

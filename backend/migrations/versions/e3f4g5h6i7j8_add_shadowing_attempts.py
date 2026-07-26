@@ -49,7 +49,7 @@ def upgrade() -> None:
         ),
         sa.Column("audio_url", sa.String(length=2000), nullable=False),
         sa.Column("duration_ms", sa.Integer(), nullable=True),
-        sa.Column("is_satisfied", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("is_satisfied", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

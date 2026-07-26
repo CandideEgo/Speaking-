@@ -148,7 +148,7 @@ function TimezoneSection({ user }: { user: User }) {
           </option>
         ))}
       </Select>
-      <p className="text-xs text-muted-foreground">影响每日活动统计的时间划分</p>
+      <p className="text-xs text-muted">影响每日活动统计的时间划分</p>
       <Button onClick={handleSave} disabled={saving}>
         {saving ? "保存中..." : "保存时区"}
       </Button>

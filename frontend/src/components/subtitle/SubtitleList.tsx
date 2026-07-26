@@ -128,12 +128,12 @@ const HighlightedText = memo(function HighlightedText({
             className={cn(
               "cursor-pointer rounded transition-colors duration-150",
               isSelected
-                ? "bg-coral/20 text-coral"
+                ? "bg-brand-500/20 text-brand-500"
                 : isVocab
                   ? "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 px-0.5"
                   : isHighlighted
                     ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-0.5"
-                    : "hover:bg-coral/10"
+                    : "hover:bg-brand-500/10"
             )}
             title={isVocab ? "在你的词库中" : undefined}
           >
@@ -186,7 +186,9 @@ const SubtitleItem = memo(function SubtitleItem({
       id={`subtitle-${index}`}
       className={cn(
         "group relative rounded-xl transition-all duration-200",
-        isActive ? "bg-surface-card shadow-sm border border-coral/30" : "hover:bg-surface-soft/50"
+        isActive
+          ? "bg-surface-card shadow-sm border border-brand-500/30"
+          : "hover:bg-surface-soft/50"
       )}
     >
       {/* Main content area */}
@@ -209,7 +211,7 @@ const SubtitleItem = memo(function SubtitleItem({
 
         {/* Chinese translation */}
         {!showEnglishOnly && sub.text_zh && (
-          <p className="mt-1.5 text-sm text-muted-foreground">{sub.text_zh}</p>
+          <p className="mt-1.5 text-sm text-muted">{sub.text_zh}</p>
         )}
 
         {/* Grammar note */}
@@ -222,8 +224,8 @@ const SubtitleItem = memo(function SubtitleItem({
       <div className="flex items-center justify-between px-4 pb-3">
         {/* Timestamp and index */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-mono">{index + 1}</span>
-          <span className="text-[11px] text-muted-foreground font-mono">
+          <span className="text-[11px] text-muted font-mono">{index + 1}</span>
+          <span className="text-[11px] text-muted font-mono">
             {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
           </span>
         </div>
@@ -235,7 +237,7 @@ const SubtitleItem = memo(function SubtitleItem({
               e.stopPropagation();
               onSubtitleClick(index, sub.start_time);
             }}
-            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            className="p-1.5 rounded-lg text-ink/70 hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
             title="播放"
             aria-label="播放此句"
           >
@@ -246,7 +248,7 @@ const SubtitleItem = memo(function SubtitleItem({
               e.stopPropagation();
               onCopy(sub.id, sub.text_en);
             }}
-            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            className="p-1.5 rounded-lg text-ink/70 hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
             title="复制"
             aria-label="复制字幕"
           >
@@ -264,8 +266,8 @@ const SubtitleItem = memo(function SubtitleItem({
             className={cn(
               "p-1.5 rounded-lg transition-colors",
               favorited
-                ? "text-coral bg-coral/10"
-                : "text-ink/70 hover:text-coral hover:bg-coral/10"
+                ? "text-brand-500 bg-brand-500/10"
+                : "text-ink/70 hover:text-brand-500 hover:bg-brand-500/10"
             )}
             title="收藏"
             aria-label="收藏字幕"
@@ -277,7 +279,7 @@ const SubtitleItem = memo(function SubtitleItem({
               e.stopPropagation();
               // TODO: Implement edit functionality
             }}
-            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            className="p-1.5 rounded-lg text-ink/70 hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
             title="编辑"
             aria-label="编辑字幕"
           >
@@ -288,7 +290,7 @@ const SubtitleItem = memo(function SubtitleItem({
               e.stopPropagation();
               onStartSpeaking(sub.id);
             }}
-            className="p-1.5 rounded-lg text-ink/70 hover:text-coral hover:bg-coral/10 transition-colors"
+            className="p-1.5 rounded-lg text-ink/70 hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
             title="练习这句"
             aria-label="练习口语"
           >

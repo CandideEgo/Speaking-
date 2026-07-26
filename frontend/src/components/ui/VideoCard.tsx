@@ -62,7 +62,9 @@ export function VideoCard({
       href={`/watch/${video.id || video.video_id}`}
       onClick={() => trackClick(videoId, clickSource())}
       className={cn(
-        "bg-canvas border border-hairline rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lift hover:border-transparent transition-all duration-150 group",
+        "bg-canvas border border-hairline rounded-xl overflow-hidden cursor-pointer",
+        "hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/[0.08] hover:border-transparent",
+        "transition-all duration-200 ease-out group",
         className
       )}
     >
@@ -121,10 +123,10 @@ export function VideoCard({
       </div>
 
       {/* Meta */}
-      <div className="p-3.5">
+      <div className="p-4">
         <p
           className={cn(
-            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight",
+            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2.5 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
             feat && "text-lg min-h-[50px]"
           )}
         >
@@ -155,11 +157,11 @@ export function VideoCard({
 /** Skeleton placeholder for loading states. */
 export function VideoCardSkeleton() {
   return (
-    <div className="bg-canvas border border-hairline rounded-lg overflow-hidden animate-pulse">
+    <div className="bg-canvas border border-hairline rounded-xl overflow-hidden animate-pulse">
       <div className="relative aspect-video bg-surface-card" />
-      <div className="p-3.5">
-        <div className="h-4 bg-surface-card rounded w-3/4 mb-2" />
-        <div className="h-3 bg-surface-card rounded w-1/2" />
+      <div className="p-4">
+        <div className="h-4 bg-surface-card rounded-md w-3/4 mb-2.5" />
+        <div className="h-3 bg-surface-card rounded-md w-1/2" />
       </div>
     </div>
   );

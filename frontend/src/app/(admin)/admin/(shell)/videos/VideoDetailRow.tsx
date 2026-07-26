@@ -115,9 +115,7 @@ export function VideoDetailRow({
       {/* Left: preview + localize */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            预览
-          </h3>
+          <h3 className="text-xs font-medium text-muted uppercase tracking-wider mb-2">预览</h3>
           <div className="aspect-video w-full overflow-hidden rounded-sm bg-ink/5 flex items-center justify-center">
             {hasLocal && video.video_url_720p ? (
               <video
@@ -136,7 +134,7 @@ export function VideoDetailRow({
             ) : (
               <div className="text-center p-4">
                 <VideoIcon size={32} className="mx-auto text-muted-soft" />
-                <p className="mt-2 text-xs text-muted-foreground">无本地视频文件</p>
+                <p className="mt-2 text-xs text-muted">无本地视频文件</p>
                 <a
                   href={video.source_url}
                   target="_blank"
@@ -150,7 +148,7 @@ export function VideoDetailRow({
           </div>
           {isProcessing && (
             <div className="mt-2 space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted">
                 <Loader2 size={12} className="animate-spin" />
                 处理中{stepLabel ? ` · ${stepLabel}` : ""}
                 {video.processing_progress
@@ -188,9 +186,7 @@ export function VideoDetailRow({
       {/* Right: edit form */}
       <form onSubmit={handleSave} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            编辑
-          </h3>
+          <h3 className="text-xs font-medium text-muted uppercase tracking-wider">编辑</h3>
           <Button
             type="button"
             variant="outline"
@@ -337,13 +333,13 @@ export function VideoDetailRow({
         )}
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">标题</label>
+          <label className="block text-xs font-medium text-muted mb-1">标题</label>
           <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">难度</label>
+            <label className="block text-xs font-medium text-muted mb-1">难度</label>
             <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               <option value="">-</option>
               {DIFFICULTY_OPTIONS.map((d) => (
@@ -354,7 +350,7 @@ export function VideoDetailRow({
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">标签</label>
+            <label className="block text-xs font-medium text-muted mb-1">标签</label>
             <Input
               type="text"
               value={topicTags}
@@ -393,7 +389,7 @@ export function VideoDetailRow({
             />
             已发布
             {video.status !== "ready" && !isPublished && (
-              <span className="text-xs text-muted-foreground">（需 ready）</span>
+              <span className="text-xs text-muted">（需 ready）</span>
             )}
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
@@ -408,7 +404,7 @@ export function VideoDetailRow({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">管理员备注</label>
+          <label className="block text-xs font-medium text-muted mb-1">管理员备注</label>
           <Textarea
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}

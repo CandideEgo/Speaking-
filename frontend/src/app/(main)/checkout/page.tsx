@@ -7,7 +7,7 @@ export default function CheckoutPage() {
   return (
     <main className="flex min-h-full items-center justify-center px-4 bg-canvas">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-coral/10 text-coral">
+        <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-brand-500/10 text-brand-500">
           <ShoppingBag size={28} />
         </div>
         <h1 className="mt-5 font-display text-2xl font-normal text-ink tracking-display-sm">

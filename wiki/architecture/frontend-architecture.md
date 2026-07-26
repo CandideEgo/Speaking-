@@ -6,7 +6,7 @@ confidence: verified
 related_code: [frontend-app, frontend-stores, frontend-lib]
 related: [wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-07-21
+updated: 2026-07-25
 ---
 
 # Background
@@ -41,5 +41,5 @@ frontend/src/
 # Future Notes
 
 - Tailwind v4 is CSS-first — do NOT create `tailwind.config.js`
-- New stores should reference `createAuthStore` factory pattern
+- authStore and adminAuthStore are separate implementations — no shared factory (`createAuthStore` was planned but not implemented)
 - Images must NOT be pasted into agent conversations (see wiki/problems/image-handling.md)

@@ -46,7 +46,7 @@ export function DailyProgressCard({ progress }: DailyProgressCardProps) {
         </div>
         <div className="flex items-center gap-3 mt-2.5 text-xs text-muted">
           <span className="flex items-center gap-1">
-            <Flame size={13} className="text-coral" />
+            <Flame size={13} className="text-brand-500" />
             {progress.current_streak} 天连续
           </span>
           <span className="flex items-center gap-1">

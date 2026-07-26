@@ -167,13 +167,13 @@ export default function VideoEditPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
+      <div className="flex items-center justify-center py-20 text-muted">
         <Loader2 className="animate-spin" size={20} />
       </div>
     );
   }
   if (!video) {
-    return <div className="py-20 text-center text-muted-foreground">视频未找到</div>;
+    return <div className="py-20 text-center text-muted">视频未找到</div>;
   }
 
   const headerExtra = (
@@ -308,11 +308,11 @@ function MetadataForm({
     <Card as="form" padding={4} className="space-y-4" onSubmit={handleSave}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-muted-foreground mb-1">标题</label>
+          <label className="block text-xs font-medium text-muted mb-1">标题</label>
           <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">难度</label>
+          <label className="block text-xs font-medium text-muted mb-1">难度</label>
           <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
             <option value="">未设置</option>
             {DIFFICULTY_OPTIONS.map((d) => (
@@ -323,7 +323,7 @@ function MetadataForm({
           </Select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">标签</label>
+          <label className="block text-xs font-medium text-muted mb-1">标签</label>
           <Input
             type="text"
             value={topicTags}
@@ -332,7 +332,7 @@ function MetadataForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">备注</label>
+          <label className="block text-xs font-medium text-muted mb-1">备注</label>
           <Input type="text" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
         </div>
       </div>
@@ -371,7 +371,7 @@ function MetadataForm({
           />
           已发布
           {!canPublish && !isPublished && (
-            <span className="text-xs text-muted-foreground">（需 status=ready）</span>
+            <span className="text-xs text-muted">（需 status=ready）</span>
           )}
         </label>
       </div>

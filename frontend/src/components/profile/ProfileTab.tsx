@@ -134,7 +134,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             >
               {uploading ? "上传中..." : "上传头像"}
             </Button>
-            <p className="mt-1.5 text-xs text-muted-foreground">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
+            <p className="mt-1.5 text-xs text-muted">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
           rows={3}
           className="w-full resize-none"
         />
-        <p className="mt-1 text-xs text-muted-foreground text-right">{bio.length}/300</p>
+        <p className="mt-1 text-xs text-muted text-right">{bio.length}/300</p>
       </div>
 
       {/* Level */}
@@ -183,7 +183,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       <div>
         <label className="block text-sm font-medium text-ink mb-2">手机号</label>
         {user.phone && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+          <div className="flex items-center gap-2 text-sm text-muted mb-2">
             <Phone size={14} />
             <span>{user.phone}</span>
           </div>
@@ -265,7 +265,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         <label className="block text-sm font-medium text-ink mb-2">会员</label>
         <span
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium ${
-            isPro ? "bg-coral/10 text-coral" : "bg-surface-card text-muted-foreground"
+            isPro ? "bg-brand-500/10 text-brand-500" : "bg-surface-card text-muted"
           }`}
         >
           {isPro ? "Pro 会员" : "免费用户"}
@@ -280,7 +280,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       {/* Member since */}
       <div>
         <label className="block text-sm font-medium text-ink mb-2">注册时间</label>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           {new Date(user.created_at).toLocaleDateString("zh-CN")}
         </p>
       </div>

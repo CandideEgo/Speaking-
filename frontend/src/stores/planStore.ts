@@ -1,7 +1,9 @@
 "use client";
 
 import { create } from "zustand";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { toastApiError } from "@/lib/errors";
 import type { TodayPlanResponse, DailyProgress, LearningProfile } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -74,8 +76,9 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     try {
       await api("/api/v1/plan/generate/ai", { method: "POST" });
       await get().fetchTodayPlan();
+      toast.success("AI 计划已生成");
     } catch (e) {
-      console.error("AI plan generation failed:", e);
+      toastApiError(e, "AI 计划生成失败");
     } finally {
       set({ generating: false });
     }

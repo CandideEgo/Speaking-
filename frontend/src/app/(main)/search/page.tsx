@@ -152,11 +152,11 @@ export default function SearchPage() {
               onChange={(e) => handleInput(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full h-10 pl-10 pr-4 rounded-md bg-surface-soft border border-hairline
-                         text-sm text-ink placeholder:text-muted-foreground
-                         focus:border-coral focus:outline-none focus:ring-[3px] focus:ring-coral/15
+                         text-sm text-ink placeholder:text-muted
+                         focus:border-brand-500 focus:outline-none focus:ring-[3px] focus:ring-brand-500/15
                          transition-colors duration-150"
             />
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
           </div>
         </div>
       </div>
@@ -166,31 +166,31 @@ export default function SearchPage() {
         {/* Loading */}
         {isSearching && (
           <div className="flex items-center justify-center gap-2 py-12">
-            <Loader2 className="h-5 w-5 animate-spin text-coral" />
-            <span className="text-sm text-muted-foreground">搜索中...</span>
+            <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+            <span className="text-sm text-muted">搜索中...</span>
           </div>
         )}
 
         {/* No results */}
         {!isSearching && hasSearched && !hasAnyResults && (
           <div className="flex flex-col items-center gap-2 py-12">
-            <FileSearch className="h-10 w-10 text-muted-foreground/40" />
-            <span className="text-sm text-muted-foreground">没有找到相关视频</span>
+            <FileSearch className="h-10 w-10 text-muted/40" />
+            <span className="text-sm text-muted">没有找到相关视频</span>
           </div>
         )}
 
         {/* Initial state */}
         {!hasSearched && !isSearching && (
           <div className="flex flex-col items-center gap-2 py-12">
-            <SearchIcon className="h-10 w-10 text-muted-foreground/30" />
-            <span className="text-sm text-muted-foreground">输入关键词搜索视频或字幕</span>
+            <SearchIcon className="h-10 w-10 text-muted/30" />
+            <span className="text-sm text-muted">输入关键词搜索视频或字幕</span>
           </div>
         )}
 
         {/* Video results */}
         {hasVideoResults && (
           <div>
-            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
               视频
             </div>
             <ul className="space-y-1">
@@ -228,7 +228,7 @@ export default function SearchPage() {
         {/* Subtitle results */}
         {hasSubtitleResults && (
           <div className={hasVideoResults ? "mt-4 pt-4 border-t border-hairline" : ""}>
-            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
               <Subtitles size={12} />
               字幕匹配
             </div>
@@ -254,7 +254,7 @@ export default function SearchPage() {
                           {result.video.title}
                         </p>
                         <p className="text-xs text-muted line-clamp-1 mt-0.5">
-                          <span className="text-muted-foreground font-mono mr-1.5">
+                          <span className="text-muted font-mono mr-1.5">
                             {formatTime(sub.start_time)}
                           </span>
                           {sub.text_en}

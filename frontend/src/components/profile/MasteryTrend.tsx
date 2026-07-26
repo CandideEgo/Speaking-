@@ -86,15 +86,13 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-        加载中...
-      </div>
+      <div className="flex items-center justify-center h-48 text-sm text-muted">加载中...</div>
     );
   }
 
   if (error || data.length < 2) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted">
         <TrendingUp size={24} className="opacity-40" />
         <p className="text-sm">暂无足够数据，继续学习以生成趋势图</p>
       </div>

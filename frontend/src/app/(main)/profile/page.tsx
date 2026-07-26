@@ -6,13 +6,16 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/common/ErrorState";
+import { PageTransition } from "@/components/common/PageTransition";
 import { User as UserIcon, Settings, BookOpen, TrendingUp } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import LearningPrefsTab from "@/components/profile/LearningPrefsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
 import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
+import { cn } from "@/lib/utils";
 import type { User, UserPreferences, Milestone } from "@/types";
 
 const TABS = [
@@ -69,7 +72,7 @@ export default function ProfilePage() {
   if (isLoading || loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral" />
+        <div className="w-8 h-8 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
       </main>
     );
   }
@@ -81,32 +84,23 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-full bg-canvas">
-      {/* Header */}
-      <section className="border-b border-hairline bg-canvas">
-        <div className="container-page py-8 sm:py-12">
-          <div className="flex items-center gap-2 text-coral mb-3">
-            <UserIcon size={18} />
-            <span className="text-xs font-semibold tracking-caption-wide uppercase">个人设置</span>
-          </div>
-          <h1 className="font-display text-4xl sm:text-5xl font-normal text-ink tracking-display-xl leading-tight">
-            账户管理
-          </h1>
-        </div>
-      </section>
+    <PageTransition>
+      <main className="container-page py-6 sm:py-12">
+        {/* Header */}
+        <PageHeader crumb="个人设置" title="账户管理" />
 
-      {/* Tabs */}
-      <section className="container-page py-6">
+        {/* Tabs */}
         <div className="flex gap-1 border-b border-hairline mb-8">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer",
                 activeTab === tab.key
-                  ? "border-coral text-coral"
-                  : "border-transparent text-muted-foreground hover:text-ink"
-              }`}
+                  ? "border-brand-500 text-brand-500"
+                  : "border-transparent text-muted hover:text-ink"
+              )}
             >
               <tab.icon size={16} />
               {tab.label}
@@ -132,7 +126,7 @@ export default function ProfilePage() {
         {activeTab === "learning" && (
           <LearningPrefsTab preferences={preferences} onUpdate={setPreferences} />
         )}
-      </section>
-    </main>
+      </main>
+    </PageTransition>
   );
 }

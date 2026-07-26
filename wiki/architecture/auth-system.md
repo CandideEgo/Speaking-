@@ -6,7 +6,7 @@ confidence: verified
 related_code: [auth-deps, frontend-stores, api-client]
 related: [wiki/architecture/backend-services.md]
 created: 2026-07-21
-updated: 2026-07-22
+updated: 2026-07-25
 ---
 
 # Background
@@ -35,7 +35,7 @@ Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expi
 
 # Frontend State (Zustand)
 
-5 stores in `frontend/src/stores/`:
+6 stores in `frontend/src/stores/`:
 
 | Store | Responsibility |
 |-------|---------------|
@@ -44,6 +44,7 @@ Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expi
 | `feedStore.ts` | Home feed recommendation (ADR-0011). Caches feed, tracks seen videos for de-prioritization. `seenIds` persists to localStorage. |
 | `watchStore.ts` | Video player UI state (subtitle mode, panel collapse/width, exam level for word highlighting). |
 | `vocabularyStore.ts` | Word list, stats, quiz sessions, SM-2 review actions. |
+| `planStore.ts` | Daily learning plan state (ADR-0012). Today's plan, progress, plan items. |
 
 # Future Notes
 

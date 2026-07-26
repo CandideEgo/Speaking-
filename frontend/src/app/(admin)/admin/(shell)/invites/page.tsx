@@ -121,7 +121,7 @@ export default function AdminInvitesPage() {
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wider">
                 数量
               </label>
               <Input
@@ -133,7 +133,7 @@ export default function AdminInvitesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wider">
                 有效期（天）
               </label>
               <Input
@@ -145,7 +145,7 @@ export default function AdminInvitesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wider">
                 批次标签
               </label>
               <Input
@@ -198,9 +198,9 @@ export default function AdminInvitesPage() {
           renderRow={(c) => (
             <tr className="text-xs hover:bg-surface-soft/40 transition-colors">
               <td className="py-2 font-mono text-ink">{c.code}</td>
-              <td className="py-2 text-muted-foreground">{c.plan}</td>
-              <td className="py-2 text-muted-foreground">{c.duration_days}天</td>
-              <td className="py-2 text-muted-foreground">{c.batch_label || "-"}</td>
+              <td className="py-2 text-muted">{c.plan}</td>
+              <td className="py-2 text-muted">{c.duration_days}天</td>
+              <td className="py-2 text-muted">{c.batch_label || "-"}</td>
               <td className="py-2">
                 <Badge
                   tone={
@@ -222,7 +222,7 @@ export default function AdminInvitesPage() {
                         : "已过期"}
                 </Badge>
               </td>
-              <td className="py-2 text-muted-foreground font-mono">
+              <td className="py-2 text-muted font-mono">
                 {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
               </td>
               <td className="py-2">

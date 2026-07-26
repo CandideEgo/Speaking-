@@ -257,15 +257,15 @@ export default function VideoManager() {
             <span
               className={cn("w-2.5 h-2.5 rounded-full", workerOnline ? "bg-success" : "bg-error")}
             />
-            <span className="text-muted-foreground">GPU Worker</span>
+            <span className="text-muted">GPU Worker</span>
             <span className="font-medium text-ink">{workerOnline ? "在线" : "离线"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">转录队列</span>
+            <span className="text-muted">转录队列</span>
             <span className="font-medium text-ink">{queueDepth}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">失败视频</span>
+            <span className="text-muted">失败视频</span>
             <span className={cn("font-medium", errorCount > 0 ? "text-error" : "text-ink")}>
               {errorCount}
             </span>
@@ -298,7 +298,7 @@ export default function VideoManager() {
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
-          <span className="text-xs text-muted-foreground">审核：</span>
+          <span className="text-xs text-muted">审核：</span>
           <FilterPills
             options={REVIEW_FILTERS}
             value={reviewStatusFilter}
@@ -352,10 +352,7 @@ export default function VideoManager() {
                     <div className="font-medium text-ink truncate max-w-[280px]" title={v.title}>
                       {v.title}
                     </div>
-                    <div
-                      className="text-muted-foreground truncate max-w-[280px]"
-                      title={v.source_url}
-                    >
+                    <div className="text-muted truncate max-w-[280px]" title={v.source_url}>
                       {v.source_url}
                     </div>
                   </div>
@@ -366,7 +363,7 @@ export default function VideoManager() {
                 {(v.status === "processing" || v.status === "ready_subtitles") &&
                   v.processing_step && (
                     <div className="mt-1 space-y-0.5">
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[10px] text-muted">
                         {STEP_LABELS_SHORT[v.processing_step] || v.processing_step}
                         {v.processing_progress ? `（${v.processing_progress}%）` : ""}
                       </div>
@@ -391,7 +388,7 @@ export default function VideoManager() {
                   </div>
                 )}
               </td>
-              <td className="py-3 pr-4 text-muted-foreground">{v.difficulty_level || "-"}</td>
+              <td className="py-3 pr-4 text-muted">{v.difficulty_level || "-"}</td>
               <td className="py-3 pr-4">
                 <div className="flex flex-col gap-1">
                   {v.is_official && (
@@ -422,7 +419,7 @@ export default function VideoManager() {
                   {v.forked_from && <ForkBadge forkedFrom={v.forked_from} size="sm" />}
                 </div>
               </td>
-              <td className="py-3 pr-4 text-muted-foreground">
+              <td className="py-3 pr-4 text-muted">
                 {new Date(v.created_at).toLocaleDateString()}
               </td>
               <td className="py-3 text-right">
@@ -502,7 +499,7 @@ export default function VideoManager() {
           </>
         }
       >
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted">
           驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
         </p>
         <Textarea
@@ -565,7 +562,7 @@ export default function VideoManager() {
           </>
         }
       >
-        <p className="text-xs text-muted-foreground mb-3">
+        <p className="text-xs text-muted mb-3">
           粘贴视频链接（YouTube / Bilibili）。将自动转录、翻译并发布为官方视频，需 GPU Worker 在线。
         </p>
         <Input

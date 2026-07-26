@@ -245,6 +245,57 @@ export default function WatchPage() {
     return selectedWord === cleanToken(word);
   }
 
+  // --- Keyboard shortcuts: space=play/pause, ←/→=seek, ↑/↓=subtitle nav ---
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      switch (e.key) {
+        case " ": {
+          e.preventDefault();
+          const v = videoRef.current;
+          if (v) {
+            if (v.paused) v.play();
+            else v.pause();
+          }
+          break;
+        }
+        case "ArrowLeft": {
+          e.preventDefault();
+          const v = videoRef.current;
+          if (v) v.currentTime = Math.max(0, v.currentTime - 5);
+          break;
+        }
+        case "ArrowRight": {
+          e.preventDefault();
+          const v = videoRef.current;
+          if (v) v.currentTime = v.currentTime + 5;
+          break;
+        }
+        case "ArrowUp": {
+          e.preventDefault();
+          if (currentSubtitleIndex > 0) {
+            const prev = video?.subtitles?.[currentSubtitleIndex - 1];
+            if (prev) {
+              setCurrentSubtitleIndex(currentSubtitleIndex - 1);
+              seekTo(prev.start_time);
+            }
+          }
+          break;
+        }
+        case "ArrowDown": {
+          e.preventDefault();
+          handleNextSubtitle();
+          break;
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentSubtitleIndex, video, videoRef, seekTo, setCurrentSubtitleIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // --- Loading / Error states ---
   if (!video && playbackMode !== "error") return <FullPageSpinner />;
 
@@ -368,16 +419,6 @@ export default function WatchPage() {
           <span>{video.difficulty_level || "B2"}</span>
           <span>·</span>
           <span>{formatDuration(video.duration)}</span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-0.5">
-            <Heart size={11} className={cn(isLiked && "fill-current text-error")} />
-            {video.like_count}
-          </span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-0.5">
-            <Bookmark size={11} className={cn(isFavorited && "fill-current text-brand-500")} />
-            {video.favorite_count}
-          </span>
           {video.forked_from && (
             <>
               <span>·</span>
@@ -504,6 +545,20 @@ export default function WatchPage() {
           {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
           {currentSubtitle && (
             <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
+              {/* 字幕进度指示 */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-mono text-muted-soft">
+                  {currentSubtitleIndex + 1} / {video.subtitles.length}
+                </span>
+                <div className="flex-1 mx-3 h-0.5 rounded-full bg-surface-card">
+                  <div
+                    className="h-full rounded-full bg-brand-500 transition-all duration-300"
+                    style={{
+                      width: `${((currentSubtitleIndex + 1) / video.subtitles.length) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="now-sub-en text-left leading-[1.7]">

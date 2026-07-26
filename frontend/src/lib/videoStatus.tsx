@@ -92,7 +92,7 @@ export const PROCESSING_STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
 export const REVIEW_STATUS_CONFIG: Record<string, StatusBadgeConfig> = {
   draft: {
     label: "草稿",
-    className: "bg-surface-card text-muted-foreground",
+    className: "bg-surface-card text-muted",
     icon: FileEdit,
   },
   pending_review: {

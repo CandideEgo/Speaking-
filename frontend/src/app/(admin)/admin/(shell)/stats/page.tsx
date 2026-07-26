@@ -201,9 +201,7 @@ export default function AdminStatsPage() {
                 onClick={() => setRange(r)}
                 className={cn(
                   "rounded-sm px-3 py-1 text-xs font-medium transition-colors",
-                  range === r
-                    ? "bg-brand-500 text-on-primary"
-                    : "text-muted-foreground hover:text-ink"
+                  range === r ? "bg-brand-500 text-on-primary" : "text-muted hover:text-ink"
                 )}
               >
                 {r} 天
@@ -324,7 +322,7 @@ export default function AdminStatsPage() {
             const Icon = ACTIVITY_ICON[a.type] || TrendingUp;
             return (
               <li key={a.id} className="flex items-center gap-3 py-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-soft text-muted-foreground flex-shrink-0">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-soft text-muted flex-shrink-0">
                   <Icon size={14} />
                 </span>
                 <span className="text-sm text-ink flex-1">{a.summary}</span>

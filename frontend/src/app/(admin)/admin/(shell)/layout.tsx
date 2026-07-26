@@ -63,10 +63,10 @@ export default function AdminShellLayout({ children }: { children: React.ReactNo
           {status === "denied" ? (
             <>
               <ShieldAlert size={40} className="mx-auto text-muted-soft" />
-              <p className="mt-3 text-sm text-muted-foreground">无管理员权限</p>
+              <p className="mt-3 text-sm text-muted">无管理员权限</p>
             </>
           ) : (
-            <Loader2 size={28} className="mx-auto animate-spin text-coral" />
+            <Loader2 size={28} className="mx-auto animate-spin text-brand-500" />
           )}
         </div>
       </div>

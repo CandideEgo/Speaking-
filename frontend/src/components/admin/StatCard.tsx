@@ -18,7 +18,7 @@ export function StatCard({
   tone?: "default" | "coral" | "green" | "amber";
 }) {
   const toneClass = {
-    default: "bg-surface-soft text-muted-foreground",
+    default: "bg-surface-soft text-muted",
     coral: "bg-brand-50 text-brand-600",
     green: "bg-success-soft text-success",
     amber: "bg-warning-soft text-warning",
@@ -28,9 +28,7 @@ export function StatCard({
     <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {label}
-          </p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted">{label}</p>
           <p className="mt-2 font-display text-3xl font-normal text-ink">{value}</p>
           {delta && <p className="mt-1 text-xs text-success">{delta}</p>}
         </div>

@@ -74,13 +74,13 @@ export default function RedeemPage() {
     <main className="flex min-h-full items-center justify-center px-4 bg-canvas">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-coral text-white">
+          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-brand-500 text-white">
             <Gift size={28} />
           </div>
           <h1 className="mt-5 font-display text-3xl font-normal text-ink tracking-display-md">
             兑换 Pro 会员
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">输入购买获得的兑换码，立即升级</p>
+          <p className="mt-2 text-sm text-muted">输入购买获得的兑换码，立即升级</p>
         </div>
 
         {!isAuthenticated ? (
@@ -128,9 +128,7 @@ export default function RedeemPage() {
           </form>
         )}
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          兑换码通过微信小商店购买后获得
-        </p>
+        <p className="mt-6 text-center text-xs text-muted">兑换码通过微信小商店购买后获得</p>
       </div>
     </main>
   );

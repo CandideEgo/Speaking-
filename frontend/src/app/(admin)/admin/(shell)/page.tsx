@@ -64,7 +64,7 @@ export default function AdminDashboardPage() {
   if (loading || !stats) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-coral" />
+        <Loader2 size={24} className="animate-spin text-brand-500" />
       </div>
     );
   }
@@ -77,7 +77,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl text-ink">运营概览</h1>
-          <p className="mt-1 text-sm text-muted-foreground">实时掌握平台运行状态</p>
+          <p className="mt-1 text-sm text-muted">实时掌握平台运行状态</p>
         </div>
         <Button
           onClick={load}
@@ -168,7 +168,7 @@ export default function AdminDashboardPage() {
             <Link
               key={l.href}
               href={l.href}
-              className="flex items-center justify-between rounded-md border border-hairline bg-canvas px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-coral hover:text-coral"
+              className="flex items-center justify-between rounded-md border border-hairline bg-canvas px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-brand-500 hover:text-brand-500"
             >
               {l.label}
               <ArrowRight size={15} />

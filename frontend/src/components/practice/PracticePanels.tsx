@@ -32,7 +32,7 @@ function QuestionCard({
       {hint && <div className="text-xs text-muted">{hint}</div>}
       {children}
       {grading && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs text-muted">
           <Loader2 size={12} className="animate-spin" /> 判分中…
         </div>
       )}

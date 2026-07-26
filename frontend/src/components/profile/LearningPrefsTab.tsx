@@ -57,7 +57,7 @@ export default function LearningPrefsTab({ preferences, onUpdate }: LearningPref
       {/* Daily Goal */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-ink uppercase tracking-wider">每日目标</h3>
-        <p className="text-sm text-muted-foreground">设置每日学习目标，养成坚持学习的好习惯。</p>
+        <p className="text-sm text-muted">设置每日学习目标，养成坚持学习的好习惯。</p>
 
         <div className="flex items-end gap-4">
           <div>
@@ -91,7 +91,7 @@ export default function LearningPrefsTab({ preferences, onUpdate }: LearningPref
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted">
           当前目标：每天 {goalValue} {goalTypeLabels[goalType]}
         </p>
       </div>
@@ -125,7 +125,7 @@ export default function LearningPrefsTab({ preferences, onUpdate }: LearningPref
             </option>
           ))}
         </Select>
-        <p className="text-xs text-muted-foreground">用于推荐合适难度的视频</p>
+        <p className="text-xs text-muted">用于推荐合适难度的视频</p>
       </div>
 
       {/* Save */}

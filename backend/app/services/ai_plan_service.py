@@ -11,11 +11,13 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.learning_plan import LearningEvent, LearningPlan, LearningPlanItem, UserLearningProfile
 from app.models.preferences import UserPreferences
 from app.models.video import Video, VideoStatus
+from app.services import learning_event_service
 from app.services.ai_service import AIServiceError, get_ai_service
 
 logger = logging.getLogger(__name__)
@@ -70,7 +72,7 @@ async def generate_ai_plan(db: AsyncSession, user_id: str) -> dict:
         return await generate_daily_plan(db, user_id)
 
     # Delete existing plan for today if any
-    today = datetime.now(UTC).date()
+    today = await learning_event_service._get_user_local_date(db, user_id)
     existing = await db.execute(
         select(LearningPlan).where(
             LearningPlan.user_id == user_id,
@@ -150,7 +152,12 @@ async def generate_ai_plan(db: AsyncSession, user_id: str) -> dict:
         db.add(item)
 
     await db.commit()
-    await db.refresh(plan)
+
+    # Re-query with items eagerly loaded to avoid async lazy-load issues
+    result = await db.execute(
+        select(LearningPlan).options(selectinload(LearningPlan.items)).where(LearningPlan.id == plan.id)
+    )
+    plan = result.scalar_one()
 
     # Convert to dict
     from app.services.learning_plan_service import _plan_to_dict

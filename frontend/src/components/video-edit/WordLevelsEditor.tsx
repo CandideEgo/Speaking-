@@ -55,7 +55,7 @@ export function WordLevelsEditor({
 
   return (
     <div className="border-t border-hairline pt-3 mt-2 space-y-2">
-      <div className="text-xs text-muted-foreground">单词高亮（点选词 → 勾选考级）</div>
+      <div className="text-xs text-muted">单词高亮（点选词 → 勾选考级）</div>
 
       <div className="flex flex-wrap gap-1.5">
         {tokens.map((raw, i) => {
@@ -68,7 +68,7 @@ export function WordLevelsEditor({
               onClick={() => setSelectedToken(token === selectedToken ? null : token)}
               className={`px-1.5 py-0.5 rounded text-sm ${
                 selectedToken === token ? "ring-2 ring-ink" : ""
-              } ${lvls.length ? wordHighlightClass(lvls) : "text-muted-foreground"}`}
+              } ${lvls.length ? wordHighlightClass(lvls) : "text-muted"}`}
             >
               {raw}
             </button>
@@ -78,7 +78,7 @@ export function WordLevelsEditor({
 
       {selectedToken && (
         <div className="flex flex-wrap items-center gap-2 bg-surface-soft/60 rounded p-2">
-          <span className="text-xs text-muted-foreground mr-1">“{selectedToken}”：</span>
+          <span className="text-xs text-muted mr-1">“{selectedToken}”：</span>
           {EXAM_LEVELS.map((lvl) => {
             const active = (levels[selectedToken] ?? []).includes(lvl.key);
             return (
@@ -87,7 +87,7 @@ export function WordLevelsEditor({
                 type="button"
                 onClick={() => toggleLevel(selectedToken, lvl.key)}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${
-                  active ? "border-ink bg-surface" : "border-hairline text-muted-foreground"
+                  active ? "border-ink bg-surface" : "border-hairline text-muted"
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${levelDotClass(lvl.color)}`} />

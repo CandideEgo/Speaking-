@@ -19,7 +19,7 @@ export type ButtonSize = "xs" | "sm" | "compact" | "md" | "nav" | "lg" | "icon";
 
 export const VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted-foreground",
+    "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted",
   dark: "bg-ink text-canvas hover:bg-ink/90 hover:-translate-y-0.5 disabled:opacity-50",
   outline:
     "bg-canvas text-ink border border-hairline hover:border-ink hover:bg-surface-soft disabled:opacity-50",

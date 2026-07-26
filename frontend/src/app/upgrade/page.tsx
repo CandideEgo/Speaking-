@@ -19,7 +19,7 @@ export default function UpgradePage() {
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-md">
         <div className="rounded-lg border border-hairline bg-surface-card p-7 sm:p-8">
-          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-coral/10 text-coral">
+          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-brand-500/10 text-brand-500">
             <ShoppingBag size={28} />
           </div>
           <h1 className="mt-5 text-center font-display text-2xl font-normal text-ink tracking-display-sm">

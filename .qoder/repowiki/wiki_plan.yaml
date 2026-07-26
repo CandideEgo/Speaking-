@@ -1,0 +1,56 @@
+version: 1
+
+scope:
+  include: []
+  exclude:
+    - "node_modules/**"
+    - ".next/**"
+    - ".venv/**"
+    - "__pycache__/**"
+    - ".mypy_cache/**"
+    - ".pytest_cache/**"
+    - ".ruff_cache/**"
+    - "backend/media/**"
+    - "backend/data/**"
+    - "backend/.venv/**"
+    - "frontend/node_modules/**"
+    - "frontend/.next/**"
+    - "frontend/test-results/**"
+    - "frontend/playwright-report/**"
+    - ".playwright-cli/**"
+    - ".debug-shots/**"
+    - ".gitnexus/**"
+    - ".qoder/**"
+    - ".claude/**"
+    - ".agent/**"
+    - "logs/**"
+    - "media/**"
+    - "wiki/**"
+    - "docs/**"
+    - "*.log"
+    - "*.mp4"
+    - "*.jpg"
+    - "*.png"
+    - "*.db"
+
+repowiki:
+  template: architecture
+  notes:
+    - text: "项目品牌名为 SeeWord，面向中文母语者的英语词汇学习应用。核心闭环：粘贴视频 URL → WhisperX 转录 → 双语字幕 → 考试词汇标注 → SM-2 间隔复习。"
+    - text: "AI 口语评分功能已永久下线（ADR-0002/0003），SpeakingAttempt 表冻结只读。产品定位为视频词汇学习 + 社区 UGC，勿将口语评分纳入架构描述。"
+    - text: "支付功能因 ICP 合规已禁用，唯一变现通道为兑换码（RedeemCode）。支付宝/微信回调代码保留但不激活。"
+    - text: "GPU Worker 是安全边界：禁止访问数据库和 OSS 凭证，仅通过 HTTP callback 回传转录结果。"
+    - text: "Redis 所有依赖必须 fail-open，不允许 Redis 不可用导致主流程阻塞。"
+    - text: "前端使用 Tailwind CSS v4 CSS-first 模式，禁止创建 tailwind.config.js，新组件必须使用语义化 token 而非硬编码色值。"
+    - text: "视频管线分三段：Head（云端 Celery）→ GPU Worker（WhisperX 转录）→ Tail（云端 Celery：翻译+标注+预热+转码）。断点续传通过 Redis video:steps:{id} 实现。"
+    - text: "AI 调用必须经过 ai_service.py 单例，禁止在路由层直接使用 AsyncOpenAI。翻译引擎可插拔（agnes/qwen/hy_mt2/custom）带指数退避重试。"
+    - text: "用户面 UGC 上传已砍（ADR-0012），Video.is_official / auto_publish 列保留 dormant。社区功能仅剩评论/点赞。"
+    - text: "学习闭环北极星指标：一天内完成 watch+vocab+practice+review 四种 LearningEvent = 1 完整闭环。LearningEvent 与 BehaviorEvent 分离（不同查询模式、保留策略）。"
+
+knowledgecard:
+  notes:
+    - text: "后端模块边界：api/v1 为薄路由层 → services 为业务逻辑 → tasks 为 Celery 异步任务 → core 为基础设施（config/db/redis/security/errors/cache/limiter/logging）。"
+    - text: "前端模块边界：app/(main) 用户页面、app/(admin) 管理后台、app/(landing) 营销落地页；stores 为 6 个 Zustand store（auth/adminAuth/feed/watch/vocabulary/plan）；lib/api.ts 为统一 API 客户端含 JWT 自动刷新。"
+    - text: "视频管线是系统最复杂的异步流程，涉及 3 个独立进程（云 Celery、GPU Worker、回调接收），修改时需考虑断点续传兼容性和幂等性。"
+    - text: "ai_service.py 是 6+ 个调用方的共享依赖（video pipeline/vocabulary/practice/ai route/words route/ai_plan_service），接口变更影响面大。"
+    - text: "notification_service 采用 actor-aware 去重：同 actor 同类型 → 更新现有通知；不同 actor → 创建新通知。去重为非原子操作（check-then-insert），可接受。"

@@ -260,7 +260,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
           <button
             onClick={markAllAsRead}
             disabled={isMarkingAll}
-            className="text-xs text-coral hover:text-coral/80 transition-colors disabled:opacity-50"
+            className="text-xs text-brand-500 hover:text-brand-500/80 transition-colors disabled:opacity-50"
           >
             {isMarkingAll ? "标记中..." : "全部已读"}
           </button>
@@ -271,10 +271,10 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
       <div className="max-h-80 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-coral border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-8 text-muted">
             <Bell size={32} className="mb-2 opacity-40" />
             <span className="text-sm">暂无通知</span>
           </div>
@@ -285,24 +285,22 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
                 <button
                   onClick={() => handleNotificationClick(notification)}
                   className={`w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors ${
-                    !notification.is_read ? "bg-coral/5" : ""
+                    !notification.is_read ? "bg-brand-500/5" : ""
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     {/* Unread dot */}
                     {!notification.is_read && (
-                      <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-coral" />
+                      <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
                     )}
                     <div className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}>
                       <p
-                        className={`text-sm ${notification.is_read ? "text-muted-foreground" : "text-ink font-medium"}`}
+                        className={`text-sm ${notification.is_read ? "text-muted" : "text-ink font-medium"}`}
                       >
                         {notification.title}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">
+                      <p className="text-xs text-muted mt-0.5 truncate">{notification.message}</p>
+                      <p className="text-xs text-muted/60 mt-1">
                         {timeAgo(notification.created_at)}
                       </p>
                     </div>

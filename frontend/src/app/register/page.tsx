@@ -151,7 +151,7 @@ export default function RegisterPage() {
 
         {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
 
-        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+        <label className="flex items-start gap-2 text-xs text-muted">
           <input
             type="checkbox"
             checked={agreed}

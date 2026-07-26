@@ -88,25 +88,23 @@ export function MilestoneBadge({ type, milestone }: MilestoneBadgeProps) {
   return (
     <div
       className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-        achieved ? "border-coral/20 bg-coral/5" : "border-hairline bg-surface-card opacity-60"
+        achieved
+          ? "border-brand-500/20 bg-brand-500/5"
+          : "border-hairline bg-surface-card opacity-60"
       }`}
     >
       <div
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-          achieved ? "bg-coral/10 text-coral" : "bg-surface-card text-muted-foreground"
+          achieved ? "bg-brand-500/10 text-brand-500" : "bg-surface-card text-muted"
         }`}
       >
         <Icon size={20} />
       </div>
       <div className="min-w-0">
-        <p
-          className={`text-sm font-medium truncate ${
-            achieved ? "text-ink" : "text-muted-foreground"
-          }`}
-        >
+        <p className={`text-sm font-medium truncate ${achieved ? "text-ink" : "text-muted"}`}>
           {config.label}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="text-xs text-muted truncate">
           {achieved && milestone?.achieved_at
             ? new Date(milestone.achieved_at).toLocaleDateString("zh-CN")
             : config.description}

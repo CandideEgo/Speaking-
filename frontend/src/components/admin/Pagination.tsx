@@ -18,7 +18,7 @@ export function Pagination({
 }) {
   return (
     <div className="mt-4 flex items-center justify-between">
-      <span className="text-xs text-muted-foreground">第 {page} 页</span>
+      <span className="text-xs text-muted">第 {page} 页</span>
       <div className="flex gap-2">
         <Button
           variant="secondary"

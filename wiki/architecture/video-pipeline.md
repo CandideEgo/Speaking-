@@ -6,7 +6,7 @@ confidence: verified
 related_code: [video-pipeline, celery-tasks]
 related: [.agent/context.md, docs/adr/0004-ugc-pipeline-admin-triggered.md]
 created: 2026-07-21
-updated: 2026-07-22
+updated: 2026-07-25
 ---
 
 # Background
@@ -49,7 +49,12 @@ Configured in `backend/app/tasks/celery_app.py` with `task_routes`.
 # Beat Schedule
 
 - `expire-pending-orders` every 5 min
+- `reconcile-pending-orders` every 15 min (query payment provider for lost callbacks)
 - `watchdog-stale-transcriptions` every 10 min
+- `score-videos-hourly` every hour (top 200 by view_count)
+- `score-videos-daily` every day (full recompute)
+- `downgrade-expired-pro` every hour (ADR-0007)
+- `expire-unused-redeem-codes` every day (ADR-0007)
 
 # Async in Celery Tasks
 

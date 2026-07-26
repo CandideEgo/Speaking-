@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVocabularyPractice } from "@/hooks/usePractice";
-import { BookOpen, Trash2, Volume2, Target, CheckCircle2, Flame, Dumbbell } from "lucide-react";
+import {
+  BookOpen,
+  Trash2,
+  Volume2,
+  Target,
+  CheckCircle2,
+  Flame,
+  Dumbbell,
+  Search,
+} from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -17,6 +26,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Modal } from "@/components/common/Modal";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
+import { PageTransition } from "@/components/common/PageTransition";
 import { useSpeech } from "@/hooks/useSpeech";
 import type { Paginated, VocabularyWord } from "@/types";
 
@@ -64,6 +74,7 @@ export default function VocabularyPage() {
   const [dueOnly, setDueOnly] = useState(false);
   const undoneRef = useRef(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const vocabPractice = useVocabularyPractice({
     count: 10,
     dueOnly: true,
@@ -171,19 +182,27 @@ export default function VocabularyPage() {
     });
   }
 
+  // Filter words by search query
+  const filteredWords = useMemo(() => {
+    if (!searchQuery.trim()) return words;
+    const q = searchQuery.toLowerCase();
+    return words.filter(
+      (w) =>
+        w.word.toLowerCase().includes(q) ||
+        w.translation?.toLowerCase().includes(q) ||
+        w.definition?.toLowerCase().includes(q)
+    );
+  }, [words, searchQuery]);
+
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
   }
 
   return (
-    <main className="min-h-full bg-canvas">
-      <div className="container-page py-8">
+    <PageTransition>
+      <main className="container-page py-6 sm:py-12">
         {/* Page header */}
-        <PageHeader
-          crumb="学习"
-          title="词汇本"
-          description="收藏的生词在这里,用间隔复习算法帮你长期记忆。"
-        />
+        <PageHeader crumb="学习" title="词汇本" />
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
@@ -230,37 +249,60 @@ export default function VocabularyPage() {
           <UnifiedPracticePanel session={vocabPractice} levelLabel="词汇练习" />
         </Modal>
 
-        {/* Section header */}
-        <SectionHeader
-          title="全部单词"
-          action={
-            <TabPills
-              tabs={[
-                { key: "all", label: "全部" },
-                { key: "due", label: "待复习" },
-              ]}
-              activeKey={dueOnly ? "due" : "all"}
-              onChange={(key) => setDueOnly(key === "due")}
-              variant="ghost"
-              shape="rect"
+        {/* Section header + search */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-0 mb-4">
+          <SectionHeader
+            title="全部单词"
+            action={
+              <TabPills
+                tabs={[
+                  { key: "all", label: "全部" },
+                  { key: "due", label: "待复习" },
+                ]}
+                activeKey={dueOnly ? "due" : "all"}
+                onChange={(key) => setDueOnly(key === "due")}
+                variant="ghost"
+                shape="rect"
+              />
+            }
+            className="mt-0 mb-0"
+          />
+          {/* Search filter */}
+          <div className="relative w-full sm:w-56">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
             />
-          }
-          className="mt-0"
-        />
+            <input
+              type="text"
+              placeholder="搜索单词…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
+                text-sm text-ink placeholder:text-muted-soft
+                focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                transition-colors duration-150"
+            />
+          </div>
+        </div>
 
         {/* Word grid */}
         {loading ? (
           <InlineSpinner />
-        ) : words.length === 0 ? (
+        ) : filteredWords.length === 0 ? (
           <EmptyState
             icon={BookOpen}
             title={
-              dueOnly ? "今天没有需要复习的单词！" : "词汇本为空。观看视频时点击单词即可收藏。"
+              searchQuery
+                ? `未找到匹配“${searchQuery}”的单词`
+                : dueOnly
+                  ? "今天没有需要复习的单词！"
+                  : "词汇本为空。观看视频时点击单词即可收藏。"
             }
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {words.map((w) => {
+            {filteredWords.map((w) => {
               const mb = masteryBadge(w.mastery_level);
               return (
                 <Card key={w.id} variant="outline" padding={5} className="flex flex-col gap-3">
@@ -322,7 +364,7 @@ export default function VocabularyPage() {
             })}
           </div>
         )}
-      </div>
-    </main>
+      </main>
+    </PageTransition>
   );
 }

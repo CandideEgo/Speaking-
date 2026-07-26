@@ -91,7 +91,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
 - ECDICT database ~30MB, downloaded via scripts, in `.gitignore`
-- Beat tasks: expire-pending-orders every 5 min, watchdog-stale-transcriptions every 10 min
+- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-transcriptions (10min), score-videos-hourly, score-videos-daily, downgrade-expired-pro (hourly), expire-unused-redeem-codes (daily)
 - Notification model has composite index `ix_notifications_dedup` on (user_id, type, related_url, is_read) for dedup queries
 
 ## Key Files
@@ -139,7 +139,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 |------|------|
 | **SM-2 词汇复习** | 间隔重复算法，词汇模块核心 |
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
-| **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释，支持双引擎（agnes + glm）并发 |
+| **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释，支持双引擎（agnes + qwen）并发 |
 | **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读 |
 | **LearningEvent** | 结构化学习事件（completed_video/learned_words/practiced_items/reviewed_words），与 BehaviorEvent 分离，喂档案聚合+日目标+推荐 |
 | **LearningPlan** | 日计划缓存，规则引擎优先级：到期复习→继续观看→新视频→练习→词汇练习。AI 生成 Pro 专属 |

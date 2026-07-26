@@ -12,14 +12,20 @@
 | `services/vocabulary_service` + `sr_service` | SM-2 spaced repetition + word enrichment |
 | `services/ecdict` + `exam_corpus` | Local exam-level annotation (CET4/6/gaokao), no AI |
 | `services/payment_provider` + `alipay/wechat/mock` | Multi-provider payment with factory pattern |
+| `services/learning_plan_service` + `learning_event_service` + `profile_service` | ADR-0012 learning plan: rule engine, event emission, profile aggregation |
+| `services/ai_plan_service` | AI-powered plan generation (Pro, LLM JSON schema) |
+| `services/recommendation_service` + `scoring_service` | Video learning_score (6-factor), recommendation feed |
+| `services/milestone_service` | Learning milestone tracking |
 | `services/comment_service` | Video comment quality scoring (keyword-based) |
 | `services/notification_service` | Cross-cutting: DB write + WebSocket push (best-effort) + actor-aware dedup |
 | `tasks/video_processing` | Head/GPU/Tail pipeline + checkpoint resume + watchdog |
-| `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + redemption async |
+| `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + redemption async + pro downgrade |
+| `tasks/scoring_tasks` | Video learning_score computation (hourly top + daily full) |
+| `tasks/plan_tasks` | Async AI plan generation (Celery) |
 | `core/*` | Config, database, redis, security, errors, cache, limiter, logging |
 | `frontend/src/app/(main)/*` | User-facing pages: watch/browse/vocabulary/history |
 | `frontend/src/app/(admin)/*` | Admin panel: videos/users/stats/invites |
-| `frontend/src/stores/*` | 5 Zustand stores: auth, adminAuth, feed, watch, vocabulary |
+| `frontend/src/stores/*` | 6 Zustand stores: auth, adminAuth, feed, watch, vocabulary, plan |
 | `frontend/src/lib/api.ts` | API client with JWT auto-refresh |
 
 ## Dependencies — Non-obvious
@@ -27,13 +33,12 @@
 ```
 ai_service ←── video pipeline (prewarm)
             ←── vocabulary_service (enrich/quiz)
-            ←── speaking_service (rubric/feedback)
             ←── practice_service (quiz)
             ←── ai route (chat)
             ←── words route (lookup)
+            ←── ai_plan_service (ADR-0012 AI plan generation)
 
 transcription/whisper_model ←── video pipeline (GPU worker)
-                            ←── speaking_service (alignment)
 
 notification_service ←── payment callbacks
                      ←── invite/redeem

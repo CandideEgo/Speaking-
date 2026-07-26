@@ -130,7 +130,7 @@ export function AdminSidebar() {
           <Link
             href="/"
             onClick={() => setMobileOpen(false)}
-            className="block rounded-sm px-3 py-2 text-xs text-muted-foreground hover:text-ink"
+            className="block rounded-sm px-3 py-2 text-xs text-muted hover:text-ink"
           >
             ← 返回用户端
           </Link>
@@ -152,10 +152,7 @@ export function AdminSidebar() {
         </nav>
 
         <div className="border-t border-hairline p-3">
-          <Link
-            href="/"
-            className="block rounded-sm px-3 py-2 text-xs text-muted-foreground hover:text-ink"
-          >
+          <Link href="/" className="block rounded-sm px-3 py-2 text-xs text-muted hover:text-ink">
             ← 返回用户端
           </Link>
         </div>

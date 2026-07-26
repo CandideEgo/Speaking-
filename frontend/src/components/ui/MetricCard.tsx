@@ -36,7 +36,7 @@ const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> 
     icon: "bg-indigo-soft text-indigo",
   },
   coral: {
-    icon: "bg-coral/10 text-coral",
+    icon: "bg-brand-500/10 text-brand-500",
   },
   teal: {
     icon: "bg-teal/10 text-teal",

@@ -126,7 +126,7 @@ export function NotificationPreferences() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 size={24} className="animate-spin text-coral" />
+        <Loader2 size={24} className="animate-spin text-brand-500" />
       </div>
     );
   }
@@ -141,8 +141,8 @@ export function NotificationPreferences() {
           className={cn(
             "inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-colors",
             saving
-              ? "bg-coral-disabled text-muted-foreground cursor-not-allowed"
-              : "bg-coral text-white hover:bg-coral-active"
+              ? "bg-brand-300 text-muted cursor-not-allowed"
+              : "bg-brand-500 text-white hover:bg-brand-600"
           )}
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -150,7 +150,7 @@ export function NotificationPreferences() {
         </button>
       </div>
 
-      <p className="text-sm text-muted-foreground">选择你想接收的通知，可随时更新。</p>
+      <p className="text-sm text-muted">选择你想接收的通知，可随时更新。</p>
 
       <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas">
         {NOTIFICATION_TYPES.map((type) => {
@@ -159,18 +159,18 @@ export function NotificationPreferences() {
             <div key={type.id} className="flex items-center justify-between px-5 py-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-surface-soft">
-                  <type.icon className="h-4 w-4 text-coral" />
+                  <type.icon className="h-4 w-4 text-brand-500" />
                 </div>
                 <div>
                   <div className="text-sm font-medium text-ink">{type.label}</div>
-                  <div className="text-xs text-muted-foreground">{type.description}</div>
+                  <div className="text-xs text-muted">{type.description}</div>
                 </div>
               </div>
               <button
                 onClick={() => togglePreference(type.id)}
                 className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-coral/15 focus:ring-offset-2",
-                  enabled ? "bg-coral" : "bg-hairline"
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500/15 focus:ring-offset-2",
+                  enabled ? "bg-brand-500" : "bg-hairline"
                 )}
                 role="switch"
                 aria-checked={enabled}

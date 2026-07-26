@@ -603,7 +603,7 @@ class AIService:
         """
         system = (
             "You are an English learning plan generator for Chinese learners. "
-            "Generate a daily learning plan as a JSON array of items. "
+            "Generate a daily learning plan as a JSON object with an 'items' array. "
             "Each item must have: item_type (review_words/watch_video/practice/vocab_drill), "
             "and a reason string. Review items need count. Watch items need video_id. "
             "Practice items need exam_level and item_count. Vocab drill items need count and due_only.\n\n"
@@ -613,7 +613,7 @@ class AIService:
             "- Interleave different activity types for engagement\n"
             "- Prioritize weak areas\n"
             "- Include at most 2 new videos\n"
-            "- Respond with ONLY the JSON array, no markdown fences"
+            '- Respond with a JSON object: {"items": [...]}'
         )
 
         user = (

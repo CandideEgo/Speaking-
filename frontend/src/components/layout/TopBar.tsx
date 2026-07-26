@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { useSidebar } from "@/components/layout/SidebarProvider";
-import { useThemeContext } from "@/components/common/ThemeProvider";
 import {
   SearchDropdown,
   type SearchResultItem,
@@ -14,7 +13,7 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Bell, Sun, Moon, Sparkles, Menu } from "lucide-react";
+import { Search, Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 
@@ -22,7 +21,6 @@ export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { setMobileOpen } = useSidebar();
-  const { theme, toggleTheme, mounted } = useThemeContext();
   const { isAuthenticated, user } = useAuthStore();
 
   // Search state
@@ -179,7 +177,7 @@ export function TopBar() {
     }
   }
 
-  function handleSelect(videoId: string) {
+  function handleSelect(_videoId: string) {
     setShowDropdown(false);
   }
 
@@ -220,9 +218,9 @@ export function TopBar() {
                 if (searchResults.length > 0) setShowDropdown(true);
               }}
               onKeyDown={handleSearchKeyDown}
-              className="w-full h-10 pl-10 pr-12 rounded-sm bg-surface-card border border-transparent
+              className="w-full h-10 pl-10 pr-12 rounded-md bg-surface-card border border-transparent
                          text-sm text-ink placeholder:text-muted-soft
-                         focus:bg-canvas focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-[rgba(10,10,10,0.06)]
+                         focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                          transition-colors duration-150"
             />
             <Search
@@ -248,55 +246,31 @@ export function TopBar() {
 
       {/* Right actions */}
       <div className="flex items-center gap-1.5">
-        {mounted && (
+        {/* Notification */}
+        <div className="relative">
           <Button
-            onClick={toggleTheme}
+            onClick={() => setShowNotifications((prev) => !prev)}
             variant="ghost"
             size="icon"
-            aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            aria-label="通知"
           >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
+            )}
           </Button>
-        )}
+          {showNotifications && (
+            <NotificationDropdown
+              onClose={() => setShowNotifications(false)}
+              onUnreadCountChange={setUnreadCount}
+            />
+          )}
+        </div>
 
-        {!isAuthenticated ? (
-          <>
-            <LinkButton href="/login" variant="ghost">
-              登录
-            </LinkButton>
-            <LinkButton href="/register" variant="primary" size="nav">
-              免费试用
-            </LinkButton>
-          </>
-        ) : (
-          <>
-            {/* Notification */}
-            <div className="relative">
-              <Button
-                onClick={() => setShowNotifications((prev) => !prev)}
-                variant="ghost"
-                size="icon"
-                aria-label="通知"
-              >
-                <Bell size={18} />
-                {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
-                )}
-              </Button>
-              {showNotifications && (
-                <NotificationDropdown
-                  onClose={() => setShowNotifications(false)}
-                  onUnreadCountChange={setUnreadCount}
-                />
-              )}
-            </div>
-
-            {/* Avatar */}
-            <Link href="/profile" aria-label="个人中心" className="ml-1.5 flex-shrink-0">
-              <Avatar src={avatarUrl} name={user} seed={user?.sub} size="md" />
-            </Link>
-          </>
-        )}
+        {/* Avatar */}
+        <Link href="/profile" aria-label="个人中心" className="ml-1.5 flex-shrink-0">
+          <Avatar src={avatarUrl} name={user} seed={user?.sub} size="md" />
+        </Link>
       </div>
     </header>
   );

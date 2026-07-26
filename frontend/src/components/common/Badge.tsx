@@ -11,7 +11,7 @@ const TONE: Record<BadgeTone, string> = {
   orange: "bg-brand-50 text-brand-600",
   green: "bg-success-soft text-success",
   red: "bg-red-soft text-error",
-  neutral: "bg-surface-soft text-muted-foreground",
+  neutral: "bg-surface-soft text-muted",
 };
 
 /**

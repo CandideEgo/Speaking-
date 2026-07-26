@@ -76,7 +76,7 @@ export function AdminTopbar({ pathname }: { pathname: string }) {
         </div>
         <button
           onClick={logout}
-          className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-card hover:text-ink"
+          className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs text-muted hover:bg-surface-card hover:text-ink"
         >
           <LogOut size={13} /> 退出
         </button>

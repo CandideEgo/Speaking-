@@ -204,9 +204,9 @@ export default function AdminUsersPage() {
                 className="flex items-center gap-2 text-left"
               >
                 {isExpanded ? (
-                  <ChevronDown size={12} className="text-muted-foreground" />
+                  <ChevronDown size={12} className="text-muted" />
                 ) : (
-                  <ChevronRight size={12} className="text-muted-foreground" />
+                  <ChevronRight size={12} className="text-muted" />
                 )}
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
                   {(u.name || u.phone || "U").slice(0, 1).toUpperCase()}
@@ -215,9 +215,7 @@ export default function AdminUsersPage() {
                   <div className="font-medium text-ink truncate max-w-[160px]">
                     {u.name || "未命名"}
                   </div>
-                  <div className="text-muted-foreground truncate max-w-[160px]">
-                    {u.phone || "-"}
-                  </div>
+                  <div className="text-muted truncate max-w-[160px]">{u.phone || "-"}</div>
                 </div>
               </button>
             </td>
@@ -227,7 +225,7 @@ export default function AdminUsersPage() {
                   管理员
                 </Badge>
               ) : (
-                <span className="text-muted-foreground">普通用户</span>
+                <span className="text-muted">普通用户</span>
               )}
             </td>
             <td className="py-3 pr-4">
@@ -236,20 +234,18 @@ export default function AdminUsersPage() {
                   Pro
                 </Badge>
               ) : (
-                <span className="text-muted-foreground">Free</span>
+                <span className="text-muted">Free</span>
               )}
             </td>
             <td className="py-3 pr-4">
               {u.is_banned ? (
                 <Badge tone="red">已封禁</Badge>
               ) : (
-                <span className="text-muted-foreground">正常</span>
+                <span className="text-muted">正常</span>
               )}
             </td>
-            <td className="py-3 pr-4 text-muted-foreground">
-              {new Date(u.created_at).toLocaleDateString()}
-            </td>
-            <td className="py-3 pr-4 text-muted-foreground">
+            <td className="py-3 pr-4 text-muted">{new Date(u.created_at).toLocaleDateString()}</td>
+            <td className="py-3 pr-4 text-muted">
               {u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "-"}
             </td>
             <td className="py-3 text-right">
@@ -327,12 +323,12 @@ function UserDetailRow({
         )}
       </div>
       <div>
-        <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+        <h4 className="text-xs font-medium uppercase tracking-wider text-muted mb-2">
           Pro 会员管理
         </h4>
         <div className="flex items-end gap-2">
           <div>
-            <label className="block text-[11px] text-muted-foreground mb-1">赠送天数</label>
+            <label className="block text-[11px] text-muted mb-1">赠送天数</label>
             <Input
               type="number"
               value={days}
@@ -362,7 +358,7 @@ function UserDetailRow({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-canvas border border-hairline rounded-sm p-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
       <div className="mt-0.5 text-sm font-medium text-ink">{value}</div>
     </div>
   );

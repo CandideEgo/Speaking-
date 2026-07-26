@@ -9,6 +9,7 @@
 - [Auth System](architecture/auth-system.md) — JWT auth, dual sessions, auth dependencies, Zustand stores
 - [Frontend Architecture](architecture/frontend-architecture.md) — Next.js 16, Tailwind v4, dark mode, design system
 - [Exam-Level Vocabulary](architecture/exam-vocabulary.md) — ECDICT annotation, AI prewarming, user-level filtering
+- [Translation Quality Safety Net](architecture/translation-quality-safety-net.md) — Hallucination detection, retry, quality gate, word_levels preservation
 
 ## Problems
 

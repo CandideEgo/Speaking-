@@ -94,7 +94,7 @@ export function SearchDropdown({
       {/* Video results */}
       {hasVideoResults && (
         <div>
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
             视频
           </div>
           <ul className="pb-1">
@@ -129,7 +129,7 @@ export function SearchDropdown({
       {/* Subtitle results */}
       {hasSubtitleResults && (
         <div className={hasVideoResults ? "border-t border-hairline" : ""}>
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
             <Subtitles size={12} />
             字幕匹配
           </div>
@@ -158,7 +158,7 @@ export function SearchDropdown({
                         </p>
                       )}
                       <p className="text-xs text-muted line-clamp-1 mt-0.5">
-                        <span className="text-muted-foreground font-mono mr-1.5">
+                        <span className="text-muted font-mono mr-1.5">
                           {formatTime(sub.start_time)}
                         </span>
                         {sub.text_en}
