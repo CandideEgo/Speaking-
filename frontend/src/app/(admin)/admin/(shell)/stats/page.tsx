@@ -4,18 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity,
-  BarChart3,
   BookOpen,
   Cpu,
+  CreditCard,
   Crown,
-  Loader2,
+  RefreshCw,
   TrendingUp,
+  UserPlus,
   Users,
   Video,
-  RefreshCw,
-  UserPlus,
-  CreditCard,
-  type LucideIcon,
 } from "lucide-react";
 import {
   Area,
@@ -33,12 +30,15 @@ import {
 } from "recharts";
 
 import { cn } from "@/lib/utils";
-import { SectionCard } from "@/components/admin/SectionCard";
-import { StatCard } from "@/components/admin/StatCard";
+import { AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
 import type { AdminStats, RecentActivityType } from "@/types";
 import { getAdminStats } from "@/lib/adminData";
 import { useChartTheme } from "@/lib/chart-theme";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const STATUS_LABEL: Record<string, string> = {
   ready: "就绪",
@@ -51,6 +51,84 @@ const ACTIVITY_ICON: Record<RecentActivityType, React.ElementType> = {
   signup: UserPlus,
   payment: CreditCard,
 };
+
+// ---------------------------------------------------------------------------
+// KPI Card
+// ---------------------------------------------------------------------------
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  delta,
+  tone = "default",
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string | number;
+  delta?: string;
+  tone?: "default" | "brand" | "green" | "amber";
+}) {
+  const toneStyles = {
+    default: "bg-surface-soft text-muted",
+    brand: "bg-brand-50 text-brand-600",
+    green: "bg-success-soft text-success",
+    amber: "bg-warning-soft text-warning",
+  }[tone];
+
+  return (
+    <div className="rounded-xl border border-hairline bg-canvas p-5">
+      <div className="flex items-start justify-between">
+        <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneStyles)}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <p className="mt-4 text-2xl font-semibold text-ink">{value}</p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className="text-xs text-muted">{label}</p>
+        {delta && (
+          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-success">
+            <TrendingUp size={12} />
+            {delta}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section Card
+// ---------------------------------------------------------------------------
+
+function ChartCard({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-hairline bg-canvas p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{title}</h3>
+          {description && <p className="text-xs text-muted mt-0.5">{description}</p>}
+        </div>
+        {actions}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -87,29 +165,18 @@ export default function AdminStatsPage() {
   }, [range, load]);
 
   if (loading || !stats) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-brand-500" />
-      </div>
-    );
+    return <AdminSkeleton.Page />;
   }
 
   const slice = range;
-  const trendData = stats.trend.dates.slice(-slice).map((date, i) => ({
-    date,
-    idx: stats.trend.dates.length - slice + i,
-  }));
   const startIdx = stats.trend.dates.length - slice;
-  const trend = trendData.map((d) => ({
-    date: d.date,
-    signups: stats.trend.signups[startIdx + d.idx],
-    vocabulary: stats.trend.vocabulary[startIdx + d.idx],
-    active: stats.trend.active_users[startIdx + d.idx],
+  const trend = stats.trend.dates.slice(-slice).map((date, i) => ({
+    date,
+    signups: stats.trend.signups[startIdx + i],
+    vocabulary: stats.trend.vocabulary[startIdx + i],
+    active: stats.trend.active_users[startIdx + i],
   }));
 
-  // Real 7-day new-vocabulary count (sum of the last 7 trend points) — replaces
-  // the hardcoded "+8.4%" speaking delta. The backend always returns a 30-day
-  // trend, so slice(-7) is the last 7 days regardless of the chart range toggle.
   const newVocab7d = stats.trend.vocabulary.slice(-7).reduce((a, b) => a + b, 0);
 
   function formatDate(dateStr: string) {
@@ -122,6 +189,7 @@ export default function AdminStatsPage() {
     value: p.count,
     color: PLAN_COLORS[p.plan] || ct.series.neutral,
   }));
+
   const statusData = stats.videos_by_status.map((s) => ({
     name: STATUS_LABEL[s.status] || s.status,
     value: s.count,
@@ -130,78 +198,88 @@ export default function AdminStatsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button
-          onClick={() => load(range)}
-          disabled={loading}
-          variant="secondary"
-          size="sm"
-          icon={RefreshCw}
-          className={loading ? "[&_svg]:animate-spin" : ""}
-        >
-          刷新
-        </Button>
-      </div>
+      {/* Header */}
+      <AdminPageHeader
+        title="数据统计"
+        description="平台核心指标与趋势分析"
+        actions={
+          <Button
+            onClick={() => load(range)}
+            disabled={loading}
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            className={loading ? "[&_svg]:animate-spin" : ""}
+          >
+            刷新
+          </Button>
+        }
+      />
 
-      {/* KPI grid */}
+      {/* KPI Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
+        <KpiCard
           icon={Users}
           label="总用户数"
           value={stats.total_users.toLocaleString()}
-          delta={`今日 +${stats.signups_today}`}
-          tone="coral"
+          delta={`+${stats.signups_today} 今日`}
+          tone="brand"
         />
-        <StatCard
+        <KpiCard
           icon={UserPlus}
           label="今日新增"
           value={stats.signups_today}
-          delta={`7 日 ${stats.new_users_7d}`}
+          delta={`7日 ${stats.new_users_7d}`}
           tone="green"
         />
-        <StatCard
+        <KpiCard
           icon={Crown}
           label="Pro 用户"
           value={stats.pro_users.toLocaleString()}
-          delta={`今日兑换 ${stats.redeems_today}`}
+          delta={`${stats.redeems_today} 兑换`}
           tone="amber"
         />
-        <StatCard icon={Activity} label="实时在线" value={stats.online_now} tone="coral" />
-        <StatCard
+        <KpiCard icon={Activity} label="实时在线" value={stats.online_now} tone="brand" />
+        <KpiCard
           icon={Video}
           label="视频总数"
           value={stats.total_videos}
-          delta={`${stats.videos_ready} 已就绪`}
+          delta={`${stats.videos_ready} 就绪`}
         />
-        <StatCard
+        <KpiCard
           icon={BookOpen}
           label="词汇总数"
           value={stats.total_vocabulary.toLocaleString()}
           delta={`+${newVocab7d} 近7日`}
           tone="green"
         />
-        <StatCard
+        <KpiCard
           icon={Cpu}
           label="GPU 队列"
           value={stats.gpu_queue_depth}
-          delta={`${stats.videos_error_count} 失败`}
+          tone={stats.gpu_queue_depth > 0 ? "amber" : "default"}
+        />
+        <KpiCard
+          icon={Video}
+          label="失败视频"
+          value={stats.videos_error_count}
           tone={stats.videos_error_count > 0 ? "amber" : "default"}
         />
       </div>
 
-      {/* Trend chart */}
-      <SectionCard
+      {/* Trend Chart */}
+      <ChartCard
         title="平台趋势"
-        description="注册、新增词汇与活跃用户（按观看记录）"
+        description="注册、新增词汇与活跃用户"
         actions={
-          <div className="flex rounded-md border border-hairline bg-canvas p-0.5">
+          <div className="flex rounded-lg border border-hairline bg-surface-soft p-0.5">
             {([7, 30] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
                 className={cn(
-                  "rounded-sm px-3 py-1 text-xs font-medium transition-colors",
-                  range === r ? "bg-brand-500 text-on-primary" : "text-muted hover:text-ink"
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  range === r ? "bg-canvas text-ink shadow-sm" : "text-muted hover:text-ink"
                 )}
               >
                 {r} 天
@@ -214,15 +292,15 @@ export default function AdminStatsPage() {
           <AreaChart data={trend} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
             <defs>
               <linearGradient id="gSignups" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={ct.series.brand} stopOpacity={0.3} />
+                <stop offset="5%" stopColor={ct.series.brand} stopOpacity={0.2} />
                 <stop offset="95%" stopColor={ct.series.brand} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gVocab" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={ct.series.success} stopOpacity={0.3} />
+                <stop offset="5%" stopColor={ct.series.success} stopOpacity={0.2} />
                 <stop offset="95%" stopColor={ct.series.success} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gActive" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={ct.series.indigo} stopOpacity={0.3} />
+                <stop offset="5%" stopColor={ct.series.indigo} stopOpacity={0.2} />
                 <stop offset="95%" stopColor={ct.series.indigo} stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -231,11 +309,15 @@ export default function AdminStatsPage() {
               dataKey="date"
               tickFormatter={formatDate}
               tick={{ fontSize: 11, fill: ct.tick }}
-              axisLine={{ stroke: ct.axis }}
+              axisLine={false}
+              tickLine={false}
             />
-            <YAxis tick={{ fontSize: 11, fill: ct.tick }} axisLine={{ stroke: ct.axis }} />
+            <YAxis tick={{ fontSize: 11, fill: ct.tick }} axisLine={false} tickLine={false} />
             <Tooltip
-              contentStyle={ct.tooltipStyle}
+              contentStyle={{
+                ...ct.tooltipStyle,
+                borderRadius: "8px",
+              }}
               labelFormatter={(label) => formatDate(String(label))}
             />
             <Area
@@ -264,12 +346,12 @@ export default function AdminStatsPage() {
             />
           </AreaChart>
         </ResponsiveContainer>
-      </SectionCard>
+      </ChartCard>
 
-      {/* Breakdown charts */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="用户方案分布">
-          <ResponsiveContainer width="100%" height={240}>
+      {/* Distribution Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="用户方案分布">
+          <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie
                 data={planData}
@@ -277,69 +359,88 @@ export default function AdminStatsPage() {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                outerRadius={80}
-                label={({ name, value }) => `${name}: ${value}`}
-                labelLine={false}
+                innerRadius={60}
+                outerRadius={85}
+                paddingAngle={2}
               >
                 {planData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={ct.tooltipStyle} />
+              <Tooltip contentStyle={{ ...ct.tooltipStyle, borderRadius: "8px" }} />
             </PieChart>
           </ResponsiveContainer>
-        </SectionCard>
+          <div className="flex justify-center gap-6 mt-2">
+            {planData.map((p) => (
+              <div key={p.name} className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: p.color }} />
+                <span className="text-xs text-muted">
+                  {p.name}: {p.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
 
-        <SectionCard title="视频状态分布">
-          <ResponsiveContainer width="100%" height={240}>
+        <ChartCard title="视频状态分布">
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={statusData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
               <XAxis
                 dataKey="name"
                 tick={{ fontSize: 11, fill: ct.tick }}
-                axisLine={{ stroke: ct.axis }}
+                axisLine={false}
+                tickLine={false}
               />
               <YAxis
                 allowDecimals={false}
                 tick={{ fontSize: 11, fill: ct.tick }}
-                axisLine={{ stroke: ct.axis }}
+                axisLine={false}
+                tickLine={false}
               />
-              <Tooltip contentStyle={ct.tooltipStyle} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              <Tooltip contentStyle={{ ...ct.tooltipStyle, borderRadius: "8px" }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48}>
                 {statusData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </SectionCard>
+        </ChartCard>
       </div>
 
-      {/* Recent activity */}
-      <SectionCard title="最近活动">
-        <ul className="divide-y divide-hairline">
+      {/* Recent Activity */}
+      <ChartCard title="最近活动">
+        <div className="space-y-1">
           {stats.recent_activity.map((a) => {
             const Icon = ACTIVITY_ICON[a.type] || TrendingUp;
             return (
-              <li key={a.id} className="flex items-center gap-3 py-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-soft text-muted flex-shrink-0">
+              <div
+                key={a.id}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-soft/50 transition-colors"
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full",
+                    a.type === "signup"
+                      ? "bg-brand-50 text-brand-500"
+                      : "bg-success-soft text-success"
+                  )}
+                >
                   <Icon size={14} />
                 </span>
-                <span className="text-sm text-ink flex-1">{a.summary}</span>
-                <span className="text-xs text-muted-soft flex-shrink-0">
-                  {new Date(a.created_at).toLocaleDateString()}
+                <span className="flex-1 text-sm text-body">{a.summary}</span>
+                <span className="text-xs text-muted-soft">
+                  {new Date(a.created_at).toLocaleTimeString("zh-CN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
-              </li>
+              </div>
             );
           })}
-        </ul>
-      </SectionCard>
-
-      {/* Footer summary */}
-      <div className="flex items-center gap-2 text-xs text-muted-soft">
-        <BarChart3 size={12} />
-        数据来自实时数据库，最后刷新时间 {new Date().toLocaleTimeString()}。
-      </div>
+        </div>
+      </ChartCard>
     </div>
   );
 }

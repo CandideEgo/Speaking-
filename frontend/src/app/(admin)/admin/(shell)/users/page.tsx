@@ -1,42 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import {
+  Ban,
   ChevronDown,
-  ChevronRight,
   Crown,
   RefreshCw,
   Shield,
+  ShieldCheck,
   ShieldOff,
   UserCog,
+  UserX,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  AdminPageHeader,
+  AdminSearchInput,
+  AdminDropdown,
+  AdminConfirmDialog,
+  AdminSkeleton,
+} from "@/components/admin/ui";
 import { FilterPills } from "@/components/admin/FilterPills";
-import { SectionCard } from "@/components/admin/SectionCard";
 import { Pagination } from "@/components/admin/Pagination";
-import { DataTable } from "@/components/admin/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AdminUser } from "@/types";
 import { listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
 
+// ---------------------------------------------------------------------------
+// Filter options
+// ---------------------------------------------------------------------------
+
 const ROLE_FILTERS = [
-  { key: "", label: "全部" },
+  { key: "", label: "全部角色" },
   { key: "admin", label: "管理员" },
   { key: "user", label: "普通用户" },
 ];
 
 const PLAN_FILTERS = [
-  { key: "", label: "全部" },
+  { key: "", label: "全部方案" },
   { key: "pro", label: "Pro" },
   { key: "free", label: "Free" },
 ];
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
 
 export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState("");
@@ -45,8 +58,8 @@ export default function AdminUsersPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<{
     title: string;
-    message: string;
-    tone: "default" | "danger";
+    description: string;
+    danger: boolean;
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
@@ -57,6 +70,7 @@ export default function AdminUsersPage() {
     page,
     setPage,
     hasMore,
+    total,
     loading,
     reload,
   } = usePaginatedList<AdminUser>({
@@ -72,24 +86,14 @@ export default function AdminUsersPage() {
     filters: [roleFilter, planFilter, keyword],
   });
 
-  function patchUser(id: string, patch: Partial<AdminUser>) {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
-  }
+  const patchUser = useCallback(
+    (id: string, patch: Partial<AdminUser>) => {
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+    },
+    [setUsers]
+  );
 
-  async function handleBan(user: AdminUser) {
-    const next = !user.is_banned;
-    if (next) {
-      setConfirmPrompt({
-        title: "封禁用户",
-        message: `确认封禁用户「${user.name || user.phone}」？`,
-        tone: "danger",
-        confirmLabel: "确认封禁",
-        onConfirm: () => doBan(user),
-      });
-      return;
-    }
-    doBan(user);
-  }
+  // --- Actions ---
 
   async function doBan(user: AdminUser) {
     const next = !user.is_banned;
@@ -100,18 +104,6 @@ export default function AdminUsersPage() {
     } catch (err) {
       toastApiError(err);
     }
-  }
-
-  async function handlePromote(user: AdminUser) {
-    const next = (user.role || "user") === "admin" ? "user" : "admin";
-    const verb = next === "admin" ? "提升为管理员" : "降级为普通用户";
-    setConfirmPrompt({
-      title: verb,
-      message: `确认将「${user.name || user.phone}」${verb}？`,
-      tone: "default",
-      confirmLabel: "确认",
-      onConfirm: () => doPromote(user),
-    });
   }
 
   async function doPromote(user: AdminUser) {
@@ -135,149 +127,135 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function handleRevokePro(user: AdminUser) {
+  function handleRevokePro(user: AdminUser) {
     setConfirmPrompt({
-      title: "撤销 Pro",
-      message: `确认撤销「${user.name || user.phone}」的 Pro 会员？`,
-      tone: "danger",
+      title: "撤销 Pro 会员",
+      description: `确认撤销「${user.name || user.phone}」的 Pro 会员？此操作不可撤销。`,
+      danger: true,
       confirmLabel: "确认撤销",
-      onConfirm: () => doRevokePro(user),
+      onConfirm: async () => {
+        try {
+          const updated = await setUserPlan(user.id, "free", 0);
+          patchUser(user.id, updated);
+          toast.success("已撤销 Pro");
+        } catch (err) {
+          toastApiError(err);
+        }
+      },
     });
   }
 
-  async function doRevokePro(user: AdminUser) {
-    try {
-      const updated = await setUserPlan(user.id, "free", 0);
-      patchUser(user.id, updated);
-      toast.success("已撤销 Pro");
-    } catch (err) {
-      toastApiError(err);
-    }
-  }
-
   return (
-    <SectionCard
-      title="用户管理"
-      description="管理用户角色、封禁状态与 Pro 会员。"
-      actions={
-        <Button onClick={reload} disabled={loading} variant="secondary" icon={RefreshCw} size="sm">
-          刷新
-        </Button>
-      }
-    >
-      <div className="mb-4 flex items-center gap-3 flex-wrap">
+    <div className="space-y-6">
+      {/* Header */}
+      <AdminPageHeader
+        title="用户管理"
+        description={`共 ${total} 位用户`}
+        actions={
+          <Button
+            onClick={reload}
+            disabled={loading}
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            className={loading ? "[&_svg]:animate-spin" : ""}
+          >
+            刷新
+          </Button>
+        }
+      />
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
         <FilterPills options={ROLE_FILTERS} value={roleFilter} onChange={setRoleFilter} />
-        <span className="text-xs text-muted-soft">·</span>
+        <div className="h-5 w-px bg-hairline" />
         <FilterPills options={PLAN_FILTERS} value={planFilter} onChange={setPlanFilter} />
-        <Input
-          type="text"
+        <AdminSearchInput
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") reload();
-          }}
-          placeholder="搜索姓名/手机号..."
-          className="!py-1.5 max-w-xs ml-auto"
+          onChange={setKeyword}
+          placeholder="搜索姓名 / 手机号..."
+          className="ml-auto w-64"
         />
       </div>
 
-      <DataTable
-        columns={[
-          { label: "用户" },
-          { label: "角色" },
-          { label: "方案" },
-          { label: "状态" },
-          { label: "注册时间" },
-          { label: "最后活跃" },
-          { label: "操作", align: "right" },
-        ]}
-        rows={users}
-        rowKey={(u) => u.id}
-        loading={loading}
-        emptyText="暂无用户"
-        expandedId={expandedId}
-        renderRow={(u, isExpanded) => (
-          <tr className="text-xs align-top hover:bg-surface-soft/40 transition-colors">
-            <td className="py-3 pr-4">
-              <button
-                onClick={() => setExpandedId(isExpanded ? null : u.id)}
-                className="flex items-center gap-2 text-left"
-              >
-                {isExpanded ? (
-                  <ChevronDown size={12} className="text-muted" />
-                ) : (
-                  <ChevronRight size={12} className="text-muted" />
-                )}
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-medium text-ink flex-shrink-0">
-                  {(u.name || u.phone || "U").slice(0, 1).toUpperCase()}
-                </span>
-                <div className="min-w-0">
-                  <div className="font-medium text-ink truncate max-w-[160px]">
-                    {u.name || "未命名"}
-                  </div>
-                  <div className="text-muted truncate max-w-[160px]">{u.phone || "-"}</div>
-                </div>
-              </button>
-            </td>
-            <td className="py-3 pr-4">
-              {(u.role || "user") === "admin" ? (
-                <Badge tone="brand" icon={Shield}>
-                  管理员
-                </Badge>
-              ) : (
-                <span className="text-muted">普通用户</span>
-              )}
-            </td>
-            <td className="py-3 pr-4">
-              {u.plan === "pro" ? (
-                <Badge tone="amber" icon={Crown}>
-                  Pro
-                </Badge>
-              ) : (
-                <span className="text-muted">Free</span>
-              )}
-            </td>
-            <td className="py-3 pr-4">
-              {u.is_banned ? (
-                <Badge tone="red">已封禁</Badge>
-              ) : (
-                <span className="text-muted">正常</span>
-              )}
-            </td>
-            <td className="py-3 pr-4 text-muted">{new Date(u.created_at).toLocaleDateString()}</td>
-            <td className="py-3 pr-4 text-muted">
-              {u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "-"}
-            </td>
-            <td className="py-3 text-right">
-              <div className="inline-flex gap-1">
-                <Button
-                  onClick={() => handleBan(u)}
-                  title={u.is_banned ? "解封" : "封禁"}
-                  variant="secondary"
-                  size="compact"
-                  className={cn(u.is_banned && "text-success")}
-                >
-                  {u.is_banned ? <ShieldOff size={11} /> : <Shield size={11} />}
-                  {u.is_banned ? "解封" : "封禁"}
-                </Button>
-                <Button
-                  onClick={() => handlePromote(u)}
-                  title="切换管理员角色"
-                  variant="secondary"
-                  size="compact"
-                >
-                  <UserCog size={11} />
-                  {(u.role || "user") === "admin" ? "降级" : "提升"}
-                </Button>
-              </div>
-            </td>
-          </tr>
-        )}
-        renderDetail={(u) => (
-          <UserDetailRow user={u} onGrantPro={handleGrantPro} onRevokePro={handleRevokePro} />
-        )}
-      />
+      {/* Table */}
+      <div className="rounded-xl border border-hairline bg-canvas overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-hairline bg-surface-soft/50">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
+                用户
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
+                角色
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
+                方案
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
+                状态
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
+                注册时间
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted">
+                操作
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-hairline">
+            {loading ? (
+              <AdminSkeleton.TableRows rows={5} cols={6} />
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-muted">
+                  暂无用户
+                </td>
+              </tr>
+            ) : (
+              users.map((u) => {
+                const isExpanded = expandedId === u.id;
+                return (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    isExpanded={isExpanded}
+                    onToggleExpand={() => setExpandedId(isExpanded ? null : u.id)}
+                    onBan={() => {
+                      if (!u.is_banned) {
+                        setConfirmPrompt({
+                          title: "封禁用户",
+                          description: `确认封禁用户「${u.name || u.phone}」？封禁后该用户将无法登录。`,
+                          danger: true,
+                          confirmLabel: "确认封禁",
+                          onConfirm: () => doBan(u),
+                        });
+                      } else {
+                        doBan(u);
+                      }
+                    }}
+                    onPromote={() => {
+                      const next = (u.role || "user") === "admin" ? "user" : "admin";
+                      const verb = next === "admin" ? "提升为管理员" : "降级为普通用户";
+                      setConfirmPrompt({
+                        title: verb,
+                        description: `确认将「${u.name || u.phone}」${verb}？`,
+                        danger: false,
+                        confirmLabel: "确认",
+                        onConfirm: () => doPromote(u),
+                      });
+                    }}
+                    onGrantPro={(days) => handleGrantPro(u, days)}
+                    onRevokePro={() => handleRevokePro(u)}
+                  />
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
+      {/* Pagination */}
       <Pagination
         page={page}
         hasMore={hasMore}
@@ -286,80 +264,185 @@ export default function AdminUsersPage() {
         onNext={() => setPage((p) => p + 1)}
       />
 
-      <ConfirmDialog
+      {/* Confirm Dialog */}
+      <AdminConfirmDialog
         open={!!confirmPrompt}
-        tone={confirmPrompt?.tone ?? "default"}
-        title={confirmPrompt?.title}
-        confirmLabel={confirmPrompt?.confirmLabel ?? "确认"}
-        message={confirmPrompt?.message ?? ""}
         onClose={() => setConfirmPrompt(null)}
         onConfirm={() => {
-          const p = confirmPrompt;
+          confirmPrompt?.onConfirm();
           setConfirmPrompt(null);
-          p?.onConfirm();
         }}
+        title={confirmPrompt?.title ?? ""}
+        description={confirmPrompt?.description}
+        confirmLabel={confirmPrompt?.confirmLabel}
+        danger={confirmPrompt?.danger}
       />
-    </SectionCard>
-  );
-}
-
-function UserDetailRow({
-  user,
-  onGrantPro,
-  onRevokePro,
-}: {
-  user: AdminUser;
-  onGrantPro: (u: AdminUser, days: number) => void;
-  onRevokePro: (u: AdminUser) => void;
-}) {
-  const [days, setDays] = useState(30);
-  return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="grid grid-cols-2 gap-3 text-xs">
-        <Stat label="观看视频数" value={user.videos_watched} />
-        <Stat label="等级" value={user.level || "-"} />
-        {user.plan_expires_at && (
-          <Stat label="Pro 到期" value={new Date(user.plan_expires_at).toLocaleDateString()} />
-        )}
-      </div>
-      <div>
-        <h4 className="text-xs font-medium uppercase tracking-wider text-muted mb-2">
-          Pro 会员管理
-        </h4>
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="block text-[11px] text-muted mb-1">赠送天数</label>
-            <Input
-              type="number"
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              min={1}
-              max={3650}
-              className="!py-1.5 w-28"
-            />
-          </div>
-          <Button onClick={() => onGrantPro(user, days)} icon={Crown} size="sm">
-            赠送 Pro
-          </Button>
-          {user.plan === "pro" && (
-            <button
-              onClick={() => onRevokePro(user)}
-              className="inline-flex items-center gap-1 text-xs text-error hover:text-error/80 ml-auto"
-            >
-              撤销 Pro
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+// ---------------------------------------------------------------------------
+// User Row
+// ---------------------------------------------------------------------------
+
+function UserRow({
+  user: u,
+  isExpanded,
+  onToggleExpand,
+  onBan,
+  onPromote,
+  onGrantPro,
+  onRevokePro,
+}: {
+  user: AdminUser;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onBan: () => void;
+  onPromote: () => void;
+  onGrantPro: (days: number) => void;
+  onRevokePro: () => void;
+}) {
+  const [days, setDays] = useState(30);
+
   return (
-    <div className="bg-canvas border border-hairline rounded-sm p-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
-      <div className="mt-0.5 text-sm font-medium text-ink">{value}</div>
+    <>
+      <tr
+        className={cn(
+          "transition-colors cursor-pointer",
+          isExpanded ? "bg-surface-soft/60" : "hover:bg-surface-soft/40"
+        )}
+        onClick={onToggleExpand}
+      >
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-3">
+            <ChevronDown
+              size={14}
+              className={cn("text-muted-soft transition-transform", !isExpanded && "-rotate-90")}
+            />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-600">
+              {(u.name || u.phone || "U").slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="font-medium text-ink truncate max-w-[140px]">{u.name || "未命名"}</p>
+              <p className="text-xs text-muted truncate max-w-[140px]">{u.phone || "-"}</p>
+            </div>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          {(u.role || "user") === "admin" ? (
+            <Badge tone="brand" icon={ShieldCheck}>
+              管理员
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted">普通用户</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          {u.plan === "pro" ? (
+            <Badge tone="amber" icon={Crown}>
+              Pro
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted">Free</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          {u.is_banned ? (
+            <Badge tone="red" icon={Ban}>
+              已封禁
+            </Badge>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              正常
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-xs text-muted">
+          {new Date(u.created_at).toLocaleDateString("zh-CN")}
+        </td>
+        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+          <AdminDropdown
+            items={[
+              {
+                key: "ban",
+                label: u.is_banned ? "解封用户" : "封禁用户",
+                icon: u.is_banned ? ShieldOff : Shield,
+                danger: !u.is_banned,
+                onClick: onBan,
+              },
+              {
+                key: "promote",
+                label: (u.role || "user") === "admin" ? "降级为普通用户" : "提升为管理员",
+                icon: UserCog,
+                onClick: onPromote,
+              },
+              {
+                key: "revoke",
+                label: "撤销 Pro",
+                icon: UserX,
+                danger: true,
+                disabled: u.plan !== "pro",
+                onClick: onRevokePro,
+              },
+            ]}
+          />
+        </td>
+      </tr>
+
+      {/* Expanded detail */}
+      {isExpanded && (
+        <tr className="bg-surface-soft/40">
+          <td colSpan={6} className="px-4 py-4">
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <DetailStat label="观看视频" value={u.videos_watched ?? 0} />
+                <DetailStat label="等级" value={u.level || "-"} />
+                <DetailStat
+                  label="Pro 到期"
+                  value={
+                    u.plan_expires_at
+                      ? new Date(u.plan_expires_at).toLocaleDateString("zh-CN")
+                      : "-"
+                  }
+                />
+              </div>
+
+              {/* Pro management */}
+              <div className="flex items-end gap-3">
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">赠送天数</label>
+                  <input
+                    type="number"
+                    value={days}
+                    onChange={(e) => setDays(Number(e.target.value))}
+                    min={1}
+                    max={3650}
+                    className="w-24 rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  />
+                </div>
+                <Button onClick={() => onGrantPro(days)} icon={Crown} size="sm">
+                  赠送 Pro
+                </Button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detail Stat
+// ---------------------------------------------------------------------------
+
+function DetailStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-canvas border border-hairline p-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
     </div>
   );
 }

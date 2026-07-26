@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
@@ -17,7 +17,6 @@ import { AdminTopbar } from "@/components/admin/AdminTopbar";
  */
 export default function AdminShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const bootstrap = useAdminAuthStore((s) => s.bootstrap);
   const isAuthenticated = useAdminAuthStore((s) => s.isAuthenticated);
   const isLoading = useAdminAuthStore((s) => s.isLoading);
@@ -77,9 +76,9 @@ export default function AdminShellLayout({ children }: { children: React.ReactNo
     <div className="flex h-screen overflow-hidden bg-surface-soft">
       <AdminSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AdminTopbar pathname={pathname} />
+        <AdminTopbar />
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1200px] px-6 py-8">{children}</div>
+          <div className="mx-auto max-w-[1400px] px-6 py-8">{children}</div>
         </main>
       </div>
     </div>
