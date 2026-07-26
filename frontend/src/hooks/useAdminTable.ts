@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { SortDirection } from "@/components/admin/ui/AdminTable";
 import type { Paginated } from "@/types";
 
@@ -94,21 +94,25 @@ export function useAdminTable<T>(options: UseAdminTableOptions<T>): UseAdminTabl
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
-  // Fetch data
+  // Fetch data (with stale-response guard)
+  const fetchIdRef = useRef(0);
   const fetchData = useCallback(
     async (params: AdminTableParams) => {
+      const fetchId = ++fetchIdRef.current;
       setLoading(true);
       setError(null);
       try {
         const result = await fetcher(params);
+        if (fetchId !== fetchIdRef.current) return;
         setData(result.items);
         setTotal(result.total ?? 0);
         setHasMore(result.has_more);
       } catch (err) {
+        if (fetchId !== fetchIdRef.current) return;
         setError(err instanceof Error ? err.message : "加载失败");
         setData([]);
       } finally {
-        setLoading(false);
+        if (fetchId === fetchIdRef.current) setLoading(false);
       }
     },
     [fetcher]
@@ -228,7 +232,7 @@ export function useAdminTable<T>(options: UseAdminTableOptions<T>): UseAdminTabl
   }, [doFetch]);
 
   // Initial fetch
-  useMemo(() => {
+  useEffect(() => {
     doFetch(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

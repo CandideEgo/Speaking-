@@ -21,9 +21,11 @@ export function AdminSearchInput({
 }: AdminSearchInputProps) {
   const [internalValue, setInternalValue] = useState(controlledValue ?? "");
   const timeoutRef = useRef<NodeJS.Timeout>(null);
-  const isControlled = controlledValue !== undefined;
 
-  const currentValue = isControlled ? controlledValue : internalValue;
+  // Sync from external controlled value (e.g. reset/clear from parent)
+  useEffect(() => {
+    if (controlledValue !== undefined) setInternalValue(controlledValue);
+  }, [controlledValue]);
 
   const debouncedOnChange = useCallback(
     (val: string) => {
@@ -40,12 +42,12 @@ export function AdminSearchInput({
   }, []);
 
   const handleChange = (val: string) => {
-    if (!isControlled) setInternalValue(val);
+    setInternalValue(val); // Always update display immediately
     debouncedOnChange(val);
   };
 
   const handleClear = () => {
-    if (!isControlled) setInternalValue("");
+    setInternalValue("");
     onChange("");
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
   };
@@ -55,7 +57,7 @@ export function AdminSearchInput({
       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft" />
       <input
         type="text"
-        value={currentValue}
+        value={internalValue}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
@@ -65,7 +67,7 @@ export function AdminSearchInput({
           "transition-colors"
         )}
       />
-      {currentValue && (
+      {internalValue && (
         <button
           onClick={handleClear}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-soft hover:text-ink transition-colors"

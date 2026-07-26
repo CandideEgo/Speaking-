@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getWorkerStatus, getUgcPendingCount } from "@/lib/adminData";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,15 +99,7 @@ export function useAdminPolling<T>(options: UseAdminPollingOptions<T>): UseAdmin
 
 export function useWorkerStatus(enabled = true) {
   return useAdminPolling<{ worker_online: boolean }>({
-    fetcher: async () => {
-      const res = await fetch("/api/v1/admin/worker-status", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("seeword_admin_token")}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to fetch worker status");
-      return res.json();
-    },
+    fetcher: getWorkerStatus,
     interval: 30000,
     enabled,
   });
@@ -118,15 +111,7 @@ export function useWorkerStatus(enabled = true) {
 
 export function useUgcPendingCount(enabled = true) {
   return useAdminPolling<{ pending_processing: number; pending_review: number; total: number }>({
-    fetcher: async () => {
-      const res = await fetch("/api/v1/videos/admin/ugc-pending-count", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("seeword_admin_token")}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to fetch UGC pending count");
-      return res.json();
-    },
+    fetcher: getUgcPendingCount,
     interval: 60000,
     enabled,
   });

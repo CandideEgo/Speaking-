@@ -1,18 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import {
-  Bell,
-  Cpu,
-  Globe,
-  Palette,
-  Save,
-  Server,
-  Shield,
-  ToggleLeft,
-  ToggleRight,
-} from "lucide-react";
+import { Bell, Cpu, Globe, Palette, Save, Server, Shield, ToggleLeft } from "lucide-react";
 
 import { AdminPageHeader } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
@@ -108,7 +97,7 @@ export default function AdminSettingsPage() {
 
   const updateFlag = (key: keyof typeof flags, value: boolean) => {
     setFlags((prev) => ({ ...prev, [key]: value }));
-    toast.success(`已${value ? "启用" : "禁用"}`);
+    // TODO: persist to backend API once available
   };
 
   return (
@@ -118,7 +107,7 @@ export default function AdminSettingsPage() {
         title="系统设置"
         description="管理平台配置与功能开关"
         actions={
-          <Button icon={Save} size="sm">
+          <Button icon={Save} size="sm" disabled title="设置持久化功能即将上线">
             保存更改
           </Button>
         }
@@ -172,18 +161,24 @@ export default function AdminSettingsPage() {
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                workerStatus?.worker_online
-                  ? "bg-success-soft text-success"
-                  : "bg-error/10 text-error"
+                workerStatus == null
+                  ? "bg-surface-soft text-muted"
+                  : workerStatus.worker_online
+                    ? "bg-success-soft text-success"
+                    : "bg-error/10 text-error"
               )}
             >
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  workerStatus?.worker_online ? "bg-success" : "bg-error"
+                  workerStatus == null
+                    ? "bg-muted"
+                    : workerStatus.worker_online
+                      ? "bg-success"
+                      : "bg-error"
                 )}
               />
-              {workerStatus?.worker_online ? "在线" : "离线"}
+              {workerStatus == null ? "检测中..." : workerStatus.worker_online ? "在线" : "离线"}
             </span>
           </div>
           <div className="flex items-center justify-between py-3">

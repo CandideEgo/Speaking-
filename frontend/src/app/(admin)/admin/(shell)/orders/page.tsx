@@ -66,7 +66,7 @@ export default function AdminOrdersPage() {
         description={`共 ${total} 笔订单`}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" icon={Download}>
+            <Button variant="secondary" size="sm" icon={Download} disabled title="导出功能即将上线">
               导出
             </Button>
             <Button
