@@ -5,12 +5,15 @@ Covers:
 - Translation batch retry with exponential backoff
 - Translation quality gate in finalize_video
 - Word-level score preservation during re-translation
+- Quality report persistence to video_quality_reports (阶段 0)
 """
 
 import pytest
 from sqlalchemy import select
 
 from app.models.subtitle import Subtitle
+from app.models.video import Video, VideoStatus
+from app.models.video_quality_report import VideoQualityReport
 from app.services.ecdict import annotate_text
 
 
@@ -196,3 +199,116 @@ class TestWordLevelsPreservation:
         # Should now have computed values
         assert sub.word_levels is not None
         assert isinstance(sub.word_levels, dict)
+
+
+class TestQualityReportPersistence:
+    """Tests for persisting quality reports to video_quality_reports (阶段 0)."""
+
+    @pytest.mark.asyncio
+    async def test_persist_translation_report(self, db_session):
+        """A failed translation quality report is persisted with coverage + metrics."""
+        from app.services.translation.quality import check_translation_quality, persist_quality_report
+
+        v = Video(id="vq-translation-1", title="t", source_url="x", status=VideoStatus.ready)
+        db_session.add(v)
+        await db_session.flush()
+
+        sources = ["Hello", "World", "Test", "Example"]
+        translations = ["你好", None, None, "示例"]  # 50% coverage -> fails
+        report = check_translation_quality(sources, translations)
+
+        await persist_quality_report(db_session, v.id, report)
+        await db_session.commit()
+
+        rows = (
+            (await db_session.execute(select(VideoQualityReport).where(VideoQualityReport.video_id == v.id)))
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.stage == "translation"
+        assert row.passed is False
+        assert row.coverage_ratio == 0.5
+        assert row.metrics["translated_count"] == 2
+        assert row.metrics["total_subtitles"] == 4
+        assert len(row.issues) > 0
+        assert row.segment_count is None
+
+    @pytest.mark.asyncio
+    async def test_persist_translation_report_passed(self, db_session):
+        """A passing translation report is persisted with passed=True and empty issues."""
+        from app.services.translation.quality import check_translation_quality, persist_quality_report
+
+        v = Video(id="vq-translation-2", title="t", source_url="x", status=VideoStatus.ready)
+        db_session.add(v)
+        await db_session.flush()
+
+        sources = [
+            "Hello world this is a nice day",
+            "How are you doing today my friend",
+        ]
+        translations = ["你好世界这是美好的一天", "你今天怎么样我的朋友"]
+        report = check_translation_quality(sources, translations)
+
+        await persist_quality_report(db_session, v.id, report)
+        await db_session.commit()
+
+        row = (
+            await db_session.execute(select(VideoQualityReport).where(VideoQualityReport.video_id == v.id))
+        ).scalar_one()
+        assert row.passed is True
+        assert row.issues == []
+
+    @pytest.mark.asyncio
+    async def test_persist_transcription_report(self, db_session):
+        """A failed transcription report persists per-check details as issues."""
+        from app.services.transcription.quality import check_transcription_quality, persist_quality_report
+
+        v = Video(id="vq-transcription-1", title="t", source_url="x", status=VideoStatus.ready)
+        db_session.add(v)
+        await db_session.flush()
+
+        # Repetitive segments -> fails the "repetitive" check
+        segments = [{"text": "Hello world", "start": i * 2, "end": i * 2 + 2} for i in range(6)]
+        report = check_transcription_quality(segments)
+
+        await persist_quality_report(db_session, v.id, report)
+        await db_session.commit()
+
+        row = (
+            await db_session.execute(select(VideoQualityReport).where(VideoQualityReport.video_id == v.id))
+        ).scalar_one()
+        assert row.stage == "transcription"
+        assert row.passed is False
+        assert row.coverage_ratio is None
+        assert row.segment_count == 6
+        # metrics carries the per-check breakdown
+        check_names = {c["name"] for c in row.metrics["checks"]}
+        assert "repetitive" in check_names
+        # failed checks contribute their detail to issues
+        assert len(row.issues) >= 1
+
+    @pytest.mark.asyncio
+    async def test_persist_is_append_only(self, db_session):
+        """Re-running persist leaves a new row rather than mutating the old one."""
+        from app.services.translation.quality import check_translation_quality, persist_quality_report
+
+        v = Video(id="vq-append-1", title="t", source_url="x", status=VideoStatus.ready)
+        db_session.add(v)
+        await db_session.flush()
+
+        sources = ["Hello world this is a nice day"]
+        translations = ["你好世界这是美好的一天"]
+        report = check_translation_quality(sources, translations)
+
+        await persist_quality_report(db_session, v.id, report)
+        await persist_quality_report(db_session, v.id, report)
+        await db_session.commit()
+
+        rows = (
+            (await db_session.execute(select(VideoQualityReport).where(VideoQualityReport.video_id == v.id)))
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2  # append-only, no update

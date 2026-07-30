@@ -41,11 +41,20 @@ celery_app.conf.update(
             "task": "app.tasks.order_tasks.reconcile_pending_orders",
             "schedule": 900,  # every 15 minutes
         },
-        # Mark videos stuck in "transcribing" as failed when the GPU worker is
-        # offline for longer than ``video_transcribe_timeout``.
-        "watchdog-stale-transcriptions": {
-            "task": "app.tasks.video_processing.watchdog_stale_transcriptions",
+        # Mark videos stuck in any pipeline step (translating/downloading/
+        # transcoding/...) as failed when the worker is offline or hung longer
+        # than the step's per-step timeout. Covers both ``processing`` (head)
+        # and ``ready_subtitles`` (tail) phases.
+        "watchdog-stale-pipeline": {
+            "task": "app.tasks.video_processing.watchdog_stale_pipeline",
             "schedule": 600,  # every 10 minutes
+        },
+        # Re-attempt failed YouTube downloads for ready videos that fell back
+        # to embed playback (阶段 3). Daily; refreshes cookies first, respects
+        # the 3-strike limit via localize_video's force=False path.
+        "retry-failed-downloads": {
+            "task": "app.tasks.video_processing.retry_failed_downloads",
+            "schedule": 86400,  # every 24 hours
         },
         # P1 scoring: refresh hot videos hourly, all videos daily. New videos
         # are also scored immediately at the end of finalize_video.

@@ -176,3 +176,40 @@ def log_translation_quality(video_id: str, report: TranslationQualityReport) -> 
             translated=report.translated_count,
             total=report.total_subtitles,
         )
+
+
+async def persist_quality_report(db, video_id: str, report: TranslationQualityReport) -> None:
+    """Persist a translation quality report to ``video_quality_reports``.
+
+    Append-only: each call writes a new row. Best-effort - never raises on DB
+    failure (the pipeline must not fail because a quality log couldn't be
+    saved). Only flushes; the caller's transaction commits.
+    """
+    try:
+        from app.models.video_quality_report import VideoQualityReport
+
+        db.add(
+            VideoQualityReport(
+                video_id=video_id,
+                stage="translation",
+                passed=report.passed,
+                coverage_ratio=report.coverage_ratio,
+                metrics={
+                    "coverage_ratio": report.coverage_ratio,
+                    "short_ratio": report.short_ratio,
+                    "mixed_ratio": report.mixed_ratio,
+                    "length_outlier_count": report.length_outlier_count,
+                    "translated_count": report.translated_count,
+                    "total_subtitles": report.total_subtitles,
+                },
+                issues=list(report.issues),
+                segment_count=None,
+            )
+        )
+        await db.flush()
+    except Exception:
+        logger.warning(
+            "Failed to persist translation quality report",
+            video_id=video_id,
+            exc_info=True,
+        )

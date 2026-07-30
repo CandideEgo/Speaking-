@@ -100,6 +100,9 @@ class VideoAdminResponse(VideoResponse):
     admin_notes: str | None = None
     error_message: str | None = None
     processing_progress: int = 0
+    # 阶段 5: translation quality flag (None|quality_warning|quality_blocked) for
+    # the admin list quality column and quality-filter query.
+    quality_flag: str | None = None
     # UGC review audit fields — admin sees why/when a video was rejected.
     rejection_reason: str | None = None
     submitted_at: str | None = None

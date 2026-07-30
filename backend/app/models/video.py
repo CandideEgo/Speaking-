@@ -136,6 +136,30 @@ class Video(Base):
     # created_at because admin may delay triggering start_processing.
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # When the *current* processing step started. Refreshed at each step boundary
+    # (extracting/transcribing/translating/annotating/prewarm_notes/downloading/
+    # transcoding) so the watchdog can detect a single stuck step rather than
+    # measuring the whole pipeline from processing_started_at (which would force
+    # an over-wide timeout and detect failures slowly). Cleared on ready/error.
+    # See watchdog_stale_pipeline.
+    step_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Translation quality flag set by finalize_video after the translation
+    # quality gate. None = passed (>= warn threshold); "quality_warning" =
+    # coverage between block and warn thresholds (video still goes ready, admin
+    # sees a warning in the list); "quality_blocked" = below block threshold
+    # (video marked error, admin re-translates - optionally with a different
+    # engine via POST /admin/{id}/retranslate). See finalize_video.
+    quality_flag: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Download retry tracking (阶段 3). Set when a YouTube/imported download
+    # fails so the retry-failed-downloads beat task can re-attempt later (the
+    # video stays ready via embed playback). After ``download_fail_count``
+    # reaches the max the beat task stops retrying (permanent failure - region
+    # block / video removed); admin can still force via localize with force=True.
+    download_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    download_fail_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     # Fork lineage (扩展 A4): points to the source Video this was forked from
     # (a standard version or another fork). Null for original submissions.
     # Indexed for "find all forks of X" queries; SET NULL on delete so forks

@@ -15,6 +15,7 @@ from app.tasks.pipeline_helpers import (
     release_lock,
     release_lock_and_steps,
     run_pipeline_task,
+    touch_step_started_at,
     update_progress,
 )
 
@@ -37,7 +38,9 @@ def _find_local_raw(video_id: str) -> str | None:
     return None
 
 
-async def _translate_subtitles(texts: list[str], video_id: str | None = None) -> list[str | None]:
+async def _translate_subtitles(
+    texts: list[str], video_id: str | None = None, engine: str | None = None
+) -> tuple[list[str | None], "object | None"]:
     """Translate subtitle texts in batches using TranslationService.
 
     Uses the pluggable TranslationService (with engine selection + fallback)
@@ -48,11 +51,20 @@ async def _translate_subtitles(texts: list[str], video_id: str | None = None) ->
 
     Phase 2: quality gate runs after translation to detect common issues
     (low coverage, mixed CJK/Latin, suspiciously short translations).
+
+    Args:
+        engine: force a specific engine (admin re-translate after a quality
+            block). A fresh non-singleton instance is used so the override
+            doesn't poison the shared service for other in-flight translations.
+
+    Returns ``(results, quality_report)`` so the caller (finalize_video) can
+    persist the report within its own transaction. ``quality_report`` is None
+    when ``video_id`` is falsy (caller didn't request a report).
     """
-    from app.services.translation import get_translation_service
+    from app.services.translation import TranslationService, get_translation_service
     from app.services.translation.quality import check_translation_quality, log_translation_quality
 
-    service = get_translation_service()
+    service = TranslationService(engine_override=engine) if engine else get_translation_service()
     results: list[str | None] = [None] * len(texts)
 
     batch_size = service.effective_batch_size
@@ -78,17 +90,34 @@ async def _translate_subtitles(texts: list[str], video_id: str | None = None) ->
                 results[idx] = retry[0]
 
     # Phase 2: translation quality gate
-    quality_report = check_translation_quality(texts, results)
+    quality_report = None
     if video_id:
+        quality_report = check_translation_quality(texts, results)
         log_translation_quality(video_id, quality_report)
-    if not quality_report.passed:
-        logger.warning(
-            "Translation quality issues detected but continuing pipeline",
-            video_id=video_id,
-            issues=quality_report.issues,
-        )
+        if not quality_report.passed:
+            logger.warning(
+                "Translation quality issues detected but continuing pipeline",
+                video_id=video_id,
+                issues=quality_report.issues,
+            )
 
-    return results
+    return results, quality_report
+
+
+def _translation_quality_decision(coverage: float) -> str | None:
+    """Decide the quality_flag from translation coverage.
+
+    Returns ``"quality_blocked"`` (below block threshold, kill switch on),
+    ``"quality_warning"`` (between block and warn), or ``None`` (passed).
+    Centralized so thresholds + kill switch are unit-testable without running
+    the full finalize_video pipeline.
+    """
+    settings = get_settings()
+    if coverage < settings.translation_quality_warn_coverage:
+        if settings.translation_quality_block_enabled and coverage < settings.translation_quality_block_coverage:
+            return "quality_blocked"
+        return "quality_warning"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +218,7 @@ def process_video(self, video_id: str):
                     )
                     video.status = VideoStatus.ready_subtitles
                     video.processing_step = "translating"
+                    touch_step_started_at(video)
                     video.processing_progress = 70
                     await db.commit()
                     release_lock(video_id)
@@ -228,6 +258,7 @@ def process_video(self, video_id: str):
                     if not video.title:
                         video.title = Path(video.source_url).stem
                 video.processing_step = "extracting"
+                touch_step_started_at(video)
                 video.processing_progress = 10
                 await db.commit()
                 await update_progress(video_id, "extracting")
@@ -245,6 +276,7 @@ def process_video(self, video_id: str):
                 # --- Enqueue remote transcription ---
                 video.status = VideoStatus.processing
                 video.processing_step = "transcribing"
+                touch_step_started_at(video)
                 video.processing_progress = 30
                 await db.commit()
                 await update_progress(video_id, "transcribing")
@@ -407,7 +439,7 @@ async def _register_standard(db, video) -> None:
 
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.finalize_video")
-def finalize_video(self, video_id: str):
+def finalize_video(self, video_id: str, engine: str | None = None):
     """Tail of the video pipeline: translate → download → transcode → ready.
 
     Triggered by the transcription callback endpoint once subtitles arrive from
@@ -447,11 +479,59 @@ def finalize_video(self, video_id: str):
                     # root cause of "some subtitles translated, some not").
                     indexed = [(i, s.text_en) for i, s in enumerate(sub_rows) if s.text_en]
                     texts = [t for _, t in indexed]
-                    translated = await _translate_subtitles(texts, video_id=video.id)
+                    translated, quality_report = await _translate_subtitles(texts, video_id=video.id, engine=engine)
                     for j, t in enumerate(translated):
                         if t:
                             sub_rows[indexed[j][0]].text_zh = t
+                    # Persist the translation quality report within this
+                    # transaction (best-effort; never fails the pipeline).
+                    if quality_report is not None:
+                        from app.services.translation.quality import persist_quality_report
+
+                        await persist_quality_report(db, video.id, quality_report)
+                        # 阶段 2: coverage-based block/warn decision. Blocked
+                        # videos stop the pipeline WITHOUT a Celery retry - the
+                        # same engine + same input would reproduce the low
+                        # coverage and waste LLM quota. Admin re-translates
+                        # (optionally with a different engine) via
+                        # POST /admin/{id}/retranslate. kill switch:
+                        # translation_quality_block_enabled=False reverts to
+                        # warn-only for a bad engine batch.
+                        settings = get_settings()
+                        coverage = quality_report.coverage_ratio
+                        decision = _translation_quality_decision(coverage)
+                        if decision == "quality_blocked":
+                            video.quality_flag = "quality_blocked"
+                            video.status = VideoStatus.error
+                            video.error_message = (
+                                f"Translation coverage {coverage:.0%} below block "
+                                f"threshold {settings.translation_quality_block_coverage:.0%}"
+                            )
+                            video.processing_step = None
+                            video.step_started_at = None
+                            await db.commit()
+                            # 阶段 4: alert admins (best-effort; never fails pipeline)
+                            from app.services.notification_service import notify_admins
+
+                            await notify_admins(
+                                db,
+                                title="翻译质量阻塞",
+                                message=(
+                                    f"视频 {video_id} 翻译覆盖率 {coverage:.0%}，"
+                                    f"已标记 error。可在管理后台换引擎重触发翻译。"
+                                ),
+                                related_url=f"/admin/videos/{video_id}",
+                            )
+                            release_lock_and_steps(video_id)
+                            logger.warning(
+                                "Video %s translation blocked (coverage %.0f%%)",
+                                video_id,
+                                coverage * 100,
+                            )
+                            return
+                        video.quality_flag = decision  # "quality_warning" or None
                     video.processing_step = "translating"
+                    touch_step_started_at(video)
                     video.processing_progress = 70
                     await db.commit()
                     await update_progress(video_id, "translating")
@@ -490,6 +570,7 @@ def finalize_video(self, video_id: str):
                                 annotated_count,
                             )
                         video.processing_step = "annotating"
+                        touch_step_started_at(video)
                         video.processing_progress = 72
                         await db.commit()
                         await update_progress(video_id, "annotating")
@@ -521,6 +602,7 @@ def finalize_video(self, video_id: str):
 
                             await prewarm_video_notes(db, video.id)
                             video.processing_step = "prewarm_notes"
+                            touch_step_started_at(video)
                             video.processing_progress = 74
                             await db.commit()
                             await update_progress(video_id, "prewarm_notes")
@@ -553,6 +635,7 @@ def finalize_video(self, video_id: str):
                         if not video_path:
                             raise Exception(f"Raw video file not found for local upload {video_id}")
                     video.processing_step = "downloading"
+                    touch_step_started_at(video)
                     video.processing_progress = 75
                     await db.commit()
                     await update_progress(video_id, "downloading")
@@ -572,6 +655,7 @@ def finalize_video(self, video_id: str):
                     else:
                         logger.warning("No video file to transcode for %s", video_id)
                     video.processing_step = "transcoding"
+                    touch_step_started_at(video)
                     video.processing_progress = 90
                     await db.commit()
                     await update_progress(video_id, "transcoding")
@@ -581,6 +665,7 @@ def finalize_video(self, video_id: str):
                 # --- Step: done ---
                 video.status = VideoStatus.ready
                 video.processing_step = None
+                video.step_started_at = None
                 video.processing_progress = 100
                 await db.commit()
                 await update_progress(video_id, "done")
@@ -656,18 +741,32 @@ async def _cleanup_oss_raw(video_id: str, source_url: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Watchdog: fail videos whose GPU transcription never returned
+# Watchdog: fail videos stuck in any pipeline step (head or tail)
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(name="app.tasks.video_processing.watchdog_stale_transcriptions")
-def watchdog_stale_transcriptions():
-    """Mark videos stuck in "transcribing" as failed (GPU worker offline).
+async def _run_watchdog_pipeline() -> None:
+    """Mark videos stuck in any pipeline step as failed (worker offline/hung).
 
-    Uses ``processing_started_at`` (set when processing actually begins) rather
-    than ``created_at`` to avoid prematurely killing videos where admin delayed
-    triggering ``start_processing``.  Falls back to ``created_at`` for rows
-    where ``processing_started_at`` is NULL (legacy data).
+    Covers both phases:
+    - ``processing`` (head: extracting / transcribing on the GPU worker)
+    - ``ready_subtitles`` (tail: translating / annotating / prewarm_notes /
+      downloading / transcoding on the cloud)
+
+    The tail runs under ``status=ready_subtitles`` (not ``processing``), so the
+    old transcribing-only watchdog missed any tail step that hung (dead LLM
+    call, crashed ffmpeg) - the video sat in ``ready_subtitles`` forever. This
+    watchdog queries both statuses.
+
+    Per-step timeout keyed by ``processing_step``: a video is stuck when
+    ``step_started_at`` is older than its step's timeout. Skips videos whose
+    Redis lock is still held - the worker is alive but in Celery retry backoff,
+    not stuck. Legacy rows with NULL ``step_started_at`` (predate the column)
+    fall back to ``processing_started_at``/``created_at`` with the transcribe
+    timeout.
+
+    Module-level (not a nested closure) so it can be unit-tested directly with
+    a patched ``async_session``, bypassing the Celery ``run_async`` thread loop.
     """
     from datetime import UTC, datetime, timedelta
 
@@ -675,35 +774,93 @@ def watchdog_stale_transcriptions():
 
     from app.core.database import async_session
     from app.models.video import Video, VideoStatus
+    from app.tasks.pipeline_helpers import is_lock_held
 
-    timeout = get_settings().video_transcribe_timeout
-    cutoff = datetime.now(UTC) - timedelta(seconds=timeout)
+    settings = get_settings()
+    now = datetime.now(UTC)
 
-    async def _run():
-        async with async_session() as db:
-            result = await db.execute(
-                select(Video).where(
-                    Video.processing_step == "transcribing",
-                    Video.status == VideoStatus.processing,
-                    # Use processing_started_at when available; fall back to
-                    # created_at for legacy rows that predate the column.
-                    or_(
-                        Video.processing_started_at < cutoff,
-                        and_(Video.processing_started_at.is_(None), Video.created_at < cutoff),
-                    ),
-                )
+    # Per-step timeout lookup (seconds). transcribing reuses the existing
+    # video_transcribe_timeout (GPU gap is long); others use pipeline_step_*.
+    step_timeouts = {
+        "extracting": settings.pipeline_step_timeout_extracting,
+        "transcribing": settings.video_transcribe_timeout,
+        "translating": settings.pipeline_step_timeout_translating,
+        "annotating": settings.pipeline_step_timeout_annotating,
+        "prewarm_notes": settings.pipeline_step_timeout_prewarm_notes,
+        "downloading": settings.pipeline_step_timeout_downloading,
+        "transcoding": settings.pipeline_step_timeout_transcoding,
+    }
+    default_timeout = settings.pipeline_step_timeout_default
+    transcribe_timeout = settings.video_transcribe_timeout
+
+    async with async_session() as db:
+        # Phase 1: rows with step_started_at - per-step timeout.
+        result = await db.execute(
+            select(Video).where(
+                Video.status.in_([VideoStatus.processing, VideoStatus.ready_subtitles]),
+                Video.processing_step.is_not(None),
+                Video.step_started_at.is_not(None),
             )
-            stuck = list(result.scalars().all())
-            for v in stuck:
-                v.status = VideoStatus.error
-                v.error_message = "Transcription timed out (GPU worker offline?)"
-                v.processing_step = None
-                release_lock_and_steps(v.id)
-                logger.warning("Watchdog: marked stale transcription as failed", video_id=v.id)
-            if stuck:
-                await db.commit()
+        )
+        stuck: list = []
+        for v in result.scalars().all():
+            timeout = step_timeouts.get(v.processing_step, default_timeout)
+            # SQLite returns naive datetimes; Postgres returns tz-aware. Normalize
+            # to aware UTC so the comparison works across both (tests run SQLite,
+            # prod runs Postgres).
+            step_ts = v.step_started_at
+            if step_ts.tzinfo is None:
+                step_ts = step_ts.replace(tzinfo=UTC)
+            if step_ts >= now - timedelta(seconds=timeout):
+                continue  # within its step's budget
+            if is_lock_held(v.id):
+                continue  # worker alive, in retry backoff - not stuck
+            stuck.append(v)
 
-    run_pipeline_task(_run())
+        # Phase 2: legacy rows with NULL step_started_at (predate the
+        # column). Only transcribing had a watchdog before; preserve that
+        # using processing_started_at / created_at fallback.
+        legacy_cutoff = now - timedelta(seconds=transcribe_timeout)
+        stuck_ids = {v.id for v in stuck}
+        legacy_result = await db.execute(
+            select(Video).where(
+                Video.status == VideoStatus.processing,
+                Video.processing_step == "transcribing",
+                Video.step_started_at.is_(None),
+                or_(
+                    Video.processing_started_at < legacy_cutoff,
+                    and_(
+                        Video.processing_started_at.is_(None),
+                        Video.created_at < legacy_cutoff,
+                    ),
+                ),
+            )
+        )
+        for v in legacy_result.scalars().all():
+            if v.id not in stuck_ids and not is_lock_held(v.id):
+                stuck.append(v)
+                stuck_ids.add(v.id)
+
+        for v in stuck:
+            step = v.processing_step
+            v.status = VideoStatus.error
+            v.error_message = f"Pipeline step '{step}' timed out (worker stuck or offline?)"
+            v.processing_step = None
+            v.step_started_at = None
+            release_lock_and_steps(v.id)
+            logger.warning(
+                "Watchdog: marked stuck pipeline step as failed",
+                video_id=v.id,
+                step=step,
+            )
+        if stuck:
+            await db.commit()
+
+
+@celery_app.task(name="app.tasks.video_processing.watchdog_stale_pipeline")
+def watchdog_stale_pipeline():
+    """Celery wrapper for ``_run_watchdog_pipeline`` (beat-scheduled every 10 min)."""
+    run_pipeline_task(_run_watchdog_pipeline())
 
 
 # ---------------------------------------------------------------------------
@@ -897,17 +1054,15 @@ async def _get_video_height(path: str) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(bind=True, max_retries=2)
-def localize_video(self, video_id: str):
-    """Download + transcode a video's source to local storage (admin "搬运到本地").
+async def _run_localize(self, video_id: str, force: bool = False) -> None:
+    """Download + transcode a video's source to local storage (admin).
 
-    A lightweight variant of the pipeline used by the admin content-management
-    panel to backfill local video files for an imported (e.g. YouTube) video
-    that already has subtitles/AI done. It deliberately skips transcription and
-    translation — those now run via the GPU worker / tail pipeline.
+    Module-level (not a nested closure) so it can be unit-tested directly with
+    a patched ``async_session``, bypassing the Celery ``run_async`` thread loop.
 
-    Reuses ``_download_video`` + ``_transcode_video`` and the same Redis
-    lock / progress reporting as the full pipeline.
+    Args:
+        force: bypass the download_fail_count strike limit. Admin manual
+            trigger passes True; the beat retry task passes False (default).
     """
     if not acquire_lock(video_id):
         logger.warning("Video %s is already being processed, skipping localize", video_id)
@@ -918,54 +1073,149 @@ def localize_video(self, video_id: str):
     from app.core.database import async_session
     from app.models.video import Video, VideoStatus
 
-    async def _localize():
-        async with async_session() as db:
-            result = await db.execute(select(Video).where(Video.id == video_id))
-            video = result.scalar_one_or_none()
-            if not video:
-                logger.error("Video %s not found for localize", video_id)
+    async with async_session() as db:
+        result = await db.execute(select(Video).where(Video.id == video_id))
+        video = result.scalar_one_or_none()
+        if not video:
+            logger.error("Video %s not found for localize", video_id)
+            release_lock_and_steps(video_id)
+            return
+
+        # Strike limit: skip if this video has failed download too many
+        # times (permanent failure - region block / video removed). force
+        # =True (admin manual trigger) bypasses so an admin can retry
+        # regardless. The beat task passes force=False.
+        if not force:
+            settings = get_settings()
+            if (video.download_fail_count or 0) >= settings.download_retry_max_attempts:
+                logger.info(
+                    "Video %s: skipping localize (download_fail_count %d >= max %d)",
+                    video_id,
+                    video.download_fail_count,
+                    settings.download_retry_max_attempts,
+                )
                 release_lock_and_steps(video_id)
                 return
 
-            try:
-                # --- Step: downloading ---
-                current_step = "downloading"
-                if not await is_step_done(video_id, "downloading"):
-                    await update_progress(video_id, "downloading")
-                    video_path = await _download_video(video.source_url, video.id)
-                    if not video_path:
-                        raise Exception(f"Failed to download video from {video.source_url}")
+        try:
+            # --- Step: downloading ---
+            current_step = "downloading"
+            if not await is_step_done(video_id, "downloading"):
+                await update_progress(video_id, "downloading")
+                video_path = await _download_video(video.source_url, video.id)
+                if not video_path:
+                    # Download failed - record for beat retry, keep the video
+                    # ready (embed playback still works). Don't raise: a
+                    # transient download failure shouldn't error an otherwise
+                    # playable video, and retrying with the same url/cookies is
+                    # pointless. The beat task re-attempts later with refreshed
+                    # cookies.
+                    from datetime import UTC, datetime
+
+                    video.download_failed_at = datetime.now(UTC)
+                    video.download_fail_count = (video.download_fail_count or 0) + 1
+                    video.status = VideoStatus.ready
+                    video.processing_step = None
+                    await db.commit()
+                    release_lock_and_steps(video_id)
+                    logger.warning(
+                        "Video %s: localize download failed (fail_count %d)",
+                        video_id,
+                        video.download_fail_count,
+                    )
+                    return
+            else:
+                video_path = _find_local_raw(video.id)
+
+            # --- Step: transcoding ---
+            current_step = "transcoding"
+            if not await is_step_done(video_id, "transcoding"):
+                if video_path:
+                    urls = await _transcode_video(video_path, video.id)
+                    video.video_url_480p = urls.get("480p")
+                    video.video_url_720p = urls.get("720p", f"/media/{video.id}.mp4")
+                    video.video_url_1080p = urls.get("1080p")
+                    await db.commit()
                 else:
-                    video_path = _find_local_raw(video.id)
+                    logger.warning("No video file to transcode for %s", video_id)
+                await update_progress(video_id, "transcoding")
 
-                # --- Step: transcoding ---
-                current_step = "transcoding"
-                if not await is_step_done(video_id, "transcoding"):
-                    if video_path:
-                        urls = await _transcode_video(video_path, video.id)
-                        video.video_url_480p = urls.get("480p")
-                        video.video_url_720p = urls.get("720p", f"/media/{video.id}.mp4")
-                        video.video_url_1080p = urls.get("1080p")
-                        await db.commit()
-                    else:
-                        logger.warning("No video file to transcode for %s", video_id)
-                    await update_progress(video_id, "transcoding")
+            # --- Step: done ---
+            video.status = VideoStatus.ready
+            video.processing_step = None
+            await db.commit()
+            await update_progress(video_id, "done")
+            release_lock_and_steps(video_id)
+            logger.info("Video %s localized to local storage", video_id)
 
-                # --- Step: done ---
-                video.status = VideoStatus.ready
-                video.processing_step = None
-                await db.commit()
-                await update_progress(video_id, "done")
-                release_lock_and_steps(video_id)
-                logger.info("Video %s localized to local storage", video_id)
+        except Exception as e:
+            logger.exception("Video %s localize failed", video_id)
+            await commit_error_state(video, db, e, step=current_step)
+            # Always release the lock so Celery's retry can re-acquire it.
+            # Keep the completed-step set so a retry resumes from the last
+            # successful step rather than re-downloading/re-transcoding.
+            release_lock(video_id)
+            raise self.retry(exc=e) from e
 
-            except Exception as e:
-                logger.exception("Video %s localize failed", video_id)
-                await commit_error_state(video, db, e, step=current_step)
-                # Always release the lock so Celery's retry can re-acquire it.
-                # Keep the completed-step set so a retry resumes from the last
-                # successful step rather than re-downloading/re-transcoding.
-                release_lock(video_id)
-                raise self.retry(exc=e) from e
 
-    run_pipeline_task(_localize())
+@celery_app.task(bind=True, max_retries=2)
+def localize_video(self, video_id: str, force: bool = False):
+    """Download + transcode a video's source to local storage (admin).
+
+    Thin Celery wrapper for ``_run_localize``. See that function for behavior.
+    """
+    run_pipeline_task(_run_localize(self, video_id, force))
+
+
+# ---------------------------------------------------------------------------
+# Beat task: re-attempt failed YouTube downloads (daily)
+# ---------------------------------------------------------------------------
+
+
+async def _run_retry_failed_downloads() -> None:
+    """Select ready imported videos whose download failed (under the strike
+    limit), refresh YouTube cookies, and dispatch ``localize_video``.
+
+    Cookie expiry is the leading cause of download failure, so cookies are
+    refreshed before each retry - retrying without refresh would reproduce the
+    failure. ``localize_video`` is dispatched with default ``force=False`` so
+    the strike limit inside localize still applies.
+    """
+    from sqlalchemy import select
+
+    from app.core.database import async_session
+    from app.models.video import Video, VideoSource, VideoStatus
+    from app.services.youtube_cookies_service import ensure_cookies_for_pipeline
+
+    settings = get_settings()
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(Video).where(
+                Video.video_source == VideoSource.imported,
+                Video.status == VideoStatus.ready,
+                Video.video_url_720p.is_(None),
+                Video.download_failed_at.is_not(None),
+                Video.download_fail_count < settings.download_retry_max_attempts,
+            )
+        )
+        candidates = list(result.scalars().all())
+
+    for v in candidates:
+        try:
+            await ensure_cookies_for_pipeline(v.source_url)
+        except Exception:
+            logger.warning(
+                "Cookie refresh failed for video %s; retrying download anyway",
+                v.id,
+                exc_info=True,
+            )
+        # force=False (default) - respects the strike limit inside localize.
+        localize_video.delay(v.id)
+        logger.info("Video %s: scheduled download retry", v.id)
+
+
+@celery_app.task(name="app.tasks.video_processing.retry_failed_downloads")
+def retry_failed_downloads():
+    """Daily beat task: re-attempt failed YouTube downloads (阶段 3)."""
+    run_pipeline_task(_run_retry_failed_downloads())

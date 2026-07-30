@@ -307,6 +307,7 @@ async def list_all_videos(
     is_featured: bool | None = None,
     review_status: str | None = None,
     keyword: str | None = None,
+    quality: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> PaginatedResponse[VideoAdminResponse]:
@@ -336,6 +337,21 @@ async def list_all_videos(
         escaped_kw = keyword.strip().replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped_kw}%"
         stmt = stmt.where(or_(Video.title.ilike(pattern, escape="\\"), Video.topic_tags.ilike(pattern, escape="\\")))
+    # 阶段 5: quality filter. quality_warning/quality_blocked read the denormalized
+    # flag directly; low_coverage joins video_quality_reports for any translation
+    # report under 90% (catches videos that passed the block but are still thin).
+    if quality == "quality_warning":
+        stmt = stmt.where(Video.quality_flag == "quality_warning")
+    elif quality == "quality_blocked":
+        stmt = stmt.where(Video.quality_flag == "quality_blocked")
+    elif quality == "low_coverage":
+        from app.models.video_quality_report import VideoQualityReport
+
+        sub = select(VideoQualityReport.video_id).where(
+            VideoQualityReport.stage == "translation",
+            VideoQualityReport.coverage_ratio < 0.9,
+        )
+        stmt = stmt.where(Video.id.in_(sub))
 
     # total count for has_more
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
@@ -540,5 +556,5 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
 
     from app.tasks.video_processing import localize_video
 
-    localize_video.delay(video.id)
+    localize_video.delay(video.id, force=True)
     return VideoAdminResponse.model_validate(video)

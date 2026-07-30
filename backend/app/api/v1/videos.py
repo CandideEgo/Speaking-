@@ -232,6 +232,9 @@ async def list_admin_videos(
         None, description="Filter by UGC review status (draft/pending_review/published/rejected)"
     ),
     keyword: str | None = Query(None, description="Search title/topic_tags"),
+    quality: str | None = Query(
+        None, description="Filter by quality flag (quality_warning|quality_blocked|low_coverage)"
+    ),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -243,6 +246,7 @@ async def list_admin_videos(
         is_featured=is_featured,
         review_status=review_status,
         keyword=keyword,
+        quality=quality,
         page=pagination.page,
         page_size=pagination.page_size,
     )
@@ -397,6 +401,76 @@ async def localize_admin_video(
         if "already processing" in msg:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from e
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/retranslate", response_model=VideoAdminResponse)
+@rate_limit("10/minute")
+async def retranslate_video(
+    request: Request,
+    video_id: str,
+    engine: str | None = Query(None, description="Override translation engine (glm|qwen|hy_mt2|agnes|custom)"),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-run translation, optionally with a different engine. Admin only.
+
+    Use after a translation quality block (coverage below the block threshold)
+    to retry with a different engine - the same engine + same input would
+    reproduce the low coverage. Clears existing text_zh + quality_flag and
+    re-dispatches finalize_video.
+    """
+    from app.services.video_seed_service import retranslate_video as _retranslate
+
+    try:
+        return await _retranslate(db, video_id, engine=engine)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.get("/admin/{video_id}/quality-reports")
+@rate_limit("30/minute")
+async def get_video_quality_reports(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all quality reports for a video (transcription + translation history).
+
+    Admin-only. Powers the video-detail quality panel: shows each stage's
+    pass/fail, coverage, and per-check breakdown across re-runs.
+    """
+    from sqlalchemy import select
+
+    from app.models.video_quality_report import VideoQualityReport
+
+    rows = (
+        (
+            await db.execute(
+                select(VideoQualityReport)
+                .where(VideoQualityReport.video_id == video_id)
+                .order_by(VideoQualityReport.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "stage": r.stage,
+            "passed": r.passed,
+            "coverage_ratio": r.coverage_ratio,
+            "metrics": r.metrics,
+            "issues": r.issues,
+            "segment_count": r.segment_count,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 @router.patch("/admin/{video_id}/subtitles/{subtitle_id}", response_model=SubtitleResponse)

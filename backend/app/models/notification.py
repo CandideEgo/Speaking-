@@ -19,6 +19,7 @@ class NotificationType(str, enum.Enum):
     comment_reply = "comment_reply"
     social_follow = "social_follow"
     post_liked = "post_liked"
+    quality_alert = "quality_alert"
 
 
 class Notification(Base):

@@ -156,3 +156,33 @@ async def _push_notification(notification: Notification, user_id: str) -> None:
             notification.type,
             exc_info=True,
         )
+
+
+async def notify_admins(db: AsyncSession, title: str, message: str, related_url: str | None = None) -> None:
+    """Send a notification to every admin user. Best-effort: never raises.
+
+    Used by the pipeline quality gates (transcription failure, translation
+    block) to surface quality issues without admins watching logs. Dedup is
+    handled by ``create_notification`` (same user+type+related_url unread ->
+    updates instead of duplicating). Commits the session so notifications
+    persist even when the caller's transaction already committed (the quality-
+    gate failure path commits the error state first).
+    """
+    from sqlalchemy import select
+
+    from app.models.user import RoleType, User
+
+    try:
+        admins = (await db.scalars(select(User).where(User.role == RoleType.admin))).all()
+        for a in admins:
+            await create_notification(
+                user_id=a.id,
+                type="quality_alert",
+                title=title,
+                message=message,
+                db=db,
+                related_url=related_url,
+            )
+        await db.commit()
+    except Exception:
+        logger.warning("notify_admins failed", exc_info=True)

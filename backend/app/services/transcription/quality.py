@@ -212,3 +212,36 @@ def log_quality_report(video_id: str, report: QualityReport) -> None:
             segments=report.segment_count,
             warnings=report.warnings or None,
         )
+
+
+async def persist_quality_report(db, video_id: str, report: QualityReport) -> None:
+    """Persist a transcription quality report to ``video_quality_reports``.
+
+    Append-only: each call writes a new row. Best-effort - never raises on DB
+    failure. Only flushes; the caller's transaction commits.
+    """
+    try:
+        from app.models.video_quality_report import VideoQualityReport
+
+        db.add(
+            VideoQualityReport(
+                video_id=video_id,
+                stage="transcription",
+                passed=report.passed,
+                coverage_ratio=None,
+                metrics={
+                    "checks": [{"name": c.name, "passed": c.passed, "detail": c.detail} for c in report.checks],
+                    "warnings": list(report.warnings),
+                    "audio_duration": report.audio_duration,
+                },
+                issues=[c.detail for c in report.failed_checks if c.detail],
+                segment_count=report.segment_count,
+            )
+        )
+        await db.flush()
+    except Exception:
+        logger.warning(
+            "Failed to persist transcription quality report",
+            video_id=video_id,
+            exc_info=True,
+        )

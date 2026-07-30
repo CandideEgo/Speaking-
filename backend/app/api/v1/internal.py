@@ -129,6 +129,12 @@ async def transcription_callback(
         # mark the video as error so an admin can re-trigger transcription.
         quality_report = check_transcription_quality(segments, audio_duration=payload.audio_duration)
         log_quality_report(payload.video_id, quality_report)
+        # Persist the report (best-effort) so the admin panel can show the
+        # failure reason - both on failure (why it was blocked) and on success
+        # (per-check pass/detail for auditing).
+        from app.services.transcription.quality import persist_quality_report
+
+        await persist_quality_report(db, payload.video_id, quality_report)
 
         if not quality_report.passed:
             video.status = VideoStatus.error
@@ -137,6 +143,15 @@ async def transcription_callback(
             )
             video.processing_step = None
             await db.commit()
+            # 阶段 4: alert admins (best-effort)
+            from app.services.notification_service import notify_admins
+
+            await notify_admins(
+                db,
+                title="转录质量失败",
+                message=(f"视频 {payload.video_id} 转录质量检查未通过，已标记 error。可在管理后台重新触发转录。"),
+                related_url=f"/admin/videos/{payload.video_id}",
+            )
             return {"acknowledged": True, "quality_check": "failed"}
 
         existing = await db.scalar(

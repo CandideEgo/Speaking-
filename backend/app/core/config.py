@@ -65,6 +65,34 @@ class Settings(BaseSettings):
     # assumed to have lost its GPU worker and is marked failed.
     video_transcribe_timeout: int = 7200  # 2 hours
 
+    # Watchdog per-step timeouts (seconds). A video whose ``step_started_at`` is
+    # older than its step's timeout is assumed stuck (worker crashed / hung LLM
+    # call / dead ffmpeg) and marked failed by ``watchdog_stale_pipeline``.
+    # Per-step (not whole-pipeline) so a stuck translate isn't masked by a wide
+    # transcribe timeout. Unmapped steps fall back to ``_default``.
+    pipeline_step_timeout_extracting: int = 600  # 10 min (yt-dlp metadata)
+    pipeline_step_timeout_translating: int = 1800  # 30 min (LLM batch + retries)
+    pipeline_step_timeout_annotating: int = 300  # 5 min (pure ECDICT local)
+    pipeline_step_timeout_prewarm_notes: int = 1800  # 30 min (LLM batch)
+    pipeline_step_timeout_downloading: int = 3600  # 60 min (yt-dlp download)
+    pipeline_step_timeout_transcoding: int = 1800  # 30 min (ffmpeg)
+    pipeline_step_timeout_default: int = 3600  # fallback for unmapped steps
+
+    # Translation quality gate (阶段 2 of PIPELINE-QUALITY-IMPROVEMENTS-2026-07).
+    # When ``translation_quality_block_enabled`` is True, finalize_video raises
+    # (-> error + Celery retry) for coverage below ``_block_coverage``; between
+    # ``_block_coverage`` and ``_warn_coverage`` the video is marked
+    # ``quality_flag=quality_warning`` but still goes ready. Set
+    # ``block_enabled=False`` as a kill switch to revert to warn-only when a bad
+    # engine batch would otherwise pile up error videos.
+    translation_quality_block_enabled: bool = True
+    translation_quality_block_coverage: float = 0.60  # < this -> blocked (error)
+    translation_quality_warn_coverage: float = 0.80  # < this (>= block) -> warning
+
+    # Download retry (阶段 3). Max automatic re-attempts for failed YouTube/
+    # imported downloads before the beat task gives up (permanent failure).
+    download_retry_max_attempts: int = 3
+
     # OSS raw-media transfer for locally-uploaded videos. The cloud uploads the
     # raw upload to OSS and hands the GPU worker a (signed) URL — the GPU worker
     # needs no OSS credentials of its own.

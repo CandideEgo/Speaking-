@@ -1,0 +1,144 @@
+"""Tests for translation quality block/warn + admin re-translate (阶段 2)."""
+
+from unittest.mock import patch
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import select
+
+from app.models.subtitle import Subtitle
+from app.models.video import Video, VideoStatus
+from tests.conftest import TestSessionLocal
+
+
+class TestTranslationQualityDecision:
+    """Unit tests for the coverage -> quality_flag decision (no pipeline run)."""
+
+    def test_blocked(self):
+        from app.tasks.video_processing import _translation_quality_decision
+
+        assert _translation_quality_decision(0.5) == "quality_blocked"
+
+    def test_warning(self):
+        from app.tasks.video_processing import _translation_quality_decision
+
+        assert _translation_quality_decision(0.7) == "quality_warning"
+
+    def test_passed(self):
+        from app.tasks.video_processing import _translation_quality_decision
+
+        assert _translation_quality_decision(0.9) is None
+
+    def test_boundary_block_threshold_is_warning(self):
+        # coverage == block_threshold (0.60) is NOT blocked (< is strict)
+        from app.tasks.video_processing import _translation_quality_decision
+
+        assert _translation_quality_decision(0.60) == "quality_warning"
+
+    def test_boundary_warn_threshold_is_passed(self):
+        # coverage == warn_threshold (0.80) is passed (< is strict)
+        from app.tasks.video_processing import _translation_quality_decision
+
+        assert _translation_quality_decision(0.80) is None
+
+    def test_kill_switch_disables_block(self, monkeypatch):
+        from app.core.config import get_settings
+        from app.tasks.video_processing import _translation_quality_decision
+
+        s = get_settings()
+        monkeypatch.setattr(s, "translation_quality_block_enabled", False)
+        # 0.5 would block, but kill switch -> warning only
+        assert _translation_quality_decision(0.5) == "quality_warning"
+
+
+class TestRetranslateEndpoint:
+    """POST /admin/{id}/retranslate clears text_zh + quality_flag, dispatches finalize."""
+
+    async def test_retranslate_clears_and_dispatches_with_engine(self, client: AsyncClient, admin_headers: dict):
+        async with TestSessionLocal() as db:
+            v = Video(
+                title="blocked",
+                source_url="x",
+                status=VideoStatus.error,
+                quality_flag="quality_blocked",
+                error_message="Translation coverage 50% below block",
+                processing_step=None,
+                is_official=True,
+                is_published=False,
+            )
+            db.add(v)
+            await db.flush()
+            for i in range(3):
+                db.add(
+                    Subtitle(
+                        video_id=v.id,
+                        start_time=float(i),
+                        end_time=float(i + 1),
+                        text_en=f"line {i}",
+                        text_zh=f"旧翻译 {i}",
+                        sentence_index=i,
+                    )
+                )
+            await db.commit()
+            vid = v.id
+
+        with patch("app.tasks.video_processing.finalize_video") as mock_fin:
+            resp = await client.post(f"/api/v1/videos/admin/{vid}/retranslate?engine=glm", headers=admin_headers)
+
+        assert resp.status_code == 200
+        # finalize_video.delay called with the video id + engine override
+        mock_fin.delay.assert_called_once_with(vid, engine="glm")
+
+        async with TestSessionLocal() as db:
+            fetched = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert fetched.status == VideoStatus.ready_subtitles
+            assert fetched.quality_flag is None
+            assert fetched.error_message is None
+            subs = (await db.execute(select(Subtitle).where(Subtitle.video_id == vid))).scalars().all()
+            assert all(s.text_zh is None for s in subs)
+
+    async def test_retranslate_no_engine_uses_default(self, client: AsyncClient, admin_headers: dict):
+        """Without ?engine=, finalize is dispatched with engine=None (configured default)."""
+        async with TestSessionLocal() as db:
+            v = Video(
+                title="warned",
+                source_url="x",
+                status=VideoStatus.ready,
+                quality_flag="quality_warning",
+                is_official=True,
+                is_published=False,
+            )
+            db.add(v)
+            await db.flush()
+            db.add(Subtitle(video_id=v.id, start_time=0, end_time=1, text_en="hello", sentence_index=0))
+            await db.commit()
+            vid = v.id
+
+        with patch("app.tasks.video_processing.finalize_video") as mock_fin:
+            resp = await client.post(f"/api/v1/videos/admin/{vid}/retranslate", headers=admin_headers)
+
+        assert resp.status_code == 200
+        mock_fin.delay.assert_called_once_with(vid, engine=None)
+
+    async def test_retranslate_no_subtitles_400(self, client: AsyncClient, admin_headers: dict):
+        async with TestSessionLocal() as db:
+            v = Video(
+                title="no subs",
+                source_url="x",
+                status=VideoStatus.error,
+                quality_flag="quality_blocked",
+            )
+            db.add(v)
+            await db.commit()
+            vid = v.id
+
+        resp = await client.post(f"/api/v1/videos/admin/{vid}/retranslate", headers=admin_headers)
+        assert resp.status_code == 400
+
+    async def test_retranslate_not_found(self, client: AsyncClient, admin_headers: dict):
+        resp = await client.post("/api/v1/videos/admin/nonexistent/retranslate", headers=admin_headers)
+        assert resp.status_code == 404
+
+    async def test_retranslate_requires_admin(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.post("/api/v1/videos/admin/some-id/retranslate", headers=auth_headers)
+        assert resp.status_code == 403

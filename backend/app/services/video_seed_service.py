@@ -474,3 +474,67 @@ async def retry_video(db: AsyncSession, video_id: str) -> VideoAdminResponse:
         await commit_refresh(db, video)
 
     return VideoAdminResponse.model_validate(video)
+
+
+async def retranslate_video(db: AsyncSession, video_id: str, engine: str | None = None) -> VideoAdminResponse:
+    """Re-run the translation step, optionally with a different engine.
+
+    Used after a translation quality block (``quality_flag=quality_blocked``)
+    or warning (``quality_flag=quality_warning``) to retry translation. The same
+    engine + same input would reproduce the low coverage, so an admin can
+    override the engine (e.g. ``glm``) to break out of a bad-engine loop.
+
+    Clears existing ``text_zh`` so the re-run is clean (a partial new run
+    wouldn't otherwise overwrite slots the new engine leaves None), resets
+    ``quality_flag``, and re-dispatches ``finalize_video`` with the engine
+    override. Only the ``translating`` completed-step marker is cleared -
+    annotating/downloading/transcoding don't depend on ``text_zh`` and stay
+    marked done so they're skipped.
+
+    Raises:
+        ValueError: If the video is not found, or has no subtitles to translate.
+    """
+    result = await db.execute(select(Video).where(Video.id == video_id))
+    video = result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Video not found")
+
+    from app.services.video_service import count_subtitles
+
+    if await count_subtitles(db, video.id) == 0:
+        raise ValueError("Video has no subtitles to translate")
+
+    # Clear existing translations so the re-run writes fresh text_zh everywhere.
+    from app.models.subtitle import Subtitle
+
+    subs = await db.execute(select(Subtitle).where(Subtitle.video_id == video.id))
+    for s in subs.scalars().all():
+        s.text_zh = None
+
+    video.quality_flag = None
+    video.status = VideoStatus.ready_subtitles
+    video.error_message = None
+    video.processing_step = "translating"
+    video.processing_progress = 70
+
+    # Clear only the translating marker so finalize re-runs it; keep other
+    # steps' markers (they don't depend on text_zh).
+    try:
+        r = get_redis()
+        await r.srem(f"video:steps:{video.id}", "translating")
+    except Exception:
+        pass
+    # Release any stale processing lock so finalize can re-acquire it.
+    try:
+        r = get_redis()
+        await r.delete(f"video:processing:{video.id}")
+    except Exception:
+        pass
+
+    await commit_refresh(db, video)
+
+    from app.tasks.video_processing import finalize_video
+
+    finalize_video.delay(str(video.id), engine=engine)
+
+    return VideoAdminResponse.model_validate(video)

@@ -33,12 +33,17 @@ class TranslationService:
     Always obtain via ``get_translation_service()`` — never instantiate directly.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, engine_override: str | None = None) -> None:
         settings = get_settings()
-        self._engine_name = settings.translation_engine or "agnes"
-        self._fallback_name = settings.translation_fallback_engine or None
+        # engine_override: force a specific primary engine. Used by admin
+        # re-translate to retry with a different engine after a quality block
+        # (same engine + same input would reproduce the low coverage). When set,
+        # no fallback is configured and concurrent mode is disabled - the admin
+        # asked for this one engine specifically.
+        self._engine_name = engine_override or settings.translation_engine or "agnes"
+        self._fallback_name = None if engine_override else (settings.translation_fallback_engine or None)
         self._batch_size = settings.translation_batch_size or 20
-        self._concurrent = settings.translation_concurrent
+        self._concurrent = settings.translation_concurrent and not engine_override
 
         self._engine = self._resolve_engine(self._engine_name, settings)
         self._fallback = self._resolve_engine(self._fallback_name, settings) if self._fallback_name else None

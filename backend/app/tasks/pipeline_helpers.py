@@ -161,6 +161,46 @@ def release_lock_and_steps(video_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Step-started timestamp - per-step watchdog timing
+# ---------------------------------------------------------------------------
+
+
+def touch_step_started_at(video) -> None:
+    """Stamp ``video.step_started_at = now``.
+
+    Called at each pipeline step boundary (extracting/transcribing/translating/
+    annotating/prewarm_notes/downloading/transcoding) so the watchdog can detect
+    a single stuck step rather than measuring the whole pipeline from
+    ``processing_started_at``. Only mutates the in-memory object; the caller
+    commits it alongside its other step-state writes.
+    """
+    from datetime import UTC, datetime
+
+    video.step_started_at = datetime.now(UTC)
+
+
+def is_lock_held(video_id: str) -> bool:
+    """Check whether the processing lock is currently held (a worker is active).
+
+    Non-mutating (unlike ``acquire_lock``). Used by the watchdog to skip videos
+    whose worker is alive but in Celery retry backoff - killing those would
+    abort a recovery in progress. On Redis failure, returns False (fail-safe:
+    assume not held so a genuinely stuck video isn't stranded forever; worst
+    case a mid-retry video is marked error and re-triggered).
+    """
+    try:
+        r = get_pipeline_redis()
+        return bool(r.exists(f"video:processing:{video_id}"))
+    except Exception:
+        logger.warning(
+            "Redis unavailable when checking lock for video %s; assuming not held",
+            video_id,
+            exc_info=True,
+        )
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Error-state commit — single seam for "any step throws → DB is consistent"
 # ---------------------------------------------------------------------------
 
