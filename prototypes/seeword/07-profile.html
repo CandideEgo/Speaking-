@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 个人中心</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Profile - 个人中心 · 4 tab · app token (globals.css)
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--bg-inset:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;
+  --brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#eef2ff;
+  --success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;
+  --error:#dc2626;--red-soft:#fee2e2;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-zhongkao:#64748b;--lv-gaoKao:#16a34a;--lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-ielts:#dc2626;--lv-toefl:#ea580c;--lv-ky:#ea580c;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--bg-inset:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;
+  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;
+  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv02","cv03","cv04","cv11");}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input,select,textarea{font-family:inherit;}
+
+/* ═══ Topbar（统一） ═══ */
+.topbar{position:sticky;top:0;z-index:40;height:64px;
+  background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-search{flex:1;max-width:420px;margin:0 auto;position:relative;}
+.nav-search input{width:100%;height:40px;padding:0 16px 0 38px;font-size:14px;color:var(--ink);
+  background:var(--surface-card);border:1px solid transparent;border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.nav-search input::placeholder{color:var(--muted-soft);}
+.nav-search input:focus{background:var(--canvas);border-color:var(--ink);box-shadow:0 0 0 3px rgba(255,90,31,.12);}
+.nav-search .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links,.nav-search{display:none;}}
+
+.container-page{max-width:920px;margin:0 auto;padding:28px 16px 80px;}
+@media(min-width:640px){.container-page{padding:36px 28px 80px;}}
+
+/* 页头 */
+.page-head{margin-bottom:24px;}
+.crumb{font-size:12px;color:var(--muted-soft);font-weight:500;margin-bottom:6px;}
+.page-head h1{font-size:26px;font-weight:800;letter-spacing:-0.025em;}
+
+/* 用户卡（头像+概览） */
+.user-card{display:flex;align-items:center;gap:18px;background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);padding:20px 24px;margin-bottom:24px;box-shadow:var(--shadow-soft);}
+.user-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:700;flex-shrink:0;}
+.user-info{flex:1;min-width:0;}
+.user-name{font-size:18px;font-weight:700;color:var(--ink);}
+.user-meta{font-size:13px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;}
+.user-meta .pro{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 9px;
+  border-radius:var(--r-pill);background:var(--brand-50);color:var(--brand-600);}
+.user-stats{display:flex;gap:24px;}
+@media(max-width:600px){.user-card{flex-wrap:wrap;}.user-stats{width:100%;justify-content:space-between;gap:12px;}}
+.us-item .n{font-size:20px;font-weight:800;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.us-item .l{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--hairline);margin-bottom:28px;overflow-x:auto;}
+.tab{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;font-size:14px;font-weight:500;color:var(--muted);
+  border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--ink);}
+.tab.active{color:var(--brand-500);border-bottom-color:var(--brand-500);font-weight:600;}
+
+.tab-panel{display:none;}.tab-panel.active{display:block;animation:fade .25s ease-out;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* 表单（个人资料编辑） */
+.form-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:24px;}
+.form-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--hairline-soft);}
+.form-row:last-child{border-bottom:none;}
+.form-row .label{width:120px;flex-shrink:0;font-size:13px;font-weight:500;color:var(--muted);}
+.form-row .field{flex:1;min-width:0;}
+.input{width:100%;height:40px;padding:0 14px;font-size:14px;color:var(--ink);background:var(--surface-soft);
+  border:1px solid var(--hairline);border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.input:focus{border-color:var(--brand-500);background:var(--canvas);box-shadow:0 0 0 3px rgba(255,90,31,.1);}
+.input:disabled{color:var(--muted);cursor:not-allowed;}
+.field-hint{font-size:11px;color:var(--muted-soft);margin-top:4px;}
+.avatar-edit{display:flex;align-items:center;gap:14px;}
+.avatar-edit .av{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700;}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--r-pill);font-size:13px;font-weight:500;
+  background:var(--surface-card);border:1px solid var(--hairline);color:var(--body);transition:all .15s;}
+.chip:hover{border-color:var(--ink);}
+.chip.active{background:var(--ink);color:var(--canvas);border-color:var(--ink);}
+.chip .lv-dot{width:7px;height:7px;border-radius:50%;}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:20px;border-top:1px solid var(--hairline-soft);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;font-size:14px;font-weight:600;
+  border-radius:var(--r-sm);transition:all .15s;}
+.btn-primary{background:var(--brand-500);color:#fff;}.btn-primary:hover{background:var(--brand-600);}
+.btn-outline{background:var(--canvas);border:1px solid var(--hairline);color:var(--body);}.btn-outline:hover{background:var(--surface-card);}
+
+/* 学习进度 */
+.progress-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:24px;margin-bottom:20px;}
+.pc-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:16px;}
+.mastery-chart{display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:8px;}
+.m-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;}
+.m-bar .bar{width:100%;max-width:36px;background:var(--surface-card);border-radius:var(--r-sm) var(--r-sm) 0 0;transition:all .2s;position:relative;}
+.m-bar .bar.hi{background:linear-gradient(180deg,var(--brand-400),var(--brand-500));}
+.m-bar .bar:hover{filter:brightness(1.05);}
+.m-bar .lbl{font-size:11px;color:var(--muted-soft);font-weight:500;}
+.m-bar .val{font-size:10px;color:var(--muted);font-family:"JetBrains Mono",monospace;}
+
+.milestones{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;}
+.ms{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r);padding:16px 12px;text-align:center;transition:all .15s;}
+.ms.unlocked{background:var(--brand-50);border-color:var(--brand-100);}
+.ms .ic{width:40px;height:40px;border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;background:var(--surface-card);}
+.ms.unlocked .ic{background:var(--brand-500);}
+.ms .name{font-size:12px;font-weight:600;color:var(--ink);}
+.ms .desc{font-size:10px;color:var(--muted-soft);margin-top:3px;line-height:1.4;}
+.ms.locked{opacity:.5;}
+
+/* 账户设置 */
+.set-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--hairline-soft);}
+.set-row:last-child{border-bottom:none;}
+.set-info .t{font-size:14px;font-weight:500;color:var(--ink);}
+.set-info .d{font-size:12px;color:var(--muted);margin-top:3px;}
+.toggle{width:42px;height:24px;border-radius:var(--r-pill);background:var(--surface-card);position:relative;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--brand-500);}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.toggle.on::after{transform:translateX(18px);}
+.set-danger{color:var(--error);font-weight:500;font-size:13px;}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;
+  background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);
+  display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html"><span class="logo-mark">S</span><span class="logo-text">See<span class="word">Word</span></span></a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">浏览</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+  </div>
+  <div class="nav-search"><span class="si"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input placeholder="搜索视频或词汇…" onfocus="location.href='13-search.html'"></div>
+  <div class="nav-actions">
+    <a class="icon-btn" href="12-history.html" title="学习记录"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></a>
+    <a class="avatar" href="07-profile.html" style="cursor:pointer">林</a>
+  </div>
+</nav>
+
+<div class="container-page">
+  <div class="page-head">
+    <div class="crumb">个人设置</div>
+    <h1>账户管理</h1>
+  </div>
+
+  <!-- 用户卡 -->
+  <div class="user-card">
+    <div class="user-avatar">林</div>
+    <div class="user-info">
+      <div class="user-name">林晓 <span class="pro">Pro 会员</span></div>
+      <div class="user-meta"><span>138****6621</span><span>·</span><span>目标：四级</span><span>·</span><span>加入 86 天</span></div>
+    </div>
+    <div class="user-stats">
+      <div class="us-item"><div class="n">42</div><div class="l">已学视频</div></div>
+      <div class="us-item"><div class="n">318</div><div class="l">掌握词汇</div></div>
+      <div class="us-item"><div class="n">13</div><div class="l">连续天数</div></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-t="profile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>个人资料</button>
+    <button class="tab" data-t="progress"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/></svg>学习进度</button>
+    <button class="tab" data-t="settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>账户设置</button>
+    <button class="tab" data-t="learning"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>学习偏好</button>
+  </div>
+
+  <!-- 个人资料（可编辑） -->
+  <div class="tab-panel active" id="p-profile">
+    <div class="form-card">
+      <div class="form-row">
+        <div class="label">头像</div>
+        <div class="field">
+          <div class="avatar-edit">
+            <div class="av">林</div>
+            <button class="btn btn-outline" style="padding:8px 16px;font-size:13px">更换头像</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="label">昵称</div>
+        <div class="field"><input class="input" value="林晓"></div>
+      </div>
+      <div class="form-row">
+        <div class="label">手机号</div>
+        <div class="field"><input class="input" value="138 6621 8855" disabled><div class="field-hint">手机号登录账号，如需修改请联系客服</div></div>
+      </div>
+      <div class="form-row">
+        <div class="label">邮箱（选填）</div>
+        <div class="field"><input class="input" type="email" placeholder="用于接收学习报告" value="lin@example.com"></div>
+      </div>
+      <div class="form-row">
+        <div class="label">个性签名</div>
+        <div class="field"><input class="input" placeholder="写一句话介绍自己…" value="每天 15 分钟，看视频学英语"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline">取消</button>
+        <button class="btn btn-primary">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 学习进度 -->
+  <div class="tab-panel" id="p-progress">
+    <div class="progress-card">
+      <div class="pc-title">掌握度趋势 · 近 8 周</div>
+      <div class="mastery-chart" id="chart"></div>
+    </div>
+    <div class="progress-card">
+      <div class="pc-title">成就徽章</div>
+      <div class="milestones" id="ms"></div>
+    </div>
+  </div>
+
+  <!-- 账户设置 -->
+  <div class="tab-panel" id="p-settings">
+    <div class="form-card">
+      <div class="set-row"><div class="set-info"><div class="t">每日学习提醒</div><div class="d">每天 20:00 推送短信提醒</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div class="set-info"><div class="t">字幕默认显示</div><div class="d">进入视频时默认显示双语字幕</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div class="set-info"><div class="t">自动播放下一句</div><div class="d">跟读完成后自动跳到下一句</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div class="set-info"><div class="t">深色模式</div><div class="d">跟随系统 / 始终深色 / 始终浅色</div></div><div class="toggle" onclick="this.classList.toggle('on');document.getElementById('themeToggle').click()"></div></div>
+      <div class="set-row"><div class="set-info"><div class="t">会员套餐</div><div class="d">Pro 年卡 · 到期 2027-07-30</div></div><a class="btn btn-outline" href="00-router.html" style="padding:8px 16px;font-size:13px">续费/升级</a></div>
+      <div class="set-row"><div class="set-info"><div class="t">退出登录</div><div class="d">退出当前账号</div></div><a class="set-danger" href="01-login.html">退出</a></div>
+    </div>
+  </div>
+
+  <!-- 学习偏好 -->
+  <div class="tab-panel" id="p-learning">
+    <div class="form-card">
+      <div class="form-row">
+        <div class="label">目标考试</div>
+        <div class="field">
+          <div class="chip-row" id="lvChips">
+            <button class="chip"><span class="lv-dot" style="background:var(--lv-zhongkao)"></span>中考</button>
+            <button class="chip"><span class="lv-dot" style="background:var(--lv-gaoKao)"></span>高考</button>
+            <button class="chip active"><span class="lv-dot" style="background:var(--lv-cet4)"></span>四级</button>
+            <button class="chip"><span class="lv-dot" style="background:var(--lv-cet6)"></span>六级</button>
+            <button class="chip"><span class="lv-dot" style="background:var(--lv-ielts)"></span>雅思</button>
+            <button class="chip"><span class="lv-dot" style="background:var(--lv-toefl)"></span>托福</button>
+          </div>
+          <div class="field-hint">决定字幕高亮与练习试卷的层级</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="label">每日目标</div>
+        <div class="field">
+          <div class="chip-row">
+            <button class="chip">10 词</button>
+            <button class="chip active">20 词</button>
+            <button class="chip">30 词</button>
+            <button class="chip">50 词</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="label">学习兴趣</div>
+        <div class="field">
+          <div class="chip-row">
+            <button class="chip active">科普</button><button class="chip active">科技</button>
+            <button class="chip">历史</button><button class="chip active">生活</button>
+            <button class="chip">商业</button><button class="chip">艺术</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="label">字幕语速</div>
+        <div class="field"><input class="input" type="range" min="0.5" max="1.5" step="0.1" value="1" style="padding:0"><div class="field-hint">1.0x 原速</div></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary">保存偏好</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// Tab 切换
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
+  t.classList.add("active");
+  document.getElementById("p-"+t.dataset.t).classList.add("active");
+}));
+
+// chip 切换（学习偏好内）
+document.querySelectorAll(".chip-row").forEach(row=>{
+  row.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+    // 目标考试/每日目标/兴趣单选/多选混合：这里统一单选视觉（兴趣可多选）
+    if(row.parentElement.previousElementSibling && row.parentElement.previousElementSibling.classList.contains("label") && row.parentElement.previousElementSibling.textContent.includes("兴趣")){
+      c.classList.toggle("active");
+    } else {
+      row.querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
+      c.classList.add("active");
+    }
+  }));
+});
+
+// 掌握度趋势图
+const WEEKS=[{w:"W1",v:120},{w:"W2",v:145},{w:"W3",v:138},{w:"W4",v:180},{w:"W5",v:210},{w:"W6",v:245},{w:"W7",v:288},{w:"W8",v:318}];
+const max=Math.max(...WEEKS.map(x=>x.v));
+document.getElementById("chart").innerHTML=WEEKS.map((x,i)=>{
+  const h=(x.v/max*100).toFixed(0);
+  const hi=i===WEEKS.length-1;
+  return `<div class="m-bar"><div class="val">${x.v}</div><div class="bar ${hi?'hi':''}" style="height:${h}%"></div><div class="lbl">${x.w}</div></div>`;
+}).join("");
+
+// 徽章
+const MS=[
+  {ic:"🔥",name:"连续 7 天",desc:"坚持打卡一周",u:true},
+  {ic:"🎯",name:"首份试卷",desc:"完成第一份练习",u:true},
+  {ic:"📚",name:"词汇 300",desc:"掌握 300 词",u:true},
+  {ic:"🏆",name:"满分通关",desc:"试卷全对",u:true},
+  {ic:"⭐",name:"早起鸟",desc:"早 7 点学习",u:false},
+  {ic:"🎬",name:"百小时",desc:"累计 100 小时",u:false},
+];
+document.getElementById("ms").innerHTML=MS.map(m=>`
+  <div class="ms ${m.u?'unlocked':'locked'}"><div class="ic">${m.u?m.ic:'🔒'}</div><div class="name">${m.name}</div><div class="desc">${m.desc}</div></div>`).join("");
+
+// 主题切换
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

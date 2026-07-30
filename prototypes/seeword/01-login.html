@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - SeeWord</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Auth - 真实项目风格
+   橙 #ff5a1f · Inter / JetBrains Mono · 亮/暗双主题
+   登录与注册共享同一套 token / 字体 / 组件 / 动效
+   ═══════════════════════════════════════════════════════ */
+
+/* --- 主题变量（亮色） --- */
+:root {
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --hairline-strong: #d4d4d8;
+
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --error: #dc2626;
+  --red-soft: #fee2e2;
+
+  --on-primary: #ffffff;
+
+  --shadow-soft: 0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04);
+  --shadow-card: 0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift: 0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,0.28);
+
+  --r-xs: 4px; --r-sm: 8px; --r-md: 10px; --r: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 9999px;
+
+  --dot-color: rgba(0,0,0,0.04);
+  --orb-color: rgba(255,90,31,0.10);
+
+  /* 字体 */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* 缓动 */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- 主题变量（暗色） --- */
+html.dark {
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --muted: #a1a1aa;
+  --muted-soft: #6b6b72;
+  --hairline: #242426;
+  --hairline-soft: #1a1a1c;
+  --hairline-strong: #3f3f42;
+
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-700: #ff7a45;
+
+  --success: #22c55e;
+  --success-soft: #052e16;
+  --error: #ef4444;
+  --red-soft: #3b0a0a;
+
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.5);
+  --shadow-card: 0 2px 8px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift: 0 12px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,0.32);
+
+  --dot-color: rgba(255,255,255,0.035);
+  --orb-color: rgba(255,90,31,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+
+html { background: var(--surface-soft); }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--surface-soft);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+  text-rendering: optimizeLegibility;
+  transition: background 0.2s, color 0.2s;
+}
+
+::selection { background: var(--brand-500); color: #fff; }
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+a { text-decoration: none; color: inherit; }
+input { font-family: inherit; }
+
+/* ── 氛围背景：圆点网格 + 两抹柔光晕 ── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.ambient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(110px);
+}
+.orb-1 {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, var(--orb-color), transparent 70%);
+  top: -18%; right: -10%;
+  animation: drift 20s ease-in-out infinite alternate;
+}
+.orb-2 {
+  width: 460px; height: 460px;
+  background: radial-gradient(circle, var(--orb-color), transparent 70%);
+  bottom: -22%; left: -12%;
+  animation: drift 26s ease-in-out infinite alternate-reverse;
+}
+@keyframes drift {
+  from { transform: translate(0,0) scale(1); }
+  to   { transform: translate(36px, 28px) scale(1.08); }
+}
+
+/* ── 右上角主题切换 ── */
+.theme-toggle {
+  position: fixed; top: 20px; right: 24px; z-index: 50;
+  width: 38px; height: 38px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--canvas) 80%, transparent);
+  border: 1px solid var(--hairline);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.15s;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--brand-500); }
+
+/* ── 主壳：垂直居中 ── */
+.shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+/* ── 顶部 logo ── */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 44px;
+  animation: rise 0.7s var(--ease) backwards;
+}
+.logo-mark {
+  width: 32px; height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--brand-500);
+  box-shadow: var(--shadow-brand);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 17px;
+  font-family: var(--font-sans);
+}
+.logo-text {
+  font-weight: 800; font-size: 18px;
+  letter-spacing: -0.02em; color: var(--ink);
+}
+.logo-text .word { color: var(--brand-500); }
+.brand .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  margin-left: 1px;
+  align-self: flex-end;
+  margin-bottom: 6px;
+  animation: blink 3.5s ease-in-out infinite;
+}
+@keyframes blink {
+  0%, 92%, 100% { opacity: 1; }
+  96% { opacity: 0.25; }
+}
+
+/* ── 卡片容器 ── */
+.card {
+  width: 100%;
+  max-width: 416px;
+  position: relative;
+}
+
+/* ── 标题区 ── */
+.head {
+  margin-bottom: 28px;
+}
+.head h1 {
+  font-family: var(--font-sans);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+.head h1 em {
+  font-style: normal;
+  color: var(--brand-500);
+}
+.head p {
+  font-size: 14.5px;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── 产品彩蛋：一行字幕点词演示（产品即叙事） ── */
+.whisper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  margin-bottom: 28px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.5;
+}
+.whisper .play {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.whisper .play svg { margin-left: 1px; }
+.whisper em {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* 高亮词汇 · hover 弹释义（产品核心机制） */
+.word-hl {
+  color: var(--brand-600);
+  font-weight: 500;
+  border-bottom: 1.5px solid rgba(255,90,31,0.45);
+  cursor: default;
+  position: relative;
+  transition: border-color 0.2s;
+}
+.word-hl:hover { border-color: var(--brand-500); }
+.word-hl::after {
+  content: attr(data-note);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--ink);
+  color: var(--canvas);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-style: normal;
+  padding: 7px 11px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.28s var(--spring);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+  z-index: 20;
+}
+.word-hl::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.28s var(--spring);
+  z-index: 21;
+}
+.word-hl:hover::after,
+.word-hl:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── 错误横幅 ── */
+.error-banner {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  background: var(--red-soft);
+  border: 1px solid color-mix(in oklab, var(--error) 22%, transparent);
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: var(--error);
+}
+.error-banner.visible {
+  display: flex;
+  animation: shake 0.42s cubic-bezier(0.36,0.07,0.19,0.97);
+}
+.error-banner svg { flex-shrink: 0; }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* ── 表单字段 ── */
+.field {
+  margin-bottom: 18px;
+  position: relative;
+}
+.field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.field-label label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.field-label .hint {
+  font-size: 11px;
+  color: var(--muted-soft);
+  font-family: var(--font-mono);
+}
+
+.input-wrap { position: relative; }
+.input {
+  width: 100%;
+  padding: 13px 15px;
+  font-size: 14.5px;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--surface-card);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: border-color 0.22s, box-shadow 0.22s, background 0.22s;
+}
+.input::placeholder { color: var(--muted-soft); font-weight: 400; }
+.input:hover { border-color: var(--hairline-strong); }
+.input:focus {
+  background: var(--canvas);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(255,90,31,0.12);
+}
+.input.error {
+  border-color: var(--error);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--error) 12%, transparent);
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--error);
+  margin-top: 6px;
+  display: none;
+  align-items: center;
+  gap: 5px;
+}
+.field-error.visible { display: flex; }
+
+/* 手机号前缀 +86（整组 focus 态） */
+.input-wrap.with-prefix { display: flex; align-items: stretch; }
+.input-prefix {
+  display: flex; align-items: center;
+  padding: 0 14px;
+  font-size: 14.5px; font-weight: 500; color: var(--body);
+  background: var(--surface-card);
+  border: 1px solid transparent;
+  border-right: none;
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+  flex-shrink: 0;
+  transition: border-color 0.22s, background 0.22s;
+}
+.input-wrap.with-prefix .input {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.input-wrap.with-prefix:hover .input-prefix { border-color: var(--hairline-strong); }
+.input-wrap.with-prefix:focus-within .input-prefix {
+  border-color: var(--ink);
+  background: var(--canvas);
+}
+/* 输入错误时前缀也变红，整组视觉统一 */
+.input-wrap.with-prefix:has(.input.error) .input-prefix {
+  border-color: var(--error);
+}
+
+/* 获取验证码按钮（field-label 右侧，与 hint 同位） */
+.code-btn {
+  font-size: 13px; font-weight: 600; color: var(--brand-600);
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  transition: color 0.15s, opacity 0.15s;
+}
+.code-btn:hover { color: var(--brand-500); }
+.code-btn:disabled { color: var(--muted-soft); cursor: not-allowed; }
+.code-btn.counting { color: var(--muted-soft); }
+
+/* ── 主按钮：品牌橙 ── */
+.btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: var(--brand-500);
+  border: none;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s var(--spring), box-shadow 0.3s, background 0.2s;
+  box-shadow: var(--shadow-brand);
+}
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 35%, rgba(255,255,255,0.18) 50%, transparent 65%);
+  transform: translateX(-100%);
+  transition: transform 0.7s var(--ease);
+}
+.btn:hover {
+  background: var(--brand-600);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(255,90,31,0.32);
+}
+.btn:hover::before { transform: translateX(100%); }
+.btn:active { transform: translateY(0) scale(0.98); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn .spinner {
+  display: none;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.32);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto;
+}
+.btn.loading .btn-label { display: none; }
+.btn.loading .spinner { display: block; }
+.btn.success {
+  background: var(--success);
+  box-shadow: 0 12px 28px color-mix(in oklab, var(--success) 45%, transparent);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 演示模式提示 */
+.demo-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-soft);
+  font-weight: 400;
+  margin-top: 14px;
+  line-height: 1.5;
+}
+
+/* ── 分隔 + 次要入口 ── */
+.alt {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.alt a {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 4px;
+  border-bottom: 1px solid var(--hairline-strong);
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.alt a:hover { color: var(--brand-600); border-color: var(--brand-500); }
+
+/* ── 底部信任线 ── */
+.foot {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.trust {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted-soft);
+  font-weight: 400;
+}
+.trust svg { opacity: 0.6; }
+.legal {
+  font-size: 11.5px;
+  color: var(--muted-soft);
+}
+.legal a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.legal a:hover { color: var(--ink); }
+.legal .sep { margin: 0 8px; opacity: 0.5; }
+
+/* ── 入场编排 ── */
+.card > * {
+  animation: rise 0.6s var(--ease) backwards;
+}
+.card > *:nth-child(1) { animation-delay: 0.08s; }
+.card > *:nth-child(2) { animation-delay: 0.14s; }
+.card > *:nth-child(3) { animation-delay: 0.20s; }
+.card > *:nth-child(4) { animation-delay: 0.26s; }
+.card > *:nth-child(5) { animation-delay: 0.32s; }
+.card > *:nth-child(6) { animation-delay: 0.38s; }
+.foot { animation: rise 0.6s var(--ease) 0.44s backwards; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 响应式 ── */
+@media (max-width: 480px) {
+  .shell { padding: 32px 20px; }
+  .head h1 { font-size: 34px; }
+  .brand { margin-bottom: 36px; }
+  .theme-toggle { top: 16px; right: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- 主题切换 -->
+<button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换主题">
+  <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+  </svg>
+  <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
+
+<!-- 氛围背景 -->
+<div class="ambient">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+</div>
+
+<main class="shell">
+  <!-- Logo -->
+  <div class="brand">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">See<span class="word">Word</span></span>
+    <span class="dot"></span>
+  </div>
+
+  <div class="card">
+    <!-- 标题 -->
+    <div class="head">
+      <h1>Welcome <em>back</em></h1>
+      <p>登录账号，继续今天的学习。</p>
+    </div>
+
+    <!-- 产品彩蛋：字幕点词演示 -->
+    <div class="whisper">
+      <span class="play">
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5v9l8-4.5z"/></svg>
+      </span>
+      <span>Dreams help us <span class="word-hl" data-note="v. 巩固 · CET-6">consolidate</span> <em>memories</em>.</span>
+    </div>
+
+    <!-- 错误横幅 -->
+    <div class="error-banner" id="errorBanner">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 4.5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="11.2" r="0.9" fill="currentColor"/>
+      </svg>
+      <span id="errorText">手机号或密码不正确，请重试</span>
+    </div>
+
+    <!-- 表单 -->
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <div class="field-label">
+          <label for="phone">手机号</label>
+        </div>
+        <div class="input-wrap with-prefix">
+          <span class="input-prefix">+86</span>
+          <input class="input" type="tel" id="phone" placeholder="请输入手机号" autocomplete="tel" maxlength="11" inputmode="numeric">
+        </div>
+        <div class="field-error" id="phoneError">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+          请输入有效的手机号
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <label for="password">密码</label>
+          <a href="15-forgot-password.html" class="code-btn" style="text-decoration:none">忘记密码？</a>
+        </div>
+        <div class="input-wrap">
+          <input class="input" type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+        </div>
+        <div class="field-error" id="codeError">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+          请输入密码
+        </div>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">
+        <span class="btn-label">登录</span>
+        <div class="spinner"></div>
+      </button>
+    </form>
+
+    <!-- 演示模式提示 -->
+    <p class="demo-hint">演示模式：任意有效手机号 + 任意密码即可登录</p>
+
+    <!-- 次要入口 -->
+    <div class="alt">
+      还没有账号？<a href="02-register.html">创建账号</a>
+    </div>
+  </div>
+
+  <!-- 底部 -->
+  <div class="foot">
+    <div class="trust">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      数据加密存储 · 不向第三方共享
+    </div>
+    <div class="legal">
+      <a href="#">服务条款</a><span class="sep">·</span><a href="#">隐私政策</a><span class="sep">·</span><a href="#">联系我们</a>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── 登录态串联 ──
+const AUTH_KEY = 'seeword_auth';
+const USER_KEY = 'seeword_user';
+// 注：不在此强制跳首页 —— 游客也可打开登录页。登录成功后才写入 AUTH_KEY 并跳转。
+
+// ── 交互逻辑 ──
+const form = document.getElementById('loginForm');
+const phoneInput = document.getElementById('phone');
+const passwordInput = document.getElementById('password');
+const submitBtn = document.getElementById('submitBtn');
+const errorBanner = document.getElementById('errorBanner');
+
+// 输入时清除错误
+function clearErr(input, errId) {
+  input.classList.remove('error');
+  document.getElementById(errId).classList.remove('visible');
+  errorBanner.classList.remove('visible');
+}
+phoneInput.addEventListener('input', () => clearErr(phoneInput, 'phoneError'));
+passwordInput.addEventListener('input', () => clearErr(passwordInput, 'codeError'));
+
+// 校验 + 模拟提交（手机号 + 密码）
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  let valid = true;
+  const phoneVal = phoneInput.value.trim();
+
+  if (!/^1[3-9]\d{9}$/.test(phoneVal)) {
+    phoneInput.classList.add('error');
+    document.getElementById('phoneError').classList.add('visible');
+    valid = false;
+  }
+  if (!passwordInput.value.trim()) {
+    passwordInput.classList.add('error');
+    document.getElementById('codeError').classList.add('visible');
+    valid = false;
+  }
+  if (!valid) return;
+
+  submitBtn.classList.add('loading');
+  submitBtn.disabled = true;
+  errorBanner.classList.remove('visible');
+
+  // 演示模式：任意有效手机号 + 任意密码即登录成功
+  setTimeout(() => {
+    submitBtn.classList.remove('loading');
+    submitBtn.classList.add('success');
+    submitBtn.querySelector('.btn-label').textContent = '登录成功';
+    submitBtn.querySelector('.btn-label').style.display = 'inline';
+    localStorage.setItem(AUTH_KEY, '1');
+    localStorage.setItem(USER_KEY, '小林');
+    setTimeout(() => { window.location.href = '03-home-b-seeword.html'; }, 700);
+  }, 1100);
+});
+
+// ── 主题切换 ──
+const themeToggle = document.getElementById('themeToggle');
+const iconSun = themeToggle.querySelector('.icon-sun');
+const iconMoon = themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  iconSun.style.display = isDark ? 'none' : 'block';
+  iconMoon.style.display = isDark ? 'block' : 'none';
+});
+</script>
+</body>
+</html>

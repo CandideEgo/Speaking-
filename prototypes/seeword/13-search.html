@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 搜索</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;
+  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input{font-family:inherit;}
+
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links{display:none;}}
+
+.container-page{max-width:1100px;margin:0 auto;padding:28px 16px 80px;}
+@media(min-width:640px){.container-page{padding:36px 28px 80px;}}
+
+/* 大搜索框 */
+.search-hero{margin-bottom:24px;}
+.search-box{display:flex;align-items:center;gap:12px;background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);padding:6px 6px 6px 18px;box-shadow:var(--shadow-soft);transition:all .15s;}
+.search-box:focus-within{border-color:var(--brand-500);box-shadow:0 0 0 3px rgba(255,90,31,.1);}
+.search-box .si{color:var(--muted);flex-shrink:0;}
+.search-box input{flex:1;height:48px;font-size:16px;color:var(--ink);background:none;border:none;outline:none;}
+.search-box input::placeholder{color:var(--muted-soft);}
+.search-box .btn-search{padding:10px 22px;border-radius:var(--r-sm);background:var(--brand-500);color:#fff;font-size:14px;font-weight:600;flex-shrink:0;}
+.search-box .btn-search:hover{background:var(--brand-600);}
+
+/* 结果 tab */
+.result-tabs{display:flex;gap:2px;border-bottom:1px solid var(--hairline);margin-bottom:20px;}
+.r-tab{padding:10px 16px;font-size:14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;}
+.r-tab:hover{color:var(--ink);}
+.r-tab.active{color:var(--brand-500);border-bottom-color:var(--brand-500);font-weight:600;}
+.r-tab .c{font-size:12px;color:var(--muted-soft);margin-left:4px;}
+
+.result-count{font-size:13px;color:var(--muted);margin-bottom:16px;}
+
+/* 视频结果卡 */
+.v-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;}
+.v-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);overflow:hidden;transition:all .15s;display:flex;flex-direction:column;}
+.v-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:transparent;}
+.v-thumb{position:relative;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;}
+.v-thumb .emoji{font-size:46px;opacity:.85;}
+.v-thumb .duration{position:absolute;bottom:8px;right:8px;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.7);padding:2px 7px;border-radius:var(--r-xs);font-family:"JetBrains Mono",monospace;}
+.v-body{padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1;}
+.v-title{font-size:14px;font-weight:600;color:var(--ink);line-height:1.4;}
+.v-title mark{background:var(--brand-100);color:var(--brand-700);padding:0 2px;border-radius:2px;}
+.v-meta{font-size:12px;color:var(--muted);}
+
+/* 词汇结果 */
+.vocab-results{display:flex;flex-direction:column;gap:8px;}
+.vr-item{display:flex;align-items:center;gap:14px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:14px 18px;}
+.vr-item .en{font-size:16px;font-weight:700;color:var(--ink);min-width:140px;}
+.vr-item .en mark{background:var(--brand-100);color:var(--brand-700);padding:0 2px;border-radius:2px;}
+.vr-item .ph{font-size:12px;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;}
+.vr-item .zh{flex:1;font-size:13px;color:var(--body);}
+.vr-item .go{color:var(--muted);font-size:13px;}
+
+/* 空态 */
+.empty{text-align:center;padding:60px 20px;}
+.empty .ic{font-size:48px;margin-bottom:12px;opacity:.5;}
+.empty .t{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px;}
+.empty .d{font-size:13px;color:var(--muted);}
+.empty .suggest{margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.empty .suggest .chip{padding:7px 14px;border-radius:var(--r-pill);background:var(--canvas);border:1px solid var(--hairline);font-size:13px;color:var(--body);}
+.empty .suggest .chip:hover{border-color:var(--ink);color:var(--ink);}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html"><span class="logo-mark">S</span><span class="logo-text">See<span class="word">Word</span></span></a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">浏览</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+  </div>
+  <div class="nav-actions">
+    <a class="icon-btn" href="12-history.html" title="学习记录"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></a>
+    <a class="avatar" href="07-profile.html">林</a>
+  </div>
+</nav>
+
+<div class="container-page">
+  <div class="search-hero">
+    <div class="search-box">
+      <span class="si"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input id="q" value="dream" placeholder="搜索视频标题、词汇或主题…">
+      <button class="btn-search">搜索</button>
+    </div>
+  </div>
+
+  <div class="result-tabs">
+    <button class="r-tab active">视频 <span class="c">3</span></button>
+    <button class="r-tab">词汇 <span class="c">2</span></button>
+    <button class="r-tab">主题 <span class="c">1</span></button>
+  </div>
+
+  <div class="result-count">找到 3 个与「dream」相关的视频</div>
+
+  <div class="v-grid">
+    <a class="v-card" href="05-watch.html">
+      <div class="v-thumb" style="background:linear-gradient(135deg,#1e1b4b,#4338ca)"><span class="emoji">🌙</span><span class="duration">8:24</span></div>
+      <div class="v-body">
+        <div class="v-title">为什么我们<mark>dream</mark>？睡眠的科学</div>
+        <div class="v-meta">Why Do We Dream? · B1 · 28 考点词</div>
+      </div>
+    </a>
+    <a class="v-card" href="05-watch.html">
+      <div class="v-thumb" style="background:linear-gradient(135deg,#064e3b,#059669)"><span class="emoji">🧠</span><span class="duration">11:02</span></div>
+      <div class="v-body">
+        <div class="v-title">梦境与记忆：大脑夜间的<mark>dream</mark>整理</div>
+        <div class="v-meta">Dreams and Memory · B2 · 32 考点词</div>
+      </div>
+    </a>
+    <a class="v-card" href="05-watch.html">
+      <div class="v-thumb" style="background:linear-gradient(135deg,#3b0764,#7e22ce)"><span class="emoji">💭</span><span class="duration">7:30</span></div>
+      <div class="v-body">
+        <div class="v-title">清醒<mark>dream</mark>：控制你的梦</div>
+        <div class="v-meta">Lucid Dreaming · B1 · 21 考点词</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- 词汇结果（隐藏，切 tab 显示，原型用注释保留） -->
+  <!--
+  <div class="result-count" style="margin-top:32px">找到 2 个相关词汇</div>
+  <div class="vocab-results">
+    <a class="vr-item" href="09-vocabulary.html"><span class="en"><mark>dream</mark></span><span class="ph">/driːm/</span><span class="zh">n. 梦；梦想 v. 做梦；梦想</span><span class="go">→</span></a>
+    <a class="vr-item" href="09-vocabulary.html"><span class="en">day<mark>dream</mark></span><span class="ph">/ˈdeɪdriːm/</span><span class="zh">n./v. 白日梦</span><span class="go">→</span></a>
+  </div>
+  -->
+
+  <!-- 空态模板（搜索无结果时） -->
+  <!--
+  <div class="empty">
+    <div class="ic">🔍</div>
+    <div class="t">没有找到相关结果</div>
+    <div class="d">试试换个关键词，或浏览下面的热门主题</div>
+    <div class="suggest"><a class="chip" href="11-browse.html">科普</a><a class="chip" href="11-browse.html">科技</a><a class="chip" href="11-browse.html">历史</a></div>
+  </div>
+  -->
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// tab 视觉切换
+document.querySelectorAll(".r-tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".r-tab").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+}));
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

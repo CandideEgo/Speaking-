@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 视频播放页</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Watch — 搬原项目 page.tsx 设计 · app token (globals.css)
+   结构：返回头 + 双列(播放器/字幕卡 + 字幕面板) + 来源声明 + 内嵌 6 级试卷
+   ═══════════════════════════════════════════════════════ */
+
+/* --- 主题变量（亮色） --- */
+:root {
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --bg-inset: #f4f4f5;
+
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-300: #ff9b76;
+  --brand-400: #ff7a45;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+
+  --indigo: #6366f1;
+  --indigo-soft: #eef2ff;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --error: #dc2626;
+  --red-soft: #fee2e2;
+  --sky-soft: #f0f9ff;
+  --on-primary: #ffffff;
+
+  --surface-dark: #0a0a0a;
+
+  --shadow-soft: 0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04);
+  --shadow-card: 0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift: 0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,0.28);
+
+  --r-xs: 4px; --r-sm: 8px; --r-md: 10px; --r: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 9999px;
+
+  /* level accent (与 examLevels.ts 一致) */
+  --lv-zhongkao: #64748b;
+  --lv-gaoKao:   #16a34a;
+  --lv-cet4:     #2563eb;
+  --lv-cet6:     #9333ea;
+  --lv-ielts:    #dc2626;
+  --lv-toefl:    #ea580c;
+}
+
+/* --- 主题变量（暗色） --- */
+html.dark {
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --muted: #a1a1aa;
+  --muted-soft: #6b6b72;
+  --hairline: #242426;
+  --hairline-soft: #1a1a1c;
+  --bg-inset: #1a1a1c;
+
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-700: #ff7a45;
+
+  --indigo-soft: #16172b;
+  --success: #22c55e;
+  --success-soft: #052e16;
+  --warning: #f59e0b;
+  --warning-soft: #241a08;
+  --error: #ef4444;
+  --red-soft: #261212;
+  --sky-soft: #0c1a24;
+
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.5);
+  --shadow-card: 0 2px 8px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift: 0 12px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { background: var(--canvas); }
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface-soft); color: var(--ink);
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+}
+::selection { background: var(--brand-500); color: #fff; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+a { text-decoration: none; color: inherit; }
+
+.container-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+@media (min-width: 640px) { .container-page { padding: 28px 28px 64px; } }
+
+/* ═══ Watch Header（原项目 page.tsx 头部） ═══ */
+.watch-header { margin-bottom: 16px; }
+.wh-top { display: flex; align-items: center; gap: 12px; }
+.wh-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  padding: 6px 4px; border-radius: var(--r-sm); transition: color .15s;
+}
+.wh-back:hover { color: var(--ink); }
+.wh-divider { width: 1px; height: 16px; background: var(--hairline); }
+.wh-title { font-size: 15px; font-weight: 600; color: var(--ink); flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wh-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); transition: all .15s;
+}
+.icon-btn:hover { color: var(--ink); background: var(--surface-card); }
+.icon-btn.active { color: var(--brand-500); background: var(--brand-50); }
+.icon-btn.liked { color: var(--error); }
+.icon-btn.saved { color: var(--brand-500); }
+
+.wh-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.wh-meta .brand { font-weight: 600; color: var(--ink); }
+.wh-meta .dot { color: var(--muted-soft); }
+.fork-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: var(--r-pill); background: var(--indigo-soft); color: var(--indigo); }
+
+/* ═══ Watch Grid ═══ */
+.watch-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (min-width: 1024px) { .watch-grid { grid-template-columns: 2fr 1fr; } }
+
+/* --- Player --- */
+.player-slot { position: relative; width: 100%; aspect-ratio: 16/9;
+  background: var(--surface-dark); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-lift); }
+.player-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.player-emoji { font-size: 72px; opacity: .65; }
+.onscreen-sub { position: absolute; bottom: 18%; left: 50%; transform: translateX(-50%);
+  text-align: center; width: 84%; }
+.onscreen-en { font-size: 17px; font-weight: 500; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7); line-height: 1.45; }
+.onscreen-zh { font-size: 13px; color: rgba(255,255,255,.78); text-shadow: 0 1px 6px rgba(0,0,0,.7); margin-top: 4px; }
+.vocab-word { color: var(--brand-300); font-weight: 600; cursor: pointer;
+  border-bottom: 1.5px solid rgba(255,107,90,.4); transition: border-color .15s; }
+.vocab-word:hover { border-color: var(--brand-300); }
+
+/* 考试层级选择器（播放器右上角药丸） */
+.level-pill { position: absolute; top: 12px; right: 12px; z-index: 10;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: var(--r-pill);
+  background: rgba(0,0,0,.55); backdrop-filter: blur(8px);
+  color: #fff; font-size: 12px; font-weight: 500; }
+.level-pill .lv-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lv-cet4); }
+
+/* --- 字幕卡 --- */
+.sub-card { margin-top: 12px; background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); padding: 20px; }
+.sub-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.sub-progress .idx { font-size: 11px; font-family: "JetBrains Mono", monospace; color: var(--muted-soft); }
+.sub-progress .track { flex: 1; height: 2px; border-radius: 2px; background: var(--surface-card); overflow: hidden; }
+.sub-progress .fill { height: 100%; background: var(--brand-500); border-radius: 2px; transition: width .3s; }
+.sub-row { display: flex; align-items: flex-start; gap: 16px; }
+.sub-text { flex: 1; min-width: 0; }
+.now-en { font-size: 17px; font-weight: 600; line-height: 1.7; color: var(--ink); }
+.now-en .w { cursor: pointer; border-radius: 4px; padding: 0 1px; transition: background .1s, color .1s; }
+.now-en .w:hover { background: var(--brand-50); color: var(--brand-500); }
+.now-en .w.hl { background: var(--brand-50); color: var(--brand-500); }
+.now-zh { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+.rec-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 8px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; transition: all .15s;
+  background: var(--brand-50); color: var(--brand-500); }
+.rec-btn:hover { background: var(--brand-100); }
+.rec-btn.active { background: var(--brand-500); color: #fff; box-shadow: var(--shadow-brand); }
+
+.rec-expanded { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.rec-state { display: flex; align-items: center; gap: 12px; background: var(--surface-soft);
+  border-radius: var(--r); padding: 12px; }
+.rec-mic { width: 44px; height: 44px; border-radius: 50%; background: var(--brand-500); color: #fff;
+  display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-brand); flex-shrink: 0; }
+.rec-mic.recording { background: var(--error); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
+.rec-state .info { flex: 1; }
+.rec-state .info p { font-size: 13px; font-weight: 600; color: var(--ink); }
+.rec-state .info small { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+.rec-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* --- 字幕面板（右栏） --- */
+.sub-panel { background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); overflow: hidden; }
+@media (min-width: 1024px) { .sub-panel { position: sticky; top: 16px; } }
+.sp-head { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--hairline); }
+.sp-tab { font-size: 13px; font-weight: 500; color: var(--muted); padding: 6px 12px; border-radius: var(--r-sm); transition: all .15s; }
+.sp-tab:hover { color: var(--ink); background: var(--surface-card); }
+.sp-tab.active { color: var(--ink); background: var(--surface-card); font-weight: 600; }
+.sp-collapse { margin-left: auto; width: 30px; height: 30px; border-radius: var(--r-sm); color: var(--muted);
+  display: flex; align-items: center; justify-content: center; }
+.sp-collapse:hover { color: var(--ink); background: var(--surface-card); }
+.sub-list { max-height: 560px; overflow-y: auto; padding: 6px; }
+.sub-list::-webkit-scrollbar { width: 6px; }
+.sub-list::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
+.sub-item { padding: 10px 12px; border-radius: var(--r-sm); border-left: 3px solid transparent;
+  cursor: pointer; transition: background .1s; }
+.sub-item:hover { background: var(--surface-soft); }
+.sub-item.active { background: var(--brand-50); border-left-color: var(--brand-500); }
+.sub-item.active .si-en { color: var(--brand-500); }
+.si-en { font-size: 13px; font-weight: 500; line-height: 1.5; color: var(--ink); }
+.si-en .w.hl { background: var(--brand-50); color: var(--brand-500); border-radius: 3px; padding: 0 1px; }
+.si-zh { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.si-time { font-size: 10px; font-family: "JetBrains Mono", monospace; color: var(--muted-soft); margin-bottom: 4px; }
+
+/* --- 来源声明（ICP 合规） --- */
+.source-attr { margin-top: 16px; display: flex; align-items: center; gap: 10px;
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r); padding: 10px 14px; }
+.yt-icon { width: 20px; height: 20px; border-radius: 5px; background: #ff0000; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; }
+.source-attr .txt { font-size: 13px; color: var(--muted); }
+.source-attr .txt a { color: var(--brand-600); font-weight: 500; }
+.copyright { font-size: 11px; color: var(--muted-soft); line-height: 1.6; margin-top: 8px; }
+
+/* ═══ 内嵌练习试卷区 ═══ */
+.paper-section { margin-top: 32px; }
+.paper-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
+.paper-title { display: flex; align-items: center; gap: 10px; }
+.paper-title h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.paper-title .tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: var(--r-pill);
+  background: var(--brand-50); color: var(--brand-600); }
+.paper-cta { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: var(--r-sm);
+  background: var(--ink); color: var(--canvas); font-size: 13px; font-weight: 600; transition: all .15s; }
+.paper-cta:hover { transform: translateY(-1px); box-shadow: var(--shadow-card); }
+
+/* 层级切换器 */
+.level-switcher { display: flex; gap: 4px; padding: 4px; background: var(--surface-card);
+  border-radius: var(--r); overflow-x: auto; margin-bottom: 18px; }
+.lv-tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; transition: all .15s; }
+.lv-tab .lv-dot { width: 7px; height: 7px; border-radius: 50%; }
+.lv-tab:hover { color: var(--ink); }
+.lv-tab.active { background: var(--canvas); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-soft); }
+
+/* 试卷元信息 */
+.paper-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 16px;
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r); margin-bottom: 14px; }
+.pm-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.pm-item strong { color: var(--ink); font-weight: 600; }
+.pm-item svg { color: var(--muted-soft); }
+
+/* 试卷结构（各部分卡片） */
+.paper-sections { display: flex; flex-direction: column; gap: 10px; }
+.sec-card { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r); padding: 16px 18px; }
+.sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sec-num { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-card);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+  font-family: "JetBrains Mono", monospace; color: var(--muted); flex-shrink: 0; }
+.sec-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.sec-weights { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.sec-weight { padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface-card); font-weight: 600; color: var(--body); }
+.sec-desc { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+/* 题型样题 */
+.sample { background: var(--surface-soft); border-radius: var(--r-sm); padding: 12px 14px; margin-top: 8px; }
+.sample-label { font-size: 11px; font-weight: 600; color: var(--brand-600); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px; }
+.q-stem { font-size: 14px; font-weight: 500; color: var(--ink); line-height: 1.55; margin-bottom: 8px; }
+.q-context { font-size: 12.5px; color: var(--muted); font-style: italic; margin-bottom: 8px; line-height: 1.5; }
+.q-ctx-en { color: var(--muted-soft); }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 600px) { .choices { grid-template-columns: 1fr; } }
+.choice { position: relative; padding: 10px 12px; font-size: 13px; font-weight: 500;
+  background: var(--canvas); border: 1.5px solid var(--hairline); border-bottom-width: 3px;
+  border-radius: var(--r-sm); text-align: left; color: var(--ink); transition: all .12s; }
+.choice:hover { background: var(--surface-card); transform: translateY(-1px); }
+.choice .key { position: absolute; top: 6px; right: 8px; font-size: 10px; font-weight: 600;
+  font-family: "JetBrains Mono", monospace; color: var(--muted-soft); }
+.fill-line { display: inline-block; min-width: 80px; border-bottom: 2px solid var(--muted-soft); margin: 0 4px; }
+.translate-box { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  padding: 10px 12px; font-size: 13px; color: var(--body); line-height: 1.6; }
+.write-prompt { font-size: 13px; color: var(--body); line-height: 1.6; padding: 10px 12px;
+  background: var(--canvas); border: 1px dashed var(--hairline); border-radius: var(--r-sm); }
+.speak-prompt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--canvas);
+  border: 1px solid var(--hairline); border-radius: var(--r-sm); }
+.speak-prompt .play { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--canvas);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.speak-prompt .t { font-size: 13px; color: var(--ink); font-weight: 500; }
+.speak-prompt .t small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+
+.note-future { font-size: 12px; color: var(--muted); margin-top: 14px; padding: 10px 14px;
+  background: var(--warning-soft); border-radius: var(--r-sm); display: flex; align-items: center; gap: 8px; }
+
+/* === 内嵌练习：一屏多题即时反馈 === */
+.q-list { display: flex; flex-direction: column; gap: 12px; }
+.q-item { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r); padding: 16px 18px; }
+.q-item.done { border-color: var(--brand-100); }
+.q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.q-no { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-card); display: flex;
+  align-items: center; justify-content: center; font-size: 11px; font-weight: 700; font-family: "JetBrains Mono", monospace; color: var(--muted); flex-shrink: 0; }
+.q-item.done .q-no { background: var(--brand-500); color: #fff; }
+.q-type-tag { font-size: 11px; font-weight: 600; color: var(--brand-600); }
+.q-pts { margin-left: auto; font-size: 11px; color: var(--muted-soft); }
+.q-item .choice { cursor: pointer; }
+.q-item .choice.correct { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+.q-item .choice.wrong { border-color: var(--error); background: var(--red-soft); color: var(--error); }
+.q-item .choice.disabled { cursor: default; opacity: .55; }
+.q-item .choice.correct.disabled, .q-item .choice.wrong.disabled { opacity: 1; }
+.q-explain { display: none; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-sm);
+  font-size: 12.5px; line-height: 1.6; }
+.q-explain.show { display: block; animation: fade .2s ease-out; }
+.q-explain.ok { background: var(--success-soft); color: var(--success); }
+.q-explain.no { background: var(--red-soft); color: var(--error); }
+.q-explain .ans { font-weight: 700; }
+.q-explain .ex { display: block; margin-top: 4px; color: var(--body); }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.q-progress-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.q-progress-bar .track { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-card); overflow: hidden; }
+.q-progress-bar .fill { height: 100%; background: var(--brand-500); transition: width .3s; }
+.q-progress-bar .cnt { font-size: 11px; color: var(--muted-soft); font-family: "JetBrains Mono", monospace; }
+
+/* 主题切换浮动钮 */
+.theme-toggle { position: fixed; bottom: 20px; right: 20px; z-index: 80;
+  width: 40px; height: 40px; border-radius: 50%; background: var(--canvas); border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-card); display: flex; align-items: center; justify-content: center; color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="container-page">
+
+  <!-- ═══ Watch Header ═══ -->
+  <div class="watch-header">
+    <div class="wh-top">
+      <a class="wh-back" href="11-browse.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+        返回浏览
+      </a>
+      <span class="wh-divider"></span>
+      <h1 class="wh-title">为什么我们做梦？睡眠的科学</h1>
+      <div class="wh-actions">
+        <button class="icon-btn liked" title="取消点赞"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8C19 16.5 12 21 12 21z"/></svg></button>
+        <button class="icon-btn saved" title="收藏"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 011 1v19l-7-4-7 4V3a1 1 0 011-1z"/></svg></button>
+        <a class="icon-btn" href="#" title="词汇本"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 8h16M4 12h16M4 16h16"/></svg></a>
+        <button class="icon-btn" title="笔记"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+      </div>
+    </div>
+    <div class="wh-meta">
+      <span class="brand">SeeWord</span>
+      <span class="dot">·</span>
+      <span>B1</span>
+      <span class="dot">·</span>
+      <span>8:24</span>
+      <span class="dot">·</span>
+      <span class="fork-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 8v4a4 4 0 004 4h4"/></svg>
+        转载自 #42
+      </span>
+    </div>
+  </div>
+
+  <!-- ═══ Watch Grid ═══ -->
+  <div class="watch-grid">
+    <!-- 左列 -->
+    <div>
+      <div class="player-slot">
+        <div class="player-screen">
+          <span class="player-emoji">🌙</span>
+        </div>
+        <div class="onscreen-sub">
+          <div class="onscreen-en" id="onscreenEn">During REM sleep, your brain is almost as active as when you're awake.</div>
+          <div class="onscreen-zh" id="onscreenZh">在快速眼动睡眠期间，你的大脑几乎和清醒时一样活跃。</div>
+        </div>
+        <div class="level-pill"><span class="lv-dot"></span>四级</div>
+      </div>
+
+      <!-- 字幕卡 -->
+      <div class="sub-card">
+        <div class="sub-progress">
+          <span class="idx" id="subIdx">3 / 8</span>
+          <div class="track"><div class="fill" id="subFill" style="width:37.5%"></div></div>
+        </div>
+        <div class="sub-row">
+          <div class="sub-text">
+            <div class="now-en" id="nowEn"></div>
+            <div class="now-zh" id="nowZh">在快速眼动睡眠期间，你的大脑几乎和清醒时一样活跃。</div>
+          </div>
+          <button class="rec-btn" id="recBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4"/></svg>
+            录音
+          </button>
+        </div>
+        <div class="rec-expanded" id="recExpanded" style="display:none">
+          <div class="rec-state">
+            <button class="rec-mic recording" id="recMic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg></button>
+            <div class="info"><p>录音中…</p><small>朗读上方高亮字幕，点麦克风停止</small></div>
+            <button class="icon-btn" id="recCancel" title="取消"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 来源声明 -->
+      <div class="source-attr">
+        <span class="yt-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span>
+        <span class="txt">原视频来源：YouTube · <a href="#" target="_blank">youtube.com/watch?v=8rGf3xKd9sQ</a></span>
+      </div>
+      <p class="copyright">本视频内容转载自 YouTube 平台，仅供学习交流使用，版权归原作者所有。如有侵权请联系我们删除。</p>
+    </div>
+
+    <!-- 右列：字幕面板 -->
+    <aside class="sub-panel">
+      <div class="sp-head">
+        <button class="sp-tab active">双语</button>
+        <button class="sp-tab">英文</button>
+        <button class="sp-tab">中文</button>
+        <button class="sp-collapse" title="收起"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      </div>
+      <div class="sub-list" id="subList"></div>
+    </aside>
+  </div>
+
+  <!-- ═══ 内嵌练习试卷 ═══ -->
+  <div class="paper-section">
+    <div class="paper-head">
+      <div class="paper-title">
+        <h2>本视频练习试卷</h2>
+        <span class="tag">按考试层级生成</span>
+      </div>
+      <a class="paper-cta" href="06-practice.html">
+        进入专注答题
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14m-6-7l7 7-7 7"/></svg>
+      </a>
+    </div>
+
+    <!-- 层级切换 -->
+    <div class="level-switcher" id="levelSwitcher"></div>
+
+    <!-- 即时练习进度 -->
+    <div class="q-progress-bar">
+      <span class="cnt" id="qCnt">0 / 0</span>
+      <div class="track"><div class="fill" id="qFill" style="width:0%"></div></div>
+      <span class="cnt" id="qScore">对 0 · 错 0</span>
+    </div>
+
+    <!-- 题目列表：一屏多题，上下滚动，点选项即时出对错+解析 -->
+    <div class="q-list" id="qList"></div>
+
+    <div class="note-future">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      试卷由视频字幕与考点词汇自动生成；真题试卷（四六级/雅思/托福原题）将在<a href="08-practice-hub.html" style="color:var(--brand-600);font-weight:600;margin:0 2px">练习专题</a>陆续上线。
+    </div>
+  </div>
+
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// ── 字幕数据（取自原 05 原型） ──
+const SUBS = [
+  { t: "0:00", en: "Every night, you spend about two hours dreaming.", zh: "每天晚上，你大约花两个小时做梦。" },
+  { t: "0:05", en: "But why do we dream? Scientists have been asking this question for centuries.", zh: "但我们为什么会做梦？几个世纪以来科学家一直在问这个问题。" },
+  { t: "0:14", en: "During REM sleep, your brain is almost as active as when you're awake.", zh: "在快速眼动睡眠期间，你的大脑几乎和清醒时一样活跃。" },
+  { t: "0:22", en: "One theory suggests that dreams help us consolidate memories from the day.", zh: "一种理论认为，梦帮助我们巩固白天的记忆。" },
+  { t: "0:31", en: "Your brain replays extraordinary events, sorting what matters from what doesn't.", zh: "你的大脑重播非凡的事件，将重要的和不重要的分类。" },
+  { t: "0:40", en: "Dreams might also be a safe space to process difficult emotions.", zh: "梦也可能是一个处理困难情绪的安全空间。" },
+  { t: "0:48", en: "Some researchers believe vivid dreams reflect our deepest consciousness.", zh: "一些研究者相信，生动的梦反映了我们最深层的意识。" },
+  { t: "0:57", en: "Whatever the answer, dreaming is an inevitable part of being human.", zh: "无论答案是什么，做梦都是生而为人不可避免的一部分。" },
+];
+const VOCAB = ["REM","centuries","consolidate","theory","extraordinary","process","vivid","consciousness","inevitable"];
+let activeSub = 2;
+
+function isVocab(w){ return VOCAB.includes(w.replace(/[^a-zA-Z]/g,"")); }
+function renderNow(){
+  const s = SUBS[activeSub];
+  document.getElementById("nowEn").innerHTML = s.en.split(" ").map(w=>{
+    const cls = isVocab(w) ? ' class="w hl"' : ' class="w"';
+    return `<span${cls}>${w}</span>`;
+  }).join(" ");
+  document.getElementById("nowZh").textContent = s.zh;
+  document.getElementById("onscreenEn").innerHTML = s.en.split(" ").map(w=>
+    isVocab(w) ? `<span class="vocab-word">${w}</span>` : w
+  ).join(" ");
+  document.getElementById("onscreenZh").textContent = s.zh;
+  document.getElementById("subIdx").textContent = `${activeSub+1} / ${SUBS.length}`;
+  document.getElementById("subFill").style.width = `${(activeSub+1)/SUBS.length*100}%`;
+}
+function renderList(){
+  const el = document.getElementById("subList");
+  el.innerHTML = SUBS.map((s,i)=>`
+    <div class="sub-item ${i===activeSub?'active':''}" data-i="${i}">
+      <div class="si-time">${s.t}</div>
+      <div class="si-en">${s.en.split(" ").map(w=> isVocab(w)?`<span class="w hl">${w}</span>`:w).join(" ")}</div>
+      <div class="si-zh">${s.zh}</div>
+    </div>`).join("");
+  el.querySelectorAll(".sub-item").forEach(it=>it.addEventListener("click",()=>{
+    activeSub = +it.dataset.i; renderNow(); renderList();
+  }));
+}
+renderNow(); renderList();
+
+// ── 录音切换（模拟） ──
+const recBtn = document.getElementById("recBtn");
+const recExp = document.getElementById("recExpanded");
+recBtn.addEventListener("click",()=>{
+  if(recBtn.classList.contains("active")){
+    recBtn.classList.remove("active"); recExp.style.display="none";
+  } else {
+    recBtn.classList.add("active"); recExp.style.display="block";
+  }
+});
+document.getElementById("recMic").addEventListener("click",()=>{
+  recBtn.classList.remove("active"); recExp.style.display="none";
+});
+document.getElementById("recCancel").addEventListener("click",()=>{
+  recBtn.classList.remove("active"); recExp.style.display="none";
+});
+
+// ── 6 级试卷数据 ──
+const LEVELS = [
+  { key:"zhongkao", label:"中考", color:"var(--lv-zhongkao)", time:"90 分钟", score:"120 分", qcount:0,
+    parts:[
+      { n:"听力理解", w:"20%", desc:"听对话与短文，选择正确答案", type:"listening" },
+      { n:"单项选择", w:"15%", desc:"语法与词汇单选题", type:"vocab" },
+      { n:"完形填空", w:"15%", desc:"短文填空，选择最佳选项", type:"cloze" },
+      { n:"阅读理解", w:"30%", desc:"阅读短文，回答问题", type:"reading" },
+      { n:"词汇运用", w:"10%", desc:"根据句意填入所给词的正确形式", type:"fill" },
+      { n:"书面表达", w:"10%", desc:"根据提示写一篇短文", type:"writing" },
+    ]},
+  { key:"gaoKao", label:"高考", color:"var(--lv-gaoKao)", time:"120 分钟", score:"150 分",
+    parts:[
+      { n:"听力", w:"30%", desc:"听对话与独白，选择答案", type:"listening" },
+      { n:"阅读理解", w:"30%", desc:"含四选一与七选五", type:"reading" },
+      { n:"英语知识运用 · 完形填空", w:"30%", desc:"短文挖空，选择最佳选项", type:"cloze" },
+      { n:"语法填空", w:"15%", desc:"阅读短文，填入适当词语", type:"fill" },
+      { n:"写作", w:"35%", desc:"应用文 + 读后续写", type:"writing" },
+    ]},
+  { key:"cet4", label:"四级", color:"var(--lv-cet4)", time:"130 分钟", score:"710 分",
+    parts:[
+      { n:"Part I 写作", w:"15%", desc:"30 分钟 · 根据提示写一篇短文", type:"writing" },
+      { n:"Part II 听力理解", w:"35%", desc:"25 分钟 · 短新闻 / 长对话 / 篇章", type:"listening" },
+      { n:"Part III 阅读理解", w:"35%", desc:"40 分钟 · 选词填空 + 长篇匹配 + 仔细阅读", type:"reading" },
+      { n:"Part IV 翻译", w:"15%", desc:"30 分钟 · 英译汉段落", type:"translation" },
+    ]},
+  { key:"cet6", label:"六级", color:"var(--lv-cet6)", time:"130 分钟", score:"710 分",
+    parts:[
+      { n:"Part I 写作", w:"15%", desc:"30 分钟 · 论说文", type:"writing" },
+      { n:"Part II 听力理解", w:"30%", desc:"30 分钟 · 长对话 / 讲座 / 篇章", type:"listening" },
+      { n:"Part III 阅读理解", w:"35%", desc:"40 分钟 · 选词填空 + 匹配 + 仔细阅读", type:"reading" },
+      { n:"Part IV 翻译", w:"15%", desc:"30 分钟 · 英译汉段落", type:"translation" },
+    ]},
+  { key:"ielts", label:"雅思", color:"var(--lv-ielts)", time:"约 2h45m", score:"9 分制",
+    parts:[
+      { n:"Listening", w:"25%", desc:"4 个部分 · 40 题 · 听音频答题", type:"listening" },
+      { n:"Reading", w:"25%", desc:"3 篇文章 · 40 题 · 学术阅读", type:"reading" },
+      { n:"Writing", w:"25%", desc:"Task 1 图表 + Task 2 议论文", type:"writing" },
+      { n:"Speaking", w:"25%", desc:"3 部分 · 与考官对话（视频跟读映射）", type:"speaking" },
+    ]},
+  { key:"toefl", label:"托福", color:"var(--lv-toefl)", time:"约 3h", score:"120 分",
+    parts:[
+      { n:"Reading", w:"25%", desc:"3-4 篇学术文章 · 每篇 10 题", type:"reading" },
+      { n:"Listening", w:"25%", desc:"讲座 + 对话 · 6 篇", type:"listening" },
+      { n:"Speaking", w:"25%", desc:"4 个任务 · 综合与独立", type:"speaking" },
+      { n:"Writing", w:"25%", desc:"综合写作 + 独立写作", type:"writing" },
+    ]},
+];
+
+// 样题（按题型，取自视频字幕/词汇）
+const SAMPLES = {
+  listening: { label:"样题 · 听力理解", stem:"视频中说，REM 睡眠时大脑的状态是？",
+    ctx:"\"During REM sleep, your brain is almost as active as when you're awake.\"",
+    choices:["完全停止活动","几乎和清醒时一样活跃","比清醒时更活跃","只处理视觉信息"], answer:1 },
+  vocab: { label:"样题 · 词汇选择", stem:"哪个词的意思是「巩固（记忆）」？",
+    ctx:"\"One theory suggests that dreams help us ___ memories from the day.\"",
+    choices:["perceive","consolidate","inevitable","vivid"], answer:1 },
+  cloze: { label:"样题 · 完形填空", stem:"选择最佳选项填空：",
+    ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.",
+    choices:["what","that","which","whether"], answer:1 },
+  reading: { label:"样题 · 阅读理解", stem:"根据视频内容，梦的一个可能作用是？",
+    ctx:"阅读字幕段落：\"One theory suggests that dreams help us consolidate memories... Dreams might also be a safe space to process difficult emotions.\"",
+    choices:["帮助回忆白天的事","处理困难情绪","以上都是","与记忆无关"], answer:2 },
+  fill: { label:"样题 · 语法填空", stem:"填入所给词的正确形式（vivid）：",
+    ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.",
+    fill:"vivid" },
+  translation: { label:"样题 · 翻译（英译汉）", stem:"将下列句子译成中文：",
+    trans:"Whatever the answer, dreaming is an inevitable part of being human." },
+  writing: { label:"样题 · 写作", stem:"请根据以下提示写一篇约 120 词的短文：",
+    write:"Some people believe dreams have deep meaning, while others think they are just random brain activity. What is your opinion? Use examples from the video to support your view." },
+  speaking: { label:"样题 · 口语（跟读）", stem:"听原句并跟读，系统将评估你的发音：",
+    speak:"During REM sleep, your brain is almost as active as when you're awake." },
+};
+
+function renderSample(type){
+  const s = SAMPLES[type]; if(!s) return "";
+  let body = "";
+  if(s.choices){
+    body = `<div class="choices">${s.choices.map((c,i)=>`<button class="choice"><span class="key">${i+1}</span>${c}</button>`).join("")}</div>`;
+  } else if(s.fill){
+    body = `<div class="translate-box">Some researchers believe <span class="fill-line"></span> dreams reflect our deepest consciousness.</div>`;
+  } else if(s.trans){
+    body = `<div class="translate-box">${s.trans}</div>`;
+  } else if(s.write){
+    body = `<div class="write-prompt">${s.write}</div>`;
+  } else if(s.speak){
+    body = `<div class="speak-prompt"><button class="play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="t">${s.speak}<small>点击播放原声 · 跟读录音</small></div></div>`;
+  }
+  return `<div class="sample">
+    <div class="sample-label">${s.label}</div>
+    <div class="q-stem">${s.stem}</div>
+    ${s.ctx?`<div class="q-context">${s.ctx}</div>`:""}
+    ${body}
+  </div>`;
+}
+
+// ── 内嵌练习：一屏多题 · 即时反馈（点选项立即出对错+解析） ──
+// 题目取自本视频字幕/词汇；题型按当前考试层级从池中选取
+const QPOOL = [
+  { type:"听力理解", stem:"视频中说，REM 睡眠时大脑的状态是？",
+    ctx:"\"During REM sleep, your brain is almost as active as when you're awake.\"",
+    choices:["完全停止活动","几乎和清醒时一样活跃","比清醒时更活跃","只处理视觉信息"], answer:1, pts:7,
+    ans:"B", explain:"almost as active as when you're awake = 几乎和清醒时一样活跃。" },
+  { type:"词汇选择", stem:"哪个词的意思是「巩固（记忆）」？",
+    ctx:"\"One theory suggests that dreams help us ___ memories from the day.\"",
+    choices:["perceive","consolidate","inevitable","vivid"], answer:1, pts:5,
+    ans:"B", explain:"consolidate = 巩固、合并。常与 memories 搭配。" },
+  { type:"完形填空", stem:"选择最佳选项填空：",
+    ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.",
+    choices:["what","that","which","whether"], answer:1, pts:3,
+    ans:"B", explain:"believe that + 从句，that 引导宾语从句（可省略），填 that 最规范。" },
+  { type:"阅读理解", stem:"根据视频内容，梦的可能作用是？",
+    ctx:"阅读字幕：\"...dreams help us consolidate memories... Dreams might also be a safe space to process difficult emotions.\"",
+    choices:["帮助回忆白天的事","处理困难情绪","以上都是","与记忆无关"], answer:2, pts:14,
+    ans:"C", explain:"视频提到梦既能巩固记忆，又能处理情绪，故「以上都是」。" },
+  { type:"语法填空", stem:"填入所给词的正确形式（vivid · adj. 生动的）",
+    ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.",
+    fill:"vivid", pts:5,
+    ans:"vivid", explain:"vivid = 生动的。vivid dreams = 生动的梦。" },
+  { type:"翻译", stem:"将下列句子译成中文（自评：译对了/需练习）",
+    ctx:"Whatever the answer, dreaming is an inevitable part of being human.",
+    self:true, pts:15,
+    ans:"参考：无论答案是什么，做梦都是生而为人不可避免的一部分。", explain:"inevitable = 不可避免的；being human = 生而为人。" },
+  { type:"写作", stem:"请根据提示写一篇约 120 词的短文（完成后自评）",
+    ctx:"有人认为梦有深意，有人认为只是大脑随机活动。你的观点？结合视频举例说明。",
+    self:true, pts:15,
+    ans:"参考要点：表明立场 + 用 consolidate memories / process emotions 举例 + 总结。", explain:"议论文结构：观点-论据-结论。可引用视频中的理论支撑。" },
+  { type:"口语跟读", stem:"听原句并跟读，系统将评估你的发音",
+    ctx:"During REM sleep, your brain is almost as active as when you're awake.",
+    self:true, pts:15,
+    ans:"跟读要点：注意 REM 连读、as active as 的弱读与节奏。", explain:"发音评分关注：连读、弱读、重音、语调。" },
+];
+
+let activeLevel = "cet4";
+const answered = {}; // qid -> {ok, picked}
+function renderSwitcher(){
+  const el = document.getElementById("levelSwitcher");
+  el.innerHTML = LEVELS.map(l=>`
+    <button class="lv-tab ${l.key===activeLevel?'active':''}" data-k="${l.key}">
+      <span class="lv-dot" style="background:${l.color}"></span>${l.label}
+    </button>`).join("");
+  el.querySelectorAll(".lv-tab").forEach(t=>t.addEventListener("click",()=>{
+    activeLevel = t.dataset.k;
+    for(const k in answered) delete answered[k];
+    renderQ();
+  }));
+}
+function renderQ(){
+  const lv = LEVELS.find(l=>l.key===activeLevel);
+  document.querySelectorAll(".lv-tab").forEach(t=>t.classList.toggle("active", t.dataset.k===activeLevel));
+  const list = document.getElementById("qList");
+  list.innerHTML = QPOOL.map((q,i)=>{
+    const id = "q"+i;
+    let body = "";
+    if(q.choices){
+      body = `<div class="choices">${q.choices.map((c,j)=>{
+        const a = answered[id];
+        let cls = "";
+        if(a){ cls=" disabled"; if(j===q.answer) cls+=" correct"; if(j===a.picked && !a.ok) cls+=" wrong"; }
+        return `<button class="choice${cls}" data-q="${id}" data-i="${j}"><span class="key">${j+1}</span>${c}</button>`;
+      }).join("")}</div>`;
+    } else if(q.fill){
+      const a = answered[id];
+      const v = a ? q.fill : "";
+      const cls = a ? (a.ok?"correct":"wrong") : "";
+      body = `<div style="display:flex;gap:8px;align-items:center">
+        <input class="fill-input ${cls}" data-q="${id}" placeholder="填入单词…" value="${v}" ${a?'disabled':''}
+          style="flex:1;height:38px;padding:0 12px;font-size:14px;border:1.5px solid var(--hairline);border-radius:var(--r-sm);background:var(--canvas);color:var(--ink);outline:none">
+        ${!a?`<button class="check-btn" data-q="${id}" style="padding:8px 16px;border-radius:var(--r-sm);background:var(--success);color:#fff;font-size:13px;font-weight:600">检查</button>`:""}</div>`;
+    } else { // self-eval
+      const a = answered[id];
+      body = a
+        ? `<div class="q-explain ${a.ok?'ok':'no'} show"><span class="ans">${a.ok?'已确认掌握':'标记需练习'}</span><span class="ex">${q.ans}</span></div>`
+        : `<div style="display:flex;gap:8px;margin-top:8px">
+            <button class="self-btn no" data-q="${id}" data-ok="0" style="padding:8px 16px;border-radius:var(--r-sm);border:1.5px solid var(--error);color:var(--error);background:var(--canvas);font-size:13px;font-weight:600">需练习</button>
+            <button class="self-btn ok" data-q="${id}" data-ok="1" style="padding:8px 16px;border-radius:var(--r-sm);border:1.5px solid var(--success);color:var(--success);background:var(--canvas);font-size:13px;font-weight:600">译对了</button>
+          </div>`;
+    }
+    const ex = answered[id] ? `<div class="q-explain ${answered[id].ok?'ok':'no'} show"><span class="ans">${answered[id].ok?'回答正确':'回答错误'}</span> · 正确答案：<span class="ans">${q.ans}</span><span class="ex">${q.explain}</span></div>` : "";
+    return `<div class="q-item ${answered[id]?'done':''}" id="${id}">
+      <div class="q-top"><span class="q-no">${i+1}</span><span class="q-type-tag">${q.type}</span><span class="q-pts">${q.pts} 分</span></div>
+      <div class="q-stem">${q.stem}</div>
+      ${q.ctx?`<div class="q-context">${q.ctx}</div>`:""}
+      ${body}
+      ${ex}
+    </div>`;
+  }).join("");
+  bindQ();
+  updateProg();
+}
+function bindQ(){
+  document.querySelectorAll(".choice:not(.disabled)").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q, i=+b.dataset.i, q=QPOOL[+id.slice(1)];
+    answered[id]={ok:i===q.answer, picked:i};
+    renderQ();
+  }));
+  document.querySelectorAll(".check-btn").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q, q=QPOOL[+id.slice(1)];
+    const inp=document.querySelector(`input[data-q="${id}"]`);
+    if(!inp.value.trim())return;
+    answered[id]={ok: inp.value.trim().toLowerCase()===q.fill.toLowerCase(), picked:0};
+    renderQ();
+  }));
+  document.querySelectorAll(".self-btn").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q;
+    answered[id]={ok: b.dataset.ok==="1", picked:0};
+    renderQ();
+  }));
+  // 填空 Enter 提交
+  document.querySelectorAll(".fill-input").forEach(inp=>inp.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){const btn=document.querySelector(`.check-btn[data-q="${inp.dataset.q}"]`);if(btn)btn.click();}
+  }));
+}
+function updateProg(){
+  const total=QPOOL.length, done=Object.keys(answered).length;
+  const right=Object.values(answered).filter(a=>a.ok).length;
+  const wrong=done-right;
+  document.getElementById("qCnt").textContent=`${done} / ${total}`;
+  document.getElementById("qFill").style.width=`${done/total*100}%`;
+  document.getElementById("qScore").textContent=`对 ${right} · 错 ${wrong}`;
+}
+renderSwitcher(); renderQ();
+
+// ── 主题切换 ──
+const root = document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML = root.classList.contains("dark")
+    ? '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    : '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

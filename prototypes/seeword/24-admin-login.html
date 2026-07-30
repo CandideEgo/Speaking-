@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord Admin - 管理员登录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord Admin Login · 左品牌暗色 + 右表单 ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;--surface-dark:#0a0a0a;--on-dark:#fafafa;--on-dark-soft:rgba(250,250,250,.62);
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+html.dark{--surface-dark:#050505;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;display:flex;}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+input{font-family:inherit;}
+
+/* 左品牌面板 */
+.brand-panel{display:none;width:42%;position:relative;overflow:hidden;background:var(--surface-dark);color:var(--on-dark);flex-direction:column;justify-content:space-between;padding:48px;}
+@media(min-width:1024px){.brand-panel{display:flex;}}
+.brand-panel::before{content:"";position:absolute;top:-160px;left:-160px;width:500px;height:500px;border-radius:50%;background:rgba(255,90,31,.15);filter:blur(120px);}
+.brand-panel::after{content:"";position:absolute;bottom:0;right:0;width:380px;height:380px;border-radius:50%;background:rgba(99,102,241,.1);filter:blur(100px);}
+.grid-overlay{position:absolute;inset:0;opacity:.03;background-image:linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px;}
+.brand-logo{position:relative;z-index:1;display:flex;align-items:center;gap:12px;}
+.brand-logo .mark{width:40px;height:40px;border-radius:var(--r-md);background:var(--brand-500);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;box-shadow:0 8px 20px rgba(255,90,31,.35);}
+.brand-logo .t1{font-size:20px;font-weight:800;letter-spacing:-0.02em;}
+.brand-logo .t2{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--on-dark-soft);}
+
+.brand-center{position:relative;z-index:1;}
+.brand-center h2{font-size:34px;font-weight:800;letter-spacing:-0.03em;line-height:1.15;}
+.brand-center h2 .ac{color:var(--brand-400);}
+.brand-feats{margin-top:32px;display:flex;flex-direction:column;gap:16px;}
+.brand-feat{display:flex;align-items:center;gap:13px;}
+.brand-feat .ic{width:38px;height:38px;border-radius:var(--r-md);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--brand-400);flex-shrink:0;}
+.brand-feat span{font-size:14px;color:var(--on-dark-soft);}
+
+.brand-foot{position:relative;z-index:1;font-size:12px;color:rgba(250,250,250,.4);}
+
+/* 右表单区 */
+.form-area{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px;}
+.form-wrap{width:100%;max-width:380px;}
+.mobile-logo{display:none;text-align:center;margin-bottom:28px;}
+@media(max-width:1023px){.mobile-logo{display:block;}}
+.mobile-logo .mark{width:48px;height:48px;border-radius:var(--r-lg);background:var(--brand-500);color:#fff;font-weight:800;font-size:22px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:var(--shadow-brand);}
+.mobile-logo h1{font-size:20px;font-weight:800;}
+
+.form-head{margin-bottom:30px;}
+.form-head h1{font-size:24px;font-weight:800;letter-spacing:-0.02em;}
+.form-head p{margin-top:8px;display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);}
+.form-head p svg{color:var(--brand-500);}
+@media(max-width:1023px){.form-head{display:none;}}
+
+.field{margin-bottom:18px;}
+.field label{display:block;font-size:14px;font-weight:500;color:var(--ink);margin-bottom:7px;}
+.input-wrap{position:relative;}
+.input-wrap svg.ic-left{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted-soft);}
+.input-wrap .toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted-soft);padding:4px;}
+.input-wrap .toggle:hover{color:var(--ink);}
+.input{
+  width:100%;height:44px;padding:0 14px 0 40px;
+  font-size:14px;color:var(--ink);background:var(--canvas);
+  border:1px solid var(--hairline);border-radius:var(--r-md);
+  outline:none;transition:border-color .18s,box-shadow .18s;
+}
+.input::placeholder{color:var(--muted-soft);}
+.input:focus{border-color:var(--brand-400);box-shadow:0 0 0 3px rgba(255,90,31,.14);}
+.input.has-toggle{padding-right:40px;}
+.input.error{border-color:var(--error);box-shadow:0 0 0 3px color-mix(in oklab,var(--error) 14%,transparent);}
+
+.error-box{display:none;background:var(--red-soft);color:var(--error);border-radius:var(--r-md);padding:10px 14px;font-size:13.5px;margin-bottom:18px;}
+.error-box.visible{display:block;animation:shake .35s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;border-radius:var(--r-md);font-size:15px;font-weight:600;color:#fff;background:var(--brand-500);box-shadow:var(--shadow-brand);transition:all .2s var(--ease);position:relative;overflow:hidden;}
+.btn::before{content:'';position:absolute;inset:0;background:linear-gradient(120deg,transparent 35%,rgba(255,255,255,.18) 50%,transparent 65%);transform:translateX(-100%);transition:transform .7s;}
+.btn:hover{background:var(--brand-600);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,90,31,.32);}
+.btn:hover::before{transform:translateX(100%);}
+.btn:active{transform:scale(.98);}
+.btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+.btn .spinner{display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,.32);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+.btn.loading .label{display:none;}
+.btn.loading .spinner{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.back{margin-top:32px;text-align:center;}
+.back a{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);transition:color .15s;}
+.back a:hover{color:var(--ink);}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- 左品牌面板 -->
+<aside class="brand-panel">
+  <div class="grid-overlay"></div>
+  <div class="brand-logo">
+    <div class="mark">S</div>
+    <div>
+      <div class="t1">SeeWord</div>
+      <div class="t2">Admin Console</div>
+    </div>
+  </div>
+
+  <div class="brand-center">
+    <h2>管理后台<br><span class="ac">运营控制中心</span></h2>
+    <div class="brand-feats">
+      <div class="brand-feat"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span>用户与权限管理</span></div>
+      <div class="brand-feat"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span><span>内容审核与发布</span></div>
+      <div class="brand-feat"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span><span>数据统计与分析</span></div>
+    </div>
+  </div>
+
+  <div class="brand-foot">SeeWord Admin v2.0 · 非经营性工具展示平台</div>
+</aside>
+
+<!-- 右表单区 -->
+<main class="form-area">
+  <div class="form-wrap">
+    <div class="mobile-logo">
+      <div class="mark">S</div>
+      <h1>SeeWord 管理后台</h1>
+    </div>
+
+    <div class="form-head">
+      <h1>管理员登录</h1>
+      <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>仅限授权管理员访问</p>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <form id="loginForm" onsubmit="return false">
+      <div class="field">
+        <label>手机号</label>
+        <div class="input-wrap">
+          <svg class="ic-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.36 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.34 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+          <input class="input" id="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" autocomplete="tel">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>密码</label>
+        <div class="input-wrap">
+          <svg class="ic-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <input class="input has-toggle" id="password" type="password" placeholder="请输入密码" autocomplete="current-password">
+          <button class="toggle" id="togglePw" type="button" aria-label="显示密码">
+            <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn" id="submitBtn" type="submit" style="margin-top:6px">
+        <span class="label">登录</span>
+        <span class="spinner"></span>
+      </button>
+    </form>
+
+    <div class="back">
+      <a href="23-landing.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        返回用户端
+      </a>
+    </div>
+  </div>
+</main>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+const phone=document.getElementById('phone');
+const password=document.getElementById('password');
+const errorBox=document.getElementById('errorBox');
+const submitBtn=document.getElementById('submitBtn');
+
+// 手机号只允许数字
+phone.addEventListener('input',(e)=>{e.target.value=e.target.value.replace(/\D/g,'');});
+
+// 密码显隐
+const togglePw=document.getElementById('togglePw');
+const eyeIcon=document.getElementById('eyeIcon');
+togglePw.addEventListener('click',()=>{
+  const show=password.type==='password';
+  password.type=show?'text':'password';
+  eyeIcon.innerHTML=show
+    ?'<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    :'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+});
+
+function showError(msg){
+  errorBox.textContent=msg;
+  errorBox.classList.add('visible');
+  [phone,password].forEach(i=>i.classList.toggle('error',true));
+}
+
+submitBtn.addEventListener('click',()=>{
+  errorBox.classList.remove('visible');
+  [phone,password].forEach(i=>i.classList.remove('error'));
+  if(!phone.value || phone.value.length<11){showError('请输入有效的手机号');return;}
+  if(!password.value){showError('请输入密码');return;}
+  // 原型：模拟登录
+  submitBtn.classList.add('loading');
+  submitBtn.disabled=true;
+  setTimeout(()=>{
+    localStorage.setItem('seeword_admin','1');
+    location.href='25-admin-dashboard.html';
+  },900);
+});
+
+// 主题切换
+const themeToggle=document.getElementById('themeToggle');
+const themeIcon=document.getElementById('themeIcon');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+  const isDark=document.documentElement.classList.contains('dark');
+  themeIcon.innerHTML=isDark
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

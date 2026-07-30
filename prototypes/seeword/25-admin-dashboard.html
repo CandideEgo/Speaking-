@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord Admin - 运营概览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord Admin Shell · 全亮色统一（侧栏+topbar+主区） ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;--sidebar-bg:#ffffff;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+html.dark {
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0e0e10;--sidebar-bg:#0e0e10;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
+  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--surface-soft);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+
+/* 布局 */
+.layout{display:flex;min-height:100vh;}
+
+/* ── 侧栏（全亮色，hairline 分隔） ── */
+.sidebar{width:248px;flex-shrink:0;background:var(--sidebar-bg);border-right:1px solid var(--hairline);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;transition:width .25s var(--ease);}
+.sidebar.collapsed{width:72px;}
+.sb-brand{display:flex;align-items:center;gap:11px;height:64px;border-bottom:1px solid var(--hairline);padding:0 18px;flex-shrink:0;}
+.sb-brand .mark{width:34px;height:34px;border-radius:var(--r-sm);background:var(--brand-500);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:var(--shadow-brand);flex-shrink:0;}
+.sb-brand .bt{line-height:1.2;white-space:nowrap;overflow:hidden;}
+.sb-brand .bt .n{font-size:15px;font-weight:800;letter-spacing:-0.02em;}
+.sb-brand .bt .s{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-soft);}
+.sidebar.collapsed .sb-brand .bt{display:none;}
+.sidebar.collapsed .sb-brand{justify-content:center;padding:0;}
+
+.sb-nav{flex:1;overflow-y:auto;padding:16px 12px;}
+.sb-section{margin-bottom:18px;}
+.sb-section-title{font-size:10.5px;font-weight:700;color:var(--muted-soft);text-transform:uppercase;letter-spacing:.08em;padding:0 12px;margin-bottom:6px;}
+.sidebar.collapsed .sb-section-title{text-align:center;font-size:0;padding:0;height:8px;}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:13.5px;font-weight:500;color:var(--muted);transition:all .15s;position:relative;white-space:nowrap;margin-bottom:1px;}
+.sb-item svg{flex-shrink:0;}
+.sb-item:hover{color:var(--ink);background:var(--surface-soft);}
+.sb-item.active{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.sidebar.collapsed .sb-item{justify-content:center;padding:9px;}
+.sidebar.collapsed .sb-item span.lbl{display:none;}
+.sb-item .badge{margin-left:auto;background:var(--brand-100);color:var(--brand-700);font-size:11px;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);min-width:20px;text-align:center;}
+.sb-item.active .badge{background:rgba(255,255,255,.22);color:#fff;}
+.sidebar.collapsed .sb-item .badge{position:absolute;top:2px;right:2px;margin:0;min-width:16px;height:16px;font-size:9px;padding:0 4px;}
+
+.sb-foot{border-top:1px solid var(--hairline);padding:10px 12px;flex-shrink:0;}
+.sb-foot .sb-item{font-size:12.5px;color:var(--muted);}
+.sb-collapse{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:12.5px;color:var(--muted);transition:all .15s;width:100%;}
+.sb-collapse:hover{color:var(--ink);background:var(--surface-soft);}
+.sb-collapse svg{transition:transform .25s;}
+.sidebar.collapsed .sb-collapse{justify-content:center;}
+.sidebar.collapsed .sb-collapse span{display:none;}
+.sidebar.collapsed .sb-collapse svg{transform:rotate(180deg);}
+
+/* 移动端：侧栏 drawer */
+.sidebar{position:fixed;z-index:50;transform:translateX(-100%);transition:transform .25s var(--ease),width .25s var(--ease);}
+.sidebar.mobile-open{transform:translateX(0);}
+@media(min-width:768px){
+  .sidebar{position:sticky;transform:none;}
+  .sidebar.collapsed{transform:none;}
+}
+.mobile-overlay{display:none;position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);}
+.mobile-overlay.visible{display:block;}
+@media(min-width:768px){.mobile-overlay{display:none!important;}}
+.hamburger{display:inline-flex;}
+@media(min-width:768px){.hamburger{display:none;}}
+
+/* ── 主区 ── */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{position:sticky;top:0;z-index:30;height:64px;background:color-mix(in oklab,var(--topbar-bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:14px;padding:0 22px;flex-shrink:0;}
+.hamburger{width:38px;height:38px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.hamburger:hover{color:var(--ink);background:var(--surface-card);}
+.crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);}
+.crumb .cur{color:var(--ink);font-weight:600;}
+.crumb .sep{color:var(--muted-soft);}
+.topbar-spacer{flex:1;}
+.tb-action{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--muted);background:var(--surface-card);transition:all .15s;}
+.tb-action:hover{color:var(--ink);background:var(--surface-strong);}
+.tb-action.icon-only{padding:0;width:36px;justify-content:center;}
+.tb-avatar{display:flex;align-items:center;gap:9px;padding:4px 10px 4px 4px;border-radius:var(--r-pill);background:var(--surface-card);transition:all .15s;cursor:pointer;}
+.tb-avatar:hover{background:var(--surface-strong);}
+.tb-avatar .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;}
+.tb-avatar .nm{font-size:13px;font-weight:600;color:var(--ink);}
+.tb-avatar .rl{font-size:10.5px;color:var(--muted);}
+@media(max-width:640px){.tb-avatar .nm,.tb-avatar .rl{display:none;} .tb-avatar{padding:4px;}}
+
+.content{padding:24px 22px 48px;flex:1;max-width:1400px;width:100%;}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-0.02em;}
+.page-head .desc{font-size:13.5px;color:var(--muted);margin-top:4px;}
+
+/* ── 通用组件 ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13.5px;font-weight:600;border-radius:var(--r-sm);transition:all .18s var(--ease);white-space:nowrap;}
+.btn-sm{height:34px;padding:0 13px;}
+.btn-primary{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.btn-primary:hover{background:var(--brand-600);transform:translateY(-1px);box-shadow:0 8px 20px rgba(255,90,31,.3);}
+.btn-secondary{background:var(--surface-card);color:var(--ink);border:1px solid var(--hairline);}
+.btn-secondary:hover{background:var(--surface-strong);border-color:var(--muted-soft);}
+.btn-ghost{color:var(--muted);}
+.btn-ghost:hover{color:var(--ink);background:var(--surface-card);}
+
+/* KPI 卡 */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px;}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px;transition:all .2s;position:relative;}
+a.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-card);border-color:var(--brand-200);}
+.kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.kpi-icon{width:40px;height:40px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;}
+.kpi-icon.brand{background:var(--brand-50);color:var(--brand-600);}
+.kpi-icon.amber{background:var(--warning-soft);color:var(--warning);}
+.kpi-icon.green{background:var(--success-soft);color:var(--success);}
+.kpi-icon.red{background:var(--red-soft);color:var(--error);}
+.kpi-icon.default{background:var(--surface-card);color:var(--muted);}
+.kpi-arrow{color:var(--muted-soft);opacity:0;transition:opacity .15s;}
+a.kpi-card:hover .kpi-arrow{opacity:1;}
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);font-family:"JetBrains Mono",monospace;line-height:1.1;}
+.kpi-meta{display:flex;align-items:center;gap:8px;margin-top:5px;}
+.kpi-label{font-size:12.5px;color:var(--muted);}
+.kpi-delta{display:inline-flex;align-items:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--success);}
+
+/* 卡片 */
+.card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:20px;}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;}
+.card-head h3{font-size:14.5px;font-weight:700;}
+.card-head .sub{font-size:12px;color:var(--muted);}
+.card-head a.more{font-size:12px;color:var(--brand-500);font-weight:600;}
+.card-head a.more:hover{color:var(--brand-600);}
+
+/* 主网格 */
+.dash-grid{display:grid;grid-template-columns:1fr;gap:18px;}
+@media(min-width:980px){.dash-grid{grid-template-columns:2fr 1fr;}}
+
+/* 趋势图（SVG 静态） */
+.chart-wrap{position:relative;}
+.chart-legend{display:flex;gap:16px;margin-bottom:8px;}
+.chart-legend .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+.chart-legend .lg .d{width:9px;height:9px;border-radius:2px;}
+.chart-svg{width:100%;height:240px;display:block;}
+
+/* 系统状态 */
+.status-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hairline-soft);}
+.status-row:last-child{border-bottom:none;}
+.status-row .left{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--body);}
+.status-row .left svg{color:var(--muted);}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);}
+.status-pill.online{background:var(--success-soft);color:var(--success);}
+.status-pill.offline{background:var(--red-soft);color:var(--error);}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.status-val{font-size:13.5px;font-weight:600;color:var(--muted);}
+.status-val.warn{color:var(--warning);}
+.status-val.err{color:var(--error);}
+
+/* UGC 队列 */
+.ugc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.ugc-box{background:var(--surface-soft);border-radius:var(--r-sm);padding:14px;text-align:center;}
+.ugc-box .n{font-size:22px;font-weight:800;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.ugc-box .l{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* 快捷入口 */
+.quick-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+@media(max-width:900px){.quick-grid{grid-template-columns:repeat(2,1fr);}}
+.quick-item{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid var(--hairline);border-radius:var(--r-sm);transition:all .15s;}
+.quick-item:hover{border-color:var(--brand-300);background:color-mix(in oklab,var(--brand-50) 50%,transparent);}
+.quick-item svg.qi{color:var(--muted);flex-shrink:0;transition:color .15s;}
+.quick-item:hover svg.qi{color:var(--brand-500);}
+.quick-item .ql{font-size:13px;font-weight:500;color:var(--body);}
+.quick-item .qa{margin-left:auto;color:var(--muted-soft);opacity:0;transition:opacity .15s;}
+.quick-item:hover .qa{opacity:1;}
+
+/* 最近动态 */
+.activity{display:flex;flex-direction:column;gap:14px;}
+.act-item{display:flex;align-items:center;gap:12px;font-size:13px;}
+.act-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.act-icon.signup{background:var(--brand-50);color:var(--brand-500);}
+.act-icon.redeem{background:var(--success-soft);color:var(--success);}
+.act-text{flex:1;color:var(--body);}
+.act-time{font-size:11.5px;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- 侧栏 -->
+  <aside class="sidebar" id="sidebar">
+    <a class="sb-brand" href="25-admin-dashboard.html">
+      <div class="mark">S</div>
+      <div class="bt"><div class="n">SeeWord</div><div class="s">管理后台</div></div>
+    </a>
+    <nav class="sb-nav">
+      <div class="sb-section">
+        <div class="sb-section-title">概览</div>
+        <a class="sb-item active" href="25-admin-dashboard.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span class="lbl">仪表盘</span></a>
+      </div>
+      <div class="sb-section">
+        <div class="sb-section-title">内容</div>
+        <a class="sb-item" href="26-admin-videos.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span class="lbl">视频管理</span><span class="badge">5</span></a>
+      </div>
+      <div class="sb-section">
+        <div class="sb-section-title">运营</div>
+        <a class="sb-item" href="28-admin-users.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="lbl">用户管理</span></a>
+        <a class="sb-item" href="29-admin-orders.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span class="lbl">订单管理</span></a>
+        <a class="sb-item" href="30-admin-invites.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg><span class="lbl">兑换码</span></a>
+      </div>
+      <div class="sb-section">
+        <div class="sb-section-title">数据</div>
+        <a class="sb-item" href="31-admin-stats.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="lbl">数据统计</span></a>
+      </div>
+      <div class="sb-section">
+        <div class="sb-section-title">系统</div>
+        <a class="sb-item" href="32-admin-settings.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">系统设置</span></a>
+      </div>
+    </nav>
+    <div class="sb-foot">
+      <a class="sb-item" href="23-landing.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span class="lbl">返回用户端</span></a>
+      <button class="sb-collapse" id="collapseBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>收起侧栏</span></button>
+    </div>
+  </aside>
+  <div class="mobile-overlay" id="overlay"></div>
+
+  <!-- 主区 -->
+  <div class="main">
+    <!-- topbar -->
+    <header class="topbar">
+      <button class="hamburger" id="hamburger" aria-label="打开导航"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div class="crumb"><span>概览</span><span class="sep">/</span><span class="cur">仪表盘</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="tb-action icon-only" id="themeToggle" title="切换主题"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
+      <button class="tb-action" id="refreshBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>刷新</button>
+      <div class="tb-avatar"><div class="av">管</div><div><div class="nm">管理员</div><div class="rl">超级管理员</div></div></div>
+    </header>
+
+    <!-- 内容 -->
+    <main class="content">
+      <div class="page-head">
+        <div><h1>运营概览</h1><div class="desc">实时掌握平台运行状态 · 数据每 30 秒自动刷新</div></div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpi-grid">
+        <a class="kpi-card" href="28-admin-users.html">
+          <div class="kpi-top"><div class="kpi-icon brand"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><svg class="kpi-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div>
+          <div class="kpi-val">2,847</div>
+          <div class="kpi-meta"><span class="kpi-label">总用户数</span><span class="kpi-delta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>+38 今日</span></div>
+        </a>
+        <div class="kpi-card">
+          <div class="kpi-top"><div class="kpi-icon amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 7l5.5 4L12 4l3.5 7L21 7l-2 9H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg></div></div>
+          <div class="kpi-val">412</div>
+          <div class="kpi-meta"><span class="kpi-label">Pro 用户</span><span class="kpi-delta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>9 兑换</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-top"><div class="kpi-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div>
+          <div class="kpi-val">1,236</div>
+          <div class="kpi-meta"><span class="kpi-label">今日活跃</span></div>
+        </div>
+        <a class="kpi-card" href="26-admin-videos.html">
+          <div class="kpi-top"><div class="kpi-icon red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><svg class="kpi-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div>
+          <div class="kpi-val">5</div>
+          <div class="kpi-meta"><span class="kpi-label">待处理视频</span></div>
+        </a>
+      </div>
+
+      <!-- 主网格 -->
+      <div class="dash-grid" style="margin-bottom:18px">
+        <!-- 趋势图 -->
+        <div class="card">
+          <div class="card-head"><div><h3>增长趋势</h3><div class="sub">近 30 天</div></div></div>
+          <div class="chart-wrap">
+            <div class="chart-legend"><span class="lg"><span class="d" style="background:var(--brand-500)"></span>注册</span><span class="lg"><span class="d" style="background:var(--indigo)"></span>活跃</span></div>
+            <svg class="chart-svg" viewBox="0 0 600 240" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff5a1f" stop-opacity="0.18"/><stop offset="100%" stop-color="#ff5a1f" stop-opacity="0"/></linearGradient>
+                <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity="0.16"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></linearGradient>
+              </defs>
+              <g stroke="var(--hairline)" stroke-width="1"><line x1="0" y1="60" x2="600" y2="60"/><line x1="0" y1="120" x2="600" y2="120"/><line x1="0" y1="180" x2="600" y2="180"/></g>
+              <path d="M0,200 L40,190 L80,185 L120,170 L160,165 L200,150 L240,145 L280,130 L320,125 L360,110 L400,100 L440,85 L480,75 L520,60 L560,50 L600,40 L600,240 L0,240 Z" fill="url(#g2)"/>
+              <path d="M0,200 L40,190 L80,185 L120,170 L160,165 L200,150 L240,145 L280,130 L320,125 L360,110 L400,100 L440,85 L480,75 L520,60 L560,50 L600,40" fill="none" stroke="#6366f1" stroke-width="2"/>
+              <path d="M0,225 L40,220 L80,215 L120,205 L160,200 L200,190 L240,180 L280,170 L320,160 L360,150 L400,140 L440,125 L480,115 L520,100 L560,85 L600,75 L600,240 L0,240 Z" fill="url(#g1)"/>
+              <path d="M0,225 L40,220 L80,215 L120,205 L160,200 L200,190 L240,180 L280,170 L320,160 L360,150 L400,140 L440,125 L480,115 L520,100 L560,85 L600,75" fill="none" stroke="#ff5a1f" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 右列 -->
+        <div style="display:flex;flex-direction:column;gap:18px;">
+          <!-- 系统状态 -->
+          <div class="card">
+            <div class="card-head"><h3>系统状态</h3></div>
+            <div>
+              <div class="status-row"><div class="left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>GPU Worker</div><span class="status-pill online"><span class="dot"></span>在线</span></div>
+              <div class="status-row"><div class="left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>GPU 队列</div><span class="status-val warn">2 任务</span></div>
+              <div class="status-row"><div class="left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>失败视频</div><span class="status-val err">3</span></div>
+            </div>
+          </div>
+          <!-- UGC 队列 -->
+          <div class="card">
+            <div class="card-head"><h3>UGC 审核队列</h3><a class="more" href="26-admin-videos.html">查看全部</a></div>
+            <div class="ugc-grid">
+              <div class="ugc-box"><div class="n">2</div><div class="l">待处理</div></div>
+              <div class="ugc-box"><div class="n">3</div><div class="l">待审核</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 快捷入口 -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head"><h3>快捷入口</h3></div>
+        <div class="quick-grid">
+          <a class="quick-item" href="26-admin-videos.html"><svg class="qi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span class="ql">视频管理</span><svg class="qa" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="quick-item" href="28-admin-users.html"><svg class="qi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="ql">用户管理</span><svg class="qa" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="quick-item" href="29-admin-orders.html"><svg class="qi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span class="ql">订单管理</span><svg class="qa" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="quick-item" href="30-admin-invites.html"><svg class="qi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/></svg><span class="ql">兑换码</span><svg class="qa" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="quick-item" href="31-admin-stats.html"><svg class="qi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="ql">数据统计</span><svg class="qa" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+        </div>
+      </div>
+
+      <!-- 最近动态 -->
+      <div class="card">
+        <div class="card-head"><h3>最近动态</h3></div>
+        <div class="activity">
+          <div class="act-item"><div class="act-icon signup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div><div class="act-text">新用户 138****2024 注册</div><div class="act-time">14:32</div></div>
+          <div class="act-item"><div class="act-icon redeem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/></svg></div><div class="act-text">用户 159****8821 兑换 Pro 会员</div><div class="act-time">14:18</div></div>
+          <div class="act-item"><div class="act-icon signup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div><div class="act-text">新用户 186****6033 注册</div><div class="act-time">13:55</div></div>
+          <div class="act-item"><div class="act-icon redeem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/></svg></div><div class="act-text">用户 133****4567 兑换 Pro 会员</div><div class="act-time">13:40</div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+// 侧栏折叠（桌面）
+const sidebar=document.getElementById('sidebar');
+const collapseBtn=document.getElementById('collapseBtn');
+collapseBtn.addEventListener('click',()=>{
+  if(window.innerWidth>=768){sidebar.classList.toggle('collapsed');}
+});
+// 移动端 drawer
+const hamburger=document.getElementById('hamburger');
+const overlay=document.getElementById('overlay');
+hamburger.addEventListener('click',()=>{sidebar.classList.add('mobile-open');overlay.classList.add('visible');});
+overlay.addEventListener('click',()=>{sidebar.classList.remove('mobile-open');overlay.classList.remove('visible');});
+
+// 刷新按钮动画
+const refreshBtn=document.getElementById('refreshBtn');
+refreshBtn.addEventListener('click',()=>{
+  const svg=refreshBtn.querySelector('svg');
+  svg.style.transition='transform .6s';svg.style.transform='rotate(360deg)';
+  setTimeout(()=>{svg.style.transition='';svg.style.transform='';},600);
+});
+
+// 主题切换
+const themeToggle=document.getElementById('themeToggle');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+});
+</script>
+</body>
+</html>

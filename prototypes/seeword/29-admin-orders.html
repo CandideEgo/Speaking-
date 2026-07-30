@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord Admin - 订单管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;--ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;--hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;--sidebar-bg:#ffffff;--brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;--indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;--on-primary:#ffffff;--shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);--shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);--shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);--shadow-brand:0 8px 24px rgba(255,90,31,0.28);--r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;--ease:cubic-bezier(.22,.61,.36,1);}
+html.dark{--canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;--ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;--hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0e0e10;--sidebar-bg:#0e0e10;--brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;--indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;--shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);--shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);--shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--surface-soft);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
+::selection{background:var(--brand-500);color:#fff;}button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}a{text-decoration:none;color:inherit;}input,select{font-family:inherit;}
+.layout{display:flex;min-height:100vh;}
+.sidebar{width:248px;flex-shrink:0;background:var(--sidebar-bg);border-right:1px solid var(--hairline);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;transform:translateX(-100%);transition:transform .25s var(--ease),width .25s var(--ease);}
+.sidebar.mobile-open{transform:translateX(0);}
+@media(min-width:768px){.sidebar{position:sticky;transform:none;}.sidebar.collapsed{width:72px;}}
+.sb-brand{display:flex;align-items:center;gap:11px;height:64px;border-bottom:1px solid var(--hairline);padding:0 18px;flex-shrink:0;}
+.sb-brand .mark{width:34px;height:34px;border-radius:var(--r-sm);background:var(--brand-500);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:var(--shadow-brand);flex-shrink:0;}
+.sb-brand .bt{line-height:1.2;white-space:nowrap;overflow:hidden;}.sb-brand .bt .n{font-size:15px;font-weight:800;}.sb-brand .bt .s{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-soft);}
+.sidebar.collapsed .sb-brand .bt{display:none;}.sidebar.collapsed .sb-brand{justify-content:center;padding:0;}
+.sb-nav{flex:1;overflow-y:auto;padding:16px 12px;}.sb-section{margin-bottom:18px;}.sb-section-title{font-size:10.5px;font-weight:700;color:var(--muted-soft);text-transform:uppercase;letter-spacing:.08em;padding:0 12px;margin-bottom:6px;}
+.sidebar.collapsed .sb-section-title{font-size:0;height:8px;padding:0;}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:13.5px;font-weight:500;color:var(--muted);transition:all .15s;white-space:nowrap;margin-bottom:1px;position:relative;}
+.sb-item svg{flex-shrink:0;}.sb-item:hover{color:var(--ink);background:var(--surface-soft);}.sb-item.active{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.sidebar.collapsed .sb-item{justify-content:center;}.sidebar.collapsed .sb-item span.lbl{display:none;}
+.sb-item .badge{margin-left:auto;background:var(--brand-100);color:var(--brand-700);font-size:11px;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);min-width:20px;text-align:center;}.sb-item.active .badge{background:rgba(255,255,255,.22);color:#fff;}
+.sidebar.collapsed .sb-item .badge{position:absolute;top:2px;right:2px;margin:0;min-width:16px;height:16px;font-size:9px;padding:0 4px;}
+.sb-foot{border-top:1px solid var(--hairline);padding:10px 12px;}.sb-foot .sb-item{font-size:12.5px;}
+.sb-collapse{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:12.5px;color:var(--muted);transition:all .15s;width:100%;}.sb-collapse:hover{color:var(--ink);background:var(--surface-soft);}.sb-collapse svg{transition:transform .25s;}
+.sidebar.collapsed .sb-collapse{justify-content:center;}.sidebar.collapsed .sb-collapse span{display:none;}.sidebar.collapsed .sb-collapse svg{transform:rotate(180deg);}
+.mobile-overlay{display:none;position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);}.mobile-overlay.visible{display:block;}
+@media(min-width:768px){.mobile-overlay{display:none!important;}}.hamburger{display:inline-flex;}@media(min-width:768px){.hamburger{display:none;}}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{position:sticky;top:0;z-index:30;height:64px;background:color-mix(in oklab,var(--topbar-bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:14px;padding:0 22px;flex-shrink:0;}
+.hamburger{width:38px;height:38px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);}.hamburger:hover{color:var(--ink);background:var(--surface-card);}
+.crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);}.crumb .cur{color:var(--ink);font-weight:600;}.crumb .sep{color:var(--muted-soft);}
+.topbar-spacer{flex:1;}
+.tb-action{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--muted);background:var(--surface-card);transition:all .15s;}.tb-action:hover{color:var(--ink);background:var(--surface-strong);}.tb-action.icon-only{padding:0;width:36px;justify-content:center;}
+.tb-avatar{display:flex;align-items:center;gap:9px;padding:4px 10px 4px 4px;border-radius:var(--r-pill);background:var(--surface-card);cursor:pointer;}.tb-avatar:hover{background:var(--surface-strong);}.tb-avatar .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;}.tb-avatar .nm{font-size:13px;font-weight:600;}.tb-avatar .rl{font-size:10.5px;color:var(--muted);}
+@media(max-width:640px){.tb-avatar .nm,.tb-avatar .rl{display:none;}.tb-avatar{padding:4px;}}
+.content{padding:24px 22px 48px;flex:1;max-width:1400px;width:100%;}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-0.02em;}.page-head .desc{font-size:13.5px;color:var(--muted);margin-top:4px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13.5px;font-weight:600;border-radius:var(--r-sm);transition:all .18s var(--ease);white-space:nowrap;}
+.btn-sm{height:34px;padding:0 13px;}.btn-primary{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}.btn-primary:hover{background:var(--brand-600);transform:translateY(-1px);}.btn-secondary{background:var(--surface-card);color:var(--ink);border:1px solid var(--hairline);}.btn-secondary:hover{background:var(--surface-strong);border-color:var(--muted-soft);}
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.search-box{position:relative;flex:1;min-width:200px;max-width:340px;}
+.search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted-soft);}
+.search-box input{width:100%;height:38px;padding:0 12px 0 38px;font-size:13.5px;color:var(--ink);background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.search-box input::placeholder{color:var(--muted-soft);}.search-box input:focus{border-color:var(--brand-400);box-shadow:0 0 0 3px rgba(255,90,31,.12);}
+.filter-pills{display:flex;gap:5px;flex-wrap:wrap;}
+.fpill{font-size:12.5px;font-weight:500;color:var(--muted);padding:6px 13px;border-radius:var(--r-pill);background:var(--surface-card);transition:all .15s;white-space:nowrap;}
+.fpill:hover{color:var(--ink);background:var(--surface-strong);}.fpill.active{background:var(--ink);color:var(--canvas);}
+.table-wrap{overflow-x:auto;border-radius:var(--r-lg);border:1px solid var(--hairline);background:var(--canvas);}
+table.data{width:100%;border-collapse:collapse;font-size:13.5px;min-width:840px;}
+table.data thead th{text-align:left;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:12px 14px;background:var(--surface-soft);border-bottom:1px solid var(--hairline);white-space:nowrap;}
+table.data tbody td{padding:12px 14px;border-bottom:1px solid var(--hairline-soft);color:var(--body);vertical-align:middle;}
+table.data tbody tr{transition:background .12s;}table.data tbody tr:hover{background:var(--surface-soft);}table.data tbody tr:last-child td{border-bottom:none;}
+.mono{font-family:"JetBrains Mono",monospace;font-weight:600;}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap;}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.b-redeemed{background:var(--success-soft);color:var(--success);}
+.b-pending{background:var(--warning-soft);color:var(--warning);}
+.b-revoked{background:var(--red-soft);color:var(--error);}
+.row-actions{display:flex;gap:4px;justify-content:flex-end;}
+.act-btn{height:30px;padding:0 11px;border-radius:var(--r-xs);display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--muted);transition:all .15s;}
+.act-btn:hover{color:var(--ink);background:var(--surface-card);}.act-btn.danger{color:var(--error);}.act-btn.danger:hover{background:var(--red-soft);}
+.pagination{display:flex;align-items:center;justify-content:space-between;margin-top:16px;flex-wrap:wrap;gap:12px;}
+.page-info{font-size:13px;color:var(--muted);}.page-info .mono{color:var(--ink);}
+.page-btns{display:flex;gap:4px;}
+.pbtn{min-width:34px;height:34px;padding:0 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);transition:all .15s;display:inline-flex;align-items:center;justify-content:center;}
+.pbtn:hover:not(:disabled){color:var(--ink);border-color:var(--muted-soft);}.pbtn.active{background:var(--ink);color:#fff;border-color:var(--ink);}.pbtn:disabled{opacity:.4;cursor:not-allowed;}
+.stat-strip{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.stat-chip{display:flex;align-items:center;gap:9px;padding:10px 14px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-sm);font-size:12.5px;}
+.stat-chip .n{font-size:17px;font-weight:800;color:var(--ink);font-family:"JetBrains Mono",monospace;}.stat-chip .l{color:var(--muted);}
+.stat-chip .ic{width:30px;height:30px;border-radius:var(--r-xs);display:flex;align-items:center;justify-content:center;}
+.note{font-size:12.5px;color:var(--muted);background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;display:flex;gap:9px;align-items:flex-start;}
+.note svg{flex-shrink:0;margin-top:1px;color:var(--brand-500);}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <a class="sb-brand" href="25-admin-dashboard.html"><div class="mark">S</div><div class="bt"><div class="n">SeeWord</div><div class="s">管理后台</div></div></a>
+    <nav class="sb-nav">
+      <div class="sb-section"><div class="sb-section-title">概览</div><a class="sb-item" href="25-admin-dashboard.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span class="lbl">仪表盘</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">内容</div><a class="sb-item" href="26-admin-videos.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span class="lbl">视频管理</span><span class="badge">5</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">运营</div><a class="sb-item" href="28-admin-users.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="lbl">用户管理</span></a><a class="sb-item active" href="29-admin-orders.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span class="lbl">订单管理</span></a><a class="sb-item" href="30-admin-invites.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/></svg><span class="lbl">兑换码</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">数据</div><a class="sb-item" href="31-admin-stats.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="lbl">数据统计</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">系统</div><a class="sb-item" href="32-admin-settings.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">系统设置</span></a></div>
+    </nav>
+    <div class="sb-foot"><a class="sb-item" href="23-landing.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span class="lbl">返回用户端</span></a><button class="sb-collapse" id="collapseBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>收起侧栏</span></button></div>
+  </aside>
+  <div class="mobile-overlay" id="overlay"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div class="crumb"><span>运营</span><span class="sep">/</span><span class="cur">订单管理</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="tb-action icon-only" id="themeToggle"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
+      <div class="tb-avatar"><div class="av">管</div><div><div class="nm">管理员</div><div class="rl">超级管理员</div></div></div>
+    </header>
+
+    <main class="content">
+      <div class="page-head"><div><h1>订单管理</h1><div class="desc">兑换码兑换记录 · 退款 clawback · 状态追踪</div></div></div>
+
+      <div class="note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>本站为非经营性平台，不提供站内支付。订单指<strong style="color:var(--ink)">兑换码激活记录</strong>，退款即回收已兑换的 Pro 时长（clawback）。</span></div>
+
+      <div class="stat-strip">
+        <div class="stat-chip"><div class="ic" style="background:var(--success-soft);color:var(--success)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="n">1,856</div><div class="l">已兑换</div></div></div>
+        <div class="stat-chip"><div class="ic" style="background:var(--warning-soft);color:var(--warning)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="n">23</div><div class="l">待处理</div></div></div>
+        <div class="stat-chip"><div class="ic" style="background:var(--red-soft);color:var(--error)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></div><div><div class="n">14</div><div class="l">已退款</div></div></div>
+        <div class="stat-chip"><div class="ic" style="background:var(--brand-50);color:var(--brand-600)"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg></div><div><div class="n">¥18,374</div><div class="l">累计收入</div></div></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="搜索订单号、用户、兑换码…"></div>
+        <div class="filter-pills"><button class="fpill active">全部</button><button class="fpill">已兑换</button><button class="fpill">待处理</button><button class="fpill">已退款</button></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>订单号</th><th>用户</th><th>兑换码</th><th>套餐</th><th>金额</th><th>状态</th><th>兑换时间</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div class="page-info">共 <span class="mono">1,893</span> 条 · 第 <span class="mono">1</span> / <span class="mono">190</span> 页</div>
+        <div class="page-btns">
+          <button class="pbtn" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="pbtn active">1</button><button class="pbtn">2</button><button class="pbtn">3</button><button class="pbtn">…</button><button class="pbtn">190</button>
+          <button class="pbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const ORDERS=[
+  {id:"OD202607301432",user:"138****2024",code:"SWPR-9X2K-4A",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-30 14:32"},
+  {id:"OD202607301418",user:"159****8821",code:"SWPR-7M3N-2B",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-30 14:18"},
+  {id:"OD202607301355",user:"186****6033",code:"SWPR-2K5P-9C",plan:"Pro 月度",amount:"¥9.90",status:"pending",time:"2026-07-30 13:55"},
+  {id:"OD202607301340",user:"133****4567",code:"SWPR-8Q1R-3D",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-30 13:40"},
+  {id:"OD202607301120",user:"176****3398",code:"SWPR-4T6S-1E",plan:"Pro 月度",amount:"¥9.90",status:"revoked",time:"2026-07-30 11:20"},
+  {id:"OD202607300945",user:"152****7741",code:"SWPR-6W8U-5F",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-30 09:45"},
+  {id:"OD202607292130",user:"199****2255",code:"SWPR-1Y3V-7G",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-29 21:30"},
+  {id:"OD202607291815",user:"131****6688",code:"SWPR-9Z2W-8H",plan:"Pro 月度",amount:"¥9.90",status:"redeemed",time:"2026-07-29 18:15"},
+];
+const ST={redeemed:["b-redeemed","已兑换"],pending:["b-pending","待处理"],revoked:["b-revoked","已退款"]};
+const tbody=document.getElementById('tbody');
+ORDERS.forEach(o=>{
+  const [sc,sl]=ST[o.status];
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td class="mono" style="font-size:12.5px">${o.id}</td>
+    <td class="mono" style="font-size:13px">${o.user}</td>
+    <td class="mono" style="font-size:12.5px;color:var(--brand-600)">${o.code}</td>
+    <td>${o.plan}</td>
+    <td class="mono">${o.amount}</td>
+    <td><span class="badge ${sc}"><span class="dot"></span>${sl}</span></td>
+    <td style="font-size:12.5px;color:var(--muted)">${o.time}</td>
+    <td><div class="row-actions">${o.status==='redeemed'?'<button class="act-btn danger" title="退款 clawback"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>退款</button>':''}</div></td>`;
+  tbody.appendChild(tr);
+});
+
+document.querySelectorAll('.fpill').forEach(p=>p.addEventListener('click',()=>{document.querySelectorAll('.fpill').forEach(x=>x.classList.remove('active'));p.classList.add('active');}));
+const sidebar=document.getElementById('sidebar');
+document.getElementById('collapseBtn').addEventListener('click',()=>{if(window.innerWidth>=768)sidebar.classList.toggle('collapsed');});
+const hamburger=document.getElementById('hamburger'),overlay=document.getElementById('overlay');
+hamburger.addEventListener('click',()=>{sidebar.classList.add('mobile-open');overlay.classList.add('visible');});
+overlay.addEventListener('click',()=>{sidebar.classList.remove('mobile-open');overlay.classList.remove('visible');});
+document.getElementById('themeToggle').addEventListener('click',()=>document.documentElement.classList.toggle('dark'));
+</script>
+</body>
+</html>

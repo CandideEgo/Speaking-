@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 定价方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord 定价页 · 会员漏斗起点 ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;
+  --brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+}
+html.dark {
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0a0a0a;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
+  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+.container-page{max-width:1080px;margin:0 auto;padding:0 16px;}
+@media(min-width:640px){.container-page{padding:0 28px;}}
+
+/* ── 顶导航（精简） ── */
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}
+.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-spacer{flex:1;}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+.pro-badge{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:var(--r-pill);font-size:12px;font-weight:700;background:linear-gradient(135deg,var(--brand-500),var(--brand-600));color:#fff;box-shadow:var(--shadow-brand);}
+.nav-auth-btn{display:inline-flex;align-items:center;height:34px;padding:0 16px;border-radius:var(--r-sm);font-size:13px;font-weight:600;transition:all .15s;}
+.nav-auth-btn.ghost{color:var(--muted);}
+.nav-auth-btn.ghost:hover{color:var(--ink);background:var(--surface-card);}
+.nav-auth-btn.solid{background:var(--ink);color:var(--canvas);}
+.nav-auth-btn.solid:hover{background:var(--brand-500);}
+
+/* ── 页头 ── */
+.page-head{text-align:center;padding:48px 0 24px;}
+.crumb{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--brand-600);background:var(--brand-50);padding:5px 12px;border-radius:var(--r-pill);letter-spacing:.04em;text-transform:uppercase;}
+.page-head h1{font-size:38px;font-weight:800;letter-spacing:-0.03em;margin:16px 0 10px;line-height:1.1;}
+.page-head .sub{font-size:16px;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.6;}
+
+/* ── 合规提示 ── */
+.compliance{max-width:680px;margin:24px auto 0;border:1px solid var(--hairline);background:var(--surface-card);border-radius:var(--r-lg);padding:14px 18px;font-size:13px;line-height:1.65;color:var(--muted);text-align:center;}
+.compliance strong{color:var(--ink);font-weight:600;}
+.compliance a{color:var(--brand-500);font-weight:600;text-decoration:underline;}
+
+/* ── 套餐卡 ── */
+.plan-wrap{max-width:420px;margin:36px auto 0;}
+.plan-card{position:relative;overflow:hidden;border:1px solid var(--hairline);background:var(--canvas);border-radius:var(--r-xl);box-shadow:var(--shadow-lift);}
+.plan-card::before{content:"";position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,31,.18),transparent 70%);pointer-events:none;}
+.popular-tag{position:absolute;top:18px;right:18px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 11px;border-radius:var(--r-pill);background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);letter-spacing:.04em;text-transform:uppercase;}
+.plan-body{position:relative;padding:32px 30px 28px;}
+.plan-name{font-size:15px;font-weight:700;color:var(--muted);letter-spacing:.02em;}
+.plan-price{margin:10px 0 4px;display:flex;align-items:baseline;gap:4px;}
+.plan-price .amt{font-size:52px;font-weight:800;letter-spacing:-0.04em;color:var(--ink);}
+.plan-price .cur{font-size:24px;font-weight:700;color:var(--ink);}
+.plan-price .per{font-size:16px;font-weight:500;color:var(--muted);}
+.plan-desc{font-size:13px;color:var(--muted);margin-bottom:22px;}
+.plan-features{list-style:none;display:flex;flex-direction:column;gap:11px;margin-bottom:26px;}
+.plan-features li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--body);line-height:1.45;}
+.plan-features li svg{flex-shrink:0;margin-top:2px;color:var(--success);}
+.plan-cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border-radius:var(--r-lg);font-size:15px;font-weight:600;background:var(--brand-500);color:var(--on-primary);box-shadow:var(--shadow-brand);transition:all .2s;}
+.plan-cta:hover{background:var(--brand-600);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,90,31,.32);}
+.plan-cta:active{transform:scale(.98);}
+.plan-note{margin-top:14px;font-size:12px;color:var(--muted-soft);text-align:center;}
+
+/* ── 已是 Pro 状态 ── */
+.is-pro-banner{max-width:680px;margin:20px auto 0;border:1px solid color-mix(in oklab,var(--success) 30%,transparent);background:var(--success-soft);border-radius:var(--r-lg);padding:14px 18px;text-align:center;font-size:14px;color:var(--success);font-weight:500;display:none;align-items:center;justify-content:center;gap:8px;}
+.is-pro-banner.visible{display:flex;}
+
+/* ── 功能对比 ── */
+.compare{max-width:680px;margin:48px auto 0;border:1px solid var(--hairline);background:var(--canvas);border-radius:var(--r-xl);overflow:hidden;}
+.compare-head{padding:22px 26px 6px;}
+.compare-head h3{font-size:17px;font-weight:700;}
+.compare-head p{font-size:13px;color:var(--muted);margin-top:4px;}
+.compare-table{width:100%;border-collapse:collapse;font-size:14px;}
+.compare-table th,.compare-table td{padding:14px 26px;text-align:center;border-top:1px solid var(--hairline-soft);}
+.compare-table th{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-top:18px;padding-bottom:18px;}
+.compare-table th.col-pro{color:var(--brand-500);}
+.compare-table td.feat{text-align:left;color:var(--ink);font-weight:500;}
+.compare-table tr:hover td{background:var(--surface-soft);}
+.compare-table .yes{color:var(--success);display:inline-flex;}
+.compare-table .no{color:var(--muted-soft);}
+.compare-table .txt{color:var(--body);font-weight:500;}
+.compare-table td.col-pro{background:color-mix(in oklab,var(--brand-50) 50%,transparent);}
+
+/* ── 底部 ── */
+.bottom-cta{text-align:center;margin:48px 0 24px;font-size:13px;color:var(--muted);}
+.bottom-cta a{color:var(--brand-600);font-weight:600;text-decoration:underline;}
+
+footer{border-top:1px solid var(--hairline);padding:24px 0 40px;text-align:center;font-size:12px;color:var(--muted-soft);line-height:1.8;}
+footer a{color:var(--muted);}
+footer a:hover{color:var(--ink);}
+
+/* 移动端 tab */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+
+@media(max-width:640px){
+  .nav-links{display:none;}
+  .page-head h1{font-size:30px;}
+  .page-head{padding:32px 0 18px;}
+  .compare-table th,.compare-table td{padding:12px 14px;}
+  .compare-table td.feat{font-size:13px;}
+}
+</style>
+</head>
+<body>
+
+<!-- 顶导航 -->
+<nav class="topbar">
+  <a class="nav-logo" href="00-router.html">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">See<span class="word">Word</span></span>
+  </a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">发现</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="nav-actions" id="navActions">
+    <button class="icon-btn" id="themeToggle" aria-label="切换主题" title="切换主题">
+      <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <div id="navAuth"></div>
+  </div>
+</nav>
+
+<!-- 页头 -->
+<header class="container-page page-head">
+  <span class="crumb">升级 Pro</span>
+  <h1>选择适合你的计划</h1>
+  <p class="sub">免费开始，需要更多功能再升级。Pro 会员 ¥9.9/月，30 天/码，可叠加续期。</p>
+</header>
+
+<!-- 合规提示 -->
+<div class="container-page">
+  <div class="compliance">
+    本网站为<strong>非经营性工具展示平台</strong>，不提供在线支付。Pro 会员通过
+    <strong>微信小商店</strong>购买，购买后使用<a href="19-redeem.html">兑换码</a>激活。
+  </div>
+  <div class="is-pro-banner" id="isProBanner">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+    你已是 Pro 会员，感谢支持 SeeWord
+  </div>
+</div>
+
+<!-- 套餐卡 -->
+<section class="container-page">
+  <div class="plan-wrap">
+    <div class="plan-card">
+      <span class="popular-tag">最受欢迎</span>
+      <div class="plan-body">
+        <div class="plan-name">Pro 月度</div>
+        <div class="plan-price">
+          <span class="cur">¥</span><span class="amt">9.9</span><span class="per">/月</span>
+        </div>
+        <div class="plan-desc">30 天有效，可叠加续期 · 兑换码激活</div>
+        <ul class="plan-features">
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>无限视频与双语字幕</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>AI 词汇注释查询</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>SM-2 无限词汇复习</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>考级词汇标注（CET / 高考 / 考研）</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>创作者优先审核</li>
+        </ul>
+        <button class="plan-cta" id="buyCta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          前往小商店购买
+        </button>
+        <div class="plan-note">购买后在小商店获得兑换码，回本站激活</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 功能对比 -->
+<section class="container-page">
+  <div class="compare">
+    <div class="compare-head">
+      <h3>功能对比</h3>
+      <p>看看免费版和 Pro 版的区别</p>
+    </div>
+    <table class="compare-table">
+      <thead>
+        <tr><th style="text-align:left">功能</th><th>Free</th><th class="col-pro">Pro</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="feat">每日视频观看</td><td><span class="txt">3 个</span></td><td class="col-pro"><span class="txt">无限</span></td></tr>
+        <tr><td class="feat">双语字幕</td><td><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td><td class="col-pro"><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td></tr>
+        <tr><td class="feat">考级词汇标注</td><td><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td><td class="col-pro"><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td></tr>
+        <tr><td class="feat">AI 词汇注释</td><td><span class="no">—</span></td><td class="col-pro"><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td></tr>
+        <tr><td class="feat">SM-2 词汇复习</td><td><span class="txt">基础</span></td><td class="col-pro"><span class="txt">无限</span></td></tr>
+        <tr><td class="feat">创作者优先审核</td><td><span class="no">—</span></td><td class="col-pro"><span class="yes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 底部 -->
+<div class="container-page">
+  <p class="bottom-cta">已购买？通过<a href="19-redeem.html">兑换码</a>激活 Pro 会员</p>
+</div>
+
+<footer>
+  <div class="container-page">
+    SeeWord · 看视频学英语 ·
+    <a href="20-terms.html">用户协议</a> · <a href="21-privacy.html">隐私政策</a>
+    <br>本网站为非经营性工具展示平台，不提供在线支付
+  </div>
+</footer>
+
+<!-- 移动端 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+
+<script>
+// auth 状态：guest 显示登录/注册；登录态显示 Pro badge + avatar
+const AUTH_KEY='seeword_auth';
+const isGuest=localStorage.getItem(AUTH_KEY)!=='1';
+const swUser=localStorage.getItem('seeword_user')||'小林';
+const isPro=localStorage.getItem('seeword_pro')==='1';
+
+(function applyAuth(){
+  const navAuth=document.getElementById('navAuth');
+  if(isGuest){
+    navAuth.innerHTML='<a href="01-login.html" class="nav-auth-btn ghost">登录</a><a href="02-register.html" class="nav-auth-btn solid" style="margin-left:8px">注册</a>';
+  }else{
+    navAuth.innerHTML=(isPro?'<span class="pro-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>Pro</span><div style="width:8px"></div>':'')+'<a href="07-profile.html" style="display:inline-flex"><span class="avatar">'+swUser.charAt(0)+'</span></a>';
+    if(isPro){document.getElementById('isProBanner').classList.add('visible');}
+  }
+})();
+
+// 购买 CTA -> 小商店入口页
+document.getElementById('buyCta').addEventListener('click',()=>{
+  location.href='18-upgrade.html';
+});
+
+// 主题切换
+const themeToggle=document.getElementById('themeToggle');
+const iconSun=themeToggle.querySelector('.icon-sun');
+const iconMoon=themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+  const isDark=document.documentElement.classList.contains('dark');
+  iconSun.style.display=isDark?'none':'block';
+  iconMoon.style.display=isDark?'block':'none';
+});
+</script>
+</body>
+</html>

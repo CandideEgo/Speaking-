@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord Admin - 数据统计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;--ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;--hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;--sidebar-bg:#ffffff;--brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;--indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;--on-primary:#ffffff;--shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);--shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);--shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);--shadow-brand:0 8px 24px rgba(255,90,31,0.28);--r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;--ease:cubic-bezier(.22,.61,.36,1);}
+html.dark{--canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;--ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;--hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0e0e10;--sidebar-bg:#0e0e10;--brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;--indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;--shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);--shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);--shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--surface-soft);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
+::selection{background:var(--brand-500);color:#fff;}button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}a{text-decoration:none;color:inherit;}
+.layout{display:flex;min-height:100vh;}
+.sidebar{width:248px;flex-shrink:0;background:var(--sidebar-bg);border-right:1px solid var(--hairline);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;transform:translateX(-100%);transition:transform .25s var(--ease),width .25s var(--ease);}
+.sidebar.mobile-open{transform:translateX(0);}
+@media(min-width:768px){.sidebar{position:sticky;transform:none;}.sidebar.collapsed{width:72px;}}
+.sb-brand{display:flex;align-items:center;gap:11px;height:64px;border-bottom:1px solid var(--hairline);padding:0 18px;flex-shrink:0;}
+.sb-brand .mark{width:34px;height:34px;border-radius:var(--r-sm);background:var(--brand-500);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:var(--shadow-brand);flex-shrink:0;}
+.sb-brand .bt{line-height:1.2;white-space:nowrap;overflow:hidden;}.sb-brand .bt .n{font-size:15px;font-weight:800;}.sb-brand .bt .s{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-soft);}
+.sidebar.collapsed .sb-brand .bt{display:none;}.sidebar.collapsed .sb-brand{justify-content:center;padding:0;}
+.sb-nav{flex:1;overflow-y:auto;padding:16px 12px;}.sb-section{margin-bottom:18px;}.sb-section-title{font-size:10.5px;font-weight:700;color:var(--muted-soft);text-transform:uppercase;letter-spacing:.08em;padding:0 12px;margin-bottom:6px;}
+.sidebar.collapsed .sb-section-title{font-size:0;height:8px;padding:0;}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:13.5px;font-weight:500;color:var(--muted);transition:all .15s;white-space:nowrap;margin-bottom:1px;position:relative;}
+.sb-item svg{flex-shrink:0;}.sb-item:hover{color:var(--ink);background:var(--surface-soft);}.sb-item.active{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.sidebar.collapsed .sb-item{justify-content:center;}.sidebar.collapsed .sb-item span.lbl{display:none;}
+.sb-item .badge{margin-left:auto;background:var(--brand-100);color:var(--brand-700);font-size:11px;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);min-width:20px;text-align:center;}.sb-item.active .badge{background:rgba(255,255,255,.22);color:#fff;}
+.sidebar.collapsed .sb-item .badge{position:absolute;top:2px;right:2px;margin:0;min-width:16px;height:16px;font-size:9px;padding:0 4px;}
+.sb-foot{border-top:1px solid var(--hairline);padding:10px 12px;}.sb-foot .sb-item{font-size:12.5px;}
+.sb-collapse{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-size:12.5px;color:var(--muted);transition:all .15s;width:100%;}.sb-collapse:hover{color:var(--ink);background:var(--surface-soft);}.sb-collapse svg{transition:transform .25s;}
+.sidebar.collapsed .sb-collapse{justify-content:center;}.sidebar.collapsed .sb-collapse span{display:none;}.sidebar.collapsed .sb-collapse svg{transform:rotate(180deg);}
+.mobile-overlay{display:none;position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);}.mobile-overlay.visible{display:block;}
+@media(min-width:768px){.mobile-overlay{display:none!important;}}.hamburger{display:inline-flex;}@media(min-width:768px){.hamburger{display:none;}}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{position:sticky;top:0;z-index:30;height:64px;background:color-mix(in oklab,var(--topbar-bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:14px;padding:0 22px;flex-shrink:0;}
+.hamburger{width:38px;height:38px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);}.hamburger:hover{color:var(--ink);background:var(--surface-card);}
+.crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);}.crumb .cur{color:var(--ink);font-weight:600;}.crumb .sep{color:var(--muted-soft);}
+.topbar-spacer{flex:1;}
+.tb-action{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--muted);background:var(--surface-card);transition:all .15s;}.tb-action:hover{color:var(--ink);background:var(--surface-strong);}.tb-action.icon-only{padding:0;width:36px;justify-content:center;}
+.tb-avatar{display:flex;align-items:center;gap:9px;padding:4px 10px 4px 4px;border-radius:var(--r-pill);background:var(--surface-card);cursor:pointer;}.tb-avatar:hover{background:var(--surface-strong);}.tb-avatar .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;}.tb-avatar .nm{font-size:13px;font-weight:600;}.tb-avatar .rl{font-size:10.5px;color:var(--muted);}
+@media(max-width:640px){.tb-avatar .nm,.tb-avatar .rl{display:none;}.tb-avatar{padding:4px;}}
+.content{padding:24px 22px 48px;flex:1;max-width:1400px;width:100%;}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-0.02em;}.page-head .desc{font-size:13.5px;color:var(--muted);margin-top:4px;}
+.range-pills{display:flex;gap:5px;}
+.fpill{font-size:12.5px;font-weight:500;color:var(--muted);padding:6px 13px;border-radius:var(--r-pill);background:var(--surface-card);transition:all .15s;white-space:nowrap;}
+.fpill:hover{color:var(--ink);background:var(--surface-strong);}.fpill.active{background:var(--ink);color:var(--canvas);}
+.card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:20px;}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;}.card-head h3{font-size:15px;font-weight:700;}.card-head .sub{font-size:12px;color:var(--muted);}
+.mono{font-family:"JetBrains Mono",monospace;font-weight:600;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px;}
+.kpi-icon{width:40px;height:40px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+.kpi-icon.brand{background:var(--brand-50);color:var(--brand-600);}.kpi-icon.indigo{background:var(--indigo-soft);color:var(--indigo);}.kpi-icon.green{background:var(--success-soft);color:var(--success);}.kpi-icon.amber{background:var(--warning-soft);color:var(--warning);}
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.kpi-label{font-size:12.5px;color:var(--muted);margin-top:5px;}
+.kpi-delta{display:inline-flex;align-items:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--success);margin-left:6px;}
+
+.grid-2{display:grid;grid-template-columns:1fr;gap:18px;margin-bottom:18px;}
+@media(min-width:980px){.grid-2{grid-template-columns:1fr 1fr;}}
+
+/* 图表 */
+.chart-legend{display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap;}
+.chart-legend .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+.chart-legend .lg .d{width:9px;height:9px;border-radius:2px;}
+.chart-svg{width:100%;height:220px;display:block;}
+
+/* 柱状图 */
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:200px;padding-top:10px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;}
+.bar{width:100%;max-width:36px;border-radius:var(--r-xs) var(--r-xs) 0 0;transition:opacity .15s;position:relative;}
+.bar:hover{opacity:.85;}
+.bar-label{font-size:11px;color:var(--muted);font-family:"JetBrains Mono",monospace;}
+
+/* 转化漏斗 */
+.funnel{display:flex;flex-direction:column;gap:8px;}
+.funnel-step{display:flex;align-items:center;gap:12px;}
+.funnel-bar-wrap{flex:1;}
+.funnel-bar{height:34px;border-radius:var(--r-sm);display:flex;align-items:center;padding:0 14px;color:#fff;font-size:13px;font-weight:600;position:relative;overflow:hidden;}
+.funnel-name{width:90px;font-size:13px;font-weight:500;color:var(--body);flex-shrink:0;}
+.funnel-num{width:80px;text-align:right;font-size:13px;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;flex-shrink:0;}
+.funnel-pct{font-size:11.5px;color:var(--muted);margin-left:8px;}
+
+/* 分布表 */
+.dist-list{display:flex;flex-direction:column;gap:12px;}
+.dist-row{display:flex;align-items:center;gap:12px;}
+.dist-name{width:90px;font-size:13px;color:var(--body);flex-shrink:0;}
+.dist-track{flex:1;height:24px;background:var(--surface-soft);border-radius:var(--r-xs);overflow:hidden;}
+.dist-fill{height:100%;border-radius:var(--r-xs);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:11.5px;font-weight:600;font-family:"JetBrains Mono",monospace;}
+.dist-val{width:60px;text-align:right;font-size:13px;font-weight:600;color:var(--ink);font-family:"JetBrains Mono",monospace;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <a class="sb-brand" href="25-admin-dashboard.html"><div class="mark">S</div><div class="bt"><div class="n">SeeWord</div><div class="s">管理后台</div></div></a>
+    <nav class="sb-nav">
+      <div class="sb-section"><div class="sb-section-title">概览</div><a class="sb-item" href="25-admin-dashboard.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span class="lbl">仪表盘</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">内容</div><a class="sb-item" href="26-admin-videos.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span class="lbl">视频管理</span><span class="badge">5</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">运营</div><a class="sb-item" href="28-admin-users.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="lbl">用户管理</span></a><a class="sb-item" href="29-admin-orders.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span class="lbl">订单管理</span></a><a class="sb-item" href="30-admin-invites.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/></svg><span class="lbl">兑换码</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">数据</div><a class="sb-item active" href="31-admin-stats.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="lbl">数据统计</span></a></div>
+      <div class="sb-section"><div class="sb-section-title">系统</div><a class="sb-item" href="32-admin-settings.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">系统设置</span></a></div>
+    </nav>
+    <div class="sb-foot"><a class="sb-item" href="23-landing.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span class="lbl">返回用户端</span></a><button class="sb-collapse" id="collapseBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>收起侧栏</span></button></div>
+  </aside>
+  <div class="mobile-overlay" id="overlay"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div class="crumb"><span>数据</span><span class="sep">/</span><span class="cur">数据统计</span></div>
+      <div class="topbar-spacer"></div>
+      <button class="tb-action icon-only" id="themeToggle"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
+      <div class="tb-avatar"><div class="av">管</div><div><div class="nm">管理员</div><div class="rl">超级管理员</div></div></div>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <div><h1>数据统计</h1><div class="desc">平台核心指标 · 多维度分析</div></div>
+        <div class="range-pills"><button class="fpill">7 天</button><button class="fpill active">30 天</button><button class="fpill">90 天</button><button class="fpill">全部</button></div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-icon brand"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="kpi-val">2,847</div><div class="kpi-label">总用户<span class="kpi-delta">+14.2%</span></div></div>
+        <div class="kpi-card"><div class="kpi-icon indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="kpi-val">1,236</div><div class="kpi-label">日均活跃<span class="kpi-delta">+8.5%</span></div></div>
+        <div class="kpi-card"><div class="kpi-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="kpi-val">186</div><div class="kpi-label">视频总数<span class="kpi-delta">+12</span></div></div>
+        <div class="kpi-card"><div class="kpi-icon amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 7l5.5 4L12 4l3.5 7L21 7l-2 9H5z"/></svg></div><div class="kpi-val">412</div><div class="kpi-label">Pro 会员<span class="kpi-delta">+9.1%</span></div></div>
+      </div>
+
+      <!-- 注册 vs 活跃 -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><div><h3>注册 vs 活跃</h3><div class="sub">近 30 天</div></div></div>
+          <div class="chart-legend"><span class="lg"><span class="d" style="background:var(--brand-500)"></span>新增注册</span><span class="lg"><span class="d" style="background:var(--indigo)"></span>日活</span></div>
+          <svg class="chart-svg" viewBox="0 0 560 220" preserveAspectRatio="none">
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff5a1f" stop-opacity="0.18"/><stop offset="100%" stop-color="#ff5a1f" stop-opacity="0"/></linearGradient></defs>
+            <g stroke="var(--hairline)"><line x1="0" y1="55" x2="560" y2="55"/><line x1="0" y1="110" x2="560" y2="110"/><line x1="0" y1="165" x2="560" y2="165"/></g>
+            <path d="M0,180 L40,175 L80,165 L120,155 L160,145 L200,140 L240,130 L280,120 L320,115 L360,105 L400,95 L440,85 L480,75 L520,65 L560,55 L560,220 L0,220 Z" fill="url(#g1)"/>
+            <path d="M0,180 L40,175 L80,165 L120,155 L160,145 L200,140 L240,130 L280,120 L320,115 L360,105 L400,95 L440,85 L480,75 L520,65 L560,55" fill="none" stroke="#ff5a1f" stroke-width="2"/>
+            <path d="M0,150 L40,145 L80,140 L120,135 L160,130 L200,125 L240,115 L280,110 L320,100 L360,95 L400,85 L440,80 L480,70 L520,60 L560,50" fill="none" stroke="#6366f1" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <!-- 视频分类分布 -->
+        <div class="card">
+          <div class="card-head"><div><h3>视频分类分布</h3><div class="sub">按主题</div></div></div>
+          <div class="dist-list">
+            <div class="dist-row"><span class="dist-name">科技</span><div class="dist-track"><div class="dist-fill" style="width:88%;background:var(--brand-500)">38</div></div><span class="dist-val">38</span></div>
+            <div class="dist-row"><span class="dist-name">自然</span><div class="dist-track"><div class="dist-fill" style="width:72%;background:var(--indigo)">31</div></div><span class="dist-val">31</span></div>
+            <div class="dist-row"><span class="dist-name">教育</span><div class="dist-track"><div class="dist-fill" style="width:60%;background:var(--success)">26</div></div><span class="dist-val">26</span></div>
+            <div class="dist-row"><span class="dist-name">文化</span><div class="dist-track"><div class="dist-fill" style="width:52%;background:var(--warning)">22</div></div><span class="dist-val">22</span></div>
+            <div class="dist-row"><span class="dist-name">日常</span><div class="dist-track"><div class="dist-fill" style="width:44%;background:#0ea5e9">19</div></div><span class="dist-val">19</span></div>
+            <div class="dist-row"><span class="dist-name">商业</span><div class="dist-track"><div class="dist-fill" style="width:34%;background:#a855f7">15</div></div><span class="dist-val">15</span></div>
+            <div class="dist-row"><span class="dist-name">演讲</span><div class="dist-track"><div class="dist-fill" style="width:26%;background:#14b8a6">11</div></div><span class="dist-val">11</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pro 转化漏斗 + 难度分布 -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><div><h3>Pro 转化漏斗</h3><div class="sub">注册 -> Pro</div></div></div>
+          <div class="funnel">
+            <div class="funnel-step"><span class="funnel-name">注册用户</span><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:100%;background:var(--brand-500)">2,847</div></div><span class="funnel-num">2,847</span><span class="funnel-pct">100%</span></div>
+            <div class="funnel-step"><span class="funnel-name">观看视频</span><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:72%;background:var(--brand-400)">2,050</div></div><span class="funnel-num">2,050</span><span class="funnel-pct">72%</span></div>
+            <div class="funnel-step"><span class="funnel-name">收藏词汇</span><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:48%;background:var(--indigo)">1,366</div></div><span class="funnel-num">1,366</span><span class="funnel-pct">48%</span></div>
+            <div class="funnel-step"><span class="funnel-name">兑换 Pro</span><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:14.5%;background:var(--success)">412</div></div><span class="funnel-num">412</span><span class="funnel-pct">14.5%</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h3>每日词汇学习量</h3><div class="sub">近 7 天</div></div></div>
+          <div class="bar-chart">
+            <div class="bar-col"><div class="bar" style="height:55%;background:var(--brand-300)"></div><span class="bar-label">周一</span></div>
+            <div class="bar-col"><div class="bar" style="height:70%;background:var(--brand-400)"></div><span class="bar-label">周二</span></div>
+            <div class="bar-col"><div class="bar" style="height:62%;background:var(--brand-300)"></div><span class="bar-label">周三</span></div>
+            <div class="bar-col"><div class="bar" style="height:85%;background:var(--brand-500)"></div><span class="bar-label">周四</span></div>
+            <div class="bar-col"><div class="bar" style="height:78%;background:var(--brand-400)"></div><span class="bar-label">周五</span></div>
+            <div class="bar-col"><div class="bar" style="height:95%;background:var(--brand-600)"></div><span class="bar-label">周六</span></div>
+            <div class="bar-col"><div class="bar" style="height:90%;background:var(--brand-500)"></div><span class="bar-label">周日</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.range-pills .fpill').forEach(p=>p.addEventListener('click',()=>{document.querySelectorAll('.range-pills .fpill').forEach(x=>x.classList.remove('active'));p.classList.add('active');}));
+const sidebar=document.getElementById('sidebar');
+document.getElementById('collapseBtn').addEventListener('click',()=>{if(window.innerWidth>=768)sidebar.classList.toggle('collapsed');});
+const hamburger=document.getElementById('hamburger'),overlay=document.getElementById('overlay');
+hamburger.addEventListener('click',()=>{sidebar.classList.add('mobile-open');overlay.classList.add('visible');});
+overlay.addEventListener('click',()=>{sidebar.classList.remove('mobile-open');overlay.classList.remove('visible');});
+document.getElementById('themeToggle').addEventListener('click',()=>document.documentElement.classList.toggle('dark'));
+</script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 学习记录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;
+  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input{font-family:inherit;}
+
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-search{flex:1;max-width:420px;margin:0 auto;position:relative;}
+.nav-search input{width:100%;height:40px;padding:0 16px 0 38px;font-size:14px;color:var(--ink);background:var(--surface-card);border:1px solid transparent;border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.nav-search input::placeholder{color:var(--muted-soft);}
+.nav-search input:focus{background:var(--canvas);border-color:var(--ink);box-shadow:0 0 0 3px rgba(255,90,31,.12);}
+.nav-search .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.icon-btn.active{color:var(--brand-500);background:var(--brand-50);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links,.nav-search{display:none;}}
+
+.container-page{max-width:920px;margin:0 auto;padding:28px 16px 80px;}
+@media(min-width:640px){.container-page{padding:36px 28px 80px;}}
+.page-head{margin-bottom:24px;}
+.crumb{font-size:12px;color:var(--muted-soft);font-weight:500;margin-bottom:6px;}
+.page-head h1{font-size:26px;font-weight:800;letter-spacing:-0.025em;}
+
+/* 统计 */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+@media(max-width:680px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px 20px;box-shadow:var(--shadow-soft);}
+.stat-card .n{font-size:26px;font-weight:800;color:var(--ink);font-family:"JetBrains Mono",monospace;letter-spacing:-0.02em;}
+.stat-card .l{font-size:12px;color:var(--muted);margin-top:4px;}
+
+/* 日期分组 */
+.day-group{margin-bottom:28px;}
+.day-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.day-head .date{font-size:14px;font-weight:700;color:var(--ink);}
+.day-head .sum{font-size:12px;color:var(--muted-soft);}
+.day-head .line{flex:1;height:1px;background:var(--hairline);}
+
+.rec-item{display:flex;align-items:center;gap:14px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:12px 16px;margin-bottom:8px;transition:all .15s;}
+.rec-item:hover{transform:translateX(2px);box-shadow:var(--shadow-soft);border-color:var(--brand-100);}
+.rec-thumb{width:64px;height:40px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.rec-info{flex:1;min-width:0;}
+.rec-title{font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rec-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;}
+.rec-meta .done{color:var(--success);font-weight:600;}
+.rec-meta .pending{color:var(--warning);font-weight:600;}
+.rec-prog{width:60px;flex-shrink:0;}
+.rec-prog .track{height:4px;border-radius:2px;background:var(--surface-card);overflow:hidden;}
+.rec-prog .fill{height:100%;background:var(--brand-500);}
+.rec-prog .lbl{font-size:10px;color:var(--muted-soft);margin-top:3px;text-align:right;font-family:"JetBrains Mono",monospace;}
+.rec-resume{display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--r-sm);background:var(--ink);color:var(--canvas);font-size:12px;font-weight:600;flex-shrink:0;transition:all .15s;}
+.rec-resume:hover{background:var(--brand-500);}
+@media(max-width:560px){.rec-prog{display:none;}}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html"><span class="logo-mark">S</span><span class="logo-text">See<span class="word">Word</span></span></a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">浏览</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+  </div>
+  <div class="nav-search"><span class="si"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input placeholder="搜索视频或词汇…" onfocus="location.href='13-search.html'"></div>
+  <div class="nav-actions">
+    <a class="icon-btn active" href="12-history.html" title="学习记录"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></a>
+    <a class="avatar" href="07-profile.html">林</a>
+  </div>
+</nav>
+
+<div class="container-page">
+  <div class="page-head">
+    <div class="crumb">学习历史</div>
+    <h1>学习记录</h1>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="n">12h 36m</div><div class="l">本周学习时长</div></div>
+    <div class="stat-card"><div class="n">42</div><div class="l">已学视频</div></div>
+    <div class="stat-card"><div class="n">8</div><div class="l">学完视频</div></div>
+    <div class="stat-card"><div class="n">13</div><div class="l">连续天数</div></div>
+  </div>
+
+  <div id="groups"></div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+const DAYS=[
+  {date:"今天",sum:"2 个视频 · 38 分钟",recs:[
+    {emoji:"🌙",bg:"linear-gradient(135deg,#1e1b4b,#4338ca)",title:"为什么我们做梦？睡眠的科学",dur:"8:24",prog:64,time:"28 分钟",status:"pending"},
+    {emoji:"🤖",bg:"linear-gradient(135deg,#3b0764,#7e22ce)",title:"人工智能会取代我们吗",dur:"10:15",prog:15,time:"10 分钟",status:"pending"},
+  ]},
+  {date:"昨天",sum:"1 个视频 · 12 分钟",recs:[
+    {emoji:"🌊",bg:"linear-gradient(135deg,#0c4a6e,#0284c7)",title:"海洋深处的未知世界",dur:"9:48",prog:100,time:"12 分钟",status:"done"},
+  ]},
+  {date:"7 月 28 日",sum:"2 个视频 · 45 分钟",recs:[
+    {emoji:"🚀",bg:"linear-gradient(135deg,#7c2d12,#ea580c)",title:"火星移民：现实还是幻想",dur:"14:20",prog:100,time:"22 分钟",status:"done"},
+    {emoji:"🎸",bg:"linear-gradient(135deg,#500724,#be123c)",title:"音乐如何影响大脑",dur:"12:33",prog:42,time:"23 分钟",status:"pending"},
+  ]},
+  {date:"7 月 27 日",sum:"1 个视频 · 18 分钟",recs:[
+    {emoji:"🧠",bg:"linear-gradient(135deg,#064e3b,#059669)",title:"记忆如何形成与遗忘",dur:"11:02",prog:30,time:"18 分钟",status:"pending"},
+  ]},
+];
+document.getElementById("groups").innerHTML=DAYS.map(d=>`
+  <div class="day-group">
+    <div class="day-head"><span class="date">${d.date}</span><span class="sum">${d.sum}</span><span class="line"></span></div>
+    ${d.recs.map(r=>`
+      <a class="rec-item" href="05-watch.html">
+        <div class="rec-thumb" style="background:${r.bg}">${r.emoji}</div>
+        <div class="rec-info">
+          <div class="rec-title">${r.title}</div>
+          <div class="rec-meta">
+            <span>${r.dur}</span><span>·</span><span>${r.time}</span>
+            <span>·</span><span class="${r.status==='done'?'done':'pending'}">${r.status==='done'?'已学完':'进行中'}</span>
+          </div>
+        </div>
+        <div class="rec-prog"><div class="track"><div class="fill" style="width:${r.prog}%"></div></div><div class="lbl">${r.prog}%</div></div>
+        <span class="rec-resume">${r.status==='done'?'复习':'续播'}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-6-7l7 7-7 7"/></svg></span>
+      </a>`).join("")}
+  </div>`).join("");
+
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

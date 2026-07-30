@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 看真实视频，学地道英语</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord 落地页 · 漏斗入口 ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;
+  --brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+html.dark {
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0a0a0a;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
+  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);scroll-behavior:smooth;}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--canvas);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;overflow-x:hidden;}
+::selection{background:var(--brand-500);color:#fff;}
+a{text-decoration:none;color:inherit;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+
+.container{max-width:1120px;margin:0 auto;padding:0 20px;}
+
+/* 顶导航 */
+.topbar{position:sticky;top:0;z-index:50;height:68px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline);}
+.topbar-inner{max-width:1120px;margin:0 auto;padding:0 20px;height:100%;display:flex;align-items:center;gap:20px;}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:34px;height:34px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;}
+.logo-text{font-weight:800;font-size:19px;letter-spacing:-0.02em;color:var(--ink);}
+.logo-text .word{color:var(--brand-500);}
+.nav-spacer{flex:1;}
+.nav-links{display:flex;gap:2px;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-actions{display:flex;align-items:center;gap:8px;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:600;transition:all .2s var(--ease);border-radius:var(--r-lg);}
+.btn-ghost{font-size:14px;color:var(--muted);padding:9px 16px;}
+.btn-ghost:hover{color:var(--ink);background:var(--surface-card);}
+.btn-primary{font-size:14px;background:var(--brand-500);color:#fff;padding:10px 20px;box-shadow:var(--shadow-brand);}
+.btn-primary:hover{background:var(--brand-600);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,90,31,.32);}
+.btn-dark{font-size:14px;background:var(--ink);color:var(--canvas);padding:10px 20px;}
+.btn-dark:hover{transform:translateY(-2px);}
+
+/* ── Hero ── */
+.hero{position:relative;padding:72px 0 56px;overflow:hidden;}
+.hero::before{content:"";position:absolute;top:-100px;right:-100px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,31,.14),transparent 65%);pointer-events:none;}
+.hero::after{content:"";position:absolute;bottom:-120px;left:-80px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.08),transparent 65%);pointer-events:none;}
+.hero-inner{position:relative;text-align:center;max-width:760px;margin:0 auto;}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--brand-600);background:var(--brand-50);border:1px solid var(--brand-100);padding:6px 14px;border-radius:var(--r-pill);margin-bottom:24px;}
+.hero-badge .pulse{width:7px;height:7px;border-radius:50%;background:var(--brand-500);box-shadow:0 0 0 0 rgba(255,90,31,.5);animation:pulse 2s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,90,31,.5);}70%{box-shadow:0 0 0 8px rgba(255,90,31,0);}100%{box-shadow:0 0 0 0 rgba(255,90,31,0);}}
+.hero h1{font-size:clamp(36px,6vw,60px);font-weight:900;letter-spacing:-0.035em;line-height:1.05;margin-bottom:20px;}
+.hero h1 .accent{background:linear-gradient(135deg,var(--brand-500),var(--brand-400));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero-sub{font-size:clamp(16px,2.2vw,19px);color:var(--muted);line-height:1.6;max-width:560px;margin:0 auto 36px;}
+.hero-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;}
+.hero-ctas .btn{padding:14px 28px;font-size:15px;}
+.hero-note{font-size:13px;color:var(--muted-soft);}
+
+/* Hero 视觉：视频卡预览 */
+.hero-visual{position:relative;max-width:880px;margin:56px auto 0;}
+.hero-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+@media(max-width:768px){.hero-cards{grid-template-columns:1fr;}}
+.preview-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shadow-lift);transition:transform .3s var(--ease);}
+.preview-card:nth-child(1){transform:translateY(0);}
+.preview-card:nth-child(2){transform:translateY(-14px);}
+.preview-card:nth-child(3){transform:translateY(0);}
+@media(max-width:768px){.preview-card{transform:none!important;}}
+.preview-card:hover{transform:translateY(-6px);}
+.preview-thumb{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;font-size:38px;position:relative;}
+.preview-thumb-1{background:linear-gradient(135deg,#1e1b4b,#4338ca);}
+.preview-thumb-2{background:linear-gradient(135deg,#042f2e,#0d9488);}
+.preview-thumb-3{background:linear-gradient(135deg,#451a03,#b45309);}
+.preview-badge{position:absolute;left:8px;top:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);background:rgba(255,255,255,.92);color:#6366f1;}
+.preview-meta{padding:13px 15px;}
+.preview-meta .t{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:6px;}
+.preview-meta .f{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);}
+.preview-meta .f .dot{width:3px;height:3px;border-radius:50%;background:var(--muted-soft);}
+.preview-meta .f .words{font-family:"JetBrains Mono",monospace;color:var(--brand-500);font-weight:600;}
+
+/* ── 通用 section ── */
+.section{padding:80px 0;}
+.section-head{text-align:center;max-width:640px;margin:0 auto 56px;}
+.section-tag{display:inline-block;font-size:12px;font-weight:700;color:var(--brand-600);background:var(--brand-50);padding:5px 13px;border-radius:var(--r-pill);letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;}
+.section-head h2{font-size:clamp(28px,4vw,40px);font-weight:800;letter-spacing:-0.03em;line-height:1.15;margin-bottom:14px;}
+.section-head p{font-size:16px;color:var(--muted);line-height:1.65;}
+
+/* ── 特性三栏 ── */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+@media(max-width:880px){.features{grid-template-columns:1fr;}}
+.feature-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-xl);padding:32px 28px;transition:all .25s var(--ease);position:relative;overflow:hidden;}
+.feature-card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lift);border-color:transparent;}
+.feature-icon{width:52px;height:52px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
+.feature-icon.brand{background:var(--brand-50);color:var(--brand-500);}
+.feature-icon.indigo{background:var(--indigo-soft);color:var(--indigo);}
+.feature-icon.success{background:var(--success-soft);color:var(--success);}
+.feature-card h3{font-size:19px;font-weight:700;letter-spacing:-0.015em;margin-bottom:10px;}
+.feature-card p{font-size:14.5px;color:var(--muted);line-height:1.65;}
+
+/* ── 学习闭环 ── */
+.loop-section{background:var(--surface-soft);}
+.loop{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;justify-content:center;}
+.loop-step{flex:1;min-width:160px;max-width:200px;text-align:center;padding:24px 16px;position:relative;}
+.loop-step:not(:last-child)::after{content:"";position:absolute;right:-10px;top:50%;transform:translateY(-50%);width:20px;height:20px;background:var(--canvas);border:1px solid var(--hairline);border-left:none;border-bottom:none;transform:translateY(-50%) rotate(45deg);z-index:1;}
+@media(max-width:880px){
+  .loop-step{flex:1 1 40%;max-width:none;}
+  .loop-step:not(:last-child)::after{display:none;}
+}
+.loop-circle{width:64px;height:64px;border-radius:50%;background:var(--canvas);border:2px solid var(--brand-200);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;box-shadow:var(--shadow-soft);}
+.loop-step:nth-child(1) .loop-circle{border-color:var(--brand-300);}
+.loop-step:nth-child(2) .loop-circle{border-color:var(--indigo);}
+.loop-step:nth-child(3) .loop-circle{border-color:var(--success);}
+.loop-step:nth-child(4) .loop-circle{border-color:var(--warning);}
+.loop-step h4{font-size:15px;font-weight:700;margin-bottom:6px;}
+.loop-step p{font-size:13px;color:var(--muted);line-height:1.5;}
+
+/* ── 数据统计 ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;}
+@media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr);}}
+.stat{text-align:center;padding:28px 16px;}
+.stat .n{font-size:clamp(32px,5vw,44px);font-weight:900;letter-spacing:-0.03em;color:var(--brand-500);font-family:"JetBrains Mono",monospace;line-height:1;}
+.stat .l{font-size:13.5px;color:var(--muted);margin-top:10px;font-weight:500;}
+
+/* ── Pro CTA ── */
+.cta-section{padding:80px 0;}
+.cta-card{position:relative;overflow:hidden;background:linear-gradient(135deg,#161616,#0a0a0a);border-radius:var(--r-xl);padding:64px 40px;text-align:center;color:#fafafa;}
+.cta-card::before{content:"";position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,31,.28),transparent 65%);}
+.cta-card::after{content:"";position:absolute;bottom:-60px;left:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.16),transparent 65%);}
+.cta-card .badge{position:relative;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#ff7a45;background:rgba(255,122,69,.15);padding:6px 14px;border-radius:var(--r-pill);letter-spacing:.06em;text-transform:uppercase;margin-bottom:20px;}
+.cta-card h2{position:relative;font-size:clamp(28px,4vw,40px);font-weight:800;letter-spacing:-0.03em;margin-bottom:14px;}
+.cta-card p{position:relative;font-size:16px;color:rgba(250,250,250,.7);max-width:480px;margin:0 auto 32px;line-height:1.6;}
+.cta-card .btn{position:relative;background:var(--brand-500);color:#fff;padding:15px 32px;font-size:15px;box-shadow:var(--shadow-brand);}
+.cta-card .btn:hover{background:var(--brand-600);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,90,31,.4);}
+.cta-card .price-hint{position:relative;font-size:13px;color:rgba(250,250,250,.5);margin-top:16px;}
+
+/* ── 底部 ── */
+footer{border-top:1px solid var(--hairline);padding:48px 0 40px;background:var(--canvas);}
+.footer-grid{display:flex;justify-content:space-between;align-items:flex-start;gap:32px;flex-wrap:wrap;margin-bottom:32px;}
+.footer-brand{max-width:320px;}
+.footer-brand .nav-logo{margin-bottom:14px;}
+.footer-brand p{font-size:13.5px;color:var(--muted);line-height:1.65;}
+.footer-cols{display:flex;gap:64px;flex-wrap:wrap;}
+.footer-col h5{font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;}
+.footer-col a{display:block;font-size:13.5px;color:var(--muted);padding:5px 0;transition:color .15s;}
+.footer-col a:hover{color:var(--brand-500);}
+.footer-bottom{padding-top:24px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--muted-soft);}
+.footer-bottom .legal a{color:var(--muted);margin:0 4px;}
+.footer-bottom .legal a:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- 顶导航 -->
+<nav class="topbar">
+  <div class="topbar-inner">
+    <a class="nav-logo" href="00-router.html">
+      <div class="logo-mark">S</div>
+      <span class="logo-text">See<span class="word">Word</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#loop">学习闭环</a>
+      <a href="22-pricing.html">定价</a>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-actions">
+      <button class="icon-btn" id="themeToggle" aria-label="切换主题" title="切换主题">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <a href="01-login.html" class="btn btn-ghost">登录</a>
+      <a href="02-register.html" class="btn btn-primary">免费开始</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container hero-inner">
+    <span class="hero-badge"><span class="pulse"></span>看视频 · 学词汇 · 真实语境学英语</span>
+    <h1>看真实视频<br>学<span class="accent">地道英语</span></h1>
+    <p class="hero-sub">用你感兴趣的 YouTube 视频学英语。双语字幕、AI 词汇注释、考级标注、科学复习——把每一分钟观看都变成有效学习。</p>
+    <div class="hero-ctas">
+      <a href="02-register.html" class="btn btn-primary">
+        免费开始学习
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="03-home-b-seeword.html" class="btn btn-dark">先逛逛首页</a>
+    </div>
+    <p class="hero-note">免费版每日 3 个视频 · 无需信用卡 · 随时升级 Pro</p>
+
+    <!-- 视频卡预览 -->
+    <div class="hero-visual">
+      <div class="hero-cards">
+        <div class="preview-card">
+          <div class="preview-thumb preview-thumb-1">🌙<span class="preview-badge">B1</span></div>
+          <div class="preview-meta">
+            <div class="t">为什么我们做梦？睡眠的科学</div>
+            <div class="f"><span>SciShow</span><span class="dot"></span><span class="words">23 词</span></div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <div class="preview-thumb preview-thumb-2">🐙<span class="preview-badge" style="color:#d97706">B2</span></div>
+          <div class="preview-meta">
+            <div class="t">深海生物：地球最神秘的角落</div>
+            <div class="f"><span>BBC Earth</span><span class="dot"></span><span class="words">31 词</span></div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <div class="preview-thumb preview-thumb-3">☕<span class="preview-badge" style="color:#16a34a">A2</span></div>
+          <div class="preview-meta">
+            <div class="t">如何三分钟泡出完美咖啡</div>
+            <div class="f"><span>Daily Brew</span><span class="dot"></span><span class="words">12 词</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 特性 -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-tag">核心功能</span>
+      <h2>不止看视频，更是完整学习系统</h2>
+      <p>从观看到掌握，每一步都有科学设计支撑</p>
+    </div>
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon brand">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </div>
+        <h3>真实视频 + 双语字幕</h3>
+        <p>精选 YouTube 优质内容，按 CEFR 难度分级。点击字幕任意词即时查询，原文语境中学最地道的表达。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon indigo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <h3>AI 词汇注释 + 考级标注</h3>
+        <p>AI 自动生成词义、例句、用法。CET / 高考 / 考研考级标注，学到的每个词都对应你的目标考试。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon success">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        </div>
+        <h3>SM-2 科学复习</h3>
+        <p>基于遗忘曲线的间隔重复算法，词汇到期提醒、三档反馈。让记忆留存率最大化，越学越轻松。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 学习闭环 -->
+<section class="section loop-section" id="loop">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-tag">学习闭环</span>
+      <h2>一个循环，持续进步</h2>
+      <p>看 -> 学 -> 练 -> 复习，每一步都喂回下一步，形成正向循环</p>
+    </div>
+    <div class="loop">
+      <div class="loop-step">
+        <div class="loop-circle">👀</div>
+        <h4>看视频</h4>
+        <p>带双语字幕看真实内容，点词查询</p>
+      </div>
+      <div class="loop-step">
+        <div class="loop-circle">📝</div>
+        <h4>学词汇</h4>
+        <p>AI 注释 + 考级标注，一键收入词汇本</p>
+      </div>
+      <div class="loop-step">
+        <div class="loop-circle">✍️</div>
+        <h4>练习巩固</h4>
+        <p>即时练习 + 考试模式，强化记忆</p>
+      </div>
+      <div class="loop-step">
+        <div class="loop-circle">🔁</div>
+        <h4>科学复习</h4>
+        <p>SM-2 算法到期提醒，长期留存</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 数据统计 -->
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="stats">
+      <div class="stat"><div class="n">12+</div><div class="l">主题分类</div></div>
+      <div class="stat"><div class="n">4</div><div class="l">CEFR 难度等级</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">考级体系标注</div></div>
+      <div class="stat"><div class="n">¥9.9</div><div class="l">Pro 月度 / 起</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Pro CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="cta-card">
+      <span class="badge">★ 升级 Pro</span>
+      <h2>解锁无限学习潜力</h2>
+      <p>无限视频观看、AI 词汇注释、无限词汇复习。Pro 会员 ¥9.9/月，30 天有效，兑换码激活。</p>
+      <a href="22-pricing.html" class="btn">
+        查看定价方案
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <p class="price-hint">非经营性平台 · 不提供站内支付 · 微信小商店购买兑换码激活</p>
+    </div>
+  </div>
+</section>
+
+<!-- 底部 -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="nav-logo" href="00-router.html">
+          <div class="logo-mark">S</div>
+          <span class="logo-text">See<span class="word">Word</span></span>
+        </a>
+        <p>看真实视频，学地道英语。基于科学学习闭环的英语视频学习工具。</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h5>产品</h5>
+          <a href="03-home-b-seeword.html">首页</a>
+          <a href="11-browse.html">浏览</a>
+          <a href="08-practice-hub.html">练习专题</a>
+          <a href="22-pricing.html">定价方案</a>
+        </div>
+        <div class="footer-col">
+          <h5>账户</h5>
+          <a href="01-login.html">登录</a>
+          <a href="02-register.html">注册</a>
+          <a href="19-redeem.html">兑换 Pro</a>
+          <a href="15-forgot-password.html">找回密码</a>
+        </div>
+        <div class="footer-col">
+          <h5>法律</h5>
+          <a href="20-terms.html">用户协议</a>
+          <a href="21-privacy.html">隐私政策</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 SeeWord · 非经营性工具展示平台</span>
+      <span class="legal">
+        <a href="20-terms.html">用户协议</a>·<a href="21-privacy.html">隐私政策</a>·<a href="22-pricing.html">定价</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<script>
+const themeToggle=document.getElementById('themeToggle');
+const iconSun=themeToggle.querySelector('.icon-sun');
+const iconMoon=themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+  const isDark=document.documentElement.classList.contains('dark');
+  iconSun.style.display=isDark?'none':'block';
+  iconMoon.style.display=isDark?'block':'none';
+});
+</script>
+</body>
+</html>

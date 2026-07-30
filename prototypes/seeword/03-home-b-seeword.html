@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 首页（方案B · 真实项目风格）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   SeeWord Home - 方案 B 布局 · 还原真实项目设计风格
+   顶导航 + 学习状态条(FocusCard) + 分类栏(filter-bar) + 视频网格(VideoCard)
+   设计 token 取自 frontend/src/app/globals.css
+   ═══════════════════════════════════════════ */
+
+/* --- 主题变量（亮色） --- */
+:root {
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --topbar-bg: #ffffff;
+
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-200: #ffc1a8;
+  --brand-300: #ff9b76;
+  --brand-400: #ff7a45;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+
+  --indigo: #6366f1;
+  --indigo-soft: #e0e7ff;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --error: #dc2626;
+  --red-soft: #fee2e2;
+
+  --on-primary: #ffffff;
+
+  --shadow-soft: 0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04);
+  --shadow-card: 0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift: 0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,0.28);
+
+  --r-xs: 4px; --r-sm: 8px; --r-md: 10px; --r: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 9999px;
+}
+
+/* --- 主题变量（暗色） --- */
+html.dark {
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --muted: #a1a1aa;
+  --muted-soft: #6b6b72;
+  --hairline: #242426;
+  --hairline-soft: #1a1a1c;
+  --topbar-bg: #0a0a0a;
+
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-200: #3d1d0f;
+  --brand-700: #ff7a45;
+
+  --indigo-soft: #1e1b4b;
+  --success: #22c55e;
+  --success-soft: #052e16;
+  --warning: #f59e0b;
+  --warning-soft: #422006;
+  --error: #ef4444;
+  --red-soft: #3b0a0a;
+
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.5);
+  --shadow-card: 0 2px 8px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift: 0 12px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { background: var(--canvas); }
+html.dark { background: var(--canvas); }
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface-soft);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+  transition: background 0.2s, color 0.2s;
+}
+
+::selection { background: var(--brand-500); color: #fff; }
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+a { text-decoration: none; color: inherit; }
+input { font-family: inherit; }
+
+.container-page { max-width: 1320px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 640px) { .container-page { padding: 0 28px; } }
+
+/* ═══════════ Top Navigation（水平顶导航 · B方案布局） ═══════════ */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  height: 64px;
+  background: color-mix(in oklab, var(--topbar-bg) 85%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hairline);
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 16px;
+}
+@media (min-width: 640px) { .topbar { padding: 0 28px; } }
+
+/* Logo：橙底圆角方块 + SeeWord */
+.nav-logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.logo-mark {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--brand-500);
+  box-shadow: var(--shadow-brand);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 17px;
+  font-family: "Inter", sans-serif;
+}
+.logo-text { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; color: var(--ink); }
+.logo-text .word { color: var(--brand-500); }
+
+/* 水平导航链接 */
+.nav-links { display: flex; gap: 2px; flex-shrink: 0; }
+.nav-links a {
+  font-size: 14px; font-weight: 500; color: var(--muted);
+  padding: 8px 14px; border-radius: var(--r-lg);
+  transition: all 0.15s;
+}
+.nav-links a:hover { color: var(--ink); background: var(--surface-card); }
+.nav-links a.active { background: var(--ink); color: var(--canvas); }
+
+/* 搜索框（居中） */
+.nav-search {
+  flex: 1; max-width: 520px; margin: 0 auto; position: relative;
+}
+.nav-search input {
+  width: 100%; height: 40px;
+  padding: 0 64px 0 38px;
+  font-size: 14px; color: var(--ink);
+  background: var(--surface-card);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: all 0.15s;
+}
+.nav-search input::placeholder { color: var(--muted-soft); }
+.nav-search input:focus {
+  background: var(--canvas);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(255,90,31,0.12);
+}
+.nav-search .search-icon {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none;
+}
+.nav-search .kbd {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 500;
+  color: var(--muted);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xs);
+  padding: 2px 6px;
+}
+
+/* 右侧：主题切换 + 通知 + 头像 */
+.nav-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  transition: all 0.15s;
+  position: relative;
+}
+.icon-btn:hover { color: var(--ink); background: var(--surface-card); }
+.icon-btn .dot {
+  position: absolute; top: 7px; right: 8px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--brand-500);
+  border: 2px solid var(--topbar-bg);
+}
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-400));
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--hairline);
+}
+
+/* 头像下拉菜单 */
+.avatar-btn { position: relative; }
+.avatar-btn button.avatar { cursor: pointer; padding: 0; font: inherit; transition: transform 0.15s, box-shadow 0.15s; }
+.avatar-btn:hover button.avatar { transform: scale(1.05); box-shadow: var(--shadow-brand); }
+/* 游客态登录/注册按钮 */
+.nav-auth-btn { display:inline-flex; align-items:center; height:34px; padding:0 16px; border-radius: var(--r-sm);
+  font-size:13px; font-weight:600; transition: all .15s; }
+.nav-auth-btn.ghost { color: var(--muted); }
+.nav-auth-btn.ghost:hover { color: var(--ink); background: var(--surface-card); }
+.nav-auth-btn { background: var(--ink); color: var(--canvas); }
+.nav-auth-btn:hover { background: var(--brand-500); }
+.avatar-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  min-width: 188px; padding: 6px;
+  background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lift);
+  opacity: 0; visibility: hidden; transform: translateY(-6px);
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+  z-index: 60;
+}
+.avatar-menu.open { opacity: 1; visibility: visible; transform: translateY(0); }
+.avatar-menu .menu-header { padding: 8px 10px; border-bottom: 1px solid var(--hairline); margin-bottom: 4px; }
+.avatar-menu .menu-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.avatar-menu .menu-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.avatar-menu .menu-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 10px; border-radius: var(--r-sm);
+  font-size: 13px; color: var(--body); text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.avatar-menu .menu-item:hover { background: var(--surface-card); color: var(--ink); }
+.avatar-menu .menu-item.logout { color: var(--error); }
+.avatar-menu .menu-item.logout:hover { background: var(--red-soft); }
+.avatar-menu .menu-item svg { flex-shrink: 0; }
+
+/* ═══════════ 学习状态条（FocusCard · B方案核心） ═══════════ */
+.focus-section { padding-top: 28px; }
+
+.focus-card {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  border-radius: var(--r-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+/* 装饰光斑 */
+.focus-card::before {
+  content: ""; position: absolute; top: 0; right: 0;
+  width: 192px; height: 192px; border-radius: 50%;
+  background: rgba(255,90,31,0.04);
+  filter: blur(60px); pointer-events: none;
+}
+.focus-card::after {
+  content: ""; position: absolute; bottom: 0; left: 33%;
+  width: 128px; height: 128px; border-radius: 50%;
+  background: rgba(99,102,241,0.03);
+  filter: blur(50px); pointer-events: none;
+}
+
+.focus-inner {
+  position: relative;
+  display: flex; align-items: center; gap: 20px;
+}
+
+/* 问候区 */
+.focus-greeting { flex-shrink: 0; padding-right: 20px; border-right: 1px solid var(--hairline); }
+.focus-greeting .hi { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -0.025em; }
+.focus-greeting .date { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* 进度环 */
+.progress-ring { position: relative; width: 76px; height: 76px; flex-shrink: 0; }
+.progress-ring svg { transform: rotate(-90deg); }
+.progress-ring .ring-label {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: var(--ink);
+}
+
+/* 中间文字区 */
+.focus-text { flex: 1; min-width: 0; }
+.focus-text .title { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+.focus-text .sub { display: flex; align-items: center; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.focus-text .sub .item { display: flex; align-items: center; gap: 6px; }
+.focus-text .sub .item .num { font-weight: 500; color: var(--body); }
+.focus-text .sub .flame { color: var(--brand-500); }
+.focus-text .sub .book { color: var(--indigo); }
+
+/* CTA */
+.focus-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 20px; border-radius: var(--r-lg);
+  font-size: 14px; font-weight: 600;
+  background: var(--brand-500); color: var(--on-primary);
+  box-shadow: var(--shadow-brand);
+  transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.focus-cta:hover {
+  background: var(--brand-600);
+  box-shadow: 0 12px 28px rgba(255,90,31,0.32);
+  transform: translateY(-2px);
+}
+.focus-cta:active { transform: scale(0.98); }
+.focus-cta .due {
+  background: rgba(255,255,255,0.22);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 600;
+}
+
+/* ═══════════ 分类栏（filter-bar · 真实项目样式） ═══════════ */
+.filter-bar {
+  position: sticky; top: 80px; z-index: 20;
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--canvas) 92%, transparent);
+  padding: 10px;
+  margin: 24px 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+@media (min-width: 768px) {
+  .filter-bar { flex-direction: row; align-items: center; gap: 12px; }
+}
+
+.filter-group { display: flex; gap: 6px; overflow-x: auto; align-items: center; scrollbar-width: none; }
+.filter-group::-webkit-scrollbar { display: none; }
+
+.filter-divider { display: none; width: 1px; height: 20px; background: var(--hairline); flex-shrink: 0; }
+@media (min-width: 768px) { .filter-divider { display: block; } }
+
+/* TabPills · ghost 变体 */
+.tab-pill {
+  padding: 6px 14px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  transition: all 0.15s; white-space: nowrap;
+}
+.tab-pill:hover { color: var(--ink); }
+/* 分类 active = dark（黑底白字） */
+.tab-pill.cat.active { background: var(--ink); color: var(--canvas); }
+/* 级别 active = brand（橙底白字） */
+.tab-pill.lvl.active { background: var(--brand-500); color: var(--on-primary); }
+
+.filter-count {
+  margin-left: auto; font-size: 12px; color: var(--muted);
+  font-weight: 500; flex-shrink: 0;
+}
+@media (max-width: 640px) { .filter-count { display: none; } }
+
+/* ═══════════ 视频网格（VideoCard · 真实项目样式） ═══════════ */
+.content { padding-bottom: 80px; }
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 24px;
+}
+@media (min-width: 640px) { .video-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .video-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1280px) { .video-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.video-card {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  cursor: pointer;
+  animation: card-in 0.4s ease backwards;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+}
+.video-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lift);
+  border-color: transparent;
+}
+@keyframes card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 缩略图 */
+.card-thumb {
+  position: relative; aspect-ratio: 16 / 9;
+  background: var(--surface-card); overflow: hidden;
+}
+.thumb-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.thumb-emoji { font-size: 40px; opacity: 0.92; transition: transform 0.3s; }
+.video-card:hover .thumb-emoji { transform: scale(1.12); }
+
+/* 左上 CEFR 难度 badge（白底92%半透 + backdrop-blur） */
+.badge-level {
+  position: absolute; left: 8px; top: 8px;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,0.92);
+}
+html.dark .badge-level { background: rgba(20,20,22,0.88); }
+.badge-a2 { background: rgba(220,252,231,0.92); color: #16a34a; }
+.badge-b1 { background: rgba(224,231,255,0.92); color: #6366f1; }
+.badge-b2 { background: rgba(254,243,199,0.92); color: #d97706; }
+.badge-c1 { background: rgba(254,226,226,0.92); color: #dc2626; }
+html.dark .badge-a2 { background: rgba(5,46,22,0.88); color: #22c55e; }
+html.dark .badge-b1 { background: rgba(30,27,75,0.88); color: #818cf8; }
+html.dark .badge-b2 { background: rgba(66,32,6,0.88); color: #fbbf24; }
+html.dark .badge-c1 { background: rgba(59,10,10,0.88); color: #f87171; }
+
+/* 右下时长 badge（mono · 黑78%半透） */
+.duration-badge {
+  position: absolute; right: 8px; bottom: 8px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600; color: #fff;
+  padding: 2px 6px; border-radius: 5px;
+  background: rgba(10,10,10,0.78);
+}
+
+/* hover 蒙层 + 橙圆 play */
+.play-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s;
+  background: rgba(10,10,10,0.32);
+}
+.video-card:hover .play-overlay { opacity: 1; }
+.play-btn {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--brand-500);
+  box-shadow: var(--shadow-brand);
+  display: flex; align-items: center; justify-content: center;
+  transform: scale(0.9); transition: transform 0.15s;
+}
+.video-card:hover .play-btn { transform: scale(1); }
+
+/* 底部观看进度条 */
+.watch-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,0.25); }
+.watch-progress-fill { height: 100%; background: var(--brand-500); }
+
+/* Meta 区 */
+.card-meta { padding: 16px; }
+.card-title {
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  color: var(--ink); letter-spacing: -0.01em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 10px;
+  transition: color 0.15s;
+}
+.video-card:hover .card-title { color: var(--brand-600); }
+
+.card-footer { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.card-footer .source { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.card-footer .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--muted-soft); flex-shrink: 0; }
+.card-footer .cat-chip {
+  font-size: 11px; font-weight: 600; color: var(--body);
+  background: var(--surface-card);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  flex-shrink: 0;
+}
+.card-footer .words {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600; color: var(--brand-500);
+  flex-shrink: 0;
+}
+
+/* 已看完 pill（与 04 卡片设计一致） */
+.watched-pill {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(22,163,74,0.92); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-pill);
+  display: flex; align-items: center; gap: 4px;
+  backdrop-filter: blur(4px);
+}
+html.dark .watched-pill { background: rgba(34,197,94,0.9); }
+
+/* 加载更多 */
+.load-more-wrap { display: flex; justify-content: center; margin-top: 40px; }
+.btn-load-more {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 28px; border-radius: var(--r-lg);
+  font-size: 14px; font-weight: 600; color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.15s;
+}
+.btn-load-more:hover:not(:disabled) {
+  border-color: var(--brand-500); color: var(--brand-600);
+  transform: translateY(-1px);
+}
+.btn-load-more:active:not(:disabled) { transform: scale(0.98); }
+.btn-load-more:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ═══════════ 响应式 ═══════════ */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-search { max-width: none; }
+  .focus-greeting { display: none; }
+  .focus-inner { flex-wrap: wrap; gap: 14px; }
+  .focus-cta { width: 100%; justify-content: center; }
+  .filter-bar { top: 72px; }
+}
+@media (max-width: 480px) {
+  .nav-search .kbd { display: none; }
+  .video-grid { gap: 16px; }
+}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 顶部导航 ═══════════ -->
+<nav class="topbar">
+  <a class="nav-logo" href="00-router.html">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">See<span class="word">Word</span></span>
+  </a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html" class="active">首页</a>
+    <a href="11-browse.html">发现</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+    <a href="12-history.html">学习记录</a>
+  </div>
+  <div class="nav-search">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input type="text" placeholder="搜索视频、词汇、字幕…">
+    <span class="kbd">⌘K</span>
+  </div>
+  <div class="nav-actions">
+    <button class="icon-btn" id="themeToggle" aria-label="切换主题" title="切换主题">
+      <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+      </svg>
+      <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="icon-btn" aria-label="通知" id="navNotify">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="dot"></span>
+    </button>
+    <div class="avatar-btn" id="navAvatarBtn">
+      <button class="avatar" id="avatarBtn" aria-label="账号菜单"><span class="avatar-initial">林</span></button>
+      <div class="avatar-menu" id="avatarMenu">
+        <div class="menu-header">
+          <div class="menu-name" id="menuUserName">小林</div>
+          <div class="menu-sub">SeeWord 学习者</div>
+        </div>
+        <button class="menu-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          个人资料
+        </button>
+        <button class="menu-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          学习偏好
+        </button>
+        <button class="menu-item logout" id="logoutBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          退出登录
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════ 学习状态条（FocusCard） ═══════════ -->
+<section class="container-page focus-section">
+  <div class="focus-card">
+    <div class="focus-inner">
+      <!-- 问候 -->
+      <div class="focus-greeting">
+        <div class="hi">下午好，小林</div>
+        <div class="date">7月30日 · 周三</div>
+      </div>
+
+      <!-- 进度环 -->
+      <div class="progress-ring">
+        <svg width="76" height="76" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="32.5" fill="none" stroke="var(--hairline)" stroke-width="5.5"/>
+          <circle cx="38" cy="38" r="32.5" fill="none" stroke="var(--brand-500)" stroke-width="5.5"
+            stroke-dasharray="204.2" stroke-dashoffset="81.7" stroke-linecap="round"/>
+        </svg>
+        <span class="ring-label">60%</span>
+      </div>
+
+      <!-- 文字区 -->
+      <div class="focus-text">
+        <div class="title">今日计划 3/5</div>
+        <div class="sub">
+          <span class="item">
+            <svg class="flame" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-2.5C8 9 6 10 6 14a6 6 0 0 0 12 0c0-6-6-12-6-12z"/></svg>
+            <span class="num">12</span> 天连续
+          </span>
+          <span class="item">
+            <svg class="book" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            已学 <span class="num">386</span> 词
+          </span>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <button class="focus-cta" id="focusCta" onclick="location.href='06-practice.html'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        去复习
+        <span class="due">12 词到期</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 分类栏（filter-bar） ═══════════ -->
+<div class="container-page">
+  <div class="filter-bar">
+    <div class="filter-group" id="catGroup">
+      <button class="tab-pill cat active">推荐</button>
+      <button class="tab-pill cat">日常</button>
+      <button class="tab-pill cat">科技</button>
+      <button class="tab-pill cat">自然</button>
+      <button class="tab-pill cat">教育</button>
+      <button class="tab-pill cat">文化</button>
+      <button class="tab-pill cat">商业</button>
+      <button class="tab-pill cat">演讲</button>
+      <button class="tab-pill cat">纪录片</button>
+    </div>
+    <div class="filter-divider"></div>
+    <div class="filter-group" id="lvlGroup">
+      <button class="tab-pill lvl active">全部</button>
+      <button class="tab-pill lvl">A2</button>
+      <button class="tab-pill lvl">B1</button>
+      <button class="tab-pill lvl">B2</button>
+      <button class="tab-pill lvl">C1</button>
+    </div>
+    <span class="filter-count">12 个视频</span>
+  </div>
+</div>
+
+<!-- ═══════════ 视频网格 ═══════════ -->
+<main class="container-page content">
+  <div class="video-grid" id="videoGrid"></div>
+  <div class="load-more-wrap">
+    <button class="btn-load-more" id="loadMore">
+      加载更多
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </button>
+  </div>
+</main>
+
+<script>
+// 游客态：未登录也可浏览首页（看视频受限，需登录）。登录态显示通知+avatar，游客显示登录/注册按钮。
+const AUTH_KEY = 'seeword_auth';
+const isGuest = localStorage.getItem(AUTH_KEY) !== '1';
+const swUser = localStorage.getItem('seeword_user') || '小林';
+
+(function applyAuthState() {
+  const notify = document.getElementById('navNotify');
+  const avatarWrap = document.getElementById('navAvatarBtn');
+  if (isGuest) {
+    // 游客：隐藏通知，avatar 区替换为 登录/注册 按钮
+    if (notify) notify.style.display = 'none';
+    if (avatarWrap) {
+      avatarWrap.classList.remove('avatar-btn');
+      avatarWrap.innerHTML =
+        '<a href="01-login.html" class="nav-auth-btn ghost">登录</a>' +
+        '<a href="02-register.html" class="nav-auth-btn">注册</a>';
+    }
+  } else {
+    // 登录态：显示用户名
+    document.querySelectorAll('.avatar-initial').forEach(el => el.textContent = swUser.charAt(0));
+    const menuUserName = document.getElementById('menuUserName');
+    if (menuUserName) menuUserName.textContent = swUser;
+  }
+})();
+
+const VIDEOS = [
+  { title: "为什么我们做梦？睡眠的科学", duration: "8:24", level: "B1", words: 23, emoji: "🌙", gradient: "linear-gradient(135deg, #1e1b4b, #4338ca)", progress: 65, source: "SciShow", cat: "科技", url: "https://youtu.be/8rGf3xKd9Zc" },
+  { title: "深海生物：地球最神秘的角落", duration: "12:07", level: "B2", words: 31, emoji: "🐙", gradient: "linear-gradient(135deg, #042f2e, #0d9488)", progress: 0, source: "BBC Earth", cat: "自然", url: "https://youtu.be/3ZL9pAmH6qY" },
+  { title: "如何三分钟泡出完美咖啡", duration: "5:41", level: "A2", words: 12, emoji: "☕", gradient: "linear-gradient(135deg, #451a03, #b45309)", progress: 100, source: "Daily Brew", cat: "日常", url: "https://youtu.be/2xKp9mVb7Qw" },
+  { title: "人工智能会取代老师吗？", duration: "10:15", level: "B2", words: 28, emoji: "🤖", gradient: "linear-gradient(135deg, #1e1b4b, #7c3aed)", progress: 0, source: "TED-Ed", cat: "教育", url: "https://youtu.be/5tQ7vM2nA8c" },
+  { title: "日本极简生活的智慧", duration: "7:52", level: "B1", words: 19, emoji: "🏯", gradient: "linear-gradient(135deg, #1c1917, #78716c)", progress: 30, source: "Cultural Lens", cat: "文化", url: "https://youtu.be/7nW8kQf3xZp" },
+  { title: "宇宙有多大？从地球到可观测边缘", duration: "15:33", level: "C1", words: 37, emoji: "🌌", gradient: "linear-gradient(135deg, #0f0c29, #302b63)", progress: 0, source: "Kurzgesagt", cat: "科技", url: "https://youtu.be/9mV2bQk4xRf" },
+  { title: "街头美食文化：曼谷篇", duration: "9:18", level: "A2", words: 15, emoji: "🍜", gradient: "linear-gradient(135deg, #7c2d12, #ea580c)", progress: 0, source: "Foodie Walks", cat: "文化", url: "https://youtu.be/4pK8mN3vQwZ" },
+  { title: "为什么音乐能改变情绪", duration: "6:45", level: "B1", words: 17, emoji: "🎵", gradient: "linear-gradient(135deg, #312e81, #6366f1)", progress: 0, source: "Vox", cat: "日常", url: "https://youtu.be/mX9tK7vQb2L" },
+  { title: "亚马逊雨林的隐秘世界", duration: "14:22", level: "B2", words: 33, emoji: "🦜", gradient: "linear-gradient(135deg, #052e16, #16a34a)", progress: 0, source: "Nat Geo", cat: "自然", url: "https://youtu.be/6vQk9mWx3Np" },
+  { title: "拖延症的心理学", duration: "8:03", level: "B1", words: 21, emoji: "⏰", gradient: "linear-gradient(135deg, #4a044e, #c026d3)", progress: 45, source: "Psych2Go", cat: "教育", url: "https://youtu.be/8kQm3vN7pWx" },
+  { title: "硅谷创业者的日常", duration: "11:36", level: "B2", words: 26, emoji: "💡", gradient: "linear-gradient(135deg, #0c4a6e, #0284c7)", progress: 0, source: "Founder Diaries", cat: "商业", url: "https://youtu.be/3mWx7vQk9Nb" },
+  { title: "北极光是怎么形成的？", duration: "6:12", level: "B1", words: 16, emoji: "🌈", gradient: "linear-gradient(135deg, #022c22, #059669)", progress: 0, source: "BBC Earth", cat: "自然", url: "https://youtu.be/9pWx4kQm2vN" },
+];
+
+const grid = document.getElementById('videoGrid');
+let shown = 0;
+const BATCH = 8;
+
+function createCard(v, index) {
+  const card = document.createElement('div');
+  card.className = 'video-card';
+  card.style.cursor = 'pointer';
+  card.onclick = () => location.href = isGuest ? '01-login.html' : '05-watch.html';
+  card.style.animationDelay = `${(index % BATCH) * 0.06}s`;
+
+  const progressHtml = v.progress > 0
+    ? `<div class="watch-progress"><div class="watch-progress-fill" style="width:${v.progress}%"></div></div>` : '';
+
+  const watchedHtml = v.progress >= 100
+    ? `<span class="watched-pill"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg>已看完</span>` : '';
+
+  const levelClass = `badge-${v.level.toLowerCase()}`;
+
+  card.innerHTML = `
+    <div class="card-thumb">
+      <div class="thumb-bg" style="background:${v.gradient}"><span class="thumb-emoji">${v.emoji}</span></div>
+      <span class="badge-level ${levelClass}">${v.level}</span>
+      <span class="duration-badge">${v.duration}</span>
+      ${watchedHtml}
+      <div class="play-overlay">
+        <div class="play-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>
+      ${progressHtml}
+    </div>
+    <div class="card-meta">
+      <div class="card-title">${v.title}</div>
+      <div class="card-footer">
+        <span class="source">${v.source}</span>
+        <span class="dot"></span>
+        <span class="cat-chip">${v.cat}</span>
+        <span class="dot"></span>
+        <span class="words">${v.words} 词</span>
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function loadBatch() {
+  const batch = VIDEOS.slice(shown, shown + BATCH);
+  batch.forEach((v, i) => grid.appendChild(createCard(v, i)));
+  shown += batch.length;
+  if (shown >= VIDEOS.length) {
+    const btn = document.getElementById('loadMore');
+    btn.textContent = '已经到底啦';
+    btn.disabled = true;
+  }
+}
+
+document.getElementById('loadMore').addEventListener('click', loadBatch);
+
+document.querySelectorAll('#catGroup .tab-pill').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelector('#catGroup .tab-pill.active').classList.remove('active');
+    tab.classList.add('active');
+  });
+});
+document.querySelectorAll('#lvlGroup .tab-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelector('#lvlGroup .tab-pill.active').classList.remove('active');
+    pill.classList.add('active');
+  });
+});
+
+// 主题切换
+const themeToggle = document.getElementById('themeToggle');
+const iconSun = themeToggle.querySelector('.icon-sun');
+const iconMoon = themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  iconSun.style.display = isDark ? 'none' : 'block';
+  iconMoon.style.display = isDark ? 'block' : 'none';
+});
+
+// 头像下拉菜单 + 退出登录
+const avatarBtn = document.getElementById('avatarBtn');
+const avatarMenu = document.getElementById('avatarMenu');
+avatarBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  avatarMenu.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!avatarMenu.contains(e.target) && !avatarBtn.contains(e.target)) {
+    avatarMenu.classList.remove('open');
+  }
+});
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  localStorage.removeItem('seeword_auth');
+  localStorage.removeItem('seeword_user');
+  window.location.href = '01-login.html';
+});
+
+loadBatch();
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

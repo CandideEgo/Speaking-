@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 用户协议</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord 用户协议 · TOC + 分节正文 + 阅读进度 ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;
+  --brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+}
+html.dark {
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0a0a0a;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
+  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);scroll-behavior:smooth;}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
+::selection{background:var(--brand-500);color:#fff;}
+a{text-decoration:none;color:inherit;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+
+/* 阅读进度条 */
+.progress-bar{position:fixed;top:0;left:0;height:3px;background:var(--brand-500);z-index:100;width:0;transition:width .1s ease-out;box-shadow:0 0 8px rgba(255,90,31,.4);}
+
+/* 顶导航 */
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:14px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}
+.logo-text .word{color:var(--brand-500);}
+.nav-spacer{flex:1;}
+.back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted);padding:8px 12px;border-radius:var(--r-lg);transition:all .15s;}
+.back-link:hover{color:var(--ink);background:var(--surface-card);}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+
+/* 主体两栏 */
+.layout{max-width:1080px;margin:0 auto;padding:32px 16px 80px;display:grid;grid-template-columns:1fr;gap:32px;}
+@media(min-width:880px){.layout{grid-template-columns:220px 1fr;gap:48px;padding:48px 28px 80px;}}
+
+/* 左侧 TOC */
+.toc{position:relative;}
+@media(min-width:880px){.toc{position:sticky;top:88px;align-self:start;max-height:calc(100vh - 120px);overflow-y:auto;}}
+.toc-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;padding-left:12px;}
+.toc-list{list-style:none;display:flex;flex-direction:column;gap:2px;}
+.toc-list a{display:block;font-size:13px;font-weight:500;color:var(--muted);padding:7px 12px;border-radius:var(--r-sm);border-left:2px solid transparent;transition:all .15s;line-height:1.4;}
+.toc-list a:hover{color:var(--ink);background:var(--surface-card);}
+.toc-list a.active{color:var(--brand-600);border-left-color:var(--brand-500);background:var(--brand-50);font-weight:600;}
+html.dark .toc-list a.active{color:var(--brand-400);}
+.toc-list .num{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted-soft);margin-right:6px;}
+.toc-list a.active .num{color:var(--brand-500);}
+@media(max-width:879px){
+  .toc-list{flex-direction:row;flex-wrap:wrap;gap:6px;}
+  .toc-list a{border-left:none;border:1px solid var(--hairline);padding:6px 11px;}
+  .toc-list a.active{border-color:var(--brand-400);}
+}
+
+/* 右侧正文 */
+.doc{max-width:720px;}
+.doc-head{margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--hairline);}
+.doc-head .crumb{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--brand-600);background:var(--brand-50);padding:5px 12px;border-radius:var(--r-pill);letter-spacing:.04em;text-transform:uppercase;margin-bottom:14px;}
+.doc-head h1{font-size:34px;font-weight:800;letter-spacing:-0.03em;line-height:1.1;}
+.doc-head .meta{display:flex;align-items:center;gap:14px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;}
+.doc-head .meta .dot{width:3px;height:3px;border-radius:50%;background:var(--muted-soft);}
+
+.section{margin-bottom:40px;scroll-margin-top:88px;}
+.section h2{display:flex;align-items:baseline;gap:10px;font-size:20px;font-weight:700;letter-spacing:-0.015em;margin-bottom:14px;color:var(--ink);}
+.section h2 .sec-num{font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:600;color:var(--brand-500);}
+.section p{font-size:15px;line-height:1.8;color:var(--body);margin-bottom:14px;}
+.section p strong{color:var(--ink);font-weight:600;}
+.section ul{margin:14px 0;padding-left:4px;list-style:none;}
+.section ul li{position:relative;padding-left:20px;font-size:14.5px;line-height:1.75;color:var(--body);margin-bottom:8px;}
+.section ul li::before{content:"";position:absolute;left:4px;top:11px;width:5px;height:5px;border-radius:50%;background:var(--brand-400);}
+
+/* 高亮提示框 */
+.callout{border:1px solid color-mix(in oklab,var(--brand-500) 25%,transparent);background:var(--brand-50);border-radius:var(--r-lg);padding:16px 18px;margin:18px 0;font-size:14px;line-height:1.7;color:var(--body);}
+.callout strong{color:var(--brand-700);}
+html.dark .callout strong{color:var(--brand-400);}
+
+/* 底部 */
+.doc-foot{margin-top:48px;padding-top:24px;border-top:1px solid var(--hairline);font-size:13px;color:var(--muted);line-height:1.7;}
+.doc-foot a{color:var(--brand-600);font-weight:600;}
+.doc-foot .legal-row{display:flex;gap:16px;align-items:center;margin-top:14px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- 顶导航 -->
+<nav class="topbar">
+  <a class="nav-logo" href="00-router.html">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">See<span class="word">Word</span></span>
+  </a>
+  <div class="nav-spacer"></div>
+  <a href="03-home-b-seeword.html" class="back-link">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    返回首页
+  </a>
+  <button class="icon-btn" id="themeToggle" aria-label="切换主题" title="切换主题">
+    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+</nav>
+
+<div class="layout">
+  <!-- 左侧 TOC -->
+  <aside class="toc">
+    <div class="toc-label">目录</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#sec-1"><span class="num">01</span>总则</a></li>
+      <li><a href="#sec-2"><span class="num">02</span>账户注册</a></li>
+      <li><a href="#sec-3"><span class="num">03</span>会员服务</a></li>
+      <li><a href="#sec-4"><span class="num">04</span>使用规范</a></li>
+      <li><a href="#sec-5"><span class="num">05</span>知识产权</a></li>
+      <li><a href="#sec-6"><span class="num">06</span>免责声明</a></li>
+      <li><a href="#sec-7"><span class="num">07</span>争议解决</a></li>
+      <li><a href="#sec-8"><span class="num">08</span>附则</a></li>
+    </ul>
+  </aside>
+
+  <!-- 右侧正文 -->
+  <article class="doc">
+    <header class="doc-head">
+      <span class="crumb">法律文件</span>
+      <h1>SeeWord 用户协议</h1>
+      <div class="meta">
+        <span>版本 1.0</span>
+        <span class="dot"></span>
+        <span>更新于 2026 年 7 月 30 日</span>
+        <span class="dot"></span>
+        <span>生效于 2026 年 7 月 30 日</span>
+      </div>
+    </header>
+
+    <section class="section" id="sec-1">
+      <h2><span class="sec-num">01</span>总则</h2>
+      <p>欢迎使用 SeeWord（以下简称"本站"）。本站是一个<strong>非经营性工具展示平台</strong>，为用户提供英语视频学习、双语字幕、词汇复习与考级辅助等工具功能。本站不提供站内支付功能。</p>
+      <p>在使用本站服务前，请您仔细阅读并充分理解本协议各条款。您注册、登录或以任何方式使用本站服务，即视为您已阅读、理解并同意接受本协议的全部约定。</p>
+      <p>本协议可由本站随时更新，更新后的协议自公布之日起生效。您继续使用服务即视为接受修订后的协议。</p>
+    </section>
+
+    <section class="section" id="sec-2">
+      <h2><span class="sec-num">02</span>账户注册</h2>
+      <p>您需使用有效手机号码并完成短信验证码验证后注册账户。您应保证注册信息真实、准确、完整，并对账户下的一切活动负责。</p>
+      <ul>
+        <li>您应妥善保管账户密码，因账户信息泄露导致的损失由您自行承担。</li>
+        <li>每个手机号仅可注册一个账户，账户不可转让、出借或售卖。</li>
+        <li>若您发现账户被盗用或存在异常，应立即通过客服渠道通知本站。</li>
+        <li>您注册时须年满 13 周岁；未满 18 周岁的，应在监护人陪同下阅读并同意本协议。</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sec-3">
+      <h2><span class="sec-num">03</span>会员服务</h2>
+      <p>本站提供 Free 与 Pro 两种会员等级。Pro 会员可享有无限视频观看、AI 词汇注释、无限词汇复习等增强功能。</p>
+      <div class="callout">
+        <strong>关于支付：</strong>本站为非经营性工具展示平台，<strong>不提供任何站内支付或交易功能</strong>。Pro 会员通过第三方微信小商店购买，购买后使用<strong>兑换码</strong>在本站激活。兑换码有效期以购买时约定为准，可叠加续期。
+      </div>
+      <ul>
+        <li>兑换码为一次性使用，激活后即失效，不可重复使用或退款。</li>
+        <li>会员有效期自激活之日起计算，到期后权益自动恢复为 Free 等级。</li>
+        <li>因兑换码保管不善导致的泄露、被盗用，本站不承担补发责任。</li>
+        <li>本站保留调整会员权益与定价的权利，已激活的会员在有效期内不受调整影响。</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sec-4">
+      <h2><span class="sec-num">04</span>使用规范</h2>
+      <p>您在使用本站服务时，应遵守中华人民共和国相关法律法规及公序良俗，不得将本站用于任何违法或侵权用途。您承诺不实施以下行为：</p>
+      <ul>
+        <li>上传或传播违法、有害、骚扰、侵权、诽谤或淫秽内容；</li>
+        <li>冒充他人或虚构身份，或未经授权使用他人信息；</li>
+        <li>对本站进行逆向工程、爬取数据、批量自动化请求或攻击；</li>
+        <li>利用本站从事危害网络安全、窃取他人数据的行为；</li>
+        <li>以任何方式干扰本站服务的正常运行或损害本站合法权益。</li>
+      </ul>
+      <p>本站视频内容多转载自第三方平台（如 YouTube），仅供学习交流使用，版权归原作者所有。您不得将本站视频用于商业用途或二次分发。</p>
+    </section>
+
+    <section class="section" id="sec-5">
+      <h2><span class="sec-num">05</span>知识产权</h2>
+      <p>本站的软件、界面设计、原创文案、学习数据结构等知识产权归本站所有，受相关法律保护。未经本站书面许可，不得复制、改编、传播或用于其他商业目的。</p>
+      <p>本站引用的第三方视频、字幕、图片等内容，其知识产权归原权利人所有。本站仅基于学习目的进行转载与处理，如权利人认为内容侵权，可通过客服渠道联系本站，本站将在核实后及时处理。</p>
+      <p>您在使用本站过程中产生的内容（如学习记录、词汇笔记等）归您本人所有。</p>
+    </section>
+
+    <section class="section" id="sec-6">
+      <h2><span class="sec-num">06</span>免责声明</h2>
+      <p>本站作为学习工具，不保证服务持续可用、不出错，不对学习效果作任何明示或暗示的保证。因网络故障、系统维护、第三方服务（如视频源、翻译引擎）不可用等原因导致的服务中断，本站不承担责任。</p>
+      <ul>
+        <li>本站不提供在线支付，任何资金往来均发生在第三方平台，与本站无关；</li>
+        <li>第三方视频内容的准确性、合规性由原平台负责，本站不对其内容作担保；</li>
+        <li>AI 生成的词汇注释、翻译仅供参考，可能存在误差，不作为权威依据；</li>
+        <li>因您违反本协议或法律法规导致的后果，由您自行承担。</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sec-7">
+      <h2><span class="sec-num">07</span>争议解决</h2>
+      <p>本协议的订立、执行与解释均适用中华人民共和国法律。因本协议或本站服务产生的争议，双方应首先友好协商解决；协商不成的，任何一方均可向本站所在地有管辖权的人民法院提起诉讼。</p>
+    </section>
+
+    <section class="section" id="sec-8">
+      <h2><span class="sec-num">08</span>附则</h2>
+      <p>本协议部分条款若被认定为无效或不可执行，不影响其余条款的效力。本站未行使或延迟行使本协议项下的任何权利，不构成对该权利的放弃。</p>
+      <p>如您对本协议有任何疑问，可通过本站公示的客服渠道与我们联系。</p>
+    </section>
+
+    <div class="doc-foot">
+      本协议由 SeeWord 团队制定并维护。
+      <div class="legal-row">
+        <a href="21-privacy.html">查看隐私政策 →</a>
+        <span class="dot" style="width:3px;height:3px;border-radius:50%;background:var(--muted-soft);"></span>
+        <a href="22-pricing.html">查看定价方案 →</a>
+        <span class="dot" style="width:3px;height:3px;border-radius:50%;background:var(--muted-soft);"></span>
+        <a href="03-home-b-seeword.html">返回首页</a>
+      </div>
+    </div>
+  </article>
+</div>
+
+<script>
+// 阅读进度条
+const progressBar=document.getElementById('progressBar');
+function updateProgress(){
+  const h=document.documentElement;
+  const scrolled=h.scrollTop;
+  const total=h.scrollHeight-h.clientHeight;
+  const pct=total>0?(scrolled/total)*100:0;
+  progressBar.style.width=pct+'%';
+}
+window.addEventListener('scroll',updateProgress,{passive:true});
+updateProgress();
+
+// TOC 章节高亮（IntersectionObserver）
+const sections=document.querySelectorAll('.section');
+const tocLinks=document.querySelectorAll('#tocList a');
+const observer=new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      const id=entry.target.id;
+      tocLinks.forEach(a=>{
+        a.classList.toggle('active',a.getAttribute('href')==='#'+id);
+      });
+    }
+  });
+},{rootMargin:'-80px 0px -70% 0px',threshold:0});
+sections.forEach(s=>observer.observe(s));
+
+// 主题切换
+const themeToggle=document.getElementById('themeToggle');
+const iconSun=themeToggle.querySelector('.icon-sun');
+const iconMoon=themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+  const isDark=document.documentElement.classList.contains('dark');
+  iconSun.style.display=isDark?'none':'block';
+  iconMoon.style.display=isDark?'block':'none';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 词汇本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Vocabulary - 词汇本 · app token (globals.css)
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--bg-inset:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;
+  --brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#eef2ff;
+  --success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;
+  --error:#dc2626;--red-soft:#fee2e2;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-gaoKao:#16a34a;--lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-ielts:#dc2626;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--bg-inset:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;
+  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;
+  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv02","cv03","cv04","cv11");}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input{font-family:inherit;}
+
+/* Topbar */
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-search{flex:1;max-width:420px;margin:0 auto;position:relative;}
+.nav-search input{width:100%;height:40px;padding:0 16px 0 38px;font-size:14px;color:var(--ink);background:var(--surface-card);
+  border:1px solid transparent;border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.nav-search input::placeholder{color:var(--muted-soft);}
+.nav-search input:focus{background:var(--canvas);border-color:var(--ink);box-shadow:0 0 0 3px rgba(255,90,31,.12);}
+.nav-search .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links,.nav-search{display:none;}}
+
+.container-page{max-width:1100px;margin:0 auto;padding:28px 16px 80px;}
+@media(min-width:640px){.container-page{padding:36px 28px 80px;}}
+
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+.page-head .t h1{font-size:26px;font-weight:800;letter-spacing:-0.025em;}
+.page-head .t p{font-size:13px;color:var(--muted);margin-top:4px;}
+.drill-cta{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:var(--r-sm);
+  background:var(--brand-500);color:#fff;font-size:14px;font-weight:600;box-shadow:var(--shadow-brand);transition:all .15s;}
+.drill-cta:hover{background:var(--brand-600);transform:translateY(-1px);}
+
+/* 统计条 */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+@media(max-width:680px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px 20px;box-shadow:var(--shadow-soft);}
+.stat-card.due{background:linear-gradient(135deg,var(--brand-500),var(--brand-600));color:#fff;border-color:transparent;}
+.stat-card .l{font-size:12px;color:var(--muted);font-weight:500;}
+.stat-card.due .l{color:rgba(255,255,255,.85);}
+.stat-card .n{font-size:28px;font-weight:800;margin-top:6px;font-family:"JetBrains Mono",monospace;letter-spacing:-0.02em;}
+.stat-card .sub{font-size:11px;color:var(--muted-soft);margin-top:4px;}
+.stat-card.due .sub{color:rgba(255,255,255,.7);}
+
+/* 筛选栏 */
+.filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.f-label{font-size:12px;font-weight:600;color:var(--muted-soft);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;}
+.f-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--r-pill);font-size:13px;font-weight:500;
+  background:var(--canvas);border:1px solid var(--hairline);color:var(--body);transition:all .15s;}
+.f-chip:hover{border-color:var(--ink);}
+.f-chip.active{background:var(--ink);color:var(--canvas);border-color:var(--ink);}
+.f-chip .lv-dot{width:7px;height:7px;border-radius:50%;}
+.f-spacer{flex:1;}
+.f-search{position:relative;}
+.f-search input{height:34px;width:200px;padding:0 12px 0 32px;font-size:13px;color:var(--ink);background:var(--canvas);
+  border:1px solid var(--hairline);border-radius:var(--r-sm);outline:none;}
+.f-search input:focus{border-color:var(--brand-500);}
+.f-search .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);}
+
+/* 词汇列表 */
+.vocab-list{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);overflow:hidden;}
+.vocab-item{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--hairline-soft);transition:background .12s;}
+.vocab-item:hover{background:var(--surface-soft);}
+.vocab-item:last-child{border-bottom:none;}
+.v-word{min-width:140px;flex-shrink:0;}
+.v-word .en{font-size:15px;font-weight:600;color:var(--ink);}
+.v-word .ph{font-size:11px;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;margin-top:2px;}
+.v-zh{flex:1;min-width:0;font-size:13px;color:var(--body);line-height:1.5;}
+.v-level{font-size:10px;font-weight:600;padding:2px 8px;border-radius:var(--r-xs);flex-shrink:0;}
+.lv-cet4{background:rgba(37,99,235,.1);color:var(--lv-cet4);}
+.lv-cet6{background:rgba(147,51,234,.1);color:var(--lv-cet6);}
+.lv-gaoKao{background:rgba(22,163,74,.1);color:var(--lv-gaoKao);}
+.lv-ielts{background:rgba(220,38,38,.1);color:var(--lv-ielts);}
+
+.v-mastery{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;min-width:90px;}
+.mastery-track{width:72px;height:5px;border-radius:3px;background:var(--surface-card);overflow:hidden;}
+.mastery-fill{height:100%;border-radius:3px;}
+.mastery-lbl{font-size:10px;color:var(--muted-soft);font-weight:500;}
+.v-actions{display:flex;gap:4px;flex-shrink:0;}
+.v-act{width:32px;height:32px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.v-act:hover{color:var(--ink);background:var(--surface-card);}
+@media(max-width:680px){.v-word{min-width:110px;}.v-zh{display:none;}.v-mastery{min-width:60px;}.mastery-track{width:48px;}}
+
+.empty-row{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;
+  background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);
+  display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html"><span class="logo-mark">S</span><span class="logo-text">See<span class="word">Word</span></span></a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">浏览</a>
+    <a href="08-practice-hub.html">练习专题</a>
+    <a href="09-vocabulary.html" class="active">词汇本</a>
+  </div>
+  <div class="nav-search"><span class="si"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input placeholder="搜索视频或词汇…" onfocus="location.href='13-search.html'"></div>
+  <div class="nav-actions">
+    <a class="icon-btn" href="12-history.html" title="学习记录"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></a>
+    <a class="avatar" href="07-profile.html">林</a>
+  </div>
+</nav>
+
+<div class="container-page">
+  <div class="page-head">
+    <div class="t">
+      <h1>词汇本</h1>
+      <p>你在视频中收藏与练习过的词汇，按掌握度安排复习</p>
+    </div>
+    <a class="drill-cta" href="10-vocab-drill.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 9.5h-3v5h3M17.5 9.5h3v5h-3M9.5 6.5v-3h5v3M9.5 17.5v3h5v-3"/></svg>
+      开始单词训练 · 12 词待复习
+    </a>
+  </div>
+
+  <!-- 统计条 -->
+  <div class="stat-grid">
+    <div class="stat-card due"><div class="l">待复习</div><div class="n">12</div><div class="sub">今日 due</div></div>
+    <div class="stat-card"><div class="l">学习中</div><div class="n">48</div><div class="sub">SM-2 复习周期内</div></div>
+    <div class="stat-card"><div class="l">已掌握</div><div class="n">318</div><div class="sub">连续答对 3 次</div></div>
+    <div class="stat-card"><div class="l">新增</div><div class="n">26</div><div class="sub">本周新学</div></div>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="filter-bar">
+    <span class="f-label">掌握度</span>
+    <button class="f-chip active">全部</button>
+    <button class="f-chip">待复习</button>
+    <button class="f-chip">学习中</button>
+    <button class="f-chip">已掌握</button>
+    <span class="f-label" style="margin-left:8px">层级</span>
+    <button class="f-chip"><span class="lv-dot" style="background:var(--lv-gaoKao)"></span>高考</button>
+    <button class="f-chip"><span class="lv-dot" style="background:var(--lv-cet4)"></span>四级</button>
+    <button class="f-chip"><span class="lv-dot" style="background:var(--lv-cet6)"></span>六级</button>
+    <div class="f-spacer"></div>
+    <div class="f-search"><span class="si"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input placeholder="搜索单词…"></div>
+  </div>
+
+  <!-- 词汇列表 -->
+  <div class="vocab-list" id="vlist"></div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+const WORDS=[
+  {en:"consolidate",ph:"/kənˈsɒlɪdeɪt/",zh:"v. 巩固；合并。常与 memories/knowledge 搭配",lv:"cet6",lvLabel:"六级",m:35,lbl:"学习中"},
+  {en:"inevitable",ph:"/ɪnˈevɪtəbl/",zh:"adj. 不可避免的。in(不)+evitable(可避免的)",lv:"cet6",lvLabel:"六级",m:20,lbl:"待复习"},
+  {en:"consciousness",ph:"/ˈkɒnʃəsnəs/",zh:"n. 意识；知觉。conscious 的名词形式",lv:"cet6",lvLabel:"六级",m:55,lbl:"学习中"},
+  {en:"extraordinary",ph:"/ɪkˈstrɔːrdəneri/",zh:"adj. 非凡的。extra(超出)+ordinary(普通)",lv:"cet6",lvLabel:"六级",m:80,lbl:"学习中"},
+  {en:"vivid",ph:"/ˈvɪvɪd/",zh:"adj. 生动的；鲜明的。vivid memory 记忆犹新",lv:"gaoKao",lvLabel:"高考",m:100,lbl:"已掌握"},
+  {en:"perceive",ph:"/pəˈsiːv/",zh:"v. 感知；察觉。perceive change 察觉变化",lv:"cet6",lvLabel:"六级",m:15,lbl:"待复习"},
+  {en:"phenomenon",ph:"/fəˈnɒmɪnən/",zh:"n. 现象。复数 phenomena",lv:"cet4",lvLabel:"四级",m:65,lbl:"学习中"},
+  {en:"substantial",ph:"/səbˈstænʃl/",zh:"adj. 大量的；实质的",lv:"cet6",lvLabel:"六级",m:45,lbl:"学习中"},
+  {en:"theory",ph:"/ˈθɪəri/",zh:"n. 理论；学说。scientific theory 科学理论",lv:"cet4",lvLabel:"四级",m:100,lbl:"已掌握"},
+  {en:"process",ph:"/ˈprəʊses/",zh:"v. 处理；加工 n. 过程",lv:"cet4",lvLabel:"四级",m:90,lbl:"学习中"},
+  {en:"vibrant",ph:"/ˈvaɪbrənt/",zh:"adj. 充满活力的；鲜艳的",lv:"ielts",lvLabel:"雅思",m:10,lbl:"待复习"},
+  {en:"comprehensive",ph:"/ˌkɒmprɪˈhensɪv/",zh:"adj. 全面的；综合的",lv:"cet6",lvLabel:"六级",m:100,lbl:"已掌握"},
+];
+function mColor(m){ if(m>=100)return "var(--success)"; if(m>=50)return "var(--brand-500)"; if(m>=25)return "var(--warning)"; return "var(--error)"; }
+document.getElementById("vlist").innerHTML=WORDS.map(w=>`
+  <div class="vocab-item">
+    <div class="v-word"><div class="en">${w.en}</div><div class="ph">${w.ph}</div></div>
+    <div class="v-zh">${w.zh}</div>
+    <span class="v-level lv-${w.lv}">${w.lvLabel}</span>
+    <div class="v-mastery">
+      <div class="mastery-track"><div class="mastery-fill" style="width:${w.m}%;background:${mColor(w.m)}"></div></div>
+      <div class="mastery-lbl">${w.lbl} · ${w.m}%</div>
+    </div>
+    <div class="v-actions">
+      <button class="v-act" title="发音"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg></button>
+      <button class="v-act" title="加入训练"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="v-act" title="删除"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+    </div>
+  </div>`).join("");
+
+// 筛选 chip 视觉切换（按组：掌握度组与层级组分别单选）
+document.querySelectorAll(".filter-bar").forEach(bar=>{
+  const groups=[...bar.querySelectorAll(".f-chip")];
+  groups.forEach(c=>c.addEventListener("click",()=>{
+    groups.forEach(x=>x.classList.remove("active"));
+    c.classList.add("active");
+  }));
+});
+
+// 主题切换
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

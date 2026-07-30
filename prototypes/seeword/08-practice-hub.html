@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 练习专题</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord 练习专题 - 视频试卷聚合 + 真题试卷入口
+   app token (globals.css) · topbar/卡片 与 home/video-card 一致
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  --canvas:#ffffff; --surface-soft:#fafafa; --surface-card:#f4f4f5; --surface-strong:#ededed;
+  --ink:#0a0a0a; --body:#27272a; --muted:#71717a; --muted-soft:#a1a1aa;
+  --hairline:#ededed; --hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb; --brand-100:#ffe0d3; --brand-300:#ff9b76; --brand-400:#ff7a45;
+  --brand-500:#ff5a1f; --brand-600:#e84a10; --brand-700:#c33c0c;
+  --indigo:#6366f1; --indigo-soft:#eef2ff;
+  --success:#16a34a; --success-soft:#dcfce7;
+  --warning:#d97706; --warning-soft:#fef3c7;
+  --error:#dc2626; --red-soft:#fee2e2;
+  --sky-soft:#f0f9ff; --on-primary:#ffffff;
+  --topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-zhongkao:#64748b; --lv-gaoKao:#16a34a; --lv-cet4:#2563eb;
+  --lv-cet6:#9333ea; --lv-ielts:#dc2626; --lv-toefl:#ea580c;
+}
+html.dark {
+  --canvas:#0a0a0a; --surface-soft:#111112; --surface-card:#1a1a1c; --surface-strong:#262628;
+  --ink:#fafafa; --body:#d4d4d8; --muted:#a1a1aa; --muted-soft:#6b6b72;
+  --hairline:#242426; --hairline-soft:#1a1a1c;
+  --brand-50:#241109; --brand-100:#2f170c; --brand-700:#ff7a45;
+  --indigo-soft:#16172b;
+  --success:#22c55e; --success-soft:#052e16;
+  --warning:#f59e0b; --warning-soft:#241a08;
+  --error:#ef4444; --red-soft:#261212;
+  --sky-soft:#0c1a24; --topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv02","cv03","cv04","cv11");}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+input{font-family:inherit;}
+
+.container-page{max-width:1320px;margin:0 auto;padding:0 16px;}
+@media (min-width:640px){.container-page{padding:0 28px;}}
+
+/* ═══ Topbar（与 home-seeword 一致） ═══ */
+.topbar{position:sticky;top:0;z-index:40;height:64px;
+  background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media (min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);
+  box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}
+.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-search{flex:1;max-width:420px;margin:0 auto;position:relative;}
+.nav-search input{width:100%;height:40px;padding:0 16px 0 38px;font-size:14px;color:var(--ink);
+  background:var(--surface-card);border:1px solid transparent;border-radius:var(--r-sm);outline:none;transition:all .15s;}
+.nav-search input::placeholder{color:var(--muted-soft);}
+.nav-search input:focus{background:var(--canvas);border-color:var(--ink);box-shadow:0 0 0 3px rgba(255,90,31,.12);}
+.nav-search .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links,.nav-search{display:none;}}
+
+/* ═══ 页头 ═══ */
+.page-head{padding:36px 0 24px;}
+.page-head h1{font-size:30px;font-weight:800;letter-spacing:-0.025em;margin-bottom:8px;}
+.page-head p{font-size:15px;color:var(--muted);max-width:640px;line-height:1.6;}
+.page-head .stats-row{display:flex;gap:24px;margin-top:18px;flex-wrap:wrap;}
+.stat-pill{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);}
+.stat-pill strong{font-size:18px;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.stat-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--brand-500);}
+
+/* ═══ 筛选栏 ═══ */
+.filter-bar{position:sticky;top:64px;z-index:30;background:color-mix(in oklab,var(--surface-soft) 92%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--hairline);padding:14px 0;margin-bottom:28px;}
+.filter-row{display:flex;align-items:center;gap:8px;overflow-x:auto;}
+.f-label{font-size:12px;font-weight:600;color:var(--muted-soft);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;flex-shrink:0;}
+.f-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--r-pill);
+  font-size:13px;font-weight:500;color:var(--body);background:var(--canvas);border:1px solid var(--hairline);
+  white-space:nowrap;transition:all .15s;}
+.f-chip:hover{border-color:var(--ink);}
+.f-chip.active{background:var(--ink);color:var(--canvas);border-color:var(--ink);}
+.f-chip .lv-dot{width:7px;height:7px;border-radius:50%;}
+
+/* ═══ 分区标题 ═══ */
+.sec-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.sec-title h2{font-size:18px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:10px;}
+.sec-title h2 .count{font-size:13px;font-weight:500;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;}
+.sec-title .more{font-size:13px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:4px;}
+.sec-title .more:hover{color:var(--ink);}
+.sec-block{margin-bottom:40px;}
+
+/* ═══ 视频试卷卡（复用 video-card 语言） ═══ */
+.v-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;}
+.v-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);overflow:hidden;
+  transition:all .15s;display:flex;flex-direction:column;}
+.v-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:transparent;}
+.v-thumb{position:relative;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.v-thumb .emoji{font-size:46px;opacity:.85;}
+.v-thumb .duration{position:absolute;bottom:8px;right:8px;font-size:11px;font-weight:600;color:#fff;
+  background:rgba(0,0,0,.7);padding:2px 7px;border-radius:var(--r-xs);font-family:"JetBrains Mono",monospace;}
+.v-thumb .lv-tag{position:absolute;top:8px;left:8px;font-size:11px;font-weight:600;color:#fff;
+  padding:3px 9px;border-radius:var(--r-pill);backdrop-filter:blur(6px);background:rgba(0,0,0,.45);}
+.v-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1;}
+.v-title{font-size:14px;font-weight:600;color:var(--ink);line-height:1.4;}
+.v-title-en{font-size:12px;color:var(--muted-soft);font-weight:400;line-height:1.4;}
+.v-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin-top:2px;}
+.v-meta .qcount{display:inline-flex;align-items:center;gap:4px;font-weight:500;}
+.v-prog{margin-top:6px;}
+.v-prog .track{height:4px;border-radius:2px;background:var(--surface-card);overflow:hidden;}
+.v-prog .fill{height:100%;background:var(--brand-500);border-radius:2px;}
+.v-prog .plbl{font-size:11px;color:var(--muted-soft);margin-top:4px;display:flex;justify-content:space-between;}
+.v-cta{margin-top:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 14px;border-radius:var(--r-sm);background:var(--ink);color:var(--canvas);
+  font-size:13px;font-weight:600;transition:all .15s;}
+.v-cta:hover{background:var(--brand-500);}
+.v-card.done .v-cta{background:var(--surface-card);color:var(--muted);}
+
+/* ═══ 真题试卷卡 ═══ */
+.r-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;}
+.r-card{position:relative;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);
+  padding:20px;transition:all .15s;overflow:hidden;}
+.r-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:transparent;}
+.r-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--brand-500);}
+.r-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.r-logo{width:44px;height:44px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;color:#fff;flex-shrink:0;}
+.r-info{flex:1;min-width:0;}
+.r-name{font-size:15px;font-weight:700;color:var(--ink);}
+.r-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.r-stats{display:flex;gap:16px;padding:12px 0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);margin-bottom:14px;}
+.r-stat .n{font-size:18px;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.r-stat .l{font-size:11px;color:var(--muted);margin-top:2px;}
+.r-action{display:flex;align-items:center;justify-content:space-between;}
+.r-soon{font-size:11px;font-weight:600;color:var(--warning);background:var(--warning-soft);
+  padding:4px 10px;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:4px;}
+.r-go{font-size:13px;font-weight:600;color:var(--muted-soft);display:flex;align-items:center;gap:4px;}
+
+/* ═══ 说明条 ═══ */
+.info-bar{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;background:var(--brand-50);
+  border:1px solid var(--brand-100);border-radius:var(--r-lg);margin-bottom:28px;}
+.info-bar .ic{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);color:#fff;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.info-bar .t{font-size:13px;color:var(--body);line-height:1.6;}
+.info-bar .t strong{color:var(--ink);}
+
+/* ═══ 水平检测特色卡 ═══ */
+.check-card{display:grid;grid-template-columns:1.4fr 1fr;gap:0;background:linear-gradient(135deg,#161616,#0a0a0a);
+  border-radius:var(--r-xl);overflow:hidden;margin-bottom:32px;color:#fafafa;position:relative;}
+@media(max-width:780px){.check-card{grid-template-columns:1fr;}}
+.check-left{padding:28px 30px;position:relative;z-index:1;}
+.check-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 11px;border-radius:var(--r-pill);background:rgba(255,122,69,.15);color:#ff7a45;letter-spacing:.06em;text-transform:uppercase;}
+.check-tag .d{width:7px;height:7px;border-radius:50%;background:#ff5a1f;box-shadow:0 0 8px #ff5a1f;}
+.check-title{font-size:22px;font-weight:800;letter-spacing:-0.02em;margin:12px 0 6px;}
+.check-sub{font-size:13px;color:rgba(250,250,250,.65);line-height:1.6;max-width:42ch;}
+.check-btn{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:11px 24px;border-radius:var(--r-sm);
+  background:var(--brand-500);color:#fff;font-size:14px;font-weight:600;box-shadow:var(--shadow-brand);transition:all .15s;}
+.check-btn:hover{background:var(--brand-600);transform:translateY(-1px);}
+.check-right{padding:24px 26px;background:rgba(255,255,255,.03);border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;justify-content:center;gap:14px;}
+@media(max-width:780px){.check-right{border-left:none;border-top:1px solid rgba(255,255,255,.08);}}
+.cr-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:rgba(250,250,250,.6);}
+.cr-row strong{color:#fff;font-size:16px;font-weight:700;font-family:"JetBrains Mono",monospace;}
+.cr-streak{display:flex;align-items:center;gap:6px;}
+.cr-streak .flame{font-size:20px;}
+
+/* ═══ 错题本 ═══ */
+.wrong-block{margin-bottom:32px;}
+.wrong-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.wrong-head h2{font-size:18px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:10px;}
+.wrong-head h2 .count{font-size:13px;font-weight:500;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;}
+.wrong-head .retry-all{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r-sm);background:var(--ink);color:var(--canvas);font-size:13px;font-weight:600;transition:all .15s;}
+.wrong-head .retry-all:hover{background:var(--brand-500);}
+.wrong-list{display:flex;flex-direction:column;gap:8px;}
+.wrong-item{display:flex;align-items:center;gap:14px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:12px 16px;transition:all .12s;}
+.wrong-item:hover{background:var(--surface-soft);transform:translateX(2px);}
+.wrong-item .w-type{font-size:11px;font-weight:600;color:var(--error);background:var(--red-soft);padding:3px 9px;border-radius:var(--r-pill);flex-shrink:0;}
+.wrong-item .w-stem{flex:1;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wrong-item .w-from{font-size:11px;color:var(--muted-soft);flex-shrink:0;}
+.wrong-item .w-retry{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:var(--r-sm);background:var(--surface-card);color:var(--ink);font-size:12px;font-weight:600;flex-shrink:0;}
+.wrong-item .w-retry:hover{background:var(--brand-500);color:#fff;}
+@media(max-width:600px){.wrong-item .w-from{display:none;}}
+
+/* 视频试卷卡：点卡进专栏(16)，卡上考试模式按钮->06 */
+.v-card-exam{position:absolute;top:8px;right:8px;z-index:5;display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:var(--r-pill);background:rgba(0,0,0,.6);backdrop-filter:blur(6px);color:#fff;font-size:11px;font-weight:600;transition:all .15s;}
+.v-card-exam:hover{background:var(--brand-500);}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;
+  background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);
+  display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html">
+    <span class="logo-mark">S</span>
+    <span class="logo-text">See<span class="word">Word</span></span>
+  </a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="#">浏览</a>
+    <a href="08-practice-hub.html" class="active">练习专题</a>
+    <a href="#">词汇本</a>
+  </div>
+  <div class="nav-search">
+    <span class="si"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+    <input placeholder="搜索试卷、视频或词汇…">
+  </div>
+  <div class="nav-actions">
+    <button class="icon-btn" title="通知"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+    <button class="avatar">林</button>
+  </div>
+</nav>
+
+<div class="container-page" style="padding-bottom:80px">
+
+  <!-- 页头 -->
+  <div class="page-head">
+    <h1>练习专题</h1>
+    <p>按考试层级生成的视频试卷，与四六级、雅思、托福真题试卷汇集一处。每完成一份试卷，对应词汇的掌握度自动更新。</p>
+    <div class="stats-row">
+      <div class="stat-pill"><span class="dot"></span>本月完成 <strong>12</strong> 份</div>
+      <div class="stat-pill"><span class="dot" style="background:var(--success)"></span>平均正确率 <strong>83%</strong></div>
+      <div class="stat-pill"><span class="dot" style="background:var(--indigo)"></span>连续学习 <strong>13</strong> 天</div>
+    </div>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="filter-bar">
+    <div class="filter-row">
+      <span class="f-label">层级</span>
+      <button class="f-chip active">全部</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-zhongkao)"></span>中考</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-gaoKao)"></span>高考</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-cet4)"></span>四级</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-cet6)"></span>六级</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-ielts)"></span>雅思</button>
+      <button class="f-chip"><span class="lv-dot" style="background:var(--lv-toefl)"></span>托福</button>
+    </div>
+  </div>
+
+  <!-- 说明条 -->
+  <div class="info-bar">
+    <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></span>
+    <div class="t"><strong>视频试卷</strong>由视频字幕与考点词汇自动生成，按你选择的目标考试层级排版；<strong>真题试卷</strong>为四六级/雅思/托福历年原题，即将上线。点试卷卡进入专栏即时学习，或进入考试模式提交判分。</div>
+  </div>
+
+  <!-- 水平检测特色卡 -->
+  <div class="check-card">
+    <div class="check-left">
+      <span class="check-tag"><span class="d"></span>每日水平检测</span>
+      <div class="check-title">今天，直接来一套卷子</div>
+      <div class="check-sub">不看视频，直接做题。系统按你的目标层级出一张卷子，提交后给出对错、解析与得分--每天打开 App 的第一件事，检验学习成果。</div>
+      <a class="check-btn" href="06-practice.html">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/></svg>
+        开始今日检测
+      </a>
+    </div>
+    <div class="check-right">
+      <div class="cr-row"><span>上次成绩</span><strong>78 / 100</strong></div>
+      <div class="cr-row"><span>本周检测</span><strong>5 次</strong></div>
+      <div class="cr-row"><span>连续打卡</span><span class="cr-streak"><span class="flame">🔥</span><strong>13</strong> 天</span></div>
+    </div>
+  </div>
+
+  <!-- 错题本 -->
+  <div class="wrong-block">
+    <div class="wrong-head">
+      <h2>错题本 <span class="count">6 题待重做</span></h2>
+      <a class="retry-all" href="06-practice.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+        重做全部错题
+      </a>
+    </div>
+    <div class="wrong-list" id="wrongList"></div>
+  </div>
+
+  <!-- 视频试卷 -->
+  <div class="sec-block">
+    <div class="sec-title">
+      <h2>视频试卷 <span class="count">本站视频生成</span></h2>
+      <a class="more" href="#">全部 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></a>
+    </div>
+    <div class="v-grid" id="vGrid"></div>
+  </div>
+
+  <!-- 真题试卷 -->
+  <div class="sec-block">
+    <div class="sec-title">
+      <h2>真题试卷 <span class="count">历年原题 · 即将上线</span></h2>
+    </div>
+    <div class="r-grid" id="rGrid"></div>
+  </div>
+
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// ── 视频试卷数据 ──
+const VIDEOS = [
+  { emoji:"🌙", bg:"linear-gradient(135deg,#1e1b4b,#4338ca)", title:"为什么我们做梦？睡眠的科学", titleEn:"Why Do We Dream?", level:"四级", lvColor:"var(--lv-cet4)", dur:"8:24", q:28, prog:64 },
+  { emoji:"🧠", bg:"linear-gradient(135deg,#064e3b,#059669)", title:"记忆如何形成与遗忘", titleEn:"How Memories Form and Fade", level:"六级", lvColor:"var(--lv-cet6)", dur:"11:02", q:32, prog:0 },
+  { emoji:"🌊", bg:"linear-gradient(135deg,#0c4a6e,#0284c7)", title:"海洋深处的未知世界", titleEn:"The Unknown Deep Ocean", level:"高考", lvColor:"var(--lv-gaoKao)", dur:"9:48", q:26, prog:100 },
+  { emoji:"🚀", bg:"linear-gradient(135deg,#7c2d12,#ea580c)", title:"火星移民：现实还是幻想", titleEn:"Mars Colonization", level:"雅思", lvColor:"var(--lv-ielts)", dur:"14:20", q:40, prog:30 },
+  { emoji:"🤖", bg:"linear-gradient(135deg,#3b0764,#7e22ce)", title:"人工智能会取代我们吗", titleEn:"Will AI Replace Us?", level:"四级", lvColor:"var(--lv-cet4)", dur:"10:15", q:30, prog:0 },
+  { emoji:"🎸", bg:"linear-gradient(135deg,#500724,#be123c)", title:"音乐如何影响大脑", titleEn:"How Music Affects the Brain", level:"托福", lvColor:"var(--lv-toefl)", dur:"12:33", q:36, prog:15 },
+];
+
+const vGrid = document.getElementById("vGrid");
+vGrid.innerHTML = VIDEOS.map(v=>{
+  const done = v.prog>=100;
+  return `<a class="v-card ${done?'done':''}" href="16-paper.html">
+    <div class="v-thumb" style="background:${v.bg}">
+      <span class="lv-tag" style="background:${v.lvColor}cc">${v.level}</span>
+      <a class="v-card-exam" href="06-practice.html" onclick="event.stopPropagation()" title="考试模式（提交判分）">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>考试
+      </a>
+      <span class="emoji">${v.emoji}</span>
+      <span class="duration">${v.dur}</span>
+    </div>
+    <div class="v-body">
+      <div class="v-title">${v.title}</div>
+      <div class="v-title-en">${v.titleEn}</div>
+      <div class="v-meta">
+        <span class="qcount"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>${v.q} 题</span>
+        <span>·</span>
+        <span>${v.level}格式</span>
+      </div>
+      <div class="v-prog">
+        <div class="track"><div class="fill" style="width:${v.prog}%"></div></div>
+        <div class="plbl"><span>${v.prog>=100?'已完成':v.prog>0?'已做 '+v.prog+'%':'未开始'}</span><span>${v.prog>=100?'复习':'继续'}</span></div>
+      </div>
+      <div class="v-cta">${done?'再练一次':'进入专栏'}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14m-6-7l7 7-7 7"/></svg></div>
+    </div>
+  </a>`;
+}).join("");
+
+// ── 错题本列表 ──
+const WRONGS=[
+  {type:"听力理解",stem:"REM 睡眠时大脑的状态是？",from:"为什么我们做梦？"},
+  {type:"选词填空",stem:"One ______ suggests that dreams help us consolidate memories.",from:"为什么我们做梦？"},
+  {type:"阅读理解",stem:"根据视频，梦的可能作用是？",from:"记忆如何形成与遗忘"},
+  {type:"语法填空",stem:"believe ______ dreams reflect consciousness",from:"为什么我们做梦？"},
+  {type:"翻译",stem:"Whatever the answer, dreaming is an inevitable part...",from:"为什么我们做梦？"},
+  {type:"听力理解",stem:"视频中提到梦的一个可能作用是？",from:"海洋深处的未知世界"},
+];
+document.getElementById("wrongList").innerHTML=WRONGS.map(w=>`
+  <div class="wrong-item">
+    <span class="w-type">${w.type}</span>
+    <span class="w-stem">${w.stem}</span>
+    <span class="w-from">来自《${w.from}》</span>
+    <a class="w-retry" href="06-practice.html">重做<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-6-7l7 7-7 7"/></svg></a>
+  </div>`).join("");
+
+// ── 真题试卷数据 ──
+const REAL = [
+  { name:"四级真题", sub:"CET-4 · 2020-2024", logo:"4", logoBg:"var(--lv-cet4)", sets:24, q:560 },
+  { name:"六级真题", sub:"CET-6 · 2020-2024", logo:"6", logoBg:"var(--lv-cet6)", sets:24, q:560 },
+  { name:"雅思真题", sub:"IELTS · Cambridge 11-18", logo:"IELTS", logoBg:"var(--lv-ielts)", sets:8, q:320 },
+  { name:"托福真题", sub:"TOEFL · TPO 真题集", logo:"TPO", logoBg:"var(--lv-toefl)", sets:12, q:480 },
+];
+document.getElementById("rGrid").innerHTML = REAL.map(r=>`
+  <div class="r-card">
+    <div class="r-head">
+      <div class="r-logo" style="background:${r.logoBg};font-size:${r.logo.length>2?12:20}px">${r.logo}</div>
+      <div class="r-info"><div class="r-name">${r.name}</div><div class="r-sub">${r.sub}</div></div>
+    </div>
+    <div class="r-stats">
+      <div class="r-stat"><div class="n">${r.sets}</div><div class="l">套题</div></div>
+      <div class="r-stat"><div class="n">${r.q}</div><div class="l">题目</div></div>
+      <div class="r-stat"><div class="n">--</div><div class="l">已做</div></div>
+    </div>
+    <div class="r-action">
+      <span class="r-soon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>即将上线</span>
+      <span class="r-go">敬请期待</span>
+    </div>
+  </div>`).join("");
+
+// 筛选 chip 切换（视觉）
+document.querySelectorAll(".f-chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll(".f-chip").forEach(x=>x.classList.remove("active"));
+  c.classList.add("active");
+}));
+
+// 主题切换
+const root = document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML = root.classList.contains("dark")
+    ? '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    : '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

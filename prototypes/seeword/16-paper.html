@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 试卷专栏</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Paper - 试卷专栏 · 即时学习模式
+   一屏多题滚动 · 点选项立即出对错+答案+解析
+   顶部"考试模式"入口 -> 06（提交判分）
+   app token (globals.css)
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#eef2ff;
+  --success:#16a34a;--success-soft:#dcfce7;--success-dark:#15803d;
+  --warning:#d97706;--warning-soft:#fef3c7;
+  --error:#dc2626;--red-soft:#fee2e2;--error-dark:#b91c1c;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-gaoKao:#16a34a;--lv-ielts:#dc2626;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;--success-dark:#22c55e;
+  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;--error-dark:#ef4444;
+  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input,textarea{font-family:inherit;}
+
+/* Topbar */
+.topbar{position:sticky;top:0;z-index:40;height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:20px;padding:0 16px;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}.logo-text .word{color:var(--brand-500);}
+.nav-links{display:flex;gap:2px;flex-shrink:0;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:var(--r-lg);transition:all .15s;}
+.nav-links a:hover{color:var(--ink);background:var(--surface-card);}
+.nav-links a.active{background:var(--ink);color:var(--canvas);}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand-500),var(--brand-400));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;border:1px solid var(--hairline);}
+@media(max-width:880px){.nav-links{display:none;}}
+
+.container{max-width:880px;margin:0 auto;padding:28px 20px 80px;}
+
+/* 试卷头部 */
+.paper-hero{background:linear-gradient(135deg,#161616,#0a0a0a);border-radius:var(--r-xl);padding:32px 28px;color:#fafafa;margin-bottom:24px;position:relative;overflow:hidden;}
+.paper-hero::before{content:"";position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,31,.22),transparent 70%);}
+.ph-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:rgba(250,250,250,.7);margin-bottom:14px;}
+.ph-back:hover{color:#fff;}
+.ph-lv{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:rgba(255,122,69,.15);color:#ff7a45;letter-spacing:.06em;}
+.ph-lv .d{width:7px;height:7px;border-radius:50%;background:#ff5a1f;}
+.ph-title{font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:12px 0 6px;}
+.ph-sub{font-size:13px;color:rgba(250,250,250,.65);line-height:1.5;}
+.ph-stats{display:flex;gap:20px;margin-top:16px;flex-wrap:wrap;}
+.ph-stat{font-size:12px;color:rgba(250,250,250,.6);}
+.ph-stat strong{display:block;font-size:18px;font-weight:700;color:#fff;font-family:"JetBrains Mono",monospace;margin-bottom:2px;}
+.ph-actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 22px;font-size:14px;font-weight:600;border-radius:var(--r-sm);transition:all .15s;}
+.btn-primary{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.btn-primary:hover{background:var(--brand-600);}
+.btn-ghost{background:rgba(255,255,255,.1);color:#fff;}
+.btn-ghost:hover{background:rgba(255,255,255,.18);}
+
+/* 进度条 */
+.prog-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:12px 16px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);box-shadow:var(--shadow-soft);}
+.prog-bar .cnt{font-size:12px;color:var(--muted);font-family:"JetBrains Mono",monospace;}
+.prog-bar .track{flex:1;height:5px;border-radius:3px;background:var(--surface-card);overflow:hidden;}
+.prog-bar .fill{height:100%;background:var(--brand-500);transition:width .3s;}
+.prog-bar .score{font-size:12px;font-weight:600;color:var(--success);}
+
+/* 部分 */
+.part-head{display:flex;align-items:center;gap:10px;margin:28px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--hairline);}
+.part-no{font-size:11px;font-weight:700;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;letter-spacing:.06em;}
+.part-name{font-size:16px;font-weight:700;color:var(--ink);}
+.part-meta{margin-left:auto;font-size:12px;color:var(--muted);}
+.part-desc{font-size:12px;color:var(--muted);margin-bottom:14px;}
+
+/* 题目 */
+.q-item{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:16px 18px;margin-bottom:10px;}
+.q-item.done{border-color:var(--brand-100);}
+.q-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.q-no{width:24px;height:24px;border-radius:6px;background:var(--surface-card);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:"JetBrains Mono",monospace;color:var(--muted);flex-shrink:0;}
+.q-item.done .q-no{background:var(--brand-500);color:#fff;}
+.q-type-tag{font-size:11px;font-weight:600;color:var(--brand-600);}
+.q-pts{margin-left:auto;font-size:11px;color:var(--muted-soft);}
+.q-stem{font-size:14px;font-weight:500;color:var(--ink);line-height:1.6;margin-bottom:8px;}
+.q-context{font-size:12.5px;color:var(--muted);font-style:italic;margin-bottom:10px;line-height:1.5;}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+@media(max-width:600px){.choices{grid-template-columns:1fr;}}
+.choice{position:relative;padding:11px 14px;font-size:13px;font-weight:500;background:var(--canvas);border:1.5px solid var(--hairline);border-radius:var(--r-sm);text-align:left;color:var(--ink);transition:all .12s;}
+.choice:hover{background:var(--surface-card);}
+.choice.correct{border-color:var(--success);background:var(--success-soft);color:var(--success);font-weight:600;}
+.choice.wrong{border-color:var(--error);background:var(--red-soft);color:var(--error);}
+.choice.disabled{cursor:default;}
+.choice .key{position:absolute;top:6px;right:8px;font-size:10px;font-weight:600;font-family:"JetBrains Mono",monospace;color:var(--muted-soft);}
+.fill-input{flex:1;height:38px;padding:0 12px;font-size:14px;border:1.5px solid var(--hairline);border-radius:var(--r-sm);background:var(--canvas);color:var(--ink);outline:none;}
+.fill-input:focus{border-color:var(--brand-500);}
+.fill-input.correct{border-color:var(--success);background:var(--success-soft);color:var(--success);}
+.fill-input.wrong{border-color:var(--error);background:var(--red-soft);color:var(--error);}
+.fill-row{display:flex;gap:8px;align-items:center;}
+.check-btn{padding:8px 16px;border-radius:var(--r-sm);background:var(--success);color:#fff;font-size:13px;font-weight:600;}
+.translate-box{background:var(--surface-soft);border-radius:var(--r-sm);padding:10px 12px;font-size:13px;color:var(--body);line-height:1.6;margin-bottom:8px;}
+.write-area{width:100%;min-height:80px;padding:10px 12px;font-size:13px;border:1.5px solid var(--hairline);border-radius:var(--r-sm);background:var(--canvas);color:var(--ink);outline:none;resize:vertical;line-height:1.6;}
+.speak-prompt{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-soft);border-radius:var(--r-sm);margin-bottom:8px;}
+.speak-prompt .play{width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--canvas);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.self-row{display:flex;gap:8px;}
+.self-btn{padding:8px 16px;border-radius:var(--r-sm);border:1.5px solid var(--hairline);color:var(--body);background:var(--canvas);font-size:13px;font-weight:600;}
+.self-btn.selected{background:var(--brand-50);border-color:var(--brand-500);color:var(--brand-600);}
+
+/* 解析 */
+.q-explain{margin-top:10px;padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.6;display:none;}
+.q-explain.show{display:block;animation:fade .2s ease-out;}
+.q-explain.ok{background:var(--success-soft);color:var(--success-dark);}
+.q-explain.no{background:var(--red-soft);color:var(--error-dark);}
+.q-explain .ans{font-weight:700;}
+.q-explain .ex{display:block;margin-top:4px;}
+@keyframes fade{from{opacity:0;}to{opacity:1;}}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+/* 移动端底部 tab 栏 */
+.mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
+  background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hairline);padding:6px 0 env(safe-area-inset-bottom,8px);
+  justify-content:space-around;}
+.mobile-tab a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+  font-size:10px;font-weight:500;color:var(--muted);border-radius:var(--r-sm);min-width:52px;}
+.mobile-tab a svg{width:22px;height:22px;}
+.mobile-tab a.active{color:var(--brand-500);}
+@media(max-width:880px){.mobile-tab{display:flex;}body{padding-bottom:64px;}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="nav-logo" href="03-home-b-seeword.html"><span class="logo-mark">S</span><span class="logo-text">See<span class="word">Word</span></span></a>
+  <div class="nav-links">
+    <a href="03-home-b-seeword.html">首页</a>
+    <a href="11-browse.html">浏览</a>
+    <a href="08-practice-hub.html" class="active">练习专题</a>
+    <a href="09-vocabulary.html">词汇本</a>
+  </div>
+  <div class="nav-actions">
+    <a class="icon-btn" href="12-history.html" title="学习记录"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></a>
+    <a class="avatar" href="07-profile.html">林</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- 试卷头部 -->
+  <div class="paper-hero">
+    <a class="ph-back" href="08-practice-hub.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>返回练习专题</a>
+    <span class="ph-lv"><span class="d"></span>四级 CET-4</span>
+    <div class="ph-title">为什么我们做梦？睡眠的科学 · 试卷</div>
+    <div class="ph-sub">基于本视频字幕与考点词汇生成 · 按四级真实试卷结构编排。点选项即时给出对错与解析，适合学习巩固；想模拟考试请进入考试模式。</div>
+    <div class="ph-stats">
+      <div class="ph-stat"><strong>8</strong>题量</div>
+      <div class="ph-stat"><strong>100</strong>满分</div>
+      <div class="ph-stat"><strong>4</strong>部分</div>
+      <div class="ph-stat"><strong>125</strong>分钟(参考)</div>
+    </div>
+    <div class="ph-actions">
+      <a class="btn btn-primary" href="06-practice.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        考试模式（提交判分）
+      </a>
+      <button class="btn btn-ghost" id="btnReset">重置答题</button>
+    </div>
+  </div>
+
+  <!-- 进度 -->
+  <div class="prog-bar">
+    <span class="cnt" id="pCnt">0 / 8</span>
+    <div class="track"><div class="fill" id="pFill" style="width:0%"></div></div>
+    <span class="score" id="pScore">对 0 · 错 0</span>
+  </div>
+
+  <!-- 题目区 -->
+  <div id="body"></div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// 题库（与 06 一致，按部分组织）
+const PAPER=[
+  {part:"Part I 写作",meta:"15%",desc:"根据提示写一篇短文（自评）",items:[
+    {type:"write",pts:15,stem:"请根据提示写一篇约 120 词的短文：",ctx:"有人认为梦有深意，有人认为只是大脑随机活动。你的观点？结合视频举例说明。",
+      ans:"参考要点：表明立场 + 用 consolidate memories / process emotions 举例 + 总结",explain:"议论文：观点-论据-结论。",self:true},
+  ]},
+  {part:"Part II 听力理解",meta:"35%",desc:"听音频，选择正确答案",items:[
+    {type:"choice",pts:7,stem:"视频中说，REM 睡眠时大脑的状态是？",ctx:"\"During REM sleep, your brain is almost as active as when you're awake.\"",
+      choices:["完全停止活动","几乎和清醒时一样活跃","比清醒时更活跃","只处理视觉信息"],answer:1,ans:"B",explain:"almost as active as when awake = 几乎和清醒时一样活跃。"},
+    {type:"choice",pts:7,stem:"视频中提到梦的一个可能作用是？",ctx:"\"One theory suggests that dreams help us consolidate memories from the day.\"",
+      choices:["帮助回忆白天的事","完全停止记忆","删除所有记忆","与记忆无关"],answer:0,ans:"A",explain:"consolidate memories = 巩固白天的记忆。"},
+  ]},
+  {part:"Part III 阅读理解",meta:"35%",desc:"选词填空 + 仔细阅读",items:[
+    {type:"choice",pts:5,stem:"选词填空：选择最佳词填入空白",ctx:"One ______ suggests that dreams help us consolidate memories.",
+      choices:["theory","theories","theoretical","theorize"],answer:0,ans:"A",explain:"one + 单数名词，theory 符合语法与句意。"},
+    {type:"choice",pts:14,stem:"根据视频内容，下列哪项是梦的可能作用？",ctx:"阅读：\"...dreams help us consolidate memories... Dreams might also be a safe space to process difficult emotions.\"",
+      choices:["仅巩固记忆","仅处理情绪","巩固记忆与处理情绪","与情绪和记忆都无关"],answer:2,ans:"C",explain:"视频提到梦既能巩固记忆，又能处理情绪。"},
+    {type:"fill",pts:5,stem:"语法填空：填入所给词的正确形式",ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.（提示：that）",
+      fill:"that",ans:"that",explain:"believe that + 从句，that 引导宾语从句（可省略）。"},
+  ]},
+  {part:"Part IV 翻译",meta:"15%",desc:"将下列英文译成中文（自评）",items:[
+    {type:"translate",pts:15,stem:"将下列句子译成中文：",ctx:"Whatever the answer, dreaming is an inevitable part of being human.",
+      ans:"参考译文：无论答案是什么，做梦都是生而为人不可避免的一部分。",explain:"inevitable = 不可避免的；being human = 生而为人。",self:true},
+  ]},
+];
+
+let answered={}; // qid -> {ok, picked/text/self}
+
+function allQs(){let a=[];PAPER.forEach((p,pi)=>p.items.forEach((q,qi)=>a.push({...q,qid:pi+"-"+qi})));return a;}
+
+function render(){
+  let html="";
+  let qn=0;
+  PAPER.forEach((p,pi)=>{
+    html+=`<div class="part-head"><span class="part-no">PART</span><span class="part-name">${p.part}</span><span class="part-meta">${p.meta}</span></div>`;
+    html+=`<div class="part-desc">${p.desc}</div>`;
+    p.items.forEach((q,qi)=>{
+      const id=pi+"-"+qi;const a=answered[id];qn++;
+      let body="";
+      if(q.type==="choice"){
+        body=`<div class="choices">${q.choices.map((c,i)=>{
+          let cls="";
+          if(a){cls=" disabled";if(i===q.answer)cls+=" correct";if(a.picked===i&&i!==q.answer)cls+=" wrong";}
+          return `<button class="choice${cls}" data-q="${id}" data-i="${i}"><span class="key">${i+1}</span>${c}</button>`;
+        }).join("")}</div>`;
+      }else if(q.type==="fill"){
+        const v=a?q.fill:"";const cls=a?(a.ok?"correct":"wrong"):"";
+        body=`<div class="fill-row"><input class="fill-input ${cls}" data-q="${id}" placeholder="填入单词…" value="${a?q.fill:''}" ${a?'disabled':''}>
+          ${!a?`<button class="check-btn" data-q="${id}">检查</button>`:""}</div>`;
+      }else if(q.type==="write"){
+        body=`<textarea class="write-area" data-q="${id}" placeholder="在此作答…">${a?a.text:''}</textarea>`;
+      }else if(q.type==="translate"){
+        body=`<div class="translate-box">${q.ctx}</div><textarea class="write-area" data-q="${id}" placeholder="在此输入译文…">${a?a.text:''}</textarea>`;
+      }
+      // 自评按钮（write/translate）
+      if(q.self){
+        const s=answered[id];
+        body+=`<div class="self-row" style="margin-top:8px">
+          <button class="self-btn ${s&&s.self==='0'?'selected':''}" data-q="${id}" data-s="0" ${s?'disabled':''}>需练习</button>
+          <button class="self-btn ${s&&s.self==='1'?'selected':''}" data-q="${id}" data-s="1" ${s?'disabled':''}>译对了</button></div>`;
+      }
+      let ex="";
+      if(a){
+        const ok=q.self?a.self==="1":a.ok;
+        ex=`<div class="q-explain ${ok?'ok':'no'} show"><span class="ans">${ok?'✓ 正确':'✗ 错误'}</span> · 正确答案：<span class="ans">${q.ans}</span><span class="ex">${q.explain}</span></div>`;
+      }
+      html+=`<div class="q-item ${a?'done':''}">
+        <div class="q-top"><span class="q-no">${qn}</span><span class="q-type-tag">${q.type==='choice'?'选择题':q.type==='fill'?'填空题':q.type==='write'?'写作':q.type==='translate'?'翻译':'题目'}</span><span class="q-pts">${q.pts} 分</span></div>
+        <div class="q-stem">${q.stem}</div>
+        ${q.ctx&&q.type!=='translate'?`<div class="q-context">${q.ctx}</div>`:""}
+        ${body}${ex}
+      </div>`;
+    });
+  });
+  document.getElementById("body").innerHTML=html;
+  bind();updateProg();
+}
+
+function bind(){
+  document.querySelectorAll(".choice:not(.disabled)").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q,i=+b.dataset.i;const q=allQs().find(x=>x.qid===id);
+    answered[id]={ok:i===q.answer,picked:i};render();
+  }));
+  document.querySelectorAll(".check-btn").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q;const q=allQs().find(x=>x.qid===id);
+    const inp=document.querySelector(`.fill-input[data-q="${id}"]`);
+    if(!inp.value.trim())return;
+    answered[id]={ok:inp.value.trim().toLowerCase()===q.fill.toLowerCase()};render();
+  }));
+  document.querySelectorAll(".fill-input").forEach(inp=>inp.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){const b=document.querySelector(`.check-btn[data-q="${inp.dataset.q}"]`);if(b)b.click();}
+  }));
+  document.querySelectorAll(".write-area").forEach(t=>{
+    t.addEventListener("input",()=>{if(answered[t.dataset.q]&&answered[t.dataset.q].self){answered[t.dataset.q].text=t.value;}});
+  });
+  document.querySelectorAll(".self-btn").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.q;const q=allQs().find(x=>x.qid===id);
+    const t=document.querySelector(`.write-area[data-q="${id}"]`);
+    answered[id]={self:b.dataset.s,text:t?t.value:""};render();
+  }));
+}
+
+function updateProg(){
+  const total=allQs().length,done=Object.keys(answered).length;
+  const right=Object.values(answered).filter(a=>q.self?a.self==="1":a.ok).length;
+  // 修正：上面 q 未定义，重写
+  let r=0;Object.entries(answered).forEach(([id,a])=>{const q=allQs().find(x=>x.qid===id);if(q.self){if(a.self==="1")r++;}else{if(a.ok)r++;}});
+  const wrong=done-r;
+  document.getElementById("pCnt").textContent=`${done} / ${total}`;
+  document.getElementById("pFill").style.width=`${done/total*100}%`;
+  document.getElementById("pScore").textContent=`对 ${r} · 错 ${wrong}`;
+}
+
+document.getElementById("btnReset").addEventListener("click",()=>{answered={};render();});
+
+render();
+
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+
+<!-- 移动端底部 tab -->
+<nav class="mobile-tab">
+  <a href="03-home-b-seeword.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1V9.5z"/></svg><span>首页</span></a>
+  <a href="11-browse.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>浏览</span></a>
+  <a href="08-practice-hub.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>练习</span></a>
+  <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
+  <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
+</nav>
+</body>
+</html>

@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 视频卡片 · 设计文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Video Card - "Design Document"
+   保留 v2 文档式排版骨架 · 视觉换 SeeWord 真实项目风格
+   设计 token 取自 frontend/src/app/globals.css
+   卡片组件与 03-home-b-seeword.html 一致
+   ═══════════════════════════════════════════════════════ */
+
+/* --- 主题变量（亮色） --- */
+:root {
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --bg-inset: #f4f4f5;
+
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-300: #ff9b76;
+  --brand-400: #ff7a45;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+
+  --indigo: #6366f1;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --error: #dc2626;
+  --red-soft: #fee2e2;
+  --on-primary: #ffffff;
+
+  --shadow-soft: 0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04);
+  --shadow-card: 0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift: 0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,0.28);
+
+  --r-xs: 4px; --r-sm: 8px; --r-md: 10px; --r: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 9999px;
+
+  --dot-color: rgba(0,0,0,0.04);
+  --orb-color: rgba(255,90,31,0.10);
+}
+
+/* --- 主题变量（暗色） --- */
+html.dark {
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --muted: #a1a1aa;
+  --muted-soft: #6b6b72;
+  --hairline: #242426;
+  --hairline-soft: #1a1a1c;
+  --bg-inset: #1a1a1c;
+
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-700: #ff7a45;
+
+  --success: #22c55e;
+  --success-soft: #052e16;
+  --warning: #f59e0b;
+  --warning-soft: #422006;
+  --error: #ef4444;
+  --red-soft: #3b0a0a;
+
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.5);
+  --shadow-card: 0 2px 8px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift: 0 12px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+
+  --dot-color: rgba(255,255,255,0.035);
+  --orb-color: rgba(255,90,31,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { background: var(--surface-soft); }
+html.dark { background: var(--surface-soft); }
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface-soft);
+  color: var(--ink);
+  padding: 64px 40px 100px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+  min-height: 100vh;
+  transition: background 0.2s, color 0.2s;
+}
+
+::selection { background: var(--brand-500); color: #fff; }
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+a { text-decoration: none; color: inherit; }
+
+/* ── 氛围背景 ── */
+.ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.ambient::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 70% 50% at 50% 0%, #000 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 50% at 50% 0%, #000 20%, transparent 70%);
+}
+.orb { position: absolute; border-radius: 50%; filter: blur(120px); }
+.orb-1 {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, var(--orb-color), transparent 70%);
+  top: -20%; right: -8%;
+  animation: drift 24s ease-in-out infinite alternate;
+}
+@keyframes drift { from { transform: translate(0,0); } to { transform: translate(36px, 28px); } }
+
+/* ── 右上角主题切换 ── */
+.theme-toggle {
+  position: fixed; top: 20px; right: 24px; z-index: 50;
+  width: 38px; height: 38px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--canvas) 80%, transparent);
+  border: 1px solid var(--hairline);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.15s;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--brand-500); }
+
+/* ── 文档容器 ── */
+.doc { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; }
+
+/* 页头 */
+.doc-head { margin-bottom: 72px; }
+.eyebrow {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 500;
+  color: var(--brand-600); letter-spacing: 0.14em; text-transform: uppercase;
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.eyebrow::after { content: ''; width: 40px; height: 1px; background: var(--hairline); }
+.doc-head h1 {
+  font-size: 48px; font-weight: 800; line-height: 1.1;
+  letter-spacing: -0.035em; margin-bottom: 16px;
+}
+.doc-head h1 em { font-style: normal; color: var(--brand-500); }
+.doc-head p {
+  font-size: 15px; color: var(--muted); font-weight: 400;
+  line-height: 1.7; max-width: 580px;
+}
+
+/* 章节 */
+.section { margin-bottom: 80px; }
+.section-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 500;
+  color: var(--brand-600); letter-spacing: 0.14em; text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-label .num { color: var(--muted-soft); font-weight: 400; }
+.section-title {
+  font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px;
+}
+.section-title em { font-style: normal; color: var(--brand-500); }
+.section-desc {
+  font-size: 14px; color: var(--muted); font-weight: 400;
+  line-height: 1.6; margin-bottom: 36px; max-width: 560px;
+}
+
+/* ═══════════ 卡片组件（与首页 03-home-b-seeword.html 一致） ═══════════ */
+.video-card {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+}
+.video-card.hoverable:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lift);
+  border-color: transparent;
+}
+
+.card-thumb {
+  position: relative; aspect-ratio: 16 / 9;
+  background: var(--surface-card); overflow: hidden;
+}
+.thumb-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.thumb-emoji { font-size: 42px; opacity: 0.92; transition: transform 0.3s; }
+.video-card:hover .thumb-emoji { transform: scale(1.12); }
+
+/* 左上 CEFR badge */
+.badge-level {
+  position: absolute; left: 8px; top: 8px;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,0.92);
+}
+html.dark .badge-level { background: rgba(20,20,22,0.88); }
+.badge-a2 { background: rgba(220,252,231,0.92); color: #16a34a; }
+.badge-b1 { background: rgba(224,231,255,0.92); color: #6366f1; }
+.badge-b2 { background: rgba(254,243,199,0.92); color: #d97706; }
+.badge-c1 { background: rgba(254,226,226,0.92); color: #dc2626; }
+html.dark .badge-a2 { background: rgba(5,46,22,0.88); color: #22c55e; }
+html.dark .badge-b1 { background: rgba(30,27,75,0.88); color: #818cf8; }
+html.dark .badge-b2 { background: rgba(66,32,6,0.88); color: #fbbf24; }
+html.dark .badge-c1 { background: rgba(59,10,10,0.88); color: #f87171; }
+
+/* 右下时长 badge（mono） */
+.duration-badge {
+  position: absolute; right: 8px; bottom: 8px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600; color: #fff;
+  padding: 2px 6px; border-radius: 5px;
+  background: rgba(10,10,10,0.78);
+}
+
+/* hover 蒙层 + 橙圆 play */
+.play-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s;
+  background: rgba(10,10,10,0.32);
+}
+.video-card:hover .play-overlay { opacity: 1; }
+.play-btn {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--brand-500);
+  box-shadow: var(--shadow-brand);
+  display: flex; align-items: center; justify-content: center;
+  transform: scale(0.9); transition: transform 0.15s;
+}
+.video-card:hover .play-btn { transform: scale(1); }
+
+/* 底部观看进度条 */
+.watch-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,0.25); }
+.watch-progress-fill { height: 100%; background: var(--brand-500); }
+
+/* 已看完 pill */
+.watched-pill {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(22,163,74,0.92); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-pill);
+  display: flex; align-items: center; gap: 4px;
+  backdrop-filter: blur(4px);
+}
+html.dark .watched-pill { background: rgba(34,197,94,0.9); }
+
+/* Meta 区 */
+.card-meta { padding: 16px; }
+.card-title {
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  color: var(--ink); letter-spacing: -0.01em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 10px;
+  transition: color 0.15s;
+}
+.video-card:hover .card-title { color: var(--brand-600); }
+.card-footer { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.card-footer .source { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.card-footer .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--muted-soft); flex-shrink: 0; }
+.card-footer .cat-chip {
+  font-size: 11px; font-weight: 600; color: var(--body);
+  background: var(--surface-card);
+  padding: 2px 8px; border-radius: var(--r-pill); flex-shrink: 0;
+}
+.card-footer .words {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600; color: var(--brand-500); flex-shrink: 0;
+}
+
+/* ═══ Anatomy · 卡片解剖 ═══ */
+.anatomy {
+  display: grid; grid-template-columns: 380px 1fr;
+  gap: 64px; align-items: start;
+}
+
+/* 标本卡（固定 hover 态以展示全部元素） */
+.specimen { position: relative; }
+.specimen .video-card { cursor: default; }
+.specimen .play-overlay { opacity: 1; }
+.specimen .play-btn { transform: scale(1); }
+.specimen .thumb-emoji { transform: scale(1.12); }
+
+/* 标记点 */
+.pin {
+  position: absolute; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--brand-500); color: #fff;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5; box-shadow: 0 2px 8px rgba(255,90,31,0.4);
+  border: 2px solid var(--surface-soft);
+}
+.pin-1 { top: -11px; left: -11px; }
+.pin-2 { top: -1px; left: 44px; }
+.pin-3 { bottom: 196px; right: -11px; }
+.pin-4 { top: 96px; left: calc(50% + 30px); }
+.pin-5 { bottom: -11px; left: 42%; }
+.pin-6 { top: 232px; left: -11px; }
+.pin-7 { top: 278px; left: -11px; }
+
+/* 规格表 */
+.specs { padding-top: 4px; }
+.spec-row {
+  display: grid; grid-template-columns: 28px 1fr auto;
+  gap: 16px; align-items: baseline;
+  padding: 14px 0; border-bottom: 1px solid var(--hairline);
+}
+.spec-row:first-child { border-top: 1px solid var(--hairline); }
+.spec-num {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; font-weight: 600;
+  color: #fff; background: var(--brand-500);
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.spec-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.spec-desc { font-size: 12.5px; color: var(--muted); font-weight: 400; line-height: 1.5; margin-top: 3px; }
+.spec-token {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; color: var(--muted);
+  background: var(--bg-inset); padding: 3px 8px; border-radius: var(--r-xs);
+  white-space: nowrap;
+}
+
+/* ═══ States · 状态陈列 ═══ */
+.states-row {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+.state-item .video-card { cursor: default; }
+.state-caption {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline);
+}
+.state-caption .cap-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 500;
+  color: var(--brand-600); letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.state-caption .cap-text { font-size: 13px; color: var(--muted); font-weight: 400; line-height: 1.6; }
+
+/* ═══ Variants · 紧凑变体 ═══ */
+.variants { display: flex; flex-direction: column; gap: 12px; max-width: 520px; }
+.card-compact {
+  display: flex; gap: 14px;
+  background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--r-lg); padding: 12px;
+  box-shadow: var(--shadow-soft); cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  align-items: center;
+}
+.card-compact:hover {
+  box-shadow: var(--shadow-lift); transform: translateX(3px); border-color: transparent;
+}
+.compact-thumb {
+  width: 132px; min-width: 132px; aspect-ratio: 16 / 9;
+  border-radius: var(--r-sm); overflow: hidden; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.compact-thumb .emoji { font-size: 26px; opacity: 0.9; }
+.compact-duration {
+  position: absolute; bottom: 4px; right: 4px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  background: rgba(10,10,10,0.78); color: #fff;
+  font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px;
+}
+.compact-info { flex: 1; min-width: 0; }
+.compact-title {
+  font-size: 14px; font-weight: 600; color: var(--ink);
+  line-height: 1.4; margin-bottom: 5px; letter-spacing: -0.01em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.compact-meta {
+  font-size: 11px; color: var(--muted); display: flex; gap: 8px; align-items: center;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+.compact-progress { height: 3px; background: var(--hairline); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.compact-progress-fill { height: 100%; background: var(--brand-500); border-radius: 2px; }
+
+/* ═══ Attribution · 来源声明 ═══ */
+.attribution {
+  background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--r-xl); padding: 24px 28px;
+  box-shadow: var(--shadow-soft); max-width: 580px;
+}
+.attribution .a-title {
+  font-size: 18px; font-weight: 700; color: var(--ink);
+  letter-spacing: -0.02em; margin-bottom: 10px;
+}
+.attribution .a-source {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted); margin-bottom: 14px;
+}
+.attribution .a-source a { color: var(--brand-600); font-weight: 500; }
+.attribution .a-source a:hover { text-decoration: underline; }
+.attribution .a-notice {
+  font-size: 12.5px; color: var(--muted-soft); line-height: 1.7;
+  padding-top: 14px; border-top: 1px solid var(--hairline); font-weight: 400;
+}
+.source-icon {
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: #ff0000;
+}
+.source-icon svg { width: 10px; height: 10px; fill: #fff; }
+
+/* 原地址元数据表 */
+.attribution .a-meta {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px;
+  margin: 0 0 16px; padding: 14px 0;
+  border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+}
+.attribution .a-meta-row { display: flex; flex-direction: column; gap: 3px; padding: 7px 0; }
+.attribution .a-meta-row.full { grid-column: 1 / -1; }
+.attribution .a-meta-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 500; color: var(--muted-soft);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.attribution .a-meta-value { font-size: 13px; color: var(--body); font-weight: 500; word-break: break-all; }
+.attribution .a-meta-value a { color: var(--brand-600); font-weight: 500; }
+.attribution .a-meta-value a:hover { text-decoration: underline; }
+.attribution .a-notice strong { color: var(--body); font-weight: 600; }
+.attribution .a-notice a { color: var(--brand-600); font-weight: 500; }
+.attribution .a-notice a:hover { text-decoration: underline; }
+
+@media (max-width: 860px) {
+  body { padding: 44px 20px 80px; }
+  .doc-head h1 { font-size: 36px; }
+  .anatomy { grid-template-columns: 1fr; gap: 40px; }
+  .specimen { max-width: 360px; }
+  .pin-3 { bottom: 184px; }
+  .pin-4 { top: 90px; }
+  .pin-6 { top: 222px; }
+  .pin-7 { top: 268px; }
+  .states-row { grid-template-columns: 1fr; gap: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="ambient"><div class="orb orb-1"></div></div>
+
+<button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换主题">
+  <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+  </svg>
+  <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
+
+<div class="doc">
+  <!-- 页头 -->
+  <header class="doc-head">
+    <div class="eyebrow">Component · Video Card</div>
+    <h1>卡片<em>解剖</em></h1>
+    <p>视频卡片是用户接触内容的第一触点。它要在一次扫视里回答三件事--这是什么、值不值得看、从哪来。下面是它的构造、状态与变体规格。</p>
+  </header>
+
+  <!-- ═══ 1. Anatomy ═══ -->
+  <section class="section">
+    <div class="section-label"><span class="num">01</span> Anatomy</div>
+    <h2 class="section-title">构造<em>分解</em></h2>
+    <p class="section-desc">七个要素，各司其职。缩略图负责吸引，进度条负责召回，来源声明负责信任。</p>
+
+    <div class="anatomy">
+      <!-- 标本卡片（固定 hover 态） -->
+      <div class="specimen">
+        <span class="pin pin-1">1</span>
+        <span class="pin pin-2">2</span>
+        <span class="pin pin-3">3</span>
+        <span class="pin pin-4">4</span>
+        <span class="pin pin-5">5</span>
+        <span class="pin pin-6">6</span>
+        <span class="pin pin-7">7</span>
+        <div class="video-card">
+          <div class="card-thumb">
+            <div class="thumb-bg" style="background:linear-gradient(135deg, #1e1b4b, #4338ca)"><span class="thumb-emoji">🌙</span></div>
+            <span class="badge-level badge-b1">B1</span>
+            <span class="duration-badge">8:24</span>
+            <div class="play-overlay">
+              <div class="play-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+            </div>
+            <div class="watch-progress"><div class="watch-progress-fill" style="width:65%"></div></div>
+          </div>
+          <div class="card-meta">
+            <div class="card-title">为什么我们做梦？睡眠的科学</div>
+            <div class="card-footer">
+              <span class="source">SciShow</span>
+              <span class="dot"></span>
+              <span class="cat-chip">科技</span>
+              <span class="dot"></span>
+              <span class="words">23 词</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 规格表 -->
+      <div class="specs">
+        <div class="spec-row">
+          <span class="spec-num">1</span>
+          <div>
+            <div class="spec-name">缩略图</div>
+            <div class="spec-desc">16:9 渐变底 + emoji 预览，hover 时 emoji 缩放、整卡上浮</div>
+          </div>
+          <span class="spec-token">aspect 16/9</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">2</span>
+          <div>
+            <div class="spec-name">难度 badge</div>
+            <div class="spec-desc">左上角 CEFR 等级，白底半透 + 模糊，A2/B1/B2/C1 四色</div>
+          </div>
+          <span class="spec-token">CEFR · pill</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">3</span>
+          <div>
+            <div class="spec-name">时长</div>
+            <div class="spec-desc">右下角，JetBrains Mono 字体，黑 78% 半透底</div>
+          </div>
+          <span class="spec-token">mono · 5px</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">4</span>
+          <div>
+            <div class="spec-name">播放蒙层</div>
+            <div class="spec-desc">hover 黑 32% 蒙层 + 中央橙色圆钮，带品牌发光</div>
+          </div>
+          <span class="spec-token">brand · glow</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">5</span>
+          <div>
+            <div class="spec-name">观看进度</div>
+            <div class="spec-desc">底部 3px 橙色条，召回未看完的视频</div>
+          </div>
+          <span class="spec-token">brand · 3px</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">6</span>
+          <div>
+            <div class="spec-name">标题</div>
+            <div class="spec-desc">14px semibold，两行截断，hover 变品牌橙</div>
+          </div>
+          <span class="spec-token">ink · 14/600</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-num">7</span>
+          <div>
+            <div class="spec-name">元信息</div>
+            <div class="spec-desc">来源 · 分类 chip · 考点词数（mono 橙），告知出处与价值</div>
+          </div>
+          <span class="spec-token">source · words</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 2. States ═══ -->
+  <section class="section">
+    <div class="section-label"><span class="num">02</span> States</div>
+    <h2 class="section-title">三种<em>观看状态</em></h2>
+    <p class="section-desc">进度条与角标组合，让用户一眼分辨未看、在看、已看完。</p>
+
+    <div class="states-row">
+      <div class="state-item">
+        <div class="video-card">
+          <div class="card-thumb">
+            <div class="thumb-bg" style="background:linear-gradient(135deg, #042f2e, #0d9488)"><span class="thumb-emoji">🐙</span></div>
+            <span class="badge-level badge-b2">B2</span>
+            <span class="duration-badge">12:07</span>
+          </div>
+          <div class="card-meta">
+            <div class="card-title">深海生物：地球最神秘的角落</div>
+            <div class="card-footer">
+              <span class="source">BBC Earth</span>
+              <span class="dot"></span>
+              <span class="cat-chip">自然</span>
+              <span class="dot"></span>
+              <span class="words">31 词</span>
+            </div>
+          </div>
+        </div>
+        <div class="state-caption">
+          <div class="cap-label">未观看</div>
+          <div class="cap-text">无进度条、无角标。纯净缩略图，等待第一次点击。</div>
+        </div>
+      </div>
+
+      <div class="state-item">
+        <div class="video-card">
+          <div class="card-thumb">
+            <div class="thumb-bg" style="background:linear-gradient(135deg, #1e1b4b, #4338ca)"><span class="thumb-emoji">🌙</span></div>
+            <span class="badge-level badge-b1">B1</span>
+            <span class="duration-badge">8:24</span>
+            <div class="watch-progress"><div class="watch-progress-fill" style="width:65%"></div></div>
+          </div>
+          <div class="card-meta">
+            <div class="card-title">为什么我们做梦？睡眠的科学</div>
+            <div class="card-footer">
+              <span class="source">SciShow</span>
+              <span class="dot"></span>
+              <span class="cat-chip">科技</span>
+              <span class="dot"></span>
+              <span class="words">23 词</span>
+            </div>
+          </div>
+        </div>
+        <div class="state-caption">
+          <div class="cap-label">观看中</div>
+          <div class="cap-text">底部橙色进度条标记断点，方便从 65% 继续。</div>
+        </div>
+      </div>
+
+      <div class="state-item">
+        <div class="video-card">
+          <div class="card-thumb">
+            <div class="thumb-bg" style="background:linear-gradient(135deg, #451a03, #b45309)"><span class="thumb-emoji">☕</span></div>
+            <span class="badge-level badge-a2">A2</span>
+            <span class="watched-pill"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg>已看完</span>
+            <div class="watch-progress"><div class="watch-progress-fill" style="width:100%"></div></div>
+          </div>
+          <div class="card-meta">
+            <div class="card-title">如何三分钟泡出完美咖啡</div>
+            <div class="card-footer">
+              <span class="source">Daily Brew</span>
+              <span class="dot"></span>
+              <span class="cat-chip">日常</span>
+              <span class="dot"></span>
+              <span class="words">12 词</span>
+            </div>
+          </div>
+        </div>
+        <div class="state-caption">
+          <div class="cap-label">已看完</div>
+          <div class="cap-text">绿色角标 + 满进度条，完成感与词汇可复习的暗示。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 3. Variants ═══ -->
+  <section class="section">
+    <div class="section-label"><span class="num">03</span> Variants</div>
+    <h2 class="section-title">紧凑<em>横排变体</em></h2>
+    <p class="section-desc">用于「继续观看」、侧栏推荐等窄位场景。缩略图缩小，信息密度提升。</p>
+
+    <div class="variants">
+      <div class="card-compact">
+        <div class="compact-thumb" style="background:linear-gradient(135deg, #1e1b4b, #4338ca)">
+          <span class="emoji">🌙</span>
+          <span class="compact-duration">8:24</span>
+        </div>
+        <div class="compact-info">
+          <div class="compact-title">为什么我们做梦？睡眠的科学</div>
+          <div class="compact-meta"><span>B1</span><span>·</span><span>看到 65%</span></div>
+          <div class="compact-progress"><div class="compact-progress-fill" style="width:65%"></div></div>
+        </div>
+      </div>
+      <div class="card-compact">
+        <div class="compact-thumb" style="background:linear-gradient(135deg, #134e4a, #2dd4bf)">
+          <span class="emoji">💬</span>
+          <span class="compact-duration">8:39</span>
+        </div>
+        <div class="compact-info">
+          <div class="compact-title">如何像母语者一样思考</div>
+          <div class="compact-meta"><span>B1</span><span>·</span><span>看到 80%</span></div>
+          <div class="compact-progress"><div class="compact-progress-fill" style="width:80%"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 4. Attribution ═══ -->
+  <section class="section">
+    <div class="section-label"><span class="num">04</span> Attribution</div>
+    <h2 class="section-title">来源<em>声明</em></h2>
+    <p class="section-desc">每个视频标注原始来源与版权声明，建立平台信任。</p>
+
+    <div class="attribution">
+      <div class="a-title">为什么我们做梦？睡眠的科学</div>
+      <div class="a-source">
+        <span class="source-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+        原视频来源: YouTube ·
+        <a href="https://www.youtube.com/watch?v=8rGf3xKd9Zc" target="_blank" rel="noopener">youtube.com/watch?v=8rGf3xKd9Zc</a>
+      </div>
+
+      <!-- 原地址元数据 -->
+      <dl class="a-meta">
+        <div class="a-meta-row full">
+          <dt class="a-meta-label">原地址 / Source URL</dt>
+          <dd class="a-meta-value"><a href="https://www.youtube.com/watch?v=8rGf3xKd9Zc" target="_blank" rel="noopener">https://www.youtube.com/watch?v=8rGf3xKd9Zc</a></dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">来源平台</dt>
+          <dd class="a-meta-value">YouTube</dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">原始频道</dt>
+          <dd class="a-meta-value">SciShow</dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">发布日期</dt>
+          <dd class="a-meta-value">2024-03-15</dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">视频时长</dt>
+          <dd class="a-meta-value">8:24</dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">原始语言</dt>
+          <dd class="a-meta-value">English (EN)</dd>
+        </div>
+        <div class="a-meta-row">
+          <dt class="a-meta-label">转载日期</dt>
+          <dd class="a-meta-value">2026-07-28</dd>
+        </div>
+      </dl>
+
+      <div class="a-notice">
+        本视频内容转载自 <strong>YouTube</strong> 平台，原作者为 <strong>SciShow</strong>，原始发布于 <strong>2024-03-15</strong>，时长 <strong>8:24</strong>。原地址：<a href="https://www.youtube.com/watch?v=8rGf3xKd9Zc" target="_blank" rel="noopener">youtube.com/watch?v=8rGf3xKd9Zc</a>。本站仅截取视频用于语言学习与字幕教学，不存储原始视频流，视频画面、音频及字幕版权归原作者所有。如认为侵犯了您的权益，请附原地址与权属证明联系 <a href="mailto:copyright@seeword.cn">copyright@seeword.cn</a>，我们将在 48 小时内处理。
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const themeToggle = document.getElementById('themeToggle');
+const iconSun = themeToggle.querySelector('.icon-sun');
+const iconMoon = themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  iconSun.style.display = isDark ? 'none' : 'block';
+  iconMoon.style.display = isDark ? 'block' : 'none';
+});
+</script>
+</body>
+</html>

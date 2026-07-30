@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 单词训练</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Vocab Drill - 单独单词训练 · 独立全屏
+   复用 06 的 Duolingo 即时反馈 · app token (globals.css)
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--bg-inset:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;
+  --brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#eef2ff;
+  --success:#16a34a;--success-soft:#dcfce7;--success-dark:#15803d;
+  --warning:#d97706;--warning-soft:#fef3c7;
+  --error:#dc2626;--red-soft:#fee2e2;--error-dark:#b91c1c;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-gaoKao:#16a34a;--lv-ielts:#dc2626;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--bg-inset:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;--success-dark:#22c55e;
+  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;--error-dark:#ef4444;
+  --sky-soft:#0c1a24;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--surface-soft);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input{font-family:inherit;}
+
+/* 顶部栏：退出 + 来源 + 进度 */
+.drill-header{display:flex;align-items:center;gap:14px;padding:18px 20px;max-width:760px;width:100%;margin:0 auto;}
+.btn-quit{width:34px;height:34px;border-radius:var(--r-sm);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.btn-quit:hover{color:var(--ink);background:var(--surface-card);}
+.src-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--r-pill);
+  background:var(--surface-card);font-size:12px;font-weight:600;color:var(--body);flex-shrink:0;}
+.src-pill .lv-dot{width:7px;height:7px;border-radius:50%;background:var(--brand-500);}
+.progress-track{flex:1;height:12px;background:var(--surface-card);border-radius:var(--r-pill);overflow:hidden;}
+.progress-fill{height:100%;background:var(--brand-500);border-radius:var(--r-pill);transition:width .5s cubic-bezier(.22,1,.36,1);position:relative;}
+.progress-fill::after{content:"";position:absolute;top:2px;left:6px;right:6px;height:3px;background:rgba(255,255,255,.3);border-radius:2px;}
+.progress-count{font-size:14px;font-weight:600;color:var(--muted);min-width:36px;text-align:right;flex-shrink:0;font-family:"JetBrains Mono",monospace;}
+
+/* 题目区 */
+.q-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px 24px 160px;max-width:760px;width:100%;margin:0 auto;}
+.q-type{font-size:12px;font-weight:700;color:var(--brand-600);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.q-type .lv-chip{font-size:11px;font-weight:600;padding:2px 9px;border-radius:var(--r-pill);background:var(--brand-50);color:var(--brand-600);text-transform:none;letter-spacing:0;}
+.q-prompt{font-size:22px;font-weight:600;text-align:center;line-height:1.5;margin-bottom:8px;letter-spacing:-0.01em;}
+.q-word{font-size:32px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);}
+.q-ph{font-size:14px;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;margin-top:6px;}
+.q-context{font-size:14px;color:var(--muted);text-align:center;line-height:1.6;margin-bottom:28px;max-width:560px;font-style:italic;}
+.play-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--r-pill);
+  background:var(--ink);color:var(--canvas);font-size:13px;font-weight:600;margin-bottom:24px;transition:all .15s;}
+.play-btn:hover{background:var(--brand-500);}
+
+/* 选项 */
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:600px;}
+@media(max-width:600px){.choices{grid-template-columns:1fr;}}
+.choice{position:relative;padding:16px 18px;font-size:16px;font-weight:500;background:var(--canvas);
+  border:2px solid var(--hairline);border-bottom-width:4px;border-radius:var(--r);text-align:left;color:var(--ink);transition:all .15s;}
+.choice:hover:not(.disabled){background:var(--surface-soft);transform:translateY(-1px);}
+.choice:active:not(.disabled){transform:translateY(1px);border-bottom-width:2px;}
+.choice .key{position:absolute;top:8px;right:10px;font-size:11px;font-weight:600;font-family:"JetBrains Mono",monospace;
+  color:var(--muted-soft);background:var(--surface-soft);border:1px solid var(--hairline);width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+.choice.correct{border-color:var(--success);background:var(--success-soft);color:var(--success-dark);}
+.choice.correct .key{background:var(--success-soft);border-color:var(--success);color:var(--success-dark);}
+.choice.wrong{border-color:var(--error);background:var(--red-soft);color:var(--error-dark);animation:shake .4s cubic-bezier(.36,.07,.19,.97);}
+.choice.wrong .key{background:var(--red-soft);border-color:var(--error);color:var(--error-dark);}
+.choice.disabled{cursor:default;opacity:.55;}
+.choice.correct.disabled,.choice.wrong.disabled{opacity:1;}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+
+/* 填空 */
+.fill-wrap{width:100%;max-width:440px;text-align:center;}
+.fill-input{width:100%;padding:15px 18px;font-size:20px;font-weight:500;text-align:center;
+  border:2px solid var(--hairline);border-bottom-width:4px;border-radius:var(--r);background:var(--canvas);color:var(--ink);outline:none;transition:border-color .15s;}
+.fill-input:focus{border-color:var(--brand-500);}
+.fill-input.correct{border-color:var(--success);background:var(--success-soft);color:var(--success-dark);}
+.fill-input.wrong{border-color:var(--error);background:var(--red-soft);color:var(--error-dark);}
+.fill-hint{font-size:13px;color:var(--muted-soft);margin-top:12px;}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 28px;font-size:14px;font-weight:600;border-radius:var(--r);transition:all .15s;}
+.btn-check{background:var(--success);color:#fff;border-bottom:4px solid var(--success-dark);margin-top:16px;}
+.btn-check:hover{filter:brightness(1.05);}
+.btn-check:disabled{background:var(--surface-card);border-color:var(--hairline);color:var(--muted-soft);cursor:default;}
+
+/* 反馈条 */
+.fb-bar{position:fixed;bottom:0;left:0;right:0;padding:18px 24px;transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.22,1,.36,1);z-index:50;}
+.fb-bar.visible{transform:translateY(0);}
+.fb-bar.correct{background:var(--success-soft);}
+.fb-bar.wrong{background:var(--red-soft);}
+.fb-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:16px;}
+.fb-icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
+.fb-bar.correct .fb-icon{background:var(--success);}
+.fb-bar.wrong .fb-icon{background:var(--error);}
+.fb-text{flex:1;}
+.fb-title{font-size:17px;font-weight:700;}
+.fb-bar.correct .fb-title{color:var(--success-dark);}
+.fb-bar.wrong .fb-title{color:var(--error-dark);}
+.fb-detail{font-size:14px;margin-top:3px;line-height:1.5;}
+.fb-bar.correct .fb-detail{color:rgba(21,128,61,.85);}
+.fb-bar.wrong .fb-detail{color:rgba(185,28,28,.85);}
+.btn-continue{padding:13px 32px;font-size:15px;font-weight:700;color:#fff;border-radius:var(--r);border:none;cursor:pointer;white-space:nowrap;transition:filter .15s;}
+.fb-bar.correct .btn-continue{background:var(--success);border-bottom:3px solid var(--success-dark);}
+.fb-bar.wrong .btn-continue{background:var(--error);border-bottom:3px solid var(--error-dark);}
+.btn-continue:hover{filter:brightness(1.08);}
+.btn-continue .hint{font-size:11px;opacity:.7;font-weight:400;margin-left:8px;}
+
+/* 结算 */
+.summary{display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 24px;text-align:center;animation:pop .5s cubic-bezier(.34,1.56,.64,1);}
+.summary.visible{display:flex;}
+@keyframes pop{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:scale(1);}}
+.sum-emoji{font-size:60px;margin-bottom:18px;}
+.sum-title{font-size:26px;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em;}
+.sum-sub{font-size:14px;color:var(--muted);margin-bottom:32px;}
+.sum-stats{display:flex;gap:14px;margin-bottom:36px;flex-wrap:wrap;justify-content:center;}
+@media(max-width:600px){.sum-stats{flex-direction:column;width:100%;max-width:280px;}}
+.sum-stat{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px 26px;text-align:center;box-shadow:var(--shadow-soft);}
+.sum-stat .num{font-size:30px;font-weight:800;letter-spacing:-0.02em;}
+.sum-stat .num.green{color:var(--success-dark);} .sum-stat .num.coral{color:var(--brand-600);} .sum-stat .num.blue{color:var(--indigo);}
+.sum-stat .label{font-size:12px;color:var(--muted);margin-top:4px;}
+.sum-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.btn-sum{padding:13px 30px;font-size:14px;font-weight:600;border-radius:var(--r);transition:all .15s;}
+.btn-sum-primary{background:var(--brand-500);color:#fff;border-bottom:4px solid var(--brand-600);}
+.btn-sum-primary:hover{filter:brightness(1.05);}
+.btn-sum-secondary{background:var(--canvas);color:var(--ink);border:2px solid var(--hairline);border-bottom-width:4px;}
+.btn-sum-secondary:hover{background:var(--surface-soft);}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;
+  background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+</style>
+</head>
+<body>
+
+<div class="drill-header" id="dHead">
+  <a class="btn-quit" href="09-vocabulary.html" title="退出训练">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </a>
+  <div class="src-pill"><span class="lv-dot"></span>词汇本 · 待复习</div>
+  <div class="progress-track"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+  <span class="progress-count" id="progCount">0/0</span>
+</div>
+
+<div class="q-area" id="qArea"></div>
+
+<div class="summary" id="summary">
+  <div class="sum-emoji">🎓</div>
+  <div class="sum-title">训练完成！</div>
+  <div class="sum-sub" id="sumSub">本次单词训练</div>
+  <div class="sum-stats">
+    <div class="sum-stat"><div class="num green" id="sumCorrect">0/0</div><div class="label">答对</div></div>
+    <div class="sum-stat"><div class="num coral" id="sumMastered">0</div><div class="label">新掌握</div></div>
+    <div class="sum-stat"><div class="num blue" id="sumStreak">13</div><div class="label">连续天数</div></div>
+  </div>
+  <div class="sum-actions">
+    <button class="btn-sum btn-sum-secondary" id="btnRetry">再练一次</button>
+    <a class="btn-sum btn-sum-primary" href="09-vocabulary.html">返回词汇本</a>
+    <a class="btn-sum btn-sum-secondary" href="08-practice-hub.html">去练习专题</a>
+  </div>
+</div>
+
+<div class="fb-bar" id="fbBar">
+  <div class="fb-inner">
+    <div class="fb-icon" id="fbIcon"></div>
+    <div class="fb-text"><div class="fb-title" id="fbTitle"></div><div class="fb-detail" id="fbDetail"></div></div>
+    <button class="btn-continue" id="btnCont">继续<span class="hint">Enter ↵</span></button>
+  </div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// ── 训练词库（来自词汇本 due 词，6 题型轮换） ──
+const WORDS=[
+  {w:"inevitable",ph:"/ɪnˈevɪtəbl/",zh:"不可避免的",lv:"六级",ctx:"...dreaming is an inevitable part of being human.",explain:"in(不)+evitable(可避免的) = 不可避免的。"},
+  {w:"perceive",ph:"/pəˈsiːv/",zh:"感知；察觉",lv:"六级",ctx:"We perceive the world through our senses.",explain:"perceive = 感知、察觉。perceive change 察觉变化。"},
+  {w:"vibrant",ph:"/ˈvaɪbrənt/",zh:"充满活力的",lv:"雅思",ctx:"The city has a vibrant nightlife.",explain:"vibrant = 充满活力的、鲜艳的。"},
+  {w:"consolidate",ph:"/kənˈsɒlɪdeɪt/",zh:"巩固",lv:"六级",ctx:"Dreams help us consolidate memories.",explain:"consolidate = 巩固、合并。常与 memories 搭配。"},
+  {w:"substantial",ph:"/səbˈstænʃl/",zh:"大量的",lv:"六级",ctx:"There is substantial evidence to support the theory.",explain:"substantial = 大量的、实质的。"},
+  {w:"phenomenon",ph:"/fəˈnɒmɪnən/",zh:"现象",lv:"四级",ctx:"Dreaming is a fascinating phenomenon.",explain:"phenomenon = 现象。复数 phenomena。"},
+  {w:"consciousness",ph:"/ˈkɒnʃəsnəs/",zh:"意识",lv:"六级",ctx:"Dreams reflect our deepest consciousness.",explain:"consciousness = 意识。conscious 的名词形式。"},
+  {w:"extraordinary",ph:"/ɪkˈstrɔːrdəneri/",zh:"非凡的",lv:"六级",ctx:"Your brain replays extraordinary events.",explain:"extra(超出)+ordinary(普通) = 非凡的。"},
+  {w:"process",ph:"/ˈprəʊses/",zh:"处理",lv:"四级",ctx:"Dreams help process difficult emotions.",explain:"process 此处作动词：处理、加工。"},
+  {w:"vivid",ph:"/ˈvɪvɪd/",zh:"生动的",lv:"高考",ctx:"Some researchers believe vivid dreams reflect consciousness.",explain:"vivid = 生动的、鲜明的。vivid memory 记忆犹新。"},
+  {w:"comprehensive",ph:"/ˌkɒmprɪˈhensɪv/",zh:"全面的",lv:"六级",ctx:"She gave a comprehensive explanation.",explain:"comprehensive = 全面的、综合的。"},
+  {w:"theory",ph:"/ˈθɪəri/",zh:"理论",lv:"四级",ctx:"One theory suggests dreams consolidate memories.",explain:"theory = 理论、学说。scientific theory 科学理论。"},
+];
+
+// 干扰项池
+const DISTRACTORS=["巩固","现象","生动的","意识","理论","不可避免的","感知","大量的","处理","非凡的","全面的","充满活力的","明显的","持续的","独立的","基本的"];
+
+// 题型轮换：看词选义 / 听词选义 / 看义拼写 / 听词拼写 / 语境填空
+const TYPES=["see_choose","hear_choose","see_spell","hear_spell","context_fill"];
+let items=[];
+let cur=0,correct=0,answered=false;
+const qArea=document.getElementById("qArea");
+const fbBar=document.getElementById("fbBar");
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function buildItems(){
+  items=WORDS.map((w,i)=>{
+    const type=TYPES[i%TYPES.length];
+    // 生成 4 选项（含正确释义 + 3 干扰）
+    const wrongs=shuffle(DISTRACTORS.filter(d=>d!==w.zh)).slice(0,3);
+    const choices=shuffle([w.zh,...wrongs]);
+    return {...w,type,choices,answer:w.zh};
+  });
+}
+
+function renderQ(){
+  answered=false;fbBar.classList.remove("visible");
+  const it=items[cur];
+  document.getElementById("progFill").style.width=`${cur/items.length*100}%`;
+  document.getElementById("progCount").textContent=`${cur}/${items.length}`;
+
+  let body="";
+  if(it.type==="see_choose"){
+    body=`<div class="q-word">${it.w}</div><div class="q-ph">${it.ph}</div>
+      <div class="q-context" style="margin-top:18px">选择正确的释义</div>
+      <div class="choices">${it.choices.map((c,i)=>`<button class="choice" data-i="${i}"><span class="key">${i+1}</span>${c}</button>`).join("")}</div>`;
+  } else if(it.type==="hear_choose"){
+    body=`<button class="play-btn" id="playBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>播放发音</button>
+      <div class="q-context">听发音，选择正确的释义</div>
+      <div class="choices">${it.choices.map((c,i)=>`<button class="choice" data-i="${i}"><span class="key">${i+1}</span>${c}</button>`).join("")}</div>`;
+  } else if(it.type==="see_spell"){
+    body=`<div class="q-word" style="font-size:18px;color:var(--muted);font-weight:600">${it.zh}</div>
+      <div class="q-context">拼写对应的英文单词</div>
+      <div class="fill-wrap"><input class="fill-input" id="fillInput" type="text" placeholder="输入英文单词…" autocomplete="off" spellcheck="false">
+      <div class="fill-hint">输入后按 Enter 提交</div>
+      <button class="btn btn-check" id="btnCheck" disabled>检 查</button></div>`;
+  } else if(it.type==="hear_spell"){
+    body=`<button class="play-btn" id="playBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>播放发音</button>
+      <div class="q-context">听发音，拼写单词</div>
+      <div class="fill-wrap"><input class="fill-input" id="fillInput" type="text" placeholder="输入英文单词…" autocomplete="off" spellcheck="false">
+      <div class="fill-hint">输入后按 Enter 提交</div>
+      <button class="btn btn-check" id="btnCheck" disabled>检 查</button></div>`;
+  } else { // context_fill
+    body=`<div class="q-context" style="font-size:15px;color:var(--body);font-style:normal;margin-bottom:20px">"${it.ctx}"</div>
+      <div class="q-context" style="margin-bottom:20px">填入句中缺失的词（提示：${it.zh}）</div>
+      <div class="fill-wrap"><input class="fill-input" id="fillInput" type="text" placeholder="填入单词…" autocomplete="off" spellcheck="false">
+      <div class="fill-hint">输入后按 Enter 提交</div>
+      <button class="btn btn-check" id="btnCheck" disabled>检 查</button></div>`;
+  }
+
+  qArea.innerHTML=`<div class="q-type">${typeLabel(it.type)}<span class="lv-chip">${it.lv}</span></div>${body}`;
+
+  if(it.choices){
+    qArea.querySelectorAll(".choice").forEach(b=>b.addEventListener("click",()=>selectChoice(+b.dataset.i)));
+  } else {
+    const inp=document.getElementById("fillInput");
+    const chk=document.getElementById("btnCheck");
+    if(inp)inp.focus();
+    if(inp)inp.addEventListener("input",()=>{chk.disabled=!inp.value.trim();});
+    if(inp)inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&inp.value.trim()&&!answered)checkFill();});
+    if(chk)chk.addEventListener("click",checkFill);
+  }
+}
+function typeLabel(t){return {see_choose:"看词选义",hear_choose:"听词选义",see_spell:"看义拼写",hear_spell:"听词拼写",context_fill:"语境填空"}[t];}
+
+function selectChoice(i){
+  if(answered)return;answered=true;
+  const it=items[cur];const ok=it.choices[i]===it.answer;
+  qArea.querySelectorAll(".choice").forEach((b,idx)=>{
+    b.classList.add("disabled");
+    if(it.choices[idx]===it.answer)b.classList.add("correct");
+    if(idx===i&&!ok)b.classList.add("wrong");
+  });
+  if(ok)correct++;
+  showFb(ok,it.explain,ok?null:`正确答案：${it.answer}`);
+}
+function checkFill(){
+  if(answered)return;answered=true;
+  const it=items[cur];const inp=document.getElementById("fillInput");
+  const ok=inp.value.trim().toLowerCase()===it.w.toLowerCase();
+  inp.classList.add(ok?"correct":"wrong");inp.disabled=true;
+  document.getElementById("btnCheck").style.display="none";
+  if(ok)correct++;
+  showFb(ok,it.explain,ok?null:`正确答案：${it.w}`);
+}
+function showFb(ok,explain,correctAns){
+  fbBar.className="fb-bar visible "+(ok?"correct":"wrong");
+  document.getElementById("fbIcon").innerHTML=ok
+    ?'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg>'
+    :'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  document.getElementById("fbTitle").textContent=ok?"回答正确！":"再想想";
+  document.getElementById("fbDetail").textContent=(correctAns?correctAns+" - ":"")+explain;
+}
+function next(){cur++;if(cur>=items.length)showSummary();else renderQ();}
+function showSummary(){
+  document.getElementById("dHead").style.display="none";qArea.style.display="none";fbBar.classList.remove("visible");
+  document.getElementById("progFill").style.width="100%";
+  document.getElementById("sumSub").textContent=`本次单词训练 · ${items.length} 词`;
+  document.getElementById("sumCorrect").textContent=`${correct}/${items.length}`;
+  document.getElementById("sumMastered").textContent=Math.min(correct,items.length);
+  document.getElementById("summary").classList.add("visible");
+}
+document.getElementById("btnCont").addEventListener("click",next);
+document.addEventListener("keydown",e=>{
+  if(document.getElementById("summary").classList.contains("visible"))return;
+  if(fbBar.classList.contains("visible")){if(e.key==="Enter")next();return;}
+  if(answered)return;
+  const it=items[cur];
+  if(it.choices){const n=parseInt(e.key);if(n>=1&&n<=it.choices.length)selectChoice(n-1);}
+});
+
+function start(){buildItems();cur=0;correct=0;
+  document.getElementById("dHead").style.display="flex";qArea.style.display="flex";
+  document.getElementById("summary").classList.remove("visible");renderQ();}
+document.getElementById("btnRetry").addEventListener("click",start);
+start();
+
+// 主题切换
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

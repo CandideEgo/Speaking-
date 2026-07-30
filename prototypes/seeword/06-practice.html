@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 专注考试 · 水平检测</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SeeWord Practice - 专注考试模式 · 提交判分
+   整张卷子按真实试卷分部分 · 一屏多题滚动 · 提交后统一判分
+   兼作"水平检测"（每日打开 App 直接做题）
+   app token (globals.css)
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#eef2ff;
+  --success:#16a34a;--success-soft:#dcfce7;--success-dark:#15803d;
+  --warning:#d97706;--warning-soft:#fef3c7;
+  --error:#dc2626;--red-soft:#fee2e2;--error-dark:#b91c1c;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-zhongkao:#64748b;--lv-gaoKao:#16a34a;--lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-ielts:#dc2626;--lv-toefl:#ea580c;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;--success-dark:#22c55e;
+  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;--error-dark:#ef4444;
+  --sky-soft:#0c1a24;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}input,textarea{font-family:inherit;}
+
+/* ═══ 考试顶部栏 ═══ */
+.exam-header{position:sticky;top:0;z-index:40;background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);padding:14px 20px;}
+.eh-row{max-width:880px;margin:0 auto;display:flex;align-items:center;gap:14px;}
+.btn-quit{width:34px;height:34px;border-radius:var(--r-sm);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.btn-quit:hover{color:var(--ink);background:var(--surface-card);}
+.level-sel{position:relative;flex-shrink:0;}
+.level-sel-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r-pill);background:var(--surface-card);font-size:13px;font-weight:600;color:var(--ink);}
+.level-sel-btn .lv-dot{width:8px;height:8px;border-radius:50%;background:var(--lv-cet4);}
+.level-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:140px;padding:5px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--shadow-lift);z-index:30;display:none;}
+.level-menu.open{display:block;}
+.level-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--body);text-align:left;}
+.level-menu button:hover,.level-menu button.active{background:var(--brand-50);color:var(--brand-600);font-weight:600;}
+.eh-title{font-size:14px;font-weight:600;color:var(--ink);flex-shrink:0;}
+.eh-spacer{flex:1;}
+.eh-timer{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r-pill);background:var(--surface-card);font-size:13px;font-weight:600;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.eh-timer.warn{background:var(--warning-soft);color:var(--warning);}
+.btn-submit{padding:8px 18px;border-radius:var(--r-sm);background:var(--brand-500);color:#fff;font-size:13px;font-weight:600;flex-shrink:0;box-shadow:var(--shadow-brand);}
+.btn-submit:hover{background:var(--brand-600);}
+@media(max-width:680px){.eh-title{display:none;}}
+
+/* ═══ 答题区 ═══ */
+.exam-body{max-width:880px;margin:0 auto;padding:24px 20px 120px;}
+.part{margin-bottom:32px;}
+.part-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--hairline);}
+.part-no{font-size:11px;font-weight:700;color:var(--muted-soft);font-family:"JetBrains Mono",monospace;letter-spacing:.06em;}
+.part-name{font-size:16px;font-weight:700;color:var(--ink);}
+.part-meta{margin-left:auto;font-size:12px;color:var(--muted);}
+.part-desc{font-size:12px;color:var(--muted);margin-bottom:14px;}
+
+.q-item{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:16px 18px;margin-bottom:10px;}
+.q-item.done{border-color:var(--brand-100);}
+.q-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.q-no{width:24px;height:24px;border-radius:6px;background:var(--surface-card);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:"JetBrains Mono",monospace;color:var(--muted);flex-shrink:0;}
+.q-item.done .q-no{background:var(--brand-500);color:#fff;}
+.q-type-tag{font-size:11px;font-weight:600;color:var(--brand-600);}
+.q-pts{margin-left:auto;font-size:11px;color:var(--muted-soft);}
+.q-stem{font-size:14px;font-weight:500;color:var(--ink);line-height:1.6;margin-bottom:8px;}
+.q-context{font-size:12.5px;color:var(--muted);font-style:italic;margin-bottom:10px;line-height:1.5;}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+@media(max-width:600px){.choices{grid-template-columns:1fr;}}
+.choice{position:relative;padding:11px 14px;font-size:13px;font-weight:500;background:var(--canvas);border:1.5px solid var(--hairline);border-radius:var(--r-sm);text-align:left;color:var(--ink);transition:all .12s;}
+.choice:hover{background:var(--surface-card);}
+.choice.selected{border-color:var(--brand-500);background:var(--brand-50);color:var(--brand-600);font-weight:600;}
+.choice .key{position:absolute;top:6px;right:8px;font-size:10px;font-weight:600;font-family:"JetBrains Mono",monospace;color:var(--muted-soft);}
+.fill-input{flex:1;height:38px;padding:0 12px;font-size:14px;border:1.5px solid var(--hairline);border-radius:var(--r-sm);background:var(--canvas);color:var(--ink);outline:none;}
+.fill-input:focus{border-color:var(--brand-500);}
+.fill-row{display:flex;gap:8px;align-items:center;}
+.translate-box{background:var(--surface-soft);border-radius:var(--r-sm);padding:10px 12px;font-size:13px;color:var(--body);line-height:1.6;margin-bottom:8px;}
+.write-area{width:100%;min-height:90px;padding:10px 12px;font-size:13px;border:1.5px solid var(--hairline);border-radius:var(--r-sm);background:var(--canvas);color:var(--ink);outline:none;resize:vertical;line-height:1.6;}
+.write-area:focus{border-color:var(--brand-500);}
+.speak-prompt{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-soft);border-radius:var(--r-sm);margin-bottom:8px;}
+.speak-prompt .play{width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--canvas);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.self-row{display:flex;gap:8px;margin-top:8px;}
+.self-btn{padding:8px 16px;border-radius:var(--r-sm);border:1.5px solid var(--hairline);color:var(--body);background:var(--canvas);font-size:13px;font-weight:600;}
+.self-btn.selected{background:var(--brand-50);border-color:var(--brand-500);color:var(--brand-600);}
+
+/* 提交后判分态 */
+.q-item.correct{border-color:var(--success);}
+.q-item.wrong{border-color:var(--error);}
+.choice.correct{border-color:var(--success);background:var(--success-soft);color:var(--success);font-weight:600;}
+.choice.wrong{border-color:var(--error);background:var(--red-soft);color:var(--error);}
+.q-explain{margin-top:10px;padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.6;display:none;}
+.q-explain.show{display:block;}
+.q-explain.ok{background:var(--success-soft);color:var(--success-dark);}
+.q-explain.no{background:var(--red-soft);color:var(--error-dark);}
+.q-explain .ans{font-weight:700;}
+.q-explain .ex{display:block;margin-top:4px;}
+
+/* 底部提交栏（移动端） */
+.exam-foot{position:fixed;bottom:0;left:0;right:0;background:color-mix(in oklab,var(--canvas) 92%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--hairline);padding:14px 20px;display:none;}
+.exam-foot.show{display:block;}
+.ef-row{max-width:880px;margin:0 auto;display:flex;align-items:center;gap:12px;}
+.ef-prog{flex:1;font-size:12px;color:var(--muted);}
+.ef-prog strong{color:var(--ink);}
+@media(max-width:680px){.exam-foot.show{display:block;}}
+
+/* ═══ 结果页 ═══ */
+.result{display:none;max-width:720px;margin:0 auto;padding:36px 20px 80px;}
+.result.show{display:block;animation:fade .3s ease-out;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.result-hero{text-align:center;margin-bottom:28px;}
+.result-emoji{font-size:56px;margin-bottom:12px;}
+.result-title{font-size:24px;font-weight:800;letter-spacing:-0.02em;margin-bottom:6px;}
+.result-sub{font-size:14px;color:var(--muted);}
+.score-ring{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:140px;height:140px;border-radius:50%;background:conic-gradient(var(--brand-500) 0deg, var(--surface-card) 0deg);margin:20px 0;position:relative;}
+.score-ring::before{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--canvas);}
+.score-ring .sn{position:relative;font-size:36px;font-weight:800;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.score-ring .sl{position:relative;font-size:11px;color:var(--muted);margin-top:2px;}
+.part-scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:24px;}
+.ps-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r);padding:14px 16px;}
+.ps-name{font-size:12px;color:var(--muted);margin-bottom:6px;}
+.ps-bar{height:6px;border-radius:3px;background:var(--surface-card);overflow:hidden;margin-bottom:6px;}
+.ps-fill{height:100%;background:var(--brand-500);border-radius:3px;}
+.ps-val{font-size:13px;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;}
+.result-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 28px;font-size:14px;font-weight:600;border-radius:var(--r);transition:all .15s;}
+.btn-primary{background:var(--brand-500);color:#fff;box-shadow:var(--shadow-brand);}
+.btn-primary:hover{background:var(--brand-600);}
+.btn-outline{background:var(--canvas);border:1px solid var(--hairline);color:var(--body);}
+.btn-outline:hover{background:var(--surface-card);}
+.result-section-title{font-size:14px;font-weight:700;margin:28px 0 12px;}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- 考试顶部栏 -->
+<div class="exam-header" id="examHead">
+  <div class="eh-row">
+    <a class="btn-quit" href="08-practice-hub.html" title="退出">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </a>
+    <div class="level-sel">
+      <button class="level-sel-btn" id="levelBtn"><span class="lv-dot" id="levelDot"></span><span id="levelLabel">四级</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="level-menu" id="levelMenu"></div>
+    </div>
+    <span class="eh-title">水平检测</span>
+    <span class="eh-spacer"></span>
+    <span class="eh-timer" id="timer">30:00</span>
+    <button class="btn-submit" id="btnSubmit">提交试卷</button>
+  </div>
+</div>
+
+<!-- 答题区 -->
+<div class="exam-body" id="examBody"></div>
+
+<!-- 移动端底部提交栏 -->
+<div class="exam-foot" id="examFoot">
+  <div class="ef-row">
+    <span class="ef-prog">已答 <strong id="efDone">0</strong>/<strong id="efTotal">0</strong></span>
+    <button class="btn-submit" onclick="document.getElementById('btnSubmit').click()">提交试卷</button>
+  </div>
+</div>
+
+<!-- 结果页 -->
+<div class="result" id="result">
+  <div class="result-hero">
+    <div class="result-emoji" id="rEmoji">🎓</div>
+    <div class="result-title" id="rTitle">考试完成！</div>
+    <div class="result-sub" id="rSub">四级水平检测 · 共 8 题</div>
+    <div class="score-ring" id="scoreRing"><div class="sn" id="rScore">0</div><div class="sl">/ 100</div></div>
+  </div>
+  <div class="part-scores" id="partScores"></div>
+  <div class="result-actions">
+    <button class="btn btn-outline" id="btnRetryWrong">只练错题</button>
+    <button class="btn btn-outline" id="btnRetryAll">再做一遍</button>
+    <a class="btn btn-primary" href="08-practice-hub.html">返回练习专题</a>
+  </div>
+  <div class="result-section-title">答题回顾</div>
+  <div id="review"></div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+// ── 6 级（与 05/08 一致） ──
+const LEVELS=[
+  {key:"zhongkao",label:"中考",color:"var(--lv-zhongkao)",time:90},
+  {key:"gaoKao",label:"高考",color:"var(--lv-gaoKao)",time:120},
+  {key:"cet4",label:"四级",color:"var(--lv-cet4)",time:30},
+  {key:"cet6",label:"六级",color:"var(--lv-cet6)",time:30},
+  {key:"ielts",label:"雅思",color:"var(--lv-ielts)",time:60},
+  {key:"toefl",label:"托福",color:"var(--lv-toefl)",time:54},
+];
+
+// ── 题库（按部分组织；取自"为什么我们做梦"视频） ──
+const PAPER=[
+  {part:"Part I 写作",meta:"15% · 30 分钟",desc:"根据提示写一篇短文",items:[
+    {type:"write",pts:15,stem:"请根据以下提示写一篇约 120 词的短文：",ctx:"有人认为梦有深意，有人认为只是大脑随机活动。你的观点？结合视频举例说明。",
+      ans:"参考要点：表明立场 + 用 consolidate memories / process emotions 举例 + 总结",explain:"议论文：观点-论据-结论。引用视频理论支撑。"},
+  ]},
+  {part:"Part II 听力理解",meta:"35% · 25 分钟",desc:"听音频，选择正确答案",items:[
+    {type:"choice",pts:7,stem:"视频中说，REM 睡眠时大脑的状态是？",ctx:"\"During REM sleep, your brain is almost as active as when you're awake.\"",
+      choices:["完全停止活动","几乎和清醒时一样活跃","比清醒时更活跃","只处理视觉信息"],answer:1,ans:"B",explain:"almost as active as when awake = 几乎和清醒时一样活跃。"},
+    {type:"choice",pts:7,stem:"视频中提到梦的一个可能作用是？",ctx:"\"One theory suggests that dreams help us consolidate memories from the day.\"",
+      choices:["帮助回忆白天的事","完全停止记忆","删除所有记忆","与记忆无关"],answer:0,ans:"A",explain:"consolidate memories = 巩固白天的记忆。"},
+  ]},
+  {part:"Part III 阅读理解",meta:"35% · 40 分钟",desc:"选词填空 + 仔细阅读",items:[
+    {type:"choice",pts:5,stem:"选词填空：选择最佳词填入空白",ctx:"One ______ suggests that dreams help us consolidate memories.",
+      choices:["theory","theories","theoretical","theorize"],answer:0,ans:"A",explain:"one + 单数名词，theory 符合语法与句意。"},
+    {type:"choice",pts:14,stem:"根据视频内容，下列哪项是梦的可能作用？",ctx:"阅读：\"...dreams help us consolidate memories... Dreams might also be a safe space to process difficult emotions.\"",
+      choices:["仅巩固记忆","仅处理情绪","巩固记忆与处理情绪","与情绪和记忆都无关"],answer:2,ans:"C",explain:"视频提到梦既能巩固记忆，又能处理情绪。"},
+    {type:"fill",pts:5,stem:"语法填空：填入所给词的正确形式",ctx:"Some researchers believe ______ dreams reflect our deepest consciousness.（提示：that，连词）",
+      fill:"that",ans:"that",explain:"believe that + 从句，that 引导宾语从句（可省略）。"},
+  ]},
+  {part:"Part IV 翻译",meta:"15% · 30 分钟",desc:"将下列英文译成中文",items:[
+    {type:"translate",pts:15,stem:"将下列句子译成中文：",ctx:"Whatever the answer, dreaming is an inevitable part of being human.",
+      ans:"参考译文：无论答案是什么，做梦都是生而为人不可避免的一部分。",explain:"inevitable = 不可避免的；being human = 生而为人。"},
+  ]},
+];
+
+let activeLevel="cet4";
+let answers={}; // qid -> {picked} 或 {text} 或 {self}
+let submitted=false;
+let onlyWrong=false; // 只练错题模式
+let wrongSet=new Set();
+
+function flatten(){
+  let arr=[];
+  PAPER.forEach((p,pi)=>p.items.forEach((q,qi)=>arr.push({...q,pid:pi,qid:pi+"-"+qi,part:p.part,partMeta:p.meta})));
+  return arr;
+}
+function visibleQs(){
+  const all=flatten();
+  if(onlyWrong)return all.filter(q=>wrongSet.has(q.qid));
+  return all;
+}
+
+function render(){
+  const qs=visibleQs();
+  document.getElementById("efTotal").textContent=qs.length;
+  document.getElementById("examBody").innerHTML=qs.map((q,idx)=>{
+    const a=answers[q.qid];
+    let body="";
+    if(q.type==="choice"){
+      body=`<div class="choices">${q.choices.map((c,i)=>{
+        let cls="";
+        if(submitted){
+          if(i===q.answer)cls=" correct";
+          if(a&&a.picked===i&&i!==q.answer)cls=" wrong";
+        }else if(a&&a.picked===i)cls=" selected";
+        return `<button class="choice${cls}" data-q="${q.qid}" data-i="${i}"><span class="key">${i+1}</span>${c}</button>`;
+      }).join("")}</div>`;
+    }else if(q.type==="fill"){
+      body=`<div class="fill-row"><input class="fill-input" data-q="${q.qid}" placeholder="填入单词…" value="${a?a.text:''}" ${submitted?'disabled':''}></div>`;
+    }else if(q.type==="write"){
+      body=`<textarea class="write-area" data-q="${q.qid}" placeholder="在此作答…" ${submitted?'disabled':''}>${a?a.text:''}</textarea>`;
+    }else if(q.type==="translate"){
+      body=`<div class="translate-box">${q.ctx.replace(/"/g,'')}</div><textarea class="write-area" data-q="${q.qid}" placeholder="在此输入译文…" ${submitted?'disabled':''}>${a?a.text:''}</textarea>`;
+    }else if(q.type==="speak"){
+      body=`<div class="speak-prompt"><button class="play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div>${q.ctx}</div></div>
+        <div class="self-row"><button class="self-btn ${a&&a.self==='0'?'selected':''}" data-q="${q.qid}" data-s="0" ${submitted?'disabled':''}>需练习</button>
+        <button class="self-btn ${a&&a.self==='1'?'selected':''}" data-q="${q.qid}" data-s="1" ${submitted?'disabled':''}>读对了</button></div>`;
+    }
+    let ex="";
+    if(submitted){
+      const ok=isCorrect(q,a);
+      ex=`<div class="q-explain ${ok?'ok':'no'} show"><span class="ans">${ok?'✓ 正确':'✗ 错误'}</span> · 正确答案：<span class="ans">${q.ans}</span><span class="ex">${q.explain}</span></div>`;
+    }
+    return `<div class="q-item ${submitted?(isCorrect(q,a)?'correct':'wrong'):''} ${a?'done':''}">
+      <div class="q-top"><span class="q-no">${idx+1}</span><span class="q-type-tag">${q.part}</span><span class="q-pts">${q.pts} 分</span></div>
+      <div class="q-stem">${q.stem}</div>
+      ${q.ctx&&q.type!=='translate'?`<div class="q-context">${q.ctx}</div>`:""}
+      ${body}${ex}
+    </div>`;
+  }).join("");
+  // 按 part 分组标题（用首题的 part）
+  groupByPart();
+  bind();
+  updateDone();
+}
+
+function groupByPart(){
+  // 简单方案：在每段 part 首题前插入标题。这里用 CSS ::before 不便，改为在 render 后注入。
+  const body=document.getElementById("examBody");
+  const items=body.querySelectorAll(".q-item");
+  let lastPart="";
+  items.forEach(it=>{
+    const tag=it.querySelector(".q-type-tag").textContent;
+    if(tag!==lastPart){
+      lastPart=tag;
+      const h=document.createElement("div");
+      h.className="part-head";
+      h.innerHTML=`<span class="part-no">PART</span><span class="part-name">${tag}</span>`;
+      it.parentNode.insertBefore(h,it);
+    }
+  });
+}
+
+function isCorrect(q,a){
+  if(!a)return false;
+  if(q.type==="choice")return a.picked===q.answer;
+  if(q.type==="fill")return (a.text||"").trim().toLowerCase()===q.fill.toLowerCase();
+  if(q.type==="speak")return a.self==="1";
+  return false; // write/translate 自评类，无客观对错
+}
+function bind(){
+  document.querySelectorAll(".choice").forEach(b=>b.addEventListener("click",()=>{
+    if(submitted)return;
+    answers[b.dataset.q]={picked:+b.dataset.i};
+    render();
+  }));
+  document.querySelectorAll(".fill-input").forEach(inp=>{
+    inp.addEventListener("input",()=>{answers[inp.dataset.q]={text:inp.value};updateDone();});
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter"){inp.blur();}});
+  });
+  document.querySelectorAll(".write-area").forEach(t=>t.addEventListener("input",()=>{answers[t.dataset.q]={text:t.value};updateDone();}));
+  document.querySelectorAll(".self-btn").forEach(b=>b.addEventListener("click",()=>{
+    if(submitted)return;
+    answers[b.dataset.q]={self:b.dataset.s};
+    render();
+  }));
+}
+function updateDone(){
+  const qs=visibleQs();
+  const done=qs.filter(q=>answers[q.qid]).length;
+  document.getElementById("efDone").textContent=done;
+  const foot=document.getElementById("examFoot");
+  foot.classList.toggle("show",!submitted&&window.innerWidth<=680);
+}
+
+// ── 提交判分 ──
+function submit(){
+  submitted=true;
+  // 计算错题集
+  wrongSet=new Set();
+  flatten().forEach(q=>{if(!isCorrect(q,answers[q.qid]))wrongSet.add(q.qid);});
+  // 结果页
+  const qs=visibleQs();
+  const totalPts=qs.reduce((s,q)=>s+q.pts,0);
+  const gotPts=qs.reduce((s,q)=>s+(isCorrect(q,answers[q.qid])?q.pts:0),0);
+  const pct=totalPts?Math.round(gotPts/totalPts*100):0;
+  const lv=LEVELS.find(l=>l.key===activeLevel);
+  document.getElementById("rSub").textContent=`${lv.label}水平检测 · 共 ${qs.length} 题`;
+  document.getElementById("rScore").textContent=pct;
+  document.getElementById("scoreRing").style.background=`conic-gradient(var(--brand-500) ${pct*3.6}deg, var(--surface-card) ${pct*3.6}deg)`;
+  document.getElementById("rEmoji").textContent=pct>=80?"🎉":pct>=60?"👍":"💪";
+  document.getElementById("rTitle").textContent=pct>=80?"表现出色！":pct>=60?"继续加油！":"再练几遍！";
+  // 各部分得分
+  const parts={};
+  qs.forEach(q=>{if(!parts[q.part])parts[q.part]={got:0,total:0};parts[q.part].total+=q.pts;if(isCorrect(q,answers[q.qid]))parts[q.part].got+=q.pts;});
+  document.getElementById("partScores").innerHTML=Object.entries(parts).map(([k,v])=>{
+    const p=v.total?Math.round(v.got/v.total*100):0;
+    return `<div class="ps-card"><div class="ps-name">${k}</div><div class="ps-bar"><div class="ps-fill" style="width:${p}%"></div></div><div class="ps-val">${v.got}/${v.total}</div></div>`;
+  }).join("");
+  // 回顾
+  render();
+  document.getElementById("examHead").style.display="none";
+  document.getElementById("examFoot").classList.remove("show");
+  document.getElementById("result").classList.add("show");
+  document.getElementById("review").innerHTML=document.getElementById("examBody").innerHTML;
+  document.getElementById("examBody").style.display="none";
+  window.scrollTo(0,0);
+  document.getElementById("btnRetryWrong").style.display=wrongSet.size>0?"inline-flex":"none";
+}
+
+function retry(wrongOnly){
+  submitted=false;
+  onlyWrong=wrongOnly;
+  if(!wrongOnly)answers={};
+  document.getElementById("examHead").style.display="block";
+  document.getElementById("examBody").style.display="block";
+  document.getElementById("result").classList.remove("show");
+  render();
+  window.scrollTo(0,0);
+}
+
+// ── 层级菜单 ──
+function buildLevelMenu(){
+  const m=document.getElementById("levelMenu");
+  m.innerHTML=LEVELS.map(l=>`<button data-k="${l.key}" class="${l.key===activeLevel?'active':''}"><span class="lv-dot" style="background:${l.color}"></span>${l.label}</button>`).join("");
+  m.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    activeLevel=b.dataset.k;
+    document.getElementById("levelMenu").classList.remove("open");
+    const lv=LEVELS.find(l=>l.key===activeLevel);
+    document.getElementById("levelLabel").textContent=lv.label;
+    document.getElementById("levelDot").style.background=lv.color;
+    m.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x.dataset.k===activeLevel));
+    answers={};submitted=false;
+    document.getElementById("result").classList.remove("show");
+    document.getElementById("examBody").style.display="block";
+    document.getElementById("examHead").style.display="block";
+    resetTimer();
+    render();
+  }));
+}
+document.getElementById("levelBtn").addEventListener("click",e=>{e.stopPropagation();document.getElementById("levelMenu").classList.toggle("open");});
+document.addEventListener("click",()=>document.getElementById("levelMenu").classList.remove("open"));
+
+document.getElementById("btnSubmit").addEventListener("click",submit);
+document.getElementById("btnRetryAll").addEventListener("click",()=>retry(false));
+document.getElementById("btnRetryWrong").addEventListener("click",()=>retry(true));
+
+// ── 计时 ──
+let timeLeft=30*60,timerI;
+function resetTimer(){
+  const lv=LEVELS.find(l=>l.key===activeLevel);
+  timeLeft=Math.min(lv.time,30)*60; // 原型限制 30 分钟
+  updateTimer();
+}
+function updateTimer(){
+  const m=Math.floor(timeLeft/60),s=timeLeft%60;
+  const el=document.getElementById("timer");
+  el.textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  el.classList.toggle("warn",timeLeft<=60);
+}
+timerI=setInterval(()=>{if(submitted)return;timeLeft=Math.max(0,timeLeft-1);updateTimer();},1000);
+
+buildLevelMenu();resetTimer();render();
+
+// 主题切换
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 新手引导</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --sky-soft:#f0f9ff;--on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+  --lv-zhongkao:#64748b;--lv-gaoKao:#16a34a;--lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-ielts:#dc2626;--lv-toefl:#ea580c;
+}
+html.dark{
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
+  --success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;
+  --sky-soft:#0c1a24;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+
+.wrap{max-width:640px;margin:0 auto;padding:32px 20px 100px;min-height:100vh;display:flex;flex-direction:column;}
+
+/* 顶部进度 */
+.ob-head{display:flex;align-items:center;gap:14px;margin-bottom:48px;}
+.ob-back{width:34px;height:34px;border-radius:var(--r-sm);color:var(--muted);display:flex;align-items:center;justify-content:center;}
+.ob-back:hover{color:var(--ink);background:var(--surface-card);}
+.ob-progress{flex:1;display:flex;gap:6px;}
+.ob-progress .seg{flex:1;height:4px;border-radius:2px;background:var(--surface-card);transition:background .3s;}
+.ob-progress .seg.done{background:var(--brand-500);}
+.ob-progress .seg.cur{background:var(--brand-500);opacity:.6;}
+
+.ob-content{flex:1;}
+.step{display:none;}.step.active{display:block;animation:fade .3s ease-out;}
+@keyframes fade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.step-emoji{font-size:56px;margin-bottom:16px;}
+.step h2{font-size:26px;font-weight:800;letter-spacing:-0.025em;margin-bottom:8px;}
+.step .sub{font-size:15px;color:var(--muted);margin-bottom:32px;line-height:1.5;}
+
+/* 选项网格 */
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px;background:var(--canvas);border:2px solid var(--hairline);border-radius:var(--r-lg);transition:all .15s;text-align:left;}
+.opt:hover{border-color:var(--brand-300);background:var(--brand-50);}
+.opt.selected{border-color:var(--brand-500);background:var(--brand-50);}
+.opt .ic{width:44px;height:44px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--surface-card);}
+.opt.selected .ic{background:var(--brand-500);}
+.opt .name{font-size:15px;font-weight:600;color:var(--ink);}
+.opt .desc{font-size:12px;color:var(--muted);line-height:1.4;}
+
+/* 兴趣 chips */
+.interest-grid{display:flex;flex-wrap:wrap;gap:10px;}
+.i-chip{padding:12px 18px;border-radius:var(--r-pill);font-size:14px;font-weight:500;background:var(--canvas);border:1.5px solid var(--hairline);color:var(--body);transition:all .15s;}
+.i-chip:hover{border-color:var(--brand-300);}
+.i-chip.selected{background:var(--brand-50);border-color:var(--brand-500);color:var(--brand-600);font-weight:600;}
+
+/* 每日目标 slider */
+.goal-card{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:28px;text-align:center;}
+.goal-num{font-size:56px;font-weight:800;color:var(--brand-500);font-family:"JetBrains Mono",monospace;letter-spacing:-0.03em;}
+.goal-unit{font-size:16px;color:var(--muted);font-weight:600;margin-top:4px;}
+.goal-slider{width:100%;margin-top:24px;accent-color:var(--brand-500);}
+.goal-marks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted-soft);margin-top:8px;}
+
+/* 完成态 */
+.done-icon{width:80px;height:80px;border-radius:50%;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:40px;box-shadow:0 8px 24px rgba(22,163,74,.3);}
+
+/* 底部按钮 */
+.ob-actions{display:flex;gap:10px;margin-top:32px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:14px 28px;font-size:15px;font-weight:600;border-radius:var(--r);transition:all .15s;}
+.btn-primary{background:var(--brand-500);color:#fff;flex:1;box-shadow:var(--shadow-brand);}
+.btn-primary:hover{background:var(--brand-600);}
+.btn-primary:disabled{background:var(--surface-card);color:var(--muted-soft);box-shadow:none;cursor:default;}
+.btn-ghost{color:var(--muted);padding:14px 20px;}
+.btn-ghost:hover{color:var(--ink);}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="ob-head">
+    <button class="ob-back" id="obBack"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5m7-7l-7 7 7 7"/></svg></button>
+    <div class="ob-progress" id="obProg"><span class="seg cur"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+  </div>
+
+  <div class="ob-content">
+    <!-- Step 1: 目标考试 -->
+    <div class="step active" data-s="0">
+      <div class="step-emoji">🎯</div>
+      <h2>你的目标考试是？</h2>
+      <div class="sub">我们会据此高亮字幕中的考点词，并生成对应格式的试卷</div>
+      <div class="opt-grid" data-group="exam">
+        <button class="opt" data-v="zhongkao"><div class="ic">🏫</div><div class="name">中考</div><div class="desc">初中毕业升学</div></button>
+        <button class="opt" data-v="gaoKao"><div class="ic">📝</div><div class="name">高考</div><div class="desc">全国统一高考</div></button>
+        <button class="opt selected" data-v="cet4"><div class="ic">🎓</div><div class="name">四级</div><div class="desc">大学英语四级</div></button>
+        <button class="opt" data-v="cet6"><div class="ic">📚</div><div class="name">六级</div><div class="desc">大学英语六级</div></button>
+        <button class="opt" data-v="ielts"><div class="ic">✈️</div><div class="name">雅思</div><div class="desc">IELTS 留学移民</div></button>
+        <button class="opt" data-v="toefl"><div class="ic">🌎</div><div class="name">托福</div><div class="desc">TOEFL 北美留学</div></button>
+      </div>
+    </div>
+
+    <!-- Step 2: 当前水平 -->
+    <div class="step" data-s="1">
+      <div class="step-emoji">📈</div>
+      <h2>你的英语水平？</h2>
+      <div class="sub">帮助我们推荐合适难度的视频，避免太简单或太难</div>
+      <div class="opt-grid" data-group="level">
+        <button class="opt" data-v="a2"><div class="ic">🌱</div><div class="name">入门</div><div class="desc">能听懂简单日常对话</div></button>
+        <button class="opt selected" data-v="b1"><div class="ic">🌿</div><div class="name">基础</div><div class="desc">能跟上一般语速的短文</div></button>
+        <button class="opt" data-v="b2"><div class="ic">🌳</div><div class="name">进阶</div><div class="desc">能理解较长的学术内容</div></button>
+        <button class="opt" data-v="c1"><div class="ic">🏆</div><div class="name">精通</div><div class="desc">能听懂快速专业内容</div></button>
+      </div>
+    </div>
+
+    <!-- Step 3: 兴趣 -->
+    <div class="step" data-s="2">
+      <div class="step-emoji">💖</div>
+      <h2>你感兴趣的主题？</h2>
+      <div class="sub">选择 3 个以上，首页将为你推荐相关视频（可多选）</div>
+      <div class="interest-grid" data-group="interest">
+        <button class="i-chip selected">科普</button>
+        <button class="i-chip selected">科技</button>
+        <button class="i-chip">历史</button>
+        <button class="i-chip selected">生活</button>
+        <button class="i-chip">商业</button>
+        <button class="i-chip">艺术</button>
+        <button class="i-chip">体育</button>
+        <button class="i-chip">美食</button>
+        <button class="i-chip">自然</button>
+        <button class="i-chip">心理</button>
+        <button class="i-chip">音乐</button>
+        <button class="i-chip">电影</button>
+      </div>
+    </div>
+
+    <!-- Step 4: 每日目标 -->
+    <div class="step" data-s="3">
+      <div class="step-emoji">⏰</div>
+      <h2>每日学习目标</h2>
+      <div class="sub">设定一个可持续的目标，养成每天学习的好习惯</div>
+      <div class="goal-card">
+        <div class="goal-num" id="goalNum">20</div>
+        <div class="goal-unit">个新词 / 天</div>
+        <input class="goal-slider" type="range" min="5" max="50" step="5" value="20" id="goalSlider">
+        <div class="goal-marks"><span>5</span><span>20</span><span>35</span><span>50</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ob-actions">
+    <button class="btn btn-ghost" id="btnSkip" style="display:none">跳过</button>
+    <button class="btn btn-primary" id="btnNext">下一步</button>
+  </div>
+</div>
+
+<button class="theme-toggle" id="themeToggle" title="切换主题">
+  <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+</button>
+
+<script>
+let cur=0;const TOTAL=4;
+const steps=document.querySelectorAll(".step");
+const segs=document.querySelectorAll("#obProg .seg");
+const btnNext=document.getElementById("btnNext");
+const btnSkip=document.getElementById("btnSkip");
+
+function render(){
+  steps.forEach((s,i)=>s.classList.toggle("active",i===cur));
+  segs.forEach((s,i)=>{s.className="seg";if(i<cur)s.classList.add("done");if(i===cur)s.classList.add("cur");});
+  btnNext.textContent=cur===TOTAL-1?"进入 SeeWord":"下一步";
+  btnSkip.style.display=cur>0?"none":"none"; // 首页也隐藏跳过，强制引导
+}
+render();
+
+document.getElementById("obBack").addEventListener("click",()=>{if(cur>0){cur--;render();}else{location.href="02-register.html";}});
+btnNext.addEventListener("click",()=>{
+  if(cur<TOTAL-1){cur++;render();}
+  else{location.href="03-home-b-seeword.html";}
+});
+
+// opt 单选
+document.querySelectorAll(".opt-grid").forEach(g=>g.querySelectorAll(".opt").forEach(o=>o.addEventListener("click",()=>{
+  g.querySelectorAll(".opt").forEach(x=>x.classList.remove("selected"));
+  o.classList.add("selected");
+})));
+// interest 多选
+document.querySelectorAll(".i-chip").forEach(c=>c.addEventListener("click",()=>c.classList.toggle("selected")));
+
+// slider
+document.getElementById("goalSlider").addEventListener("input",e=>{
+  document.getElementById("goalNum").textContent=e.target.value;
+});
+
+const root=document.documentElement;
+document.getElementById("themeToggle").addEventListener("click",()=>{
+  root.classList.toggle("dark");
+  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
+    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord - 结账</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════ SeeWord 结账中转页 · 本站不支持在线支付 ═══════════ */
+:root {
+  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
+  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
+  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;
+  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;
+  --brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
+  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;
+  --warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
+  --on-primary:#ffffff;
+  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
+  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
+  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
+}
+html.dark {
+  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
+  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
+  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0a0a0a;
+  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
+  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
+  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
+  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
+  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;display:flex;flex-direction:column;}
+::selection{background:var(--brand-500);color:#fff;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{text-decoration:none;color:inherit;}
+
+/* 顶导航（极简） */
+.topbar{height:64px;background:color-mix(in oklab,var(--topbar-bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:14px;padding:0 16px;flex-shrink:0;}
+@media(min-width:640px){.topbar{padding:0 28px;}}
+.nav-logo{display:flex;align-items:center;gap:10px;}
+.logo-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-500);box-shadow:var(--shadow-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;}
+.logo-text{font-weight:800;font-size:18px;letter-spacing:-0.02em;color:var(--ink);}
+.logo-text .word{color:var(--brand-500);}
+.nav-spacer{flex:1;}
+.icon-btn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+
+/* 主区 - 居中卡片 */
+.main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 16px;}
+.checkout-card{width:100%;max-width:440px;text-align:center;position:relative;animation:rise .4s ease;}
+@keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+.card-icon{width:72px;height:72px;border-radius:var(--r-xl);background:var(--brand-50);color:var(--brand-500);display:inline-flex;align-items:center;justify-content:center;margin-bottom:22px;}
+.card-icon svg{filter:drop-shadow(0 4px 12px rgba(255,90,31,.25));}
+.card-title{font-size:26px;font-weight:800;letter-spacing:-0.025em;margin-bottom:10px;line-height:1.2;}
+.card-desc{font-size:14.5px;color:var(--muted);line-height:1.7;margin-bottom:30px;}
+.card-desc strong{color:var(--ink);font-weight:600;}
+
+/* 合规盾牌 */
+.shield-row{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--success);background:var(--success-soft);border:1px solid color-mix(in oklab,var(--success) 25%,transparent);padding:7px 14px;border-radius:var(--r-pill);margin-bottom:30px;font-weight:500;}
+.shield-row svg{flex-shrink:0;}
+
+/* 双路径按钮 */
+.paths{display:flex;flex-direction:column;gap:11px;}
+.path-btn{position:relative;display:flex;align-items:center;gap:13px;width:100%;padding:16px 18px;border-radius:var(--r-lg);font-size:14.5px;font-weight:600;transition:all .2s;text-align:left;overflow:hidden;}
+.path-btn .pic{width:38px;height:38px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.path-btn .ptxt{flex:1;}
+.path-btn .ptxt .t{font-size:14.5px;font-weight:600;}
+.path-btn .ptxt .d{font-size:12px;font-weight:400;margin-top:2px;}
+.path-btn .arrow{flex-shrink:0;transition:transform .15s;}
+.path-btn:hover .arrow{transform:translateX(3px);}
+
+/* 主路径：小商店 */
+.path-btn.primary{background:var(--brand-500);color:var(--on-primary);box-shadow:var(--shadow-brand);}
+.path-btn.primary .pic{background:rgba(255,255,255,.2);color:#fff;}
+.path-btn.primary .d{color:rgba(255,255,255,.85);}
+.path-btn.primary:hover{background:var(--brand-600);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,90,31,.32);}
+.path-btn.primary:active{transform:scale(.99);}
+
+/* 次路径：兑换码 */
+.path-btn.secondary{background:var(--canvas);color:var(--ink);border:1px solid var(--hairline);box-shadow:var(--shadow-soft);}
+.path-btn.secondary .pic{background:var(--surface-card);color:var(--brand-500);}
+.path-btn.secondary .d{color:var(--muted);}
+.path-btn.secondary:hover{border-color:var(--brand-300);transform:translateY(-2px);box-shadow:var(--shadow-card);}
+
+/* 返回 */
+.back{margin-top:26px;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted);transition:color .15s;}
+.back:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- 顶导航 -->
+<nav class="topbar">
+  <a class="nav-logo" href="00-router.html">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">See<span class="word">Word</span></span>
+  </a>
+  <div class="nav-spacer"></div>
+  <button class="icon-btn" id="themeToggle" aria-label="切换主题" title="切换主题">
+    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+</nav>
+
+<!-- 主区 -->
+<main class="main">
+  <div class="checkout-card">
+    <div class="card-icon">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    </div>
+    <h1 class="card-title">本站不支持在线支付</h1>
+    <p class="card-desc">本网站为<strong>非经营性工具展示平台</strong>，不提供站内支付功能。<br>请前往微信小商店购买 Pro 会员，购买后使用兑换码激活。</p>
+
+    <div class="shield-row">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      合规运营 · 不存储支付信息
+    </div>
+
+    <div class="paths">
+      <!-- 主路径：小商店 -->
+      <a href="18-upgrade.html" class="path-btn primary">
+        <span class="pic">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </span>
+        <span class="ptxt">
+          <span class="t">前往微信小商店</span>
+          <span class="d">¥9.9/月 · 购买后获得兑换码</span>
+        </span>
+        <svg class="arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <!-- 次路径：兑换码 -->
+      <a href="19-redeem.html" class="path-btn secondary">
+        <span class="pic">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+        </span>
+        <span class="ptxt">
+          <span class="t">使用兑换码激活</span>
+          <span class="d">已有兑换码？直接输入激活</span>
+        </span>
+        <svg class="arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+
+    <a href="22-pricing.html" class="back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      返回定价页
+    </a>
+  </div>
+</main>
+
+<script>
+const themeToggle=document.getElementById('themeToggle');
+const iconSun=themeToggle.querySelector('.icon-sun');
+const iconMoon=themeToggle.querySelector('.icon-moon');
+themeToggle.addEventListener('click',()=>{
+  document.documentElement.classList.toggle('dark');
+  const isDark=document.documentElement.classList.contains('dark');
+  iconSun.style.display=isDark?'none':'block';
+  iconMoon.style.display=isDark?'block':'none';
+});
+</script>
+</body>
+</html>
