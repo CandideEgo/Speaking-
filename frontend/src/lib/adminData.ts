@@ -138,6 +138,8 @@ export function listVideos(
     status?: string;
     review_status?: string;
     keyword?: string;
+    /** 质量门禁筛选: quality_warning | quality_blocked | low_coverage */
+    quality?: string;
   } = {}
 ): Promise<Paginated<VideoAdmin>> {
   const params = new URLSearchParams();
@@ -146,6 +148,7 @@ export function listVideos(
   if (opts.status) params.set("status", opts.status);
   if (opts.review_status) params.set("review_status", opts.review_status);
   if (opts.keyword) params.set("keyword", opts.keyword);
+  if (opts.quality) params.set("quality", opts.quality);
   const qs = params.toString();
   return adminApi<Paginated<VideoAdmin>>(`/api/v1/videos/admin${qs ? `?${qs}` : ""}`);
 }
@@ -204,6 +207,33 @@ export async function localizeVideo(id: string): Promise<VideoAdmin> {
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/localize`, {
     method: "POST",
   });
+}
+
+/** Re-run translation, optionally with a different engine. Use after a quality
+ *  block to retry — same engine + same input would reproduce low coverage.
+ *  Engines: glm | qwen | hy_mt2 | agnes | custom. Clears text_zh + quality_flag. */
+export async function retranslateVideo(id: string, engine?: string): Promise<VideoAdmin> {
+  const qs = engine ? `?engine=${encodeURIComponent(engine)}` : "";
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/retranslate${qs}`, {
+    method: "POST",
+  });
+}
+
+/** Quality report row (transcription/translation history across re-runs). */
+export interface QualityReport {
+  id: string;
+  stage: string;
+  passed: boolean;
+  coverage_ratio: number | null;
+  metrics: Record<string, unknown> | null;
+  issues: string[] | null;
+  segment_count: number | null;
+  created_at: string | null;
+}
+
+/** All quality reports for a video (powers the video-detail quality panel). */
+export async function getQualityReports(id: string): Promise<QualityReport[]> {
+  return adminApi<QualityReport[]>(`/api/v1/videos/admin/${id}/quality-reports`);
 }
 
 // ---------------------------------------------------------------------------
