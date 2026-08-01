@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/authStore";
-import { Sparkles, Loader2, CheckCircle2, Gift } from "lucide-react";
+import { Sparkles, Loader2, CheckCircle2, Gift, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { CodeInput, TOTAL_LENGTH } from "@/components/auth/CodeInput";
 
-/** Map backend English redeem errors to friendly Chinese (ADR-0007 UX). */
+/** Map backend English redeem errors to friendly Chinese (ADR-0007 UX).
+ *  5 错误文案状态机（原型 19）。 */
 function localizeRedeemMessage(msg: string): string {
   const map: Record<string, string> = {
     "Invalid redeem code": "兑换码无效",
@@ -29,11 +30,30 @@ export default function RedeemPage() {
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
+    expiry?: string | null;
   } | null>(null);
+  const [redirectIn, setRedirectIn] = useState(0);
+
+  // Success -> countdown redirect (原型 19 success-redirect).
+  useEffect(() => {
+    if (!result?.success) return;
+    setRedirectIn(3);
+    const id = setInterval(() => {
+      setRedirectIn((n) => {
+        if (n <= 1) {
+          clearInterval(id);
+          router.push("/");
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [result, router]);
 
   async function handleRedeem(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) return;
+    if (code.length < TOTAL_LENGTH) return;
     setLoading(true);
     setResult(null);
     try {
@@ -43,7 +63,7 @@ export default function RedeemPage() {
         plan_expires_at?: string | null;
       }>("/api/v1/redeem-codes/redeem", {
         method: "POST",
-        body: JSON.stringify({ code: code.trim() }),
+        body: JSON.stringify({ code }),
       });
       if (res.success) {
         const expiry = res.plan_expires_at
@@ -51,9 +71,9 @@ export default function RedeemPage() {
           : null;
         setResult({
           success: true,
-          message: expiry ? `Pro 会员已激活！有效期至 ${expiry}` : "Pro 会员已激活！",
+          message: "Pro 会员已激活！",
+          expiry,
         });
-        setTimeout(() => router.push("/"), 2000);
       } else {
         setResult({
           success: false,
@@ -70,9 +90,11 @@ export default function RedeemPage() {
     }
   }
 
+  const success = result?.success;
+
   return (
-    <main className="flex min-h-full items-center justify-center px-4 bg-canvas">
-      <div className="w-full max-w-sm">
+    <main className="flex min-h-full items-center justify-center px-4 bg-canvas relative">
+      <div className="w-full max-w-md">
         <div className="text-center">
           <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-lg bg-brand-500 text-white">
             <Gift size={28} />
@@ -94,34 +116,35 @@ export default function RedeemPage() {
               <a href="/register" className="font-semibold underline">
                 注册
               </a>
-              账号
+              账号后兑换
             </p>
           </div>
         ) : (
           <form onSubmit={handleRedeem} className="mt-8 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink">兑换码</label>
-              <Input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="XXXX-XXXX-XX"
-                maxLength={12}
-                required
-                className="mt-1.5 text-center text-lg tracking-widest font-mono"
+              <label className="block text-sm font-medium text-ink mb-2 text-center">兑换码</label>
+              <CodeInput
+                onChange={setCode}
+                hasError={!!result && !success}
+                disabled={loading || !!success}
               />
+              <p className="mt-2 text-center text-xs text-muted-soft">
+                格式：XXXX-XXXX-XX（共 10 位）
+              </p>
             </div>
 
-            {result && (
-              <div
-                className={`rounded-md p-3 text-sm ${result.success ? "bg-success-soft text-success border border-success/30" : "bg-red-soft text-error border border-error/30"}`}
-              >
-                {result.success && <CheckCircle2 size={16} className="inline mr-1 -mt-0.5" />}
-                {result.message}
+            {result && !success && (
+              <div className="rounded-md p-3 text-sm bg-red-soft text-error border border-error/30 flex items-start gap-2">
+                <span className="font-mono">{code}</span>
+                <span>{result.message}</span>
               </div>
             )}
 
-            <Button type="submit" fullWidth disabled={loading || !code.trim()}>
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading || code.length < TOTAL_LENGTH || !!success}
+            >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               {loading ? "兑换中..." : "激活 Pro"}
             </Button>
@@ -130,6 +153,33 @@ export default function RedeemPage() {
 
         <p className="mt-6 text-center text-xs text-muted">兑换码通过微信小商店购买后获得</p>
       </div>
+
+      {/* Success overlay (原型 19 success-overlay) */}
+      {success && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-canvas rounded-2xl border border-hairline shadow-lift p-8 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-success-soft flex items-center justify-center mb-4">
+              <PartyPopper size={32} className="text-success" />
+            </div>
+            <h2 className="text-xl font-bold text-ink">{result?.message}</h2>
+            {result?.expiry && (
+              <p className="mt-2 text-sm text-muted">
+                有效期至 <strong className="text-ink font-mono">{result.expiry}</strong>
+              </p>
+            )}
+            <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
+              <CheckCircle2 size={15} className="text-success" />
+              {redirectIn > 0 ? `${redirectIn} 秒后返回首页` : "正在跳转…"}
+            </div>
+            <button
+              onClick={() => router.push("/")}
+              className="mt-4 text-sm text-brand-500 hover:underline font-medium"
+            >
+              立即返回
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
