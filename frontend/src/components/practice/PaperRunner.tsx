@@ -30,6 +30,11 @@ interface PaperRunnerProps {
   examHeaderExtra?: React.ReactNode;
   /** submit 模式提交时触发（页面可据此停止计时器等）。 */
   onSubmit?: () => void;
+  /**
+   * full = 独立页面（max-w-880 居中 + 大 padding，06/16 试卷专栏用）；
+   * embedded = 嵌入 watch 页（裸 div，宽度/padding 由外层控制）。
+   */
+  variant?: "full" | "embedded";
 }
 
 /** Flatten the paper into a question list with stable qids. */
@@ -366,6 +371,7 @@ export function PaperRunner({
   levelLabel,
   examHeaderExtra,
   onSubmit,
+  variant = "full",
 }: PaperRunnerProps) {
   const flat = useMemo(() => flatten(paper), [paper]);
   const [answers, setAnswers] = useState<Record<Qid, Answer>>({});
@@ -478,7 +484,7 @@ export function PaperRunner({
   return (
     <div>
       {examHeader}
-      <div className="max-w-[880px] mx-auto px-5 py-6 pb-24">
+      <div className={variant === "embedded" ? "" : "max-w-[880px] mx-auto px-5 py-6 pb-24"}>
         {instantProgress}
 
         {/* Part grouping */}

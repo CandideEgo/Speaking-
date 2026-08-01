@@ -11,9 +11,7 @@ import { useShadowing } from "@/hooks/useShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoPlayer, bestVideoUrl, youtubeId } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
-import { usePractice } from "@/hooks/usePractice";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
-import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { api, mediaUrl } from "@/lib/api";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
@@ -23,10 +21,10 @@ import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/Subtit
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ForkBadge } from "@/components/video/ForkBadge";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
+import { EmbeddedPaper } from "@/components/watch/EmbeddedPaper";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
-import { levelMeta, shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
-import type { WordGloss } from "@/types";
+import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
 import {
   ArrowLeft,
   Loader2,
@@ -73,7 +71,6 @@ export default function WatchPage() {
   const [shadowingSaved, setShadowingSaved] = useState(false);
   const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [practiceExpanded, setPracticeExpanded] = useState(false);
 
   // Auto-upload recording when entering reviewing state
   useEffect(() => {
@@ -144,12 +141,6 @@ export default function WatchPage() {
   const setPanelCollapsed = useWatchStore((s) => s.setPanelCollapsed);
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
-
-  // --- Unified practice (adaptive drill, client-graded, SM-2 closed-loop) ---
-  const practiceSession = usePractice({
-    videoId: id,
-    level: selectedExamLevel,
-  });
 
   // Load the user's target exam level from preferences on mount.
   useEffect(() => {
@@ -355,7 +346,9 @@ export default function WatchPage() {
 
   return (
     // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
-    <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+    // max-w-[1280px] 居中容器（对齐原型 05-watch.html）：在 125%/150% 缩放倍率下
+    // 保持视频与字幕面板的最佳比例，避免宽屏下视频列过度拉伸。
+    <div className="mx-auto max-w-[1280px] px-4 sm:px-7 pt-6 pb-16">
       {/* ===== Header ===== */}
       <div className="mb-4">
         {/* 顶部细行：返回 + 标题 + 操作图标 */}
@@ -462,7 +455,7 @@ export default function WatchPage() {
       {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
       <div
         className={cn(
-          "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
+          "grid grid-cols-1 gap-5 items-start transition-[grid-template-columns] duration-200",
           panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
         )}
       >
@@ -704,10 +697,38 @@ export default function WatchPage() {
               <ShadowingHistory attempts={attempts} />
             </div>
           )}
+
+          {/* 来源声明（ICP 合规）：原视频来源 + 版权声明 */}
+          {video.source_url && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2.5 bg-canvas border border-hairline rounded-lg px-3.5 py-2.5">
+                <span className="w-5 h-5 rounded-[5px] bg-[#ff0000] flex items-center justify-center shrink-0">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+                <span className="text-[13px] text-muted">
+                  原视频来源：YouTube ·{" "}
+                  <a
+                    href={video.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-600 font-medium hover:underline"
+                  >
+                    {video.source_url.replace(/^https?:\/\//, "")}
+                  </a>
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-soft leading-relaxed mt-2">
+                本视频内容转载自 YouTube
+                平台，仅供学习交流使用，版权归原作者所有。如有侵权请联系我们删除。
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
-        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] overflow-hidden min-w-0">
+        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-4 overflow-hidden min-w-0">
           {panelCollapsed ? (
             // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
             <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
@@ -767,37 +788,12 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区：渐进披露 — 默认折叠为 CTA，点击展开 ===== */}
-      <div className="mt-6">
-        {practiceExpanded ? (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-ink">练习</span>
-              <button
-                onClick={() => setPracticeExpanded(false)}
-                className="text-xs text-muted hover:text-ink transition-colors cursor-pointer"
-              >
-                收起练习
-              </button>
-            </div>
-            <UnifiedPracticePanel
-              session={practiceSession}
-              levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-            />
-          </div>
-        ) : (
-          <button
-            onClick={() => setPracticeExpanded(true)}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border border-hairline
-              bg-surface-soft text-sm font-semibold text-muted
-              hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50
-              transition-all duration-150 cursor-pointer"
-          >
-            <BookOpen size={16} />
-            开始本句练习
-          </button>
-        )}
-      </div>
+      {/* ===== 练习区：内嵌试卷即时练习（复刻原型 05-watch.html）===== */}
+      <EmbeddedPaper
+        videoId={id}
+        level={selectedExamLevel ?? "cet4"}
+        onLevelChange={handleExamLevelChange}
+      />
 
       {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
       {selectedWord && (
