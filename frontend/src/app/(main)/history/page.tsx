@@ -175,7 +175,7 @@ function RecordCard({ record }: { record: LearningRecord }) {
         </div>
       </div>
 
-      {/* Progress */}
+      {/* Progress + resume label */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <div className="w-24">
           <div className="h-1.5 rounded-full bg-surface-card">
@@ -187,6 +187,14 @@ function RecordCard({ record }: { record: LearningRecord }) {
         </div>
         <span className="text-xs text-muted w-10 text-right">
           {Math.round(record.progress_percentage)}%
+        </span>
+        <span
+          className={
+            "inline-flex items-center gap-1 px-2.5 py-1 rounded-pill text-[11px] font-semibold flex-shrink-0 " +
+            (record.completed ? "bg-surface-card text-muted" : "bg-brand-50 text-brand-600")
+          }
+        >
+          {record.completed ? "复习" : "续播"}
         </span>
       </div>
     </Link>
