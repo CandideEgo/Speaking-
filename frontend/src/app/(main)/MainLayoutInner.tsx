@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
@@ -73,12 +72,9 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Render shell immediately — onboarding check runs in background
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0">{children}</main>
-      </div>
+    <div className="flex flex-col h-screen overflow-hidden">
+      <TopBar />
+      <main className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0">{children}</main>
       <MobileTabBar />
     </div>
   );
