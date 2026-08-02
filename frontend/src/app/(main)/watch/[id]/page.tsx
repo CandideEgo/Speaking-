@@ -354,450 +354,457 @@ export default function WatchPage() {
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
 
   return (
-    // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
-    <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
-      {/* ===== Header ===== */}
-      <div className="mb-4">
-        {/* 顶部细行：返回 + 标题 + 操作图标 */}
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
-            onClick={() => router.push("/browse")}
-          >
-            <ArrowLeft size={14} />
-            返回浏览
-          </button>
-          <div className="h-4 w-px bg-hairline shrink-0" />
-          <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
-            {video.title}
-          </h1>
-          <div className="flex items-center gap-1 shrink-0">
+    // 固定一屏 + scroll-snap 翻页：屏1=header+视频+字幕面板（至少一屏高，仅字幕列表内滚），
+    // 屏2=练习区。snap-mandatory 提供阻尼吸附。保留 aspect-video 与 aside 内滚，不重写高度链。
+    <div className="h-full overflow-y-auto snap-y snap-mandatory custom-scrollbar">
+      {/* ===== Screen 1: header + 视频 + 字幕面板（snap 起点） ===== */}
+      <section className="snap-start min-h-full px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+        {/* ===== Header ===== */}
+        <div className="mb-4">
+          {/* 顶部细行：返回 + 标题 + 操作图标 */}
+          <div className="flex items-center gap-3">
             <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={toggleLike}
-              aria-label={isLiked ? "取消点赞" : "点赞"}
-              title={isLiked ? "取消点赞" : "点赞"}
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
+              onClick={() => router.push("/browse")}
             >
-              <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+              <ArrowLeft size={14} />
+              返回浏览
             </button>
-            <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={toggleFavorite}
-              aria-label={isFavorited ? "取消收藏" : "收藏视频"}
-              title={isFavorited ? "取消收藏" : "收藏"}
-            >
-              <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
-            </button>
-            <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={() => router.push("/vocabulary")}
-              aria-label="词汇本"
-              title="词汇本"
-            >
-              <BookOpen size={18} />
-            </button>
-            <button
-              className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-                noteOpen
-                  ? "bg-brand-50 text-brand-500"
-                  : "text-muted hover:bg-surface-card hover:text-ink"
-              )}
-              onClick={() => setNoteOpen((v) => !v)}
-              aria-label="笔记"
-              title="笔记"
-            >
-              <Pencil size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* meta 细行 */}
-        <div className="flex items-center gap-2 text-[12px] text-muted mt-2">
-          <span className="font-semibold text-ink">SeeWord</span>
-          <span>·</span>
-          <span>{video.difficulty_level || "B2"}</span>
-          <span>·</span>
-          <span>{formatDuration(video.duration)}</span>
-          {video.forked_from && (
-            <>
-              <span>·</span>
-              <ForkBadge forkedFrom={video.forked_from} />
-            </>
-          )}
-        </div>
-
-        {/* 笔记抽屉 */}
-        {noteOpen && (
-          <div className="bg-canvas border border-hairline rounded-lg p-4 mt-3 animate-fade-in">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-sm font-semibold">学习笔记</span>
+            <div className="h-4 w-px bg-hairline shrink-0" />
+            <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
+              {video.title}
+            </h1>
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => setNoteOpen(false)}
-                className="text-muted hover:text-ink"
-                aria-label="关闭笔记"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+                onClick={toggleLike}
+                aria-label={isLiked ? "取消点赞" : "点赞"}
+                title={isLiked ? "取消点赞" : "点赞"}
               >
-                <X size={16} />
+                <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+              </button>
+              <button
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+                onClick={toggleFavorite}
+                aria-label={isFavorited ? "取消收藏" : "收藏视频"}
+                title={isFavorited ? "取消收藏" : "收藏"}
+              >
+                <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+              </button>
+              <button
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+                onClick={() => router.push("/vocabulary")}
+                aria-label="词汇本"
+                title="词汇本"
+              >
+                <BookOpen size={18} />
+              </button>
+              <button
+                className={cn(
+                  "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+                  noteOpen
+                    ? "bg-brand-50 text-brand-500"
+                    : "text-muted hover:bg-surface-card hover:text-ink"
+                )}
+                onClick={() => setNoteOpen((v) => !v)}
+                aria-label="笔记"
+                title="笔记"
+              >
+                <Pencil size={18} />
               </button>
             </div>
-            <Textarea
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="记录重点句型、生词或心得..."
-              rows={3}
-              className="resize-none mb-3"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={clearNote}>
-                清空
-              </Button>
-              <Button size="sm" onClick={saveNote}>
-                保存
-              </Button>
-            </div>
           </div>
-        )}
-      </div>
 
-      {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
-          panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
-        )}
-      >
-        {/* ========== LEFT COLUMN ========== */}
-        <div className="min-w-0">
-          {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
-              移动端滚出视口时，内层 wrapper 浮为右下角 mini-player（PiP），
-              <video> 节点不换父，播放连续。 */}
-          <div
-            ref={slotRef}
-            className={cn(
-              "relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift",
-              panelCollapsed && "lg:mx-auto lg:max-w-[calc((100vh_-_220px)*16/9)]"
-            )}
-          >
-            <div
-              className={cn(
-                "transition-all duration-300",
-                isPip
-                  ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
-                  : "absolute inset-0"
-              )}
-            >
-              {playbackMode === "ready" && bestVideoUrl(video) ? (
-                <>
-                  <video
-                    ref={videoRef}
-                    src={mediaUrl(bestVideoUrl(video)!)}
-                    controls
-                    className="h-full w-full object-contain"
-                    onTimeUpdate={(e) => {
-                      const t = e.currentTarget.currentTime;
-                      const idx = findSubtitleIndex(video.subtitles, t);
-                      if (idx !== -1) setCurrentSubtitleIndex(idx);
-                      trackWatchTime(id, t);
-                    }}
-                    onPlay={() =>
-                      track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onPause={() =>
-                      track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onSeeked={() =>
-                      track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onEnded={() =>
-                      track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                  />
-                  {isPip && (
-                    <button
-                      type="button"
-                      onClick={dismiss}
-                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
-                      aria-label="关闭小窗播放"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </>
-              ) : playbackMode === "ready" && youtubeId(video) ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${youtubeId(video)}?rel=0`}
-                  className="h-full w-full"
-                  allowFullScreen
-                  title={video.title}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <div className="text-center">
-                    <Play size={40} className="mx-auto text-white/30" />
-                    <p className="mt-3 text-sm text-white/40">视频未就绪</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看（mini-player 时隐藏） */}
-            {!isPip && (
-              <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
+          {/* meta 细行 */}
+          <div className="flex items-center gap-2 text-[12px] text-muted mt-2">
+            <span className="font-semibold text-ink">SeeWord</span>
+            <span>·</span>
+            <span>{video.difficulty_level || "B2"}</span>
+            <span>·</span>
+            <span>{formatDuration(video.duration)}</span>
+            {video.forked_from && (
+              <>
+                <span>·</span>
+                <ForkBadge forkedFrom={video.forked_from} />
+              </>
             )}
           </div>
 
-          {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
-          {currentSubtitle && (
-            <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
-              {/* 字幕进度指示 */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-mono text-muted-soft">
-                  {currentSubtitleIndex + 1} / {video.subtitles.length}
-                </span>
-                <div className="flex-1 mx-3 h-0.5 rounded-full bg-surface-card">
-                  <div
-                    className="h-full rounded-full bg-brand-500 transition-all duration-300"
-                    style={{
-                      width: `${((currentSubtitleIndex + 1) / video.subtitles.length) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="now-sub-en text-left leading-[1.7]">
-                    {currentSubtitle.text_en.split(" ").map((word, i) => (
-                      <span
-                        key={i}
-                        className={cn(
-                          "now-sub-word",
-                          levelClassFor(word, currentSubtitle.word_levels),
-                          isSelectedWord(word) && "now-sub-word-hl"
-                        )}
-                        onClick={() => handleWordClick(word)}
-                      >
-                        {word}{" "}
-                      </span>
-                    ))}
-                  </div>
-                  {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-                    currentSubtitle.text_zh && (
-                      <div className="now-sub-zh">{currentSubtitle.text_zh}</div>
-                    )}
-                </div>
-
-                {/* 录音：默认只一个小按钮，点击才展开录音 UI */}
+          {/* 笔记抽屉 */}
+          {noteOpen && (
+            <div className="bg-canvas border border-hairline rounded-lg p-4 mt-3 animate-fade-in">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-sm font-semibold">学习笔记</span>
                 <button
-                  className={cn(
-                    "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
-                    speakingActive
-                      ? "bg-brand-500 text-white shadow-brand"
-                      : "text-brand-500 bg-brand-50 hover:bg-brand-100"
-                  )}
-                  onClick={() => {
-                    if (speakingActive) stopSpeaking();
-                    else startRecording();
-                  }}
+                  onClick={() => setNoteOpen(false)}
+                  className="text-muted hover:text-ink"
+                  aria-label="关闭笔记"
                 >
-                  <Mic size={15} />
-                  录音
+                  <X size={16} />
                 </button>
               </div>
-
-              {/* 录音展开态：录音 / 回放 / 下一句 */}
-              {speakingActive && (
-                <div className="mt-4 pt-4 border-t border-hairline">
-                  {speakingState === "idle" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <button
-                        className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
-                        onClick={startRecording}
-                      >
-                        <Mic size={20} />
-                      </button>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">点击麦克风开始录音</p>
-                        <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {speakingState === "listening" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <button
-                        className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
-                        onClick={stopRecording}
-                      >
-                        <Mic size={20} />
-                      </button>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">录音中…</p>
-                        <div className="mt-1">
-                          <AudioWaveform stream={recordingStream} barCount={24} />
-                        </div>
-                      </div>
-                      <button
-                        className="text-[13px] font-semibold text-muted hover:text-ink cursor-pointer"
-                        onClick={stopSpeaking}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-
-                  {speakingState === "reviewing" && (
-                    <div className="bg-surface-soft rounded-lg p-3 space-y-3">
-                      {/* Status row */}
-                      <div className="flex items-center gap-2 text-[13px]">
-                        {uploading ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin text-brand-500" />
-                            <span className="text-muted">正在保存跟读录音…</span>
-                          </>
-                        ) : shadowingSaved ? (
-                          <>
-                            <Check size={14} className="text-success" />
-                            <span className="text-success font-medium">已保存</span>
-                          </>
-                        ) : (
-                          <span className="text-muted">录音完成，回放听自己的发音</span>
-                        )}
-                      </div>
-
-                      {/* Audio players: original + mine */}
-                      <div className="flex items-center gap-3">
-                        <button
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                            bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors cursor-pointer"
-                          onClick={playOriginal}
-                        >
-                          <Volume2 size={13} />
-                          听原声
-                        </button>
-                        {audioUrl && (
-                          <audio src={audioUrl} controls className="h-8 flex-1 max-w-xs" />
-                        )}
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={reRecord}>
-                          重录
-                        </Button>
-                        <Button
-                          variant={shadowingSatisfied ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setShadowingSatisfied((v) => !v)}
-                          className={
-                            shadowingSatisfied ? "bg-success hover:bg-success/90 shadow-none" : ""
-                          }
-                        >
-                          <Check size={13} className="mr-1" />
-                          满意
-                        </Button>
-                        <Button size="sm" onClick={handleNextSubtitle}>
-                          下一句
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Shadowing history: recent attempts for this video */}
-              <ShadowingHistory attempts={attempts} />
+              <Textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="记录重点句型、生词或心得..."
+                rows={3}
+                className="resize-none mb-3"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={clearNote}>
+                  清空
+                </Button>
+                <Button size="sm" onClick={saveNote}>
+                  保存
+                </Button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
-        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-176px)] flex flex-col overflow-hidden min-w-0">
-          {panelCollapsed ? (
-            // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
-            <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
-          ) : (
-            <>
-              {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
-              <div className="border-b border-hairline shrink-0">
-                <SubtitleModeTabs
-                  collapsed={false}
-                  onToggleCollapse={() => setPanelCollapsed(true)}
-                />
-              </div>
-
-              {/* 字幕列表 —— 只保留核心三种模式 */}
-              <div ref={subtitleListRef} className="flex-1 overflow-y-auto subtitle-scroll p-1.5">
-                <div className="flex flex-col gap-0.5">
-                  {video.subtitles.map((sub, i) => (
-                    <button
-                      key={sub.id}
-                      id={`subtitle-${i}`}
-                      onClick={() => {
-                        setCurrentSubtitleIndex(i);
-                        seekTo(sub.start_time);
-                      }}
-                      className={cn(
-                        "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
-                        i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
-                      )}
-                    >
-                      {subtitleMode !== "chinese" && (
-                        <div
-                          className={cn(
-                            "font-medium text-sm leading-relaxed",
-                            i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
-                          )}
-                        >
-                          {sub.text_en.split(" ").map((word, wi) => (
-                            <span key={wi} className={levelClassFor(word, sub.word_levels)}>
-                              {word}{" "}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-                        sub.text_zh && (
-                          <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
-                        )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
+        {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-6 items-start transition-[grid-template-columns] duration-200",
+            panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
           )}
-        </aside>
-      </div>
-
-      {/* ===== 练习区：渐进披露 — 默认折叠为 CTA，点击展开 ===== */}
-      <div className="mt-6">
-        {practiceExpanded ? (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-ink">练习</span>
-              <button
-                onClick={() => setPracticeExpanded(false)}
-                className="text-xs text-muted hover:text-ink transition-colors cursor-pointer"
+        >
+          {/* ========== LEFT COLUMN ========== */}
+          <div className="min-w-0">
+            {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
+              移动端滚出视口时，内层 wrapper 浮为右下角 mini-player（PiP），
+              <video> 节点不换父，播放连续。 */}
+            <div
+              ref={slotRef}
+              className={cn(
+                "relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift",
+                panelCollapsed && "lg:mx-auto lg:max-w-[calc((100vh_-_220px)*16/9)]"
+              )}
+            >
+              <div
+                className={cn(
+                  "transition-all duration-300",
+                  isPip
+                    ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
+                    : "absolute inset-0"
+                )}
               >
-                收起练习
-              </button>
+                {playbackMode === "ready" && bestVideoUrl(video) ? (
+                  <>
+                    <video
+                      ref={videoRef}
+                      src={mediaUrl(bestVideoUrl(video)!)}
+                      controls
+                      className="h-full w-full object-contain"
+                      onTimeUpdate={(e) => {
+                        const t = e.currentTarget.currentTime;
+                        const idx = findSubtitleIndex(video.subtitles, t);
+                        if (idx !== -1) setCurrentSubtitleIndex(idx);
+                        trackWatchTime(id, t);
+                      }}
+                      onPlay={() =>
+                        track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onPause={() =>
+                        track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onSeeked={() =>
+                        track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onEnded={() =>
+                        track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                    />
+                    {isPip && (
+                      <button
+                        type="button"
+                        onClick={dismiss}
+                        className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
+                        aria-label="关闭小窗播放"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </>
+                ) : playbackMode === "ready" && youtubeId(video) ? (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeId(video)}?rel=0`}
+                    className="h-full w-full"
+                    allowFullScreen
+                    title={video.title}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <div className="text-center">
+                      <Play size={40} className="mx-auto text-white/30" />
+                      <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* 考试目标层级选择器：右上角收起药丸，不干扰观看（mini-player 时隐藏） */}
+              {!isPip && (
+                <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
+              )}
             </div>
-            <UnifiedPracticePanel
-              session={practiceSession}
-              levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
-            />
+
+            {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
+            {currentSubtitle && (
+              <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
+                {/* 字幕进度指示 */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-mono text-muted-soft">
+                    {currentSubtitleIndex + 1} / {video.subtitles.length}
+                  </span>
+                  <div className="flex-1 mx-3 h-0.5 rounded-full bg-surface-card">
+                    <div
+                      className="h-full rounded-full bg-brand-500 transition-all duration-300"
+                      style={{
+                        width: `${((currentSubtitleIndex + 1) / video.subtitles.length) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="now-sub-en text-left leading-[1.7]">
+                      {currentSubtitle.text_en.split(" ").map((word, i) => (
+                        <span
+                          key={i}
+                          className={cn(
+                            "now-sub-word",
+                            levelClassFor(word, currentSubtitle.word_levels),
+                            isSelectedWord(word) && "now-sub-word-hl"
+                          )}
+                          onClick={() => handleWordClick(word)}
+                        >
+                          {word}{" "}
+                        </span>
+                      ))}
+                    </div>
+                    {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+                      currentSubtitle.text_zh && (
+                        <div className="now-sub-zh">{currentSubtitle.text_zh}</div>
+                      )}
+                  </div>
+
+                  {/* 录音：默认只一个小按钮，点击才展开录音 UI */}
+                  <button
+                    className={cn(
+                      "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
+                      speakingActive
+                        ? "bg-brand-500 text-white shadow-brand"
+                        : "text-brand-500 bg-brand-50 hover:bg-brand-100"
+                    )}
+                    onClick={() => {
+                      if (speakingActive) stopSpeaking();
+                      else startRecording();
+                    }}
+                  >
+                    <Mic size={15} />
+                    录音
+                  </button>
+                </div>
+
+                {/* 录音展开态：录音 / 回放 / 下一句 */}
+                {speakingActive && (
+                  <div className="mt-4 pt-4 border-t border-hairline">
+                    {speakingState === "idle" && (
+                      <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
+                        <button
+                          className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
+                          onClick={startRecording}
+                        >
+                          <Mic size={20} />
+                        </button>
+                        <div className="flex-1">
+                          <p className="text-[13px] font-semibold text-ink">点击麦克风开始录音</p>
+                          <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {speakingState === "listening" && (
+                      <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
+                        <button
+                          className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
+                          onClick={stopRecording}
+                        >
+                          <Mic size={20} />
+                        </button>
+                        <div className="flex-1">
+                          <p className="text-[13px] font-semibold text-ink">录音中…</p>
+                          <div className="mt-1">
+                            <AudioWaveform stream={recordingStream} barCount={24} />
+                          </div>
+                        </div>
+                        <button
+                          className="text-[13px] font-semibold text-muted hover:text-ink cursor-pointer"
+                          onClick={stopSpeaking}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    )}
+
+                    {speakingState === "reviewing" && (
+                      <div className="bg-surface-soft rounded-lg p-3 space-y-3">
+                        {/* Status row */}
+                        <div className="flex items-center gap-2 text-[13px]">
+                          {uploading ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin text-brand-500" />
+                              <span className="text-muted">正在保存跟读录音…</span>
+                            </>
+                          ) : shadowingSaved ? (
+                            <>
+                              <Check size={14} className="text-success" />
+                              <span className="text-success font-medium">已保存</span>
+                            </>
+                          ) : (
+                            <span className="text-muted">录音完成，回放听自己的发音</span>
+                          )}
+                        </div>
+
+                        {/* Audio players: original + mine */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                            bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors cursor-pointer"
+                            onClick={playOriginal}
+                          >
+                            <Volume2 size={13} />
+                            听原声
+                          </button>
+                          {audioUrl && (
+                            <audio src={audioUrl} controls className="h-8 flex-1 max-w-xs" />
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={reRecord}>
+                            重录
+                          </Button>
+                          <Button
+                            variant={shadowingSatisfied ? "primary" : "outline"}
+                            size="sm"
+                            onClick={() => setShadowingSatisfied((v) => !v)}
+                            className={
+                              shadowingSatisfied ? "bg-success hover:bg-success/90 shadow-none" : ""
+                            }
+                          >
+                            <Check size={13} className="mr-1" />
+                            满意
+                          </Button>
+                          <Button size="sm" onClick={handleNextSubtitle}>
+                            下一句
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Shadowing history: recent attempts for this video */}
+                <ShadowingHistory attempts={attempts} />
+              </div>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => setPracticeExpanded(true)}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border border-hairline
+
+          {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
+          <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-176px)] flex flex-col overflow-hidden min-w-0">
+            {panelCollapsed ? (
+              // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
+              <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
+            ) : (
+              <>
+                {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
+                <div className="border-b border-hairline shrink-0">
+                  <SubtitleModeTabs
+                    collapsed={false}
+                    onToggleCollapse={() => setPanelCollapsed(true)}
+                  />
+                </div>
+
+                {/* 字幕列表 —— 只保留核心三种模式 */}
+                <div ref={subtitleListRef} className="flex-1 overflow-y-auto subtitle-scroll p-1.5">
+                  <div className="flex flex-col gap-0.5">
+                    {video.subtitles.map((sub, i) => (
+                      <button
+                        key={sub.id}
+                        id={`subtitle-${i}`}
+                        onClick={() => {
+                          setCurrentSubtitleIndex(i);
+                          seekTo(sub.start_time);
+                        }}
+                        className={cn(
+                          "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
+                          i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
+                        )}
+                      >
+                        {subtitleMode !== "chinese" && (
+                          <div
+                            className={cn(
+                              "font-medium text-sm leading-relaxed",
+                              i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
+                            )}
+                          >
+                            {sub.text_en.split(" ").map((word, wi) => (
+                              <span key={wi} className={levelClassFor(word, sub.word_levels)}>
+                                {word}{" "}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+                          sub.text_zh && (
+                            <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
+                          )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      </section>
+
+      {/* ===== Screen 2: 练习区（snap 起点，至少一屏高） ===== */}
+      <section className="snap-start min-h-full px-4 sm:px-6 lg:px-8 pb-4">
+        {/* ===== 练习区：渐进披露 — 默认折叠为 CTA，点击展开 ===== */}
+        <div className="mt-6">
+          {practiceExpanded ? (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-ink">练习</span>
+                <button
+                  onClick={() => setPracticeExpanded(false)}
+                  className="text-xs text-muted hover:text-ink transition-colors cursor-pointer"
+                >
+                  收起练习
+                </button>
+              </div>
+              <UnifiedPracticePanel
+                session={practiceSession}
+                levelLabel={levelMeta(selectedExamLevel ?? "cet4")?.label ?? "四级"}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setPracticeExpanded(true)}
+              className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border border-hairline
               bg-surface-soft text-sm font-semibold text-muted
               hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50
               transition-all duration-150 cursor-pointer"
-          >
-            <BookOpen size={16} />
-            开始本句练习
-          </button>
-        )}
-      </div>
+            >
+              <BookOpen size={16} />
+              开始本句练习
+            </button>
+          )}
+        </div>
+      </section>
 
       {/* Word tooltip overlay（可拖动，默认停泊位避让右栏字幕：展开=左下，收起=右下） */}
       {selectedWord && (
