@@ -19,6 +19,8 @@ from app.schemas.video import (
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
     SubtitleBatchUpdate,
+    SubtitleCreate,
+    SubtitleReorder,
     SubtitleResponse,
     SubtitleSearchResult,
     SubtitleSplit,
@@ -60,6 +62,12 @@ from app.services.search_service import (
     search_videos as _search_videos,
 )
 from app.services.subtitle_edit_service import (
+    create_subtitle as _create_subtitle,
+)
+from app.services.subtitle_edit_service import (
+    delete_subtitle as _delete_subtitle,
+)
+from app.services.subtitle_edit_service import (
     list_subtitle_revisions as _list_subtitle_revisions,
 )
 from app.services.subtitle_edit_service import (
@@ -67,6 +75,9 @@ from app.services.subtitle_edit_service import (
 )
 from app.services.subtitle_edit_service import (
     recompute_word_levels as _recompute_word_levels,
+)
+from app.services.subtitle_edit_service import (
+    reorder_subtitles as _reorder_subtitles,
 )
 from app.services.subtitle_edit_service import (
     resegment_video as _resegment_video,
@@ -507,6 +518,72 @@ async def update_admin_subtitles_batch(
     """Apply many subtitle edits in one transaction. All ids must belong to video_id. Admin only."""
     try:
         return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post("/admin/{video_id}/subtitles", response_model=SubtitleResponse)
+@rate_limit("60/minute")
+async def create_admin_subtitle(
+    request: Request,
+    video_id: str,
+    payload: SubtitleCreate,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Append a new subtitle row at the end of the video (canvas editor).
+    The English text may be empty initially; timing must not overlap existing
+    rows. Admin only."""
+    try:
+        return await _create_subtitle(db, video_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.post(
+    "/admin/{video_id}/subtitles/reorder",
+    response_model=list[SubtitleResponse],
+)
+@rate_limit("30/minute")
+async def reorder_admin_subtitles(
+    request: Request,
+    video_id: str,
+    payload: SubtitleReorder,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reassign sentence_index for every subtitle in one transaction (canvas
+    editor drag-to-reorder). The payload must cover all current subtitles with
+    a contiguous 0..N-1 index sequence; timing is re-validated against the new
+    neighbor order. Admin only."""
+    try:
+        return await _reorder_subtitles(db, video_id, payload, edited_by=current_user.id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+
+
+@router.delete("/admin/{video_id}/subtitles/{subtitle_id}", response_model=dict)
+@rate_limit("60/minute")
+async def delete_admin_subtitle(
+    request: Request,
+    video_id: str,
+    subtitle_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete one subtitle and close the gap in sentence_index (canvas editor).
+    Admin only."""
+    try:
+        return await _delete_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
     except ValueError as e:
         msg = str(e)
         if "not found" in msg.lower():

@@ -283,6 +283,55 @@ export async function mergeSubtitle(videoId: string, subtitleId: string): Promis
   });
 }
 
+export interface SubtitleReorderItem {
+  id: string;
+  sentence_index: number;
+}
+
+/** Reorder subtitles (canvas editor drag-to-reorder). The payload must cover
+ * all current subtitles with a contiguous 0..N-1 index sequence; timing is
+ * re-validated against the new neighbor order. Admin only. */
+export async function reorderSubtitles(
+  videoId: string,
+  items: SubtitleReorderItem[]
+): Promise<Subtitle[]> {
+  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
+export interface SubtitleCreatePayload {
+  start_time: number;
+  end_time: number;
+  text_en?: string;
+  text_zh?: string | null;
+  speaker?: string | null;
+}
+
+/** Append a new subtitle row at the end of the video (canvas editor). The
+ * English text may be empty initially (a placeholder). Admin only. */
+export async function createSubtitle(
+  videoId: string,
+  payload: SubtitleCreatePayload
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(`/api/v1/videos/admin/${videoId}/subtitles`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Delete one subtitle and close the gap in sentence_index. Admin only. */
+export async function deleteSubtitle(
+  videoId: string,
+  subtitleId: string
+): Promise<{ deleted_id: string; remaining_count: number }> {
+  return adminApi<{ deleted_id: string; remaining_count: number }>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}`,
+    { method: "DELETE" }
+  );
+}
+
 /** List edit revisions for one subtitle (newest first). Admin only. */
 export async function listSubtitleRevisions(
   videoId: string,
