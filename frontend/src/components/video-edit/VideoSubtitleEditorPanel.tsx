@@ -15,6 +15,7 @@ import {
 } from "@/lib/examLevels";
 import { SubtitleEditor, type SubtitleSplitPayload } from "@/components/video-edit/SubtitleEditor";
 import { SubtitleHistory } from "@/components/video-edit/SubtitleHistory";
+import { SubtitleTimeline } from "@/components/video-edit/SubtitleTimeline";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import type { Subtitle, SubtitleRevision, VideoWithSubtitles } from "@/types";
@@ -199,6 +200,18 @@ export function VideoSubtitleEditorPanel({
               </div>
             )}
           </div>
+
+          {/* Timeline (B-F2): subtitle blocks + ruler + playhead. Hidden when
+              there are no subtitles (nothing to show on the track). */}
+          {video.subtitles.length > 0 && (
+            <SubtitleTimeline
+              subtitles={video.subtitles}
+              duration={video.duration}
+              videoRef={videoRef}
+              onSeek={seekTo}
+              currentIndex={currentIdx}
+            />
+          )}
 
           {video.subtitles.length === 0 ? (
             <div className="text-center text-muted py-6 text-sm">{emptyHint}</div>
