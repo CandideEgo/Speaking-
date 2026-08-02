@@ -15,16 +15,19 @@ export function WordTooltipInline({
   onClose,
   onPronounce,
   onSave,
+  panelCollapsed = false,
 }: {
   word: string;
   gloss: WordGloss | null;
   onClose: () => void;
   onPronounce: () => void;
   onSave: () => Promise<void>;
+  /** 右栏字幕面板是否折叠为窄轨。展开时词卡停左下避开字幕；收起时停右下。 */
+  panelCollapsed?: boolean;
 }) {
   const loading = !gloss;
   const cardRef = useRef<HTMLDivElement>(null);
-  // pos 为 null 时使用默认停泊位（右下角）；拖动后切换为 left/top 定位。
+  // pos 为 null 时使用默认停泊位（展开=左下避字幕，收起=右下）；拖动后切换为 left/top 定位。
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragOffset = useRef<{ dx: number; dy: number } | null>(null);
 
@@ -64,12 +67,15 @@ export function WordTooltipInline({
 
   const style: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { right: 24, bottom: 24, left: "auto", top: "auto" };
+    : panelCollapsed
+      ? { right: 24, bottom: 24, left: "auto", top: "auto" }
+      : { left: 24, bottom: 24, right: "auto", top: "auto" };
 
   return (
     <div
       ref={cardRef}
       style={style}
+      data-testid="word-tooltip"
       className="fixed z-50 bg-canvas border border-hairline rounded-lg shadow-lift p-4 w-[min(92vw,360px)] touch-none"
     >
       <div

@@ -473,7 +473,10 @@ export default function WatchPage() {
               <video> 节点不换父，播放连续。 */}
           <div
             ref={slotRef}
-            className="relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift"
+            className={cn(
+              "relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift",
+              panelCollapsed && "lg:mx-auto lg:max-w-[calc((100vh_-_220px)*16/9)]"
+            )}
           >
             <div
               className={cn(
@@ -707,14 +710,14 @@ export default function WatchPage() {
         </div>
 
         {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
-        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] overflow-hidden min-w-0">
+        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-176px)] flex flex-col overflow-hidden min-w-0">
           {panelCollapsed ? (
             // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
             <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
           ) : (
             <>
               {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
-              <div className="border-b border-hairline">
+              <div className="border-b border-hairline shrink-0">
                 <SubtitleModeTabs
                   collapsed={false}
                   onToggleCollapse={() => setPanelCollapsed(true)}
@@ -722,10 +725,7 @@ export default function WatchPage() {
               </div>
 
               {/* 字幕列表 —— 只保留核心三种模式 */}
-              <div
-                ref={subtitleListRef}
-                className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
-              >
+              <div ref={subtitleListRef} className="flex-1 overflow-y-auto subtitle-scroll p-1.5">
                 <div className="flex flex-col gap-0.5">
                   {video.subtitles.map((sub, i) => (
                     <button
@@ -799,7 +799,7 @@ export default function WatchPage() {
         )}
       </div>
 
-      {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
+      {/* Word tooltip overlay（可拖动，默认停泊位避让右栏字幕：展开=左下，收起=右下） */}
       {selectedWord && (
         <WordTooltipInline
           word={selectedWord}
@@ -807,6 +807,7 @@ export default function WatchPage() {
           onClose={clearWord}
           onPronounce={() => speakWord(selectedWord)}
           onSave={saveToVocabulary}
+          panelCollapsed={panelCollapsed}
         />
       )}
     </div>
