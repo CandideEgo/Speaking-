@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { bestVideoUrl } from "@/hooks/useVideoPlayer";
@@ -18,7 +18,7 @@ import { SubtitleHistory } from "@/components/video-edit/SubtitleHistory";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import type { Subtitle, SubtitleRevision, VideoWithSubtitles } from "@/types";
-import type { SubtitlePatch } from "@/lib/adminData";
+import type { SubtitlePatch, SubtitleCreatePayload } from "@/lib/adminData";
 
 /**
  * Watch-format subtitle editing surface, shared by the creator center
@@ -52,6 +52,11 @@ export interface VideoSubtitleEditorPanelProps {
   onSaveWordLevels: (subId: string, levels: Record<string, string[]> | null) => Promise<Subtitle>;
   onListRevisions?: (subId: string) => Promise<{ items: SubtitleRevision[]; has_more: boolean }>;
   onRollback?: (subId: string, revisionId: string) => Promise<void>;
+  /** Delete one subtitle (canvas editor). Parent refreshes the list. */
+  onDeleteSubtitle?: (subId: string) => Promise<void>;
+  /** Create a new subtitle row (canvas editor). Returns the created subtitle
+   *  so the panel can enter its edit mode. Parent refreshes the list. */
+  onCreateSubtitle?: (payload: SubtitleCreatePayload) => Promise<Subtitle | void>;
   /** Page-level actions rendered above the panel (e.g. resegment, recompute). */
   headerExtra?: ReactNode;
   emptyHint?: string;
@@ -66,6 +71,8 @@ export function VideoSubtitleEditorPanel({
   onSaveWordLevels,
   onListRevisions,
   onRollback,
+  onDeleteSubtitle,
+  onCreateSubtitle,
   headerExtra,
   emptyHint = "暂无字幕（视频可能仍在处理中）",
 }: VideoSubtitleEditorPanelProps) {
@@ -113,6 +120,27 @@ export function VideoSubtitleEditorPanel({
     if (el) {
       el.currentTime = time;
       el.play().catch(() => {});
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!onCreateSubtitle) return;
+    // Default the new row to a 3s window starting at the last subtitle's end
+    // (or 0-3s for an empty video). The admin adjusts text/timing in the editor.
+    const lastSub = video.subtitles[video.subtitles.length - 1];
+    const start = lastSub ? lastSub.end_time : 0;
+    try {
+      const created = await onCreateSubtitle({
+        start_time: start,
+        end_time: start + 3,
+        text_en: "",
+      });
+      if (created) {
+        setEditId(created.id);
+        setCurrentIdx(created.sentence_index);
+      }
+    } catch {
+      // page-level handler already toasted
     }
   };
 
@@ -194,6 +222,7 @@ export function VideoSubtitleEditorPanel({
                 onSplit={handleSplit}
                 onMerge={handleMerge}
                 canMerge={canMerge}
+                onDelete={onDeleteSubtitle ? () => onDeleteSubtitle(editSub.id) : undefined}
               />
               {onListRevisions && onRollback && (
                 <SubtitleHistory
@@ -305,6 +334,18 @@ export function VideoSubtitleEditorPanel({
               ))}
             </div>
           </div>
+          {canEdit && onCreateSubtitle && (
+            <div className="border-t border-hairline p-2">
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-muted hover:text-ink hover:bg-surface-soft transition-colors cursor-pointer"
+              >
+                <Plus size={14} />
+                新增字幕
+              </button>
+            </div>
+          )}
         </aside>
       </div>
     </div>

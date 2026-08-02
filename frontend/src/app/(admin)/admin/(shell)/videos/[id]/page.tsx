@@ -7,6 +7,8 @@ import { toastApiError } from "@/lib/errors";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 
 import {
+  createSubtitle,
+  deleteSubtitle,
   getVideoDetail,
   listSubtitleRevisions,
   mergeSubtitle,
@@ -18,6 +20,7 @@ import {
   updateSubtitle,
   updateVideo,
   updateWordLevels,
+  type SubtitleCreatePayload,
   type SubtitlePatch,
   type SubtitleSplitPayload,
 } from "@/lib/adminData";
@@ -127,6 +130,24 @@ export default function VideoEditPage() {
     await rollbackSubtitle(video!.id, subId, revisionId);
     await refreshVideo();
   };
+  // Delete one subtitle (canvas editor). Errors propagate to SubtitleEditor,
+  // which renders the toast.
+  const handleDeleteSubtitle = async (subId: string) => {
+    await deleteSubtitle(video!.id, subId);
+    await refreshVideo();
+  };
+  // Create a new subtitle row (canvas editor). Toast here because the panel's
+  // handleCreate catches silently to avoid a double-toast from SubtitleEditor.
+  const handleCreateSubtitle = async (payload: SubtitleCreatePayload) => {
+    try {
+      const created = await createSubtitle(video!.id, payload);
+      await refreshVideo();
+      return created;
+    } catch (err) {
+      toastApiError(err, "新增失败");
+      throw err;
+    }
+  };
 
   const doResegment = useCallback(async () => {
     try {
@@ -232,6 +253,8 @@ export default function VideoEditPage() {
         onSaveWordLevels={handleSaveWordLevels}
         onListRevisions={handleListRevisions}
         onRollback={handleRollback}
+        onDeleteSubtitle={handleDeleteSubtitle}
+        onCreateSubtitle={handleCreateSubtitle}
         headerExtra={headerExtra}
       />
 
