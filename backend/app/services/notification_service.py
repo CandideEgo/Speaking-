@@ -186,3 +186,42 @@ async def notify_admins(db: AsyncSession, title: str, message: str, related_url:
         await db.commit()
     except Exception:
         logger.warning("notify_admins failed", exc_info=True)
+
+
+async def broadcast_announcement(
+    db: AsyncSession,
+    title: str,
+    message: str,
+    related_url: str | None = None,
+) -> int:
+    """Send an announcement notification to EVERY user. Returns the count of
+    notifications created (or updated via dedup).
+
+    Announcements use ``related_url`` as the dedup key so re-broadcasting the
+    same announcement URL (e.g. editing and re-sending) updates the existing
+    unread notification instead of duplicating. When ``related_url`` is None
+    (most announcements), each broadcast creates a fresh notification per user
+    with no dedup - which is the intent (a new announcement should always
+    surface, even if a prior one is still unread).
+
+    Commits the session. Best-effort on the WebSocket push per user (a failure
+    to push to one user doesn't abort the broadcast).
+    """
+    from sqlalchemy import select
+
+    from app.models.user import User
+
+    users = (await db.scalars(select(User))).all()
+    count = 0
+    for u in users:
+        await create_notification(
+            user_id=u.id,
+            type="announcement",
+            title=title,
+            message=message,
+            db=db,
+            related_url=related_url,
+        )
+        count += 1
+    await db.commit()
+    return count
