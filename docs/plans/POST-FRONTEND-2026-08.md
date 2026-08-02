@@ -6,6 +6,29 @@
 
 ---
 
+## 进度（2026-08-02 更新）
+
+| 阶段 | 状态 | commit |
+|---|---|---|
+| **1 速效** F + A2/A4/A5 | ✅ 完成 | `b108735` |
+| **2 播放页核心** A1/A3/A6 | ✅ 完成（低风险 snap 实现） | `c726b40` |
+| **3 画布 MVP 后端** B-B1/B2/B3 | ✅ 完成（reorder/create/delete + 11 测试） | `fed2740` |
+| **3 画布 MVP 前端** B-F1~F6 | ⏳ 待办（@dnd-kit + 时间轴 + 拖拽排序 + 画布入口） | — |
+| **4 反馈公告** C1~C4 | ⏳ 待办 | — |
+| **5 ASR 质量** D3 | ⏳ 待办（诊断先行） | — |
+| **6 运维补丁** E1~E6 | ⏳ 待办（非上线阻塞） | — |
+
+**已落地要点**：
+- A2 字幕区 `flex-1 overflow-y-auto`；A4 词卡展开=左下/收起=右下（`data-testid="word-tooltip"`）；A5 收起时视频 `max-width` 约束居中。
+- A1/A3/A6：根容器 `h-full snap-y snap-mandatory`，屏1=header+视频+字幕面板（`min-h-full`，仅字幕列表内滚），屏2=练习区。**未重写 flex 高度链**（遵循 watch-page-layout-broken-lesson），保留 `aspect-video` 与 aside sticky。本地 Playwright 几何验证：snap 容器 scrollHeight>clientHeight、下滚吸附到屏2、字幕列表内滚、无横向溢出、无黑屏。
+- F1 根因：主应用桌面 sidebar 无收起/展开按钮，localStorage 残留 `sidebar-collapsed=true` 时卡死"无法打开"。TopBar 加 `PanelLeftClose/Open` toggle 修复。
+- F1 复现：移动端汉堡 + 桌面点击"词汇本"导航在新用户态均无法复现报错（e2e 通过），故 F1 真实根因为桌面卡死收起态。
+- B 后端三端点复用 `_validate_timing`；reorder 校验 id 集合完整 + index 连续 + 新邻居顺序不重叠；create 末尾追加 + 空文本占位；delete 闭合 index 间隙。`adminData.ts` 客户端函数已补齐。
+
+**Stage 3 前端起手注意**：后端已就绪，前端可直接消费 `reorderSubtitles/createSubtitle/deleteSubtitle`（adminData.ts）。MVP 范围 = 时间轴 + 文本编辑 + 拖拽排序（B-F1~F4），多选批量（B-F5）与画布入口（B-F6）可后置。
+
+---
+
 ## 一、现状摸底结论（2026-08-01 三路调查）
 
 | 板块 | 现状 | 离目标差多少 |
