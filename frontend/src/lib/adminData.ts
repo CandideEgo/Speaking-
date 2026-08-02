@@ -496,3 +496,55 @@ export async function refundRedeemCode(codeId: string): Promise<{
     method: "POST",
   });
 }
+
+// ---------------------------------------------------------------------------
+// Feedback & announcements (Stage 4)
+// ---------------------------------------------------------------------------
+
+export interface AdminFeedback {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  category: string;
+  content: string;
+  contact: string | null;
+  status: string;
+  admin_reply: string | null;
+  handled_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listAdminFeedback(
+  status?: string,
+  page = 1,
+  pageSize = 50
+): Promise<Paginated<AdminFeedback>> {
+  const qs = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) qs.set("status", status);
+  return adminApi<Paginated<AdminFeedback>>(`/api/v1/admin/feedback?${qs}`);
+}
+
+export async function updateAdminFeedback(
+  id: string,
+  patch: { status?: string; admin_reply?: string }
+): Promise<AdminFeedback> {
+  return adminApi<AdminFeedback>(`/api/v1/admin/feedback/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function broadcastAnnouncement(payload: {
+  title: string;
+  message: string;
+  related_url?: string | null;
+}): Promise<{ notified_count: number; title: string; message: string }> {
+  return adminApi(`/api/v1/admin/announcements`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
