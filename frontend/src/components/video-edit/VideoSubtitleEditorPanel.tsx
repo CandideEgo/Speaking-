@@ -210,6 +210,12 @@ export function VideoSubtitleEditorPanel({
               videoRef={videoRef}
               onSeek={seekTo}
               currentIndex={currentIdx}
+              onSaveTiming={async (subId, patch) => {
+                // Reuse the page-level save (PATCH /admin/{vid}/subtitles/{sid}).
+                // The backend _validate_timing rejects overlaps; the timeline
+                // rolls back the live override on throw.
+                return onSaveSubtitle(subId, patch);
+              }}
             />
           )}
 
