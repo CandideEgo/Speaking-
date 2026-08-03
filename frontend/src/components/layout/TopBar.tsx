@@ -14,6 +14,7 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import { Search, Bell, Sun, Moon, User, Settings, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -195,28 +196,25 @@ export function TopBar() {
     setShowAvatarMenu(false);
   }, [pathname]);
 
-  // Fetch unread notification count
+  // Fetch unread notification count — polling pauses while the tab is hidden.
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
+      setUnreadCount(data.count);
+    } catch {
+      // silently fail
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       setUnreadCount(0);
       return;
     }
-    let cancelled = false;
-    async function fetchUnreadCount() {
-      try {
-        const data = await api<{ count: number }>("/api/v1/notifications/unread-count");
-        if (!cancelled) setUnreadCount(data.count);
-      } catch {
-        // silently fail
-      }
-    }
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [user]);
+  }, [user, fetchUnreadCount]);
+
+  useVisibilityAwareInterval(fetchUnreadCount, 30000, Boolean(user));
 
   // Fetch the user's avatar URL (not present on the decoded JWT).
   useEffect(() => {

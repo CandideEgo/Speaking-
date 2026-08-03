@@ -90,6 +90,51 @@ export interface CreateApiClientOptions {
 
 export interface ApiClientRequestOptions extends Omit<RequestInit, "signal"> {
   signal?: AbortSignal;
+  /**
+   * GET-only: serve this request from a local TTL cache (milliseconds).
+   * Responses are cloned on read/write so callers can't poison the cache.
+   * Leave unset for requests that must always be fresh.
+   */
+  cacheTtlMs?: number;
+}
+
+// ---------------------------------------------------------------------------
+// GET cache + in-flight dedupe
+// ---------------------------------------------------------------------------
+//
+// - Dedupe: concurrent identical GETs (e.g. two components mounting at once)
+//   share one network request. Always on, zero staleness risk.
+// - TTL cache: opt-in via `cacheTtlMs`; useful for near-static payloads.
+// Any non-GET request invalidates the whole TTL cache (crude but safe —
+// mutations are rare relative to reads).
+
+const _getCache = new Map<string, { value: unknown; expiresAt: number }>();
+const _inflightGets = new Map<string, Promise<unknown>>();
+const _GET_CACHE_MAX = 200;
+
+/** Drop cached GET responses (all of them, or those whose URL starts with `prefix`). */
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    _getCache.clear();
+    return;
+  }
+  for (const key of _getCache.keys()) {
+    if (key.startsWith(prefix)) _getCache.delete(key);
+  }
+}
+
+function _clone<T>(value: T): T {
+  return typeof structuredClone === "function" ? structuredClone(value) : value;
+}
+
+async function _dedupedGet<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  let pending = _inflightGets.get(key) as Promise<T> | undefined;
+  if (!pending) {
+    pending = fn().finally(() => _inflightGets.delete(key));
+    _inflightGets.set(key, pending);
+  }
+  // Clone so each consumer gets its own copy (protects cache + other callers).
+  return _clone(await pending);
 }
 
 export function createApiClient(options: CreateApiClientOptions) {
@@ -98,6 +143,34 @@ export function createApiClient(options: CreateApiClientOptions) {
   async function request<T = unknown>(
     path: string,
     reqOptions: ApiClientRequestOptions = {}
+  ): Promise<T> {
+    const { cacheTtlMs, ...rest } = reqOptions;
+    const method = (rest.method ?? "GET").toUpperCase();
+    const url = path.startsWith("http") ? path : `${baseUrl}${path}`;
+
+    if (method === "GET" && !rest.body && !rest.signal) {
+      const fetchFn = () => performRequest<T>(url, rest);
+      if (cacheTtlMs && cacheTtlMs > 0) {
+        const hit = _getCache.get(url);
+        if (hit && hit.expiresAt > Date.now()) {
+          return _clone(hit.value) as T;
+        }
+        const value = await _dedupedGet(url, fetchFn);
+        if (_getCache.size >= _GET_CACHE_MAX) _getCache.clear();
+        _getCache.set(url, { value, expiresAt: Date.now() + cacheTtlMs });
+        return _clone(value) as T;
+      }
+      return _dedupedGet(url, fetchFn);
+    }
+
+    // Mutations invalidate cached GET payloads.
+    if (_getCache.size > 0) _getCache.clear();
+    return performRequest<T>(url, rest);
+  }
+
+  async function performRequest<T = unknown>(
+    url: string,
+    reqOptions: Omit<ApiClientRequestOptions, "cacheTtlMs">
   ): Promise<T> {
     const { signal, ...restOptions } = reqOptions;
     const headers = new Headers(restOptions.headers as HeadersInit);
@@ -128,7 +201,6 @@ export function createApiClient(options: CreateApiClientOptions) {
       if (token) headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const url = path.startsWith("http") ? path : `${baseUrl}${path}`;
     let lastError: InstanceType<typeof ErrorClass> | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

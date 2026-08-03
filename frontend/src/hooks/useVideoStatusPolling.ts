@@ -53,6 +53,9 @@ export function useVideoStatusPolling(
     }
 
     pollRef.current = setInterval(async () => {
+      // Skip ticks while the tab is hidden — processing keeps going
+      // server-side; we catch up on the next visible tick.
+      if (document.hidden) return;
       try {
         const patch = await optionsRef.current.fetchStatus(videoId);
 
@@ -72,6 +75,5 @@ export function useVideoStatusPolling(
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, currentStatus]);
 }

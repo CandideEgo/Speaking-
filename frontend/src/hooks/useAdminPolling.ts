@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getWorkerStatus, getUgcPendingCount } from "@/lib/adminData";
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,16 +74,10 @@ export function useAdminPolling<T>(options: UseAdminPollingOptions<T>): UseAdmin
 
     // Initial fetch
     doFetch(true);
+  }, [enabled, doFetch]);
 
-    // Set up interval
-    const intervalId = setInterval(() => {
-      doFetch(false);
-    }, interval);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [enabled, interval, doFetch]);
+  // Polling interval — pauses while the tab is hidden.
+  useVisibilityAwareInterval(() => doFetch(false), interval, enabled);
 
   return {
     data,

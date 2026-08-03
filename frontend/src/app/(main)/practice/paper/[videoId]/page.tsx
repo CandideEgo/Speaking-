@@ -34,11 +34,12 @@ export default function PaperColumnPage() {
   const [paperLevel, setPaperLevel] = useState<string>("cet4");
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Video meta (title/difficulty for the hero).
+  // Video meta (title/difficulty for the hero). Cached 60s — video content
+  // is stable within a session and this page is often re-entered.
   useEffect(() => {
     if (!videoId) return;
     let cancelled = false;
-    api<Video>(`/api/v1/videos/${videoId}`)
+    api<Video>(`/api/v1/videos/${videoId}`, { cacheTtlMs: 60_000 })
       .then((v) => {
         if (!cancelled) setVideo(v);
       })

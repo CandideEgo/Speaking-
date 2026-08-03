@@ -163,8 +163,9 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     // If WebSocket is connected, no need to poll
     if (wsConnected) return;
 
-    // Poll every 30 seconds when WebSocket is down
+    // Poll every 30 seconds when WebSocket is down (skips hidden tabs).
     pollIntervalRef.current = setInterval(async () => {
+      if (document.hidden) return;
       await fetchNotifications();
       await fetchUnreadCount();
     }, 30000);

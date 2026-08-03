@@ -131,7 +131,11 @@ const client = createApiClient({
 export interface ApiOptions extends Omit<RequestInit, "signal"> {
   /** AbortSignal to cancel the request */
   signal?: AbortSignal;
+  /** GET-only: serve/cache this request locally for N milliseconds */
+  cacheTtlMs?: number;
 }
+
+export { clearApiCache } from "@/lib/createApiClient";
 
 export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
   return client.request<T>(path, options);
