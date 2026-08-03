@@ -253,6 +253,12 @@ def process_video(self, video_id: str):
                     video.title = info.get("title") or video.title
                     video.thumbnail_url = info.get("thumbnail")
                     video.duration = info.get("duration")
+                    # 阶段 1: persist external (YouTube) metadata — channel,
+                    # upload date, external view/like counts, extras blob.
+                    if info.get("external"):
+                        from app.services.external_meta import apply_external_meta
+
+                        apply_external_meta(video, info["external"])
                 else:  # local upload — yt-dlp can't read a local path; use ffprobe
                     video.duration = get_video_duration(video.source_url)
                     if not video.title:
@@ -714,6 +720,15 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 except Exception:
                     logger.warning("Video %s: difficulty computation failed (continuing)", video_id, exc_info=True)
 
+                # 阶段 3: subtitle-derived speech metrics (WPM / vocabulary
+                # density), compute-on-null. Best-effort — never fails the pipeline.
+                try:
+                    from app.services.subtitle_metrics_service import compute_video_speech_metrics
+
+                    await compute_video_speech_metrics(db, video_id)
+                except Exception:
+                    logger.warning("Video %s: speech metrics computation failed (continuing)", video_id, exc_info=True)
+
                 # Best-effort OSS cleanup of the staged raw upload.
                 if video.video_source != VideoSource.imported:
                     await _cleanup_oss_raw(video.id, video.source_url)
@@ -869,7 +884,11 @@ def watchdog_stale_pipeline():
 
 
 async def _extract_video_info(url: str) -> dict | None:
-    """Extract video metadata (title, thumbnail, duration) via yt-dlp without downloading."""
+    """Extract video metadata via yt-dlp without downloading.
+
+    Returns title/thumbnail/duration plus an ``external`` key carrying the
+    parsed external-metadata fields (see ``services/external_meta.py``).
+    """
     import yt_dlp
 
     settings = get_settings()
@@ -889,11 +908,14 @@ async def _extract_video_info(url: str) -> dict | None:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                from app.services.external_meta import parse_external_meta
+
                 return {
                     "title": info.get("title"),
                     "thumbnail": info.get("thumbnail"),
                     "duration": info.get("duration"),
                     "youtube_video_id": info.get("id"),
+                    "external": parse_external_meta(info),
                 }
         except Exception:
             logger.exception("Failed to extract video info")

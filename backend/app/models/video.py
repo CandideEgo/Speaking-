@@ -119,10 +119,10 @@ class Video(Base):
     view_count: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0", nullable=False)
 
     # P1 learning_score (0-100) — denormalized current total for cheap list
-    # sorting. Computed by scoring_service.compute_video_score (6-factor
-    # weighted) and refreshed by the scoring beat tasks. Null until first
-    # computed (sorts last via score.is_(None)). Full per-factor breakdown
-    # lives in video_scores rows.
+    # sorting. Computed by scoring_service.compute_video_score (7-factor
+    # weighted + bonus, 阶段 2 added viral/freshness) and refreshed by the
+    # scoring beat tasks. Null until first computed (sorts last via
+    # score.is_(None)). Full per-factor breakdown lives in video_scores rows.
     score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
     score_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -159,6 +159,28 @@ class Video(Base):
     # block / video removed); admin can still force via localize with force=True.
     download_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     download_fail_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
+    # ── External (YouTube) metadata (阶段 1: 视频特征采集) ──
+    # Captured by _extract_video_info at the pipeline's extracting step (and
+    # backfilled by scripts/backfill_external_meta.py). Strictly separated from
+    # the in-app counters above: ``ext_view_count`` is the YouTube view count,
+    # ``view_count`` stays the in-app completion counter.
+    yt_video_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    channel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # YouTube publication date (freshness signal for viral/views-per-day metrics).
+    upload_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ext_view_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ext_like_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Non-queried extras: description, tags, categories, language, caption track
+    # summary (has_caption/auto_generated/manual counts), channel stats
+    # (channel_follower_count when available), fetched_at.
+    external_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # ── Subtitle-derived speech metrics (阶段 3, compute-on-null) ──
+    # Written by subtitle_metrics_service at finalize tail; never overwritten.
+    wpm: Mapped[float | None] = mapped_column(Float, nullable=True)  # words per minute
+    vocabulary_density: Mapped[float | None] = mapped_column(Float, nullable=True)  # unique/total tokens
 
     # Fork lineage (扩展 A4): points to the source Video this was forked from
     # (a standard version or another fork). Null for original submissions.

@@ -856,6 +856,8 @@ async def get_admin_video_score(
             "watch_time": row.watch_time,
             "topic_match": row.topic_match,
             "quality": row.quality,
+            "viral": row.viral,
+            "freshness": row.freshness,
             "bonus": row.bonus,
         },
         "computed_at": row.computed_at.isoformat() if row.computed_at else None,

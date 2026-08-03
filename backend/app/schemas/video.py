@@ -54,13 +54,23 @@ class VideoResponse(BaseModel):
     # sorting; full per-factor breakdown via the admin score endpoint.
     score: float | None = None
     score_updated_at: str | None = None
+    # ── External (YouTube) metadata + speech metrics (阶段 1/3) ──
+    # Null for local videos / before extraction. ext_* counts are YouTube-side
+    # (distinct from the in-app like/view counters above).
+    yt_video_id: str | None = None
+    channel_name: str | None = None
+    upload_date: str | None = None
+    ext_view_count: int | None = None
+    ext_like_count: int | None = None
+    wpm: float | None = None
+    vocabulary_density: float | None = None
     created_at: str
     # Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks
     forked_from: str | None = None
 
     model_config = {"from_attributes": True}
 
-    @field_validator("created_at", "score_updated_at", mode="before")
+    @field_validator("created_at", "score_updated_at", "upload_date", mode="before")
     @classmethod
     def _serialize_dt_iso(cls, v: object) -> str | None:
         if v is None:
@@ -107,6 +117,11 @@ class VideoAdminResponse(VideoResponse):
     rejection_reason: str | None = None
     submitted_at: str | None = None
     reviewed_at: str | None = None
+    # Admin-only external metadata extras (阶段 1): full JSON blob with
+    # description/tags/categories/caption tracks/channel stats. Public
+    # VideoResponse intentionally omits it.
+    channel_id: str | None = None
+    external_meta: dict | None = None
 
     @field_validator("submitted_at", "reviewed_at", mode="before")
     @classmethod
