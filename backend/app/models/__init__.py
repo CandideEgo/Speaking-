@@ -2,6 +2,7 @@
 from app.models.behavior import BehaviorEvent
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.engagement import VideoLike
+from app.models.exam import ExamAnswer, ExamSession
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote
 from app.models.feedback import Feedback

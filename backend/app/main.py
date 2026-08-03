@@ -19,6 +19,7 @@ from app.api.v1 import (
     behavior,
     browse,
     comments,
+    exam,
     favorites,
     feedback,
     internal,
@@ -234,6 +235,7 @@ def create_app() -> FastAPI:
     app.include_router(vocabulary.router, prefix="/api/v1")
     app.include_router(words.router, prefix="/api/v1")
     app.include_router(practice.router, prefix="/api/v1")
+    app.include_router(exam.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
