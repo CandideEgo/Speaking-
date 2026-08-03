@@ -16,7 +16,7 @@ import logging
 import random
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Integer, func, select
+from sqlalchemy import Integer, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
@@ -452,7 +452,10 @@ async def get_practice_hub(db: AsyncSession, user: User) -> dict:
     # Average accuracy across all graded answers.
     acc_row = (
         await db.execute(
-            select(func.count(ExamAnswer.id), func.sum(func.coalesce(ExamAnswer.correct, 0).cast(Integer)))
+            select(
+                func.count(ExamAnswer.id),
+                func.sum(case((ExamAnswer.correct.is_(True), 1), else_=0)).cast(Integer),
+            )
             .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
             .where(ExamSession.user_id == user.id, ExamAnswer.correct.is_not(None))
         )
