@@ -75,6 +75,11 @@ services:
       VIDEO_TRANSCRIBE_TIMEOUT: ${VIDEO_TRANSCRIBE_TIMEOUT:-7200}
       ENV: ${ENV:-production}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Trust X-Forwarded-For from the nginx container so per-IP rate
+      # limiting (app.core.limiter) sees real client IPs instead of the
+      # nginx container IP for every request. Safe: backend is only
+      # exposed on the internal compose network behind nginx.
+      FORWARDED_ALLOW_IPS: "*"
     expose:
       - "8000"
     volumes:

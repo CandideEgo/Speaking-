@@ -2,9 +2,11 @@ node_modules/
 .next/
 __pycache__/
 *.pyc
-.env
-.env.gpu-worker
-.env.fixed
+# IDE planning artifacts (local agent session outputs)
+.qoder/plans/
+# Environment files (whitelist: only *.env.example may be committed)
+*.env*
+!*.env.example
 *.egg-info/
 dist/
 build/
