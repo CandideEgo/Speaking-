@@ -17,7 +17,7 @@
 | **3 画布收尾** B-F3 拖拽排序 / B-F6 画布入口 | ⏳ 后置（B-F3 与时间重叠校验语义冲突，需更复杂设计） | - |
 | **4 反馈公告** C1~C4 | ✅ 完成（后端 `630c1f1` + /contact `5a7751f` + admin `8f15930`） | - |
 | **5 ASR 质量** D3 | ✅ 诊断完成（无需改代码，详见 wiki/problems/asr-annotation-quality-diagnosis.md） | — |
-| **6 运维补丁** E1~E6 | ⏳ 待办（非上线阻塞） | — |
+| **6 运维补丁** E1/E3/E4/E5/E6 | ✅ 完成（跳过 E2 前端 Sentry，需 DSN） `2f67475` |
 
 **已落地要点**：
 - A2 字幕区 `flex-1 overflow-y-auto`；A4 词卡展开=左下/收起=右下（`data-testid="word-tooltip"`）；A5 收起时视频 `max-width` 约束居中。
