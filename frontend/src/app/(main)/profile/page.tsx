@@ -123,7 +123,6 @@ export default function ProfilePage() {
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
         <div className="flex items-center gap-4 bg-canvas border border-hairline rounded-xl p-5 mb-7">
           {user.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatar_url}
               alt={user.name ?? "头像"}

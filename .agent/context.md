@@ -170,9 +170,10 @@ For service layer details, see wiki/architecture/backend-services.md.
 
 | 术语 | 含义 |
 |------|------|
-| **learning_score** | 视频 0-100 质量分，6 因子加权（CTR/Retention/WatchTime/TopicMatch/Quality/Bonus）；scoring_tasks 每小时 Top200 + 每日全量 |
+| **learning_score** | 视频 0-100 质量分，7 因子加权 + bonus（阶段 2 后：CTR .25/Retention .22/WatchTime .18/TopicMatch .12/Quality .08/Viral .08/Freshness .07）；scoring_tasks 每小时 Top200 + 每日全量 |
 | **行为采集** | `behavior_events` 表 + `behavior_service` 已落地（P0 解除） |
 | **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}` 已实现，前端 feedStore 承接；深度个性化待推进 |
+| **外部元数据/语音指标（阶段 1+3）** | Video 新增 yt_video_id/channel_*/upload_date/ext_view_count/ext_like_count/external_meta + wpm/vocabulary_density；采集于 extracting 步骤（external_meta.py），WPM 在 finalize 尾部 compute-on-null；存量已 backfill。阶段 2 已落地：viral（同频道均值对比 log 归一）+ freshness（views_per_day vs benchmark 10k）入 learning_score，无外部数据时两因子为 0（本地视频不互相对扣）。ext_* 是 YouTube 侧计数，与站内 view_count/like_count 严格分离 |
 
 ## Cut Features（勿再引入）
 
