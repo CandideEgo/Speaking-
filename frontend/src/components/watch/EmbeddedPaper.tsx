@@ -1,18 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight, Info, Loader2 } from "lucide-react";
 import { PaperRunner } from "@/components/practice/PaperRunner";
-import { SAMPLE_PAPER } from "@/data/practicePaper";
+import {
+  getVideoPaper,
+  drillToPaper,
+  useInstantPracticeSubmit,
+  type ExamQuestionDTO,
+} from "@/lib/examData";
 import { EXAM_LEVELS, levelDotClass } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
+import type { Paper } from "@/data/practicePaper";
 
 /**
  * watch 页内嵌练习试卷区（复刻原型 05-watch.html 的 .paper-section）。
  *
- * 后端整卷生成能力就绪前，题目用硬编码 SAMPLE_PAPER（取自原型 06/16，主题
- * 「为什么我们做梦」）；后端就绪后改为按 videoId + level 拉 API 替换。
- * 见 data/practicePaper.ts 顶部注释与 docs/plans/FRONTEND-REFACTOR-2026-07.md 阶段1b。
+ * 题目来自 GET /videos/{id}/paper（按 videoId + level 生成），即时模式
+ * 客户端判分；作答结果经 POST /videos/practice/submit 回写掌握度
+ * （当前即时模式仅本地判分展示，掌握度回写由词汇练习流承担）。
  */
 
 /** 试卷层级切换器展示的 6 级（与原型一致；排除考研/GRE）。 */
@@ -29,6 +36,32 @@ export function EmbeddedPaper({
   level: string;
   onLevelChange: (lv: string) => void;
 }) {
+  const [paper, setPaper] = useState<Paper | null>(null);
+  const [ordered, setOrdered] = useState<ExamQuestionDTO[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPaper(null);
+    setLoadError(null);
+    getVideoPaper(videoId, level)
+      .then((res) => {
+        if (cancelled) return;
+        const { paper: p, ordered: o } = drillToPaper(res.items, true);
+        setPaper(p);
+        setOrdered(o);
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : "练习加载失败");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, level]);
+
+  // Instant-mode judgements write back SM-2 mastery (debounced batch).
+  const onInstantJudged = useInstantPracticeSubmit(videoId, ordered, `${videoId}-${level}`);
+
   return (
     <section className="mt-8">
       {/* paper-head：标题 + 标签 + 进入专注答题 CTA */}
@@ -48,7 +81,7 @@ export function EmbeddedPaper({
         </Link>
       </div>
 
-      {/* level-switcher：6 级切换，联动 selectedExamLevel；切换时 key 变化 -> PaperRunner 重建 -> 重置答题 */}
+      {/* level-switcher：6 级切换，联动 selectedExamLevel；切换时重新拉卷 */}
       <div className="flex gap-1 p-1 bg-surface-card rounded-xl overflow-x-auto mb-4">
         {PAPER_LEVELS.map((lv) => {
           const active = lv.key === level;
@@ -72,7 +105,32 @@ export function EmbeddedPaper({
       </div>
 
       {/* 即时练习：一屏多题，点选项即时判分 + 解析（PaperRunner instant 模式） */}
-      <PaperRunner key={level} paper={SAMPLE_PAPER} mode="instant" variant="embedded" />
+      {!paper && !loadError && (
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted">
+          <Loader2 size={16} className="animate-spin text-brand-500" />
+          正在生成练习…
+        </div>
+      )}
+      {loadError && (
+        <div className="flex items-center gap-2 px-3.5 py-3 bg-red-soft rounded-lg text-[13px] text-error">
+          <Info size={14} className="shrink-0" />
+          {loadError}
+        </div>
+      )}
+      {paper && paper.length > 0 && (
+        <PaperRunner
+          key={`${videoId}-${level}`}
+          paper={paper}
+          mode="instant"
+          variant="embedded"
+          onInstantJudged={onInstantJudged}
+        />
+      )}
+      {paper && paper.length === 0 && (
+        <div className="px-3.5 py-3 bg-surface-card rounded-lg text-[13px] text-muted">
+          该层级暂无可生成的练习题，换个层级试试。
+        </div>
+      )}
 
       {/* note-future：真题试卷说明 */}
       <div className="mt-3.5 flex items-center gap-2 px-3.5 py-2.5 bg-warning-soft rounded-lg text-[12px] text-muted">

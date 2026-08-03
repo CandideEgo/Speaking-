@@ -1,17 +1,31 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, X, RotateCcw, AlertCircle, Clock, ChevronLeft, Trophy } from "lucide-react";
+import {
+  Check,
+  X,
+  RotateCcw,
+  AlertCircle,
+  Clock,
+  ChevronLeft,
+  Trophy,
+  Loader2,
+} from "lucide-react";
 import type { Paper, Question } from "@/data/practicePaper";
 
 /** qid = `${partIndex}-${itemIndex}`. */
-type Qid = string;
+export type Qid = string;
 
-interface Answer {
+export interface Answer {
   picked?: number; // choice
   text?: string; // fill / write / translate
   self?: "0" | "1"; // write / translate / speak self-eval
+}
+
+/** Submit outcome: server-graded results keyed by qid (exam mode). */
+export interface SubmitOutcome {
+  results?: Record<Qid, boolean>;
 }
 
 interface FlatQuestion extends Question {
@@ -28,8 +42,13 @@ interface PaperRunnerProps {
   levelLabel?: string;
   /** submit 模式顶部栏的中间内容（层级选择器 / 标题 / 计时器），由页面注入。 */
   examHeaderExtra?: React.ReactNode;
-  /** submit 模式提交时触发（页面可据此停止计时器等）。 */
-  onSubmit?: () => void;
+  /** submit 模式提交时触发；可返回服务端判分结果（qid -> correct），
+   *  返回后结果优先于本地判分（考试模式答案不下发，只能服务端判分）。 */
+  onSubmit?: (answers: Record<Qid, Answer>) => void | Promise<void | SubmitOutcome>;
+  /** 每次递增即触发一次程序化提交（如倒计时归零自动交卷）。 */
+  autoSubmitSignal?: number;
+  /** instant 模式每题首次作答判分后的回调（用于回写掌握度）。 */
+  onInstantJudged?: (qid: Qid, correct: boolean) => void;
   /**
    * full = 独立页面（max-w-880 居中 + 大 padding，06/16 试卷专栏用）；
    * embedded = 嵌入 watch 页（裸 div，宽度/padding 由外层控制）。
@@ -38,7 +57,7 @@ interface PaperRunnerProps {
 }
 
 /** Flatten the paper into a question list with stable qids. */
-function flatten(paper: Paper): FlatQuestion[] {
+export function flatten(paper: Paper): FlatQuestion[] {
   const out: FlatQuestion[] = [];
   paper.forEach((p, pi) => {
     p.items.forEach((q) => {
@@ -238,6 +257,7 @@ function ResultPage({
   flat,
   answers,
   levelLabel,
+  judge,
   onRetryAll,
   onRetryWrong,
   onBack,
@@ -245,20 +265,21 @@ function ResultPage({
   flat: FlatQuestion[];
   answers: Record<Qid, Answer>;
   levelLabel?: string;
+  judge: (q: FlatQuestion, a: Answer | undefined) => boolean;
   onRetryAll: () => void;
   onRetryWrong: () => void;
   onBack: () => void;
 }) {
   const wrongSet = useMemo(
-    () => new Set(flat.filter((q) => !isCorrect(q, answers[q.qid])).map((q) => q.qid)),
-    [flat, answers]
+    () => new Set(flat.filter((q) => !judge(q, answers[q.qid])).map((q) => q.qid)),
+    [flat, answers, judge]
   );
 
   const { pct, gotPts, totalPts } = useMemo(() => {
     const total = flat.reduce((s, q) => s + q.pts, 0);
-    const got = flat.reduce((s, q) => s + (isCorrect(q, answers[q.qid]) ? q.pts : 0), 0);
+    const got = flat.reduce((s, q) => s + (judge(q, answers[q.qid]) ? q.pts : 0), 0);
     return { pct: total ? Math.round((got / total) * 100) : 0, gotPts: got, totalPts: total };
-  }, [flat, answers]);
+  }, [flat, answers, judge]);
 
   // Per-part scores
   const partScores = useMemo(() => {
@@ -266,10 +287,10 @@ function ResultPage({
     flat.forEach((q) => {
       if (!parts[q.part]) parts[q.part] = { got: 0, total: 0 };
       parts[q.part].total += q.pts;
-      if (isCorrect(q, answers[q.qid])) parts[q.part].got += q.pts;
+      if (judge(q, answers[q.qid])) parts[q.part].got += q.pts;
     });
     return parts;
-  }, [flat, answers]);
+  }, [flat, answers, judge]);
 
   const emoji = pct >= 80 ? "🎉" : pct >= 60 ? "👍" : "💪";
   const title = pct >= 80 ? "表现出色！" : pct >= 60 ? "继续加油！" : "再练几遍！";
@@ -371,17 +392,40 @@ export function PaperRunner({
   levelLabel,
   examHeaderExtra,
   onSubmit,
+  autoSubmitSignal,
+  onInstantJudged,
   variant = "full",
 }: PaperRunnerProps) {
   const flat = useMemo(() => flatten(paper), [paper]);
   const [answers, setAnswers] = useState<Record<Qid, Answer>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [onlyWrong, setOnlyWrong] = useState(false);
   const [wrongSet, setWrongSet] = useState<Set<Qid>>(new Set());
+  // Server-graded results (exam mode): qid -> correct. Overrides local grading.
+  const [externalResults, setExternalResults] = useState<Record<Qid, boolean> | null>(null);
 
-  const setAnswer = useCallback((qid: Qid, a: Answer) => {
-    setAnswers((prev) => ({ ...prev, [qid]: a }));
-  }, []);
+  const judge = useCallback(
+    (q: FlatQuestion, a: Answer | undefined): boolean => {
+      if (externalResults && q.qid in externalResults) return externalResults[q.qid];
+      return isCorrect(q, a);
+    },
+    [externalResults]
+  );
+
+  const setAnswer = useCallback(
+    (qid: Qid, a: Answer) => {
+      setAnswers((prev) => {
+        // instant mode: report first-time judgement once per question.
+        if (mode === "instant" && onInstantJudged && !prev[qid]) {
+          const q = flat.find((x) => x.qid === qid);
+          if (q) onInstantJudged(qid, isCorrect(q, a));
+        }
+        return { ...prev, [qid]: a };
+      });
+    },
+    [flat, mode, onInstantJudged]
+  );
 
   const visibleQuestions = useMemo(() => {
     if (mode === "submit" && onlyWrong) return flat.filter((q) => wrongSet.has(q.qid));
@@ -392,21 +436,46 @@ export function PaperRunner({
   // submit mode: judge only after submitted
   const doneCount = visibleQuestions.filter((q) => answers[q.qid]).length;
   const rightCount = visibleQuestions.filter(
-    (q) => answers[q.qid] && isCorrect(q, answers[q.qid])
+    (q) => answers[q.qid] && judge(q, answers[q.qid])
   ).length;
 
-  function handleSubmit() {
-    const ws = new Set(flat.filter((q) => !isCorrect(q, answers[q.qid])).map((q) => q.qid));
+  async function handleSubmit() {
+    if (submitting) return;
+    setSubmitting(true);
+    let results: Record<Qid, boolean> | null = null;
+    try {
+      const outcome = await onSubmit?.(answers);
+      if (outcome?.results) {
+        results = outcome.results;
+        setExternalResults(results);
+      }
+    } catch {
+      // Submission failed (e.g. network) — abort, keep answering state.
+      setSubmitting(false);
+      return;
+    }
+    setSubmitting(false);
+    const isRight = (q: FlatQuestion) =>
+      results ? !!results[q.qid] : isCorrect(q, answers[q.qid]);
+    const ws = new Set(flat.filter((q) => !isRight(q)).map((q) => q.qid));
     setWrongSet(ws);
     setSubmitted(true);
     setOnlyWrong(false);
-    onSubmit?.();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  // Programmatic submit (e.g. countdown expired): trigger on signal increment.
+  useEffect(() => {
+    if (autoSubmitSignal && autoSubmitSignal > 0) {
+      void handleSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSubmitSignal]);
 
   function retry(wrongOnly: boolean) {
     setSubmitted(false);
     setOnlyWrong(wrongOnly);
+    setExternalResults(null);
     if (!wrongOnly) setAnswers({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -418,6 +487,7 @@ export function PaperRunner({
         flat={flat}
         answers={answers}
         levelLabel={levelLabel}
+        judge={judge}
         onRetryAll={() => retry(false)}
         onRetryWrong={() => retry(true)}
         onBack={() => {
@@ -445,10 +515,11 @@ export function PaperRunner({
           <span className="flex-1" />
           <button
             onClick={handleSubmit}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-brand-500 text-on-primary text-[13px] font-semibold shadow-brand hover:bg-brand-600 transition-colors"
+            disabled={submitting}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-brand-500 text-on-primary text-[13px] font-semibold shadow-brand hover:bg-brand-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Check size={14} />
-            提交试卷
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            {submitting ? "判分中…" : "提交试卷"}
           </button>
         </div>
       </div>
