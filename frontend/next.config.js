@@ -33,6 +33,11 @@ const nextConfig = {
     return [];
   },
   images: {
+    // Bypass the optimizer (see src/lib/imageLoader.ts): the standalone
+    // server has no /media route in production, so optimizer server-side
+    // fetches fail. Browsers load /media/... straight through nginx.
+    loader: "custom",
+    loaderFile: "./src/lib/imageLoader.ts",
     localPatterns: [
       // /media/ paths proxied to backend (thumbnails, avatars, etc.)
       // Next 16+ requires localPatterns for local images with query strings.

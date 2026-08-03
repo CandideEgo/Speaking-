@@ -443,9 +443,12 @@
     animation-delay: 320ms;
   }
 
-  /* Fade-in animation */
+  /* Fade-in animation.
+     NOTE: no `forwards` fill — the final keyframe equals the natural state,
+     and a retained `transform` would become a containing block that breaks
+     `position: sticky` descendants (e.g. the browse filter bar). */
   .animate-fade-in {
-    animation: fade-in 0.25s ease-out forwards;
+    animation: fade-in 0.25s ease-out;
   }
 
   /* Plan item completion animations */
@@ -553,9 +556,12 @@
            text-[28px] sm:text-[42px];
   }
 
-  /* === Filter bar (browse) === */
+  /* === Filter bar (browse) ===
+     The app shell scrolls <main> (TopBar sits OUTSIDE the scroller), so the
+     bar sticks at top-0 of the scroll viewport. `sticky` also requires no
+     transformed ancestor — see .animate-fade-in note above. */
   .filter-bar {
-    @apply sticky top-16 z-20 backdrop-blur-sm border border-hairline
+    @apply sticky top-0 z-20 backdrop-blur-sm border border-hairline
            rounded-lg p-2.5 mb-6 flex flex-col gap-2;
     background: color-mix(in oklab, var(--canvas) 92%, transparent);
   }
