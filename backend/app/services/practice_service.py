@@ -586,15 +586,18 @@ async def submit_practice_results(
         vocab = result.scalar_one_or_none()
 
         if not vocab:
-            # Auto-add word to vocabulary
+            # Auto-add word to vocabulary. ecdict's ``pos`` can be a long
+            # multi-tag string (e.g. "i:10/n:1/r:87/j:1/v:1") that exceeds the
+            # String(20) column, so truncate to fit and avoid a flush error.
             entry = ecdict.lookup(word)
+            raw_pos = entry.get("pos", "") if entry else ""
             vocab = Vocabulary(
                 user_id=user_id,
-                word=word,
-                translation=entry["translation"] if entry else "",
+                word=word[:100],
+                translation=(entry["translation"] if entry else "")[:500],
                 definition=entry.get("definition", "") if entry else "",
-                part_of_speech=entry.get("pos", "") if entry else "",
-                ipa=entry.get("phonetic", "") if entry else "",
+                part_of_speech=raw_pos[:20],
+                ipa=(entry.get("phonetic", "") if entry else "")[:100],
                 video_id=video_id,
                 mastery_level="new",
                 review_count=0,

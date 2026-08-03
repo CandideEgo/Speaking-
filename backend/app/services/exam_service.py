@@ -352,12 +352,19 @@ async def submit_exam(
     session.part_scores = part_scores
     await db.commit()
 
-    # SM-2 update + LearningEvents (non-blocking inside submit_practice_results).
+    # SM-2 update + LearningEvents (best-effort: exam results are already
+    # committed above, a failure here must not poison the response).
     if sm2_results:
         try:
             await practice_service.submit_practice_results(db, user.id, sm2_results, session.video_id)
         except Exception:
-            logger.exception("Failed to apply SM-2 updates for exam session %s", session.id)
+            logger.exception("Failed to apply SM-2 updates for exam session %s", session_id)
+            # A flush failure leaves the session in pending-rollback state;
+            # clear it so response serialization / teardown doesn't blow up.
+            try:
+                await db.rollback()
+            except Exception:  # pragma: no cover - defensive
+                pass
 
     return {
         "session_id": session.id,
