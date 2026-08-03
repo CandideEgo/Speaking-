@@ -152,6 +152,33 @@ class TestRedeemCode:
         assert resp.status_code == 400
         assert "expired" in resp.json()["detail"]
 
+    async def test_redeem_past_expires_at_while_still_unused(
+        self, client: AsyncClient, auth_headers: dict, admin_headers: dict
+    ):
+        """A code past its expires_at is rejected even if the daily beat
+        task has not flipped its status to expired yet (real-time check)."""
+        from datetime import UTC, datetime, timedelta
+
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            from sqlalchemy import select
+
+            code = await self._generate_code(client, admin_headers)
+            result = await db.execute(select(RedeemCode).where(RedeemCode.code == code))
+            row = result.scalar_one()
+            assert row.status == RedeemStatus.unused
+            row.expires_at = datetime.now(UTC) - timedelta(days=1)
+            await db.commit()
+
+        resp = await client.post(
+            "/api/v1/redeem-codes/redeem",
+            headers=auth_headers,
+            json={"code": code},
+        )
+        assert resp.status_code == 400
+        assert "expired" in resp.json()["detail"]
+
     async def test_redeem_requires_auth(self, client: AsyncClient):
         resp = await client.post(
             "/api/v1/redeem-codes/redeem",

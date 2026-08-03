@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, User
-from app.schemas.pagination import has_more, paginated
+from app.schemas.pagination import paginated
 from app.schemas.redeem import (
     RedeemCodeGenerate,
     RedeemCodeRedeem,
@@ -98,18 +98,21 @@ async def list_codes(
     request: Request,
     status: RedeemStatus | None = Query(None),
     batch_label: str | None = Query(None),
+    keyword: str | None = Query(None, description="Search by code text"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
-    """Admin: list redeem codes (paginated), optionally filtered by status."""
+    """Admin: list redeem codes (paginated), optionally filtered by status/keyword."""
     offset = (page - 1) * page_size
     stmt = select(RedeemCode)
     if status is not None:
         stmt = stmt.where(RedeemCode.status == status)
     if batch_label:
         stmt = stmt.where(RedeemCode.batch_label == batch_label)
+    if keyword and keyword.strip():
+        stmt = stmt.where(func.lower(RedeemCode.code).contains(keyword.strip().lower()))
     stmt = stmt.order_by(RedeemCode.created_at.desc()).offset(offset).limit(page_size)
 
     result = await db.execute(stmt)
@@ -120,6 +123,8 @@ async def list_codes(
         count_stmt = count_stmt.where(RedeemCode.status == status)
     if batch_label:
         count_stmt = count_stmt.where(RedeemCode.batch_label == batch_label)
+    if keyword and keyword.strip():
+        count_stmt = count_stmt.where(func.lower(RedeemCode.code).contains(keyword.strip().lower()))
     total_result = await db.execute(count_stmt)
     total = total_result.scalar_one()
 
@@ -127,8 +132,23 @@ async def list_codes(
         [RedeemCodeResponse.model_validate(c) for c in items],
         page=page,
         page_size=page_size,
-        has_more=has_more(total, page, page_size),
+        total=total,
     )
+
+
+@router.get("/summary")
+@rate_limit("30/minute")
+async def codes_summary(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Admin: per-status counts for the redeem-code stat strip (prototype 30)."""
+    rows = (await db.execute(select(RedeemCode.status, func.count(RedeemCode.id)).group_by(RedeemCode.status))).all()
+    counts = {s.value: 0 for s in RedeemStatus}
+    for st, count in rows:
+        counts[st.value] = count
+    return counts
 
 
 @router.post("/redeem", response_model=RedeemResponse)
@@ -159,6 +179,12 @@ async def redeem_code(
             RedeemStatus.expired: "This code has expired",
         }.get(code.status, "This code is no longer valid")
         raise HTTPException(status_code=400, detail=msg)
+
+    # Enforce expiry in real time instead of relying on the daily
+    # expire-unused beat task (a stale/stopped beat would leave expired
+    # codes redeemable indefinitely).
+    if code.expires_at is not None and _to_aware_utc(code.expires_at) <= _utcnow():
+        raise HTTPException(status_code=400, detail="This code has expired")
 
     # Apply the code.
     code.status = RedeemStatus.redeemed
