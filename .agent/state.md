@@ -60,21 +60,30 @@ UX 设计方向落地（Apple HIG + Material Design + Linear）：10 项体验�
 
 ## Known Issues
 
-- docs/architecture/SYSTEM-MAP.md explicitly marked outdated — `.agent/system-map.md` is authoritative
+- docs/architecture/ 旧架构文档已清理删除（见 docs/progress/DEV-LOG-2026-08.md）——`.agent/system-map.md` + `wiki/` 为权威
 - **3 unfixed risk items**: comment quality scoring (pure keyword matching), auto_publish dual path (partially fixed), E2E test coverage
 - E2E test for critical user flows still unchecked in completion criteria
 - ICP compliance: awaiting individual business license for full deployment
 
 ## Next Steps
 
-1. Recommendation system P2 (ADR-0011) — LearningEvent 已解锁 behavior_events P0
+1. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
 2. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
 3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
 4. UX 后续：DailyProgressCard / WeeklyCycleCounter 组件内部适配紧凑布局（当前仅压缩了外层 grid）
 
 ## Last Updated
 
-Date: 2026-07-24
+Date: 2026-08-04
+- **POST-FRONTEND-2026-08 全部 6 阶段完成（release 0.1.1，2026-08-03）**
+  - Stage 1/2 播放页改版：字幕区独立滚动、词卡停泊位避让、snap-y 分屏吸附
+  - Stage 3 画布编辑器 MVP：字幕 reorder/新建/删除 + 时间轴可视化 + 时间块拖拽/缩放（B-F3/B-F6 后置）
+  - Stage 4 反馈公告系统：Feedback 模型/API + 公告广播 + /contact + admin /admin/feedback
+  - Stage 5 ASR/标注质量诊断：无残留 bug（见 wiki/problems/asr-annotation-quality-diagnosis.md）
+  - Stage 6 运维补丁：CD/Loki/告警/CHANGELOG/scripts（E2 前端 Sentry 跳过，需 DSN）
+- **文档全量整理（knowledge-verify）**：删 23 个漂移文档（旧架构/旧计划/旧 PRD），归档索引见 docs/progress/DEV-LOG-2026-08.md
+
+## History (2026-07-24)
 - **AI 学习计划实施完成（ADR-0012 Decision 3）**
   - 4 张新表：user_learning_profiles, learning_plans, learning_plan_items, learning_events
   - Vocabulary 增强 3 列：exam_level, first_seen_at, correct_count

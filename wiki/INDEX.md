@@ -14,6 +14,7 @@
 ## Problems
 
 - [Image Handling in Agent Sessions](problems/image-handling.md) — Why images corrupt sessions, how to handle, recovery
+- [ASR / 标注质量诊断](problems/asr-annotation-quality-diagnosis.md) — ECDICT exchange 反向索引 bug 根因与修复验证（good→best 等误报）
 
 ## Guides
 

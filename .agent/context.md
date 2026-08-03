@@ -75,7 +75,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 ## Known Issues
 
 - `InviteCode` → renamed to `RedeemCode` — DONE
-- docs/architecture/SYSTEM-MAP.md is explicitly marked outdated — `.agent/system-map.md` is the authoritative version
+- docs/architecture/ 旧架构文档已删（漂移），架构知识以 `.agent/system-map.md` + `wiki/` 为权威（见 docs/progress/DEV-LOG-2026-08.md）
 - E2E test coverage is the only incomplete completion criteria item
 - Notification dedup is non-atomic (check-then-insert) — acceptable for low-stakes notifications, but rare concurrent duplicates possible
 - User model dead columns `streak_count`/`longest_streak` replaced by `UserLearningProfile.current_streak`/`longest_streak` (ADR-0012)
@@ -91,14 +91,14 @@ For service layer details, see wiki/architecture/backend-services.md.
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
 - ECDICT database ~30MB, downloaded via scripts, in `.gitignore`
-- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-transcriptions (10min), score-videos-hourly, score-videos-daily, downgrade-expired-pro (hourly), expire-unused-redeem-codes (daily)
+- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-pipeline (10min), retry-failed-downloads (daily), score-videos-hourly, score-videos-daily, downgrade-expired-pro (hourly), expire-unused-redeem-codes (daily)
 - Notification model has composite index `ix_notifications_dedup` on (user_id, type, related_url, is_read) for dedup queries
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `docs/PRD.md` | PRD (authoritative) |
+| `docs/progress/DEV-LOG-2026-08.md` | 文档整理归档日志（旧 PRD/旧计划/漂移文档的归档索引） |
 | `docs/adr/` | Architecture Decision Records |
 | `docs/progress/PROGRESS.md` | Development progress tracking |
 | `CONTRIBUTING.md` | Contribution guide + code standards |
@@ -166,13 +166,13 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **落地页** | `/landing`，营销页，接为公开首页（未登录 `/` → 落地页） |
 | **双 Auth 会话** | 用户端 `seeword_token` vs 管理端 `seeword_admin_*`，独立 localStorage |
 
-### 推荐（ADR-0011，规划中）
+### 推荐（ADR-0011，P1 评分 + 推荐 feed 已落地）
 
 | 术语 | 含义 |
 |------|------|
-| **learning_score** | 视频 0-100 质量分，6 因子加权（CTR/Retention/WatchTime/TopicMatch/Quality/Bonus） |
-| **行为采集** | `behavior_events` 表 + 前端埋点，P0 阻塞项 |
-| **推荐流** | 40/30/20/10 策略（高分/潜力/冷启动/长视频），替代 `created_at desc` |
+| **learning_score** | 视频 0-100 质量分，6 因子加权（CTR/Retention/WatchTime/TopicMatch/Quality/Bonus）；scoring_tasks 每小时 Top200 + 每日全量 |
+| **行为采集** | `behavior_events` 表 + `behavior_service` 已落地（P0 解除） |
+| **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}` 已实现，前端 feedStore 承接；深度个性化待推进 |
 
 ## Cut Features（勿再引入）
 

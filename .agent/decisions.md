@@ -73,7 +73,7 @@
 **Decision**: B
 **Reason**: Improve content discovery efficiency
 **Trade-offs**: Requires behavior collection infrastructure first (P0 blocker), but enables long-term engagement
-**Status**: Planned, behavior collection is P0 blocker
+**Status**: P1 scoring (scoring_tasks hourly/daily) + recommendation feed (/recommendations/home, /recommendations/category) + behavior_events 已落地；深度个性化待推进
 **ADR**: [0011](docs/adr/0011-recommendation-system.md)
 
 ---

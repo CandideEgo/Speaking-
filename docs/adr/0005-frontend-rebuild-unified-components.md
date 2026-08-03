@@ -43,4 +43,4 @@
 - 设计语言延续（同色系），降低重做风险。
 - 落地页投入兑现（不再孤儿）。
 - 图片加载是系统性修复（env var + mediaUrl + next/image），随组件库统一落地。
-- 见 [落地计划](../plans/REDESIGN-2026-07.md) 的分阶段执行。
+- 落地计划 `docs/plans/REDESIGN-2026-07.md` 已执行完毕并归档删除，见 `docs/progress/DEV-LOG-2026-08.md`。

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, ai-service, transcription]
 related: [wiki/architecture/video-pipeline.md, wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-07-25
+updated: 2026-08-04
 ---
 
 # Background
@@ -38,7 +38,7 @@ Keep route files thin. Business logic in service layer.
 - **Fail-open Redis**: Cache, token blacklist, and rate limiting all degrade gracefully when Redis is unavailable. The app never crashes due to a Redis outage.
 - **Lazy initialization**: DB engine, Redis client, AI service, and Whisper model are all created lazily on first use, so processes that don't need them (e.g., GPU worker without DB) can import the modules without side effects.
 - **Singleton patterns**: `get_settings()` (lru_cache), `get_redis()` (module global), `get_ai_service()` (thread-safe double-checked locking), `get_whisper_model()`.
-- **Translation engine**: Pluggable — `agnes` (default) / `hy_mt2` / `qwen` / `glm` / `custom`, with optional fallback engine. Config in `Settings.translation_engine`.
+- **Translation engine**: Pluggable — `qwen` (default) / `hy_mt2` / `agnes` / `glm` / `custom`, with optional fallback engine run concurrently (first valid wins). Agnes is retired for translation (missed/low-quality output) but still backs non-translation LLM calls in `ai_service`. Config in `Settings.translation_engine` / `translation_fallback_engine` / `translation_concurrent`.
 
 # Future Notes
 

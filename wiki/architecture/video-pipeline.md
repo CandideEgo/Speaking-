@@ -6,7 +6,7 @@ confidence: verified
 related_code: [video-pipeline, celery-tasks]
 related: [.agent/context.md, docs/adr/0004-ugc-pipeline-admin-triggered.md]
 created: 2026-07-21
-updated: 2026-07-25
+updated: 2026-08-04
 ---
 
 # Background
@@ -50,7 +50,8 @@ Configured in `backend/app/tasks/celery_app.py` with `task_routes`.
 
 - `expire-pending-orders` every 5 min
 - `reconcile-pending-orders` every 15 min (query payment provider for lost callbacks)
-- `watchdog-stale-transcriptions` every 10 min
+- `watchdog-stale-pipeline` every 10 min (covers head `processing` and tail `ready_subtitles` phases, per-step timeout)
+- `retry-failed-downloads` every 24 h (re-attempt failed YouTube downloads that fell back to embed; refreshes cookies, respects 3-strike limit)
 - `score-videos-hourly` every hour (top 200 by view_count)
 - `score-videos-daily` every day (full recompute)
 - `downgrade-expired-pro` every hour (ADR-0007)
