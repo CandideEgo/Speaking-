@@ -1,0 +1,33 @@
+# Promtail 配置 - 抓取 Docker 容器日志发给 Loki (E3)
+#
+# 所有容器的 json-file 日志被 Promtail 通过 Docker socket 自动发现并打标签。
+# structlog 已输出 JSON, Loki 端可用 json parser 提取 level/event/trace_id。
+#
+# 启用步骤见 docker-compose.prod.yml 的 loki/promtail 服务注释。
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # 自动发现所有运行中的 Docker 容器日志
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # 用容器名作为标签 (seeword-backend-1 -> backend)
+      - source_labels: ["__meta_docker_container_name"]
+        regex: '/(.*)'
+        target_label: container
+      # 用 compose 服务名作为标签 (来自 compose 项目标签)
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: service
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: project

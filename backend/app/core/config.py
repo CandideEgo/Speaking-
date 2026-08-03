@@ -124,6 +124,11 @@ class Settings(BaseSettings):
     # Observability
     sentry_dsn: str = ""
     log_level: str = "INFO"
+    # External alert channel (E4): a webhook URL (DingTalk / Slack / generic
+    # JSON POST) that alert_service.send_alert posts to. Empty = alerts fall
+    # back to in-app notify_admins only (no out-of-band channel).
+    alert_webhook_url: str = ""
+    alert_webhook_secret: str = ""  # DingTalk sign secret (optional)
 
     # Speech transcription (default: 'base' matches Dockerfile pre-cached model)
     whisper_model_path: str = "base"

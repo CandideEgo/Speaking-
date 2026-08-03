@@ -1,0 +1,62 @@
+# CD 自动部署 workflow 模板 (E1)
+#
+# 这个文件是 .template - 复制为 deploy.yml 并填入 secrets 后启用。
+# CI (ci.yml) 已覆盖 lint/test/build/e2e 硬门；本 job 在 master push 时
+# 构建镜像推 registry，SSH 到服务器 pull + restart。
+#
+# 启用步骤：
+#   1. cp .github/workflows/deploy.yml.template .github/workflows/deploy.yml
+#   2. 在 GitHub repo Settings -> Secrets 配置:
+#      - REGISTRY_URL        镜像 registry 地址 (如 ghcr.io/<org>/<repo>)
+#      - REGISTRY_USER       registry 用户名
+#      - REGISTRY_TOKEN      registry 密码/token
+#      - SSH_HOST            服务器 IP
+#      - SSH_USER            SSH 用户
+#      - SSH_KEY             SSH 私钥
+#      - DEPLOY_PATH         服务器上 repo 路径 (如 /opt/seeword)
+#   3. 确认服务器上 docker-compose.prod.yml + .env 已就绪
+#
+# 本模板只构建 backend + frontend 两个镜像；GPU worker / celery 不在此流程
+# (它们镜像变化少，按需手动 pull)。如需一并部署，扩展 build matrix + ssh脚本。
+
+name: Deploy
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch: # 手动触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # 仅 CI 通过后部署 (实际使用时可加 needs: [backend, frontend] 依赖 ci.yml)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
+
+      - name: Build & push backend
+        run: |
+          docker build -t ${{ secrets.REGISTRY_URL }}/seeword-backend:latest backend/
+          docker push ${{ secrets.REGISTRY_URL }}/seeword-backend:latest
+
+      - name: Build & push frontend
+        run: |
+          docker build -t ${{ secrets.REGISTRY_URL }}/seeword-frontend:latest frontend/
+          docker push ${{ secrets.REGISTRY_URL }}/seeword-frontend:latest
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull --ff-only
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # Health check - fail the job if the app doesn't come back in 60s
+            curl --retry 20 --retry-delay 3 --retry-connrefused http://localhost:8000/health
+            echo "Deployed at $(date)"
