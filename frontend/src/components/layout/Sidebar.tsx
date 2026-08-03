@@ -20,6 +20,7 @@ import {
   Sun,
   Moon,
   Settings,
+  MessageSquare,
 } from "lucide-react";
 import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 import { useAuthStore } from "@/stores/authStore";
@@ -102,6 +103,7 @@ function UserPopover({ onClose }: { onClose: () => void }) {
   const items = [
     { label: "个人资料", icon: User, href: "/profile" },
     { label: "学习偏好", icon: Settings, href: "/profile" },
+    { label: "联系我们", icon: MessageSquare, href: "/contact" },
     { label: "Pro 会员", icon: Crown, href: "/pricing" },
   ];
 

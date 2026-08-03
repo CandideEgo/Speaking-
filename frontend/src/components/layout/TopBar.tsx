@@ -13,14 +13,14 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Bell, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 
 export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { setMobileOpen } = useSidebar();
+  const { setMobileOpen, toggle: toggleSidebar, collapsed: sidebarCollapsed } = useSidebar();
   const { isAuthenticated, user } = useAuthStore();
 
   // Search state
@@ -195,6 +195,21 @@ export function TopBar() {
         aria-label="打开菜单"
       >
         <Menu size={20} />
+      </Button>
+
+      {/* Desktop sidebar collapse/expand toggle. The sidebar can persist a
+          collapsed state in localStorage; without a control to expand it, a
+          user who ends up collapsed (e.g. stale localStorage from an older
+          build) is stuck and "can't open" the sidebar. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="hidden md:inline-flex"
+        onClick={toggleSidebar}
+        aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+        title={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+      >
+        {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
       </Button>
 
       {/* Search — centered */}

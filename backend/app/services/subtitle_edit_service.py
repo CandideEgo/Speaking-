@@ -249,6 +249,154 @@ async def update_word_levels(
     return SubtitleResponse.model_validate(subtitle)
 
 
+async def reorder_subtitles(
+    db: AsyncSession,
+    video_id: str,
+    payload,  # SubtitleReorder
+    *,
+    edited_by: str | None = None,
+) -> list[SubtitleResponse]:
+    """Reassign ``sentence_index`` for every subtitle in one transaction.
+
+    The payload must include exactly one entry per current subtitle, and the
+    new indices must form a contiguous ``0..N-1`` sequence. After reassigning,
+    timing is re-validated against the new neighbor order (``_validate_timing``)
+    - reordering without adjusting times can produce overlaps, which are
+    rejected. ``sentence_index`` is not an audited field, so no
+    ``SubtitleRevision`` rows are written (consistent with the audit system
+    tracking content, not ordering). Returns all subtitles in new index order.
+    """
+    from app.models.subtitle import Subtitle
+
+    result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id))
+    subs_by_id = {s.id: s for s in result.scalars().all()}
+    if not subs_by_id:
+        raise ValueError("视频没有字幕，无法重排")
+
+    items = payload.items
+    if len(items) != len(subs_by_id):
+        raise ValueError(f"reorder must include all {len(subs_by_id)} subtitles, got {len(items)}")
+
+    seen_ids: set[str] = set()
+    seen_indices: set[int] = set()
+    for item in items:
+        if item.id not in subs_by_id:
+            raise ValueError(f"Subtitle {item.id} does not belong to this video")
+        if item.id in seen_ids:
+            raise ValueError(f"Duplicate subtitle id in reorder: {item.id}")
+        if item.sentence_index in seen_indices:
+            raise ValueError(f"Duplicate sentence_index in reorder: {item.sentence_index}")
+        if item.sentence_index < 0 or item.sentence_index >= len(subs_by_id):
+            raise ValueError(f"sentence_index {item.sentence_index} out of range (0..{len(subs_by_id) - 1})")
+        seen_ids.add(item.id)
+        seen_indices.add(item.sentence_index)
+
+    for item in items:
+        subs_by_id[item.id].sentence_index = item.sentence_index
+
+    # Re-validate timing against the new neighbor order. Reordering can make a
+    # subtitle overlap its new neighbors (times weren't moved), which we reject.
+    for sub in subs_by_id.values():
+        await _validate_timing(db, video_id, sub)
+
+    await db.commit()
+    for sub in subs_by_id.values():
+        await db.refresh(sub)
+    await invalidate_video_detail_cache(video_id)
+
+    ordered = sorted(subs_by_id.values(), key=lambda s: s.sentence_index)
+    return [SubtitleResponse.model_validate(s) for s in ordered]
+
+
+async def create_subtitle(
+    db: AsyncSession,
+    video_id: str,
+    payload,  # SubtitleCreate
+    *,
+    edited_by: str | None = None,
+) -> SubtitleResponse:
+    """Append a new subtitle row at the end of the video.
+
+    ``sentence_index`` is set to ``current max + 1`` (or 0 for the first row).
+    The English text may be empty (a placeholder the admin fills in); when
+    present, word_levels are derived from ECDICT. Timing is validated against
+    existing rows (non-overlap) before commit.
+    """
+    from app.models.subtitle import Subtitle
+    from app.services.ecdict import annotate_text
+
+    last_q = select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index.desc()).limit(1)
+    last = (await db.execute(last_q)).scalar_one_or_none()
+    new_index = (last.sentence_index + 1) if last else 0
+
+    new_sub = Subtitle(
+        video_id=video_id,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        text_en=payload.text_en,
+        text_zh=payload.text_zh,
+        sentence_index=new_index,
+        speaker=payload.speaker,
+    )
+    if payload.text_en:
+        levels = annotate_text(payload.text_en)
+        new_sub.word_levels = levels or None
+
+    # Validate against existing rows before persisting (the new row isn't in the
+    # DB yet, so _validate_timing checks it as the tail neighbor).
+    await _validate_timing(db, video_id, new_sub)
+
+    db.add(new_sub)
+    await commit_refresh(db, new_sub)
+    await invalidate_video_detail_cache(video_id)
+    return SubtitleResponse.model_validate(new_sub)
+
+
+async def delete_subtitle(
+    db: AsyncSession,
+    video_id: str,
+    subtitle_id: str,
+    *,
+    edited_by: str | None = None,
+) -> dict:
+    """Delete one subtitle and close the gap in ``sentence_index``.
+
+    Subtitles after the deleted row shift down by one so indices stay
+    contiguous. Deleting never creates overlaps (gaps are allowed), so no
+    timing re-validation is needed. Returns ``{deleted_id, remaining_count}``.
+    """
+    from sqlalchemy import update
+
+    from app.models.subtitle import Subtitle
+
+    result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
+    sub = result.scalar_one_or_none()
+    if sub is None:
+        raise ValueError("Subtitle not found")
+    if sub.video_id != video_id:
+        raise ValueError("Subtitle does not belong to this video")
+
+    deleted_index = sub.sentence_index
+    await db.delete(sub)
+    await db.flush()  # persist the delete before the index shift
+
+    await db.execute(
+        update(Subtitle)
+        .where(
+            Subtitle.video_id == video_id,
+            Subtitle.sentence_index > deleted_index,
+        )
+        .values(sentence_index=Subtitle.sentence_index - 1)
+    )
+
+    await db.commit()
+    await invalidate_video_detail_cache(video_id)
+
+    count_q = select(Subtitle).where(Subtitle.video_id == video_id)
+    remaining = len((await db.execute(count_q)).scalars().all())
+    return {"deleted_id": subtitle_id, "remaining_count": remaining}
+
+
 async def split_subtitle(
     db: AsyncSession,
     video_id: str,

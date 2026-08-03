@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   CreditCard,
   LayoutDashboard,
+  Megaphone,
   Menu,
   Settings,
   Ticket,
@@ -50,6 +51,7 @@ const NAV: NavSection[] = [
       { label: "用户管理", href: "/admin/users", icon: UserCog },
       { label: "订单管理", href: "/admin/orders", icon: CreditCard },
       { label: "兑换码", href: "/admin/invites", icon: Ticket },
+      { label: "反馈公告", href: "/admin/feedback", icon: Megaphone },
     ],
   },
   {

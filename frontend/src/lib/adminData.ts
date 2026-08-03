@@ -283,6 +283,55 @@ export async function mergeSubtitle(videoId: string, subtitleId: string): Promis
   });
 }
 
+export interface SubtitleReorderItem {
+  id: string;
+  sentence_index: number;
+}
+
+/** Reorder subtitles (canvas editor drag-to-reorder). The payload must cover
+ * all current subtitles with a contiguous 0..N-1 index sequence; timing is
+ * re-validated against the new neighbor order. Admin only. */
+export async function reorderSubtitles(
+  videoId: string,
+  items: SubtitleReorderItem[]
+): Promise<Subtitle[]> {
+  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
+export interface SubtitleCreatePayload {
+  start_time: number;
+  end_time: number;
+  text_en?: string;
+  text_zh?: string | null;
+  speaker?: string | null;
+}
+
+/** Append a new subtitle row at the end of the video (canvas editor). The
+ * English text may be empty initially (a placeholder). Admin only. */
+export async function createSubtitle(
+  videoId: string,
+  payload: SubtitleCreatePayload
+): Promise<Subtitle> {
+  return adminApi<Subtitle>(`/api/v1/videos/admin/${videoId}/subtitles`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Delete one subtitle and close the gap in sentence_index. Admin only. */
+export async function deleteSubtitle(
+  videoId: string,
+  subtitleId: string
+): Promise<{ deleted_id: string; remaining_count: number }> {
+  return adminApi<{ deleted_id: string; remaining_count: number }>(
+    `/api/v1/videos/admin/${videoId}/subtitles/${subtitleId}`,
+    { method: "DELETE" }
+  );
+}
+
 /** List edit revisions for one subtitle (newest first). Admin only. */
 export async function listSubtitleRevisions(
   videoId: string,
@@ -445,5 +494,57 @@ export async function refundRedeemCode(codeId: string): Promise<{
 }> {
   return adminApi(`/api/v1/redeem-codes/${codeId}/refund`, {
     method: "POST",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Feedback & announcements (Stage 4)
+// ---------------------------------------------------------------------------
+
+export interface AdminFeedback {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  category: string;
+  content: string;
+  contact: string | null;
+  status: string;
+  admin_reply: string | null;
+  handled_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listAdminFeedback(
+  status?: string,
+  page = 1,
+  pageSize = 50
+): Promise<Paginated<AdminFeedback>> {
+  const qs = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) qs.set("status", status);
+  return adminApi<Paginated<AdminFeedback>>(`/api/v1/admin/feedback?${qs}`);
+}
+
+export async function updateAdminFeedback(
+  id: string,
+  patch: { status?: string; admin_reply?: string }
+): Promise<AdminFeedback> {
+  return adminApi<AdminFeedback>(`/api/v1/admin/feedback/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function broadcastAnnouncement(payload: {
+  title: string;
+  message: string;
+  related_url?: string | null;
+}): Promise<{ notified_count: number; title: string; message: string }> {
+  return adminApi(`/api/v1/admin/announcements`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

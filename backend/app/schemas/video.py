@@ -218,6 +218,57 @@ class SubtitleBatchUpdate(BaseModel):
     updates: list[SubtitleBatchItem]
 
 
+class SubtitleReorderItem(BaseModel):
+    """One entry in a reorder request: a subtitle id and its new sentence_index."""
+
+    id: str
+    sentence_index: int
+
+
+class SubtitleReorder(BaseModel):
+    """Payload to reorder subtitles within a video (admin canvas editor).
+
+    Accepts a list of ``{id, sentence_index}`` entries. The set of ids must
+    match the video's current subtitles exactly, and the new indices must form
+    a contiguous ``0..N-1`` sequence (no gaps, no duplicates). Timing is
+    re-validated against the new neighbor order - overlaps are rejected.
+    """
+
+    items: list[SubtitleReorderItem]
+
+
+class SubtitleCreate(BaseModel):
+    """Payload to create a new subtitle row (admin canvas editor).
+
+    A new row is appended at the end (``sentence_index = current max + 1``).
+    The English text may be empty initially (a placeholder the admin fills in);
+    ``start_time``/``end_time`` are required and must not overlap existing rows.
+    """
+
+    start_time: float
+    end_time: float
+    text_en: str = ""
+    text_zh: str | None = None
+    speaker: str | None = None
+
+    @field_validator("text_zh", "speaker")
+    @classmethod
+    def strip_optional(cls, v: str | None) -> str | None:
+        return v.strip() if v is not None else v
+
+    @field_validator("text_en")
+    @classmethod
+    def strip_text_en(cls, v: str) -> str:
+        # Allow empty (placeholder row) but strip surrounding whitespace.
+        return v.strip()
+
+    @model_validator(mode="after")
+    def validate_timing(self) -> "SubtitleCreate":
+        if self.start_time >= self.end_time:
+            raise ValueError("start_time must be less than end_time")
+        return self
+
+
 class ProposalCreate(BaseModel):
     """Payload to submit a subtitle change proposal (PR) from a fork to the standard."""
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import { Loader2, Save, Split, Merge } from "lucide-react";
+import { Loader2, Save, Split, Merge, Trash2 } from "lucide-react";
 
 import { WordLevelsEditor } from "./WordLevelsEditor";
 import { Button } from "@/components/ui/Button";
@@ -38,6 +38,7 @@ export function SubtitleEditor({
   onSplit,
   onMerge,
   canMerge = false,
+  onDelete,
   videoRef,
   onSeekTo,
 }: {
@@ -50,6 +51,8 @@ export function SubtitleEditor({
   onMerge?: () => Promise<void>;
   /** Whether a next subtitle exists (enables the merge button). */
   canMerge?: boolean;
+  /** Delete this subtitle. Parent refreshes the list. */
+  onDelete?: () => Promise<void>;
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   onSeekTo?: (time: number) => void;
 }) {
@@ -63,6 +66,16 @@ export function SubtitleEditor({
   const [splitting, setSplitting] = useState(false);
   const [merging, setMerging] = useState(false);
   const [editingLevels, setEditingLevels] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Auto-reset the inline delete confirmation after 3s so a stale "确认删除"
+  // state doesn't linger if the user clicks delete then changes their mind.
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
 
   const dirty =
     textEn !== subtitle.text_en ||
@@ -169,6 +182,26 @@ export function SubtitleEditor({
     }
   };
 
+  // Inline two-step delete: first click arms ("确认删除"), second click within
+  // 3s commits. Avoids a modal while still preventing accidental deletes.
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await onDelete();
+      toast.success("已删除");
+    } catch (err) {
+      toastApiError(err, "删除失败");
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Card padding={3} className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-muted">
@@ -218,6 +251,19 @@ export function SubtitleEditor({
           >
             {editingLevels ? "收起高亮" : "编辑高亮"}
           </Button>
+          {onDelete && (
+            <Button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              variant={confirmDelete ? "destructive" : "outline"}
+              size="xs"
+              icon={deleting ? Loader2 : Trash2}
+              title={confirmDelete ? "再次点击确认删除该句" : "删除该句"}
+            >
+              {confirmDelete ? "确认删除" : "删除"}
+            </Button>
+          )}
         </div>
       </div>
 

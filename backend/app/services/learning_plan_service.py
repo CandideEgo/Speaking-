@@ -48,9 +48,13 @@ async def generate_daily_plan(db: AsyncSession, user_id: str) -> dict:
     """
     today = await learning_event_service._get_user_local_date(db, user_id)
 
-    # Check if plan already exists for today
+    # Check if plan already exists for today.
+    # selectinload(items) is required: _plan_to_dict accesses plan.items, which
+    # would otherwise lazy-load and raise MissingGreenlet under async SQLAlchemy.
     result = await db.execute(
-        select(LearningPlan).where(
+        select(LearningPlan)
+        .options(selectinload(LearningPlan.items))
+        .where(
             LearningPlan.user_id == user_id,
             LearningPlan.plan_date == today,
         )
