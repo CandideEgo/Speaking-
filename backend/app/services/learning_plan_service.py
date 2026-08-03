@@ -335,16 +335,25 @@ async def get_plan_history(
     )
     plans = result.scalars().all()
 
-    items = []
-    for plan in plans:
-        # Count completed items
-        items_result = await db.execute(
+    # Aggregate item completion for all page plans in a single GROUP BY query
+    # (avoids one count query per plan — the old loop was N+1).
+    plan_ids = [p.id for p in plans]
+    stats_map: dict[str, tuple[int, int]] = {}
+    if plan_ids:
+        stats_result = await db.execute(
             select(
+                LearningPlanItem.plan_id,
                 func.count(LearningPlanItem.id).label("total"),
                 func.sum(func.cast(LearningPlanItem.completed, Integer)).label("completed_count"),
-            ).where(LearningPlanItem.plan_id == plan.id)
+            )
+            .where(LearningPlanItem.plan_id.in_(plan_ids))
+            .group_by(LearningPlanItem.plan_id)
         )
-        row = items_result.one()
+        stats_map = {row.plan_id: (row.total or 0, row.completed_count or 0) for row in stats_result}
+
+    items = []
+    for plan in plans:
+        items_total, items_completed = stats_map.get(plan.id, (0, 0))
         items.append(
             {
                 "id": plan.id,
@@ -355,8 +364,8 @@ async def get_plan_history(
                 "total_new_words": plan.total_new_words,
                 "total_practice_items": plan.total_practice_items,
                 "estimated_minutes": plan.estimated_minutes,
-                "items_completed": row.completed_count or 0,
-                "items_total": row.total or 0,
+                "items_completed": items_completed,
+                "items_total": items_total,
             }
         )
 

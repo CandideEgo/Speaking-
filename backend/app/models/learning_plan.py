@@ -246,11 +246,13 @@ class LearningEvent(Base):
         String(36),
         ForeignKey("videos.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     plan_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("learning_plans.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
 
     # Additional context
