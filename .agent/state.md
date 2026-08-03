@@ -2,9 +2,18 @@
 
 ## Current Focus
 
-UX 设计方向落地（Apple HIG + Material Design + Linear）：10 项体验问题已修复——词汇复习 3 档中文+键盘快捷键、Onboarding 可跳过、ShellSkeleton 替代全屏 spinner、Watch 页练习区渐进披露、Undo toast 替代确认弹窗、首页主 CTA、导航标签统一、假“加载更多”修复、静默失败加 toast。tsc 0 errors。
+原型驱动全栈重构——练习/考试系统全链路打通：后端 exam 系统（exam_sessions/exam_answers + 服务端判分 + 派生错题本 + practice hub）已上线；前端 practice/exam/paper/watch 内嵌卷全部接真数据，静态样例卷已删；视觉收尾（login/forgot-password 三步向导/profile 用户卡）完成。pytest 539 绿 + tsc/build/ruff/pre-commit 全绿 + 真实 Postgres 浏览器端到端验证通过。
 
 ## Completed Milestones
+
+- **原型驱动全栈重构：练习/考试系统（2026-08-04，.qoder/specs/原型驱动全栈重构_task-08d.md）**
+  - 后端：`exam_sessions`/`exam_answers` 两表（迁移 b1c2d3e4f5a6，可 downgrade）；错题本为派生查询不另建表
+  - `exam_service`：daily_check 跨视频抽题 / video_exam / wrong_redo（重做答对即销账）；服务端判分，答案不下发；判分后复用 submit_practice_results 更新 SM-2 + LearningEvent
+  - 6 个新 API：/practice/hub、/exam/start、/exam/{id}/submit、/practice/wrong、/practice/wrong/redo、/videos/{id}/paper（即时模式含答案）
+  - 前端：lib/examData.ts（API+钻题→试卷适配器）+ stores/examStore.ts；PaperRunner 支持服务端判分与自动交卷；即时判分防抖回写掌握度；SAMPLE_PAPER/SAMPLE_WRONGS 已删
+  - 修复两个潜伏 bug：Postgres COALESCE(bool,int) → CASE；ecdict pos 超 vocabulary 列宽 varchar(20) 致自动加词 flush 失败
+  - Phase D：login（+86 前缀/忘记密码同行/信任行）、forgot-password 三步向导（原型 15）、profile 用户卡（原型 07）
+  - 测试：15 个新 exam 测试；全量 539 passed；浏览器端到端验证出卷→答题→提交判分→错题本→hub 全链路
 
 - **UX 设计方向落地（Apple HIG + Material Design + Linear）**
   - 词汇复习：6 英文按钮 → 3 档中文（忘了/模糊/记住了）+ 键盘 1/2/3 快捷键
@@ -60,6 +69,7 @@ UX 设计方向落地（Apple HIG + Material Design + Linear）：10 项体验�
 
 ## Known Issues
 
+- 本地 dev 环境 SMS 走真实阿里云发送（.env 配置了凭据）但 SDK 初始化失败→send-code 502；CI/无凭据环境自动回退 dev-fake 码 1234（E2E 依赖此路径）
 - docs/architecture/ 旧架构文档已清理删除（见 docs/progress/DEV-LOG-2026-08.md）——`.agent/system-map.md` + `wiki/` 为权威
 - **3 unfixed risk items**: comment quality scoring (pure keyword matching), auto_publish dual path (partially fixed), E2E test coverage
 - E2E test for critical user flows still unchecked in completion criteria
@@ -75,6 +85,7 @@ UX 设计方向落地（Apple HIG + Material Design + Linear）：10 项体验�
 ## Last Updated
 
 Date: 2026-08-04
+- **原型驱动全栈重构（练习/考试系统）完成**：见上方 Completed Milestones；提交序列 68393b7(docs) → c4a40e1(exam 后端) → 28f648a(CASE 修复) → 65ab7c1(前端接真数据) → 7e46cf2(列宽截断修复) → c1811bf(Phase D)
 - **POST-FRONTEND-2026-08 全部 6 阶段完成（release 0.1.1，2026-08-03）**
   - Stage 1/2 播放页改版：字幕区独立滚动、词卡停泊位避让、snap-y 分屏吸附
   - Stage 3 画布编辑器 MVP：字幕 reorder/新建/删除 + 时间轴可视化 + 时间块拖拽/缩放（B-F3/B-F6 后置）

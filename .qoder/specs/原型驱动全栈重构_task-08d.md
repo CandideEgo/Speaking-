@@ -1,5 +1,10 @@
 # 原型驱动全栈重构计划（合并后修订版）
 
+> **状态：已全部完成（2026-08-04）**
+> 提交序列：`68393b7`(docs 清理) → `c4a40e1`(exam 后端) → `28f648a`(CASE 修复) → `65ab7c1`(前端接真数据) → `7e46cf2`(列宽截断修复) → `c1811bf`(Phase D)。
+> 门禁：pytest 539 passed / tsc / build / ruff / pre-commit 全绿；真实 Postgres 浏览器端到端验证通过。
+> 额外修复：Postgres `COALESCE(bool,int)` 改 `CASE`；ecdict `pos` 超 vocabulary 列宽 varchar(20) 致自动加词 flush 失败（截断修复）。
+
 ## 合并后审查结论
 
 **已完成**（分支 frontend-refactor-2026-07，merge `546f481`）：

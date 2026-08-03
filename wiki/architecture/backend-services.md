@@ -31,6 +31,8 @@ Keep route files thin. Business logic in service layer.
 | `ai_service.py` | Central AI wrapper (AsyncOpenAI). Singleton `get_ai_service()`. Redis caching for enrichment/gloss. Speaking-scoring methods removed (ADR-0002). |
 | `video_service.py` | Video submit (dedup by URL), detail with Redis caching, search (PostgreSQL FTS + ILIKE fallback). |
 | `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, quiz. |
+| `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |
+| `exam_service.py` | Exam system: daily_check / video_exam / wrong_redo sessions, server-side grading (`exam_sessions`/`exam_answers`), derived wrong book, practice hub stats. Answers never leave the server in exam mode; grading reuses `submit_practice_results` for SM-2 + LearningEvents. |
 | `transcription/` | Dedicated sub-service: WhisperX/faster-whisper, chunked transcription, forced alignment, punctuation restoration, audio extraction, segment formatting. |
 
 # Key Patterns

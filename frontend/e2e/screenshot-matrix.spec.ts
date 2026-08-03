@@ -2,10 +2,11 @@ import { test, expect, type Page } from "@playwright/test";
 import { uniquePhone, registerUserViaApi, loginViaUi } from "./helpers";
 
 /**
- * Playwright Screenshot Matrix (LAUNCH-SPRINT-2026-07).
+ * Playwright Screenshot Matrix.
  *
- * Captures full-page screenshots for 13 routes × light/dark × desktop/mobile.
- * Screenshots are saved to test-results/screenshots/ for manual review.
+ * Captures full-page screenshots for the core routes × light/dark ×
+ * desktop/mobile. Screenshots are saved to test-results/screenshots/ for
+ * manual review.
  *
  * Usage:
  *   npx playwright test e2e/screenshot-matrix.spec.ts --project=chromium
@@ -68,12 +69,13 @@ const ROUTES: RouteDef[] = [
   { name: "home", path: "/" },
   { name: "login", path: "/login" },
   { name: "register", path: "/register" },
-  { name: "dashboard", path: "/dashboard", auth: true },
-  { name: "watch", path: "/watch/nonexistent-id", skipIfNoVideo: true },
   { name: "redeem", path: "/redeem", auth: true },
   { name: "browse", path: "/browse" },
-  { name: "community", path: "/community" },
   { name: "vocabulary", path: "/vocabulary", auth: true },
+  { name: "vocabulary-drill", path: "/vocabulary/drill", auth: true },
+  { name: "practice", path: "/practice", auth: true },
+  { name: "practice-exam", path: "/practice/exam?level=cet4", auth: true },
+  { name: "history", path: "/history", auth: true },
   { name: "admin", path: "/admin", auth: true },
   { name: "forgot-password", path: "/forgot-password" },
   { name: "onboarding", path: "/onboarding", auth: true },
