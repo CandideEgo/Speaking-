@@ -2,7 +2,7 @@
 
 > 本文档定义 SeeWord 应用的安全态势、威胁模型和响应流程。
 >
-> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [.agent/system-map.md](../../.agent/system-map.md)（架构现状）
 
 ---
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -12,6 +12,27 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
+import { cn } from "@/lib/utils";
+
+/** Password strength tiers keyed to a 0-4 score. */
+const STRENGTH = [
+  { label: "", color: "bg-hairline", text: "text-muted-soft" },
+  { label: "弱", color: "bg-error", text: "text-error" },
+  { label: "中", color: "bg-warning", text: "text-warning" },
+  { label: "强", color: "bg-success", text: "text-success" },
+  { label: "很强", color: "bg-success", text: "text-success" },
+];
+
+/** Score 0-4: length + upper + lower + digit (the same rules enforced on submit). */
+function scorePassword(pw: string): number {
+  if (!pw) return 0;
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[a-z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  return score;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,6 +47,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
+
+  const pwScore = useMemo(() => scorePassword(password), [password]);
+  const strength = STRENGTH[pwScore];
 
   // Show spinner while auth state is initializing
   if (isLoading) {
@@ -135,6 +159,25 @@ export default function RegisterPage() {
             className="mt-1.5"
             placeholder="至少 8 位，含大小写字母和数字"
           />
+          {/* Password strength indicator */}
+          {password && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex gap-1 flex-1">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "h-1 flex-1 rounded-full transition-colors",
+                      i <= pwScore ? strength.color : "bg-hairline"
+                    )}
+                  />
+                ))}
+              </div>
+              <span className={cn("text-xs font-medium w-7 text-right", strength.text)}>
+                {strength.label}
+              </span>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-ink">确认密码</label>

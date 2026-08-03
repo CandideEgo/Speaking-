@@ -190,8 +190,11 @@ export default function SearchPage() {
         {/* Video results */}
         {hasVideoResults && (
           <div>
-            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              视频
+            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center justify-between">
+              <span>视频</span>
+              <span className="text-muted-soft normal-case font-medium tracking-normal">
+                {videoResults.length} 个结果
+              </span>
             </div>
             <ul className="space-y-1">
               {videoResults.map((video) => (
@@ -231,6 +234,9 @@ export default function SearchPage() {
             <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
               <Subtitles size={12} />
               字幕匹配
+              <span className="text-muted-soft normal-case font-medium tracking-normal">
+                {subtitleResults.reduce((s, r) => s + r.matching_subtitles.length, 0)} 条
+              </span>
             </div>
             <ul className="space-y-1">
               {subtitleResults.map((result) => (

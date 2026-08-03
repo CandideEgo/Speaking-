@@ -19,5 +19,5 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 
 ## Companion docs
 
-- [Glossary](../GLOSSARY.md) — 术语表
-- [Redesign plan 2026-07](../plans/REDESIGN-2026-07.md) — 落地计划（分阶段）
+- [.agent/context.md](../../.agent/context.md) — 领域术语表（Domain Terms）
+- [归档日志](../progress/DEV-LOG-2026-08.md) — 历史落地计划索引（原 Redesign plan 等已归档）

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, Play, Repeat, ArrowRight } from "lucide-react";
+import { Flame, Play, Repeat, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { api } from "@/lib/api";
 import type { DailyProgress, LearningPlanItem } from "@/types";
@@ -10,6 +10,9 @@ import type { DailyProgress, LearningPlanItem } from "@/types";
 interface FocusCardProps {
   progress: DailyProgress | null;
   planItems: LearningPlanItem[];
+  /** When provided and no plan items exist, the CTA becomes "生成今日计划". */
+  onGeneratePlan?: () => void;
+  generating?: boolean;
 }
 
 /** Resolve the href for the first incomplete plan item. */
@@ -23,7 +26,7 @@ function firstIncompleteHref(items: LearningPlanItem[]): string | null {
   return "/browse";
 }
 
-export function FocusCard({ progress, planItems }: FocusCardProps) {
+export function FocusCard({ progress, planItems, onGeneratePlan, generating }: FocusCardProps) {
   const [vocabDue, setVocabDue] = useState<number | null>(null);
 
   useEffect(() => {
@@ -46,19 +49,29 @@ export function FocusCard({ progress, planItems }: FocusCardProps) {
   const streak = progress?.current_streak ?? 0;
   const weeklyCycles = progress?.weekly_cycles_completed ?? 0;
 
-  // CTA logic
+  // CTA logic: 复习 > 生成计划(无计划时) > 继续学习 > 去浏览
   let ctaLabel = "去浏览";
   let ctaHref = "/browse";
+  let ctaMode: "review" | "generate" | "continue" | "browse" = "browse";
+
   if (vocabDue && vocabDue > 0) {
     ctaLabel = "开始复习";
     ctaHref = "/vocabulary";
+    ctaMode = "review";
+  } else if (totalCount === 0 && onGeneratePlan) {
+    ctaLabel = "生成今日计划";
+    ctaMode = "generate";
   } else {
     const href = firstIncompleteHref(planItems);
     if (href) {
       ctaLabel = "继续学习";
       ctaHref = href;
+      ctaMode = "continue";
     }
   }
+
+  const ctaClass =
+    "inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-500/20 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0";
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-hairline bg-canvas p-6">
@@ -96,18 +109,18 @@ export function FocusCard({ progress, planItems }: FocusCardProps) {
         </div>
 
         {/* CTA */}
-        <Link
-          href={ctaHref}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
-            bg-brand-500 text-on-primary shadow-brand
-            hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-500/20 hover:-translate-y-0.5
-            active:scale-[0.98]
-            transition-all duration-200 shrink-0"
-        >
-          <Play size={15} fill="currentColor" />
-          {ctaLabel}
-          <ArrowRight size={14} />
-        </Link>
+        {ctaMode === "generate" ? (
+          <button type="button" onClick={onGeneratePlan} disabled={generating} className={ctaClass}>
+            {generating ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {generating ? "生成中…" : ctaLabel}
+          </button>
+        ) : (
+          <Link href={ctaHref} className={ctaClass}>
+            <Play size={15} fill="currentColor" />
+            {ctaLabel}
+            <ArrowRight size={14} />
+          </Link>
+        )}
       </div>
     </div>
   );

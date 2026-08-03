@@ -47,6 +47,8 @@ export interface Video {
   /** P1 learning_score (0-100). Null until first computed; drives list sorting. */
   score: number | null;
   score_updated_at: string | null;
+  /** Translation quality flag (None | quality_warning | quality_blocked). Admin-visible. */
+  quality_flag: string | null;
   created_at: string;
   /** Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks */
   forked_from: string | null;

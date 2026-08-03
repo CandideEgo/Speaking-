@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -14,10 +15,9 @@ import {
   Flame,
   Dumbbell,
   Search,
+  GraduationCap,
 } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Button, type ButtonVariant } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
@@ -72,6 +72,7 @@ export default function VocabularyPage() {
   });
   const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
+  const [masteryFilter, setMasteryFilter] = useState<string>("all");
   const undoneRef = useRef(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -182,17 +183,21 @@ export default function VocabularyPage() {
     });
   }
 
-  // Filter words by search query
+  // Filter words by search query + mastery level
   const filteredWords = useMemo(() => {
-    if (!searchQuery.trim()) return words;
+    let list = words;
+    if (masteryFilter !== "all") {
+      list = list.filter((w) => w.mastery_level === masteryFilter);
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return words.filter(
+    return list.filter(
       (w) =>
         w.word.toLowerCase().includes(q) ||
         w.translation?.toLowerCase().includes(q) ||
         w.definition?.toLowerCase().includes(q)
     );
-  }, [words, searchQuery]);
+  }, [words, searchQuery, masteryFilter]);
 
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
@@ -201,10 +206,27 @@ export default function VocabularyPage() {
   return (
     <PageTransition>
       <main className="container-page py-6 sm:py-12">
-        {/* Page header */}
-        <PageHeader crumb="学习" title="词汇本" />
+        {/* Page head: title + desc + drill CTA (原型09) */}
+        <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h1 className="text-[26px] font-extrabold tracking-tight text-ink">词汇本</h1>
+            <p className="text-[13px] text-muted mt-1">
+              你在视频中收藏与练习过的词汇，按掌握度安排复习
+            </p>
+          </div>
+          {stats.due > 0 && (
+            <Link
+              href="/vocabulary/drill"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
+            >
+              <GraduationCap size={16} />
+              单词训练
+              <span className="bg-white/20 px-2 py-0.5 rounded-pill text-xs">{stats.due}</span>
+            </Link>
+          )}
+        </div>
 
-        {/* Stat cards */}
+        {/* Stat cards (due 卡高亮) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
           <MetricCard icon={BookOpen} label="总计" value={stats.total} variant="label-top" />
           <MetricCard
@@ -213,6 +235,7 @@ export default function VocabularyPage() {
             value={stats.due}
             tone="brand"
             variant="label-top"
+            className="ring-2 ring-brand-500/30 ring-offset-2 ring-offset-canvas"
           />
           <MetricCard
             icon={CheckCircle2}
@@ -230,11 +253,11 @@ export default function VocabularyPage() {
           />
         </div>
 
-        {/* Practice button */}
+        {/* Inline review entry (keep existing practice modal for quick review) */}
         {stats.due > 0 && !practiceOpen && (
           <div className="mb-6">
             <Button onClick={() => setPracticeOpen(true)} icon={Dumbbell}>
-              开始练习
+              快速复习
             </Button>
           </div>
         )}
@@ -249,40 +272,56 @@ export default function VocabularyPage() {
           <UnifiedPracticePanel session={vocabPractice} levelLabel="词汇练习" />
         </Modal>
 
-        {/* Section header + search */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-0 mb-4">
-          <SectionHeader
-            title="全部单词"
-            action={
+        {/* Filter bar: 掌握度筛选 + 全部/待复习 + 搜索 (原型09 filter-bar) */}
+        <div className="filter-bar mb-5">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
               <TabPills
                 tabs={[
                   { key: "all", label: "全部" },
+                  { key: "new", label: "新词" },
+                  { key: "learning", label: "学习中" },
+                  { key: "reviewing", label: "复习中" },
+                  { key: "mastered", label: "已掌握" },
+                ]}
+                activeKey={masteryFilter}
+                onChange={setMasteryFilter}
+                variant="ghost"
+                activeStyle="dark"
+                size="sm"
+              />
+            </div>
+            <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
+            <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
+              <TabPills
+                tabs={[
+                  { key: "all", label: "不限" },
                   { key: "due", label: "待复习" },
                 ]}
                 activeKey={dueOnly ? "due" : "all"}
                 onChange={(key) => setDueOnly(key === "due")}
                 variant="ghost"
-                shape="rect"
+                activeStyle="brand"
+                size="sm"
               />
-            }
-            className="mt-0 mb-0"
-          />
-          {/* Search filter */}
-          <div className="relative w-full sm:w-56">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
-            />
-            <input
-              type="text"
-              placeholder="搜索单词…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
-                text-sm text-ink placeholder:text-muted-soft
-                focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
-                transition-colors duration-150"
-            />
+            </div>
+            {/* Search */}
+            <div className="relative w-full md:w-56 md:ml-auto">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
+              />
+              <input
+                type="text"
+                placeholder="搜索单词…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
+                  text-sm text-ink placeholder:text-muted-soft
+                  focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                  transition-colors duration-150"
+              />
+            </div>
           </div>
         </div>
 

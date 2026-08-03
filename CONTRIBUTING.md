@@ -123,7 +123,7 @@ docker compose up -d
 
 ### 3.2 需求 ID 引用
 
-提交信息应引用 `docs/api/REQUIREMENTS.md` 中的需求 ID，以便追踪：
+历史提交引用的需求 ID 来自旧 PRD `docs/api/REQUIREMENTS.md`（已归档删除，见 `docs/progress/DEV-LOG-2026-08.md`）。新提交不再强制引用需求 ID，可改为引用 ADR 或 issue 编号：
 
 ```
 feat(speaking): add auto-switch to next subtitle after scoring (W-09)

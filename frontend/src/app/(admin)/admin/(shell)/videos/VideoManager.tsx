@@ -54,6 +54,20 @@ const REVIEW_FILTERS = [
   { key: "rejected", label: "已驳回" },
 ];
 
+/** 质量门禁筛选 (后端 quality_flag: quality_warning | quality_blocked | low_coverage). */
+const QUALITY_FILTERS = [
+  { key: "", label: "全部" },
+  { key: "quality_warning", label: "质量警告" },
+  { key: "quality_blocked", label: "质量阻断" },
+  { key: "low_coverage", label: "低覆盖" },
+];
+
+const QUALITY_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
+  quality_warning: { label: "质量警告", tone: "amber" },
+  quality_blocked: { label: "质量阻断", tone: "red" },
+  low_coverage: { label: "低覆盖", tone: "orange" },
+};
+
 const REVIEW_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   draft: { label: "草稿", tone: "neutral" },
   pending_review: { label: "待审核", tone: "orange" },
@@ -67,6 +81,7 @@ export default function VideoManager() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("");
+  const [qualityFilter, setQualityFilter] = useState("");
   const [keyword, setKeyword] = useState("");
 
   // Expanded (editing) video id — null when no row is open.
@@ -120,6 +135,7 @@ export default function VideoManager() {
           page_size: 20,
           status: statusFilter,
           review_status: reviewStatusFilter,
+          quality: qualityFilter,
           keyword,
         });
         setVideos(data.items);
@@ -131,7 +147,7 @@ export default function VideoManager() {
         setLoading(false);
       }
     },
-    [statusFilter, reviewStatusFilter, keyword]
+    [statusFilter, reviewStatusFilter, qualityFilter, keyword]
   );
 
   useEffect(() => {
@@ -304,6 +320,12 @@ export default function VideoManager() {
             value={reviewStatusFilter}
             onChange={setReviewStatusFilter}
           />
+          <span className="text-xs text-muted">质量：</span>
+          <FilterPills
+            options={QUALITY_FILTERS}
+            value={qualityFilter}
+            onChange={setQualityFilter}
+          />
           <Input
             type="text"
             value={keyword}
@@ -323,6 +345,7 @@ export default function VideoManager() {
             { label: "视频" },
             { label: "状态" },
             { label: "难度" },
+            { label: "质量" },
             { label: "标记" },
             { label: "创建时间" },
             { label: "操作", align: "right" },
@@ -389,6 +412,25 @@ export default function VideoManager() {
                 )}
               </td>
               <td className="py-3 pr-4 text-muted">{v.difficulty_level || "-"}</td>
+              <td className="py-3 pr-4">
+                <div className="flex flex-col gap-1">
+                  {v.quality_flag && QUALITY_BADGE[v.quality_flag] ? (
+                    <Badge tone={QUALITY_BADGE[v.quality_flag].tone} className="w-fit">
+                      {QUALITY_BADGE[v.quality_flag].label}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-soft">-</span>
+                  )}
+                  {v.score != null && (
+                    <span
+                      className="text-[10px] font-mono text-muted"
+                      title="P1 learning_score (0-100)"
+                    >
+                      分 {v.score}
+                    </span>
+                  )}
+                </div>
+              </td>
               <td className="py-3 pr-4">
                 <div className="flex flex-col gap-1">
                   {v.is_official && (

@@ -30,4 +30,4 @@
 - 管理员成为 PR 审核瓶颈（单人运营可接受；规模化后考虑所有者主审或社区众裁）。
 - fork-of-fork 传播 v1 限定（只流向直接 fork 自当前标准版的副本）——复杂度后置。
 - 标准版删除受 fork 共享媒体约束；link rot 降级不阻断 forkability（标准版价值锚点 = 字幕/练习题，非媒体——本地媒体 rot-proof，rot 真实面仅 thumbnail + 源 URL + 单点媒体文件丢失）。
-- 8 项决议细节 + 扩展 A/C/E/H（标准版目录、贡献者声誉、link rot、UGC→official 提升）见 `docs/plans/PIPELINE-RESUME-DEDUP-AUDIT.md`；术语见 `docs/GLOSSARY.md`。
+- 8 项决议细节 + 扩展 A/C/E/H（标准版目录、贡献者声誉、link rot、UGC→official 提升）原记录于 `docs/plans/PIPELINE-RESUME-DEDUP-AUDIT.md`（已归档，见 `docs/progress/DEV-LOG-2026-08.md`）；术语见 `.agent/context.md` Domain Terms。

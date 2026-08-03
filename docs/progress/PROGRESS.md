@@ -1,6 +1,7 @@
 # SeeWord
 
-> 对应需求文档： [REQUIREMENTS.md](../api/REQUIREMENTS.md)
+> ❗ **本文档已冻结于 2026-07-20**，不再更新。当前状态见 `.agent/state.md`，近期变更见根目录 `CHANGELOG.md`。
+> 原对应需求文档 docs/api/REQUIREMENTS.md（旧 PRD）已归档删除，见 [DEV-LOG-2026-08.md](DEV-LOG-2026-08.md)；文中引用的旧计划文档同样已归档至该日志。
 
 ---
 

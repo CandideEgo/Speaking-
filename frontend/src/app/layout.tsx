@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
-import { SidebarProvider } from "@/components/layout/SidebarProvider";
 import { ThemedToaster } from "@/components/common/ThemedToaster";
 import { AuthInitializer } from "@/components/common/AuthInitializer";
 
@@ -20,11 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <ThemeProvider>
-          <SidebarProvider>
-            <AuthInitializer />
-            {children}
-            <ThemedToaster />
-          </SidebarProvider>
+          <AuthInitializer />
+          {children}
+          <ThemedToaster />
         </ThemeProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@
 
 > 本文档面向运维人员，覆盖日常操作、健康检查、故障响应、扩容指引和数据备份。
 >
-> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) · [SECURITY.md](SECURITY.md)
+> 关联文档：[PRODUCTION.md](PRODUCTION.md) · [.agent/system-map.md](../../.agent/system-map.md)（架构现状） · [SECURITY.md](SECURITY.md)
 
 ---
 

@@ -25,6 +25,7 @@ import {
   type SubtitleSplitPayload,
 } from "@/lib/adminData";
 import { VideoSubtitleEditorPanel } from "@/components/video-edit/VideoSubtitleEditorPanel";
+import { QualityReportPanel } from "@/components/admin/QualityReportPanel";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
@@ -243,6 +244,8 @@ export default function VideoEditPage() {
       </div>
 
       <MetadataForm video={video} onChanged={setVideo} />
+
+      <QualityReportPanel videoId={video.id} />
 
       <VideoSubtitleEditorPanel
         video={video}
