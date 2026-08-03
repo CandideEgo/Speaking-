@@ -63,6 +63,33 @@ _PROXY_REFERER = {
 _PROXY_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap — thumbnails are tiny
 _PROXY_TIMEOUT = 8.0
 
+# Shared httpx client for the proxy endpoint. Creating a client per request
+# (the old behaviour) paid a fresh connection/TLS handshake for every
+# thumbnail on the homepage; a pooled singleton reuses upstream connections.
+_proxy_client: httpx.AsyncClient | None = None
+
+
+def _get_proxy_client() -> httpx.AsyncClient:
+    global _proxy_client
+    if _proxy_client is None or _proxy_client.is_closed:
+        settings = get_settings()
+        _proxy_client = httpx.AsyncClient(
+            timeout=_PROXY_TIMEOUT,
+            follow_redirects=True,
+            max_redirects=3,
+            proxy=settings.http_proxy or None,
+            limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
+        )
+    return _proxy_client
+
+
+async def close_proxy_client() -> None:
+    """Shutdown hook — called from the app lifespan."""
+    global _proxy_client
+    if _proxy_client is not None and not _proxy_client.is_closed:
+        await _proxy_client.aclose()
+    _proxy_client = None
+
 
 def _host_allowed(host: str) -> bool:
     host = host.lower()
@@ -95,26 +122,25 @@ async def proxy_image(
         "Accept": "image/*,*/*;q=0.8",
     }
 
-    settings = get_settings()
     buf = bytearray()
     content_type = "image/jpeg"
+    client = _get_proxy_client()
     try:
-        async with httpx.AsyncClient(
-            timeout=_PROXY_TIMEOUT,
-            follow_redirects=True,
-            max_redirects=3,
-            proxy=settings.http_proxy or None,
-        ) as client:
-            async with client.stream("GET", url, headers=headers) as resp:
-                if resp.status_code != 200:
-                    raise HTTPException(status_code=502, detail="Upstream error")
-                ct = resp.headers.get("content-type", "")
-                if ct and ct.lower().startswith("image/"):
-                    content_type = ct.split(";")[0].strip()
-                async for chunk in resp.aiter_bytes(_CHUNK):
-                    buf.extend(chunk)
-                    if len(buf) > _PROXY_MAX_BYTES:
-                        raise HTTPException(status_code=413, detail="Image too large")
+        async with client.stream("GET", url, headers=headers) as resp:
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Upstream error")
+            # Cheap size guard before downloading: upstreams usually advertise
+            # the length, so oversized images are rejected without bandwidth.
+            declared = resp.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > _PROXY_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Image too large")
+            ct = resp.headers.get("content-type", "")
+            if ct and ct.lower().startswith("image/"):
+                content_type = ct.split(";")[0].strip()
+            async for chunk in resp.aiter_bytes(_CHUNK):
+                buf.extend(chunk)
+                if len(buf) > _PROXY_MAX_BYTES:
+                    raise HTTPException(status_code=413, detail="Image too large")
     except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="Upstream fetch failed") from None
 

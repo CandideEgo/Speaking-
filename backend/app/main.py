@@ -139,6 +139,10 @@ async def lifespan(app: FastAPI):
 
     await close_redis()
 
+    from app.api.v1.media import close_proxy_client
+
+    await close_proxy_client()
+
 
 def create_app() -> FastAPI:
     # Import all models so SQLAlchemy registers them on Base.metadata before
