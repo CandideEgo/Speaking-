@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
   Activity,
@@ -19,21 +20,19 @@ import {
   Users,
   Video,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 import { AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { AdminStats } from "@/types";
 import { getAdminStats, getUgcPendingCount, getWorkerStatus } from "@/lib/adminData";
+
+// recharts is heavy (~100KB+ gzip) — load it only once stats are in, keeping
+// it out of the dashboard's initial JS.
+const GrowthTrendChart = dynamic(
+  () => import("@/components/admin/GrowthTrendChart").then((m) => m.GrowthTrendChart),
+  { ssr: false }
+);
 
 interface UgcPending {
   pending_processing: number;
@@ -230,53 +229,7 @@ export default function AdminDashboardPage() {
             <h3 className="text-sm font-semibold text-ink">增长趋势</h3>
             <span className="text-xs text-muted">近 30 天</span>
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradSignup" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ff5a1f" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#ff5a1f" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradActive" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: "var(--muted-c)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "var(--muted-c)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: "8px",
-                  border: "1px solid var(--hairline)",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="注册"
-                stroke="#ff5a1f"
-                strokeWidth={2}
-                fill="url(#gradSignup)"
-              />
-              <Area
-                type="monotone"
-                dataKey="活跃"
-                stroke="#6366f1"
-                strokeWidth={2}
-                fill="url(#gradActive)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <GrowthTrendChart data={trendData} />
         </div>
 
         {/* Right column */}

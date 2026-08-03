@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { Loader2, Pencil, Plus, RefreshCw, Video as VideoIcon, X } from "lucide-react";
 
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import { cn } from "@/lib/utils";
 import { VideoStatusBadge } from "@/components/video/VideoStatus";
 import { ForkBadge } from "@/components/video/ForkBadge";
@@ -116,12 +117,24 @@ export default function VideoManager() {
       }
     };
     check();
-    const interval = setInterval(check, 30000);
     return () => {
       mounted = false;
-      clearInterval(interval);
     };
   }, []);
+
+  // Worker/queue polling — pauses while the tab is hidden.
+  useVisibilityAwareInterval(async () => {
+    try {
+      const [ws, stats] = await Promise.all([getWorkerStatus(), getAdminStats().catch(() => null)]);
+      setWorkerOnline(ws.worker_online);
+      if (stats) {
+        setQueueDepth(stats.gpu_queue_depth);
+        setErrorCount(stats.videos_error_count);
+      }
+    } catch {
+      /* swallow — redis may be unavailable */
+    }
+  }, 30000);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);

@@ -47,6 +47,14 @@ export interface Video {
   /** P1 learning_score (0-100). Null until first computed; drives list sorting. */
   score: number | null;
   score_updated_at: string | null;
+  /** External (YouTube) metadata + speech metrics (阶段 1/3). Null for local videos. */
+  yt_video_id: string | null;
+  channel_name: string | null;
+  upload_date: string | null;
+  ext_view_count: number | null;
+  ext_like_count: number | null;
+  wpm: number | null;
+  vocabulary_density: number | null;
   /** Translation quality flag (None | quality_warning | quality_blocked). Admin-visible. */
   quality_flag: string | null;
   created_at: string;
@@ -211,6 +219,7 @@ export interface AdminUser {
   created_at: string;
   last_active_at: string | null;
   videos_watched: number;
+  learned_words: number;
 }
 
 export interface AdminStatsTrend {
@@ -248,6 +257,15 @@ export interface AdminStats {
   videos_by_status: { status: string; count: number }[];
   users_by_plan: { plan: string; count: number }[];
   recent_activity: RecentActivity[];
+  // Prototype 31 extensions
+  pro_expired_count: number;
+  funnel: {
+    registered: number;
+    watched: number;
+    vocab_saved: number;
+    pro: number;
+  };
+  videos_by_topic: { topic: string; count: number }[];
 }
 
 /** Admin order row — mirrors AdminOrderResponse (backend/app/schemas/admin.py). */
@@ -262,6 +280,48 @@ export interface AdminOrder {
   status: string;
   paid_at: string | null;
   created_at: string;
+}
+
+/**
+ * Redeem-code activation record — powers the 订单管理 page (prototype 29).
+ * 非经营性平台无站内支付，订单即兑换码激活记录。
+ */
+export interface RedemptionRecord {
+  id: string;
+  code: string;
+  user_id: string | null;
+  user_phone: string | null;
+  plan: string;
+  duration_days: number;
+  status: "redeemed" | "revoked";
+  revoked_reason: "leak" | "error" | "refund" | null;
+  used_at: string | null;
+  created_at: string;
+}
+
+/** Singleton admin settings (prototype 32 系统设置). */
+export interface AdminSettings {
+  site_name: string;
+  wechat_shop_url: string | null;
+  payments_enabled: boolean;
+  registration_enabled: boolean;
+  quality_block_enabled: boolean;
+  quality_block_threshold: number;
+  quality_warn_threshold: number;
+  hallucination_detection_enabled: boolean;
+  translate_timeout_sec: number;
+  download_timeout_sec: number;
+  download_auto_retry_enabled: boolean;
+  watchdog_enabled: boolean;
+  updated_at: string | null;
+}
+
+/** One admin account row (settings page 管理员账户). */
+export interface AdminAccount {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  last_active_at: string | null;
 }
 
 /* ── Profile ── */

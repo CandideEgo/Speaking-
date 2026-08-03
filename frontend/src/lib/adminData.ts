@@ -8,10 +8,13 @@
 
 import { adminApi } from "@/lib/adminApi";
 import type {
+  AdminAccount,
   AdminOrder,
+  AdminSettings,
   AdminStats,
   AdminUser,
   Paginated,
+  RedemptionRecord,
   RedeemCode,
   Subtitle,
   SubtitleRevision,
@@ -458,6 +461,54 @@ export function listOrders(
 }
 
 // ---------------------------------------------------------------------------
+// Redemption records (prototype 29 订单管理 — 订单=兑换码激活记录)
+// ---------------------------------------------------------------------------
+
+export function listRedemptions(
+  opts: {
+    page?: number;
+    page_size?: number;
+    status?: "redeemed" | "revoked" | "refunded";
+    keyword?: string;
+  } = {}
+): Promise<Paginated<RedemptionRecord>> {
+  const params = new URLSearchParams();
+  if (opts.page) params.set("page", String(opts.page));
+  if (opts.page_size) params.set("page_size", String(opts.page_size));
+  if (opts.status) params.set("status", opts.status);
+  if (opts.keyword) params.set("keyword", opts.keyword);
+  const qs = params.toString();
+  return adminApi<Paginated<RedemptionRecord>>(`/api/v1/admin/redemptions${qs ? `?${qs}` : ""}`);
+}
+
+export function redemptionSummary(): Promise<{
+  redeemed: number;
+  revoked: number;
+  refunded: number;
+}> {
+  return adminApi("/api/v1/admin/redemptions/summary");
+}
+
+// ---------------------------------------------------------------------------
+// Platform settings (prototype 32 系统设置)
+// ---------------------------------------------------------------------------
+
+export function getAdminSettings(): Promise<AdminSettings> {
+  return adminApi<AdminSettings>("/api/v1/admin/settings");
+}
+
+export function saveAdminSettings(patch: Partial<AdminSettings>): Promise<AdminSettings> {
+  return adminApi<AdminSettings>("/api/v1/admin/settings", {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function listAdminAccounts(): Promise<AdminAccount[]> {
+  return adminApi<AdminAccount[]>("/api/v1/admin/admins");
+}
+
+// ---------------------------------------------------------------------------
 // Redeem codes (admin endpoints in redeem.py, ADR-0007)
 // ---------------------------------------------------------------------------
 
@@ -467,6 +518,7 @@ export function listRedeemCodes(
     page_size?: number;
     status?: RedeemCode["status"];
     batch_label?: string;
+    keyword?: string;
   } = {}
 ): Promise<Paginated<RedeemCode>> {
   const params = new URLSearchParams();
@@ -474,8 +526,14 @@ export function listRedeemCodes(
   if (opts.page_size) params.set("page_size", String(opts.page_size));
   if (opts.status) params.set("status", opts.status);
   if (opts.batch_label) params.set("batch_label", opts.batch_label);
+  if (opts.keyword) params.set("keyword", opts.keyword);
   const qs = params.toString();
   return adminApi<Paginated<RedeemCode>>(`/api/v1/redeem-codes${qs ? `?${qs}` : ""}`);
+}
+
+/** Per-status counts for the redeem-code stat strip (prototype 30). */
+export function redeemCodeSummary(): Promise<Record<string, number>> {
+  return adminApi<Record<string, number>>("/api/v1/redeem-codes/summary");
 }
 
 export async function generateRedeemCodes(opts: {

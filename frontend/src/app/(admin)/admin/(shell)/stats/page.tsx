@@ -47,6 +47,17 @@ const STATUS_LABEL: Record<string, string> = {
   error: "失败",
 };
 
+const TOPIC_COLORS = [
+  "#ff5a1f",
+  "#6366f1",
+  "#16a34a",
+  "#d97706",
+  "#0ea5e9",
+  "#a855f7",
+  "#14b8a6",
+  "#ef4444",
+];
+
 const ACTIVITY_ICON: Record<RecentActivityType, React.ElementType> = {
   signup: UserPlus,
   payment: CreditCard,
@@ -133,7 +144,7 @@ function ChartCard({
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [range, setRange] = useState<7 | 30>(30);
+  const [range, setRange] = useState<7 | 30 | 90>(30);
   const ct = useChartTheme();
 
   const PLAN_COLORS: Record<string, string> = {
@@ -273,7 +284,7 @@ export default function AdminStatsPage() {
         description="注册、新增词汇与活跃用户"
         actions={
           <div className="flex rounded-lg border border-hairline bg-surface-soft p-0.5">
-            {([7, 30] as const).map((r) => (
+            {([7, 30, 90] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
@@ -346,6 +357,109 @@ export default function AdminStatsPage() {
             />
           </AreaChart>
         </ResponsiveContainer>
+      </ChartCard>
+
+      {/* Topic distribution + Pro funnel (prototype 31) */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="视频分类分布" description="按主题">
+          {stats.videos_by_topic.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted">暂无已发布视频主题数据</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {stats.videos_by_topic.map((t, i) => {
+                const max = stats.videos_by_topic[0].count || 1;
+                const color = TOPIC_COLORS[i % TOPIC_COLORS.length];
+                return (
+                  <div key={t.topic} className="flex items-center gap-3">
+                    <span className="w-[90px] shrink-0 truncate text-[13px] text-body">
+                      {t.topic}
+                    </span>
+                    <div className="h-6 flex-1 overflow-hidden rounded bg-surface-soft">
+                      <div
+                        className="flex h-full items-center justify-end rounded pr-2 font-mono text-[11.5px] font-semibold text-white"
+                        style={{
+                          width: `${Math.max(12, (t.count / max) * 100)}%`,
+                          backgroundColor: color,
+                        }}
+                      >
+                        {t.count}
+                      </div>
+                    </div>
+                    <span className="w-[52px] shrink-0 text-right font-mono text-[13px] font-semibold text-ink">
+                      {t.count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Pro 转化漏斗" description="注册 -> Pro">
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                ["注册用户", stats.funnel.registered, ct.series.brand],
+                ["观看视频", stats.funnel.watched, "#ff7a45"],
+                ["收藏词汇", stats.funnel.vocab_saved, ct.series.indigo],
+                ["兑换 Pro", stats.funnel.pro, ct.series.success],
+              ] as [string, number, string][]
+            ).map(([label, value, color]) => {
+              const pct = stats.funnel.registered
+                ? Math.round((value / stats.funnel.registered) * 1000) / 10
+                : 0;
+              return (
+                <div key={label} className="flex items-center gap-3">
+                  <span className="w-[90px] shrink-0 text-[13px] font-medium text-body">
+                    {label}
+                  </span>
+                  <div className="flex-1">
+                    <div
+                      className="flex h-[34px] items-center overflow-hidden rounded-lg px-3.5 text-[13px] font-semibold text-white"
+                      style={{
+                        width: `${Math.max(8, pct)}%`,
+                        backgroundColor: color,
+                      }}
+                    >
+                      {value.toLocaleString()}
+                    </div>
+                  </div>
+                  <span className="w-[70px] shrink-0 text-right font-mono text-[13px] font-bold text-ink">
+                    {value.toLocaleString()}
+                  </span>
+                  <span className="w-[46px] shrink-0 text-[11.5px] text-muted">{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* Daily vocabulary bar chart (prototype 31 每日词汇学习量) */}
+      <ChartCard title="每日词汇学习量" description="近 7 天">
+        <div className="flex h-[200px] items-end gap-2.5 pt-2.5">
+          {stats.trend.dates.slice(-7).map((date, i) => {
+            const vocab = stats.trend.vocabulary.slice(-7);
+            const max = Math.max(...vocab, 1);
+            const v = vocab[i] ?? 0;
+            return (
+              <div
+                key={date}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+              >
+                <span className="font-mono text-[11px] text-muted">{v}</span>
+                <div
+                  className="w-full max-w-[36px] rounded-t transition-opacity hover:opacity-85"
+                  style={{
+                    height: `${Math.max(3, (v / max) * 100)}%`,
+                    backgroundColor: v === max ? "#e84a10" : "#ff7a45",
+                  }}
+                />
+                <span className="font-mono text-[11px] text-muted">{formatDate(date)}</span>
+              </div>
+            );
+          })}
+        </div>
       </ChartCard>
 
       {/* Distribution Charts */}

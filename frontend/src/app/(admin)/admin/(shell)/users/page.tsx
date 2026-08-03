@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import {
+  Activity,
   Ban,
   ChevronDown,
   Crown,
+  Flame,
   RefreshCw,
   Shield,
   ShieldCheck,
   ShieldOff,
   UserCog,
+  Users,
   UserX,
 } from "lucide-react";
 
@@ -28,8 +31,8 @@ import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
-import type { AdminUser } from "@/types";
-import { listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
+import type { AdminStats, AdminUser } from "@/types";
+import { getAdminStats, listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
 
 // ---------------------------------------------------------------------------
 // Filter options
@@ -43,9 +46,45 @@ const ROLE_FILTERS = [
 
 const PLAN_FILTERS = [
   { key: "", label: "全部方案" },
-  { key: "pro", label: "Pro" },
+  { key: "pro", label: "Pro 会员" },
   { key: "free", label: "Free" },
+  { key: "expired", label: "已过期" },
 ];
+
+// ---------------------------------------------------------------------------
+// Stat chip (prototype 28 .stat-chip)
+// ---------------------------------------------------------------------------
+
+function StatChip({
+  icon: Icon,
+  value,
+  label,
+  iconClass,
+}: {
+  icon: typeof Users;
+  value: string | number;
+  label: string;
+  iconClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-xs">
+      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded ${iconClass}`}>
+        <Icon size={16} />
+      </div>
+      <div>
+        <div className="font-mono text-[17px] font-extrabold leading-tight text-ink">{value}</div>
+        <div className="text-muted">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Pro 会员是否已过期（plan 仍为 pro 但到期时间已过）。 */
+function isExpiredPro(u: AdminUser): boolean {
+  return (
+    u.plan === "pro" && !!u.plan_expires_at && new Date(u.plan_expires_at).getTime() < Date.now()
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -56,6 +95,7 @@ export default function AdminUsersPage() {
   const [planFilter, setPlanFilter] = useState("");
   const [keyword, setKeyword] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<{
     title: string;
     description: string;
@@ -63,6 +103,12 @@ export default function AdminUsersPage() {
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
+
+  useEffect(() => {
+    getAdminStats()
+      .then(setStats)
+      .catch(() => undefined);
+  }, []);
 
   const {
     items: users,
@@ -165,6 +211,34 @@ export default function AdminUsersPage() {
         }
       />
 
+      {/* Stat strip (prototype 28) */}
+      <div className="flex flex-wrap gap-2.5">
+        <StatChip
+          icon={Users}
+          value={stats ? stats.total_users.toLocaleString() : "—"}
+          label="总用户"
+          iconClass="bg-brand-50 text-brand-600"
+        />
+        <StatChip
+          icon={Crown}
+          value={stats ? stats.pro_users.toLocaleString() : "—"}
+          label="Pro 会员"
+          iconClass="bg-warning-soft text-warning"
+        />
+        <StatChip
+          icon={Activity}
+          value={stats ? stats.active_users_today.toLocaleString() : "—"}
+          label="今日活跃"
+          iconClass="bg-success-soft text-success"
+        />
+        <StatChip
+          icon={Flame}
+          value={stats ? stats.pro_expired_count.toLocaleString() : "—"}
+          label="已过期"
+          iconClass="bg-error/10 text-error"
+        />
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
         <FilterPills options={ROLE_FILTERS} value={roleFilter} onChange={setRoleFilter} />
@@ -183,32 +257,34 @@ export default function AdminUsersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft/50">
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                用户
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                角色
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                方案
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                状态
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                注册时间
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted">
-                操作
-              </th>
+              {[
+                ["用户", "text-left"],
+                ["角色", "text-left"],
+                ["方案", "text-left"],
+                ["到期", "text-left"],
+                ["学习", "text-left"],
+                ["状态", "text-left"],
+                ["注册时间", "text-left"],
+                ["操作", "text-right"],
+              ].map(([h, align]) => (
+                <th
+                  key={h}
+                  className={cn(
+                    "px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted",
+                    align
+                  )}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline">
             {loading ? (
-              <AdminSkeleton.TableRows rows={5} cols={6} />
+              <AdminSkeleton.TableRows rows={5} cols={8} />
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-muted">
+                <td colSpan={8} className="py-12 text-center text-muted">
                   暂无用户
                 </td>
               </tr>
@@ -339,12 +415,30 @@ function UserRow({
         </td>
         <td className="px-4 py-3">
           {u.plan === "pro" ? (
-            <Badge tone="amber" icon={Crown}>
-              Pro
+            <Badge tone={isExpiredPro(u) ? "red" : "amber"} icon={Crown}>
+              {isExpiredPro(u) ? "已过期" : "Pro"}
             </Badge>
           ) : (
             <span className="text-xs text-muted">Free</span>
           )}
+        </td>
+        <td className="px-4 py-3">
+          {u.plan_expires_at ? (
+            <span
+              className={cn(
+                "font-mono text-[12.5px]",
+                isExpiredPro(u) ? "text-error" : "text-body"
+              )}
+            >
+              {new Date(u.plan_expires_at).toLocaleDateString("zh-CN")}
+            </span>
+          ) : (
+            <span className="text-xs text-muted">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <span className="font-mono text-[13px] text-body">{u.learned_words ?? 0}</span>
+          <span className="text-xs text-muted"> 词 · {u.videos_watched ?? 0} 视频</span>
         </td>
         <td className="px-4 py-3">
           {u.is_banned ? (
@@ -393,7 +487,7 @@ function UserRow({
       {/* Expanded detail */}
       {isExpanded && (
         <tr className="bg-surface-soft/40">
-          <td colSpan={6} className="px-4 py-4">
+          <td colSpan={8} className="px-4 py-4">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Stats */}
               <div className="grid grid-cols-3 gap-3">

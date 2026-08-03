@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
-import { Download, Plus, RefreshCw, Ticket, XCircle, Undo2 } from "lucide-react";
+import { Check, Copy, Download, Plus, RefreshCw, Ticket, Undo2, XCircle } from "lucide-react";
 
 import {
   AdminPageHeader,
   AdminSkeleton,
   AdminConfirmDialog,
   AdminDropdown,
+  AdminSearchInput,
 } from "@/components/admin/ui";
+import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +21,7 @@ import {
   exportRedeemCsv,
   generateRedeemCodes,
   listRedeemCodes,
+  redeemCodeSummary,
   refundRedeemCode,
   revokeRedeemCode,
 } from "@/lib/adminData";
@@ -34,11 +37,54 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; tone: "green" | "red" | "amber" | "neutral" }
 > = {
-  unused: { label: "可用", tone: "green" },
-  redeemed: { label: "已使用", tone: "neutral" },
+  unused: { label: "未使用", tone: "green" },
+  redeemed: { label: "已兑换", tone: "neutral" },
   revoked: { label: "已作废", tone: "red" },
   expired: { label: "已过期", tone: "amber" },
 };
+
+const STATUS_FILTERS = [
+  { key: "", label: "全部" },
+  { key: "unused", label: "未使用" },
+  { key: "redeemed", label: "已兑换" },
+  { key: "revoked", label: "已作废" },
+  { key: "expired", label: "已过期" },
+];
+
+const PLAN_OPTIONS = [
+  { label: "Pro 月度（30 天）", days: 30 },
+  { label: "Pro 季度（90 天）", days: 90 },
+];
+
+// ---------------------------------------------------------------------------
+// Stat chip (prototype 30 .stat-chip)
+// ---------------------------------------------------------------------------
+
+function StatChip({
+  value,
+  label,
+  iconClass,
+  children,
+}: {
+  value: number;
+  label: string;
+  iconClass: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-xs">
+      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded ${iconClass}`}>
+        {children}
+      </div>
+      <div>
+        <div className="font-mono text-[17px] font-extrabold leading-tight text-ink">
+          {value.toLocaleString()}
+        </div>
+        <div className="text-muted">{label}</div>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -49,6 +95,11 @@ export default function AdminInvitesPage() {
   const [codeDuration, setCodeDuration] = useState(30);
   const [codeLabel, setCodeLabel] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [summary, setSummary] = useState<Record<string, number>>({});
+  const [lastGenerated, setLastGenerated] = useState<RedeemCode[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [action, setAction] = useState<{
     type: "revoke" | "refund";
     code: RedeemCode;
@@ -65,9 +116,26 @@ export default function AdminInvitesPage() {
     loading,
     reload,
   } = usePaginatedList<RedeemCode>({
-    fetcher: (pg) => listRedeemCodes({ page: pg, page_size: PAGE_SIZE }),
+    fetcher: (pg) =>
+      listRedeemCodes({
+        page: pg,
+        page_size: PAGE_SIZE,
+        status: (statusFilter || undefined) as RedeemCode["status"] | undefined,
+        keyword,
+      }),
     mode: "replace",
+    filters: [statusFilter, keyword],
   });
+
+  const refreshSummary = () => {
+    redeemCodeSummary()
+      .then(setSummary)
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    refreshSummary();
+  }, []);
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +148,9 @@ export default function AdminInvitesPage() {
         batch_label: codeLabel || undefined,
       });
       toast.success(`已生成 ${generated.length} 个兑换码`);
-      if (page === 1) {
+      setLastGenerated(generated);
+      refreshSummary();
+      if (page === 1 && !statusFilter && !keyword) {
         setItems((prev) => [...generated, ...prev]);
       } else {
         reload();
@@ -108,6 +178,16 @@ export default function AdminInvitesPage() {
     }
   }
 
+  function copyCode(code: RedeemCode) {
+    navigator.clipboard
+      .writeText(code.code)
+      .then(() => {
+        setCopiedId(code.id);
+        setTimeout(() => setCopiedId(null), 1000);
+      })
+      .catch(() => toast.error("复制失败"));
+  }
+
   async function confirmAction() {
     if (!action) return;
     setActing(true);
@@ -119,6 +199,7 @@ export default function AdminInvitesPage() {
         const res = await refundRedeemCode(action.code.id);
         toast.success(`已退款撤销，用户方案：${res.plan}`);
       }
+      refreshSummary();
       reload();
       setAction(null);
     } catch (err) {
@@ -132,8 +213,8 @@ export default function AdminInvitesPage() {
     <div className="space-y-6">
       {/* Header */}
       <AdminPageHeader
-        title="兑换码管理"
-        description={`共 ${total} 个兑换码`}
+        title="兑换码"
+        description={`生成 · 导出 · 作废 Pro 会员兑换码 · 共 ${total} 个`}
         actions={
           <div className="flex items-center gap-2">
             <Button onClick={exportCsv} variant="secondary" size="sm" icon={Download}>
@@ -153,86 +234,146 @@ export default function AdminInvitesPage() {
         }
       />
 
-      {/* Generate Form */}
-      <div className="rounded-xl border border-hairline bg-canvas p-5">
-        <h3 className="text-sm font-semibold text-ink mb-4">生成兑换码</h3>
-        <form onSubmit={handleGenerate}>
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">数量</label>
+      {/* Stat strip (prototype 30) */}
+      <div className="flex flex-wrap gap-2.5">
+        <StatChip
+          value={summary.unused ?? 0}
+          label="未使用"
+          iconClass="bg-success-soft text-success"
+        >
+          <Check size={16} />
+        </StatChip>
+        <StatChip
+          value={summary.redeemed ?? 0}
+          label="已兑换"
+          iconClass="bg-indigo-soft text-indigo"
+        >
+          <Ticket size={16} />
+        </StatChip>
+        <StatChip value={summary.revoked ?? 0} label="已作废" iconClass="bg-error/10 text-error">
+          <XCircle size={16} />
+        </StatChip>
+        <StatChip
+          value={summary.expired ?? 0}
+          label="已过期"
+          iconClass="bg-surface-card text-muted"
+        >
+          <Ticket size={16} />
+        </StatChip>
+      </div>
+
+      {/* Generate + preview (prototype 30 .gen-grid) */}
+      <div className="grid gap-[18px] lg:grid-cols-2">
+        <div className="rounded-xl border border-hairline bg-canvas p-5">
+          <h3 className="mb-4 text-[15px] font-bold text-ink">批量生成</h3>
+          <form onSubmit={handleGenerate} className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-ink">生成数量</label>
               <input
                 type="number"
                 value={codeCount}
                 onChange={(e) => setCodeCount(Number(e.target.value))}
                 min={1}
                 max={500}
-                className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
               />
+              <span className="text-[11.5px] text-muted">单次最多 500 个</span>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">有效期（天）</label>
-              <input
-                type="number"
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-ink">套餐</label>
+              <select
                 value={codeDuration}
                 onChange={(e) => setCodeDuration(Number(e.target.value))}
-                min={1}
-                max={3650}
-                className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-              />
+                className="h-[38px] cursor-pointer rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
+              >
+                {PLAN_OPTIONS.map((p) => (
+                  <option key={p.days} value={p.days}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">批次标签</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-ink">批次标签（可选）</label>
               <input
                 type="text"
                 value={codeLabel}
                 onChange={(e) => setCodeLabel(e.target.value)}
-                placeholder="例: batch-2026Q1"
-                className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm placeholder:text-muted-soft focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                placeholder="例: batch-2026Q3"
+                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all placeholder:text-muted-soft focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
               />
             </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={generating} icon={Plus} className="w-full">
-                {generating ? "生成中..." : "生成"}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              disabled={generating}
+              icon={Plus}
+              className="self-start"
+              size="sm"
+            >
+              {generating ? "生成中..." : "生成兑换码"}
+            </Button>
+          </form>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-canvas p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-[15px] font-bold text-ink">预览</h3>
+            <span className="text-xs text-muted">格式 XXXX-XXXX-XX</span>
           </div>
-        </form>
+          <div className="min-h-[60px] rounded-[10px] border border-dashed border-hairline bg-surface-soft p-3.5 font-mono text-[13px] text-body">
+            {lastGenerated.length === 0 ? (
+              <span className="text-muted-soft">生成后将在此显示新兑换码...</span>
+            ) : (
+              <>
+                {lastGenerated.slice(0, 3).map((c) => (
+                  <div key={c.id}>
+                    <span className="font-semibold text-brand-600">{c.code}</span>{" "}
+                    <span className="text-muted-soft">· Pro · {c.duration_days}天</span>
+                  </div>
+                ))}
+                {lastGenerated.length > 3 && (
+                  <div className="mt-1 text-muted-soft">… 共 {lastGenerated.length} 个</div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Toolbar: search + filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+        <AdminSearchInput
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索兑换码..."
+          className="ml-auto w-72"
+        />
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-hairline bg-canvas overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-hairline bg-canvas">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft/50">
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                兑换码
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                方案
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                有效期
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                批次
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                状态
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted">
-                使用者
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted">
-                操作
-              </th>
+              {["兑换码", "套餐", "状态", "使用人", "生成时间", "操作"].map((h, i) => (
+                <th
+                  key={h}
+                  className={`px-4 py-3 text-[11.5px] font-bold uppercase tracking-wide text-muted ${
+                    i === 5 ? "text-right" : "text-left"
+                  }`}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-hairline">
+          <tbody className="divide-y divide-hairline-soft">
             {loading ? (
-              <AdminSkeleton.TableRows rows={5} cols={7} />
+              <AdminSkeleton.TableRows rows={5} cols={6} />
             ) : codes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-muted">
+                <td colSpan={6} className="py-12 text-center text-muted">
                   暂无兑换码
                 </td>
               </tr>
@@ -245,24 +386,35 @@ export default function AdminInvitesPage() {
                 return (
                   <tr key={c.id} className="transition-colors hover:bg-surface-soft/40">
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-medium text-ink">{c.code}</span>
+                      <span className="font-mono text-[13px] font-semibold text-brand-600">
+                        {c.code}
+                      </span>{" "}
+                      <button
+                        onClick={() => copyCode(c)}
+                        className="rounded bg-surface-soft px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:bg-brand-50 hover:text-brand-600"
+                        title="复制"
+                      >
+                        {copiedId === c.id ? (
+                          <Check size={12} className="inline text-success" />
+                        ) : (
+                          <>
+                            <Copy size={11} className="mr-0.5 inline" />
+                            复制
+                          </>
+                        )}
+                      </button>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-muted uppercase">{c.plan}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-muted">{c.duration_days} 天</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-muted">{c.batch_label || "-"}</span>
-                    </td>
+                    <td className="px-4 py-3 text-[13px] text-body">Pro · {c.duration_days} 天</td>
                     <td className="px-4 py-3">
                       <Badge tone={statusCfg.tone}>{statusCfg.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-muted">
+                      <span className="font-mono text-[13px] text-muted">
                         {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-[12.5px] text-muted">
+                      {new Date(c.created_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {(c.status === "unused" || c.status === "redeemed") && (

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
 import { getUgcPendingCount } from "@/lib/adminData";
+import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import { AdminBreadcrumb, type BreadcrumbItem } from "./ui/AdminBreadcrumb";
 import { cn } from "@/lib/utils";
 
@@ -109,7 +110,7 @@ export function AdminTopbar() {
   const authUser = useAdminAuthStore((s) => s.user);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // UGC pending count polling
+  // UGC pending count polling — pauses while the tab is hidden.
   useEffect(() => {
     let cancelled = false;
     async function fetchCount() {
@@ -121,12 +122,19 @@ export function AdminTopbar() {
       }
     }
     fetchCount();
-    const interval = setInterval(fetchCount, 60000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
     };
   }, []);
+
+  useVisibilityAwareInterval(async () => {
+    try {
+      const data = await getUgcPendingCount();
+      setPendingCount(data.total);
+    } catch {
+      /* silently fail */
+    }
+  }, 60000);
 
   const breadcrumbs = BREADCRUMBS[pathname] ?? [{ label: "管理后台" }];
   const displayName = authUser?.name || "管理员";

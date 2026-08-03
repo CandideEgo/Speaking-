@@ -17,6 +17,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.admin import (
+    AdminSettingsUpdate,
     AdminUserBanRequest,
     AdminUserPlanRequest,
     AdminUserRoleRequest,
@@ -162,3 +163,106 @@ async def list_admin_orders(
 ):
     """List all orders with user phone. Admin only."""
     return await admin_service.list_admin_orders(db, page=page, page_size=page_size)
+
+
+# ---------------------------------------------------------------------------
+# Redemption records (prototype 29 订单管理 — 非经营性平台，订单=兑换记录)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/redemptions", response_model=PaginatedResponse)
+@rate_limit("30/minute")
+async def list_admin_redemptions(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None, description="Filter: redeemed / revoked / refunded"),
+    keyword: str | None = Query(None, description="Search code or user phone"),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List redeem-code activation records with user phone. Admin only."""
+    return await admin_service.list_redemptions(db, page=page, page_size=page_size, status=status, keyword=keyword)
+
+
+@router.get("/redemptions/summary")
+@rate_limit("30/minute")
+async def redemption_summary(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Status counts for the redemption records stat strip. Admin only."""
+    return await admin_service.redemption_summary(db)
+
+
+# ---------------------------------------------------------------------------
+# Platform settings (prototype 32 系统设置)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/settings")
+@rate_limit("30/minute")
+async def get_settings(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the singleton admin settings row (defaults if absent)."""
+    settings = await admin_service.get_admin_settings(db)
+    return {
+        "site_name": settings.site_name,
+        "wechat_shop_url": settings.wechat_shop_url,
+        "payments_enabled": settings.payments_enabled,
+        "registration_enabled": settings.registration_enabled,
+        "quality_block_enabled": settings.quality_block_enabled,
+        "quality_block_threshold": float(settings.quality_block_threshold),
+        "quality_warn_threshold": float(settings.quality_warn_threshold),
+        "hallucination_detection_enabled": settings.hallucination_detection_enabled,
+        "translate_timeout_sec": settings.translate_timeout_sec,
+        "download_timeout_sec": settings.download_timeout_sec,
+        "download_auto_retry_enabled": settings.download_auto_retry_enabled,
+        "watchdog_enabled": settings.watchdog_enabled,
+        "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
+    }
+
+
+@router.put("/settings")
+@rate_limit("10/minute")
+async def update_settings(
+    request: Request,
+    payload: AdminSettingsUpdate,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Partially update the singleton admin settings row. Admin only."""
+    try:
+        settings = await admin_service.update_admin_settings(db, payload.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return {
+        "site_name": settings.site_name,
+        "wechat_shop_url": settings.wechat_shop_url,
+        "payments_enabled": settings.payments_enabled,
+        "registration_enabled": settings.registration_enabled,
+        "quality_block_enabled": settings.quality_block_enabled,
+        "quality_block_threshold": float(settings.quality_block_threshold),
+        "quality_warn_threshold": float(settings.quality_warn_threshold),
+        "hallucination_detection_enabled": settings.hallucination_detection_enabled,
+        "translate_timeout_sec": settings.translate_timeout_sec,
+        "download_timeout_sec": settings.download_timeout_sec,
+        "download_auto_retry_enabled": settings.download_auto_retry_enabled,
+        "watchdog_enabled": settings.watchdog_enabled,
+        "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
+    }
+
+
+@router.get("/admins")
+@rate_limit("30/minute")
+async def list_admin_accounts(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List accounts with admin role (settings page 管理员账户). Admin only."""
+    return await admin_service.list_admin_accounts(db)
