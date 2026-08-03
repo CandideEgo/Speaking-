@@ -1,36 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
-import { useChartTheme } from "@/lib/chart-theme";
 import type { MasteryTrendResponse } from "@/types";
+import type { TrendDataPoint } from "./MasteryTrendChart";
 
-interface TrendDataPoint {
-  date: string;
-  label: string;
-  newWords: number;
-  learning: number;
-  mastered: number;
-  total: number;
-}
+// recharts is heavy (~100KB+ gzip) — load the chart module only when data
+// is ready, keeping it out of the profile page's initial bundle.
+const MasteryTrendChart = dynamic(
+  () => import("./MasteryTrendChart").then((m) => m.MasteryTrendChart),
+  { ssr: false }
+);
+
+export type { TrendDataPoint };
 
 /**
  * MasteryTrend — line chart showing vocabulary mastery progression over time.
  * Fetches snapshots from GET /plan/mastery-trend?weeks=N
  */
 export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
-  const chartTheme = useChartTheme();
   const [data, setData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -99,54 +89,5 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
     );
   }
 
-  return (
-    <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 11, fill: chartTheme.tick }}
-            axisLine={{ stroke: chartTheme.axis }}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: chartTheme.tick }}
-            axisLine={{ stroke: chartTheme.axis }}
-            tickLine={false}
-            allowDecimals={false}
-          />
-          <Tooltip contentStyle={chartTheme.tooltipStyle} />
-          <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
-          <Line
-            type="monotone"
-            dataKey="total"
-            name="总词汇"
-            stroke={chartTheme.series.brand}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="mastered"
-            name="已掌握"
-            stroke={chartTheme.series.success}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="learning"
-            name="学习中"
-            stroke={chartTheme.series.warning}
-            strokeWidth={1.5}
-            dot={false}
-            activeDot={{ r: 3 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  return <MasteryTrendChart data={data} />;
 }

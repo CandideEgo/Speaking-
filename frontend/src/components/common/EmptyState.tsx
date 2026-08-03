@@ -1,9 +1,3 @@
-"use client";
-
-import { useRef } from "react";
-import { useGSAP } from "@gsap/react";
-import { gsap } from "gsap";
-import { DURATIONS, EASES, MEDIA, motionDuration } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -16,35 +10,17 @@ interface EmptyStateProps {
   className?: string;
 }
 
+/**
+ * Empty-state placeholder with a staggered children fade-in.
+ *
+ * Previously animated with GSAP; now uses the CSS `stagger-container`
+ * keyframes so the widely-mounted component adds no JS to the bundle.
+ */
 export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add(MEDIA.reduceMotion, (context) => {
-        const reduceMotion = context.conditions?.reduceMotion as boolean;
-        const duration = motionDuration(0.5, reduceMotion);
-        const stagger = reduceMotion ? 0 : 0.06;
-
-        gsap.from(ref.current!.children, {
-          y: 12,
-          autoAlpha: 0,
-          duration,
-          stagger,
-          ease: EASES.smooth,
-        });
-      });
-      return () => mm.revert();
-    },
-    { scope: ref }
-  );
-
   return (
     <div
-      ref={ref}
       className={cn(
-        "flex flex-col items-center justify-center py-20 text-center animate-fade-in",
+        "stagger-container flex flex-col items-center justify-center py-20 text-center",
         className
       )}
     >

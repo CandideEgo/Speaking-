@@ -15,7 +15,6 @@
     "precommit": "npm run check"
   },
   "dependencies": {
-    "@gsap/react": "^2.1.2",
     "clsx": "^2.1.0",
     "gsap": "^3.15.0",
     "lucide-react": "^1.23.0",

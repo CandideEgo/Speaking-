@@ -14,6 +14,11 @@ try {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  experimental: {
+    // Rewrite barrel-file imports (recharts, lucide-react) into direct,
+    // tree-shakeable imports to keep unused chart/icon code out of bundles.
+    optimizePackageImports: ["recharts", "lucide-react"],
+  },
   // In development, proxy /api/ and /media/ to the backend so the frontend
   // can use relative paths without nginx. Production standalone output ignores
   // rewrites — nginx handles the proxying there.

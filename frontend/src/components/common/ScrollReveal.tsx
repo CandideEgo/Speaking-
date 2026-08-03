@@ -1,14 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { useGSAP } from "@gsap/react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { DURATIONS, EASES } from "@/lib/animations";
-
-// 客户端注册一次（registerPlugin 幂等；SSR 仅执行注册，不触 DOM）。
-gsap.registerPlugin(ScrollTrigger);
 
 interface ScrollRevealProps {
   children: ReactNode;
@@ -22,10 +16,11 @@ interface ScrollRevealProps {
 /**
  * 滚动揭示：元素进入视口时淡入上移。
  *
- * - 默认可见（无 CSS 隐藏）-> SSR / 无 JS / reduce-motion 用户直接看到内容。
- * - 仅在 `prefers-reduced-motion: no-preference` 时启用 GSAP 动画；
- *   reduce-motion 用户走 no-op，元素保持可见。
- * - useGSAP 在布局阶段（首绘前）执行，设置 autoAlpha:0 不会产生可见闪烁。
+ * - gsap 通过动态 import() 按需加载，不进入页面初始 bundle（该组件只用于
+ *   落地页）；加载完成前元素以 visibility:hidden 占位防止"先显示后隐藏"
+ *   的闪烁，加载失败 / 超时 1.5s 则恢复可见，内容永不丢失。
+ * - 仅在 `prefers-reduced-motion: no-preference` 时启用动画；
+ *   reduce-motion 用户直接看到静态内容。
  * - once: true，滚出再滚回不重复触发。
  */
 export function ScrollReveal({
@@ -36,30 +31,61 @@ export function ScrollReveal({
 }: ScrollRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.fromTo(
-          ref.current,
-          { autoAlpha: 0, y },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: DURATIONS.slow,
-            ease: EASES.smooth,
-            scrollTrigger: {
-              trigger: ref.current,
-              start,
-              once: true,
-            },
-          }
-        );
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // reduce-motion: keep content static & visible — skip gsap entirely.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    // Hide until ScrollTrigger takes over; restored on cleanup / failure.
+    el.style.visibility = "hidden";
+    let cancelled = false;
+    let revert: (() => void) | undefined;
+    const show = () => {
+      el.style.visibility = "";
+    };
+    // Safety net: if the dynamic chunk never arrives, never leave the
+    // content hidden.
+    const fallback = setTimeout(show, 1500);
+
+    void Promise.all([import("gsap"), import("gsap/ScrollTrigger")])
+      .then(([{ gsap }, { ScrollTrigger }]) => {
+        clearTimeout(fallback);
+        if (cancelled) return;
+        gsap.registerPlugin(ScrollTrigger);
+        const mm = gsap.matchMedia();
+        mm.add("(prefers-reduced-motion: no-preference)", () => {
+          gsap.fromTo(
+            el,
+            { autoAlpha: 0, y },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: DURATIONS.slow,
+              ease: EASES.smooth,
+              scrollTrigger: {
+                trigger: el,
+                start,
+                once: true,
+              },
+            }
+          );
+        });
+        revert = () => mm.revert();
+      })
+      .catch(() => {
+        clearTimeout(fallback);
+        show();
       });
-      return () => mm.revert();
-    },
-    { scope: ref }
-  );
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fallback);
+      revert?.();
+      show();
+    };
+  }, [start, y]);
 
   return (
     <div ref={ref} className={className}>
