@@ -1,9 +1,13 @@
-"""Tests for P1 video scoring (LAUNCH-SPRINT-2026-07 阶段 4).
+"""Tests for P1 video scoring (LAUNCH-SPRINT-2026-07 阶段 4 + 阶段 2).
 
-Covers the 6-factor computation, persistence (videos.score + video_scores row),
-the no-data baseline (new videos aren't buried at 0), the 100 cap, latest-row
-lookup, and that list_public_videos sorts by score desc with nulls last.
+Covers the 7-factor (+bonus) computation, persistence (videos.score +
+video_scores row), the no-data baseline (new videos aren't buried at 0), the
+100 cap, latest-row lookup, and that list_public_videos sorts by score desc
+with nulls last. 阶段 2: viral/freshness external-signal factors.
 """
+
+import math
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -85,8 +89,8 @@ async def _make_video(
 
 class TestScoringFactors:
     async def test_no_data_video_baseline_is_nonzero(self, auth_headers: dict):
-        """A freshly-finalized video with no behavior data still scores ~35:
-        TopicMatch (0.15) + Quality (0.10) = 25 base, +10 official bonus."""
+        """A freshly-finalized video with no behavior data still scores ~30:
+        TopicMatch (0.12) + Quality (0.08) = 20 base, +10 official bonus."""
         from tests.conftest import TestSessionLocal
 
         async with TestSessionLocal() as db:
@@ -99,12 +103,15 @@ class TestScoringFactors:
             assert result["factors"]["ctr"] == 0.0
             assert result["factors"]["retention"] == 0.0
             assert result["factors"]["watch_time"] == 0.0
+            # No external metadata → 阶段 2 factors stay 0.
+            assert result["factors"]["viral"] == 0.0
+            assert result["factors"]["freshness"] == 0.0
             # Metadata-complete + translated + practice.
             assert result["factors"]["topic_match"] == 1.0
             assert result["factors"]["quality"] == 1.0
             assert result["factors"]["bonus"] == 1.0
-            # 100*(0.15 + 0.10) + 10 = 35
-            assert result["total_score"] == 35.0
+            # 100*(0.12 + 0.08) + 10 = 30
+            assert result["total_score"] == 30.0
 
     async def test_ctr_factor_scales_with_clicks(self, auth_headers: dict):
         """25 clicks / 50 benchmark = 0.5 CTR factor."""
@@ -155,7 +162,9 @@ class TestScoringFactors:
             assert result["factors"]["watch_time"] == 0.5
 
     async def test_score_capped_at_100(self, auth_headers: dict):
-        """All factors maxed → base 100 + bonus 10, capped at 100."""
+        """In-app factors maxed without external data → base 85 + bonus 10 = 95.
+        (阶段 2: viral/freshness contribute the remaining 15% only when
+        external metadata exists.)"""
         from tests.conftest import TestSessionLocal
 
         async with TestSessionLocal() as db:
@@ -180,7 +189,97 @@ class TestScoringFactors:
             assert result["factors"]["ctr"] == 1.0
             assert result["factors"]["retention"] == 1.0
             assert result["factors"]["watch_time"] == 1.0
-            assert result["total_score"] == 100.0
+            # 100*(0.25+0.22+0.18+0.12+0.08) + 10 = 95
+            assert result["total_score"] == 95.0
+
+
+class TestExternalFactors:
+    """阶段 2: viral (爆发指数) + freshness (热度增长速度) factors."""
+
+    async def test_viral_factor_channel_baseline(self, auth_headers: dict):
+        """ext_view_count vs same-channel average, log-scaled (10x → 0.5)."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            hit = await _make_video(db, owner_id=owner, source_url="https://x.test/viral-hit")
+            hit.channel_id = "UC-test"
+            hit.ext_view_count = 1_000_000
+            db.add(hit)
+            # Two channel siblings averaging 100k → hit is 10x the baseline.
+            for i, views in enumerate((100_000, 100_000)):
+                sib = await _make_video(db, owner_id=owner, source_url=f"https://x.test/viral-sib-{i}")
+                sib.channel_id = "UC-test"
+                sib.ext_view_count = views
+                db.add(sib)
+            await db.commit()
+
+            result = await compute_video_score(db, hit.id)
+            # baseline = (1_000_000 + 100_000 + 100_000) / 3
+            baseline = (1_000_000 + 100_000 + 100_000) / 3
+            expected = min(1.0, math.log10(1_000_000 / baseline) / 2.0)
+            assert result["factors"]["viral"] == pytest.approx(round(expected, 4), abs=1e-4)
+            assert result["factors"]["viral"] > 0.0
+
+    async def test_viral_factor_zero_below_average(self, auth_headers: dict):
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            flop = await _make_video(db, owner_id=owner, source_url="https://x.test/viral-flop")
+            flop.channel_id = "UC-flop"
+            flop.ext_view_count = 1_000
+            db.add(flop)
+            star = await _make_video(db, owner_id=owner, source_url="https://x.test/viral-star")
+            star.channel_id = "UC-flop"
+            star.ext_view_count = 1_000_000
+            db.add(star)
+            await db.commit()
+
+            result = await compute_video_score(db, flop.id)
+            assert result["factors"]["viral"] == 0.0
+
+    async def test_freshness_factor_views_per_day(self, auth_headers: dict):
+        """100k views in 10 days = 10k/day → saturates at the 10k benchmark;
+        an old video with the same views scores far lower."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            fresh = await _make_video(db, owner_id=owner, source_url="https://x.test/fresh")
+            fresh.ext_view_count = 100_000
+            fresh.upload_date = datetime.now(UTC) - timedelta(days=10)
+            db.add(fresh)
+            old = await _make_video(db, owner_id=owner, source_url="https://x.test/old")
+            old.ext_view_count = 100_000
+            old.upload_date = datetime.now(UTC) - timedelta(days=1000)
+            db.add(old)
+            await db.commit()
+
+            fresh_r = await compute_video_score(db, fresh.id)
+            old_r = await compute_video_score(db, old.id)
+            assert fresh_r["factors"]["freshness"] == 1.0
+            # 100k views / 1000 days = 100 views/day → 100/10000 = 0.01
+            assert old_r["factors"]["freshness"] == pytest.approx(0.01, abs=1e-3)
+
+    async def test_external_factors_persisted_on_score_row(self, auth_headers: dict):
+        from app.models.video_score import VideoScore
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            v = await _make_video(db, owner_id=owner, source_url="https://x.test/ext-persist")
+            v.ext_view_count = 500_000
+            v.upload_date = datetime.now(UTC) - timedelta(days=50)  # 10k/day → 1.0
+            db.add(v)
+            await db.commit()
+
+            await compute_video_score(db, v.id)
+            row = await get_latest_score(db, v.id)
+            assert row is not None
+            assert row.freshness == 1.0
+            assert row.viral >= 0.0  # single sample in library → baseline = self → 0
+            assert row.viral == 0.0
 
 
 class TestScoringPersistence:

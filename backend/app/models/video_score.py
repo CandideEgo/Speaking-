@@ -31,6 +31,11 @@ class VideoScore(Base):
     watch_time: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     topic_match: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     quality: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # 阶段 2 external-signal factors (0-1). viral: log-normalized
+    # ext_view_count vs channel average; freshness: views-per-day vs benchmark.
+    # Zero for videos without external metadata (local uploads, pre-backfill).
+    viral: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0.0")
+    freshness: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0.0")
     bonus: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
