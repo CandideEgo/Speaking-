@@ -84,3 +84,19 @@ export async function loginViaUi(
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => url.pathname === "/", { timeout: 15000 });
 }
+
+/**
+ * Bypass the login UI with an already-issued token.
+ *
+ * Injects the token into localStorage before any script runs, so the auth
+ * store's initialize() picks it up like a real login. Use when a spec runs
+ * many tests against one user — each UI login consumes the per-IP
+ * phone-login rate limit (5/minute), which a 6-test file would exhaust.
+ */
+export async function loginViaToken(page: Page, token: string): Promise<void> {
+  await page.addInitScript((t) => {
+    window.localStorage.setItem("seeword_token", t);
+  }, token);
+  await page.goto("/");
+  await page.waitForURL((url) => url.pathname === "/", { timeout: 15000 });
+}

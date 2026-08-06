@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWatchStore } from "@/stores/watchStore";
@@ -15,13 +15,13 @@ import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { api, mediaUrl } from "@/lib/api";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
+import type { VideoWithSubtitles } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ForkBadge } from "@/components/video/ForkBadge";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
-import { EmbeddedPaper } from "@/components/watch/EmbeddedPaper";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
@@ -38,6 +38,7 @@ import {
   AlertCircle,
   Check,
   Volume2,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -84,19 +85,44 @@ export default function WatchPage() {
     }
   }, [speakingState, audioBlob]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setVideoAspectRatio = useWatchStore((s) => s.setVideoAspectRatio);
+  // 时间同步回调通过 ref 读取最新 video / setter（避免与 useVideoPlayer 返回值的前向引用）。
+  const videoForTickRef = useRef<VideoWithSubtitles | null>(null);
+  const setSubtitleIndexRef = useRef<(idx: number) => void>(() => {});
+
+  // Playback-time tick shared by both backends (HTML5 timeupdate / YouTube
+  // poll): keeps the current-subtitle highlight and watch-time tracking in sync.
+  const handleTimeTick = useCallback(
+    (t: number) => {
+      const v = videoForTickRef.current;
+      if (!v) return;
+      const idx = findSubtitleIndex(v.subtitles, t);
+      if (idx !== -1) setSubtitleIndexRef.current(idx);
+      trackWatchTime(id, t);
+    },
+    [id]
+  );
+
   const {
     video,
     playbackMode,
     currentSubtitleIndex,
     setCurrentSubtitleIndex,
     videoRef,
+    ytContainerRef,
+    isYtMode,
+    play,
     seekTo,
     retry,
   } = useVideoPlayer({
     videoId: id,
-    setVideoAspectRatio,
+    onTimeTick: handleTimeTick,
   });
+
+  // Keep the tick callback's video reference in sync.
+  useEffect(() => {
+    videoForTickRef.current = video;
+    setSubtitleIndexRef.current = setCurrentSubtitleIndex;
+  }, [video, setCurrentSubtitleIndex]);
 
   // 字幕自动居中：只滚动右侧内层字幕列表，绝不触碰整页 <main>。
   // 用 scrollIntoView 会连带 <main> 一起拽回顶部，导致停在底部练习区时页面被拽走白屏。
@@ -214,7 +240,7 @@ export default function WatchPage() {
     const sub = video?.subtitles?.[currentSubtitleIndex];
     if (!sub) return;
     seekTo(sub.start_time);
-    videoRef.current?.play();
+    play();
   }
 
   // Exam-level word highlight: returns tailwind class if the word should be
@@ -513,13 +539,20 @@ export default function WatchPage() {
                     </button>
                   )}
                 </>
-              ) : playbackMode === "ready" && youtubeId(video) ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${youtubeId(video)}?rel=0`}
-                  className="h-full w-full"
-                  allowFullScreen
-                  title={video.title}
-                />
+              ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
+                <>
+                  <div ref={ytContainerRef} className="h-full w-full" />
+                  {isPip && (
+                    <button
+                      type="button"
+                      onClick={dismiss}
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
+                      aria-label="关闭小窗播放"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <div className="text-center">
@@ -788,12 +821,25 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区：内嵌试卷即时练习（复刻原型 05-watch.html）===== */}
-      <EmbeddedPaper
-        videoId={id}
-        level={selectedExamLevel ?? "cet4"}
-        onLevelChange={handleExamLevelChange}
-      />
+      {/* ===== 练习区占位：试题功能暂不开放，保留区域 ===== */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between mb-3.5 flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
+              即将上线
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-5 bg-canvas border border-dashed border-hairline-strong rounded-xl">
+          <span className="w-9 h-9 rounded-lg bg-surface-soft flex items-center justify-center text-brand-500 flex-shrink-0">
+            <Layers size={16} />
+          </span>
+          <p className="text-[13px] text-muted leading-relaxed">
+            试题功能正在重做，本视频的练习试卷将随新版一起开放。
+          </p>
+        </div>
+      </section>
 
       {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
       {selectedWord && (

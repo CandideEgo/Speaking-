@@ -25,9 +25,40 @@ export function canPlay(v: VideoWithSubtitles): boolean {
   return !!bestVideoUrl(v) || !!youtubeId(v);
 }
 
+declare global {
+  interface Window {
+    YT?: { Player?: YTPlayerClass };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+/** Minimal shape of the YouTube IFrame player we use. */
+interface YTPlayerInstance {
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  playVideo: () => void;
+  pauseVideo: () => void;
+  getCurrentTime: () => number;
+  destroy: () => void;
+}
+
+interface YTPlayerOptions {
+  videoId: string;
+  playerVars?: Record<string, unknown>;
+  events?: {
+    onReady?: () => void;
+    onStateChange?: (e: { data?: number }) => void;
+    onError?: () => void;
+  };
+}
+
+interface YTPlayerClass {
+  new (el: HTMLElement, options: YTPlayerOptions): YTPlayerInstance;
+}
+
 interface UseVideoPlayerOptions {
   videoId: string;
-  setVideoAspectRatio: (ratio: number) => void;
+  /** Playback-time tick (HTML5 timeupdate / YouTube poll) for subtitle sync. */
+  onTimeTick?: (time: number) => void;
 }
 
 interface UseVideoPlayerReturn {
@@ -36,7 +67,12 @@ interface UseVideoPlayerReturn {
   currentSubtitleIndex: number;
   setCurrentSubtitleIndex: (idx: number) => void;
   videoRef: React.RefObject<HTMLVideoElement>;
+  /** Container element for the YouTube IFrame player (rendered when isYtMode). */
+  ytContainerRef: React.RefObject<HTMLDivElement>;
+  /** Whether the current video plays via YouTube IFrame (no local file). */
+  isYtMode: boolean;
   isDesktop: boolean;
+  play: () => void;
   togglePlayPause: () => void;
   seekBy: (delta: number) => void;
   seekTo: (time: number) => void;
@@ -46,18 +82,31 @@ interface UseVideoPlayerReturn {
 
 /**
  * Hook for video playback state and controls on the watch page.
- * All videos use local HTML5 playback — no YouTube IFrame embed.
+ *
+ * Two playback backends:
+ *  - HTML5 <video> when a local file exists (video_url_*).
+ *  - YouTube IFrame (YT.Player) when the video is routed to YouTube and has
+ *    no local file. The IFrame player is controlled via the official IFrame
+ *    API (postMessage under the hood), which makes seekTo work — clicking a
+ *    subtitle in the right panel now jumps the YouTube video too.
  */
 export function useVideoPlayer({
   videoId,
-  setVideoAspectRatio,
+  onTimeTick,
 }: UseVideoPlayerOptions): UseVideoPlayerReturn {
   const videoRef = useRef<HTMLVideoElement>(null!);
+  const ytContainerRef = useRef<HTMLDivElement>(null!);
+  const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
+  const ytApiReadyRef = useRef(false);
+  const ytReadyRef = useRef(false);
+  const ytPlayingRef = useRef(false);
+  const mountedYtIdRef = useRef<string | null>(null);
 
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("loading");
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isYtMode, setIsYtMode] = useState(false);
 
   // Keep a ref in sync so callbacks (navigateSubtitle) can read the latest
   // video data without stale closures or putting side effects in updaters.
@@ -65,6 +114,11 @@ export function useVideoPlayer({
   useEffect(() => {
     videoDataRef.current = video;
   }, [video]);
+
+  const onTimeTickRef = useRef(onTimeTick);
+  useEffect(() => {
+    onTimeTickRef.current = onTimeTick;
+  }, [onTimeTick]);
 
   // Detect desktop layout
   useEffect(() => {
@@ -112,23 +166,192 @@ export function useVideoPlayer({
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [video?.status, videoId]);
+  }, [video, videoId]);
+
+  // ---------------------------------------------------------------------------
+  // YouTube IFrame player (fallback when no local file)
+  // ---------------------------------------------------------------------------
+
+  const ensureYouTubeApi = useCallback((): Promise<void> => {
+    if (window.YT?.Player) {
+      ytApiReadyRef.current = true;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      if (document.getElementById("yt-iframe-api")) {
+        // Script already injected; wait for the API callback to fire.
+        const prev = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          prev?.();
+          ytApiReadyRef.current = true;
+          resolve();
+        };
+        return;
+      }
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        prev?.();
+        ytApiReadyRef.current = true;
+        resolve();
+      };
+      const s = document.createElement("script");
+      s.id = "yt-iframe-api";
+      s.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(s);
+    });
+  }, []);
+
+  const resumeFromSavedPosition = useCallback(() => {
+    api<{ position_seconds: number | null }>(`/api/v1/learning/progress/${videoId}`)
+      .then((d) => {
+        const pos = d.position_seconds;
+        if (
+          typeof pos === "number" &&
+          pos > 5 &&
+          ytReadyRef.current &&
+          ytPlayerRef.current?.seekTo
+        ) {
+          ytPlayerRef.current.seekTo(pos, true);
+        }
+      })
+      .catch(() => {
+        /* first-time viewers have no saved position */
+      });
+  }, [videoId]);
+
+  const createYouTubePlayer = useCallback(
+    (ytId: string) => {
+      if (!ytContainerRef.current || !window.YT?.Player) return;
+      ytReadyRef.current = false;
+      ytPlayingRef.current = false;
+      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+        videoId: ytId,
+        playerVars: { rel: 0, playsinline: 1 },
+        events: {
+          onReady: () => {
+            ytReadyRef.current = true;
+            resumeFromSavedPosition();
+          },
+          onStateChange: (e: { data?: number }) => {
+            // 1 = playing, 2 = paused, 0 = ended
+            ytPlayingRef.current = e?.data === 1;
+            if (e?.data === 2) {
+              // Surface the final position once when pausing (time ticks keep
+              // running so subtitle highlight stays in sync during pause too).
+              onTimeTickRef.current?.(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
+            }
+          },
+          onError: () => {
+            toast.error("视频播放出错，请稍后重试");
+          },
+        },
+      });
+    },
+    [resumeFromSavedPosition]
+  );
+
+  /** Mount the YouTube IFrame player into ytContainerRef (idempotent per video). */
+  const mountYouTube = useCallback(
+    (ytId: string) => {
+      if (mountedYtIdRef.current === ytId) return;
+      mountedYtIdRef.current = ytId;
+      ensureYouTubeApi().then(() => createYouTubePlayer(ytId));
+    },
+    [ensureYouTubeApi, createYouTubePlayer]
+  );
+
+  const destroyYouTube = useCallback(() => {
+    try {
+      ytPlayerRef.current?.destroy?.();
+    } catch {
+      /* already destroyed */
+    }
+    ytPlayerRef.current = null;
+    ytReadyRef.current = false;
+    ytPlayingRef.current = false;
+    mountedYtIdRef.current = null;
+  }, []);
+
+  // Derive the playback backend from the loaded video. When a local file
+  // exists we prefer HTML5; otherwise fall back to the YouTube IFrame.
+  useEffect(() => {
+    if (playbackMode !== "ready" || !video) {
+      setIsYtMode(false);
+      return;
+    }
+    const yt = youtubeId(video);
+    const useYt = !!yt && !bestVideoUrl(video);
+    setIsYtMode(useYt);
+    if (useYt && yt) mountYouTube(yt);
+    else destroyYouTube();
+  }, [playbackMode, video, mountYouTube, destroyYouTube]);
+
+  // YouTube time poll: keeps the subtitle highlight + watch-time tracking in
+  // sync while the IFrame plays (IFrame has no timeupdate DOM events).
+  useEffect(() => {
+    if (!isYtMode) return;
+    const interval = setInterval(() => {
+      const p = ytPlayerRef.current;
+      if (!p || !ytReadyRef.current || typeof p.getCurrentTime !== "function") return;
+      onTimeTickRef.current?.(p.getCurrentTime() ?? 0);
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isYtMode]);
+
+  // Clean up the IFrame player on unmount.
+  useEffect(() => {
+    return () => {
+      try {
+        ytPlayerRef.current?.destroy?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Unified playback controls (both backends)
+  // ---------------------------------------------------------------------------
+
+  const currentTime = useCallback((): number => {
+    if (videoRef.current && Number.isFinite(videoRef.current.currentTime))
+      return videoRef.current.currentTime;
+    if (ytReadyRef.current && ytPlayerRef.current?.getCurrentTime)
+      return ytPlayerRef.current.getCurrentTime() ?? 0;
+    return 0;
+  }, []);
+
+  const play = useCallback(() => {
+    if (videoRef.current) videoRef.current.play().catch(() => {});
+    else if (ytReadyRef.current && ytPlayerRef.current?.playVideo) ytPlayerRef.current.playVideo();
+  }, []);
 
   const togglePlayPause = useCallback(() => {
-    if (videoRef.current?.paused) videoRef.current.play();
-    else videoRef.current?.pause();
+    if (videoRef.current) {
+      if (videoRef.current.paused) videoRef.current.play();
+      else videoRef.current.pause();
+    } else if (ytPlayerRef.current) {
+      if (ytPlayingRef.current) ytPlayerRef.current.pauseVideo();
+      else ytPlayerRef.current.playVideo();
+    }
   }, []);
 
   const seekBy = useCallback((delta: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + delta);
+    } else if (ytReadyRef.current && ytPlayerRef.current) {
+      const t = Math.max(0, (ytPlayerRef.current.getCurrentTime?.() ?? 0) + delta);
+      ytPlayerRef.current.seekTo(t, true);
     }
   }, []);
 
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {});
+    } else if (ytReadyRef.current && ytPlayerRef.current?.seekTo) {
+      ytPlayerRef.current.seekTo(time, true);
+      ytPlayerRef.current.playVideo();
     }
   }, []);
 
@@ -184,10 +407,9 @@ export function useVideoPlayer({
     return () => window.removeEventListener("keydown", handleKey);
   }, [togglePlayPause, seekBy, navigateSubtitle]);
 
-  // Resume from last saved position on first ready (closes the resume gap —
-  // /learning/progress existed but was never called from the frontend).
+  // Resume from last saved position on first ready (HTML5 backend).
   useEffect(() => {
-    if (playbackMode !== "ready") return;
+    if (playbackMode !== "ready" || isYtMode) return;
     let cancelled = false;
     (async () => {
       try {
@@ -206,7 +428,7 @@ export function useVideoPlayer({
     return () => {
       cancelled = true;
     };
-  }, [playbackMode, videoId]);
+  }, [playbackMode, videoId, isYtMode]);
 
   // Periodic position save (every 10s while playing) → PATCH /learning/progress.
   // This populates LearningRecord.position_seconds / progress_percentage, which
@@ -214,14 +436,16 @@ export function useVideoPlayer({
   useEffect(() => {
     if (playbackMode !== "ready") return;
     const interval = setInterval(async () => {
-      const v = videoRef.current;
-      if (!v || v.paused) return;
+      const playing = videoRef.current ? !videoRef.current.paused : ytPlayingRef.current;
+      if (!playing) return;
+      const t = currentTime();
+      if (t <= 0) return;
       try {
         await api("/api/v1/learning/progress", {
           method: "PATCH",
           body: JSON.stringify({
             video_id: videoId,
-            position_seconds: v.currentTime,
+            position_seconds: t,
           }),
         });
       } catch {
@@ -229,7 +453,7 @@ export function useVideoPlayer({
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [playbackMode, videoId]);
+  }, [playbackMode, videoId, currentTime]);
 
   return {
     video,
@@ -237,7 +461,10 @@ export function useVideoPlayer({
     currentSubtitleIndex,
     setCurrentSubtitleIndex,
     videoRef,
+    ytContainerRef,
+    isYtMode,
     isDesktop,
+    play,
     togglePlayPause,
     seekBy,
     seekTo,
