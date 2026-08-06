@@ -86,13 +86,17 @@ _index: _ECDICTIndex | None = None  # cached index, built lazily
 class _ECDICTIndex:
     """Compact in-memory index of exam-relevant ECDICT entries."""
 
-    __slots__ = ("inflected", "seen_tags", "words")
+    __slots__ = ("inflected", "inflected_code", "seen_tags", "words")
 
     def __init__(self) -> None:
         # lemma (lowercase) -> entry dict
         self.words: dict[str, dict] = {}
         # inflected surface form (lowercase) -> lemma (lowercase)
         self.inflected: dict[str, str] = {}
+        # inflected surface form (lowercase) -> ECDICT exchange code (s/p/d/i/...).
+        # Parallel to ``inflected``; used by the gloss endpoint to explain the
+        # word-form relationship on the word card (billions -> billion: plural).
+        self.inflected_code: dict[str, str] = {}
         # raw tag tokens actually seen in the DB (for verifying ECDICT_TAG_MAP)
         self.seen_tags: set[str] = set()
 
@@ -111,8 +115,8 @@ def levels_of(tag_str: str | None) -> list[str]:
     return levels
 
 
-def _parse_exchange(exchange: str | None) -> list[str]:
-    """Return inflected surface forms declared by an ECDICT entry's ``exchange`` field.
+def _parse_exchange_with_codes(exchange: str | None) -> list[tuple[str, str]]:
+    """Return ``(inflected_form, exchange_code)`` pairs from an ECDICT ``exchange``.
 
     Uses an allowlist of forward-form codes (``_FORWARD_FORM_CODES``): only codes
     whose value is a real inflected word form (s/p/d/i/r/t/3/f/b/z) contribute.
@@ -127,15 +131,20 @@ def _parse_exchange(exchange: str | None) -> list[str]:
     """
     if not exchange:
         return []
-    forms: list[str] = []
+    pairs: list[tuple[str, str]] = []
     for code, form in _EXCHANGE_PAIR_RE.findall(exchange):
         # Allowlist: only forward-form codes contribute real inflected forms.
         # This rejects 0 (reverse pointer), 1 (type marker), and unknowns.
         if code not in _FORWARD_FORM_CODES:
             continue
         if form and form != "0":
-            forms.append(form.lower())
-    return forms
+            pairs.append((form.lower(), code))
+    return pairs
+
+
+def _parse_exchange(exchange: str | None) -> list[str]:
+    """Inflected surface forms (no codes) — thin wrapper over the coded parser."""
+    return [form for form, _code in _parse_exchange_with_codes(exchange)]
 
 
 def is_available() -> bool:
@@ -188,9 +197,10 @@ def _build_index() -> _ECDICTIndex:
                 "levels": levels,
                 "bnc": bnc,
             }
-            for form in _parse_exchange(row["exchange"]):
+            for form, code in _parse_exchange_with_codes(row["exchange"]):
                 # First lemma wins on collision (deterministic given row order).
                 idx.inflected.setdefault(form, lemma)
+                idx.inflected_code.setdefault(form, code)
     finally:
         conn.close()
     return idx
@@ -237,6 +247,55 @@ def lookup(token: str) -> dict | None:
     if lemma is not None:
         return idx.words.get(lemma)
     return None
+
+
+# Human labels for ECDICT exchange inflection codes (see _FORWARD_FORM_CODES).
+INFLECTION_LABELS: dict[str, str] = {
+    "3": "第三人称单数",
+    "f": "复数形式",
+    "p": "过去式",
+    "d": "过去分词",
+    "i": "现在分词",
+    "r": "比较级",
+    "b": "比较级",
+    "t": "最高级",
+    "z": "最高级",
+}
+
+
+def lookup_inflection(token: str) -> str | None:
+    """Return the ECDICT exchange code if ``token`` is an inflected (non-base)
+    form of an indexed exam word, else None.
+
+    Direct lemma matches return None — the token is already the base form, so
+    there is no word-form change to explain on the word card.
+    """
+    idx = get_index()
+    if idx is None or not idx.words:
+        return None
+    clean = _clean_token(token)
+    if not clean:
+        return None
+    if clean in idx.words:
+        return None
+    return idx.inflected_code.get(clean)
+
+
+def inflection_label(code: str | None, pos: str | None) -> str | None:
+    """Human-readable inflection label for the gloss card.
+
+    Code ``s`` is ambiguous (noun plural vs verb 3rd-person-singular); we
+    disambiguate with the entry's POS when possible.
+    """
+    if not code:
+        return None
+    if code == "s":
+        p = (pos or "").lower()
+        # verb-only -> 三单; otherwise (noun/numeral/ambiguous) -> 复数
+        if "v" in p and "n" not in p and "num" not in p:
+            return "第三人称单数"
+        return "复数形式"
+    return INFLECTION_LABELS.get(code)
 
 
 def seen_tags() -> set[str]:

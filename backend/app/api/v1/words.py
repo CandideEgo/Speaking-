@@ -25,6 +25,9 @@ router = APIRouter(prefix="/words", tags=["words"])
 class WordGloss(BaseModel):
     word: str
     lemma: str | None = None
+    # Word-form label, e.g. "复数形式" — present when ``word`` is an inflected
+    # form of ``lemma`` (billions -> billion). Lets the card explain the change.
+    inflection: str | None = None
     phonetic: str | None = None
     pos: str | None = None
     definition: str | None = None  # English definition (ECDICT)
@@ -53,6 +56,8 @@ async def gloss_word(
     clean = word.strip().strip(".,!?;:'\"()[]")
     entry = ecdict.lookup(clean) if clean else None
     lemma = (entry.get("lemma") if entry else None) or clean
+    # Word-form relationship for the card (billions -> billion: 复数形式).
+    inflection = ecdict.inflection_label(ecdict.lookup_inflection(clean), entry.get("pos") if entry else None)
 
     # 真题 example + high-freq badge. Non-fatal if corpus is empty.
     example_sentence = None
@@ -113,6 +118,7 @@ async def gloss_word(
     return WordGloss(
         word=word,
         lemma=entry.get("lemma") if entry else None,
+        inflection=inflection,
         phonetic=entry.get("phonetic") if entry else None,
         pos=entry.get("pos") if entry else None,
         definition=entry.get("definition") if entry else None,

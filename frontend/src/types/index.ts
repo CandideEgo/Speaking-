@@ -346,6 +346,8 @@ export interface UserPreferences {
 export interface WordGloss {
   word: string;
   lemma: string | null;
+  /** Word-form label, e.g. "复数形式" — present when word is an inflected form of lemma. */
+  inflection?: string | null;
   phonetic: string | null;
   pos: string | null;
   definition: string | null;
@@ -389,25 +391,9 @@ export interface PracticeItem {
   phonetic?: string | null;
 }
 
-export interface UnifiedPracticeSet {
-  video_id: string;
-  exam_level: string;
-  items: PracticeItem[];
-}
-
 export interface PracticeResultItem {
   word: string;
   correct: boolean;
-}
-
-export interface PracticeSubmitRequest {
-  results: PracticeResultItem[];
-  video_id: string;
-}
-
-export interface PracticeSubmitResponse {
-  updated: number;
-  auto_added: number;
 }
 
 /** Vocabulary-page practice response (no exam_level wrapper). */
