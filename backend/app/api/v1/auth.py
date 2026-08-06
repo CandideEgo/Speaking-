@@ -113,6 +113,17 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
     if not await verify_sms_code(data.phone, data.code, purpose="register"):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
+    # Admin settings kill switch (absent row -> enabled):
+    # registration_enabled=False blocks new signups while existing users
+    # (login / password reset) keep working.
+    from sqlalchemy import select
+
+    from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
+
+    reg_row = (await db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))).scalar_one_or_none()
+    if reg_row is not None and not reg_row.registration_enabled:
+        raise HTTPException(status_code=403, detail="注册功能暂未开放，请联系管理员")
+
     existing = await db.execute(select(User).where(User.phone == data.phone))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="该手机号已注册")

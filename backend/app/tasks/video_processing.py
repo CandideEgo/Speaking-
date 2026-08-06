@@ -104,25 +104,51 @@ async def _translate_subtitles(
     return results, quality_report
 
 
-def _translation_quality_decision(coverage: float) -> str | None:
+def _translation_quality_decision(
+    coverage: float,
+    *,
+    block_enabled: bool,
+    block_coverage: float,
+    warn_coverage: float,
+) -> str | None:
     """Decide the quality_flag from translation coverage.
 
     Returns ``"quality_blocked"`` (below block threshold, kill switch on),
     ``"quality_warning"`` (between block and warn), or ``None`` (passed).
-    Centralized so thresholds + kill switch are unit-testable without running
-    the full finalize_video pipeline.
+    Pure function over explicit thresholds so it is unit-testable without
+    running the pipeline or touching settings; the caller resolves the
+    effective values (admin settings row first, env as fallback).
     """
-    settings = get_settings()
-    if coverage < settings.translation_quality_warn_coverage:
-        if settings.translation_quality_block_enabled and coverage < settings.translation_quality_block_coverage:
+    if coverage < warn_coverage:
+        if block_enabled and coverage < block_coverage:
             return "quality_blocked"
         return "quality_warning"
     return None
 
 
-# ---------------------------------------------------------------------------
-# Pipeline head: extract metadata, stage media, enqueue remote GPU transcription
-# ---------------------------------------------------------------------------
+async def _effective_quality_gate(db) -> tuple[bool, float, float]:
+    """Resolve the translation quality gate from the admin settings row.
+
+    Falls back to env defaults when the row is absent (no admin panel use
+    yet). Returns ``(block_enabled, block_coverage, warn_coverage)``.
+    """
+    from sqlalchemy import select
+
+    from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
+
+    row = (await db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))).scalar_one_or_none()
+    settings = get_settings()
+    if row is None:
+        return (
+            settings.translation_quality_block_enabled,
+            settings.translation_quality_block_coverage,
+            settings.translation_quality_warn_coverage,
+        )
+    return (
+        row.quality_block_enabled,
+        float(row.quality_block_threshold),
+        float(row.quality_warn_threshold),
+    )
 
 
 async def _stage_local_upload(video) -> tuple[str, str]:
@@ -503,15 +529,19 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                         # POST /admin/{id}/retranslate. kill switch:
                         # translation_quality_block_enabled=False reverts to
                         # warn-only for a bad engine batch.
-                        settings = get_settings()
                         coverage = quality_report.coverage_ratio
-                        decision = _translation_quality_decision(coverage)
+                        block_enabled, block_coverage, warn_coverage = await _effective_quality_gate(db)
+                        decision = _translation_quality_decision(
+                            coverage,
+                            block_enabled=block_enabled,
+                            block_coverage=block_coverage,
+                            warn_coverage=warn_coverage,
+                        )
                         if decision == "quality_blocked":
                             video.quality_flag = "quality_blocked"
                             video.status = VideoStatus.error
                             video.error_message = (
-                                f"Translation coverage {coverage:.0%} below block "
-                                f"threshold {settings.translation_quality_block_coverage:.0%}"
+                                f"Translation coverage {coverage:.0%} below block threshold {block_coverage:.0%}"
                             )
                             video.processing_step = None
                             video.step_started_at = None
@@ -788,8 +818,20 @@ async def _run_watchdog_pipeline() -> None:
     from sqlalchemy import and_, or_, select
 
     from app.core.database import async_session
+    from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
     from app.models.video import Video, VideoStatus
     from app.tasks.pipeline_helpers import is_lock_held
+
+    # Admin kill switch (settings row; absent row -> enabled):
+    # a disabled watchdog lets a stuck video sit while ops investigate
+    # instead of auto-failing it.
+    async with async_session() as gate_db:
+        gate_row = (
+            await gate_db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))
+        ).scalar_one_or_none()
+    if gate_row is not None and not gate_row.watchdog_enabled:
+        logger.info("Watchdog disabled via admin settings; skipping stale-pipeline scan")
+        return
 
     settings = get_settings()
     now = datetime.now(UTC)
@@ -899,6 +941,9 @@ async def _extract_video_info(url: str) -> dict | None:
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
+            "remote_components": "ejs:github",
+            # node 运行时：解 YouTube n-challenge 签名（无 JS 运行时只能拿到图片格式）
+            "js_runtimes": {"node": {}},
         }
         if settings.http_proxy:
             opts["proxy"] = settings.http_proxy
@@ -945,6 +990,9 @@ async def _download_video(url: str, video_id: str) -> str | None:
             "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
             "outtmpl": output,
             "merge_output_format": "mp4",
+            "remote_components": "ejs:github",
+            # node 运行时：解 YouTube n-challenge 签名
+            "js_runtimes": {"node": {}},
         }
         if settings.http_proxy:
             opts["proxy"] = settings.http_proxy
@@ -1210,6 +1258,19 @@ async def _run_retry_failed_downloads() -> None:
     from app.services.youtube_cookies_service import ensure_cookies_for_pipeline
 
     settings = get_settings()
+
+    # Admin kill switch (settings row; absent row -> enabled):
+    # download_auto_retry_enabled=False stops the daily retry loop without
+    # touching the per-video strike counters.
+    async with async_session() as gate_db:
+        from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
+
+        gate_row = (
+            await gate_db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))
+        ).scalar_one_or_none()
+    if gate_row is not None and not gate_row.download_auto_retry_enabled:
+        logger.info("Download auto-retry disabled via admin settings; skipping retry scan")
+        return
 
     async with async_session() as db:
         result = await db.execute(

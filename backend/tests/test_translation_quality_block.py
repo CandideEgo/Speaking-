@@ -1,5 +1,6 @@
 """Tests for translation quality block/warn + admin re-translate (阶段 2)."""
 
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -14,41 +15,51 @@ from tests.conftest import TestSessionLocal
 class TestTranslationQualityDecision:
     """Unit tests for the coverage -> quality_flag decision (no pipeline run)."""
 
+    # Effective gate defaults mirror env: block enabled @ 0.60, warn @ 0.80.
+    GATE: ClassVar[dict[str, object]] = dict(block_enabled=True, block_coverage=0.60, warn_coverage=0.80)
+
     def test_blocked(self):
         from app.tasks.video_processing import _translation_quality_decision
 
-        assert _translation_quality_decision(0.5) == "quality_blocked"
+        assert _translation_quality_decision(0.5, **self.GATE) == "quality_blocked"
 
     def test_warning(self):
         from app.tasks.video_processing import _translation_quality_decision
 
-        assert _translation_quality_decision(0.7) == "quality_warning"
+        assert _translation_quality_decision(0.7, **self.GATE) == "quality_warning"
 
     def test_passed(self):
         from app.tasks.video_processing import _translation_quality_decision
 
-        assert _translation_quality_decision(0.9) is None
+        assert _translation_quality_decision(0.9, **self.GATE) is None
 
     def test_boundary_block_threshold_is_warning(self):
         # coverage == block_threshold (0.60) is NOT blocked (< is strict)
         from app.tasks.video_processing import _translation_quality_decision
 
-        assert _translation_quality_decision(0.60) == "quality_warning"
+        assert _translation_quality_decision(0.60, **self.GATE) == "quality_warning"
 
     def test_boundary_warn_threshold_is_passed(self):
         # coverage == warn_threshold (0.80) is passed (< is strict)
         from app.tasks.video_processing import _translation_quality_decision
 
-        assert _translation_quality_decision(0.80) is None
+        assert _translation_quality_decision(0.80, **self.GATE) is None
 
-    def test_kill_switch_disables_block(self, monkeypatch):
-        from app.core.config import get_settings
+    def test_kill_switch_disables_block(self):
         from app.tasks.video_processing import _translation_quality_decision
 
-        s = get_settings()
-        monkeypatch.setattr(s, "translation_quality_block_enabled", False)
         # 0.5 would block, but kill switch -> warning only
-        assert _translation_quality_decision(0.5) == "quality_warning"
+        gate = {**self.GATE, "block_enabled": False}
+        assert _translation_quality_decision(0.5, **gate) == "quality_warning"
+
+    def test_custom_thresholds_from_admin_settings(self):
+        from app.tasks.video_processing import _translation_quality_decision
+
+        # Admin row: block @ 0.70, warn @ 0.90
+        gate = dict(block_enabled=True, block_coverage=0.70, warn_coverage=0.90)
+        assert _translation_quality_decision(0.60, **gate) == "quality_blocked"
+        assert _translation_quality_decision(0.75, **gate) == "quality_warning"
+        assert _translation_quality_decision(0.95, **gate) is None
 
 
 class TestRetranslateEndpoint:
