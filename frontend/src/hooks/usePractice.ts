@@ -3,13 +3,7 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type {
-  GradedResult,
-  PracticeItem,
-  PracticeSubmitRequest,
-  UnifiedPracticeSet,
-  VocabularyPracticeSet,
-} from "@/types";
+import type { GradedResult, PracticeItem, VocabularyPracticeSet } from "@/types";
 import { useSession } from "./useSession";
 
 // ---------------------------------------------------------------------------
@@ -73,15 +67,17 @@ function gradePracticeItem(item: PracticeItem, userAnswer: string): GradedResult
 }
 
 // ---------------------------------------------------------------------------
-// usePractice — video-scoped
+// useVocabularyPractice — vocabulary-page-scoped
 // ---------------------------------------------------------------------------
 
-interface UsePracticeOptions {
-  videoId: string;
-  level: string | null;
+interface UseVocabularyPracticeOptions {
+  level?: string | null;
+  count?: number;
+  dueOnly?: boolean;
+  enabled?: boolean;
 }
 
-export interface UsePracticeReturn {
+export interface UseVocabularyPracticeReturn {
   loading: boolean;
   error: string | null;
   items: PracticeItem[];
@@ -97,77 +93,6 @@ export interface UsePracticeReturn {
   gradeAnswer: (index: number, answer?: string) => void;
   reset: () => void;
   refetch: () => Promise<void>;
-  submitResults: () => Promise<void>;
-}
-
-export function usePractice({ videoId, level }: UsePracticeOptions): UsePracticeReturn {
-  const fetcher = useCallback(async (): Promise<PracticeItem[]> => {
-    if (!level) return [];
-    const data = await api<UnifiedPracticeSet>(`/api/v1/videos/${videoId}/practice?level=${level}`);
-    return data.items ?? [];
-  }, [videoId, level]);
-
-  const grader = useCallback((item: PracticeItem, userAnswer: string): GradedResult => {
-    return gradePracticeItem(item, userAnswer);
-  }, []);
-
-  const session = useSession<PracticeItem>({
-    fetcher,
-    grader,
-    enabled: !!level,
-  });
-
-  const submitResults = useCallback(async () => {
-    const results = Object.entries(session.graded).map(([idx, gr]) => ({
-      word: session.items[Number(idx)]?.word ?? "",
-      correct: gr.correct,
-    }));
-    if (!results.length) return;
-
-    try {
-      await api<PracticeSubmitRequest>("/api/v1/videos/practice/submit", {
-        method: "POST",
-        body: JSON.stringify({ results, video_id: videoId }),
-      });
-      toast.success("学习记录已更新");
-    } catch {
-      // Non-blocking — practice results are still visible locally
-      toast.error("学习记录同步失败，不影响本次练习");
-    }
-  }, [session.graded, session.items, videoId]);
-
-  return {
-    loading: session.loading,
-    error: session.error,
-    items: session.items,
-    answers: session.answers,
-    graded: session.graded,
-    grading: session.grading,
-    answeredCount: session.answeredCount,
-    correctCount: session.correctCount,
-    allGraded: session.allGraded,
-    score: session.score,
-    accuracy: session.accuracy,
-    setAnswer: session.setAnswer,
-    gradeAnswer: session.gradeAnswer,
-    reset: session.reset,
-    refetch: session.refetch,
-    submitResults,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// useVocabularyPractice — vocabulary-page-scoped
-// ---------------------------------------------------------------------------
-
-interface UseVocabularyPracticeOptions {
-  level?: string | null;
-  count?: number;
-  dueOnly?: boolean;
-  enabled?: boolean;
-}
-
-export interface UseVocabularyPracticeReturn extends Omit<UsePracticeReturn, "submitResults"> {
   submitResults: () => Promise<void>;
 }
 

@@ -74,7 +74,6 @@ const ROUTES: RouteDef[] = [
   { name: "vocabulary", path: "/vocabulary", auth: true },
   { name: "vocabulary-drill", path: "/vocabulary/drill", auth: true },
   { name: "practice", path: "/practice", auth: true },
-  { name: "practice-exam", path: "/practice/exam?level=cet4", auth: true },
   { name: "history", path: "/history", auth: true },
   { name: "admin", path: "/admin", auth: true },
   { name: "forgot-password", path: "/forgot-password" },
