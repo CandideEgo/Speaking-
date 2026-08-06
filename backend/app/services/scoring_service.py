@@ -27,7 +27,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
-from app.models.practice import VideoPracticeQuestion
 from app.models.subtitle import Subtitle
 from app.models.video import Video
 from app.models.video_score import VideoScore
@@ -78,20 +77,20 @@ async def _factor_watch_time(db: AsyncSession, video_id: str, benchmark: int) ->
     return _clamp(float(total) / benchmark)
 
 
-def _factor_topic_match(video: Video, has_subtitles: bool, has_practice: bool) -> float:
-    """Metadata completeness: (tags + difficulty + duration + subtitles + practice) / 5.
+def _factor_topic_match(video: Video, has_subtitles: bool) -> float:
+    """Metadata completeness: (tags + difficulty + duration + subtitles) / 4.
 
     Always computable; the factor that gives a new video its baseline before
-    behavior data accrues.
+    behavior data accrues. (The practice-question check was removed when the
+    试题功能 went offline — 2026-08.)
     """
     checks = [
         bool(video.topic_tags and video.topic_tags.strip()),
         bool(video.difficulty_level),
         video.duration is not None and video.duration > 0,
         has_subtitles,
-        has_practice,
     ]
-    return sum(1 for c in checks if c) / 5.0
+    return sum(1 for c in checks if c) / 4.0
 
 
 async def _subtitle_stats(db: AsyncSession, video_id: str) -> tuple[int, int]:
@@ -110,13 +109,6 @@ async def _subtitle_stats(db: AsyncSession, video_id: str) -> tuple[int, int]:
         )
     )
     return total, (translated or 0)
-
-
-async def _has_practice(db: AsyncSession, video_id: str) -> bool:
-    cnt = await db.scalar(
-        select(func.count()).select_from(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == video_id)
-    )
-    return bool(cnt)
 
 
 async def _factor_viral(db: AsyncSession, video: Video) -> float:
@@ -184,16 +176,15 @@ async def compute_video_score(db: AsyncSession, video_id: str) -> dict | None:
     s = get_settings()
     sub_total, sub_translated = await _subtitle_stats(db, video_id)
     has_sub = sub_total > 0
-    has_prac = await _has_practice(db, video_id)
 
     ctr = await _factor_ctr(db, video_id, s.score_ctr_click_benchmark)
     retention = await _factor_retention(db, video_id)
     watch_time = await _factor_watch_time(db, video_id, s.score_watch_time_benchmark)
-    topic_match = _factor_topic_match(video, has_sub, has_prac)
+    topic_match = _factor_topic_match(video, has_sub)
     quality = (sub_translated / sub_total) if sub_total > 0 else 0.0
     viral = await _factor_viral(db, video)
     freshness = _factor_freshness(video, s.score_freshness_vpd_benchmark)
-    bonus = 1.0 if (video.is_official or has_prac) else 0.0
+    bonus = 1.0 if video.is_official else 0.0
 
     base = (
         s.score_weight_ctr * ctr

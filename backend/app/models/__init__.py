@@ -3,7 +3,6 @@ from app.models.admin_setting import AdminSetting
 from app.models.behavior import BehaviorEvent
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.engagement import VideoLike
-from app.models.exam import ExamAnswer, ExamSession
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.favorite import UserFavorite, UserNote
 from app.models.feedback import Feedback
@@ -12,7 +11,6 @@ from app.models.learning_plan import LearningEvent, LearningPlan, LearningPlanIt
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
-from app.models.practice import VideoPracticeQuestion
 from app.models.preferences import UserPreferences
 from app.models.redeem import RedeemCode
 from app.models.shadowing import ShadowingAttempt

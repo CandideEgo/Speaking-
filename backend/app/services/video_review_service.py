@@ -20,23 +20,15 @@ _SNAPSHOT_VERSION = 1
 
 
 async def _build_snapshot(db: AsyncSession, video: Video) -> dict:
-    """Freeze the current live subtitles + practice sets into a snapshot dict.
+    """Freeze the current live subtitles into a snapshot dict.
 
     The snapshot is what the public keeps watching while the owner edits a
-    pending/rejected draft. Practice questions are stored per exam level so the
-    practice GET can serve the approved version during re-review.
+    pending/rejected draft. (Practice sets were removed from the snapshot when
+    the 试题功能 went offline — 2026-08.)
     """
     result = await db.execute(select(Video).options(selectinload(Video.subtitles)).where(Video.id == video.id))
     loaded = result.scalar_one_or_none()
     subs = loaded.subtitles if loaded else []
-
-    # Freeze every cached practice set, keyed by exam level.
-    from app.models.practice import VideoPracticeQuestion
-
-    pq_result = await db.execute(select(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == video.id))
-    practice_by_level: dict[str, list] = {}
-    for pq in pq_result.scalars().all():
-        practice_by_level[pq.exam_level] = pq.questions or []
 
     return {
         "version": _SNAPSHOT_VERSION,
@@ -54,7 +46,6 @@ async def _build_snapshot(db: AsyncSession, video: Video) -> dict:
             }
             for s in (subs or [])
         ],
-        "practice": practice_by_level,
     }
 
 

@@ -3,9 +3,9 @@
 Covers:
 - ``_register_standard``: first-ready-wins (ON CONFLICT DO NOTHING on source_url PK).
 - ``submit_video``: same-URL submission forks from the standard (subtitles +
-  practice + metadata copied, ``forked_from`` set, no GPU re-run).
+  metadata copied, ``forked_from`` set, no GPU re-run).
 - ``submit_video`` with no standard → still ``pending_processing`` (no regression).
-- ``POST /videos/{id}/fork``: copies subtitles + practice, born ready.
+- ``POST /videos/{id}/fork``: copies subtitles, born ready.
 - fork guards: non-ready source → 400; missing source → 404.
 """
 
@@ -14,7 +14,6 @@ from unittest.mock import patch
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.models.practice import VideoPracticeQuestion
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
@@ -27,7 +26,7 @@ async def _owner_id(db) -> str:
 
 
 async def _make_ready_video(db, *, owner_id: str, source_url: str, with_content: bool = True) -> Video:
-    """Create a ready video with subtitles + a practice set (a standard, once registered)."""
+    """Create a ready video with subtitles (a standard, once registered)."""
     v = Video(
         title="Standard Source",
         source_url=source_url,
@@ -56,14 +55,6 @@ async def _make_ready_video(db, *, owner_id: str, source_url: str, with_content:
                     word_levels={"line": ["cet4"]},
                 )
             )
-        db.add(
-            VideoPracticeQuestion(
-                video_id=v.id,
-                exam_level="cet4",
-                questions=[{"type": "qa", "question": "Q", "answer": "A"}],
-                question_count=1,
-            )
-        )
         await db.commit()
     return v
 
@@ -132,13 +123,6 @@ class TestSubmitVideoForksFromStandard:
             assert len(subs) == 3
             assert subs[0].text_zh == "行 0"  # translation copied, not just raw English
             assert subs[0].word_levels == {"line": ["cet4"]}  # annotations copied
-            qs = (
-                (await db.execute(select(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == vid)))
-                .scalars()
-                .all()
-            )
-            assert len(qs) == 1
-            assert qs[0].exam_level == "cet4"
 
     async def test_submit_no_standard_creates_pending(self, client: AsyncClient, auth_headers: dict):
         """No standard for this URL → falls through to pending_processing (no regression)."""
@@ -151,9 +135,9 @@ class TestSubmitVideoForksFromStandard:
 
 
 class TestForkApi:
-    """``POST /videos/{id}/fork`` copies subtitles + practice into a ready fork."""
+    """``POST /videos/{id}/fork`` copies subtitles into a ready fork."""
 
-    async def test_fork_copies_subtitles_and_practice(self, client: AsyncClient, auth_headers: dict):
+    async def test_fork_copies_subtitles(self, client: AsyncClient, auth_headers: dict):
         from tests.conftest import TestSessionLocal
 
         url = "https://www.youtube.com/watch?v=fork_api_test"
@@ -175,12 +159,6 @@ class TestForkApi:
             assert v.video_url_720p == source_720  # shared media file (扩展 E1)
             subs = (await db.execute(select(Subtitle).where(Subtitle.video_id == vid))).scalars().all()
             assert len(subs) == 3
-            qs = (
-                (await db.execute(select(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == vid)))
-                .scalars()
-                .all()
-            )
-            assert len(qs) == 1
 
     async def test_fork_non_ready_400(self, client: AsyncClient, auth_headers: dict):
         from tests.conftest import TestSessionLocal

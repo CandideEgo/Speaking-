@@ -14,7 +14,6 @@ from sqlalchemy import select
 
 from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
-from app.models.practice import VideoPracticeQuestion
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
@@ -43,7 +42,6 @@ async def _make_video(
     official: bool = True,
     published: bool = True,
     subtitles: int = 3,
-    practice: bool = True,
     source_url: str = "https://www.youtube.com/watch?v=scoring",
 ) -> Video:
     v = Video(
@@ -74,15 +72,6 @@ async def _make_video(
                 sentence_index=i,
             )
         )
-    if practice:
-        db.add(
-            VideoPracticeQuestion(
-                video_id=v.id,
-                exam_level="cet4",
-                questions=[{"type": "qa", "question": "Q", "answer": "A"}],
-                question_count=1,
-            )
-        )
     await db.commit()
     return v
 
@@ -106,7 +95,7 @@ class TestScoringFactors:
             # No external metadata → 阶段 2 factors stay 0.
             assert result["factors"]["viral"] == 0.0
             assert result["factors"]["freshness"] == 0.0
-            # Metadata-complete + translated + practice.
+            # Metadata-complete + translated.
             assert result["factors"]["topic_match"] == 1.0
             assert result["factors"]["quality"] == 1.0
             assert result["factors"]["bonus"] == 1.0

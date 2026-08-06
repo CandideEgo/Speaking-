@@ -19,7 +19,6 @@ from app.api.v1 import (
     behavior,
     browse,
     comments,
-    exam,
     favorites,
     feedback,
     internal,
@@ -28,7 +27,6 @@ from app.api.v1 import (
     media,
     notifications,
     payments,
-    practice,
     presence,
     recommendations,
     redeem,
@@ -196,11 +194,14 @@ def create_app() -> FastAPI:
             connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self'; "
+                # YouTube IFrame player (no-local-file fallback) needs its own
+                # script + frame + connect sources.
+                "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: https:; "
                 "media-src 'self' https:; "
-                f"connect-src {connect_src}; "
+                "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
+                f"connect-src {connect_src} https://www.youtube.com; "
                 "object-src 'none'; "
                 "base-uri 'self'"
             )
@@ -238,8 +239,6 @@ def create_app() -> FastAPI:
         app.include_router(mock_payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
     app.include_router(words.router, prefix="/api/v1")
-    app.include_router(practice.router, prefix="/api/v1")
-    app.include_router(exam.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")

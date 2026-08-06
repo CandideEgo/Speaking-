@@ -214,31 +214,6 @@ async def _copy_subtitles(db: AsyncSession, *, source_video_id: str, target_vide
     return count
 
 
-async def _copy_practice_questions(db: AsyncSession, *, source_video_id: str, target_video_id: str) -> int:
-    """Copy practice-question sets from source to target (fork snapshot).
-
-    Per Grilling 决议 4, a fork copies a snapshot of the standard's practice
-    questions; the owner can edit their copy, but practice questions do NOT
-    flow back via PR (only subtitles do). The (video_id, exam_level) unique
-    constraint holds on the new rows since each target is a fresh fork.
-    """
-    from app.models.practice import VideoPracticeQuestion
-
-    result = await db.execute(select(VideoPracticeQuestion).where(VideoPracticeQuestion.video_id == source_video_id))
-    count = 0
-    for q in result.scalars().all():
-        db.add(
-            VideoPracticeQuestion(
-                video_id=target_video_id,
-                exam_level=q.exam_level,
-                questions=q.questions,
-                question_count=q.question_count,
-            )
-        )
-        count += 1
-    return count
-
-
 async def _fork_video_from(
     db: AsyncSession,
     source: Video,
@@ -250,7 +225,7 @@ async def _fork_video_from(
     Shared by ``submit_video`` / ``seed_user_video`` (same-URL dedup) and the
     explicit ``POST /videos/{id}/fork`` endpoint (扩展 A4). The fork is born
     ``ready`` with the source's media URLs (shared file — see 扩展 E1) and a
-    full subtitle + practice snapshot; no GPU pipeline runs. ``forked_from``
+    full subtitle snapshot; no GPU pipeline runs. ``forked_from``
     records lineage (may point at the standard or another fork — fork-of-fork
     is allowed; dedup still keys off the URL's standard).
     """
@@ -287,7 +262,6 @@ async def _fork_video_from(
     await commit_refresh(db, user_video)
 
     await _copy_subtitles(db, source_video_id=source.id, target_video_id=user_video.id)
-    await _copy_practice_questions(db, source_video_id=source.id, target_video_id=user_video.id)
     await db.commit()
     return user_video
 
@@ -297,7 +271,7 @@ async def fork_video(db: AsyncSession, video_id: str, current_user: User) -> Vid
 
     The source may be the standard version or any ready fork (fork-of-fork
     allowed; dedup still keys off the URL's standard). The fork is born
-    ``ready`` with subtitles + practice + metadata copied; no GPU pipeline
+    ``ready`` with subtitles + metadata copied; no GPU pipeline
     runs. ``forked_from`` records lineage to the source.
 
     Raises:
