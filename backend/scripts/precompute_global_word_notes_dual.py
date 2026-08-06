@@ -194,7 +194,8 @@ async def main() -> int:
     agnes_model = settings.openai_model
 
     xf_client = AsyncOpenAI(
-        api_key="5dba42b7921f8a299d7fa283e445914c:ODQxZWQ4NDY2MTIzNDgyMzRlMzU0OTdm",
+        # 讯飞 key 从环境变量读取（不再硬编码；过期 key 已于 2026-08-05 移除）
+        api_key=settings.translation_qwen_api_key or settings.translation_hymt2_api_key,
         base_url="https://maas-api.cn-huabei-1.xf-yun.com/v2",
     )
     xf_model = "xopqwen36v35b"
