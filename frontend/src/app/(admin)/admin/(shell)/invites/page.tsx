@@ -12,6 +12,7 @@ import {
   AdminDropdown,
   AdminSearchInput,
 } from "@/components/admin/ui";
+import { StatChip } from "@/components/admin/StatChip";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/common/Badge";
@@ -59,32 +60,6 @@ const PLAN_OPTIONS = [
 // ---------------------------------------------------------------------------
 // Stat chip (prototype 30 .stat-chip)
 // ---------------------------------------------------------------------------
-
-function StatChip({
-  value,
-  label,
-  iconClass,
-  children,
-}: {
-  value: number;
-  label: string;
-  iconClass: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-xs">
-      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded ${iconClass}`}>
-        {children}
-      </div>
-      <div>
-        <div className="font-mono text-[17px] font-extrabold leading-tight text-ink">
-          {value.toLocaleString()}
-        </div>
-        <div className="text-muted">{label}</div>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Page

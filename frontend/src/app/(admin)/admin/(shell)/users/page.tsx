@@ -27,6 +27,7 @@ import {
   AdminConfirmDialog,
   AdminSkeleton,
 } from "@/components/admin/ui";
+import { StatChip } from "@/components/admin/StatChip";
 import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/common/Badge";
@@ -54,30 +55,6 @@ const PLAN_FILTERS = [
 // ---------------------------------------------------------------------------
 // Stat chip (prototype 28 .stat-chip)
 // ---------------------------------------------------------------------------
-
-function StatChip({
-  icon: Icon,
-  value,
-  label,
-  iconClass,
-}: {
-  icon: typeof Users;
-  value: string | number;
-  label: string;
-  iconClass: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-xs">
-      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded ${iconClass}`}>
-        <Icon size={16} />
-      </div>
-      <div>
-        <div className="font-mono text-[17px] font-extrabold leading-tight text-ink">{value}</div>
-        <div className="text-muted">{label}</div>
-      </div>
-    </div>
-  );
-}
 
 /** Pro 会员是否已过期（plan 仍为 pro 但到期时间已过）。 */
 function isExpiredPro(u: AdminUser): boolean {
