@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord 词卡 · 三方案对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
+<style>
+/* ═══════════════════════════════════════════════════════
+   词卡三方案对比页
+   同一个词（billions）+ 同一句字幕，三种信息组织方式，
+   顶部标签切换，底部给出各自取舍，供决策。
+   ═══════════════════════════════════════════════════════ */
+:root{--lv-cet4:#2563eb;--lv-cet6:#9333ea;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:var(--font-sans);background:var(--surface-soft);color:var(--ink);
+  min-height:100vh;-webkit-font-smoothing:antialiased;padding:36px 20px 120px;
+  display:flex;flex-direction:column;align-items:center;}
+
+.page-head{text-align:center;max-width:640px;margin-bottom:8px;}
+.page-head .eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-500);}
+.page-head h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:8px 0 10px;}
+.page-head p{font-size:14px;color:var(--muted);line-height:1.7;}
+
+/* 场景说明条 */
+.scene{width:min(94vw,720px);background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);padding:16px 20px;margin:24px 0 8px;box-shadow:var(--shadow-soft);}
+.scene .lbl{font-size:11px;font-weight:700;color:var(--muted-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px;}
+.scene .en{font-size:15.5px;line-height:1.7;color:var(--body);}
+.scene .en mark{background:var(--brand-100);color:var(--brand-700);font-weight:700;border-radius:4px;padding:0 3px;}
+.scene .zh{font-size:13px;color:var(--muted);margin-top:5px;}
+
+/* ── 方案切换标签 ── */
+.tabs{display:flex;gap:8px;width:min(94vw,720px);margin:20px 0 18px;background:var(--surface-card);
+  border-radius:var(--r-pill);padding:5px;}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 8px;
+  border-radius:var(--r-pill);cursor:pointer;border:none;background:transparent;font-family:inherit;
+  transition:all .2s var(--ease);}
+.tab .t-name{font-size:14px;font-weight:700;color:var(--muted);}
+.tab .t-sub{font-size:11px;color:var(--muted-soft);}
+.tab.active{background:var(--canvas);box-shadow:var(--shadow-soft);}
+.tab.active .t-name{color:var(--ink);}
+.tab.active .t-sub{color:var(--brand-600);}
+
+/* 面板容器 */
+.panel{display:none;width:min(94vw,720px);}
+.panel.active{display:block;animation:fadeIn .3s var(--ease);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* 每方案的要点总结 */
+.verdict{width:min(94vw,720px);margin-top:18px;background:var(--canvas);border:1px solid var(--hairline);
+  border-left:3px solid var(--brand-500);border-radius:var(--r-md);padding:16px 20px;}
+.verdict .v-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.verdict ul{list-style:none;display:flex;flex-direction:column;gap:5px;}
+.verdict li{font-size:13px;color:var(--body);line-height:1.6;padding-left:18px;position:relative;}
+.verdict li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--brand-400);}
+.verdict li.con::before{background:var(--muted-soft);}
+
+.open-full{display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:13px;font-weight:600;
+  color:var(--brand-600);text-decoration:none;}
+.open-full:hover{text-decoration:underline;}
+
+/* iframe 承载原型（等比缩放预览） */
+.frame-wrap{width:100%;background:var(--surface-soft);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);overflow:hidden;}
+.frame-wrap iframe{width:100%;height:760px;border:none;display:block;background:var(--surface-soft);}
+
+.foot-note{margin-top:30px;font-size:12.5px;color:var(--muted-soft);text-align:center;line-height:1.7;max-width:560px;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="eyebrow">词卡重设计 · 三方案对比</div>
+  <h1>点开一个词，应该先看到什么？</h1>
+  <p>同一个词 <b>billions</b>、同一句字幕，三种信息组织方式。共同点：都明确标注词形变化（billions ← billion），都把"本视频语境释义"作为重点。差异在于信息密度与展开方式。</p>
+</div>
+
+<!-- 统一场景 -->
+<div class="scene">
+  <div class="lbl">测试场景 · 点击字幕中的 billions</div>
+  <div class="en">Micron is spending <mark>billions</mark> of dollars to build the most advanced chip fab in America.</div>
+  <div class="zh">美光正斥资数十亿美元，在美国建造最先进的芯片工厂。</div>
+</div>
+
+<!-- 切换标签 -->
+<div class="tabs" id="tabs">
+  <button class="tab active" data-p="a"><span class="t-name">A · 极简焦点</span><span class="t-sub">一次只看一个意思</span></button>
+  <button class="tab" data-p="b"><span class="t-name">B · 学习卡式</span><span class="t-sub">结构分区全展开</span></button>
+  <button class="tab" data-p="c"><span class="t-name">C · 沉浸语境</span><span class="t-sub">先懂句子再懂词</span></button>
+</div>
+
+<!-- 面板 A -->
+<div class="panel active" id="panel-a">
+  <div class="frame-wrap"><iframe src="word-card-a-focus.html" title="方案A"></iframe></div>
+  <div class="verdict">
+    <div class="v-title">方案 A 取舍</div>
+    <ul>
+      <li>首屏只给"本视频语境释义"，认知负担最低，最不容易看花眼</li>
+      <li>词形变化（billions ← billion）单独一行，直击你提的困惑</li>
+      <li class="con">词典释义、例句、易错点默认收起，想深挖需多点一次"查看更多"</li>
+    </ul>
+    <a class="open-full" href="word-card-a-focus.html" target="_blank">独立页打开
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+    </a>
+  </div>
+</div>
+
+<!-- 面板 B -->
+<div class="panel" id="panel-b">
+  <div class="frame-wrap"><iframe src="word-card-b-study.html" title="方案B"></iframe></div>
+  <div class="verdict">
+    <div class="v-title">方案 B 取舍</div>
+    <ul>
+      <li>语境释义仍是第一焦点（品牌色带），但词典释义/例句/易错拓展全部同屏</li>
+      <li>适合"想一次把词看全"的深度学习场景，信息密度适中不堆叠</li>
+      <li class="con">卡片更高，小屏需要滚动；比 A 更"满"</li>
+    </ul>
+    <a class="open-full" href="word-card-b-study.html" target="_blank">独立页打开
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+    </a>
+  </div>
+</div>
+
+<!-- 面板 C -->
+<div class="panel" id="panel-c">
+  <div class="frame-wrap"><iframe src="word-card-c-context.html" title="方案C"></iframe></div>
+  <div class="verdict">
+    <div class="v-title">方案 C 取舍</div>
+    <ul>
+      <li>整句字幕放大居中做主角，目标词高亮，最贴合"在视频里什么意思"的诉求</li>
+      <li>释义以批注形式紧贴句子，语境感最强；词条/例句/拓展收底部</li>
+      <li class="con">占屏较大，词卡与字幕的边界弱化（更像"增强字幕"而非独立卡片）</li>
+    </ul>
+    <a class="open-full" href="word-card-c-context.html" target="_blank">独立页打开
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+    </a>
+  </div>
+</div>
+
+<p class="foot-note">三个方案都遵循 SeeWord 设计系统（seeword.css 品牌橙 + 亮暗主题，右下角可切换）。<br>请告诉我选哪个方向（或想混搭哪些元素），我再落地到 React 组件。</p>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('#tabs .tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      tabs.forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+      document.getElementById('panel-'+t.dataset.p).classList.add('active');
+    });
+  });
+})();
+</script>
+<script src="seeword.js"></script>
+</body>
+</html>

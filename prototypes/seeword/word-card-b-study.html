@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord 词卡 · 方案 B 学习卡式</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
+<style>
+/* ═══════════════════════════════════════════════════════
+   方案 B · 学习卡式（Study Card）
+   理念：像一张结构清晰的学习卡片，信息分层但一眼能扫完。
+   左侧色带标识"视频语境"，主释义 + 词典释义 + 例句同屏呈现，
+   用分隔与留白控制节奏，不折叠、不堆叠。
+   ═══════════════════════════════════════════════════════ */
+:root{--lv-cet4:#2563eb;--lv-cet6:#9333ea;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:var(--font-sans);background:var(--surface-soft);color:var(--ink);
+  min-height:100vh;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;
+  align-items:center;padding:40px 20px 120px;}
+
+.stage-label{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--brand-500);margin-bottom:8px;}
+.stage-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;}
+.stage-desc{font-size:14px;color:var(--muted);max-width:520px;text-align:center;line-height:1.6;margin-bottom:40px;}
+.stage-desc b{color:var(--ink);}
+
+.mock-sub{width:min(92vw,600px);background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);padding:18px 22px;margin-bottom:26px;box-shadow:var(--shadow-soft);}
+.mock-sub .en{font-size:16px;line-height:1.7;color:var(--body);}
+.mock-sub .en .w{cursor:pointer;border-radius:4px;padding:0 1px;transition:background .12s,color .12s;}
+.mock-sub .en .w:hover{background:var(--brand-50);color:var(--brand-500);}
+.mock-sub .en .w.hl{background:var(--brand-50);color:var(--brand-600);font-weight:600;}
+.mock-sub .zh{font-size:13px;color:var(--muted);margin-top:6px;}
+
+/* ═══ 词卡本体 ═══ */
+.word-card{width:min(92vw,600px);background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-xl);box-shadow:var(--shadow-lift);overflow:hidden;
+  animation:rise .35s var(--ease) both;}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:none;}}
+
+/* ── 词头区 ── */
+.wc-head{padding:24px 26px 18px;border-bottom:1px solid var(--hairline-soft);
+  display:flex;align-items:flex-start;gap:16px;}
+.wc-head .main{flex:1;min-width:0;}
+.wc-word{font-size:36px;font-weight:900;letter-spacing:-.03em;line-height:1.05;}
+.wc-phonetic{font-size:14px;color:var(--muted);font-family:var(--font-mono);margin-top:6px;
+  display:flex;align-items:center;gap:8px;}
+.wc-phonetic .play{color:var(--brand-500);cursor:pointer;display:flex;transition:transform .15s;}
+.wc-phonetic .play:hover{transform:scale(1.15);}
+.wc-pos{display:inline-flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.wc-pos span{font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-card);
+  padding:2px 8px;border-radius:var(--r-xs);}
+.wc-close{width:34px;height:34px;border-radius:var(--r-sm);display:flex;align-items:center;
+  justify-content:center;color:var(--muted);cursor:pointer;transition:all .15s;flex-shrink:0;
+  background:none;border:none;}
+.wc-close:hover{color:var(--ink);background:var(--surface-card);}
+
+/* 词形变化条 */
+.lemma-bar{display:flex;align-items:center;gap:8px;padding:10px 26px;background:var(--surface-soft);
+  border-bottom:1px solid var(--hairline-soft);font-size:13px;color:var(--muted);}
+.lemma-bar b{color:var(--ink);font-weight:600;}
+.lemma-bar .chip{font-size:11px;font-weight:600;color:var(--brand-600);background:var(--brand-50);
+  padding:2px 9px;border-radius:var(--r-pill);}
+
+/* ── 主体区：语境释义 + 词典释义 ── */
+.wc-body{padding:20px 26px;}
+
+/* 视频语境（带左侧色带） */
+.ctx-block{display:flex;gap:14px;background:var(--surface-soft);border-radius:var(--r-md);
+  padding:16px 18px;margin-bottom:20px;}
+.ctx-block .bar{width:4px;border-radius:2px;background:var(--brand-500);flex-shrink:0;}
+.ctx-block .content{flex:1;min-width:0;}
+.ctx-block .label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--brand-600);margin-bottom:6px;display:flex;align-items:center;gap:5px;}
+.ctx-block .meaning{font-size:20px;font-weight:800;color:var(--ink);line-height:1.4;}
+.ctx-block .explain{font-size:13.5px;color:var(--body);margin-top:7px;line-height:1.65;}
+
+/* 分节标题 */
+.sec-title{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted-soft);display:flex;align-items:center;gap:8px;margin:18px 0 10px;}
+.sec-title::after{content:"";flex:1;height:1px;background:var(--hairline);}
+
+/* 词典释义列表 */
+.def-list{display:flex;flex-direction:column;gap:2px;}
+.def-item{display:flex;gap:12px;padding:9px 0;font-size:14px;line-height:1.6;align-items:flex-start;}
+.def-item .pos{font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-soft);
+  border-radius:var(--r-xs);padding:2px 7px;flex-shrink:0;margin-top:2px;min-width:34px;text-align:center;}
+.def-item .txt{color:var(--ink);}
+.def-item .txt .en{color:var(--muted);font-size:13px;display:block;margin-top:2px;}
+
+/* 例句 */
+.example{background:var(--surface-soft);border-radius:var(--r-md);padding:14px 16px;}
+.example .en{font-size:14px;color:var(--ink);line-height:1.65;}
+.example .en mark{background:var(--brand-100);color:var(--brand-700);font-weight:600;
+  border-radius:3px;padding:0 2px;}
+.example .zh{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.55;}
+.example .src{font-size:11px;color:var(--muted-soft);margin-top:7px;display:flex;align-items:center;gap:5px;}
+
+/* 易错 + 拓展（两栏） */
+.tips{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:520px){.tips{grid-template-columns:1fr;}}
+.tip{border:1px solid var(--hairline);border-radius:var(--r-md);padding:13px 15px;}
+.tip .t-label{font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;margin-bottom:6px;}
+.tip.warn .t-label{color:var(--warning);}
+.tip.info .t-label{color:var(--indigo);}
+.tip p{font-size:12.5px;color:var(--body);line-height:1.6;}
+
+/* 等级徽标（词头右上） */
+.lv-row{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+.lv{font-size:11px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);}
+.lv.cet4{background:rgba(37,99,235,.12);color:var(--lv-cet4);}
+.lv.cet6{background:rgba(147,51,234,.12);color:var(--lv-cet6);}
+.lv.freq{background:var(--warning-soft);color:var(--warning);display:inline-flex;gap:4px;align-items:center;}
+
+/* ── 底部操作 ── */
+.wc-foot{display:flex;gap:10px;padding:18px 26px 24px;border-top:1px solid var(--hairline-soft);}
+.btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:46px;
+  border-radius:var(--r-md);font-size:14px;font-weight:600;cursor:pointer;border:none;
+  font-family:inherit;transition:all .15s;}
+.btn.primary{background:var(--ink);color:var(--canvas);}
+.btn.primary:hover{background:var(--brand-500);box-shadow:var(--shadow-brand);}
+.btn.ghost{background:transparent;color:var(--body);border:1px solid var(--hairline-strong);}
+.btn.ghost:hover{border-color:var(--ink);color:var(--ink);}
+
+.hint{margin-top:28px;font-size:12px;color:var(--muted-soft);text-align:center;line-height:1.6;max-width:460px;}
+</style>
+</head>
+<body>
+
+<div class="stage-label">方案 B · 学习卡式</div>
+<h1 class="stage-title">结构化卡片，信息分层同屏</h1>
+<p class="stage-desc">像一张<b>学习卡片</b>：词头区、语境释义、词典释义、例句、易错拓展各占一块，全部同屏可见但用留白与分隔控制节奏，适合想一次看全的学习者。</p>
+
+<div class="mock-sub">
+  <div class="en">Micron is spending <span class="w hl">billions</span> of dollars to build the most advanced chip fab in America.</div>
+  <div class="zh">美光正斥资数十亿美元，在美国建造最先进的芯片工厂。</div>
+</div>
+
+<!-- ═══ 词卡 B ═══ -->
+<div class="word-card">
+  <!-- 词头区 -->
+  <div class="wc-head">
+    <div class="main">
+      <div class="wc-word">billions</div>
+      <div class="wc-phonetic">
+        /ˈbɪljənz/
+        <span class="play" title="发音">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </span>
+      </div>
+      <div class="lv-row">
+        <span class="lv cet4">四级</span>
+        <span class="lv cet6">六级</span>
+        <span class="lv freq">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          真题高频
+        </span>
+      </div>
+    </div>
+    <button class="wc-close" title="关闭" aria-label="关闭">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <!-- 词形变化条 -->
+  <div class="lemma-bar">
+    <span class="chip">词形</span>
+    <span><b>billion</b>（原形 / 单数）</span>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    <span><b>billions</b>（复数）</span>
+  </div>
+
+  <!-- 主体 -->
+  <div class="wc-body">
+    <!-- 视频语境 -->
+    <div class="ctx-block">
+      <div class="bar"></div>
+      <div class="content">
+        <div class="label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          在本视频中
+        </div>
+        <div class="meaning">数十亿（美元）</div>
+        <div class="explain">句中指美光投入的资金规模极其庞大，用复数 billions of 强调金额之巨。</div>
+      </div>
+    </div>
+
+    <!-- 词典释义 -->
+    <div class="sec-title">词典释义</div>
+    <div class="def-list">
+      <div class="def-item">
+        <span class="pos">num.</span>
+        <span class="txt">十亿（1,000,000,000）<span class="en">a thousand millions</span></span>
+      </div>
+      <div class="def-item">
+        <span class="pos">n.</span>
+        <span class="txt">billions of 数十亿的、大量的<span class="en">a very large number of</span></span>
+      </div>
+    </div>
+
+    <!-- 例句 -->
+    <div class="sec-title">真题例句</div>
+    <div class="example">
+      <div class="en">The project will cost <mark>billions</mark> of dollars over the next decade.</div>
+      <div class="zh">该项目在未来十年将耗资数十亿美元。</div>
+      <div class="src">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        六级真题 · 2023
+      </div>
+    </div>
+
+    <!-- 易错 + 拓展 -->
+    <div class="sec-title">易错 &amp; 拓展</div>
+    <div class="tips">
+      <div class="tip warn">
+        <div class="t-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          易错点
+        </div>
+        <p>确切数字用单数 two billion people；模糊大量才用 billions of。</p>
+      </div>
+      <div class="tip info">
+        <div class="t-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          拓展
+        </div>
+        <p>同类：millions of、thousands of；口语中常夸张表示"非常多"。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作 -->
+  <div class="wc-foot">
+    <button class="btn ghost">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      播放本句
+    </button>
+    <button class="btn primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      加入词汇本
+    </button>
+  </div>
+</div>
+
+<p class="hint">设计要点：① 语境释义用品牌色带强调，仍是第一视觉焦点；② 词典释义按词性分行，配英文原义；③ 易错/拓展双栏并列，信息全但不堆叠；④ 词形变化独立成条。</p>
+
+<script src="seeword.js"></script>
+</body>
+</html>

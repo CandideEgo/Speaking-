@@ -1,0 +1,239 @@
+/* ══════════════════════════════════════════════════════════════
+   SeeWord 原型统一设计系统（Single Source of Truth）
+   ──────────────────────────────────────────────────────────────
+   · Token 与真实项目 frontend/src/app/globals.css 保持 1:1 对齐，
+     原型定稿后可直接对照落地到 Next.js 前端。
+   · 所有原型页面通过 <link rel="stylesheet" href="seeword.css">
+     引用本文件；页面内不得再重复定义以下共享 token。
+   · 页面特有变量（等级色 --lv-*、装饰色等）仍保留在页面内。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────────────────────
+   1. 主题变量 —— 亮色（与 globals.css :root 对齐）
+   ──────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+  --surface-dark: #0a0a0a;
+
+  /* Text */
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+
+  /* Borders */
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --hairline-strong: #d4d4d8;
+
+  /* Brand — vivid orange（50/100/200/700 随主题翻转，300~600 静态） */
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-200: #ffc1a8;
+  --brand-300: #ff9b76;
+  --brand-400: #ff7a45;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+
+  /* Secondary accent */
+  --indigo: #6366f1;
+  --indigo-soft: #eef2ff;
+
+  /* Semantic */
+  --success: #16a34a;
+  --success-soft: #ecfdf5;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+  --error: #dc2626;
+  --red-soft: #fef2f2;
+  --sky-soft: #f0f9ff;
+
+  /* On-colors */
+  --on-primary: #ffffff;
+  --on-dark: #fafafa;
+  --on-dark-soft: #a1a1aa;
+
+  /* Chrome */
+  --topbar-bg: #ffffff;
+  --sidebar-bg: #ffffff;
+
+  /* Elevation —— 轻、克制，白底只用 4% 黑 */
+  --shadow-soft: 0 1px 2px rgba(10,10,10,.04), 0 1px 3px rgba(10,10,10,.04);
+  --shadow-card: 0 2px 8px rgba(10,10,10,.05), 0 1px 2px rgba(10,10,10,.04);
+  --shadow-lift: 0 12px 32px rgba(10,10,10,.08), 0 2px 8px rgba(10,10,10,.04);
+  --shadow-brand: 0 8px 24px rgba(255,90,31,.28);
+
+  /* Radius */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 9999px;
+
+  /* Fonts */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ────────────────────────────────────────────────
+   2. 主题变量 —— 暗色（与 globals.css .dark 对齐）
+   ──────────────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+
+  /* Surfaces — zinc 深色阶 */
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+
+  /* Text */
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --muted: #a1a1aa;
+  --muted-soft: #6b6b72;
+
+  /* Borders */
+  --hairline: #242426;
+  --hairline-soft: #1c1c1e;
+  --hairline-strong: #3f3f46;
+
+  /* Brand — 暗橙底 + 提亮文本 */
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-200: #3d1d0f;
+  --brand-700: #ff7a45;
+
+  /* Secondary accent */
+  --indigo-soft: #16172b;
+
+  /* Semantic — 主色提亮，soft 改暗底 */
+  --success: #22c55e;
+  --success-soft: #0d2417;
+  --warning: #f59e0b;
+  --warning-soft: #241a08;
+  --error: #ef4444;
+  --red-soft: #261212;
+  --sky-soft: #0c1a24;
+
+  /* Chrome */
+  --topbar-bg: #0e0e10;
+  --sidebar-bg: #0e0e10;
+
+  /* Elevation — 深底需要更重的投影 */
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4);
+  --shadow-card: 0 2px 8px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --shadow-lift: 0 12px 32px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.45);
+}
+
+/* ────────────────────────────────────────────────
+   3. Base —— 统一底层观感
+   ──────────────────────────────────────────────── */
+html {
+  background: var(--canvas);
+}
+
+::selection {
+  background: var(--brand-500);
+  color: #fff;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 细滚动条 —— 轻盈、贴近底色 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--hairline-strong); border-radius: 9999px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ────────────────────────────────────────────────
+   4. 共享组件 —— 主题切换按钮（.theme-toggle）
+      统一为右下角悬浮圆形按钮；页面若已定位（如 top）
+      可在页面样式中覆盖。
+   ──────────────────────────────────────────────── */
+.theme-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 80;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--canvas) 82%, transparent);
+  border: 1px solid var(--hairline);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, transform .15s;
+}
+.theme-toggle:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+}
+
+/* ────────────────────────────────────────────────
+   5. 共享语义工具类（可选使用）
+   ──────────────────────────────────────────────── */
+.sw-card {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-soft);
+}
+.sw-card-hover {
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease), border-color .15s;
+}
+.sw-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+  border-color: var(--hairline-strong);
+}
+.sw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-card);
+  color: var(--muted);
+}

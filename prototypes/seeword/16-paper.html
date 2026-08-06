@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
 <style>
 /* ═══════════════════════════════════════════════════════
    SeeWord Paper - 试卷专栏 · 即时学习模式
@@ -14,34 +15,17 @@
    顶部"考试模式"入口 -> 06（提交判分）
    app token (globals.css)
    ═══════════════════════════════════════════════════════ */
-:root{
-  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
-  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
-  --hairline:#ededed;--hairline-soft:#f4f4f5;
-  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
-  --indigo:#6366f1;--indigo-soft:#eef2ff;
-  --success:#16a34a;--success-soft:#dcfce7;--success-dark:#15803d;
-  --warning:#d97706;--warning-soft:#fef3c7;
-  --error:#dc2626;--red-soft:#fee2e2;--error-dark:#b91c1c;
-  --sky-soft:#f0f9ff;--on-primary:#ffffff;--topbar-bg:#ffffff;
-  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
-  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
-  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
-  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
-  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
-  --lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-gaoKao:#16a34a;--lv-ielts:#dc2626;
+:root {
+  --success-dark:#15803d;
+  --error-dark:#b91c1c;
+  --lv-cet4:#2563eb;
+  --lv-cet6:#9333ea;
+  --lv-gaoKao:#16a34a;
+  --lv-ielts:#dc2626;
 }
-html.dark{
-  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
-  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
-  --hairline:#242426;--hairline-soft:#1a1a1c;
-  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
-  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;--success-dark:#22c55e;
-  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;--error-dark:#ef4444;
-  --sky-soft:#0c1a24;--topbar-bg:#0e0e10;
-  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
-  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
-  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+html.dark {
+  --success-dark:#22c55e;
+  --error-dark:#ef4444;
 }
 *{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
 body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";}
@@ -141,7 +125,7 @@ a{text-decoration:none;color:inherit;}input,textarea{font-family:inherit;}
 .q-explain .ex{display:block;margin-top:4px;}
 @keyframes fade{from{opacity:0;}to{opacity:1;}}
 
-.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
 
 /* 移动端底部 tab 栏 */
 .mobile-tab{position:fixed;bottom:0;left:0;right:0;z-index:60;display:none;
@@ -327,13 +311,6 @@ document.getElementById("btnReset").addEventListener("click",()=>{answered={};re
 
 render();
 
-const root=document.documentElement;
-document.getElementById("themeToggle").addEventListener("click",()=>{
-  root.classList.toggle("dark");
-  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
-    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
-    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
-});
 </script>
 
 <!-- 移动端底部 tab -->
@@ -344,5 +321,6 @@ document.getElementById("themeToggle").addEventListener("click",()=>{
   <a href="09-vocabulary.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>词汇</span></a>
   <a href="07-profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg><span>我的</span></a>
 </nav>
+<script src="seeword.js"></script>
 </body>
 </html>

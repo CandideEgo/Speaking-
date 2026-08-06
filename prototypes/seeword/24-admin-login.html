@@ -7,22 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
 <style>
 /* ═══════════ SeeWord Admin Login · 左品牌暗色 + 右表单 ═══════════ */
-:root {
-  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
-  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
-  --hairline:#ededed;--hairline-soft:#f4f4f5;
-  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
-  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
-  --on-primary:#ffffff;--surface-dark:#0a0a0a;--on-dark:#fafafa;--on-dark-soft:rgba(250,250,250,.62);
-  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
-  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
-  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
-  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
-  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
-  --ease:cubic-bezier(.22,.61,.36,1);
-}
 html.dark{--surface-dark:#050505;}
 *{margin:0;padding:0;box-sizing:border-box;}
 html{background:var(--canvas);}
@@ -103,7 +90,7 @@ input{font-family:inherit;}
 .back a{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);transition:color .15s;}
 .back a:hover{color:var(--ink);}
 
-.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;}
+
 </style>
 </head>
 <body>
@@ -225,16 +212,7 @@ submitBtn.addEventListener('click',()=>{
   },900);
 });
 
-// 主题切换
-const themeToggle=document.getElementById('themeToggle');
-const themeIcon=document.getElementById('themeIcon');
-themeToggle.addEventListener('click',()=>{
-  document.documentElement.classList.toggle('dark');
-  const isDark=document.documentElement.classList.contains('dark');
-  themeIcon.innerHTML=isDark
-    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
-    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
-});
 </script>
+<script src="seeword.js"></script>
 </body>
 </html>

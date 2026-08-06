@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeWord 词卡 · 方案 A 极简焦点式</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
+<style>
+/* ═══════════════════════════════════════════════════════
+   方案 A · 极简焦点式（Minimal Focus）
+   理念：一次只聚焦一件事 —— 点开先看"这个词在这里是什么意思"，
+   其余信息分层收纳，按需展开，绝不一次性铺满。
+   ═══════════════════════════════════════════════════════ */
+:root{--lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-ielts:#dc2626;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--canvas);}
+body{font-family:var(--font-sans);background:var(--surface-soft);color:var(--ink);
+  min-height:100vh;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;
+  align-items:center;padding:40px 20px 120px;}
+
+.stage-label{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--brand-500);margin-bottom:8px;}
+.stage-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;}
+.stage-desc{font-size:14px;color:var(--muted);max-width:520px;text-align:center;line-height:1.6;margin-bottom:40px;}
+.stage-desc b{color:var(--ink);}
+
+/* ── 模拟字幕行（点击来源）── */
+.mock-sub{width:min(92vw,560px);background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-lg);padding:18px 22px;margin-bottom:26px;box-shadow:var(--shadow-soft);}
+.mock-sub .en{font-size:16px;line-height:1.7;color:var(--body);}
+.mock-sub .en .w{cursor:pointer;border-radius:4px;padding:0 1px;transition:background .12s,color .12s;}
+.mock-sub .en .w:hover{background:var(--brand-50);color:var(--brand-500);}
+.mock-sub .en .w.hl{background:var(--brand-50);color:var(--brand-600);font-weight:600;}
+.mock-sub .zh{font-size:13px;color:var(--muted);margin-top:6px;}
+
+/* ═══ 词卡本体 ═══ */
+.word-card{width:min(92vw,560px);background:var(--canvas);border:1px solid var(--hairline);
+  border-radius:var(--r-xl);box-shadow:var(--shadow-lift);overflow:hidden;
+  animation:rise .35s var(--ease) both;}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:none;}}
+
+/* 头部：单词 + 发音 + 关闭 */
+.wc-head{display:flex;align-items:center;gap:14px;padding:22px 24px 10px;}
+.wc-word{font-size:34px;font-weight:900;letter-spacing:-.03em;line-height:1;flex:1;min-width:0;}
+.wc-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.icon-btn{width:34px;height:34px;border-radius:var(--r-sm);display:flex;align-items:center;
+  justify-content:center;color:var(--muted);border:1px solid transparent;cursor:pointer;
+  transition:all .15s;background:transparent;}
+.icon-btn:hover{color:var(--ink);background:var(--surface-card);}
+.icon-btn.save:hover{color:var(--brand-500);background:var(--brand-50);}
+
+/* 词形提示：解决 billions 显示成 billion 的问题 */
+.lemma-note{margin:0 24px;display:inline-flex;align-items:center;gap:7px;
+  font-size:12.5px;color:var(--muted);background:var(--surface-card);
+  border-radius:var(--r-pill);padding:5px 12px;width:fit-content;}
+.lemma-note .arrow{color:var(--brand-500);display:flex;}
+.lemma-note b{color:var(--ink);font-weight:600;}
+
+/* 等级条 */
+.levels{display:flex;gap:6px;margin:12px 24px 0;flex-wrap:wrap;}
+.lv{font-size:11px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);}
+.lv.cet4{background:rgba(37,99,235,.12);color:var(--lv-cet4);}
+.lv.cet6{background:rgba(147,51,234,.12);color:var(--lv-cet6);}
+.lv.freq{background:var(--warning-soft);color:var(--warning);display:inline-flex;gap:4px;align-items:center;}
+
+/* ── 核心：本视频语境释义（第一焦点）── */
+.wc-context{margin:20px 24px 0;background:var(--brand-50);border-left:3px solid var(--brand-500);
+  border-radius:var(--r-md);padding:16px 18px;}
+.wc-context .tag{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--brand-600);
+  text-transform:uppercase;display:flex;align-items:center;gap:5px;margin-bottom:7px;}
+.wc-context .meaning{font-size:19px;font-weight:700;color:var(--ink);line-height:1.45;}
+.wc-context .sub{font-size:13px;color:var(--body);margin-top:6px;line-height:1.6;}
+
+/* ── 通用释义（第二层，弱化）── */
+.wc-general{margin:18px 24px 0;}
+.wc-general .row{display:flex;gap:10px;font-size:14px;line-height:1.6;padding:7px 0;
+  border-bottom:1px solid var(--hairline-soft);}
+.wc-general .row:last-child{border-bottom:none;}
+.wc-general .pos{font-size:12px;font-weight:600;color:var(--muted);background:var(--surface-card);
+  border-radius:var(--r-xs);padding:1px 7px;flex-shrink:0;height:fit-content;margin-top:2px;}
+.wc-general .zh-def{color:var(--ink);}
+
+/* ── 折叠区：拓展信息默认收起 ── */
+.wc-more{margin:6px 24px 0;border-top:1px solid var(--hairline);}
+.more-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 0;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;
+  background:none;border:none;font-family:inherit;transition:color .15s;}
+.more-toggle:hover{color:var(--ink);}
+.more-toggle .chev{transition:transform .25s var(--ease);}
+.wc-more.open .more-toggle .chev{transform:rotate(180deg);}
+.more-body{max-height:0;overflow:hidden;transition:max-height .3s var(--ease);}
+.wc-more.open .more-body{max-height:600px;}
+.more-inner{padding:2px 0 18px;display:flex;flex-direction:column;gap:14px;}
+
+.example{background:var(--surface-soft);border-radius:var(--r-md);padding:13px 15px;}
+.example .en{font-size:13.5px;color:var(--ink);line-height:1.6;font-style:italic;}
+.example .en mark{background:var(--brand-100);color:var(--brand-700);font-style:normal;
+  font-weight:600;border-radius:3px;padding:0 2px;}
+.example .zh{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.5;}
+.example .src{font-size:11px;color:var(--muted-soft);margin-top:6px;}
+
+.note-block .nb-title{font-size:12px;font-weight:700;color:var(--muted);
+  display:flex;align-items:center;gap:5px;margin-bottom:5px;}
+.note-block p{font-size:13px;color:var(--body);line-height:1.6;}
+
+/* ── 底部操作 ── */
+.wc-foot{display:flex;gap:10px;padding:16px 24px 22px;margin-top:4px;}
+.btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:44px;border-radius:var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  border:none;font-family:inherit;transition:all .15s;}
+.btn.primary{background:var(--ink);color:var(--canvas);}
+.btn.primary:hover{background:var(--brand-500);box-shadow:var(--shadow-brand);}
+.btn.ghost{background:transparent;color:var(--body);border:1px solid var(--hairline-strong);}
+.btn.ghost:hover{border-color:var(--ink);color:var(--ink);}
+
+.hint{margin-top:28px;font-size:12px;color:var(--muted-soft);text-align:center;line-height:1.6;max-width:420px;}
+</style>
+</head>
+<body>
+
+<div class="stage-label">方案 A · 极简焦点式</div>
+<h1 class="stage-title">先看这里的意思，其余按需展开</h1>
+<p class="stage-desc">点开词卡，<b>第一眼只看到"这个词在本视频里的意思"</b>；词形变化明确标注（解决 billions 显示成 billion 的困惑）；词典释义、例句、易错点全部收进"查看更多"。</p>
+
+<!-- 模拟字幕行 -->
+<div class="mock-sub">
+  <div class="en">Micron is spending <span class="w hl">billions</span> of dollars to build the most advanced chip fab in America.</div>
+  <div class="zh">美光正斥资数十亿美元，在美国建造最先进的芯片工厂。</div>
+</div>
+
+<!-- ═══ 词卡 A ═══ -->
+<div class="word-card">
+  <div class="wc-head">
+    <div class="wc-word">billions</div>
+    <div class="wc-actions">
+      <button class="icon-btn" title="发音" aria-label="发音">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      </button>
+      <button class="icon-btn" title="关闭" aria-label="关闭">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 词形变化提示 -->
+  <div class="lemma-note">
+    <span>原形</span>
+    <b>billion</b>
+    <span class="arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+    <span>复数形式 billions</span>
+  </div>
+
+  <!-- 考试等级 -->
+  <div class="levels">
+    <span class="lv cet4">四级</span>
+    <span class="lv cet6">六级</span>
+    <span class="lv freq">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+      真题高频
+    </span>
+  </div>
+
+  <!-- 第一焦点：本视频语境释义 -->
+  <div class="wc-context">
+    <div class="tag">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      在本视频中
+    </div>
+    <div class="meaning">数十亿（美元）</div>
+    <div class="sub">句中指美光投入的资金规模极其庞大，强调投资金额之大。</div>
+  </div>
+
+  <!-- 第二层：通用释义 -->
+  <div class="wc-general">
+    <div class="row">
+      <span class="pos">num.</span>
+      <span class="zh-def">十亿（1,000,000,000）；billions of 表示"数十亿的、大量的"</span>
+    </div>
+  </div>
+
+  <!-- 折叠：拓展信息 -->
+  <div class="wc-more" id="moreA">
+    <button class="more-toggle" onclick="document.getElementById('moreA').classList.toggle('open')">
+      <span>查看更多 · 例句 / 易错点 / 拓展</span>
+      <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+    </button>
+    <div class="more-body">
+      <div class="more-inner">
+        <div class="example">
+          <div class="en">The project will cost <mark>billions</mark> of dollars over the next decade.</div>
+          <div class="zh">该项目在未来十年将耗资数十亿美元。</div>
+          <div class="src">— 六级真题 · 2023</div>
+        </div>
+        <div class="note-block">
+          <div class="nb-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            易错点
+          </div>
+          <p>表示确切数字时用单数（two billion people）；表示模糊的大量时才用复数 billions of。</p>
+        </div>
+        <div class="note-block">
+          <div class="nb-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            拓展
+          </div>
+          <p>同类数量词：millions of（数百万）、thousands of（数千）。口语中 billions 常夸张表示"非常多"。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作 -->
+  <div class="wc-foot">
+    <button class="btn ghost">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      播放本句
+    </button>
+    <button class="btn primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      加入词汇本
+    </button>
+  </div>
+</div>
+
+<p class="hint">设计要点：① 语境释义放在最显眼的品牌色块，一眼看懂"这里是什么意思"；② 词形变化单独一行说清（billions ← billion）；③ 例句/易错/拓展默认收起，避免信息过载。</p>
+
+<script src="seeword.js"></script>
+</body>
+</html>

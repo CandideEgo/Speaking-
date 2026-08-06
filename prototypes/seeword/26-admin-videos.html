@@ -7,32 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
 <style>
 /* ═══════════ SeeWord Admin · 视频管理（复用 shell） ═══════════ */
-:root {
-  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
-  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
-  --hairline:#ededed;--hairline-soft:#f4f4f5;--topbar-bg:#ffffff;--sidebar-bg:#ffffff;
-  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-200:#ffc1a8;--brand-300:#ff9b76;--brand-400:#ff7a45;--brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
-  --indigo:#6366f1;--indigo-soft:#e0e7ff;--success:#16a34a;--success-soft:#dcfce7;--warning:#d97706;--warning-soft:#fef3c7;--error:#dc2626;--red-soft:#fee2e2;
-  --on-primary:#ffffff;
-  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
-  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
-  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
-  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
-  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
-  --ease:cubic-bezier(.22,.61,.36,1);
-}
-html.dark {
-  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
-  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
-  --hairline:#242426;--hairline-soft:#1a1a1c;--topbar-bg:#0e0e10;--sidebar-bg:#0e0e10;
-  --brand-50:#241109;--brand-100:#2f170c;--brand-200:#3d1d0f;--brand-700:#ff7a45;
-  --indigo-soft:#1e1b4b;--success:#22c55e;--success-soft:#052e16;--warning:#f59e0b;--warning-soft:#422006;--error:#ef4444;--red-soft:#3b0a0a;
-  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
-  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
-  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
-}
 *{margin:0;padding:0;box-sizing:border-box;}
 html{background:var(--surface-soft);}
 body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--surface-soft);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11";transition:background .2s,color .2s;}
@@ -349,7 +326,7 @@ document.getElementById('collapseBtn').addEventListener('click',()=>{if(window.i
 const hamburger=document.getElementById('hamburger'),overlay=document.getElementById('overlay');
 hamburger.addEventListener('click',()=>{sidebar.classList.add('mobile-open');overlay.classList.add('visible');});
 overlay.addEventListener('click',()=>{sidebar.classList.remove('mobile-open');overlay.classList.remove('visible');});
-document.getElementById('themeToggle').addEventListener('click',()=>document.documentElement.classList.toggle('dark'));
 </script>
+<script src="seeword.js"></script>
 </body>
 </html>

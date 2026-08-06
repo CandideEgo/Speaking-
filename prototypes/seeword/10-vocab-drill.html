@@ -7,40 +7,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="seeword.css">
 <style>
 /* ═══════════════════════════════════════════════════════
    SeeWord Vocab Drill - 单独单词训练 · 独立全屏
    复用 06 的 Duolingo 即时反馈 · app token (globals.css)
    ═══════════════════════════════════════════════════════ */
-:root{
-  --canvas:#ffffff;--surface-soft:#fafafa;--surface-card:#f4f4f5;--surface-strong:#ededed;
-  --ink:#0a0a0a;--body:#27272a;--muted:#71717a;--muted-soft:#a1a1aa;
-  --hairline:#ededed;--hairline-soft:#f4f4f5;--bg-inset:#f4f4f5;
-  --brand-50:#fff1eb;--brand-100:#ffe0d3;--brand-300:#ff9b76;--brand-400:#ff7a45;
-  --brand-500:#ff5a1f;--brand-600:#e84a10;--brand-700:#c33c0c;
-  --indigo:#6366f1;--indigo-soft:#eef2ff;
-  --success:#16a34a;--success-soft:#dcfce7;--success-dark:#15803d;
-  --warning:#d97706;--warning-soft:#fef3c7;
-  --error:#dc2626;--red-soft:#fee2e2;--error-dark:#b91c1c;
-  --sky-soft:#f0f9ff;--on-primary:#ffffff;
-  --shadow-soft:0 1px 2px rgba(10,10,10,.04),0 1px 3px rgba(10,10,10,.04);
-  --shadow-card:0 2px 8px rgba(10,10,10,.05),0 1px 2px rgba(10,10,10,.04);
-  --shadow-lift:0 12px 32px rgba(10,10,10,.08),0 2px 8px rgba(10,10,10,.04);
-  --shadow-brand:0 8px 24px rgba(255,90,31,0.28);
-  --r-xs:4px;--r-sm:8px;--r-md:10px;--r:12px;--r-lg:16px;--r-xl:22px;--r-pill:9999px;
-  --lv-cet4:#2563eb;--lv-cet6:#9333ea;--lv-gaoKao:#16a34a;--lv-ielts:#dc2626;
+:root {
+  --bg-inset:#f4f4f5;
+  --success-dark:#15803d;
+  --error-dark:#b91c1c;
+  --lv-cet4:#2563eb;
+  --lv-cet6:#9333ea;
+  --lv-gaoKao:#16a34a;
+  --lv-ielts:#dc2626;
 }
-html.dark{
-  --canvas:#0a0a0a;--surface-soft:#111112;--surface-card:#1a1a1c;--surface-strong:#262628;
-  --ink:#fafafa;--body:#d4d4d8;--muted:#a1a1aa;--muted-soft:#6b6b72;
-  --hairline:#242426;--hairline-soft:#1a1a1c;--bg-inset:#1a1a1c;
-  --brand-50:#241109;--brand-100:#2f170c;--brand-700:#ff7a45;
-  --indigo-soft:#16172b;--success:#22c55e;--success-soft:#052e16;--success-dark:#22c55e;
-  --warning:#f59e0b;--warning-soft:#241a08;--error:#ef4444;--red-soft:#261212;--error-dark:#ef4444;
-  --sky-soft:#0c1a24;
-  --shadow-soft:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);
-  --shadow-card:0 2px 8px rgba(0,0,0,.55),0 1px 2px rgba(0,0,0,.5);
-  --shadow-lift:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+html.dark {
+  --bg-inset:#1a1a1c;
+  --success-dark:#22c55e;
+  --error-dark:#ef4444;
 }
 *{margin:0;padding:0;box-sizing:border-box;}html{background:var(--canvas);}
 body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -149,8 +134,7 @@ a{text-decoration:none;color:inherit;}input{font-family:inherit;}
 .btn-sum-secondary{background:var(--canvas);color:var(--ink);border:2px solid var(--hairline);border-bottom-width:4px;}
 .btn-sum-secondary:hover{background:var(--surface-soft);}
 
-.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:80;width:40px;height:40px;border-radius:50%;
-  background:var(--canvas);border:1px solid var(--hairline);box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
 </style>
 </head>
 <body>
@@ -335,14 +319,7 @@ function start(){buildItems();cur=0;correct=0;
 document.getElementById("btnRetry").addEventListener("click",start);
 start();
 
-// 主题切换
-const root=document.documentElement;
-document.getElementById("themeToggle").addEventListener("click",()=>{
-  root.classList.toggle("dark");
-  document.getElementById("themeIcon").innerHTML=root.classList.contains("dark")
-    ?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>'
-    :'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
-});
 </script>
+<script src="seeword.js"></script>
 </body>
 </html>
