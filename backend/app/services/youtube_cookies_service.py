@@ -65,7 +65,14 @@ def _cookies_file() -> str | None:
 def _build_opts() -> dict:
     """yt-dlp opts mirroring _extract_video_info (probe only, no download)."""
     settings = get_settings()
-    opts: dict = {"quiet": True, "no_warnings": True, "skip_download": True, "remote_components": "ejs:github"}
+    opts: dict = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "remote_components": "ejs:github",
+        # node 运行时：解 YouTube n-challenge 签名（无 JS 运行时只能拿到图片格式）
+        "js_runtimes": {"node": {}},
+    }
     if settings.http_proxy:
         opts["proxy"] = settings.http_proxy
     cookies = _cookies_file()

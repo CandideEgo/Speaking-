@@ -123,6 +123,10 @@ def _build_ytdlp_extra_args() -> list[str]:
         extra.extend(["--proxy", settings.http_proxy])
     if settings.youtube_cookies_path and Path(settings.youtube_cookies_path).exists():
         extra.extend(["--cookies", settings.youtube_cookies_path])
+    # node 运行时：解 YouTube n-challenge 签名（无 JS 运行时只能拿到图片格式）
+    extra.extend(["--js-runtimes", "node"])
+    # 启用 EJS 组件（challenge solver 脚本），缓存已预置
+    extra.extend(["--remote-components", "ejs:github"])
     return extra
 
 

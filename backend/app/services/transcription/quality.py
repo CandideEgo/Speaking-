@@ -57,9 +57,16 @@ class QualityReport:
         return [c for c in self.checks if not c.passed]
 
 
-def _is_repetitive(segments: list[dict]) -> HallucinationCheck:
+def _seg_value(seg, key: str, default):
+    """Get a segment field from either a dict or a pydantic model."""
+    if isinstance(seg, dict):
+        return seg.get(key, default)
+    return getattr(seg, key, default)
+
+
+def _is_repetitive(segments: list) -> HallucinationCheck:
     """Detect if the same text dominates the transcript (repetition hallucination)."""
-    texts = [s.get("text", "").strip().lower() for s in segments if s.get("text", "").strip()]
+    texts = [str(_seg_value(s, "text", "")).strip().lower() for s in segments if str(_seg_value(s, "text", "")).strip()]
     if not texts:
         return HallucinationCheck("repetitive", False, "All segments empty")
 
@@ -78,7 +85,7 @@ def _has_nonsense(segments: list[dict]) -> HallucinationCheck:
     """Detect segments with excessive non-linguistic characters."""
     nonsense_count = 0
     for seg in segments:
-        text = seg.get("text", "")
+        text = _seg_value(seg, "text", "")
         if not text:
             continue
         # Count non-alphanumeric, non-punctuation, non-whitespace chars
@@ -102,7 +109,7 @@ def _duration_sanity(segments: list[dict], audio_duration: float | None) -> Hall
         return HallucinationCheck("duration", False, "No segments")
 
     if audio_duration and audio_duration > 0:
-        last_end = max(s.get("end", 0) for s in segments)
+        last_end = max(float(_seg_value(s, "end", 0)) for s in segments)
         if last_end > audio_duration * 1.5:
             return HallucinationCheck(
                 "duration",
@@ -113,7 +120,7 @@ def _duration_sanity(segments: list[dict], audio_duration: float | None) -> Hall
     # Check individual segment durations
     bad_durations = 0
     for seg in segments:
-        dur = seg.get("end", 0) - seg.get("start", 0)
+        dur = float(_seg_value(seg, "end", 0)) - float(_seg_value(seg, "start", 0))
         if dur < _MIN_SEGMENT_DURATION or dur > _MAX_SEGMENT_DURATION:
             bad_durations += 1
 
@@ -131,8 +138,8 @@ def _density_check(segments: list[dict]) -> HallucinationCheck:
     """Detect impossibly dense text (likely hallucination or song lyrics)."""
     dense = 0
     for seg in segments:
-        text = seg.get("text", "")
-        dur = seg.get("end", 0) - seg.get("start", 0)
+        text = _seg_value(seg, "text", "")
+        dur = float(_seg_value(seg, "end", 0)) - float(_seg_value(seg, "start", 0))
         if dur > 0 and len(text) / dur > _MAX_CHARS_PER_SECOND:
             dense += 1
 
@@ -148,7 +155,7 @@ def _density_check(segments: list[dict]) -> HallucinationCheck:
 
 def _empty_ratio(segments: list[dict]) -> HallucinationCheck:
     """Check for too many empty/whitespace-only segments."""
-    empty = sum(1 for s in segments if not s.get("text", "").strip())
+    empty = sum(1 for s in segments if not str(_seg_value(s, "text", "")).strip())
     ratio = empty / max(len(segments), 1)
     if ratio > _MAX_EMPTY_RATIO and len(segments) > 5:
         return HallucinationCheck(
