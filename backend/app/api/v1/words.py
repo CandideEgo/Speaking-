@@ -81,7 +81,7 @@ async def gloss_word(
     # Live fallback writes a global row so the next click is instant.
     contextual_note = pitfalls = knowledge = None
     try:
-        cached = await word_notes.get_best_note(db, lemma, video_id)
+        cached = await word_notes.get_best_note(db, lemma, video_id, surface=clean)
         if cached:
             contextual_note = cached["contextual_note"]
             pitfalls = cached["pitfalls"]

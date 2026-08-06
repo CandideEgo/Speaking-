@@ -45,19 +45,33 @@ async def get_note(db: AsyncSession, word: str, source: str) -> WordAINote | Non
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def get_best_note(db: AsyncSession, word: str, video_id: str | None = None) -> dict | None:
+async def get_best_note(
+    db: AsyncSession,
+    word: str,
+    video_id: str | None = None,
+    surface: str | None = None,
+) -> dict | None:
     """Return the best-available note for ``word`` (video-specific → global).
+
+    ``surface`` is the inflected surface form as it appears in subtitles
+    (e.g. billions). Pipeline prewarm keys video notes by surface while gloss
+    lookups key by lemma (billion), so the surface key is consulted as a
+    fallback before giving up — otherwise inflected forms would never hit
+    their video-level notes.
 
     Returns a plain dict {contextual_note, pitfalls, knowledge, source} ready
     for the gloss endpoint response, or None when neither exists.
     """
+    keys = [word] if not surface or surface == word else [word, surface]
     if video_id:
-        n = await get_note(db, word, _video_source(video_id))
+        for key in keys:
+            n = await get_note(db, key, _video_source(video_id))
+            if n:
+                return n.to_dict()
+    for key in keys:
+        n = await get_note(db, key, GLOBAL_SOURCE)
         if n:
             return n.to_dict()
-    n = await get_note(db, word, GLOBAL_SOURCE)
-    if n:
-        return n.to_dict()
     return None
 
 

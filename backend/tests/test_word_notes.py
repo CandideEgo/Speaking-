@@ -249,6 +249,78 @@ async def test_get_best_note_returns_none_when_missing(db_session):
     assert await word_notes.get_best_note(db_session, "nonexistent") is None
 
 
+@pytest.mark.asyncio
+async def test_get_best_note_falls_back_to_surface_key_for_inflected_forms(db_session):
+    """Video notes are keyed by the surface form (billions); gloss looks up the
+    lemma (billion). get_best_note must fall back to the surface key so
+    inflected forms hit their video-level notes instead of missing entirely."""
+    from app.models.video import Video, VideoStatus
+    from app.services import word_notes
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        vid = "vid-inflect-test"
+        db.add(Video(id=vid, title="t", source_url="x", status=VideoStatus.ready))
+        await db.commit()
+
+    # Pipeline prewarm stored the note under the surface form only.
+    await word_notes.upsert_notes(
+        db_session,
+        [
+            {
+                "word": "billions",
+                "level": "cet4",
+                "context_source": f"video:{vid}",
+                "contextual_note": "surface video note",
+                "pitfalls": "",
+                "knowledge": "",
+            }
+        ],
+    )
+
+    # Lemma lookup alone misses; surface fallback hits the video note.
+    assert await word_notes.get_best_note(db_session, "billion", video_id=vid) is None
+    best = await word_notes.get_best_note(db_session, "billion", video_id=vid, surface="billions")
+    assert best is not None
+    assert best["contextual_note"] == "surface video note"
+    assert best["source"] == f"video:{vid}"
+
+    # Global fallback also consults the surface key.
+    await word_notes.upsert_notes(
+        db_session,
+        [
+            {
+                "word": "billions",
+                "level": "cet4",
+                "context_source": "global",
+                "contextual_note": "surface global note",
+                "pitfalls": "",
+                "knowledge": "",
+            }
+        ],
+    )
+    best_global = await word_notes.get_best_note(db_session, "billion", surface="billions")
+    assert best_global["contextual_note"] == "surface global note"
+    assert best_global["source"] == "global"
+
+    # Lemma-first ordering still wins: lemma video note beats surface video note.
+    await word_notes.upsert_notes(
+        db_session,
+        [
+            {
+                "word": "billion",
+                "level": "cet4",
+                "context_source": f"video:{vid}",
+                "contextual_note": "lemma video note",
+                "pitfalls": "",
+                "knowledge": "",
+            }
+        ],
+    )
+    best_lemma = await word_notes.get_best_note(db_session, "billion", video_id=vid, surface="billions")
+    assert best_lemma["contextual_note"] == "lemma video note"
+
+
 # --- gloss endpoint: DB-first, live-fallback ---
 
 
