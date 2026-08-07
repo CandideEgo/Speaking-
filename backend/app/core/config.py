@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     aliyun_sms_template_change_phone: str = "100002"
     aliyun_sms_template_reset_password: str = "100003"
     sms_code_expire_seconds: int = 300  # 5 minutes
-    aliyun_sms_endpoint: str = "dysmsapi.aliyuncs.com"
+    # Dypnsapi 短信认证服务 endpoint（SendSmsVerifyCode / CheckSmsVerifyCode）。
+    aliyun_sms_endpoint: str = "dypnsapi.aliyuncs.com"
 
     openai_api_key: str = ""
     openai_base_url: str = ""
