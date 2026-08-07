@@ -576,6 +576,7 @@ async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_i
     user = await _get_user_or_raise(db, user_id)
     user.is_banned = is_banned
     await commit_refresh(db, user)
+    logger.info("admin_action ban_user actor=%s target=%s banned=%s", admin_user_id, user_id, is_banned)
     return user
 
 
@@ -585,10 +586,11 @@ async def change_user_role(db: AsyncSession, user_id: str, role: str, admin_user
     user = await _get_user_or_raise(db, user_id)
     user.role = RoleType(role)
     await commit_refresh(db, user)
+    logger.info("admin_action change_user_role actor=%s target=%s role=%s", admin_user_id, user_id, role)
     return user
 
 
-async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_days: int) -> User:
+async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_days: int, admin_user_id: str) -> User:
     # Lock the User row to prevent race with concurrent payment callback
     result = await db.execute(select(User).where(User.id == user_id).with_for_update())
     user = result.scalar_one_or_none()
@@ -603,6 +605,13 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
     else:
         user.plan_expires_at = None
     await commit_refresh(db, user)
+    logger.info(
+        "admin_action change_user_plan actor=%s target=%s plan=%s duration_days=%s",
+        admin_user_id,
+        user_id,
+        plan,
+        duration_days,
+    )
     return user
 
 
@@ -628,6 +637,7 @@ async def revoke_redeem_code(db: AsyncSession, code_id: str, reason: str) -> Red
     code.status = RedeemStatus.revoked
     code.revoked_reason = RevokedReason(reason)
     await commit_refresh(db, code)
+    logger.info("admin_action revoke_redeem_code code=%s reason=%s", code.code, reason)
     return code
 
 

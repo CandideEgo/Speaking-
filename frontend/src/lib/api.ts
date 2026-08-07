@@ -50,6 +50,20 @@ function shouldProxyHost(host: string): boolean {
 
 export function mediaUrl(path: string): string {
   if (!path) return "";
+  if (path.startsWith("/media/shadowing/")) {
+    // Shadowing recordings are access-controlled per user: the backend
+    // requires a JWT via ?token= because <audio src> cannot attach an
+    // Authorization header. Append it here for every shadowing media URL.
+    try {
+      const token = getToken();
+      if (token) {
+        const sep = path.includes("?") ? "&" : "?";
+        return `${API_URL}${path}${sep}token=${encodeURIComponent(token)}`;
+      }
+    } catch {
+      // authStore unavailable (SSR edge) — fall through to plain path
+    }
+  }
   if (path.startsWith("http")) {
     // Route known thumbnail CDN hosts through the backend proxy to dodge
     // hotlink protection and http/https mixed-content issues.

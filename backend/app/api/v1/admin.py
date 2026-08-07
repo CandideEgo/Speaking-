@@ -137,7 +137,7 @@ async def change_user_plan(
 ):
     """Grant or revoke Pro membership. Admin only."""
     try:
-        user = await admin_service.change_user_plan(db, user_id, payload.plan, payload.duration_days)
+        user = await admin_service.change_user_plan(db, user_id, payload.plan, payload.duration_days, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return {

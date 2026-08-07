@@ -234,7 +234,7 @@ async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession
             if old_exp:
                 remaining = int(old_exp - datetime.now(UTC).timestamp())
             else:
-                remaining = settings.jwt_expire_minutes * 60 * 4  # refresh token TTL
+                remaining = settings.jwt_refresh_expire_days * 24 * 60 * 60  # refresh token TTL
             await blacklist_token(old_jti, max(remaining, 0))
 
     new_token = create_token(user.id)
@@ -349,7 +349,7 @@ async def logout(
                 if refresh_exp:
                     refresh_remaining = int(refresh_exp - datetime.now(UTC).timestamp())
                 else:
-                    refresh_remaining = settings.jwt_expire_minutes * 60 * 4
+                    refresh_remaining = settings.jwt_refresh_expire_days * 24 * 60 * 60
                 await blacklist_token(refresh_jti, max(refresh_remaining, 0))
                 logger.info("refresh_token_blacklisted", user_id=current_user.id, jti=refresh_jti)
 

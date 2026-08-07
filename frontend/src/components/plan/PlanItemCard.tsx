@@ -82,8 +82,10 @@ export function PlanItemCard({ item, onComplete }: PlanItemCardProps) {
   let href = "";
   if (item.item_type === "watch_video" && item.video_id) {
     href = `/watch/${item.video_id}`;
-  } else if (item.item_type === "practice" && item.video_id) {
-    href = `/watch/${item.video_id}`;
+  } else if (item.item_type === "practice") {
+    // With a video it's the (legacy) video-scoped practice; otherwise point at
+    // the daily 真题 check which matches the item_count=10 plan config.
+    href = item.video_id ? `/watch/${item.video_id}` : "/practice/daily";
   } else if (item.item_type === "review_words" || item.item_type === "vocab_drill") {
     href = "/vocabulary";
   } else if (item.item_type === "shadowing" && item.video_id) {

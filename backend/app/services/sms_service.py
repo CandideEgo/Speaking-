@@ -14,10 +14,14 @@ Redis keys
 - ``sms:cooldown:{phone}:{purpose}`` — per-phone-per-purpose send cooldown
   (set by the route layer, 60 s).
 
-Dev fallback: when ``sms_login_enabled`` is False (or AK/SK are unset),
-``send_verify_code`` logs a fixed code and stores it in Redis; ``verify_code``
-accepts ``"1234"``.  This lets phone login work locally with no Aliyun
-credentials or spend.
+Dev fallback: when NOT in production and ``sms_login_enabled`` is False
+(or AK/SK are unset), ``send_verify_code`` logs a fixed code and stores it
+in Redis; ``verify_code`` accepts ``"1234"``.  This lets phone login work
+locally with no Aliyun credentials or spend.
+
+Security: the dev-fake code path is **never** active in production — a
+production deployment missing SMS credentials fails closed (send returns
+502, verify always False) instead of silently accepting the fixed code.
 """
 
 import random
@@ -86,6 +90,21 @@ def _real_send_enabled() -> bool:
     return bool(settings.sms_login_enabled and settings.aliyun_sms_access_key and settings.aliyun_sms_secret_key)
 
 
+def _dev_fake_enabled() -> bool:
+    """True only when the fixed-code dev-fake is allowed.
+
+    Dev-fake (accept ``"1234"``) exists so local development / CI can run
+    phone flows without Aliyun credentials. It must NEVER be active in
+    production — a production box missing SMS credentials should fail
+    closed (send-code 502 / verify False), not accept a publicly-known
+    fixed code that would let anyone log into any phone account.
+    """
+    settings = get_settings()
+    if settings.env == "production":
+        return False
+    return not _real_send_enabled()
+
+
 def _generate_code() -> str:
     """Generate a random 6-digit verification code."""
     return f"{random.randint(0, 999999):06d}"
@@ -102,7 +121,7 @@ async def send_verify_code(phone: str, purpose: str = "register") -> None:
     settings = get_settings()
     redis = get_redis()
 
-    code = _DEV_FAKE_CODE if not _real_send_enabled() else _generate_code()
+    code = _DEV_FAKE_CODE if _dev_fake_enabled() else _generate_code()
 
     # Store code in Redis (overwrite any previous code for this phone+purpose).
     ttl = settings.sms_code_expire_seconds
@@ -112,7 +131,7 @@ async def send_verify_code(phone: str, purpose: str = "register") -> None:
         # Fail-open: Redis outage must not block SMS sending.
         logger.warning("sms_code_store_failed", phone=phone, purpose=purpose)
 
-    if not _real_send_enabled():
+    if _dev_fake_enabled():
         logger.info("[sms-fake] code=%s for %s (purpose=%s)", code, phone, purpose)
         return
 
@@ -157,8 +176,11 @@ async def verify_code(phone: str, code: str, purpose: str = "register") -> bool:
     redis = get_redis()
     key = f"sms:code:{phone}:{purpose}"
 
-    # Dev-fake mode: accept the fixed code without checking Redis.
-    if not _real_send_enabled():
+    # Dev-fake mode: accept the fixed code without checking Redis. Never
+    # active in production (see _dev_fake_enabled) — a production box
+    # missing SMS credentials falls through to the Redis check below and
+    # fails closed (no code was ever sent to the user).
+    if _dev_fake_enabled():
         if code != _DEV_FAKE_CODE:
             return False
         # Also try to delete from Redis (best-effort) to prevent reuse.

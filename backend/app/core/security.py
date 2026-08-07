@@ -41,7 +41,8 @@ def create_token(user_id: str, token_type: str = "access") -> str:
         Encoded JWT string.
     """
     if token_type == "refresh":
-        expire_minutes = settings.jwt_expire_minutes * 4  # Refresh token lasts 4x longer
+        # Refresh token TTL from its own knob (days); access uses minutes.
+        expire_minutes = settings.jwt_refresh_expire_days * 24 * 60
     else:
         expire_minutes = settings.jwt_expire_minutes
 

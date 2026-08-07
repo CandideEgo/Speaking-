@@ -24,6 +24,7 @@ from fastapi.responses import Response, StreamingResponse
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.limiter import rate_limit
+from app.core.security import decode_token
 from app.models.user import User
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -206,6 +207,22 @@ async def upload_shadowing_audio(
     return {"url": url}
 
 
+def _shadowing_token_ok(owner_user_id: str, request: Request) -> bool:
+    """Validate the ``?token=`` JWT for a shadowing recording.
+
+    The token must be an access (or legacy untyped) token whose ``sub``
+    matches the owner id embedded in the media path. Returns False on any
+    mismatch / malformed token (caller maps to 404).
+    """
+    token = request.query_params.get("token", "")
+    if not token:
+        return False
+    payload = decode_token(token)
+    if payload is None or payload.get("type") not in ("access", None):
+        return False
+    return payload.get("sub") == owner_user_id
+
+
 @router.get("/{file_path:path}")
 @router.head("/{file_path:path}")
 @rate_limit("60/minute")
@@ -219,6 +236,15 @@ async def serve_media(file_path: str, request: Request):
         raise HTTPException(status_code=404) from None
     if not full.is_file():
         raise HTTPException(status_code=404)
+
+    # Shadowing recordings are private per-user: require a valid JWT whose
+    # subject matches the owner id in the path. The token travels as a query
+    # param (?token=) because <audio src> cannot attach Authorization headers.
+    # 404 (not 401) so non-owners cannot probe which recordings exist.
+    if file_path.startswith("shadowing/"):
+        parts = file_path.split("/")
+        if len(parts) < 2 or not _shadowing_token_ok(parts[1], request):
+            raise HTTPException(status_code=404)
 
     total = full.stat().st_size
     media_type = mimetypes.guess_type(full.name)[0] or "application/octet-stream"

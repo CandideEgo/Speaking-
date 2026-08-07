@@ -20,7 +20,8 @@ function firstIncompleteHref(items: LearningPlanItem[]): string | null {
   const item = items.find((i) => !i.completed);
   if (!item) return null;
   if (item.item_type === "watch_video" && item.video_id) return `/watch/${item.video_id}`;
-  if (item.item_type === "practice" && item.video_id) return `/watch/${item.video_id}`;
+  if (item.item_type === "practice")
+    return item.video_id ? `/watch/${item.video_id}` : "/practice/daily";
   if (item.item_type === "shadowing" && item.video_id) return `/watch/${item.video_id}`;
   if (item.item_type === "review_words" || item.item_type === "vocab_drill") return "/vocabulary";
   return "/browse";

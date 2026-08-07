@@ -169,6 +169,22 @@ def _mock_celery(monkeypatch):
     yield calls
 
 
+@pytest.fixture(autouse=True)
+def _mock_dns_lookup(monkeypatch):
+    """Stub DNS lookups for the SSRF guard so tests never hit real DNS.
+
+    Default resolution returns a public IP (the guard's domain-allowlist
+    logic stays exercised); test_video_url_guard.py overrides this per-test
+    to simulate private-IP / rebinding scenarios.
+    """
+    import app.services.video_url_guard as guard
+
+    def fake_getaddrinfo(host, port=None, *args, **kwargs):
+        return [(2, 1, 6, "", ("93.184.216.34", 0))]
+
+    monkeypatch.setattr(guard.socket, "getaddrinfo", fake_getaddrinfo)
+
+
 @pytest_asyncio.fixture
 async def fake_redis(request: pytest.FixtureRequest, monkeypatch):
     """An in-memory fake Redis, injected into ``app.core.redis``.

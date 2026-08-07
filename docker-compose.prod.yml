@@ -80,10 +80,20 @@ services:
       TRANSLATION_CONCURRENT: ${TRANSLATION_CONCURRENT:-false}
       ENV: ${ENV:-production}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # SMS 验证码（生产必须配置，否则短信流程 fail-closed；见 sms_service._dev_fake_enabled）
+      SMS_LOGIN_ENABLED: ${SMS_LOGIN_ENABLED:-false}
+      ALIYUN_SMS_ACCESS_KEY: ${ALIYUN_SMS_ACCESS_KEY:-}
+      ALIYUN_SMS_SECRET_KEY: ${ALIYUN_SMS_SECRET_KEY:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_REGISTER: ${ALIYUN_SMS_TEMPLATE_REGISTER:-}
+      ALIYUN_SMS_TEMPLATE_CHANGE_PHONE: ${ALIYUN_SMS_TEMPLATE_CHANGE_PHONE:-}
+      ALIYUN_SMS_TEMPLATE_RESET_PASSWORD: ${ALIYUN_SMS_TEMPLATE_RESET_PASSWORD:-}
       # Trust X-Forwarded-For from the nginx container so per-IP rate
       # limiting (app.core.limiter) sees real client IPs instead of the
       # nginx container IP for every request. Safe: backend is only
-      # exposed on the internal compose network behind nginx.
+      # exposed on the internal compose network behind nginx, and nginx
+      # OVERWRITES X-Forwarded-For with $remote_addr (see nginx.conf) so
+      # clients cannot spoof the header.
       FORWARDED_ALLOW_IPS: "*"
     expose:
       - "8000"

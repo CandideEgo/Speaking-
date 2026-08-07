@@ -1,33 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { Layers, Clock, BookOpen, FileText, ArrowRight } from "lucide-react";
+import { Layers, Clock, BookOpen, FileText, ArrowRight, Sparkles } from "lucide-react";
 
 /**
- * 练习专题 —— 占位页。
- * 试题功能（视频试卷 / 真题试卷 / 每日水平检测）暂不开放，代码已下线，
- * 保留入口与页面区域，后续重写后再开发。词汇本单词训练不受影响。
+ * 练习专题 —— 真题试卷 / 每日水平检测已上线（阅读客观题，服务端自动判分）。
+ * 视频试卷仍为占位，后续重做。
  */
+const LIVE_SECTIONS = [
+  {
+    key: "real",
+    title: "真题试卷",
+    icon: FileText,
+    desc: "四六级历年真题阅读部分（选词填空 / 段落匹配 / 仔细阅读），交卷自动判分 + 错题解析。",
+    href: "/practice/exams",
+    cta: "去刷真题",
+  },
+  {
+    key: "daily",
+    title: "每日水平检测",
+    icon: Clock,
+    desc: "每天从真题题库随机抽 10 题，快速检验学习成果，附答案解析。",
+    href: "/practice/daily",
+    cta: "开始检测",
+  },
+];
+
 const PLACEHOLDER_SECTIONS = [
   {
     key: "video",
     title: "视频试卷",
     icon: Layers,
     desc: "由视频字幕与考点词汇自动生成，按目标考试层级出题。",
-    status: "即将上线",
-  },
-  {
-    key: "real",
-    title: "真题试卷",
-    icon: FileText,
-    desc: "四六级 / 雅思 / 托福历年原题，系统整理后开放。",
-    status: "即将上线",
-  },
-  {
-    key: "daily",
-    title: "每日水平检测",
-    icon: Clock,
-    desc: "每天一张跨视频综合卷，检验学习成果。",
     status: "即将上线",
   },
 ];
@@ -42,15 +46,45 @@ export default function PracticePage() {
             <span className="w-2 h-2 rounded-full bg-brand-500" />
             练习专题
           </span>
-          <h1 className="text-2xl font-extrabold tracking-tight mt-3 mb-2">练习功能正在重做</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight mt-3 mb-2">真题实战 + 单词训练</h1>
           <p className="text-sm text-muted leading-relaxed max-w-[60ch]">
-            试题练习（视频试卷、真题试卷、每日检测）暂时下线，我们将重新设计后开放。
-            词汇本的单词训练不受影响，可以先去复习。
+            四六级历年真题已上线，交卷自动判分；词汇本单词训练正常开放。
           </p>
         </div>
 
+        {/* 已上线区块 */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {LIVE_SECTIONS.map((s) => (
+            <Link
+              key={s.key}
+              href={s.href}
+              className="group flex flex-col gap-3 bg-canvas border border-hairline rounded-xl p-6 hover:border-brand-400 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <span className="w-10 h-10 rounded-lg bg-brand-500 text-on-primary flex items-center justify-center">
+                  <s.icon size={18} />
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-pill bg-brand-50 text-brand-600">
+                  <Sparkles size={11} />
+                  已上线
+                </span>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-ink group-hover:text-brand-600 transition-colors">
+                  {s.title}
+                </h2>
+                <p className="text-[13px] text-muted leading-relaxed mt-1.5">{s.desc}</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600 group-hover:gap-2.5 transition-all">
+                {s.cta}
+                <ArrowRight size={14} />
+              </span>
+            </Link>
+          ))}
+        </div>
+
         {/* 占位区块 */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
           {PLACEHOLDER_SECTIONS.map((s) => (
             <div
               key={s.key}
@@ -76,7 +110,7 @@ export default function PracticePage() {
         {/* 词汇本入口 */}
         <div className="mt-8 flex items-center justify-between gap-4 bg-canvas border border-hairline rounded-xl p-5">
           <div className="flex items-center gap-3.5 min-w-0">
-            <span className="w-10 h-10 rounded-lg bg-brand-500 text-on-primary flex items-center justify-center flex-shrink-0">
+            <span className="w-10 h-10 rounded-lg bg-ink text-canvas flex items-center justify-center flex-shrink-0">
               <BookOpen size={18} />
             </span>
             <div className="min-w-0">

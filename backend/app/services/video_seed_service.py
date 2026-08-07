@@ -24,6 +24,7 @@ from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.schemas.video import VideoAdminResponse, VideoResponse
+from app.services.video_url_guard import validate_video_url
 
 
 def _detect_platform(source_url: str) -> VideoSource:
@@ -47,6 +48,7 @@ async def submit_video(
     If a ready video already exists for this URL, creates a new user
     reference instead of re-processing.
     """
+    await validate_video_url(source_url)
     platform = _detect_platform(source_url)
 
     # Phase 2: if a standard version exists for this URL, fork it (subtitles +
@@ -86,6 +88,7 @@ async def seed_video(
     is returned as-is instead of re-running the whole pipeline — prevents
     duplicate rows when an admin re-clicks the seed button.
     """
+    await validate_video_url(source_url)
     # Dedup: an official, already-processed video for this URL wins.
     existing_result = await db.execute(
         select(Video).where(
@@ -137,6 +140,7 @@ async def seed_user_video(
     UGC videos always require admin review before appearing in the
     community feed, regardless of the ``auto_publish`` flag.
     """
+    await validate_video_url(source_url)
     # Phase 2: same-URL dedup — fork the standard if one exists.
     standard = await _find_standard_for_url(db, source_url)
     if standard is not None:

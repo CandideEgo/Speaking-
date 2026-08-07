@@ -189,7 +189,7 @@ async def list_public_videos(
 async def search_videos(
     request: Request,
     q: str = "",
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=50),
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):

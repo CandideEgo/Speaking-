@@ -13,7 +13,11 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     env: str = "development"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    # Access token TTL (minutes). Short so a stolen token has a small window;
+    # the frontend auto-refreshes via the refresh token (authStore).
+    jwt_expire_minutes: int = 30
+    # Refresh token TTL (days). Wired in security.create_token (the historical
+    # "4x access" formula was replaced by this explicit knob).
     jwt_refresh_expire_days: int = 7
     jwt_blacklist_enabled: bool = True
     bcrypt_rounds: int = 12

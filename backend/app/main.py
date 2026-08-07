@@ -19,6 +19,7 @@ from app.api.v1 import (
     behavior,
     browse,
     comments,
+    exams,
     favorites,
     feedback,
     internal,
@@ -126,6 +127,18 @@ async def lifespan(app: FastAPI):
     - Startup: services initialise lazily (Redis singleton, DB engine pool).
     - Shutdown: dispose DB engine pool and close Redis connection.
     """
+    # Production safety net: without real SMS credentials the auth flow
+    # would (previously) silently degrade to the fixed dev code "1234".
+    # Now dev-fake is production-blocked, so a misconfigured box fails
+    # closed — but surface the misconfiguration loudly at startup.
+    if settings.env == "production" and not (
+        settings.sms_login_enabled and settings.aliyun_sms_access_key and settings.aliyun_sms_secret_key
+    ):
+        logger.warning(
+            "SMS credentials missing in production — phone login/register/reset "
+            "will fail closed (send-code 502, verify always rejected). "
+            "Set SMS_LOGIN_ENABLED=true + ALIYUN_SMS_ACCESS_KEY/SECRET_KEY."
+        )
     yield
     # --- Shutdown ---
     from app.core.database import engine as db_engine
@@ -250,6 +263,7 @@ def create_app() -> FastAPI:
     app.include_router(learning_plan.router, prefix="/api/v1")
     app.include_router(shadowing.router, prefix="/api/v1")
     app.include_router(behavior.router, prefix="/api/v1")
+    app.include_router(exams.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/api/v1")
 
     @app.get("/health")
@@ -266,7 +280,7 @@ def create_app() -> FastAPI:
             checks["database"] = {"status": "ok"}
         except Exception as exc:
             all_healthy = False
-            checks["database"] = {"status": "error", "detail": str(exc)}
+            checks["database"] = {"status": "error", "detail": type(exc).__name__}
 
         # --- Redis connectivity check (using shared client) ---
         try:
@@ -277,7 +291,7 @@ def create_app() -> FastAPI:
             checks["redis"] = {"status": "ok"}
         except Exception as exc:
             all_healthy = False
-            checks["redis"] = {"status": "error", "detail": str(exc)}
+            checks["redis"] = {"status": "error", "detail": type(exc).__name__}
 
         payload = {
             "status": "ok" if all_healthy else "degraded",
