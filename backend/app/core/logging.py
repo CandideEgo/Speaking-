@@ -64,6 +64,20 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name or __name__)
 
 
+def mask_phone(phone: str | None) -> str:
+    """Mask a phone number for logs: keep first 3 + last 4 digits.
+
+    Full phone numbers are PII (China PIPL) and must never appear in the log
+    stream (which may be shipped to Loki/promtail). Call sites log
+    ``phone=mask_phone(phone)`` instead of the raw value.
+    """
+    if not phone:
+        return "***"
+    if len(phone) >= 7:
+        return f"{phone[:3]}****{phone[-4:]}"
+    return "***"
+
+
 # ---------------------------------------------------------------------------
 # Celery request_id binding
 # ---------------------------------------------------------------------------

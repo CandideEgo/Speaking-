@@ -33,6 +33,11 @@ limiter = Limiter(
     key_func=_rate_limit_key,
     storage_uri=settings.redis_url if settings.env != "testing" else "memory://",
     default_limits=_limits,
+    # Redis fail-open invariant (see .agent/system-map.md): a storage blip
+    # must never turn every rate-limited route into a 500. slowapi 0.1.9
+    # falls back to per-process in-memory buckets (limits still enforced,
+    # slightly weaker under multiple workers) instead of re-raising.
+    in_memory_fallback_enabled=True,
 )
 
 

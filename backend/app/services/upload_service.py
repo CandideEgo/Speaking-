@@ -10,6 +10,24 @@ from app.models.user import User
 from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.video import VideoResponse
 
+# The stored extension is derived SERVER-SIDE from the (whitelisted) content
+# type — never from the client-supplied filename. The file is later served
+# from /media with the stored extension, so a client-chosen extension (e.g.
+# "x.html" with a spoofed "video/mp4" header) could plant executable content
+# on the trusted origin (stored-XSS / account takeover via localStorage token
+# theft). The content-type header itself is client-controlled too, so this
+# mapping is the only thing we trust here; actual file bytes are validated as
+# video later in the pipeline (ffprobe/transcode).
+_CONTENT_TYPE_EXT = {
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+    "video/x-msvideo": ".avi",
+    "video/x-matroska": ".mkv",
+}
+
+_READ_CHUNK = 1024 * 1024  # 1 MB
+
 
 async def handle_video_upload(
     file: UploadFile,
@@ -20,27 +38,37 @@ async def handle_video_upload(
     """Handle a local video file upload, validate, save, and queue for processing."""
     settings = get_settings()
 
-    # Validate file type
-    allowed_types = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"}
-    if file.content_type not in allowed_types:
+    # Validate + map the content type to a server-side extension.
+    file_ext = _CONTENT_TYPE_EXT.get(file.content_type or "")
+    if file_ext is None:
+        allowed = ", ".join(sorted(_CONTENT_TYPE_EXT.values()))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: mp4, webm, mov, avi, mkv",
+            detail=f"Unsupported file type: {file.content_type}. Allowed: {allowed}",
         )
 
-    # Validate file size
-    contents = await file.read()
+    # Validate file size while reading — stream in chunks and stop as soon as
+    # the cap is exceeded instead of buffering the whole upload into memory
+    # (an oversized body would otherwise be a trivial memory-exhaustion vector).
+    contents = bytearray()
+    while True:
+        chunk = await file.read(_READ_CHUNK)
+        if not chunk:
+            break
+        contents.extend(chunk)
+        if len(contents) > settings.max_upload_file_size:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"File too large: {len(contents) / 1024 / 1024:.1f}MB. "
+                    f"Max: {settings.max_upload_file_size / 1024 / 1024:.0f}MB"
+                ),
+            )
     file_size = len(contents)
-    if file_size > settings.max_upload_file_size:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large: {file_size / 1024 / 1024:.1f}MB. Max: {settings.max_upload_file_size / 1024 / 1024:.0f}MB",
-        )
 
     # Save to temp storage
     temp_dir = Path(settings.upload_temp_dir)
     temp_dir.mkdir(parents=True, exist_ok=True)
-    file_ext = Path(file.filename or "video.mp4").suffix or ".mp4"
     temp_path = temp_dir / f"{uuid.uuid4()}{file_ext}"
 
     with open(temp_path, "wb") as f:

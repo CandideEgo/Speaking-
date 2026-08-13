@@ -32,7 +32,8 @@ export function getApiUrl() {
 // Hostname suffixes whose thumbnail URLs we route through the backend image
 // proxy to bypass CDN hotlink protection (Referer) and mixed-content (http://
 // thumbnails on an https site). Keep in sync with the backend allowlist in
-// backend/app/api/v1/media.py (proxy_image).
+// backend/app/api/v1/media.py (proxy_image). NOTE: aliyuncs.com is excluded
+// on purpose — OSS bucket domains are attacker-controllable (SSRF defense).
 const PROXY_HOST_SUFFIXES = [
   "ytimg.com",
   "hdslb.com",
@@ -40,7 +41,6 @@ const PROXY_HOST_SUFFIXES = [
   "douyinpic.com",
   "douyincdn.com",
   "douyinstatic.com",
-  "aliyuncs.com",
 ];
 
 function shouldProxyHost(host: string): boolean {
@@ -48,12 +48,12 @@ function shouldProxyHost(host: string): boolean {
   return PROXY_HOST_SUFFIXES.some((s) => h === s || h.endsWith("." + s));
 }
 
-export function mediaUrl(path: string): string {
+export function mediaUrl(path: string, opts?: { withToken?: boolean }): string {
   if (!path) return "";
-  if (path.startsWith("/media/shadowing/")) {
-    // Shadowing recordings are access-controlled per user: the backend
-    // requires a JWT via ?token= because <audio src> cannot attach an
-    // Authorization header. Append it here for every shadowing media URL.
+  // Shadowing recordings are access-controlled per user; non-public video
+  // media (drafts) require an owner/admin JWT. The backend reads ?token=
+  // because <audio>/<video> tags cannot attach Authorization headers.
+  if (path.startsWith("/media/shadowing/") || opts?.withToken === true) {
     try {
       const token = getToken();
       if (token) {

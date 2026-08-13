@@ -13,6 +13,8 @@ mounted unconditionally but costs nothing there since nginx serves media first.
 """
 
 import mimetypes
+import re
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import urlparse
@@ -31,6 +33,16 @@ router = APIRouter(prefix="/media", tags=["media"])
 
 _CHUNK = 64 * 1024
 
+# Only these extensions may ever be served from the media directory. Anything
+# else (html, svg, json, ...) is a 404: a client-chosen filename extension must
+# never become servable content on the trusted origin (stored-XSS defense —
+# see upload_service._CONTENT_TYPE_EXT for the upload-side allowlist).
+_SERVE_EXT_ALLOWLIST = {
+    ".mp4", ".webm", ".mov", ".avi", ".mkv",
+    ".mp3", ".wav", ".ogg", ".m4a",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp",
+}
+
 # ---------------------------------------------------------------------------
 # Image proxy — bypasses CDN hotlink protection (Referer) and mixed-content
 # (http:// thumbnails on an https site) for externally-hosted video thumbnails.
@@ -41,6 +53,10 @@ _CHUNK = 64 * 1024
 
 # Hostname suffixes whose URLs we will proxy. Keep in sync with the frontend
 # allowlist in frontend/src/lib/api.ts (mediaUrl).
+# NOTE: aliyuncs.com is deliberately NOT here — OSS bucket domains are
+# attacker-controllable ({bucket}.oss-{region}.aliyuncs.com), and with
+# redirect-following disabled upstreams cannot jump to internal hosts anyway.
+# OSS-hosted images should be served directly via signed/CDN URLs instead.
 _PROXY_HOST_SUFFIXES = (
     "ytimg.com",
     "hdslb.com",
@@ -48,7 +64,6 @@ _PROXY_HOST_SUFFIXES = (
     "douyinpic.com",
     "douyincdn.com",
     "douyinstatic.com",
-    "aliyuncs.com",
 )
 
 # Per-host Referer to satisfy hotlink protection. Bilibili's CDN rejects
@@ -76,8 +91,12 @@ def _get_proxy_client() -> httpx.AsyncClient:
         settings = get_settings()
         _proxy_client = httpx.AsyncClient(
             timeout=_PROXY_TIMEOUT,
-            follow_redirects=True,
-            max_redirects=3,
+            # Redirects must NOT be followed: the host allowlist is validated
+            # only on the initial URL, so following a 3xx Location to an
+            # arbitrary host would be an open SSRF (e.g. an OSS bucket 回源
+            # rule redirecting to cloud metadata / internal services). A
+            # redirect upstream now surfaces as a 502 "Upstream error".
+            follow_redirects=False,
             proxy=settings.http_proxy or None,
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
         )
@@ -223,6 +242,69 @@ def _shadowing_token_ok(owner_user_id: str, request: Request) -> bool:
     return payload.get("sub") == owner_user_id
 
 
+# ---------------------------------------------------------------------------
+# Publish-state gate for video media files.
+#
+# Pipeline-produced files are named ``{video_id}.mp4`` (720p fallback),
+# ``{video_id}_480p.mp4`` / ``_720p`` / ``_1080p`` / ``_raw.<ext>``. They must
+# not be publicly downloadable while the video is unpublished (draft UGC
+# content leaks before admin approval otherwise — the URL is derivable from
+# the video id). Access follows the same rules as the API layer
+# (services/video_access.py): official/published/snapshot videos are public,
+# owners and admins may preview drafts via a JWT (?token= or Bearer).
+# ---------------------------------------------------------------------------
+_VIDEO_FILE_RE = re.compile(
+    r"^(?P<vid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+    r"(?:_raw|_480p|_720p|_1080p)?$"
+)
+
+# Short-TTL cache of access decisions: {video_id: (expires_at, allowed)}.
+_VIDEO_ACCESS_CACHE: dict[str, tuple[float, bool]] = {}
+_VIDEO_ACCESS_CACHE_TTL = 60.0
+
+
+def _viewer_id_from_request(request: Request) -> str | None:
+    """Resolve the viewer's user id from ``?token=`` or the Authorization
+    header. Returns None when absent/invalid (anonymous viewer)."""
+    token = request.query_params.get("token", "")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        return None
+    payload = decode_token(token)
+    if payload is None or payload.get("type") not in ("access", None):
+        return None
+    return payload.get("sub")
+
+
+async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
+    """Publish-state gate for a pipeline-produced video media file."""
+    now = time.monotonic()
+    cached = _VIDEO_ACCESS_CACHE.get(video_id)
+    if cached is not None and cached[0] > now:
+        return cached[1]
+
+    from app.core.database import async_session
+    from app.models.user import RoleType, User
+    from app.models.video import Video
+    from app.services.video_access import check_video_access_by_owner
+
+    allowed = False
+    async with async_session() as db:
+        video = await db.get(Video, video_id)
+        if video is not None:
+            allowed = check_video_access_by_owner(video, viewer_id)
+            if not allowed and viewer_id is not None:
+                # Admin preview bypass: admins may preview any draft.
+                viewer = await db.get(User, viewer_id)
+                if viewer is not None and viewer.role == RoleType.admin:
+                    allowed = True
+    _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, allowed)
+    return allowed
+
+
 @router.get("/{file_path:path}")
 @router.head("/{file_path:path}")
 @rate_limit("60/minute")
@@ -236,6 +318,10 @@ async def serve_media(file_path: str, request: Request):
         raise HTTPException(status_code=404) from None
     if not full.is_file():
         raise HTTPException(status_code=404)
+    # Extension allowlist: non-media files (html/svg/json/...) are never
+    # servable from the media directory (stored-XSS defense).
+    if full.suffix.lower() not in _SERVE_EXT_ALLOWLIST:
+        raise HTTPException(status_code=404)
 
     # Shadowing recordings are private per-user: require a valid JWT whose
     # subject matches the owner id in the path. The token travels as a query
@@ -244,6 +330,14 @@ async def serve_media(file_path: str, request: Request):
     if file_path.startswith("shadowing/"):
         parts = file_path.split("/")
         if len(parts) < 2 or not _shadowing_token_ok(parts[1], request):
+            raise HTTPException(status_code=404)
+    else:
+        # Publish-state gate for pipeline-produced video files
+        # ({video_id}.mp4 / _raw / _480p / _720p / _1080p). Uploads staged as
+        # {uuid}.mp4 match too — they belong to no video row yet, so the
+        # lookup fails and they 404, which also removes the source_url leak.
+        m = _VIDEO_FILE_RE.match(full.stem)
+        if m is not None and not await _video_media_allowed(m.group("vid"), _viewer_id_from_request(request)):
             raise HTTPException(status_code=404)
 
     total = full.stat().st_size
@@ -258,6 +352,7 @@ async def serve_media(file_path: str, request: Request):
             headers={
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(total),
+                "X-Content-Type-Options": "nosniff",
             },
         )
 
@@ -265,6 +360,9 @@ async def serve_media(file_path: str, request: Request):
         "Accept-Ranges": "bytes",
         "Content-Length": str(total),
         "Content-Type": media_type,
+        # The main.py security-headers middleware skips /media paths (media
+        # must stay cacheable/proxyable), so set nosniff here explicitly.
+        "X-Content-Type-Options": "nosniff",
     }
 
     # No Range header → full file (200), still advertising range support.
@@ -286,7 +384,10 @@ async def serve_media(file_path: str, request: Request):
         return Response(
             status_code=416,
             media_type=media_type,
-            headers={"Content-Range": f"bytes */{total}"},
+            headers={
+                "Content-Range": f"bytes */{total}",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     length = end - start + 1

@@ -34,9 +34,21 @@ def check_video_access(video: Video, current_user: User | None) -> bool:
 
     Returns True if access is allowed, False otherwise.
     """
+    return check_video_access_by_owner(
+        video, current_user.id if current_user is not None else None
+    )
+
+
+def check_video_access_by_owner(video: Video, viewer_id: str | None) -> bool:
+    """``check_video_access`` variant taking the viewer's user id directly.
+
+    Used by media serving, which resolves viewers from JWTs (?token=/Bearer)
+    without loading a User row — the common public path must not pay an extra
+    DB query per media request.
+    """
     if video.is_official:
         return True
-    if is_video_owner(video, current_user):
+    if viewer_id is not None and video.user_id == viewer_id:
         return True
     review_status = getattr(video, "review_status", None)
     if review_status == "published":

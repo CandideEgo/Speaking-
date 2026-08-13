@@ -35,6 +35,7 @@ import threading
 import structlog
 
 from app.core.config import get_settings
+from app.core.logging import mask_phone
 from app.core.redis import get_redis
 
 logger = structlog.get_logger(__name__)
@@ -134,8 +135,8 @@ async def send_verify_code(phone: str, purpose: str = "register") -> None:
             await redis.set(f"sms:code:{phone}:{purpose}", _DEV_FAKE_CODE, ex=ttl)
         except Exception:
             # Fail-open: Redis outage must not block SMS sending.
-            logger.warning("sms_code_store_failed", phone=phone, purpose=purpose)
-        logger.info("[sms-fake] code=%s for %s (purpose=%s)", _DEV_FAKE_CODE, phone, purpose)
+            logger.warning("sms_code_store_failed", phone=mask_phone(phone), purpose=purpose)
+        logger.info("[sms-fake] code=%s for %s (purpose=%s)", _DEV_FAKE_CODE, mask_phone(phone), purpose)
         return
 
     # Resolve template code from settings based on purpose.
@@ -168,14 +169,14 @@ async def send_verify_code(phone: str, purpose: str = "register") -> None:
         resp = await client.send_sms_verify_code_with_options_async(request, runtime)
     except Exception as exc:
         msg = getattr(exc, "message", str(exc))
-        logger.error("sms_send_failed", phone=phone, purpose=purpose, error=msg)
+        logger.error("sms_send_failed", phone=mask_phone(phone), purpose=purpose, error=msg)
         raise RuntimeError(f"SMS send failed: {msg}") from exc
 
     body = getattr(resp, "body", None)
     resp_code = getattr(body, "code", None) if body else None
     if resp_code != "OK":
         message = getattr(body, "message", "") if body else ""
-        logger.error("sms_send_non_ok", phone=phone, purpose=purpose, code=resp_code, message=message)
+        logger.error("sms_send_non_ok", phone=mask_phone(phone), purpose=purpose, code=resp_code, message=message)
         raise RuntimeError(f"SMS send failed: {resp_code} {message}")
 
 
@@ -215,12 +216,12 @@ async def verify_code(phone: str, code: str, purpose: str = "register") -> bool:
     except Exception as exc:
         msg = getattr(exc, "message", str(exc))
         # Verification failure must fail closed — never accept on transport error.
-        logger.warning("sms_verify_failed", phone=phone, purpose=purpose, error=msg)
+        logger.warning("sms_verify_failed", phone=mask_phone(phone), purpose=purpose, error=msg)
         return False
 
     body = getattr(resp, "body", None)
     if getattr(body, "code", None) != "OK":
-        logger.warning("sms_verify_non_ok", phone=phone, purpose=purpose, code=getattr(body, "code", None))
+        logger.warning("sms_verify_non_ok", phone=mask_phone(phone), purpose=purpose, code=getattr(body, "code", None))
         return False
     model = getattr(body, "model", None)
     return bool(model is not None and getattr(model, "verify_result", None) == "PASS")

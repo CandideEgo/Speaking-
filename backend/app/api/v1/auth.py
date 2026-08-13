@@ -10,6 +10,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.core.logging import mask_phone
 from app.core.redis import get_redis
 from app.core.security import create_token, decode_token, hash_password, verify_password
 from app.core.token_blacklist import blacklist_token, is_token_blacklisted
@@ -71,9 +72,9 @@ async def sms_send_code(request: Request, data: SendSmsCodeRequest):
     except Exception:
         # Fail-open: Redis outage must not block login. Aliyun's own rate
         # limit still protects us.
-        logger.warning("sms_cooldown_set_failed", phone=data.phone, purpose=data.purpose)
+        logger.warning("sms_cooldown_set_failed", phone=mask_phone(data.phone), purpose=data.purpose)
 
-    logger.info("sms_code_sent", phone=data.phone, purpose=data.purpose)
+    logger.info("sms_code_sent", phone=mask_phone(data.phone), purpose=data.purpose)
     return MessageResponse(message="验证码已发送")
 
 
@@ -98,7 +99,7 @@ async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = 
 
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
-    logger.info("sms_login_success", user_id=user.id, phone=data.phone)
+    logger.info("sms_login_success", user_id=user.id, phone=mask_phone(data.phone))
     return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
 
 
@@ -148,7 +149,7 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
 
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
-    logger.info("sms_register_success", user_id=user.id, phone=data.phone)
+    logger.info("sms_register_success", user_id=user.id, phone=mask_phone(data.phone))
     return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
 
 
@@ -267,7 +268,7 @@ async def sms_reset_password(
         user.password_changed_at = datetime.now(UTC)
         db.add(user)
         await db.commit()
-        logger.info("sms_password_reset", user_id=user.id, phone=data.phone)
+        logger.info("sms_password_reset", user_id=user.id, phone=mask_phone(data.phone))
 
     return MessageResponse(message="如果该手机号已注册，密码已重置。")
 
@@ -303,7 +304,7 @@ async def change_phone(
     await db.commit()
     await db.refresh(current_user)
 
-    logger.info("phone_changed", user_id=current_user.id, new_phone=data.new_phone)
+    logger.info("phone_changed", user_id=current_user.id, new_phone=mask_phone(data.new_phone))
     return UserResponse.model_validate(current_user)
 
 
