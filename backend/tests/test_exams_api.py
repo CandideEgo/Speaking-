@@ -121,6 +121,37 @@ async def test_create_and_submit_attempt_full_flow(client, auth_headers, seeded_
     assert resp.status_code == 409
 
 
+async def test_submit_emits_practiced_items_learning_event(client, auth_headers, seeded_paper, db_session):
+    """Submitting an exam must emit a practiced_items LearningEvent (ADR-0012
+    integration) — regression guard: emit errors are swallowed, so a broken
+    emission would go unnoticed without an explicit assertion."""
+    from app.models.learning_plan import LearningEvent
+    from app.models.user import User
+
+    user = (await db_session.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
+
+    resp = await client.post(f"/api/v1/exams/{seeded_paper.id}/attempts", headers=auth_headers)
+    assert resp.status_code == 200
+    sid = resp.json()["session_id"]
+    rows = (
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id)))
+        .scalars()
+        .all()
+    )
+    answers = [{"question_id": q.id, "answer": q.answer} for q in rows]
+
+    resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": answers}, headers=auth_headers)
+    assert resp.status_code == 200
+
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        evs = (await db.execute(select(LearningEvent).where(LearningEvent.user_id == user.id))).scalars().all()
+        assert len(evs) == 1
+        assert evs[0].event_type == "practiced_items"
+        assert evs[0].event_value == len(rows)
+
+
 async def test_submit_foreign_session_forbidden(client, auth_headers, seeded_paper, db_session):
     # another user's attempt
     from tests.conftest import TestSessionLocal

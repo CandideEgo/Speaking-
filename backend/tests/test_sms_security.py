@@ -156,3 +156,86 @@ async def test_send_code_raises_on_aliyun_error(prod_sms_ok):
     prod_sms_ok._send_ok = False
     with pytest.raises(RuntimeError):
         await sms_svc.send_verify_code("13800138000", purpose="register")
+
+
+def test_mask_phone():
+    """Phone numbers must be masked in logs (PIPL) — keep first 3 + last 4."""
+    from app.core.logging import mask_phone
+
+    assert mask_phone("13800138000") == "138****8000"
+    assert mask_phone("12345") == "***"
+    assert mask_phone("") == "***"
+    assert mask_phone(None) == "***"
+
+
+def test_dypnsapi_sdk_importable():
+    """Regression guard for the Dypnsapi migration.
+
+    sms_service lazily imports the Dypnsapi SDK on the first send/verify, so a
+    missing package only explodes at runtime (the historical drift where
+    requirements.txt still pinned the old Dysmsapi SDK shipped in CI unnoticed
+    — send-code 502 in production). The runtime requirements must install it.
+    """
+    from alibabacloud_dypnsapi20170525 import models  # noqa: F401
+    from alibabacloud_dypnsapi20170525.client import Client  # noqa: F401
+    from alibabacloud_tea_openapi import models as tea_models  # noqa: F401
+    from alibabacloud_tea_util import models as tea_util_models  # noqa: F401
+
+    assert Client is not None and models is not None
+
+
+# ---------------------------------------------------------------------------
+# Per-phone send cooldown (endpoint-level, Redis TTL semantics)
+# ---------------------------------------------------------------------------
+
+
+async def test_sms_send_code_cooldown_blocks_resend(client, fake_redis):
+    """A second send within the 60s cooldown window is rejected (429)."""
+    resp1 = await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138001", "purpose": "register"},
+    )
+    assert resp1.status_code == 200, resp1.text
+
+    resp2 = await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138001", "purpose": "register"},
+    )
+    assert resp2.status_code == 429
+
+
+async def test_sms_send_code_cooldown_is_per_purpose(client, fake_redis):
+    """Cooldown keys are per (phone, purpose) — a different purpose is not
+    blocked by an existing cooldown on the same phone."""
+    resp1 = await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138003", "purpose": "register"},
+    )
+    assert resp1.status_code == 200, resp1.text
+
+    resp2 = await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138003", "purpose": "reset_password"},
+    )
+    assert resp2.status_code == 200, resp2.text
+
+
+async def test_sms_send_code_cooldown_expires(client, fake_redis):
+    """After the cooldown TTL elapses, sending is allowed again."""
+    await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138002", "purpose": "register"},
+    )
+    key = "sms:cooldown:13800138002:register"
+    assert await fake_redis.exists(key)
+
+    # Simulate the 60s cooldown elapsing (monotonic expiry already passed).
+    fake_redis._expires[key] = 0
+
+    resp = await client.post(
+        "/api/v1/auth/sms/send-code",
+        json={"phone": "13800138002", "purpose": "register"},
+    )
+    assert resp.status_code == 200, resp.text
+    # And the cooldown is armed again for the next window.
+    assert await fake_redis.exists(key)

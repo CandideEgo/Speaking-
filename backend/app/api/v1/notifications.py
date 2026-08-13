@@ -222,14 +222,16 @@ async def mark_all_as_read(
 
 # ── Notification preferences ──────────────────────────────────────────
 
-# Default notification preferences
+# Default notification preferences. Community-typed prefs
+# (community_updates/new_follower/comment_reply) are dormant since ADR-0012
+# cut the community — kept for schema compat, but OFF by default.
 DEFAULT_PREFS = {
     "push_notifications": True,
     "streak_reminder": True,
     "weekly_report": True,
-    "community_updates": True,
-    "new_follower": True,
-    "comment_reply": True,
+    "community_updates": False,
+    "new_follower": False,
+    "comment_reply": False,
 }
 
 

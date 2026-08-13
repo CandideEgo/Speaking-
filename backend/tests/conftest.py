@@ -12,6 +12,7 @@ async files.
 """
 
 import os
+import time
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timezone
 
@@ -52,28 +53,48 @@ class _FakeRedis:
 
     Implements only the subset of commands the app relies on:
     get/set/setex/delete/exists/ping/aclose.
+
+    TTL semantics: ``setex``/``set(ex=...)`` record an expiry; ``get`` /
+    ``exists`` purge expired keys so cooldown/expiry logic is testable.
+    ``_store`` remains a plain ``dict[str, str]`` (tests inspect it directly);
+    expiry lives in a parallel ``_expires`` map keyed by monotonic timestamps.
     """
 
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
+        self._expires: dict[str, float] = {}
+
+    def _purge(self, key: str) -> None:
+        exp = self._expires.get(key)
+        if exp is not None and exp <= time.monotonic():
+            self._store.pop(key, None)
+            self._expires.pop(key, None)
 
     async def get(self, key: str) -> str | None:
+        self._purge(key)
         return self._store.get(key)
 
     async def set(self, key: str, value: str, ex: int | None = None) -> str | None:
         self._store[key] = value
+        if ex is not None:
+            self._expires[key] = time.monotonic() + ex
+        else:
+            self._expires.pop(key, None)
         return "OK"
 
     async def setex(self, key: str, ttl: int, value: str) -> str | None:
         self._store[key] = value
+        self._expires[key] = time.monotonic() + ttl
         return "OK"
 
     async def delete(self, key: str) -> int:
         existed = key in self._store
         self._store.pop(key, None)
+        self._expires.pop(key, None)
         return 1 if existed else 0
 
     async def exists(self, key: str) -> bool:
+        self._purge(key)
         return key in self._store
 
     async def ping(self) -> bool:
@@ -228,6 +249,15 @@ async def _async_setup(request: pytest.FixtureRequest, monkeypatch):
     # --- Database tables ---
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # --- Route `async_session` to the test session maker ---
+    # app.core.database resolves `async_session` lazily to the REAL engine
+    # (settings.database_url) unless it is patched here. Code that opens its
+    # own sessions (media publish-state gate, Celery task bodies) must see the
+    # test DB, not the configured Postgres.
+    import app.core.database as database_module
+
+    monkeypatch.setattr(database_module, "async_session", TestSessionLocal)
 
     # --- Fake Redis (only if the test didn't already install one) ---
     if not getattr(redis_module, "_test_fake_installed", False):

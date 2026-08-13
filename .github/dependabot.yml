@@ -1,0 +1,38 @@
+# Dependabot — automated dependency updates (supply-chain hygiene).
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # Python: backend runtime + cloud requirements.
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    # yt-dlp is intentionally unpinned (extractors rot fast) — never propose pins.
+    ignore:
+      - dependency-name: "yt-dlp"
+
+  # npm: frontend runtime + tooling.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  # GitHub Actions — keep workflow steps current (and re-pinned to SHAs where
+  # the repo chooses to pin).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"

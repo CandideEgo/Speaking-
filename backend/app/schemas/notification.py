@@ -26,9 +26,10 @@ class NotificationPreferencesResponse(BaseModel):
     push_notifications: bool = True
     streak_reminder: bool = True
     weekly_report: bool = True
-    community_updates: bool = True
-    new_follower: bool = True
-    comment_reply: bool = True
+    # Community-typed prefs are dormant (ADR-0012) — OFF by default.
+    community_updates: bool = False
+    new_follower: bool = False
+    comment_reply: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -9,7 +9,7 @@ stored redundantly here.
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -23,7 +23,12 @@ class BehaviorEvent(Base):
         Index("ix_behavior_events_video_type", "video_id", "event_type"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # SQLite (tests) only auto-increments an exact INTEGER PRIMARY KEY, so the
+    # BigInteger PK falls back to Integer there — production (Postgres) keeps
+    # BIGINT autoincrement.
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
     user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

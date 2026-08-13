@@ -84,3 +84,29 @@ test.describe("Watch Page - Subtitle Mode Tabs", () => {
     await expect(tab).toHaveAttribute("aria-selected", "true");
   });
 });
+
+test.describe("Watch Page - Keyboard Shortcuts", () => {
+  test("ArrowDown/ArrowUp advance the subtitle exactly one step (no double-fire)", async ({
+    page,
+  }) => {
+    if (!(await openFirstVideo(page))) {
+      test.skip();
+      return;
+    }
+    // Regression guard: the page and useVideoPlayer both used to register a
+    // window keydown listener, so every press fired twice (ArrowDown jumped
+    // two subtitles; Space was a no-op). CI seeds one official ready video
+    // (scripts/seed_e2e.py), so this test executes for real in CI.
+    const counter = page.getByTestId("subtitle-counter");
+    await expect(counter).toBeVisible();
+    const text = (await counter.textContent()) ?? "";
+    const total = Number(text.split("/")[1]?.trim());
+    expect(total).toBeGreaterThanOrEqual(2);
+
+    await expect(counter).toHaveText(`1 / ${total}`);
+    await page.keyboard.press("ArrowDown");
+    await expect(counter).toHaveText(`2 / ${total}`);
+    await page.keyboard.press("ArrowUp");
+    await expect(counter).toHaveText(`1 / ${total}`);
+  });
+});
