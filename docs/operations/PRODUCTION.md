@@ -179,7 +179,8 @@ Stage 2: runner
 
 ### 3.4 Nginx 配置要点
 
-当前 `nginx.conf` 配置：
+生产默认挂载 `nginx.ssl.conf`（TLS 1.2+、HSTS、CSP/X-Frame-Options/nosniff、限流、媒体缓存、日志不含 query string）。
+`nginx.conf` 仅用于无证书的初始化/开发场景，通过 `NGINX_CONF=nginx.conf` 环境变量切换（见 5.1）。
 
 ```nginx
 # SSL: TLS 1.2+ only, modern ciphers, HSTS
@@ -274,11 +275,13 @@ docker compose -f docker-compose.prod.yml up -d
 docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
 
 # 6. 配置 SSL
-# 将证书放置到 nginx SSL 目录
+# prod compose 默认挂载 nginx.ssl.conf（TLS + 安全头）。
+# 将证书放置到 nginx SSL 目录（compose 已挂载 ./nginx/ssl:/etc/nginx/ssl:ro）
 mkdir -p nginx/ssl
 cp /etc/letsencrypt/live/api/fullchain.pem nginx/ssl/
 cp /etc/letsencrypt/live/api/privkey.pem nginx/ssl/
 docker compose -f docker-compose.prod.yml restart nginx
+# 无证书的初始化阶段可临时用纯 HTTP：NGINX_CONF=nginx.conf docker compose -f docker-compose.prod.yml up -d nginx
 
 # 7. 验证
 curl https://api.your-domain.com/health

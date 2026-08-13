@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+*.log
+test-results
+playwright-report
+.playwright-cli
+.debug-shots
+npm-debug.log*

@@ -104,6 +104,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    mem_limit: 2g
     restart: unless-stopped
     logging:
       driver: json-file
@@ -147,6 +154,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Whisper-adjacent workers can spike; cap to protect the host.
+    mem_limit: 4g
     restart: unless-stopped
     logging:
       driver: json-file
@@ -175,6 +184,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    mem_limit: 512m
     restart: unless-stopped
     logging:
       driver: json-file
@@ -202,11 +212,16 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Production default: TLS + security headers (nginx.ssl.conf). Override
+      # for a certificate-less bootstrap with: NGINX_CONF=nginx.conf
+      - ./${NGINX_CONF:-nginx.ssl.conf}:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    mem_limit: 512m
     restart: unless-stopped
     logging:
       driver: json-file
@@ -222,6 +237,7 @@ services:
       - "3000"
     depends_on:
       - backend
+    mem_limit: 1g
     restart: unless-stopped
     logging:
       driver: json-file

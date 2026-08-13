@@ -10,3 +10,13 @@ tests/
 .venv
 venv
 node_modules
+# Session cookies + runtime state must never be baked into image layers
+youtube_cookies*.txt
+youtube_state.json
+media/
+logs/
+.debug-shots/
+*.log
+temp/
+tmp/
+data/

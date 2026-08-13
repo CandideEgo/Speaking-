@@ -110,9 +110,13 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 | 组件 | 检查方式 | 期望结果 |
 |------|---------|---------|
 | Backend | `GET /health` | `{"status": "ok"}` |
-| PostgreSQL | `pg_isready -U speaking -d speaking` | accepting connections |
-| Redis | `redis-cli ping` | PONG |
+| PostgreSQL | `pg_isready -U "${DB_USER:-seeword}" -d "${DB_NAME:-seeword}"`（按 .env 实际值替换） | accepting connections |
+| Redis | `redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping` | PONG |
 | Celery | `celery -A app.tasks.celery_app inspect ping` | pong |
+
+> ⚠️ 生产 Redis 带 `--requirepass`，所有 `redis-cli` 命令必须带 `-a "$REDIS_PASSWORD" --no-auth-warning`；
+> PostgreSQL 用户/库名由 `.env` 的 `DB_USER`/`DB_NAME` 决定（开发环境为 `seeword`），下文所有
+> `psql/pg_dump -U speaking -d speaking` 请按实际值替换。
 
 ### 2.2 Sentry 告警配置
 
@@ -198,8 +202,8 @@ docker exec -it $(docker ps -qf "name=celery") \
 # 检查 worker 容器状态
 docker inspect $(docker ps -aqf "name=celery") --format '{{.State.OOMKilled}}'
 
-# 检查 Redis 中积压的任务
-docker exec -it $(docker ps -qf "name=redis") redis-cli llen celery
+# 检查 Redis 中积压的任务（生产 Redis 有密码）
+docker exec -it $(docker ps -qf "name=redis") redis-cli -a "$REDIS_PASSWORD" --no-auth-warning llen celery
 
 # 检查容器内存使用
 docker stats --no-stream $(docker ps -qf "name=celery")
@@ -283,7 +287,7 @@ docker exec -it $(docker ps -qf "name=db") \
 
 2. 重启后端释放连接池：`docker compose -f docker-compose.prod.yml restart backend`
 3. 调整连接池大小（在 `config.py` 或环境变量中设置 `DB_POOL_SIZE`）
-4. Gunicorn 4 workers，每个 worker 默认连接池大小 5，总连接数 = 4 x 5 = 20，确保 `max_connections` > 总连接数
+4. Gunicorn 2 workers（`docker-compose.prod.yml` 实际 `-w 2`），每个 worker 默认连接池大小 5，总连接数 = 2 x 5 = 10，确保 `max_connections` > 总连接数
 
 ### 3.5 支付回调未收到
 
