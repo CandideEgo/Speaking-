@@ -2,9 +2,18 @@
 
 ## Current Focus
 
-原型驱动全栈重构——练习/考试系统全链路打通：后端 exam 系统（exam_sessions/exam_answers + 服务端判分 + 派生错题本 + practice hub）已上线；前端 practice/exam/paper/watch 内嵌卷全部接真数据，静态样例卷已删；视觉收尾（login/forgot-password 三步向导/profile 用户卡）完成。pytest 539 绿 + tsc/build/ruff/pre-commit 全绿 + 真实 Postgres 浏览器端到端验证通过。
+全站功能与设计审查并补齐完成：/upgrade 页补齐原型 18 三步指引；错题本功能上线（后端 wrong_redo 派生查询 + 练习专题错题区块 + 结果页「只练错题/再做一遍」）；ExamRunner 补齐倒计时/退出/移动端提交栏/两列选项；练习专题统计条 + 每日检测深色特色卡；文案漂移修正。后端 586 测试全绿 + 浏览器冒烟（86 套真题、错题链路端到端）通过。
 
 ## Completed Milestones
+
+- **全站功能与设计审查并补齐（2026-08-13）**
+  - 审查：24 个用户页 + 9 个管理页对照 28 页原型逐一对比；已对齐页面不动，集中补齐缺口
+  - /upgrade 页补齐原型 18 三步指引（开通 Pro：合规告知 + 三步指引 + 小商店按钮降级态 + 兑换码入口）
+  - 错题本：后端 exam_service 新增 list_wrong_questions（派生查询：最近一次作答仍错才在错题本，重做答对即销账）+ create_wrong_redo_session（mode=wrong_redo）+ exam_stats 聚合；API GET /exams/wrong、POST /exams/wrong/redo、GET /exams/stats；6 个新测试
+  - 前端：练习专题页错题区块 + 统计条 + 每日检测深色特色卡；/practice/exams/redo 错题重做页；结果页「只练错题/再做一遍/再练一套」三按钮
+  - ExamRunner 补齐：倒计时（默认 30 分钟，<60s 警告色）、退出按钮、移动端底部提交栏、选项两列网格
+  - 文案修正：exams 列表年份不写死；watch 页练习区占位指向真题练习；history 页升级 4 统计卡（含连续天数）
+  - 验证：后端 586 passed；前端 tsc/ESLint 0 errors；浏览器冒烟通过（真题列表/交卷/错题本/重做/结果页全链路）
 
 - **原型驱动全栈重构：练习/考试系统（2026-08-04，.qoder/specs/原型驱动全栈重构_task-08d.md）**
   - 后端：`exam_sessions`/`exam_answers` 两表（迁移 b1c2d3e4f5a6，可 downgrade）；错题本为派生查询不另建表
@@ -84,7 +93,11 @@
 
 ## Last Updated
 
-Date: 2026-08-04
+Date: 2026-08-13
+- **全站功能与设计审查并补齐**：见上方 Completed Milestones；未提交（用户未要求）
+- 真题考试体系现状（08-08 b8b9970 重建后）：paper bank 模型（exam_papers/exam_questions）+ exam_sessions/exam_answers（mode: paper_exam/daily_check/wrong_redo）+ 服务端判分；错题本为派生查询不另建表
+
+## History (2026-08-04)
 - **原型驱动全栈重构（练习/考试系统）完成**：见上方 Completed Milestones；提交序列 68393b7(docs) → c4a40e1(exam 后端) → 28f648a(CASE 修复) → 65ab7c1(前端接真数据) → 7e46cf2(列宽截断修复) → c1811bf(Phase D)
 - **POST-FRONTEND-2026-08 全部 6 阶段完成（release 0.1.1，2026-08-03）**
   - Stage 1/2 播放页改版：字幕区独立滚动、词卡停泊位避让、snap-y 分屏吸附

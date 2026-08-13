@@ -145,6 +145,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **LearningPlan** | 日计划缓存，规则引擎优先级：到期复习→继续观看→新视频→练习→词汇练习。AI 生成 Pro 专属 |
 | **UserLearningProfile** | 用户学习档案（streak, mastery_by_level, daily counters），增量更新 via LearningEvent |
 | **周循环** | 北极星指标：一天内有 4 种事件类型（watch+vocab+practice+review）= 1 完整闭环 |
+| **错题本（真题）** | exam_answers 派生查询（不另建表）：最近一次已作答仍错才在错题本，重做答对即销账；`wrong_redo` 会话模式承载「只练错题/重做全部」 |
 
 ### 会员与兑换
 
