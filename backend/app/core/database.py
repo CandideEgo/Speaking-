@@ -21,15 +21,16 @@ def get_engine():
     real connection is only opened on the first query.
     """
     settings = get_settings()
-    return create_async_engine(
-        settings.database_url,
-        echo=False,
-        echo_pool=settings.env == "development",
-        pool_size=5,
-        max_overflow=10,
-        pool_recycle=1800,
-        pool_pre_ping=True,
-    )
+    kwargs: dict = {
+        "echo": False,
+        "echo_pool": settings.env == "development",
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
+    if settings.database_url.startswith("postgresql"):
+        # SQLite (dev/test) rejects pool_size/max_overflow - it uses NullPool.
+        kwargs.update(pool_size=5, max_overflow=10)
+    return create_async_engine(settings.database_url, **kwargs)
 
 
 @lru_cache

@@ -3,7 +3,12 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 
 import bcrypt
-from jose import JWTError, jwt
+# PyJWT — migrated from python-jose (2026-08-14): python-jose 3.3.0 is
+# unmaintained with CVE-2024-33663/33664; PyJWT's encode/decode API is
+# signature-compatible for our usage (encode(payload, key, algorithm=...),
+# decode(token, key, algorithms=[...])).
+import jwt
+from jwt import InvalidTokenError
 
 from app.core.config import get_settings
 
@@ -62,7 +67,7 @@ def decode_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         return payload
-    except JWTError:
+    except InvalidTokenError:
         return None
 
 

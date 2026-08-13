@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     jwt_blacklist_enabled: bool = True
     bcrypt_rounds: int = 12
 
-    # Alibaba Cloud Dysmsapi — SMS verification code for phone login / change
-    # phone / reset password. When sms_login_enabled is False (or AK/SK
-    # missing), sms_service falls back to a dev fake that logs/accepts the
-    # fixed code "1234" — no Aliyun calls.
+    # Alibaba Cloud Dypnsapi — SMS verification code for phone login / change
+    # phone / reset password (SendSmsVerifyCode / CheckSmsVerifyCode: the code
+    # is generated and verified server-side by Aliyun). When sms_login_enabled
+    # is False (or AK/SK missing), sms_service falls back to a dev fake that
+    # logs/accepts the fixed code "1234" — no Aliyun calls.
     sms_login_enabled: bool = False
     aliyun_sms_access_key: str = ""
     aliyun_sms_secret_key: str = ""

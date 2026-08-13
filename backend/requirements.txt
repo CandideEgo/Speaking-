@@ -7,9 +7,9 @@ alembic==1.13.1
 pydantic==2.7.0
 pydantic-settings==2.3.0
 PyJWT>=2.8.0
-python-jose[cryptography]>=3.3.0
 bcrypt>=4.0.0
-python-multipart==0.0.9
+# >=0.0.18 fixes CVE-2024-53981 (multipart form-part DoS)
+python-multipart>=0.0.18
 celery[redis]==5.4.0
 redis==5.0.0
 httpx==0.27.0
@@ -18,8 +18,11 @@ tenacity>=8.2.0
 faster-whisper>=1.0.0
 whisperx>=3.8.0
 slowapi==0.1.9
-# Alibaba Cloud Dysmsapi — SMS verification code (phone login / change phone / reset password)
-alibabacloud_dysmsapi20170525>=3.0.0
+# Alibaba Cloud Dypnsapi — SMS verification code (phone login / change phone / reset password)
+# SendSmsVerifyCode / CheckSmsVerifyCode: the code is generated and verified
+# server-side by Aliyun. Depends on alibabacloud_tea_openapi / tea_util (installed
+# transitively). NOTE: keep in sync with requirements-cloud.txt.
+alibabacloud_dypnsapi20170525>=1.0.0
 # yt-dlp site extractors rot fast — track latest instead of pinning to a date.
 yt-dlp>=2025.0.0
 
@@ -30,5 +33,3 @@ prometheus-fastapi-instrumentator>=7.0.0
 
 # Alibaba Cloud OSS
 oss2>=2.18.0
-
-# Alibaba Cloud Dypnsapi — SMS verification code (phone login)
