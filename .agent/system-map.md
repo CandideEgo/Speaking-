@@ -14,9 +14,10 @@
 | `services/payment_provider` + `alipay/wechat/mock` | Multi-provider payment with factory pattern |
 | `services/learning_plan_service` + `learning_event_service` + `profile_service` | ADR-0012 learning plan: rule engine, event emission, profile aggregation |
 | `services/ai_plan_service` | AI-powered plan generation (Pro, LLM JSON schema) |
-| `services/recommendation_service` + `scoring_service` | Video learning_score (6-factor), recommendation feed |
+| `services/recommendation_service` + `scoring_service` | Video learning_score (7-factor + bonus), recommendation feed |
 | `services/milestone_service` | Learning milestone tracking |
 | `services/comment_service` | Video comment quality scoring (keyword-based) |
+| `services/shadowing_service` | 跟读录音持久化 + LearningEvent (ADR-0013; 无 AI 评分) |
 | `services/notification_service` | Cross-cutting: DB write + WebSocket push (best-effort) + actor-aware dedup |
 | `tasks/video_processing` | Head/GPU/Tail pipeline + checkpoint resume + watchdog |
 | `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + redemption async + pro downgrade |
@@ -45,9 +46,10 @@ notification_service ←── payment callbacks
                      ←── comment_service
                      (actor-aware dedup: same actor → update, different actors → separate)
 
-video_processing (finalize) → writes review_status=published directly
-                            ≠ video_review_service.approve_review
-                            (two publish paths, inconsistent fields)
+video_processing (finalize auto_publish) 与 admin approve_review
+                            共享 video_publish._publish_video（single source of truth，
+                            字段一致；approve_review 额外冻结 published_snapshot，
+                            属 UGC 编辑语义，非不一致）
 ```
 
 ## Data Flow — Critical Paths

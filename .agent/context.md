@@ -2,7 +2,7 @@
 
 ## Purpose
 
-AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, annotates exam-level vocabulary (CET/gaokao) via ECDICT, and drives SM-2 spaced repetition review. Speaking recording is playback-only (no AI scoring — ADR-0002).
+AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Users paste video URLs (YouTube/Bilibili), the system generates bilingual subtitles via WhisperX, annotates exam-level vocabulary (CET/gaokao) via ECDICT, and drives SM-2 spaced repetition review. Speaking has NO AI scoring (ADR-0002); 跟读（Shadowing）records are persisted per-user and played back with owner-only JWT access (ADR-0013).
 
 ## System Understanding
 
@@ -90,7 +90,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - 6 Zustand stores: authStore, adminAuthStore, feedStore (recommendation feed per ADR-0011), watchStore, vocabularyStore, planStore (daily learning plan per ADR-0012)
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
-- ECDICT database ~30MB, downloaded via scripts, in `.gitignore`
+- ECDICT database: 下载包 ~30MB，落盘 SQLite ~0.8GB（backend/data/ecdict.db），.gitignore 已忽略
 - Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-pipeline (10min), retry-failed-downloads (daily), score-videos-hourly, score-videos-daily, downgrade-expired-pro (hourly), expire-unused-redeem-codes (daily)
 - Notification model has composite index `ix_notifications_dedup` on (user_id, type, related_url, is_read) for dedup queries
 
@@ -140,7 +140,8 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **SM-2 词汇复习** | 间隔重复算法，词汇模块核心 |
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
 | **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释，支持双引擎（agnes + qwen）并发 |
-| **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读 |
+| **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读（ADR-0002） |
+| **ShadowingAttempt** | 活跃的跟读录音记录（`shadowing_attempts` 表，ADR-0013）：每条录音持久化到 `media/shadowing/{user_id}/`，owner-only JWT 鉴权回放；写 LearningEvent(`shadowed_sentences`) + 档案计数 |
 | **LearningEvent** | 结构化学习事件（completed_video/learned_words/practiced_items/reviewed_words），与 BehaviorEvent 分离，喂档案聚合+日目标+推荐 |
 | **LearningPlan** | 日计划缓存，规则引擎优先级：到期复习→继续观看→新视频→练习→词汇练习。AI 生成 Pro 专属 |
 | **UserLearningProfile** | 用户学习档案（streak, mastery_by_level, daily counters），增量更新 via LearningEvent |
@@ -179,6 +180,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 ## Cut Features（勿再引入）
 
 - **AI 口语评分**：`speaking_service.py`、`rubrics.py`、`speaking_alignment.py` 已删（ADR-0002）
-- **跟读/Shadowing 模式**：watch 页"跟读"标签 + 首页 chip 已移除（ADR-0002）
 - **口语 streak/目标/统计**：dashboard 口语指标已移除（ADR-0003）
-- **用户面 UGC**：已砍（ADR-0012）；Video.is_official / auto_publish 列保留 dormant；ADR-0004 事实失效
+- **用户面 UGC**：已砍（ADR-0012）；Video.is_official / auto_publish 列保留 dormant；ADR-0004 事实失效。**后端残留 dormant**：`POST /videos/user-seed*` 端点与 `video_seed_service.seed_ugc_video`、`video_service.list_published_ugc_videos` 仍存在且有测试（test_pending_processing），无前端入口，勿删勿扩展
+
+> 注意：**跟读（Shadowing）不是 Cut Feature** —— 无 AI 评分（ADR-0002 的评分删除仍成立），但录音持久化功能活跃（`ShadowingAttempt` 表 + watch 页录音面板 + 计划「跟读练习」项 + 里程碑，见 ADR-0013）。

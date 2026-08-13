@@ -59,7 +59,7 @@ Group B's actor-aware dedup correctly keeps both notifications.
 
 | | Group A | Group B |
 |---|---------|---------|
-| **Total (out of 30)** | **12** | **25** |
+| **Total (out of 30)** | **14** | **29** |
 
 ## Conclusion
 

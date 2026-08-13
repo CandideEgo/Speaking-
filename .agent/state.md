@@ -78,10 +78,9 @@
 
 ## Known Issues
 
-- 本地 dev 环境 SMS 走真实阿里云发送（.env 配置了凭据）但 SDK 初始化失败→send-code 502；CI/无凭据环境自动回退 dev-fake 码 1234（E2E 依赖此路径）
+- 本地 dev 环境 SMS 走真实阿里云发送（.env 配置了凭据）但 SDK 初始化失败→send-code 502；CI/无凭据环境自动回退 dev-fake 码 1234（E2E 依赖此路径）。**根因已定位（2026-08-14 审查）**：requirements.txt 曾缺 Dypnsapi SDK，已修复，本地 .venv 与云端镜像需重新安装依赖后复测
 - docs/architecture/ 旧架构文档已清理删除（见 docs/progress/DEV-LOG-2026-08.md）——`.agent/system-map.md` + `wiki/` 为权威
-- **3 unfixed risk items**: comment quality scoring (pure keyword matching), auto_publish dual path (partially fixed), E2E test coverage
-- E2E test for critical user flows still unchecked in completion criteria
+- **2 unfixed risk items**: comment quality scoring (pure keyword matching), E2E test coverage（2026-08-14 起 CI e2e 已有 seed，核心旅程不再整体跳过；watch 播放/词汇复习/考试等关键流程的 e2e 仍缺失）
 - ICP compliance: awaiting individual business license for full deployment
 
 ## Next Steps
@@ -93,8 +92,9 @@
 
 ## Last Updated
 
-Date: 2026-08-13
-- **全站功能与设计审查并补齐**：见上方 Completed Milestones；未提交（用户未要求）
+Date: 2026-08-14
+- **全站综合审查 + 修复（docs/progress/REVIEW-2026-08-14.md）**：7 路并行审查 87 条发现（18 高危）；已修复：上传存储型 XSS（服务端扩展名白名单 + nosniff + 媒体扩展名 allowlist）、/media/proxy SSRF（禁重定向 + 移除 aliyuncs.com）、requirements.txt 补 Dypnsapi SDK、watch 快捷键双重监听与 navigateSubtitle seek 失效、admin 引导刷新竞态、limiter Redis 故障 fail-open（in-memory fallback）、草稿/未发布视频媒体发布态门控（owner/admin token 预览）、e2e seed（核心旅程不再 skip）、Celery 任务体直测、SMS 冷却 TTL 测试、nginx ssl 配置挂载 + 安全头 + /media XFF 覆盖、后端容器非 root + HEALTHCHECK、pip-audit/npm audit/dependabot 门禁、deploy 模板对齐 compose、ADR-0013（Shadowing 持久化）与文档漂移更正
+- 遗留（见 REVIEW 报告 §8）：fastapi/python-jose 升级（P2）、SQLite→Postgres 测试迁移（延后）、e2e 播放/词汇/考试流程覆盖、手机号日志脱敏
 - 真题考试体系现状（08-08 b8b9970 重建后）：paper bank 模型（exam_papers/exam_questions）+ exam_sessions/exam_answers（mode: paper_exam/daily_check/wrong_redo）+ 服务端判分；错题本为派生查询不另建表
 
 ## History (2026-08-04)

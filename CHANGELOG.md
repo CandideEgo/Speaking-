@@ -8,13 +8,25 @@
 ## [Unreleased]
 
 ### Added
--
+- **真题练习/考试系统（08-04 → 08-13）**：paper bank 模型（exam_papers/exam_questions）+ exam_sessions/exam_answers（paper_exam/daily_check/wrong_redo 三模式）+ 服务端判分 + 答案不下发；错题本（派生查询，重做答对即销账）；练习专题页 + ExamRunner（倒计时/退出/移动端提交栏/两列选项）；`/upgrade` 页三步指引；每日检测深色特色卡；练习统计条。
+- **SMS 认证切换阿里云 Dypnsapi（08-09）**：SendSmsVerifyCode/CheckSmsVerifyCode（服务端生成/校验验证码），dev-fake 仅限非生产。
+- **全站综合审查与安全修复（08-14，见 docs/progress/REVIEW-2026-08-14.md）**：
+  - 安全：上传存储型 XSS 修复（服务端扩展名白名单 + serve_media allowlist + nosniff）、/media/proxy SSRF 修复（禁重定向 + 移除 aliyuncs.com）、草稿/未发布视频媒体发布态门控（owner/admin token 预览）、limiter Redis 故障 in-memory 降级、/media 代理头覆盖 XFF。
+  - 部署：prod compose 默认挂载 nginx.ssl.conf（TLS + 安全头 + 日志脱敏）、后端镜像非 root + HEALTHCHECK、deploy 模板与 compose 对齐。
+  - 工具链：CI 加 pip-audit / npm audit 硬门、Dependabot、python-multipart 升到 >=0.0.18（CVE-2024-53981）。
+  - 测试：CI e2e 数据 seed（watch 核心旅程不再 skip）、Celery 任务体直测、SMS 冷却 TTL 测试、watch 快捷键 e2e 回归。
+  - 修复：watch 页快捷键双重监听与字幕导航 seek 失效、管理端引导刷新竞态、重录跟读录音丢失、requirements.txt 缺 Dypnsapi SDK（send-code 502 根因）。
+  - 文档：ADR-0013（Shadowing 录音持久化）、SECURITY.md 重写、context/system-map/state 更正。
 
 ### Changed
--
+- 前端 `mediaUrl()` 支持 `withToken`（草稿媒体预览携带 JWT）。
+- 后端 `get_engine()` 池参数仅 Postgres 生效（SQLite 兼容）。
+- `scoring_tasks` 惰性导入 async_session（与其他任务模块一致，测试可达）。
 
 ### Fixed
--
+- 上传视频落盘扩展名改由服务端 content-type 白名单推导（不再信任客户端 filename）。
+- `/media/proxy` 不再跟随重定向；OSS 域名移出代理白名单。
+- 未发布 UGC 视频媒体不再公开可下载。
 
 ## [0.1.1] - 2026-08-03
 

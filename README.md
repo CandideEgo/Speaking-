@@ -120,7 +120,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 ## 开发进度
 
-总体进度 **100%**（92/92 项完成）。详见 [docs/progress/PROGRESS.md](docs/progress/PROGRESS.md)。
+总体进度 **100%**（92/92 项完成，快照冻结于 2026-07-20；当前状态见 [.agent/state.md](.agent/state.md)）。详见 [docs/progress/PROGRESS.md](docs/progress/PROGRESS.md)。
 
 ---
 

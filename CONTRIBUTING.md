@@ -65,7 +65,7 @@ docker compose up -d
 ### 2.1 后端（Python / FastAPI）
 
 - **全异步**：所有数据库操作和 API 路由必须使用 `async/await`，使用 SQLAlchemy async session
-- **路由模块化**：新增 API 路由放在 `backend/app/api/v1/` 下，按功能模块拆分文件（如 `auth.py`、`videos.py`、`speaking.py`）
+- **路由模块化**：新增 API 路由放在 `backend/app/api/v1/` 下，按功能模块拆分文件（如 `auth.py`、`videos.py`、`shadowing.py`）
 - **类型注解**：所有函数参数和返回值必须有类型注解
 - **依赖注入**：使用 FastAPI 的 `Depends` 机制（如 `get_current_user`、`get_db`）
 - **模型层**：SQLAlchemy 模型放在 `backend/app/models/`，按业务实体拆分
@@ -75,7 +75,7 @@ docker compose up -d
 - **函数式组件**：只使用函数式组件 + Hooks，不使用 class 组件
 - **Tailwind CSS**：只使用 Tailwind 工具类进行样式编写，**禁止 CSS-in-JS**（styled-components、emotion 等）
 - **状态管理**：跨组件共享状态使用 Zustand（`frontend/src/stores/`），局部状态使用 `useState` / `useReducer`
-- **App Router**：使用 Next.js 14 App Router，页面放在 `app/` 目录下
+- **App Router**：使用 Next.js 16 App Router，页面放在 `app/` 目录下
 - **组件组织**：组件放在 `frontend/src/components/` 下，按功能分类
 
 ---
@@ -110,11 +110,11 @@ docker compose up -d
 | `auth` | 用户认证 |
 | `video` | 视频处理 |
 | `subtitle` | 字幕系统 |
-| `speaking` | 口语练习 |
+| `speaking` | 跟读/录音（shadowing，无 AI 评分） |
 | `ai` | AI 功能 |
 | `vocab` | 词汇本 |
 | `payment` | 支付与变现 |
-| `browse` | 浏览与社区 |
+| `browse` | 浏览与推荐 |
 | `mode` | 学习模式 |
 | `ui` | 前端界面/交互 |
 | `api` | 后端 API 层 |
@@ -126,12 +126,11 @@ docker compose up -d
 历史提交引用的需求 ID 来自旧 PRD `docs/api/REQUIREMENTS.md`（已归档删除，见 `docs/progress/DEV-LOG-2026-08.md`）。新提交不再强制引用需求 ID，可改为引用 ADR 或 issue 编号：
 
 ```
-feat(speaking): add auto-switch to next subtitle after scoring (W-09)
-fix(video): handle duplicate source_url race condition (V-06)
-refactor(ai): extract shared prompt builder for pronunciation feedback (P-04, P-06)
+feat(video): handle duplicate source_url race condition (V-06)
+refactor(ai): extract shared prompt builder for gloss/grammar feedback (A-03)
 ```
 
-需求 ID 前缀对照：
+需求 ID 前缀对照（旧 PRD 已归档；仅供历史提交参考）：
 
 | 前缀 | 模块 |
 |---|---|
@@ -154,7 +153,7 @@ refactor(ai): extract shared prompt builder for pronunciation feedback (P-04, P-
 # 好的提交
 feat(vocab): add SM-2 spaced repetition review endpoint (L-02)
 fix(auth): return 401 instead of 500 on expired JWT (N-05)
-refactor(speaking): extract scoring logic into SpeakingService (P-04)
+feat(speaking): persist shadowing attempts with owner-only playback (ADR-0013)
 test(video): add integration tests for Celery video processing (V-01)
 chore(infra): upgrade faster-whisper to latest version
 
@@ -288,7 +287,7 @@ await session.execute(select(Video).filter_by(id=video_id))
 ### 6.6 禁止忽略支付安全
 
 - 支付回调必须验证签名
-- 当前 Alipay/WeChat 回调为占位实现，生产环境前必须完成签名验证
+- Alipay/WeChat 回调签名验证已实现（RSA2 / HMAC-SHA256，见 `docs/operations/SECURITY.md` VULN-01）；生产环境需配置对应公钥/APIv3 key，禁止在未验证签名的情况下升级 Pro
 
 ---
 
@@ -313,10 +312,10 @@ Speaking/
 ├── docker-compose.yml        # 全栈开发环境
 ├── docker-compose.prod.yml   # 生产环境
 ├── docs/                     # 项目文档
-│   ├── api/                  # API 约定 + 需求文档
-│   ├── architecture/         # 架构决策 + 前端架构
+│   ├── adr/                  # 架构决策记录 (ADR)
+│   ├── agents/               # Agent 工作约定
 │   ├── operations/           # 运维手册 + 生产指南 + 安全策略
-│   ├── progress/             # 开发进度 + 变更日志
+│   ├── progress/             # 开发进度 + 变更日志 + 审查报告
 │   ├── design/               # 设计系统 + 未来设计
 │   ├── reports/              # 技术研究报告
 │   └── plans/                # 改进计划 + 管线文档 + 开发工作流
@@ -328,7 +327,7 @@ Speaking/
 
 ---
 
-*最后更新：2026-06-19*
+*最后更新：2026-08-14*
 
 ---
 
