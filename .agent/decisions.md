@@ -216,3 +216,36 @@
   - Complex pages → progressive disclosure (collapsed CTA → expand on demand)
   - User-initiated saves → toast on failure, never silent catch
   - Navigation labels → identical across mobile TabBar and desktop Sidebar
+
+---
+
+## 2026-08-14 — 全站审查修复：关键决策
+
+**Problem**: 全站审查（docs/progress/REVIEW-2026-08-14.md，87 条发现）暴露 2 个可利用高危漏洞 + 系统性文档漂移。
+**Options**: A) 只修高危；B) 按 P0/P1/P2 分批全量修复
+**Decision**: B（12 批次当日完成，627 后端测试 + 前端 tsc/lint/vitest/build 全绿）
+**Reason**: 安全漏洞（上传 XSS/SSRF）直接威胁账户与云凭证；文档漂移（Shadowing「复活」无记录）会误导后续 Agent。
+**Trade-offs**: 限流在 Redis 故障时降级为 in-memory（限流弱化但不再 500，符合 fail-open 不变量）；媒体门控对草稿增加一次 DB 查询（60s TTL 缓存）。
+**ADR**: [0013](docs/adr/0013-shadowing-recording-persistence.md)
+
+---
+
+## 2026-08-14 — JWT 库从 python-jose 迁移到 PyJWT
+
+**Problem**: python-jose 3.3.0 已停止维护且有 CVE-2024-33663/33664；PyJWT 已在依赖中但未被使用。
+**Options**: A) 继续用 python-jose；B) 迁移 PyJWT
+**Decision**: B
+**Reason**: PyJWT 维护活跃；两库的 encode/decode 调用签名对本项目用法完全兼容（encode(payload, key, algorithm=)、decode(token, key, algorithms=[])，异常基类 InvalidTokenError 覆盖过期/签名错误）。
+**Trade-offs**: 迁移仅涉及 security.py 与 2 个测试文件的 import + 异常类；旧 python-jose 签发的 token 可由 PyJWT 正常解码（HS256 同构）。
+**Deferred**: fastapi 升级（本地镜像无新版，starlette CVE-2024-47874 在 pip-audit 显式 ignore 中，待 CI 可验证后升级）。
+
+---
+
+## 2026-08-14 — 跟读（Shadowing）录音持久化（正式化既有事实）
+
+**Problem**: 2026-07-25 实现 Shadowing 时未记录决策，与 ADR-0002「录音零留存」冲突；文档声称已砍而代码活跃。
+**Options**: A) 回退 Shadowing 到零持久化；B) 正式承认持久化特性
+**Decision**: B（详见 ADR-0013）
+**Reason**: 前端全链路（录音面板/计划项/里程碑）+ 3 端点 + 测试已上线，回退成本高；持久化录音 owner-only JWT 鉴权，隐私可控。
+**Trade-offs**: 录音存储增长需监控（media/shadowing/ 容量）；「录音不落盘」的旧隐私承诺作废。
+**ADR**: [0013](docs/adr/0013-shadowing-recording-persistence.md)

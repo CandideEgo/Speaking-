@@ -15,6 +15,7 @@
 
 - [Image Handling in Agent Sessions](problems/image-handling.md) — Why images corrupt sessions, how to handle, recovery
 - [ASR / 标注质量诊断](problems/asr-annotation-quality-diagnosis.md) — ECDICT exchange 反向索引 bug 根因与修复验证（good→best 等误报）
+- [审查修复中的三个可复用失败模式](problems/review-fix-failure-modes.md) — Dypnsapi 依赖漂移 / SQLite BigInteger PK / 死依赖误判（react-is）
 
 ## Guides
 

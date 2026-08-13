@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-全站功能与设计审查并补齐完成：/upgrade 页补齐原型 18 三步指引；错题本功能上线（后端 wrong_redo 派生查询 + 练习专题错题区块 + 结果页「只练错题/再做一遍」）；ExamRunner 补齐倒计时/退出/移动端提交栏/两列选项；练习专题统计条 + 每日检测深色特色卡；文案漂移修正。后端 586 测试全绿 + 浏览器冒烟（86 套真题、错题链路端到端）通过。
+全站审查修复（REVIEW-2026-08-14）12 批次已全部完成并提交（6 个 commit，627 后端测试 + 前端 tsc/lint/vitest/build 全绿）。**待办**：① 推远程后观察 CI（pip-audit/npm audit/coverage 门槛/e2e seed 首次生效）；② 按 REVIEW 报告延后项继续（fastapi 升级、SQLite→Postgres 测试迁移、e2e 播放/词汇/考试覆盖、转写回调 payload 上限、/metrics 鉴权）；③ 服务器侧验证：nginx.ssl.conf 挂载 + SMS send-code 复测（requirements 修复后）。
 
 ## Completed Milestones
 
