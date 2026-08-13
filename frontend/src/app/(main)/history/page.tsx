@@ -6,12 +6,14 @@ import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TabPills } from "@/components/ui/TabPills";
+import { MetricCard } from "@/components/ui/MetricCard";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { usePlan } from "@/hooks/usePlan";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
 import { relativeTime, formatTimeSpent, groupByDate } from "@/lib/date";
-import { Calendar, Clock, CheckCircle, PlayCircle } from "lucide-react";
+import { Calendar, Clock, CheckCircle, PlayCircle, Flame } from "lucide-react";
 import type { LearningRecord, Paginated } from "@/types";
 
 type FilterKey = "all" | "active" | "completed";
@@ -24,10 +26,12 @@ const FILTER_TABS: { key: FilterKey; label: string }[] = [
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
+  const { profile } = usePlan();
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const {
     items: records,
+    total,
     hasMore,
     loading,
     loaderRef,
@@ -43,12 +47,14 @@ export default function HistoryPage() {
     enabled: isAuthenticated && !isLoading,
   });
 
-  // Summary stats (computed from loaded records)
+  // Summary stats（原型 12 stat-grid：本周学习时长/已学视频/学完视频/连续天数）
   const stats = useMemo(() => {
-    const totalTime = records.reduce((sum, r) => sum + r.time_spent_seconds, 0);
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const weekSeconds = records
+      .filter((r) => new Date(r.last_accessed_at || r.created_at).getTime() >= weekAgo)
+      .reduce((sum, r) => sum + r.time_spent_seconds, 0);
     const completedCount = records.filter((r) => r.completed).length;
-    const activeCount = records.length - completedCount;
-    return { totalTime, completedCount, activeCount };
+    return { weekSeconds, completedCount };
   }, [records]);
 
   // Date grouping
@@ -63,30 +69,30 @@ export default function HistoryPage() {
         {/* Header */}
         <PageHeader crumb="学习历史" title="学习记录" />
 
-        {/* Summary stats */}
+        {/* Summary stats（原型 12 stat-grid） */}
         {records.length > 0 && (
-          <div className="flex gap-6 mb-6">
-            <div>
-              <div className="text-lg font-bold text-ink flex items-center gap-1.5">
-                <Clock size={15} className="text-muted" />
-                {formatTimeSpent(stats.totalTime)}
-              </div>
-              <div className="text-xs text-muted">总学习时长</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-ink flex items-center gap-1.5">
-                <CheckCircle size={15} className="text-success" />
-                {stats.completedCount}
-              </div>
-              <div className="text-xs text-muted">已完成</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-ink flex items-center gap-1.5">
-                <PlayCircle size={15} className="text-brand-500" />
-                {stats.activeCount}
-              </div>
-              <div className="text-xs text-muted">学习中</div>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+            <MetricCard
+              icon={Clock}
+              label="本周学习时长"
+              value={formatTimeSpent(stats.weekSeconds)}
+              variant="label-top"
+            />
+            <MetricCard icon={PlayCircle} label="已学视频" value={total} variant="label-top" />
+            <MetricCard
+              icon={CheckCircle}
+              label="学完视频"
+              value={stats.completedCount}
+              tone="success"
+              variant="label-top"
+            />
+            <MetricCard
+              icon={Flame}
+              label="连续天数"
+              value={profile?.current_streak ?? 0}
+              tone="brand"
+              variant="label-top"
+            />
           </div>
         )}
 

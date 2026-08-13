@@ -77,8 +77,8 @@ export default function ExamPapersPage() {
             <span className="text-sm font-semibold text-muted ml-2">{total} 套</span>
           </h1>
           <p className="text-sm text-muted leading-relaxed">
-            2017-2025 年大学英语{levelLabel}考试阅读部分原题（选词填空 /
-            段落匹配），交卷后自动判分。
+            历年大学英语{levelLabel}考试阅读部分原题（选词填空 / 段落匹配 /
+            仔细阅读），交卷后自动判分。
           </p>
         </div>
 

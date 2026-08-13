@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, Timer, X } from "lucide-react";
 import { api } from "@/lib/api";
 
 /**
- * 真题客观题答题器 —— 试卷/每日小测共用。
+ * 真题客观题答题器 —— 试卷/每日小测/错题重做共用。
  *
  * props:
  *  - questions: 不含答案的题目列表（GET /exams/{id} 或 /exams/daily/start 返回）
@@ -13,6 +14,8 @@ import { api } from "@/lib/api";
  *  - submitPath: 提交端点路径（如 /exams/attempts/{sid}/submit）
  *  - onSubmitted: 交卷成功后回调（成绩页跳转 / 内联展示）
  *  - accent: 顶部徽标文案
+ *  - durationSec: 倒计时时长（默认 30 分钟，原型 06 eh-timer）
+ *  - onQuit: 退出按钮回调（默认 router.back()，原型 06 btn-quit）
  */
 export interface ExamQuestionPublic {
   id: string;
@@ -59,16 +62,38 @@ export default function ExamRunner({
   submitPath,
   onSubmitted,
   accent,
+  durationSec = 1800,
+  onQuit,
 }: {
   questions: ExamQuestionPublic[];
   submitPath: string;
   onSubmitted: (result: ExamSubmitResponse) => void;
   accent: string;
+  /** 倒计时时长（秒），原型 06 eh-timer。 */
+  durationSec?: number;
+  /** 退出回调（原型 06 btn-quit）；缺省 router.back()。 */
+  onQuit?: () => void;
 }) {
+  const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(durationSec);
+  const [submitted, setSubmitted] = useState(false);
+
+  // 倒计时：提交后停止，到 0 仅告警不自动交卷（与原型 06 一致）。
+  useEffect(() => {
+    if (submitted) return;
+    const id = setInterval(() => {
+      setTimeLeft((t) => Math.max(0, t - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [submitted]);
+
+  const mm = String(Math.floor(timeLeft / 60)).padStart(2, "0");
+  const ss = String(timeLeft % 60).padStart(2, "0");
+  const timeWarn = timeLeft <= 60;
 
   const sections = useMemo(() => {
     const map: Record<string, ExamQuestionPublic[]> = {};
@@ -92,6 +117,7 @@ export default function ExamRunner({
         method: "POST",
         body: JSON.stringify(body),
       });
+      setSubmitted(true);
       onSubmitted(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "提交失败，请重试");
@@ -100,12 +126,26 @@ export default function ExamRunner({
     }
   };
 
+  const quit = () => {
+    if (onQuit) onQuit();
+    else router.back();
+  };
+
   return (
     <main className="min-h-full bg-surface-soft">
-      {/* Sticky header: back / progress / submit */}
+      {/* Sticky header: quit / accent / timer / progress / submit */}
       <div className="sticky top-0 z-30 bg-canvas/92 backdrop-blur border-b border-hairline">
         <div className="max-w-[880px] mx-auto flex items-center gap-3.5 px-4 py-3">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
+          <button
+            onClick={quit}
+            disabled={submitting}
+            aria-label="退出"
+            title="退出"
+            className="w-[34px] h-[34px] rounded-md text-muted flex items-center justify-center hover:text-ink hover:bg-surface-card transition-colors flex-shrink-0 disabled:opacity-40"
+          >
+            <X size={18} />
+          </button>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
             <span className="w-2 h-2 rounded-full bg-brand-500" />
             {accent}
           </span>
@@ -115,13 +155,21 @@ export default function ExamRunner({
               style={{ width: `${pct}%` }}
             />
           </div>
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[13px] font-semibold font-mono flex-shrink-0 ${
+              timeWarn ? "bg-warning-soft text-warning" : "bg-surface-card text-ink"
+            }`}
+          >
+            <Timer size={13} />
+            {mm}:{ss}
+          </span>
           <span className="text-xs text-muted font-mono flex-shrink-0">
             {answered}/{questions.length}
           </span>
           <button
             onClick={() => setConfirming(true)}
             disabled={answered === 0 || submitting}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="hidden md:inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
             交卷
@@ -158,7 +206,7 @@ export default function ExamRunner({
                   )}
 
                   {q.options ? (
-                    <div className="grid gap-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
                       {Object.entries(q.options).map(([key, text]) => {
                         const active = answers[q.id] === key;
                         return (
@@ -193,6 +241,23 @@ export default function ExamRunner({
             </div>
           </section>
         ))}
+      </div>
+
+      {/* 移动端底部提交栏（原型 06 exam-foot） */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-canvas/92 backdrop-blur border-t border-hairline px-4 py-3">
+        <div className="max-w-[880px] mx-auto flex items-center gap-3">
+          <span className="flex-1 text-xs text-muted">
+            已答 <strong className="text-ink">{answered}</strong>/{questions.length}
+          </span>
+          <button
+            onClick={() => setConfirming(true)}
+            disabled={answered === 0 || submitting}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-brand-500 text-on-primary text-[13px] font-semibold hover:bg-brand-600 transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+            交卷
+          </button>
+        </div>
       </div>
 
       {/* Submit confirm modal */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWatchStore } from "@/stores/watchStore";
@@ -821,13 +822,13 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区占位：试题功能暂不开放，保留区域 ===== */}
+      {/* ===== 练习区占位：视频试卷已砍，引导到真题练习 ===== */}
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3.5 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
             <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
-              即将上线
+              暂停开发
             </span>
           </div>
         </div>
@@ -836,7 +837,11 @@ export default function WatchPage() {
             <Layers size={16} />
           </span>
           <p className="text-[13px] text-muted leading-relaxed">
-            试题功能正在重做，本视频的练习试卷将随新版一起开放。
+            本视频暂不出试卷，真题阅读练习已上线——去
+            <Link href="/practice/exams" className="text-brand-600 font-semibold hover:underline">
+              真题练习
+            </Link>
+            刷最新卷。
           </p>
         </div>
       </section>

@@ -60,6 +60,16 @@ export default function ExamResultPage() {
   const wrong = attempt.results.filter((r) => r.correct === false);
   const sections = Object.entries(attempt.part_scores ?? {});
 
+  // 「再做一遍」目标：真题卷重开同卷；每日小测重新抽题；错题重做再重做。
+  const retryHref = attempt.paper_id
+    ? `/practice/exams/${attempt.paper_id}`
+    : attempt.mode === "daily_check"
+      ? "/practice/daily"
+      : "/practice/exams/redo";
+  const wrongIdsHref = wrong.length
+    ? `/practice/exams/redo?ids=${wrong.map((r) => r.question_id).join(",")}`
+    : null;
+
   return (
     <main className="min-h-full bg-surface-soft">
       <div className="container-page py-8 pb-24 max-w-[880px]">
@@ -121,13 +131,30 @@ export default function ExamResultPage() {
                 ))}
               </div>
             </div>
-            <Link
-              href="/practice/exams"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors flex-shrink-0"
-            >
-              <RotateCcw size={14} />
-              再练一套
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              {wrongIdsHref && (
+                <Link
+                  href={wrongIdsHref}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-canvas border border-hairline-strong text-ink text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-colors flex-shrink-0"
+                >
+                  <RotateCcw size={14} />
+                  只练错题（{wrong.length}）
+                </Link>
+              )}
+              <Link
+                href={retryHref}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-canvas border border-hairline-strong text-ink text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-colors flex-shrink-0"
+              >
+                <RotateCcw size={14} />
+                再做一遍
+              </Link>
+              <Link
+                href="/practice/exams"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors flex-shrink-0"
+              >
+                再练一套
+              </Link>
+            </div>
           </div>
         </div>
 
