@@ -119,7 +119,11 @@ export function VideoDetailRow({
           <div className="aspect-video w-full overflow-hidden rounded-sm bg-ink/5 flex items-center justify-center">
             {hasLocal && video.video_url_720p ? (
               <video
-                src={mediaUrl(video.video_url_720p)}
+                src={mediaUrl(video.video_url_720p, {
+                  // Draft media is gated server-side; the admin's JWT grants
+                  // preview access to unpublished videos.
+                  withToken: !video.is_official && video.review_status !== "published",
+                })}
                 controls
                 className="h-full w-full object-contain"
               />

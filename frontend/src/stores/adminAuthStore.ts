@@ -100,7 +100,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
     }
   },
 
-  bootstrap() {
+  async bootstrap() {
     migrateTokenKeys(MIGRATION_MAPPINGS);
 
     if (typeof window === "undefined") {
@@ -127,11 +127,16 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       isAuthenticated: deriveAuthenticated(token, user),
       isLoading: false,
     });
-    // If expired, attempt a background refresh; the shell guard will redirect
-    // to /admin/login if the refresh also fails.
+    // If expired, refresh BEFORE clearing the loading state: the shell guard
+    // redirects to /admin/login as soon as isLoading=false && !isAuthenticated,
+    // so clearing isLoading synchronously would bounce an expired-but-
+    // refreshable session to the login form before the refresh resolves
+    // (mirrors the user-side authStore.initialize() pattern).
     if (isTokenExpired(token)) {
       if (refreshToken) {
-        get().refreshAccessToken();
+        set({ isLoading: true, isAuthenticated: false });
+        await get().refreshAccessToken();
+        set({ isLoading: false });
       } else {
         // No refresh token available - clear stale state so the shell guard
         // redirects to /admin/login instead of showing a blank/loading page.

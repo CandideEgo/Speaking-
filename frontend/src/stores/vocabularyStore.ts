@@ -1,10 +1,9 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import type { Paginated, VocabularyWord } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-interface VocabStats {
+export interface VocabStats {
   total: number;
   new_count: number;
   learning_count: number;
@@ -14,19 +13,11 @@ interface VocabStats {
 }
 
 interface VocabularyState {
-  words: VocabularyWord[];
   stats: VocabStats;
-  loading: boolean;
-  activeTab: "all" | "due";
-  isLoading: boolean;
 }
 
 interface VocabularyActions {
-  fetchWords: (dueOnly?: boolean) => Promise<void>;
   fetchStats: () => Promise<void>;
-  deleteWord: (wordId: string) => Promise<void>;
-  reviewWord: (wordId: string, quality: number) => Promise<void>;
-  setActiveTab: (tab: "all" | "due") => void;
   /** Reset all state to initial values (called on logout) */
   reset: () => void;
 }
@@ -34,9 +25,11 @@ interface VocabularyActions {
 type VocabularyStore = VocabularyState & VocabularyActions;
 
 // ── Store ────────────────────────────────────────────────────────────────
+// Stats-only: word CRUD/review flows use local page state + direct api calls
+// (the vocabulary page), so this store carries just the shared due-count badge
+// consumed by TopBar / MobileTabBar.
 
 const INITIAL_STATE: VocabularyState = {
-  words: [],
   stats: {
     total: 0,
     new_count: 0,
@@ -45,24 +38,10 @@ const INITIAL_STATE: VocabularyState = {
     mastered_count: 0,
     due_count: 0,
   },
-  loading: false,
-  activeTab: "all",
-  isLoading: false,
 };
 
-export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
+export const useVocabularyStore = create<VocabularyStore>((set) => ({
   ...INITIAL_STATE,
-
-  async fetchWords(dueOnly = false) {
-    set({ loading: true });
-    try {
-      const params = dueOnly ? "?due_only=true" : "";
-      const data = await api<Paginated<VocabularyWord>>(`/api/v1/vocabulary${params}`);
-      set({ words: data.items, loading: false });
-    } catch {
-      set({ loading: false });
-    }
-  },
 
   async fetchStats() {
     try {
@@ -71,32 +50,6 @@ export const useVocabularyStore = create<VocabularyStore>((set, get) => ({
     } catch {
       // Keep existing stats on error
     }
-  },
-
-  async deleteWord(wordId: string) {
-    try {
-      await api(`/api/v1/vocabulary/${wordId}`, { method: "DELETE" });
-      set((s) => ({
-        words: s.words.filter((w) => w.id !== wordId),
-      }));
-    } catch (err) {
-      throw err;
-    }
-  },
-
-  async reviewWord(wordId: string, quality: number) {
-    try {
-      await api(`/api/v1/vocabulary/${wordId}/review?quality=${quality}`, {
-        method: "POST",
-      });
-      get().fetchWords();
-    } catch (err) {
-      throw err;
-    }
-  },
-
-  setActiveTab(tab: "all" | "due") {
-    set({ activeTab: tab });
   },
 
   reset() {

@@ -46,24 +46,6 @@ const NOTIFICATION_TYPES: NotificationType[] = [
     icon: Bell,
   },
   {
-    id: "comment_replies",
-    label: "评论回复",
-    description: "有人回复你的评论时通知",
-    icon: Bell,
-  },
-  {
-    id: "new_followers",
-    label: "新增关注",
-    description: "有人关注你时通知",
-    icon: Bell,
-  },
-  {
-    id: "post_likes",
-    label: "帖子点赞",
-    description: "有人点赞你的帖子时通知",
-    icon: Bell,
-  },
-  {
     id: "achievements",
     label: "成就达成",
     description: "解锁的里程碑与徽章",

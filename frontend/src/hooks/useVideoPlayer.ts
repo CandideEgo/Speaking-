@@ -115,6 +115,14 @@ export function useVideoPlayer({
     videoDataRef.current = video;
   }, [video]);
 
+  // Mirrors currentSubtitleIndex so navigateSubtitle can compute the next
+  // index synchronously — React never runs a setState updater synchronously,
+  // so reading a value written inside one would always see the stale index.
+  const currentSubtitleIndexRef = useRef(0);
+  useEffect(() => {
+    currentSubtitleIndexRef.current = currentSubtitleIndex;
+  }, [currentSubtitleIndex]);
+
   const onTimeTickRef = useRef(onTimeTick);
   useEffect(() => {
     onTimeTickRef.current = onTimeTick;
@@ -358,17 +366,18 @@ export function useVideoPlayer({
   const navigateSubtitle = useCallback(
     (delta: number) => {
       const vd = videoDataRef.current;
-      if (!vd?.subtitles) return;
-      // Use functional update to get the latest index (avoids stale closure).
-      // The state updater is pure — the seekTo side effect runs outside it.
-      let newTime: number | null = null;
-      setCurrentSubtitleIndex((prevIdx) => {
-        const newIndex = Math.max(0, Math.min(vd.subtitles!.length - 1, prevIdx + delta));
-        newTime = vd.subtitles![newIndex].start_time;
-        return newIndex;
-      });
-      // Side effect: seek the video player (must be outside the updater)
-      if (newTime !== null) seekTo(newTime);
+      if (!vd?.subtitles?.length) return;
+      // Compute the target index from the ref (not from inside a setState
+      // updater — updaters run asynchronously, so a value written there would
+      // not be readable by the seekTo below).
+      const newIndex = Math.max(
+        0,
+        Math.min(vd.subtitles.length - 1, currentSubtitleIndexRef.current + delta)
+      );
+      if (newIndex === currentSubtitleIndexRef.current) return;
+      currentSubtitleIndexRef.current = newIndex;
+      setCurrentSubtitleIndex(newIndex);
+      seekTo(vd.subtitles[newIndex].start_time);
     },
     [seekTo]
   );
@@ -398,9 +407,9 @@ export function useVideoPlayer({
         case "ArrowUp":
           navigateSubtitle(-1);
           break;
-        case "ArrowDown":
-          navigateSubtitle(1);
-          break;
+        // NOTE: ArrowDown is deliberately NOT handled here — the watch page
+        // owns it (handleNextSubtitle: advance + reset speaking state).
+        // Handling it in both places would advance two subtitles per press.
       }
     }
     window.addEventListener("keydown", handleKey);

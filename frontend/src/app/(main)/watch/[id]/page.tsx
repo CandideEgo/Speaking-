@@ -263,56 +263,24 @@ export default function WatchPage() {
     return selectedWord === cleanToken(word);
   }
 
-  // --- Keyboard shortcuts: space=play/pause, ←/→=seek, ↑/↓=subtitle nav ---
+  // --- Keyboard shortcuts: only ArrowDown is handled here (advance subtitle,
+  // which resets the speaking/recording state). Space/←/→/↑ are handled by
+  // useVideoPlayer's own keydown listener — each key must be handled exactly
+  // once (double registration made space a no-op and arrows seek/advance
+  // twice).
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-      switch (e.key) {
-        case " ": {
-          e.preventDefault();
-          const v = videoRef.current;
-          if (v) {
-            if (v.paused) v.play();
-            else v.pause();
-          }
-          break;
-        }
-        case "ArrowLeft": {
-          e.preventDefault();
-          const v = videoRef.current;
-          if (v) v.currentTime = Math.max(0, v.currentTime - 5);
-          break;
-        }
-        case "ArrowRight": {
-          e.preventDefault();
-          const v = videoRef.current;
-          if (v) v.currentTime = v.currentTime + 5;
-          break;
-        }
-        case "ArrowUp": {
-          e.preventDefault();
-          if (currentSubtitleIndex > 0) {
-            const prev = video?.subtitles?.[currentSubtitleIndex - 1];
-            if (prev) {
-              setCurrentSubtitleIndex(currentSubtitleIndex - 1);
-              seekTo(prev.start_time);
-            }
-          }
-          break;
-        }
-        case "ArrowDown": {
-          e.preventDefault();
-          handleNextSubtitle();
-          break;
-        }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        handleNextSubtitle();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentSubtitleIndex, video, videoRef, seekTo, setCurrentSubtitleIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handleNextSubtitle]);
 
   // --- Loading / Error states ---
   if (!video && playbackMode !== "error") return <FullPageSpinner />;
@@ -507,7 +475,12 @@ export default function WatchPage() {
                 <>
                   <video
                     ref={videoRef}
-                    src={mediaUrl(bestVideoUrl(video)!)}
+                    src={mediaUrl(bestVideoUrl(video)!, {
+                      // Draft/unpublished UGC media is gated server-side
+                      // (publish-state access control) — attach the owner's
+                      // JWT so previews keep working.
+                      withToken: !video.is_official && video.review_status !== "published",
+                    })}
                     controls
                     className="h-full w-full object-contain"
                     onTimeUpdate={(e) => {
@@ -574,7 +547,10 @@ export default function WatchPage() {
             <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
               {/* 字幕进度指示 */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-mono text-muted-soft">
+                <span
+                  className="text-[11px] font-mono text-muted-soft"
+                  data-testid="subtitle-counter"
+                >
                   {currentSubtitleIndex + 1} / {video.subtitles.length}
                 </span>
                 <div className="flex-1 mx-3 h-0.5 rounded-full bg-surface-card">
