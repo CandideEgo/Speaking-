@@ -274,3 +274,131 @@ async def test_daily_submit_mixed_set_rejected(client, auth_headers, db_session)
     answers = [{"question_id": q["id"], "answer": "A"} for q in own] + [{"question_id": foreign.id, "answer": "A"}]
     resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": answers}, headers=auth_headers)
     assert resp.status_code == 409
+
+
+async def _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session):
+    """Submit a paper attempt with exactly one wrong answer; returns wrong qid."""
+    resp = await client.post(f"/api/v1/exams/{seeded_paper.id}/attempts", headers=auth_headers)
+    sid = resp.json()["session_id"]
+    rows = (
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id))).scalars().all()
+    )
+    answers = []
+    wrong_q = None
+    for q in rows:
+        if q.answer == "C":  # question 46 -> wrong answer
+            wrong_q = q
+            answers.append({"question_id": q.id, "answer": "A" if q.answer != "A" else "B"})
+        else:
+            answers.append({"question_id": q.id, "answer": q.answer})
+    resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": answers}, headers=auth_headers)
+    assert resp.status_code == 200
+    return wrong_q
+
+
+async def test_wrong_book_empty(client, auth_headers, seeded_paper):
+    resp = await client.get("/api/v1/exams/wrong", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
+
+    resp = await client.post("/api/v1/exams/wrong/redo", json={}, headers=auth_headers)
+    assert resp.status_code == 404
+    assert "错题" in resp.json()["detail"]
+
+
+async def test_wrong_book_aggregation_dedup(client, auth_headers, seeded_paper, db_session):
+    """Wrong on the same question twice -> one wrong-book row, wrong_count=2."""
+    await _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session)
+    await _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session)
+
+    resp = await client.get("/api/v1/exams/wrong", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    item = data["items"][0]
+    assert item["wrong_count"] == 2
+    assert item["paper_title"] == seeded_paper.title
+    assert item["number"] == 46
+    # no answer leak from the stored snapshot
+    assert "answer" not in item
+
+
+async def test_wrong_redo_full_flow_clears_wrong(client, auth_headers, seeded_paper, db_session):
+    """Redo a wrong question correctly -> it leaves the wrong book."""
+    wrong_q = await _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session)
+
+    resp = await client.post("/api/v1/exams/wrong/redo", json={}, headers=auth_headers)
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["mode"] == "wrong_redo"
+    assert payload["question_count"] == 1
+    assert payload["questions"][0]["id"] == wrong_q.id
+    sid = payload["session_id"]
+
+    # redo with the correct answer
+    resp = await client.post(
+        f"/api/v1/exams/attempts/{sid}/submit",
+        json={"answers": [{"question_id": wrong_q.id, "answer": wrong_q.answer}]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["correct_count"] == 1
+
+    # answering correctly clears it from the derived wrong book
+    resp = await client.get("/api/v1/exams/wrong", headers=auth_headers)
+    assert resp.json()["total"] == 0
+
+
+async def test_wrong_redo_restricted_subset(client, auth_headers, seeded_paper, db_session):
+    """Redo with explicit question_ids only includes those ids."""
+    wrong_q = await _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session)
+
+    resp = await client.post(
+        "/api/v1/exams/wrong/redo",
+        json={"question_ids": [wrong_q.id]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["question_count"] == 1
+
+    # unknown ids -> empty selection -> 404
+    resp = await client.post(
+        "/api/v1/exams/wrong/redo",
+        json={"question_ids": ["00000000-0000-0000-0000-000000000000"]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_exam_stats(client, auth_headers, seeded_paper, db_session):
+    resp = await client.get("/api/v1/exams/stats", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["month_completed"] == 0
+    assert data["avg_score"] is None
+    assert data["last_daily_score"] is None
+    assert data["week_daily_count"] == 0
+
+    await _submit_paper_with_wrong(client, auth_headers, seeded_paper, db_session)  # 2/3
+    resp = await client.get("/api/v1/exams/stats", headers=auth_headers)
+    data = resp.json()
+    assert data["month_completed"] == 1
+    assert data["avg_score"] == round(2 / 3, 4)
+
+    # daily check submission updates the daily series
+    payload = await _start_daily(client, auth_headers)
+    sid = payload["session_id"]
+    rows = (
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id))).scalars().all()
+    )
+    by_id = {q.id: q for q in rows}
+    answers = [{"question_id": q["id"], "answer": by_id[q["id"]].answer} for q in payload["questions"]]
+    resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": answers}, headers=auth_headers)
+    assert resp.status_code == 200
+
+    resp = await client.get("/api/v1/exams/stats", headers=auth_headers)
+    data = resp.json()
+    assert data["week_daily_count"] == 1
+    assert data["last_daily_score"] == 1.0

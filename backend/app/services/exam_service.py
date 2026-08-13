@@ -3,10 +3,14 @@
 Owns the attempt lifecycle:
   * ``create_paper_session``   — start a full-paper attempt (mode=paper_exam)
   * ``create_daily_session``   — start a random daily check (mode=daily_check)
+  * ``create_wrong_redo_session`` — start a wrong-book redo (mode=wrong_redo)
   * ``submit_answers``         — server-side grading, freezes question
     snapshots into exam_answers, computes score + per-section breakdown, and
     emits a LearningEvent (practiced_items) so the daily plan / profile
     pipelines see the activity.
+  * ``list_wrong_questions``   — aggregated wrong-book view (derived query,
+    no extra table)
+  * ``exam_stats``             — practice-hub headline stats
 
 Grading rule: user choice must exactly match the stored answer letter
 (case-insensitive). Unanswered questions count as wrong.
@@ -16,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -33,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 MODE_PAPER = "paper_exam"
 MODE_DAILY = "daily_check"
+MODE_WRONG = "wrong_redo"
 
 # Section display order in results.
 SECTION_ORDER = ("reading_A", "reading_B", "reading_C")
@@ -42,6 +47,20 @@ DAILY_QUESTION_COUNT = 10
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _as_naive_utc(dt: datetime | None) -> datetime | None:
+    """Normalize DB datetimes to naive UTC.
+
+    PostgreSQL returns timezone-aware datetimes while the test SQLite returns
+    naive ones; both must compare/sort consistently with the naive-UTC
+    boundaries computed in this module.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(UTC).replace(tzinfo=None)
+    return dt
 
 
 async def get_paper_with_questions(db: AsyncSession, paper_id: str) -> ExamPaper | None:
@@ -139,6 +158,192 @@ async def create_daily_session(
             )
         )
     return session, picked
+
+
+async def _graded_answer_rows(db: AsyncSession, user_id: str) -> list[ExamAnswer]:
+    """All answered rows across the user's submitted attempts, newest first."""
+    rows = (
+        await db.execute(
+            select(ExamAnswer)
+            .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
+            .where(
+                ExamSession.user_id == user_id,
+                ExamSession.submitted_at.is_not(None),
+                ExamAnswer.user_answer.is_not(None),
+                ExamAnswer.question_id.is_not(None),
+            )
+            .order_by(ExamAnswer.answered_at.desc())
+        )
+    ).scalars()
+    return list(rows)
+
+
+def _aggregate_by_question(rows: list[ExamAnswer]) -> dict[str, dict]:
+    """Latest graded answer + wrong count per question.
+
+    A question is in the wrong book when its most recent graded answer is
+    wrong — answering it correctly later (e.g. a wrong-redo pass) clears it.
+    """
+    latest: dict[str, ExamAnswer] = {}
+    wrong_counts: dict[str, int] = {}
+    for answer in rows:
+        qid = answer.question_id or ""
+        if answer.correct is False:
+            wrong_counts[qid] = wrong_counts.get(qid, 0) + 1
+        if qid not in latest:
+            latest[qid] = answer
+    return {"latest": latest, "wrong_counts": wrong_counts}
+
+
+async def list_wrong_questions(
+    db: AsyncSession,
+    user_id: str,
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[dict], int]:
+    """Aggregate the user's wrong book (derived query, no extra table).
+
+    One row per question whose most recent graded answer is wrong, with
+    ``wrong_count`` and the source paper's title/level. Only answered rows
+    count; unanswered questions are excluded.
+    """
+    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
+    latest = {qid: a for qid, a in agg["latest"].items() if a.correct is False}
+
+    question_ids = list(latest.keys())
+    papers: dict[str, ExamPaper] = {}
+    if question_ids:
+        paper_rows = (
+            await db.execute(
+                select(ExamQuestion.id, ExamPaper)
+                .join(ExamPaper, ExamQuestion.paper_id == ExamPaper.id)
+                .where(ExamQuestion.id.in_(question_ids))
+            )
+        ).all()
+        papers = {qid: paper for qid, paper in paper_rows}
+
+    items: list[dict] = []
+    for qid, answer in latest.items():
+        snap = answer.question or {}
+        paper = papers.get(qid)
+        items.append(
+            {
+                "question_id": qid,
+                "number": snap.get("number"),
+                "section": snap.get("section"),
+                "question_type": snap.get("question_type"),
+                "passage": snap.get("passage"),
+                "question": snap.get("question"),
+                "options": snap.get("options"),
+                "wrong_count": agg["wrong_counts"].get(qid, 1),
+                "last_wrong_at": answer.answered_at,
+                "paper_id": paper.id if paper else None,
+                "paper_title": paper.title if paper else None,
+                "level": paper.level if paper else None,
+                "year": paper.year if paper else None,
+                "month": paper.month if paper else None,
+            }
+        )
+
+    # Most recent wrong first, then by paper question number.
+    items.sort(
+        key=lambda x: (
+            _as_naive_utc(x["last_wrong_at"]) or datetime.min,
+            -(x["number"] or 0),
+        ),
+        reverse=True,
+    )
+    total = len(items)
+    start = (page - 1) * page_size
+    return items[start : start + page_size], total
+
+
+async def create_wrong_redo_session(
+    db: AsyncSession,
+    user_id: str,
+    question_ids: list[str] | None = None,
+) -> tuple[ExamSession, list[ExamQuestion]]:
+    """Start a wrong-book redo session over the user's wrong questions.
+
+    ``question_ids`` restricts the set (e.g. retry one attempt's wrong
+    questions); when omitted every aggregated wrong question is included.
+    Mirrors ``create_daily_session``: question set locked via placeholder
+    ExamAnswer rows so submissions can't enumerate arbitrary ids.
+    """
+    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
+    wrong_ids = sorted(qid for qid, a in agg["latest"].items() if a.correct is False)
+    if question_ids:
+        allowed = set(question_ids)
+        wrong_ids = [qid for qid in wrong_ids if qid in allowed]
+    if not wrong_ids:
+        raise ValueError("暂无错题可重做")
+
+    questions = list((await db.execute(select(ExamQuestion).where(ExamQuestion.id.in_(wrong_ids)))).scalars())
+    questions.sort(key=lambda q: (q.paper_id, q.number))
+
+    session = ExamSession(
+        user_id=user_id,
+        mode=MODE_WRONG,
+        exam_level=None,
+        paper_id=None,
+        question_count=len(questions),
+        started_at=_now(),
+    )
+    db.add(session)
+    await db.flush()
+    for q in questions:
+        db.add(
+            ExamAnswer(
+                session_id=session.id,
+                question_id=q.id,
+                question=_snapshot_question(q),
+                answered_at=None,
+            )
+        )
+    return session, questions
+
+
+async def exam_stats(db: AsyncSession, user_id: str) -> dict:
+    """Practice-hub headline stats.
+
+    ``month_completed`` / ``avg_score`` cover this calendar month's submitted
+    attempts; ``last_daily_score`` / ``week_daily_count`` cover the daily
+    check series (any time / last 7 days).
+    """
+    now = _as_naive_utc(_now())
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+
+    submitted = list(
+        (
+            await db.execute(
+                select(ExamSession).where(
+                    ExamSession.user_id == user_id,
+                    ExamSession.submitted_at.is_not(None),
+                )
+            )
+        ).scalars()
+    )
+
+    month_sessions = [s for s in submitted if _as_naive_utc(s.submitted_at) >= month_start]
+    avg_score = None
+    if month_sessions:
+        avg_score = round(sum(s.score or 0 for s in month_sessions) / len(month_sessions), 4)
+
+    daily = [s for s in submitted if s.mode == MODE_DAILY]
+    week_daily_count = sum(1 for s in daily if _as_naive_utc(s.submitted_at) >= week_start)
+    last_daily = max(
+        daily,
+        key=lambda s: _as_naive_utc(s.submitted_at) or datetime.min,
+        default=None,
+    )
+
+    return {
+        "month_completed": len(month_sessions),
+        "avg_score": avg_score,
+        "last_daily_score": last_daily.score if last_daily else None,
+        "week_daily_count": week_daily_count,
+    }
 
 
 async def submit_answers(

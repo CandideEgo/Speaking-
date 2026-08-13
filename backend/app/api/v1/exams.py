@@ -32,6 +32,7 @@ from app.schemas.exam import (
     ExamQuestionPublic,
     ExamSubmitRequest,
     ExamSubmitResponse,
+    WrongRedoRequest,
 )
 from app.schemas.pagination import paginated
 from app.services import exam_service
@@ -83,6 +84,46 @@ async def start_daily_check(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
+
+
+@router.get("/wrong")
+async def list_wrong_questions(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregated wrong-book list (answered-and-wrong only, deduped)."""
+    items, total = await exam_service.list_wrong_questions(db, current_user.id, page=page, page_size=page_size)
+    return paginated(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/wrong/redo", response_model=ExamAttemptCreateResponse)
+@rate_limit("10/minute")
+async def redo_wrong_questions(
+    request: Request,
+    body: WrongRedoRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Start a wrong-redo session (all wrong questions, or the given subset)."""
+    try:
+        session, questions = await exam_service.create_wrong_redo_session(
+            db, current_user.id, body.question_ids if body else None
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return ExamAttemptCreateResponse(**_create_payload(session, questions))
+
+
+@router.get("/stats")
+async def get_exam_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Practice-hub headline stats (monthly completions / avg score / daily series)."""
+    return await exam_service.exam_stats(db, current_user.id)
 
 
 @router.get("/attempts")

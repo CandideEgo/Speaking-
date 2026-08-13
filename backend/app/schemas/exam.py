@@ -124,3 +124,37 @@ class ExamAttemptListItem(BaseModel):
 
 class ExamDailyStartResponse(ExamAttemptCreateResponse):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Wrong book
+# ---------------------------------------------------------------------------
+
+
+class WrongQuestionItem(BaseModel):
+    """One aggregated wrong question (deduped by question, latest wrong kept)."""
+
+    question_id: str
+    number: int | None = None
+    section: str | None = None
+    question_type: str | None = None
+    passage: str | None = None
+    question: str | None = None
+    options: dict[str, str] | None = None
+    wrong_count: int = 1
+    last_wrong_at: datetime | None = None
+    paper_id: str | None = None
+    paper_title: str | None = None
+    level: str | None = None
+    year: int | None = None
+    month: int | None = None
+
+
+class WrongRedoRequest(BaseModel):
+    """Optional body for starting a wrong-redo session.
+
+    ``question_ids`` restricts the session to a subset (e.g. one attempt's
+    wrong questions); omitted = redo every aggregated wrong question.
+    """
+
+    question_ids: list[str] = Field(default_factory=list)
