@@ -433,6 +433,11 @@ async def update_video(
         if value is not None:
             setattr(video, field, value)
 
+    # ADR-0014 channel assignment — "" explicitly clears (the generic loop
+    # skips None, so clearing needs its own branch).
+    if payload.channel_ref is not None:
+        video.channel_ref = payload.channel_ref or None
+
     # Keep review_status in sync with the admin publish toggle so the two
     # visibility gates never diverge (official videos are managed here; UGC
     # videos are managed via the dedicated approve/reject endpoints).

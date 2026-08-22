@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { PageTransition } from "@/components/common/PageTransition";
+import { ChannelStrip } from "@/components/channels/ChannelStrip";
 import { Compass } from "lucide-react";
 
 const DIFFICULTY_LEVELS = [
@@ -40,6 +41,9 @@ export default function BrowsePage() {
       <main className="container-page py-6 sm:py-10">
         {/* Page header */}
         <PageHeader crumb="发现" title="浏览视频" />
+
+        {/* Curated channels (ADR-0014) — hidden when none exist */}
+        <ChannelStrip />
 
         {/* Sticky filter bar */}
         <div className="filter-bar">

@@ -7,6 +7,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.database import Base
+from app.models.channel import Channel
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.order import Order

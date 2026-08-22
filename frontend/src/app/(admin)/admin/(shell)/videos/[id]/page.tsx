@@ -10,6 +10,7 @@ import {
   createSubtitle,
   deleteSubtitle,
   getVideoDetail,
+  listChannelsAdmin,
   listSubtitleRevisions,
   mergeSubtitle,
   recomputeWordLevels,
@@ -303,7 +304,24 @@ function MetadataForm({
   const [adminNotes, setAdminNotes] = useState(
     "admin_notes" in video ? ((video.admin_notes as string | null) ?? "") : ""
   );
+  // ADR-0014 策展频道归属（"" = 未归属，保存时映射为后端 NULL）。
+  const [channelRef, setChannelRef] = useState(
+    "channel_ref" in video ? ((video.channel_ref as string | null) ?? "") : ""
+  );
+  const [channelOptions, setChannelOptions] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listChannelsAdmin()
+      .then(
+        (d) => !cancelled && setChannelOptions(d.items.map((c) => ({ id: c.id, name: c.name })))
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const canPublish = video.status === "ready";
 
@@ -320,6 +338,7 @@ function MetadataForm({
         show_on_homepage: showOnHomepage,
         is_published: isPublished,
         admin_notes: adminNotes || null,
+        channel_ref: channelRef || null,
       });
       onChanged({ ...video, ...updated, subtitles: video.subtitles });
       toast.success("已保存");
@@ -360,6 +379,17 @@ function MetadataForm({
         <div>
           <label className="block text-xs font-medium text-muted mb-1">备注</label>
           <Input type="text" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted mb-1">所属频道</label>
+          <Select value={channelRef} onChange={(e) => setChannelRef(e.target.value)}>
+            <option value="">未归属</option>
+            {channelOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
         </div>
       </div>
 

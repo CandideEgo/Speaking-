@@ -168,6 +168,11 @@ class Video(Base):
     yt_video_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     channel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # In-site curated channel (ADR-0014) — orthogonal to the scraped channel_id
+    # above. SET NULL on delete so videos survive their channel being removed.
+    channel_ref: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # YouTube publication date (freshness signal for viral/views-per-day metrics).
     upload_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ext_view_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

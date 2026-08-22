@@ -9,6 +9,7 @@
 import { adminApi } from "@/lib/adminApi";
 import type {
   AdminAccount,
+  AdminChannel,
   AdminOrder,
   AdminSettings,
   AdminStats,
@@ -195,6 +196,8 @@ export async function updateVideo(id: string, patch: Partial<VideoAdmin>): Promi
   if (patch.is_published !== undefined) body.is_published = patch.is_published;
   if (patch.show_on_homepage !== undefined) body.show_on_homepage = patch.show_on_homepage;
   if (patch.admin_notes !== undefined) body.admin_notes = patch.admin_notes;
+  // ADR-0014: "" clears the channel assignment (backend maps it to NULL).
+  if (patch.channel_ref !== undefined) body.channel_ref = patch.channel_ref ?? "";
 
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}`, {
     method: "PATCH",
@@ -634,5 +637,56 @@ export async function broadcastAnnouncement(payload: {
   return adminApi(`/api/v1/admin/announcements`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Channels (ADR-0014 — official curated channels)
+// ---------------------------------------------------------------------------
+
+export interface ChannelUpsertPayload {
+  name: string;
+  slug?: string;
+  description?: string | null;
+  cover_url?: string | null;
+  upstream_channel_id?: string | null;
+  sort_order?: number;
+  is_visible?: boolean;
+}
+
+export function listChannelsAdmin(): Promise<{ items: AdminChannel[] }> {
+  return adminApi<{ items: AdminChannel[] }>(`/api/v1/channels/admin/all`);
+}
+
+export function createChannel(
+  payload: ChannelUpsertPayload
+): Promise<{ id: string; slug: string }> {
+  return adminApi<{ id: string; slug: string }>(`/api/v1/channels/admin`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateChannel(
+  id: string,
+  patch: Partial<ChannelUpsertPayload>
+): Promise<{ id: string; slug: string }> {
+  return adminApi<{ id: string; slug: string }>(`/api/v1/channels/admin/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteChannel(id: string): Promise<void> {
+  return adminApi<void>(`/api/v1/channels/admin/${id}`, { method: "DELETE" });
+}
+
+export function attachVideosToChannel(
+  channelId: string,
+  videoIds: string[]
+): Promise<{ attached: number }> {
+  return adminApi<{ attached: number }>(`/api/v1/channels/admin/${channelId}/videos`, {
+    method: "POST",
+    body: JSON.stringify({ video_ids: videoIds }),
   });
 }

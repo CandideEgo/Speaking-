@@ -71,6 +71,22 @@ export interface VideoAdmin extends Video {
   /** Review audit fields (admin sees when a video was submitted/reviewed). */
   submitted_at: string | null;
   reviewed_at: string | null;
+  /** ADR-0014 站内策展频道（null = 未归属）。 */
+  channel_ref?: string | null;
+}
+
+/** ADR-0014 官方策展频道。 */
+export interface AdminChannel {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  cover_url: string | null;
+  upstream_channel_id: string | null;
+  sort_order: number;
+  is_visible: boolean;
+  video_count: number;
+  created_at: string | null;
 }
 
 export interface Paginated<T> {
@@ -327,7 +343,7 @@ export interface AdminAccount {
 /* ── Profile ── */
 export interface UserPreferences {
   // 后端 UserPreferencesUpdate 限制为 minutes|words；历史 DB 行的
-  // speaking_attempts 由 LearningPrefsTab 读取时净化为 "words"。
+  // speaking_attempts 由设置页（SettingsTab）读取时净化为 "words"。
   daily_goal_type: "minutes" | "words";
   daily_goal_value: number;
   reminder_enabled: boolean;

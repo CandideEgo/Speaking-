@@ -17,6 +17,7 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0011](0011-recommendation-system.md) | 视频评分 + 推荐 + 行为采集系统 — 差距分析与分阶段落地 | Accepted |
 | [0012](0012-cut-community-ugc-pivot-to-learning-plan.md) | 砍社区 UGC，转向 AI 学习计划 | Accepted |
 | [0013](0013-shadowing-recording-persistence.md) | 跟读（Shadowing）录音持久化（推翻 ADR-0002 零留存） | Accepted |
+| [0014](0014-video-channels.md) | 视频频道（官方策展维度）— Channel 实体表 | Accepted |
 
 ## Companion docs
 

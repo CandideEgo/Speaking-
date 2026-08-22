@@ -18,6 +18,7 @@ from app.api.v1 import (
     auth,
     behavior,
     browse,
+    channels,
     comments,
     exams,
     favorites,
@@ -254,6 +255,7 @@ def create_app() -> FastAPI:
     app.include_router(words.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
+    app.include_router(channels.router, prefix="/api/v1")
     app.include_router(comments.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(feedback.router, prefix="/api/v1")

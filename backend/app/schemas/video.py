@@ -122,6 +122,8 @@ class VideoAdminResponse(VideoResponse):
     # VideoResponse intentionally omits it.
     channel_id: str | None = None
     external_meta: dict | None = None
+    # ADR-0014 in-site curated channel (null = unassigned).
+    channel_ref: str | None = None
 
     @field_validator("submitted_at", "reviewed_at", mode="before")
     @classmethod
@@ -148,6 +150,9 @@ class VideoAdminUpdate(BaseModel):
     is_published: bool | None = None
     show_on_homepage: bool | None = None
     admin_notes: str | None = None
+    # ADR-0014 curated channel. Empty string clears the assignment (the loop
+    # below skips None, so a dedicated sentinel keeps clearing expressible).
+    channel_ref: str | None = None
 
     @field_validator("difficulty_level")
     @classmethod

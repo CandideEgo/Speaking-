@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Menu,
+  Radio,
   Settings,
   Ticket,
   UserCog,
@@ -43,7 +44,10 @@ const NAV: NavSection[] = [
   },
   {
     title: "内容",
-    items: [{ label: "视频管理", href: "/admin/videos", icon: Video }],
+    items: [
+      { label: "视频管理", href: "/admin/videos", icon: Video },
+      { label: "频道管理", href: "/admin/channels", icon: Radio },
+    ],
   },
   {
     title: "运营",

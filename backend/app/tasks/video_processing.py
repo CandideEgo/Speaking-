@@ -279,12 +279,25 @@ def process_video(self, video_id: str):
                     video.title = info.get("title") or video.title
                     video.thumbnail_url = info.get("thumbnail")
                     video.duration = info.get("duration")
+                    # 封面本地化：外部 URL 在渲染期依赖 /media/proxy 出口，
+                    # ingest 时下载到媒体卷，断掉这条运行时依赖（任务 3）。
+                    # 失败不阻断管线：保留外部 URL，后续可用
+                    # scripts/backfill_local_thumbnails.py 补。
+                    if video.thumbnail_url:
+                        from app.services.thumbnail_service import localize_video_thumbnail
+
+                        await localize_video_thumbnail(video)
                     # 阶段 1: persist external (YouTube) metadata — channel,
                     # upload date, external view/like counts, extras blob.
                     if info.get("external"):
                         from app.services.external_meta import apply_external_meta
 
                         apply_external_meta(video, info["external"])
+                        # ADR-0014: attach to a curated channel registered for
+                        # this upstream channel id (no-op when none matches).
+                        from app.services.channel_service import auto_attach_channel
+
+                        await auto_attach_channel(db, video)
                 else:  # local upload — yt-dlp can't read a local path; use ffprobe
                     video.duration = get_video_duration(video.source_url)
                     if not video.title:
