@@ -18,6 +18,9 @@ from app.schemas.video import VideoResponse
 # theft). The content-type header itself is client-controlled too, so this
 # mapping is the only thing we trust here; actual file bytes are validated as
 # video later in the pipeline (ffprobe/transcode).
+# Every extension produced here must also be present in the serve-side
+# allowlist (app/api/v1/media.py._SERVE_EXT_ALLOWLIST); the two maps face
+# opposite directions (content-type→ext vs ext→servable) and must stay in sync.
 _CONTENT_TYPE_EXT = {
     "video/mp4": ".mp4",
     "video/webm": ".webm",
@@ -64,7 +67,6 @@ async def handle_video_upload(
                     f"Max: {settings.max_upload_file_size / 1024 / 1024:.0f}MB"
                 ),
             )
-    file_size = len(contents)
 
     # Save to temp storage
     temp_dir = Path(settings.upload_temp_dir)

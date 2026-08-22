@@ -122,6 +122,21 @@ async def test_verify_rejects_wrong_code_in_dev(dev_no_sms):
     assert await sms_svc.verify_code("13800138000", "000000", purpose="register") is False
 
 
+async def test_dev_fake_verify_consumes_stored_code(dev_no_sms, fake_redis):
+    """A successful dev-fake verify consumes the stored code (single-use).
+
+    ``verify_code`` deletes the stored code on success, so a replayed code
+    (no fresh send) has no stored code to match. Production single-use is
+    enforced server-side by Aliyun's CheckSmsVerifyCode (DuplicatePolicy) —
+    nothing is stored locally to replay.
+    """
+    await sms_svc.send_verify_code("13800138000", purpose="register")
+    key = "sms:code:13800138000:register"
+    assert await fake_redis.exists(key)
+    assert await sms_svc.verify_code("13800138000", "1234", purpose="register") is True
+    assert not await fake_redis.exists(key)
+
+
 async def test_verify_checks_with_aliyun_and_passes(prod_sms_ok):
     assert await sms_svc.verify_code("13800138000", "123456", purpose="register") is True
     req = prod_sms_ok.check_calls[0]
@@ -176,10 +191,10 @@ def test_dypnsapi_sdk_importable():
     requirements.txt still pinned the old Dysmsapi SDK shipped in CI unnoticed
     — send-code 502 in production). The runtime requirements must install it.
     """
-    from alibabacloud_dypnsapi20170525 import models  # noqa: F401
-    from alibabacloud_dypnsapi20170525.client import Client  # noqa: F401
-    from alibabacloud_tea_openapi import models as tea_models  # noqa: F401
-    from alibabacloud_tea_util import models as tea_util_models  # noqa: F401
+    from alibabacloud_dypnsapi20170525 import models
+    from alibabacloud_dypnsapi20170525.client import Client
+    from alibabacloud_tea_openapi import models as tea_models
+    from alibabacloud_tea_util import models as tea_util_models
 
     assert Client is not None and models is not None
 

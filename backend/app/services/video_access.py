@@ -12,7 +12,7 @@ imports from here; route handlers still use require_video_access /
 require_video_owner from dependencies.py.
 """
 
-from app.models.user import User
+from app.models.user import RoleType, User
 from app.models.video import Video, VideoReviewStatus
 
 
@@ -34,9 +34,7 @@ def check_video_access(video: Video, current_user: User | None) -> bool:
 
     Returns True if access is allowed, False otherwise.
     """
-    return check_video_access_by_owner(
-        video, current_user.id if current_user is not None else None
-    )
+    return check_video_access_by_owner(video, current_user.id if current_user is not None else None)
 
 
 def check_video_access_by_owner(video: Video, viewer_id: str | None) -> bool:
@@ -57,6 +55,16 @@ def check_video_access_by_owner(video: Video, viewer_id: str | None) -> bool:
     if review_status in ("pending_review", "rejected") and getattr(video, "published_snapshot", None):
         return True
     return False
+
+
+def is_admin(viewer: User | None) -> bool:
+    """True if ``viewer`` is an admin (role read from the loaded User row).
+
+    The media publish-state gate uses this to let admins preview draft /
+    unpublished media. The role is deliberately read from the DB-backed User
+    row (not the JWT), matching ``get_admin_user`` in the API layer.
+    """
+    return viewer is not None and viewer.role == RoleType.admin
 
 
 def should_use_snapshot(video: Video, current_user: User | None) -> bool:

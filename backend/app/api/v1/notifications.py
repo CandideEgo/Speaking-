@@ -16,6 +16,7 @@ from app.models.notification import Notification
 from app.models.preferences import UserPreferences
 from app.models.user import User
 from app.schemas.notification import (
+    DEFAULT_NOTIFICATION_PREFS,
     NotificationPreferencesResponse,
     NotificationPreferencesUpdate,
     NotificationResponse,
@@ -222,17 +223,9 @@ async def mark_all_as_read(
 
 # ── Notification preferences ──────────────────────────────────────────
 
-# Default notification preferences. Community-typed prefs
-# (community_updates/new_follower/comment_reply) are dormant since ADR-0012
-# cut the community — kept for schema compat, but OFF by default.
-DEFAULT_PREFS = {
-    "push_notifications": True,
-    "streak_reminder": True,
-    "weekly_report": True,
-    "community_updates": False,
-    "new_follower": False,
-    "comment_reply": False,
-}
+# Default preferences are defined once in app.schemas.notification
+# (DEFAULT_NOTIFICATION_PREFS) and shared with the response schema so the two
+# cannot drift.
 
 
 @router.get("/preferences")
@@ -247,10 +240,10 @@ async def get_notification_preferences(
     pref = result.scalar_one_or_none()
 
     if not pref or not pref.notification_preferences:
-        return DEFAULT_PREFS.copy()
+        return DEFAULT_NOTIFICATION_PREFS.copy()
 
     # Merge with defaults (in case new keys were added)
-    merged = DEFAULT_PREFS.copy()
+    merged = DEFAULT_NOTIFICATION_PREFS.copy()
     if isinstance(pref.notification_preferences, dict):
         merged.update(pref.notification_preferences)
     return merged
@@ -269,13 +262,13 @@ async def update_notification_preferences(
     pref = result.scalar_one_or_none()
 
     if not pref:
-        pref = UserPreferences(user_id=current_user.id, notification_preferences=DEFAULT_PREFS.copy())
+        pref = UserPreferences(user_id=current_user.id, notification_preferences=DEFAULT_NOTIFICATION_PREFS.copy())
         db.add(pref)
 
     # Merge updates into existing preferences
-    current = pref.notification_preferences or DEFAULT_PREFS.copy()
+    current = pref.notification_preferences or DEFAULT_NOTIFICATION_PREFS.copy()
     if not isinstance(current, dict):
-        current = DEFAULT_PREFS.copy()
+        current = DEFAULT_NOTIFICATION_PREFS.copy()
     update_data = data.model_dump(exclude_none=True)
     current.update(update_data)
     pref.notification_preferences = current

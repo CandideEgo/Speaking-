@@ -25,6 +25,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
+from app.core.database import get_async_session_maker
 from app.core.limiter import rate_limit
 from app.core.security import decode_token
 from app.models.user import User
@@ -38,9 +39,20 @@ _CHUNK = 64 * 1024
 # never become servable content on the trusted origin (stored-XSS defense —
 # see upload_service._CONTENT_TYPE_EXT for the upload-side allowlist).
 _SERVE_EXT_ALLOWLIST = {
-    ".mp4", ".webm", ".mov", ".avi", ".mkv",
-    ".mp3", ".wav", ".ogg", ".m4a",
-    ".jpg", ".jpeg", ".png", ".gif", ".webp",
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".m4a",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
 }
 
 # ---------------------------------------------------------------------------
@@ -261,6 +273,26 @@ _VIDEO_FILE_RE = re.compile(
 # Short-TTL cache of access decisions: {video_id: (expires_at, allowed)}.
 _VIDEO_ACCESS_CACHE: dict[str, tuple[float, bool]] = {}
 _VIDEO_ACCESS_CACHE_TTL = 60.0
+# Upper bound on cache entries: the TTL check on read only evicts entries that
+# are re-accessed, so without a cap random-UUID requests against
+# /media/{vid}.mp4 would grow the dict without limit.
+_VIDEO_ACCESS_CACHE_MAX = 1024
+
+
+def _cache_access_decision(video_id: str, allowed: bool) -> None:
+    """Store an access decision, bounding the cache size.
+
+    Evicts expired entries first, then the oldest live entries (dicts preserve
+    insertion order) until the cap is satisfied.
+    """
+    now = time.monotonic()
+    if len(_VIDEO_ACCESS_CACHE) >= _VIDEO_ACCESS_CACHE_MAX:
+        for key, (expires_at, _) in list(_VIDEO_ACCESS_CACHE.items()):
+            if expires_at <= now:
+                _VIDEO_ACCESS_CACHE.pop(key, None)
+        while len(_VIDEO_ACCESS_CACHE) >= _VIDEO_ACCESS_CACHE_MAX:
+            _VIDEO_ACCESS_CACHE.pop(next(iter(_VIDEO_ACCESS_CACHE)), None)
+    _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, allowed)
 
 
 def _viewer_id_from_request(request: Request) -> str | None:
@@ -286,22 +318,20 @@ async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
     if cached is not None and cached[0] > now:
         return cached[1]
 
-    from app.core.database import async_session
-    from app.models.user import RoleType, User
     from app.models.video import Video
-    from app.services.video_access import check_video_access_by_owner
+    from app.services.video_access import check_video_access_by_owner, is_admin
 
     allowed = False
-    async with async_session() as db:
+    async with get_async_session_maker()() as db:
         video = await db.get(Video, video_id)
         if video is not None:
             allowed = check_video_access_by_owner(video, viewer_id)
             if not allowed and viewer_id is not None:
-                # Admin preview bypass: admins may preview any draft.
+                # Admin preview bypass — the rule lives in video_access.is_admin
+                # (role read from the DB-backed User row, not the JWT).
                 viewer = await db.get(User, viewer_id)
-                if viewer is not None and viewer.role == RoleType.admin:
-                    allowed = True
-    _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, allowed)
+                allowed = is_admin(viewer)
+    _cache_access_decision(video_id, allowed)
     return allowed
 
 

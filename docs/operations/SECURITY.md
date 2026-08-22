@@ -4,7 +4,7 @@
 >
 > 关联文档：[PRODUCTION.md](PRODUCTION.md) · [.agent/system-map.md](../../.agent/system-map.md)（架构现状）· [全站审查报告](../progress/REVIEW-2026-08-14.md)
 >
-> **本版（2026-08-14）修正**：token key、JWT TTL 分层、Free 权益、JWT blacklist 现状、speaking 引用、redeem_codes 表名、phone 认证、/media 安全措施。
+> **本版（2026-08-14）修正**：token key、JWT TTL 分层、Free 权益、JWT blacklist 现状、speaking 引用、redeem_codes 表名、phone 认证、/media 安全措施、PyJWT 迁移与手机号脱敏状态。
 
 ---
 
@@ -23,7 +23,7 @@
 │                        信任边界 2                                │
 │                  Nginx → FastAPI                                 │
 │  威胁: 请求伪造、JWT 伪造、权限提升                               │
-│  缓解: python-jose 签名验证(算法钉死)、角色依赖注入、slowapi 限流 │
+│  缓解: PyJWT 签名验证(算法钉死)、角色依赖注入、slowapi 限流 │
 │        (Redis 故障时 in-memory 降级)、安全头中间件(/media 除外)    │
 ├─────────────────────────────────────────────────────────────────┤
 │                        信任边界 3                                │
@@ -63,7 +63,7 @@
 ### 2.1 JWT 流程
 
 ```
-注册/登录 → 后端验证 → 签发 JWT (HS256, python-jose, access 30 分钟)
+注册/登录 → 后端验证 → 签发 JWT (HS256, PyJWT, access 30 分钟)
                                 │
                                 ▼
 客户端 Zustand authStore (单点管理)
@@ -79,7 +79,7 @@
 请求头: Authorization: Bearer <token>
                                 │
                                 ▼
-后端 decode_token() (python-jose, 算法钉死) → 提取 user_id → 查询数据库 →
+后端 decode_token() (PyJWT, 算法钉死) → 提取 user_id → 查询数据库 →
 验证用户存在 + jti 黑名单 (Redis, 默认开启) + 改密 iat 失效 + 封禁检查
 ```
 
@@ -142,14 +142,14 @@ Free (plan=free)
 | VULN-10 | /media/proxy SSRF | 禁重定向 + 移除 aliyuncs.com 后缀 | 2026-08-14 修复（REVIEW 批次 1） |
 | VULN-11 | 草稿/未发布视频媒体公开 | 发布态门控 + owner/admin token 预览 | 2026-08-14 修复（REVIEW 批次 5） |
 | VULN-12 | 转写/翻译质量无保障 | 幻觉检测 + 翻译质量门 | fail-fast 于回调/终态 |
+| VULN-13 | python-jose 已停止维护（CVE-2024-33663/33664） | 迁移 PyJWT（security.py + requirements） | 2026-08-14 迁移完成（python-jose 已移除） |
+| VULN-14 | 手机号明文 INFO 日志（含 Loki 采集路径） | 日志点脱敏 mask_phone（前 3 后 4） | 2026-08-14 修复（auth.py / sms_service.py；test_mask_phone） |
 
 ### 🟡 中危 / 已知限制
 
 | ID | 漏洞 | 影响 | 位置 | 状态 |
 |----|------|------|------|------|
 | VULN-05 | 无密码重置流程 | 用户忘记密码无法自助恢复 | — | **待实现** |
-| VULN-13 | python-jose 已停止维护（CVE-2024-33663/33664） | 长期未修复的 JWT 库 | `core/security.py` | **迁移 PyJWT 进行中**（PyJWT 已在依赖中；完成前 pip-audit 显式忽略两条 CVE） |
-| VULN-14 | 手机号明文 INFO 日志（含 Loki 采集路径） | PIPL 个人数据暴露 | `api/v1/auth.py`、`services/sms_service.py` | **待处理**：日志点脱敏（保留前 3 后 4） |
 | VULN-15 | 转写回调共享密钥 + payload 无上限 | 泄露即可写字幕/置 error | `api/v1/internal.py`、`schemas/video.py` | **待处理**：每任务 token + payload 上限 |
 | VULN-16 | 匿名 /metrics 与 /health 信息暴露 | 侦察辅助 | `main.py` | **待处理**：内网/鉴权限制 |
 | VULN-17 | 限流降级期（Redis 故障）限流失效 | 短窗口滥用 | `core/limiter.py` | **已接受**：与 Redis fail-open 不变量一致，配合 Aliyun 服务端限额 |
@@ -196,7 +196,7 @@ Free (plan=free)
 
 | 数据 | 存储 | 加密 | 保留策略 |
 |------|------|------|---------|
-| 手机号 | PostgreSQL `users.phone` | 无（需 HTTPS 传输）；日志待脱敏 | 账户存续期 |
+| 手机号 | PostgreSQL `users.phone` | 无（需 HTTPS 传输）；日志已脱敏（mask_phone） | 账户存续期 |
 | 密码 | PostgreSQL `users.hashed_password` | bcrypt | 账户存续期 |
 | 昵称 | PostgreSQL `users.name` | 无 | 账户存续期 |
 | 跟读录音 | 本地文件系统 `media/shadowing/{user_id}/` | 无 | 清理策略待定；owner-only JWT 回放 |
@@ -216,7 +216,7 @@ Free (plan=free)
 - **传输加密**: HTTPS（Nginx SSL 终结，TLS 1.2+ only, HSTS preload；prod compose 默认挂载 `nginx.ssl.conf`）
 - **存储加密**: 密码 bcrypt 哈希、JWT 签名密钥环境变量
 - **访问控制**: 角色依赖注入、数据库最小权限用户、视频访问控制 (`check_video_access`)、媒体发布态门控、shadowing owner-only token
-- **日志脱敏**: structlog 不记录密码、token、验证码；**手机号脱敏待落地**；nginx 日志不记录 query string
+- **日志脱敏**: structlog 不记录密码、token、验证码；**手机号脱敏已落地（mask_phone）**；nginx 日志不记录 query string
 - **安全头**: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, CSP（nginx server 级 + 后端中间件；/media 由 serve_media 补 nosniff）
 - **API 客户端安全**: 前端 `api.ts` 添加 ApiError 类、AbortController 支持、重试逻辑、JWT 过期前置检查
 
@@ -228,7 +228,7 @@ Free (plan=free)
 
 | 依赖 | 用途 | 关注点 |
 |------|------|--------|
-| python-jose | JWT 签发/验证 | **迁移 PyJWT 进行中**（python-jose 有 CVE 且已不维护） |
+| PyJWT | JWT 签发/验证 | 已从 python-jose 迁移（2026-08-14；python-jose 有 CVE 且已不维护） |
 | bcrypt | 密码哈希 | 保持版本更新 |
 | faster-whisper | 语音识别 | 本地运行，无网络风险 |
 | tenacity | 重试 + 超时 | 保护 AI API 调用不无限挂起 |
@@ -282,8 +282,8 @@ Free (plan=free)
 - [x] 安全头（CSP, X-Frame-Options, HSTS, nosniff）— nginx + 后端中间件
 - [x] Sentry 不记录 Authorization header (sentry_sdk 默认不收集)
 - [x] 依赖安全扫描已配置到 CI（pip-audit + npm audit + dependabot）
-- [ ] python-jose → PyJWT 迁移完成（进行中）
-- [ ] 手机号日志脱敏（VULN-14）
+- [x] python-jose → PyJWT 迁移完成（2026-08-14）
+- [x] 手机号日志脱敏（VULN-14，mask_phone）
 - [x] 数据库用户最小权限
 - [x] 前端 safe JWT decode + expiry check (jwt.ts)
 - [x] 前端 401 自动刷新/登出 (api.ts/createApiClient.ts)
