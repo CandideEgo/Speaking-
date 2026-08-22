@@ -94,7 +94,8 @@
 
 Date: 2026-08-14
 - **全站综合审查 + 修复（docs/progress/REVIEW-2026-08-14.md）**：7 路并行审查 87 条发现（18 高危）；已修复：上传存储型 XSS（服务端扩展名白名单 + nosniff + 媒体扩展名 allowlist）、/media/proxy SSRF（禁重定向 + 移除 aliyuncs.com）、requirements.txt 补 Dypnsapi SDK、watch 快捷键双重监听与 navigateSubtitle seek 失效、admin 引导刷新竞态、limiter Redis 故障 fail-open（in-memory fallback）、草稿/未发布视频媒体发布态门控（owner/admin token 预览）、e2e seed（核心旅程不再 skip）、Celery 任务体直测、SMS 冷却 TTL 测试、nginx ssl 配置挂载 + 安全头 + /media XFF 覆盖、后端容器非 root + HEALTHCHECK、pip-audit/npm audit/dependabot 门禁、deploy 模板对齐 compose、ADR-0013（Shadowing 持久化）与文档漂移更正
-- 遗留（见 REVIEW 报告 §8）：fastapi/python-jose 升级（P2）、SQLite→Postgres 测试迁移（延后）、e2e 播放/词汇/考试流程覆盖、手机号日志脱敏
+- 遗留（见 REVIEW 报告 §8）：fastapi 升级（P2，starlette CVE-2024-47874 显式 ignore）、SQLite→Postgres 测试迁移（延后）、e2e 播放/词汇/考试流程覆盖
+- **D2 后续（08-16）**：新增 Postgres 集成测试 `backend/tests/test_celery_tasks_pg.py`（marker `integration`，CI backend job 的 Postgres service 现被 pytest 真实使用）：覆盖 Celery 任务体 `with_for_update(skip_locked=True)` 行锁语义（expire/reconcile/downgrade/expire-codes）、并发不重复处理、reconcile 已支付升级路径、PG 评分 parity。conftest 增加 `PG_TEST_URL`（或显式 postgresql `DATABASE_URL`）探测 + NullPool 引擎（task body 跑在 celery-asyncio loop）；无 PG 时 skip，CI 必跑。
 - 真题考试体系现状（08-08 b8b9970 重建后）：paper bank 模型（exam_papers/exam_questions）+ exam_sessions/exam_answers（mode: paper_exam/daily_check/wrong_redo）+ 服务端判分；错题本为派生查询不另建表
 
 ## History (2026-08-04)
