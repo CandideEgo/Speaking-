@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -96,14 +97,48 @@ def _snapshot_question(q: ExamQuestion) -> dict:
     }
 
 
+# Mirror of the frontend option-derivation rules (ExamRunner.deriveOptions).
+# Section A / B questions store options=null; their answerable options come
+# from the passage (word-bank appendix / paragraph letters). A question with
+# neither stored options nor a derivable passage (e.g. xdf matching rows with
+# passage=null) has nothing to click and must not enter an attempt.
+_WORD_BANK_MARKER = "[word bank]"
+_WORD_BANK_ENTRY_RE = re.compile(r"([A-O])\)")
+_PARAGRAPH_LETTER_RE = re.compile(r"^([A-O])\)", re.MULTILINE)
+
+
+def is_answerable(q: ExamQuestion) -> bool:
+    """True when the client can render at least one clickable option."""
+    if q.options:
+        return True
+    passage = q.passage or ""
+    if not passage:
+        return False
+    marker = passage.lower().find(_WORD_BANK_MARKER)
+    if marker != -1:
+        return bool(_WORD_BANK_ENTRY_RE.search(passage[marker + len(_WORD_BANK_MARKER) :]))
+    if q.question_type == "matching":
+        return len(set(_PARAGRAPH_LETTER_RE.findall(passage))) >= 2
+    return False
+
+
+def _answerable_questions(questions: list[ExamQuestion]) -> list[ExamQuestion]:
+    return [q for q in questions if is_answerable(q)]
+
+
 async def create_paper_session(db: AsyncSession, user_id: str, paper: ExamPaper) -> ExamSession:
-    """Create a full-paper attempt session."""
+    """Create a full-paper attempt session.
+
+    ``question_count`` reflects only answerable questions — unanswerable rows
+    (no stored options and no derivable passage) are excluded everywhere the
+    question set is served, so the client's 已答/总题数 denominator matches.
+    """
     session = ExamSession(
         user_id=user_id,
         mode=MODE_PAPER,
         exam_level=paper.level,
         paper_id=paper.id,
-        question_count=paper.total_questions,
+        question_count=len(_answerable_questions(list(paper.questions))),
         started_at=_now(),
     )
     db.add(session)
@@ -127,6 +162,8 @@ async def create_daily_session(
         # Level filter matched nothing (e.g. user target_exam has no bank yet):
         # fall back to any available question so the daily check still works.
         pool = (await db.execute(select(ExamQuestion))).scalars().all()
+    # Never draw unanswerable questions (client would render no options).
+    pool = _answerable_questions(list(pool))
     if not pool:
         raise ValueError("题库为空，请先导入真题")
     picked = random.sample(pool, min(count, len(pool)))
@@ -279,6 +316,9 @@ async def create_wrong_redo_session(
         raise ValueError("暂无错题可重做")
 
     questions = list((await db.execute(select(ExamQuestion).where(ExamQuestion.id.in_(wrong_ids)))).scalars())
+    questions = _answerable_questions(questions)
+    if not questions:
+        raise ValueError("暂无错题可重做")
     questions.sort(key=lambda q: (q.paper_id, q.number))
 
     session = ExamSession(
@@ -367,6 +407,9 @@ async def submit_answers(
     if session.paper_id is not None:
         paper = await get_paper_with_questions(db, session.paper_id)
         questions: list[ExamQuestion] = sorted(paper.questions, key=lambda q: q.number) if paper else []
+        # Keep grading aligned with the answerable set served to the client —
+        # excluded rows must not silently count as wrong.
+        questions = _answerable_questions(questions)
     else:
         # Daily check: the question set was fixed at session creation via
         # placeholder ExamAnswer rows (answered_at=None). Recovering it from

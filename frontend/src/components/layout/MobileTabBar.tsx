@@ -31,6 +31,13 @@ export function MobileTabBar() {
   const dueCount = useVocabularyStore((s) => s.stats.due_count);
   const [mounted, setMounted] = useState(false);
 
+  // 作答流程为全屏考试模式：ExamRunner 自带底部交卷栏，
+  // 两个 fixed bottom 底栏叠加会遮挡末尾选项。
+  const isExamFlow =
+    pathname.startsWith("/practice/daily") ||
+    pathname.startsWith("/practice/exams/redo") ||
+    /^\/practice\/exams\/[^/]+$/.test(pathname);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -43,6 +50,8 @@ export function MobileTabBar() {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   }
+
+  if (isExamFlow) return null;
 
   return (
     <nav

@@ -213,7 +213,9 @@ async def get_exam_paper(
     paper = await exam_service.get_paper_with_questions(db, paper_id)
     if paper is None:
         raise HTTPException(status_code=404, detail="试卷不存在")
-    questions = sorted(paper.questions, key=lambda q: q.number)
+    # Only answerable questions (stored options or a derivable passage) —
+    # unanswerable rows have no clickable UI client-side.
+    questions = exam_service._answerable_questions(sorted(paper.questions, key=lambda q: q.number))
     return ExamPaperDetail(
         id=paper.id,
         level=paper.level,
@@ -222,7 +224,7 @@ async def get_exam_paper(
         set_no=paper.set_no,
         title=paper.title,
         source=paper.source,
-        total_questions=paper.total_questions,
+        total_questions=len(questions),
         questions=[ExamQuestionPublic(**exam_service._question_public(q)) for q in questions],
     )
 
@@ -239,7 +241,9 @@ async def create_paper_attempt(
     paper = await exam_service.get_paper_with_questions(db, paper_id)
     if paper is None:
         raise HTTPException(status_code=404, detail="试卷不存在")
+    questions = exam_service._answerable_questions(sorted(paper.questions, key=lambda q: q.number))
+    if not questions:
+        raise HTTPException(status_code=409, detail="该试卷暂无可作答的题目")
     session = await exam_service.create_paper_session(db, current_user.id, paper)
     await db.commit()
-    questions = sorted(paper.questions, key=lambda q: q.number)
     return ExamAttemptCreateResponse(**_create_payload(session, questions))

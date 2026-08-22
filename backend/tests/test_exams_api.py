@@ -25,7 +25,17 @@ async def _seed_paper(db, level: str = "cet4", year: int = 2023, month: int = 3,
     await db.flush()
     specs = [
         (26, "reading_A", "cloze", "Passage A.", None, {"A": "alpha", "B": "beta"}, "B"),
-        (36, "reading_B", "matching", "Paragraph B.", "Statement 36.", None, "A"),
+        # Matching questions store options=null; the passage must carry the
+        # paragraph letters so the client can derive clickable options.
+        (
+            36,
+            "reading_B",
+            "matching",
+            "A) First paragraph.\n\nB) Second paragraph.",
+            "Statement 36.",
+            None,
+            "A",
+        ),
         (
             46,
             "reading_C",
@@ -134,9 +144,7 @@ async def test_submit_emits_practiced_items_learning_event(client, auth_headers,
     assert resp.status_code == 200
     sid = resp.json()["session_id"]
     rows = (
-        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id)))
-        .scalars()
-        .all()
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id))).scalars().all()
     )
     answers = [{"question_id": q.id, "answer": q.answer} for q in rows]
 
@@ -433,3 +441,64 @@ async def test_exam_stats(client, auth_headers, seeded_paper, db_session):
     data = resp.json()
     assert data["week_daily_count"] == 1
     assert data["last_daily_score"] == 1.0
+
+
+async def test_unanswerable_questions_are_excluded(client, auth_headers, seeded_paper, db_session):
+    """Rows with no stored options and no derivable passage (e.g. xdf matching
+    rows with passage=null) must never reach an attempt — the client would
+    render them with zero clickable options."""
+    db_session.add(
+        ExamQuestion(
+            paper_id=seeded_paper.id,
+            section="reading_B",
+            number=37,
+            question_type="matching",
+            passage=None,
+            question="Statement 37.",
+            options=None,
+            answer="B",
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.get(f"/api/v1/exams/{seeded_paper.id}", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["questions"]) == 3  # the new row is filtered out
+    assert data["total_questions"] == 3
+
+    resp = await client.post(f"/api/v1/exams/{seeded_paper.id}/attempts", headers=auth_headers)
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["question_count"] == 3
+    assert {q["number"] for q in payload["questions"]} == {26, 36, 46}
+
+
+async def test_paper_with_no_answerable_questions_is_rejected(client, auth_headers, db_session):
+    paper = ExamPaper(
+        level="cet4",
+        year=2019,
+        month=1,
+        set_no=1,
+        title="无作答题试卷",
+        source="test",
+        total_questions=1,
+    )
+    db_session.add(paper)
+    await db_session.flush()
+    db_session.add(
+        ExamQuestion(
+            paper_id=paper.id,
+            section="reading_B",
+            number=36,
+            question_type="matching",
+            passage=None,
+            question="Statement.",
+            options=None,
+            answer="A",
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.post(f"/api/v1/exams/{paper.id}/attempts", headers=auth_headers)
+    assert resp.status_code == 409
