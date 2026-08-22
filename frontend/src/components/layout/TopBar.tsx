@@ -15,7 +15,7 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
-import { Search, Bell, Sun, Moon, User, Settings, Crown, LogOut } from "lucide-react";
+import { Search, Bell, Sun, Moon, User, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ const NAV = [
   { label: "学习记录", href: "/history", shortcut: "5" },
 ];
 
-/** Avatar dropdown menu (资料/偏好/会员/退出) - migrated from Sidebar UserPopover. */
+/** Avatar dropdown menu (个人中心/会员/退出) - migrated from Sidebar UserPopover. */
 function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => void }) {
   const logout = useAuthStore((s) => s.logout);
   const ref = useRef<HTMLDivElement>(null);
@@ -44,9 +44,9 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose]);
 
+  // 1B 设计减法：原「个人资料」「学习偏好」两项同指 /profile，收敛为一项。
   const items = [
-    { label: "个人资料", icon: User, href: "/profile" },
-    { label: "学习偏好", icon: Settings, href: "/profile" },
+    { label: "个人中心", icon: User, href: "/profile" },
     { label: "Pro 会员", icon: Crown, href: "/pricing" },
   ];
 

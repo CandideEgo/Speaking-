@@ -5,14 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { User as UserIcon, Settings, BookOpen, TrendingUp } from "lucide-react";
+import { User as UserIcon, Settings, TrendingUp } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
-import LearningPrefsTab from "@/components/profile/LearningPrefsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
 import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
 import { isProUser } from "@/lib/api";
@@ -43,11 +41,11 @@ function targetLabel(preferences: UserPreferences | null): string | null {
   return EXAM_LEVELS.find((l) => l.key === key)?.label ?? null;
 }
 
+// 1B 设计减法：原「账户设置」「学习偏好」两个低频小表单 Tab 合并为单个「设置」。
 const TABS = [
   { key: "profile", label: "个人资料", icon: UserIcon },
   { key: "progress", label: "学习进度", icon: TrendingUp },
-  { key: "settings", label: "账户设置", icon: Settings },
-  { key: "learning", label: "学习偏好", icon: BookOpen },
+  { key: "settings", label: "设置", icon: Settings },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -190,20 +188,19 @@ export default function ProfilePage() {
         {/* Tab content */}
         {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
         {activeTab === "progress" && (
-          <div className="max-w-2xl space-y-8">
+          <div className="max-w-2xl space-y-6">
             <div>
-              <h2 className="text-sm font-medium text-ink mb-4">掌握度趋势</h2>
+              <h2 className="text-sm font-semibold text-ink mb-4">掌握度趋势</h2>
               <MasteryTrend weeks={8} />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-ink mb-4">成就徽章</h2>
+              <h2 className="text-sm font-semibold text-ink mb-4">成就徽章</h2>
               <MilestoneGrid milestones={milestones} />
             </div>
           </div>
         )}
-        {activeTab === "settings" && <SettingsTab user={user} />}
-        {activeTab === "learning" && (
-          <LearningPrefsTab preferences={preferences} onUpdate={setPreferences} />
+        {activeTab === "settings" && (
+          <SettingsTab user={user} preferences={preferences} onUpdatePreferences={setPreferences} />
         )}
       </main>
     </PageTransition>

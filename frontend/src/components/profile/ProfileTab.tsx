@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Camera, Phone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
+import { Modal } from "@/components/common/Modal";
 import { api, isProUser } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { useSmsCode } from "@/hooks/useSmsCode";
@@ -17,17 +17,20 @@ interface ProfileTabProps {
   onUpdate: (user: User) => void;
 }
 
+/**
+ * 个人资料（1B 设计减法后）：只保留头像/昵称/会员状态三个核心项。
+ * 简介、英语等级、注册时间已下线（无展示场景/与偏好难度重复/头部已有「加入 N 天」）；
+ * 换绑手机是年度级低频动作，收进弹窗，不再占据资料页主视觉。
+ */
 export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const [name, setName] = useState(user.name || "");
-  const [bio, setBio] = useState(user.bio || "");
-  const [level, setLevel] = useState(user.level || "");
   const [saving, setSaving] = useState(false);
 
   // Avatar upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Change phone
+  // Change phone (modal)
   const [showChangePhone, setShowChangePhone] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [changePhoneCode, setChangePhoneCode] = useState("");
@@ -40,11 +43,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     try {
       const updated = await api<User>("/api/v1/users/me", {
         method: "PATCH",
-        body: JSON.stringify({
-          name: name || null,
-          bio: bio || null,
-          level: level || null,
-        }),
+        body: JSON.stringify({ name: name || null }),
       });
       onUpdate(updated);
       toast.success("资料已保存");
@@ -76,6 +75,13 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     }
   }
 
+  function closeChangePhone() {
+    setShowChangePhone(false);
+    setNewPhone("");
+    setChangePhoneCode("");
+    setChangePhonePassword("");
+  }
+
   async function handleChangePhone(e: React.FormEvent) {
     e.preventDefault();
     setChangingPhone(true);
@@ -89,10 +95,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         }),
       });
       onUpdate(updated);
-      setShowChangePhone(false);
-      setNewPhone("");
-      setChangePhoneCode("");
-      setChangePhonePassword("");
+      closeChangePhone();
       toast.success("手机号已更换");
     } catch (err) {
       toast.error(apiErrorMessage(err, "更换手机号失败"));
@@ -104,10 +107,10 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const isPro = isProUser(user);
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-2xl space-y-6">
       {/* Avatar */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">头像</label>
+      <div className="rounded-xl border border-hairline bg-canvas p-5">
+        <label className="block text-sm font-semibold text-ink mb-3">头像</label>
         <div className="flex items-center gap-4">
           <Avatar
             src={user.avatar_url}
@@ -139,156 +142,114 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </div>
       </div>
 
-      {/* Name */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">昵称</label>
-        <Input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="你的昵称"
-          maxLength={100}
-          className="w-full"
-        />
-      </div>
+      {/* Name + phone + plan */}
+      <div className="rounded-xl border border-hairline bg-canvas p-5 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-ink mb-2">昵称</label>
+          <Input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="你的昵称"
+            maxLength={100}
+            className="w-full"
+          />
+        </div>
 
-      {/* Bio */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">简介</label>
-        <Textarea
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          placeholder="介绍一下自己..."
-          maxLength={300}
-          rows={3}
-          className="w-full resize-none"
-        />
-        <p className="mt-1 text-xs text-muted text-right">{bio.length}/300</p>
-      </div>
-
-      {/* Level */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">英语等级</label>
-        <Select value={level} onChange={(e) => setLevel(e.target.value)} className="w-40">
-          <option value="">未设置</option>
-          {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {/* Phone — display + change */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">手机号</label>
-        {user.phone && (
-          <div className="flex items-center gap-2 text-sm text-muted mb-2">
-            <Phone size={14} />
-            <span>{user.phone}</span>
+        <div className="flex items-center justify-between border-t border-hairline pt-4">
+          <div>
+            <p className="text-sm font-semibold text-ink">手机号</p>
+            <p className="text-[13px] text-muted mt-0.5 flex items-center gap-1.5">
+              <Phone size={13} />
+              {user.phone ? user.phone.replace(/^(\d{3})\d{4}(\d{4})$/, "$1****$2") : "未绑定"}
+            </p>
           </div>
-        )}
-        {!showChangePhone ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowChangePhone(true)}
-          >
-            更换手机号
+          <Button type="button" variant="text" size="sm" onClick={() => setShowChangePhone(true)}>
+            更换
           </Button>
-        ) : (
-          <form onSubmit={handleChangePhone} className="space-y-2 mt-2">
+        </div>
+
+        <div className="flex items-center justify-between border-t border-hairline pt-4">
+          <p className="text-sm font-semibold text-ink">会员</p>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-medium ${
+              isPro ? "bg-brand-50 text-brand-600" : "bg-surface-card text-muted"
+            }`}
+          >
+            {isPro ? "Pro 会员" : "免费用户"}
+            {user.plan_expires_at && (
+              <span className="text-xs opacity-70">
+                至 {new Date(user.plan_expires_at).toLocaleDateString("zh-CN")}
+              </span>
+            )}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "保存中..." : "保存修改"}
+        </Button>
+      </div>
+
+      {/* Change phone modal — low-frequency heavy flow, kept off the main page */}
+      <Modal
+        open={showChangePhone}
+        onClose={() => !changingPhone && closeChangePhone()}
+        title="更换手机号"
+        footer={
+          <>
+            <Button variant="outline" onClick={closeChangePhone} disabled={changingPhone}>
+              取消
+            </Button>
+            <Button type="submit" form="change-phone-form" disabled={changingPhone}>
+              {changingPhone ? "更换中..." : "确认更换"}
+            </Button>
+          </>
+        }
+      >
+        <form id="change-phone-form" onSubmit={handleChangePhone} className="space-y-3">
+          <Input
+            type="tel"
+            inputMode="numeric"
+            maxLength={11}
+            value={newPhone}
+            onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ""))}
+            placeholder="新手机号"
+            required
+            className="w-full"
+          />
+          <div className="flex gap-2">
             <Input
-              type="tel"
               inputMode="numeric"
-              maxLength={11}
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ""))}
-              placeholder="新手机号"
+              maxLength={6}
+              value={changePhoneCode}
+              onChange={(e) => setChangePhoneCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="验证码"
               required
-              className="w-full"
+              className="flex-1"
             />
-            <div className="flex gap-2">
-              <Input
-                inputMode="numeric"
-                maxLength={6}
-                value={changePhoneCode}
-                onChange={(e) => setChangePhoneCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="验证码"
-                required
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={sending || cooldown > 0 || newPhone.length !== 11}
-                onClick={() => sendCode(newPhone, "change_phone")}
-                className="shrink-0"
-              >
-                {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
-              </Button>
-            </div>
-            <Input
-              type="password"
-              value={changePhonePassword}
-              onChange={(e) => setChangePhonePassword(e.target.value)}
-              placeholder="当前密码（用于验证身份）"
-              required
-              className="w-full"
-            />
-            {smsError && <p className="text-sm text-error">{smsError}</p>}
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={changingPhone}>
-                {changingPhone ? "更换中..." : "确认更换"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowChangePhone(false);
-                  setNewPhone("");
-                  setChangePhoneCode("");
-                  setChangePhonePassword("");
-                }}
-              >
-                取消
-              </Button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* Plan */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">会员</label>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium ${
-            isPro ? "bg-brand-500/10 text-brand-500" : "bg-surface-card text-muted"
-          }`}
-        >
-          {isPro ? "Pro 会员" : "免费用户"}
-          {user.plan_expires_at && (
-            <span className="text-xs opacity-70">
-              至 {new Date(user.plan_expires_at).toLocaleDateString("zh-CN")}
-            </span>
-          )}
-        </span>
-      </div>
-
-      {/* Member since */}
-      <div>
-        <label className="block text-sm font-medium text-ink mb-2">注册时间</label>
-        <p className="text-sm text-muted">
-          {new Date(user.created_at).toLocaleDateString("zh-CN")}
-        </p>
-      </div>
-
-      {/* Save */}
-      <Button onClick={handleSave} disabled={saving}>
-        {saving ? "保存中..." : "保存修改"}
-      </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={sending || cooldown > 0 || newPhone.length !== 11}
+              onClick={() => sendCode(newPhone, "change_phone")}
+              className="shrink-0"
+            >
+              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
+            </Button>
+          </div>
+          <Input
+            type="password"
+            value={changePhonePassword}
+            onChange={(e) => setChangePhonePassword(e.target.value)}
+            placeholder="当前密码（用于验证身份）"
+            required
+            className="w-full"
+          />
+          {smsError && <p className="text-sm text-error">{smsError}</p>}
+        </form>
+      </Modal>
     </div>
   );
 }
