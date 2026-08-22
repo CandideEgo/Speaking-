@@ -19,10 +19,16 @@ from datetime import UTC, datetime, timezone
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 # Set env before any app imports so limiter/config pick up "testing"
 os.environ["ENV"] = "testing"
+# Was DATABASE_URL provided by the caller (CI/dev) rather than defaulted below?
+# Integration tests only auto-target it when explicit — the conftest fallback
+# below is the production URL, never a safe test target.
+_db_url_explicit = "DATABASE_URL" in os.environ
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking")
 os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
 # The punctuation restoration model imports `transformers` (5.x), whose import
@@ -46,6 +52,56 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+
+# ---------------------------------------------------------------------------
+# Postgres integration-test support (marker: integration)
+# ---------------------------------------------------------------------------
+# The default suite runs on in-memory SQLite, where ``with_for_update`` /
+# ``skip_locked`` are silently ignored and JSON / ILIKE / BigInteger semantics
+# differ from production. Tests marked ``integration`` (see
+# test_celery_tasks_pg.py) instead run against a real Postgres so the Celery
+# task bodies' row-lock ordering is actually exercised.
+#
+# URL resolution: ``PG_TEST_URL`` wins; otherwise the configured
+# ``DATABASE_URL`` when it points at Postgres (CI's backend job sets it to its
+# Postgres service). When no Postgres is reachable the tests skip loudly —
+# CI always provisions one, so they run for real there; locally point
+# ``PG_TEST_URL`` at any Postgres (e.g. ``docker compose -f
+# docker-compose.dev.yml up -d db``).
+#
+# The engine uses ``NullPool`` on purpose: task bodies execute on the shared
+# celery-asyncio background loop (``run_async``), while the test body runs on
+# the pytest loop. asyncpg connections are loop-bound, so connections must
+# never be pooled across loops — NullPool opens a fresh loop-local connection
+# per session and closes it on release.
+
+PG_TEST_URL = os.environ.get("PG_TEST_URL") or (
+    os.environ["DATABASE_URL"]
+    if _db_url_explicit and os.environ.get("DATABASE_URL", "").startswith("postgresql")
+    else ""
+)
+
+_pg_engine: AsyncEngine | None = None
+
+
+async def _pg_engine_or_skip() -> AsyncEngine:
+    """Return the cached Postgres test engine, skipping when unreachable."""
+    global _pg_engine
+    if _pg_engine is not None:
+        return _pg_engine
+    if not PG_TEST_URL:
+        pytest.skip("integration tests need PG_TEST_URL or a postgresql DATABASE_URL")
+    probe = create_async_engine(PG_TEST_URL, poolclass=NullPool, connect_args={"timeout": 3})
+    try:
+        async with probe.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:  # any failure -> skip with reason
+        await probe.dispose()
+        pytest.skip(f"Postgres unreachable at {PG_TEST_URL!r}: {exc}")
+    await probe.dispose()
+    _pg_engine = create_async_engine(PG_TEST_URL, poolclass=NullPool, connect_args={"timeout": 5})
+    return _pg_engine
 
 
 class _FakeRedis:
@@ -191,13 +247,23 @@ def _mock_celery(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _mock_dns_lookup(monkeypatch):
+def _mock_dns_lookup(request: pytest.FixtureRequest, monkeypatch):
     """Stub DNS lookups for the SSRF guard so tests never hit real DNS.
 
     Default resolution returns a public IP (the guard's domain-allowlist
     logic stays exercised); test_video_url_guard.py overrides this per-test
     to simulate private-IP / rebinding scenarios.
+
+    ``video_url_guard`` calls the global ``socket.getaddrinfo`` (it does
+    ``import socket``), so this patch also affects asyncpg's hostname
+    resolution. Postgres integration tests therefore skip the mock entirely:
+    they need real DNS to connect (CI's Postgres service is reachable by
+    hostname). Checked here rather than restored in ``_async_setup`` because
+    autouse-fixture ordering between the sync DNS mock and the async DB setup
+    is not guaranteed.
     """
+    if request.node.get_closest_marker("integration") is not None:
+        return  # real DNS — asyncpg must resolve the Postgres hostname
     import app.services.video_url_guard as guard
 
     def fake_getaddrinfo(host, port=None, *args, **kwargs):
@@ -234,12 +300,17 @@ async def fake_redis(request: pytest.FixtureRequest, monkeypatch):
 async def _async_setup(request: pytest.FixtureRequest, monkeypatch):
     """Create tables + inject fake Redis — but only for async tests.
 
-    Runs ``create_all``/``drop_all`` around each async test on the in-memory
-    SQLite engine and patches ``app.core.redis`` with an in-memory fake so
-    Redis-backed features (token blacklist, vocab quiz staging) work without a
-    live Redis. If a test already requested the ``fake_redis`` fixture, that
-    same instance is reused (the fixture does the patching); otherwise we
-    install a fresh one here.
+    Runs ``create_all``/``drop_all`` around each async test and patches
+    ``app.core.redis`` with an in-memory fake so Redis-backed features (token
+    blacklist, vocab quiz staging) work without a live Redis. If a test already
+    requested the ``fake_redis`` fixture, that same instance is reused (the
+    fixture does the patching); otherwise we install a fresh one here.
+
+    Tests marked ``integration`` instead run against a real Postgres (see
+    ``_pg_engine_or_skip``): the schema is created/dropped on Postgres and
+    ``app.core.database.async_session`` is routed to the Postgres session
+    maker, so Celery task bodies (which open their own sessions on the shared
+    celery-asyncio loop) see the same test data the test body wrote.
     """
     if not _is_async_test(request):
         # Plain sync test (e.g. pure unit tests) — skip DB/Redis setup entirely.
@@ -247,17 +318,24 @@ async def _async_setup(request: pytest.FixtureRequest, monkeypatch):
         return
 
     # --- Database tables ---
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # --- Route `async_session` to the test session maker ---
-    # app.core.database resolves `async_session` lazily to the REAL engine
-    # (settings.database_url) unless it is patched here. Code that opens its
-    # own sessions (media publish-state gate, Celery task bodies) must see the
-    # test DB, not the configured Postgres.
     import app.core.database as database_module
 
-    monkeypatch.setattr(database_module, "async_session", TestSessionLocal)
+    if request.node.get_closest_marker("integration") is not None:
+        engine = await _pg_engine_or_skip()
+        pg_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        monkeypatch.setattr(database_module, "async_session", pg_maker)
+    else:
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        # --- Route `async_session` to the test session maker ---
+        # app.core.database resolves `async_session` lazily to the REAL engine
+        # (settings.database_url) unless it is patched here. Code that opens its
+        # own sessions (media publish-state gate, Celery task bodies) must see the
+        # test DB, not the configured Postgres.
+        monkeypatch.setattr(database_module, "async_session", TestSessionLocal)
 
     # --- Fake Redis (only if the test didn't already install one) ---
     if not getattr(redis_module, "_test_fake_installed", False):
@@ -274,8 +352,21 @@ async def _async_setup(request: pytest.FixtureRequest, monkeypatch):
     yield
 
     redis_module._test_fake_installed = False  # type: ignore[attr-defined]
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    if request.node.get_closest_marker("integration") is not None:
+        # Best-effort cleanup: when a test fails, pytest-asyncio closes the
+        # event loop before running async fixture teardown, so drop_all may
+        # not be able to connect — don't mask the real failure with a
+        # secondary teardown ERROR.
+        engine = _pg_engine
+        if engine is not None:
+            try:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.drop_all)
+            except Exception:  # cleanup is best-effort
+                pass
+    else:
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:

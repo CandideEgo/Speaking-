@@ -14,6 +14,7 @@ per task).
 
 from sqlalchemy import select
 
+from app.core.database import get_async_session_maker
 from app.core.logging import get_logger
 from app.models.video import Video, VideoStatus
 from app.services.scoring_service import compute_video_score
@@ -30,12 +31,7 @@ def compute_video_score_task(video_id: str):
     """Compute + persist the learning_score for one video."""
 
     async def _run():
-        # Imported lazily like the other task modules: a module-level import
-        # would resolve the engine at import time, before tests route
-        # async_session to the test database.
-        from app.core.database import async_session
-
-        async with async_session() as db:
+        async with get_async_session_maker()() as db:
             await compute_video_score(db, video_id)
 
     run_async(_run())
@@ -46,9 +42,7 @@ def compute_top_scores(limit: int = 200):
     """Re-score the Top ``limit`` videos by view_count (hourly hot refresh)."""
 
     async def _run():
-        from app.core.database import async_session
-
-        async with async_session() as db:
+        async with get_async_session_maker()() as db:
             ids = (
                 (
                     await db.execute(
@@ -73,9 +67,7 @@ def compute_all_scores():
     """Re-score every ready video (daily full refresh)."""
 
     async def _run():
-        from app.core.database import async_session
-
-        async with async_session() as db:
+        async with get_async_session_maker()() as db:
             ids = (await db.execute(select(Video.id).where(Video.status.in_(_READY_STATES)))).scalars().all()
             for vid in ids:
                 await compute_video_score(db, vid)

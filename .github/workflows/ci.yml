@@ -83,6 +83,10 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           ENV: testing
           PUNCTUATION_MODEL_DISABLED: "1"
+        # The Postgres service above was previously unused by pytest (the suite
+        # runs on in-memory SQLite). Tests marked `integration`
+        # (test_celery_tasks_pg.py — Celery task bodies, with_for_update /
+        # skip_locked row-locking semantics) now run against it for real.
         run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=60
 
       - name: Vulnerability scan (pip-audit)

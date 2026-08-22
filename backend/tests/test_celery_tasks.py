@@ -1,4 +1,4 @@
-﻿"""Direct-execution tests for Celery task bodies.
+"""Direct-execution tests for Celery task bodies.
 
 conftest stubs ``.delay`` / ``.apply_async`` so tasks never dispatch through a
 broker; these tests call the task functions directly. The body runs through
@@ -12,7 +12,9 @@ production.
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.database import get_async_session_maker
 from app.models.order import Order, OrderStatus
 from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, RoleType, User
@@ -22,13 +24,15 @@ from app.tasks.redeem_tasks import downgrade_expired_pro, expire_unused_redeem_c
 from app.tasks.scoring_tasks import compute_top_scores
 
 
-def _session_maker():
-    """Resolve ``async_session`` lazily 鈥?a top-level import would capture the
-    REAL engine at collection time (module __getattr__), before conftest
-    routes it to the test session maker."""
-    from app.core.database import async_session
+def _session_maker() -> async_sessionmaker[AsyncSession]:
+    """Resolve the test-routed session maker via the shared seam.
 
-    return async_session
+    ``app.core.database.get_async_session_maker`` reads ``async_session`` at
+    call time, so conftest's monkeypatch routes it to the in-memory test
+    session maker; a module-level ``from app.core.database import
+    async_session`` would instead capture the real engine at collection time.
+    """
+    return get_async_session_maker()
 
 
 async def _make_user(db, phone: str, *, plan=PlanType.free, expires_at=None):
@@ -70,16 +74,25 @@ async def test_expire_unused_redeem_codes_only_stale_unused():
     now = datetime.now(UTC)
     async with _session_maker()() as db:
         stale = RedeemCode(
-            code="STALE001", plan="pro", duration_days=30,
-            status=RedeemStatus.unused, expires_at=now - timedelta(days=1),
+            code="STALE001",
+            plan="pro",
+            duration_days=30,
+            status=RedeemStatus.unused,
+            expires_at=now - timedelta(days=1),
         )
         fresh = RedeemCode(
-            code="FRESH001", plan="pro", duration_days=30,
-            status=RedeemStatus.unused, expires_at=now + timedelta(days=1),
+            code="FRESH001",
+            plan="pro",
+            duration_days=30,
+            status=RedeemStatus.unused,
+            expires_at=now + timedelta(days=1),
         )
         used = RedeemCode(
-            code="USED0001", plan="pro", duration_days=30,
-            status=RedeemStatus.redeemed, expires_at=now - timedelta(days=1),
+            code="USED0001",
+            plan="pro",
+            duration_days=30,
+            status=RedeemStatus.redeemed,
+            expires_at=now - timedelta(days=1),
         )
         db.add_all([stale, fresh, used])
         await db.commit()
@@ -100,16 +113,28 @@ async def test_expire_pending_orders_only_stale_pending():
     async with _session_maker()() as db:
         user = await _make_user(db, "13800000004")
         old = Order(
-            user_id=user.id, order_number="ORD-OLD-001", plan="pro_monthly", amount=990,
-            status=OrderStatus.pending, created_at=now - timedelta(hours=2),
+            user_id=user.id,
+            order_number="ORD-OLD-001",
+            plan="pro_monthly",
+            amount=990,
+            status=OrderStatus.pending,
+            created_at=now - timedelta(hours=2),
         )
         young = Order(
-            user_id=user.id, order_number="ORD-YOUNG-01", plan="pro_monthly", amount=990,
-            status=OrderStatus.pending, created_at=now - timedelta(minutes=5),
+            user_id=user.id,
+            order_number="ORD-YOUNG-01",
+            plan="pro_monthly",
+            amount=990,
+            status=OrderStatus.pending,
+            created_at=now - timedelta(minutes=5),
         )
         paid = Order(
-            user_id=user.id, order_number="ORD-PAID-01", plan="pro_monthly", amount=990,
-            status=OrderStatus.paid, created_at=now - timedelta(hours=2),
+            user_id=user.id,
+            order_number="ORD-PAID-01",
+            plan="pro_monthly",
+            amount=990,
+            status=OrderStatus.paid,
+            created_at=now - timedelta(hours=2),
         )
         db.add_all([old, young, paid])
         await db.commit()
@@ -118,7 +143,10 @@ async def test_expire_pending_orders_only_stale_pending():
     count = expire_pending_orders()
 
     async with _session_maker()() as db:
-        rows = {o.order_number: o for o in (await db.execute(select(Order).where(Order.order_number.in_(numbers)))).scalars()}
+        rows = {
+            o.order_number: o
+            for o in (await db.execute(select(Order).where(Order.order_number.in_(numbers)))).scalars()
+        }
         assert rows["ORD-OLD-001"].status == OrderStatus.expired
         assert rows["ORD-YOUNG-01"].status == OrderStatus.pending
         assert rows["ORD-PAID-01"].status == OrderStatus.paid
@@ -126,7 +154,7 @@ async def test_expire_pending_orders_only_stale_pending():
 
 
 async def test_reconcile_pending_orders_queries_provider(monkeypatch):
-    """A provider answering 'still pending' must leave the order untouched 鈥?    the reconcile loop itself (row lock, re-check, provider call) is what we
+    """A provider answering 'still pending' must leave the order untouched — the reconcile loop itself (row lock, re-check, provider call) is what we
     exercise here; the paid path is covered by the payment tests."""
 
     class _FakeProvider:
@@ -146,8 +174,12 @@ async def test_reconcile_pending_orders_queries_provider(monkeypatch):
     async with _session_maker()() as db:
         user = await _make_user(db, "13800000005")
         old = Order(
-            user_id=user.id, order_number="ORD-REC-001", plan="pro_monthly", amount=990,
-            status=OrderStatus.pending, created_at=now - timedelta(hours=2),
+            user_id=user.id,
+            order_number="ORD-REC-001",
+            plan="pro_monthly",
+            amount=990,
+            status=OrderStatus.pending,
+            created_at=now - timedelta(hours=2),
         )
         db.add(old)
         await db.commit()
@@ -179,5 +211,3 @@ async def test_compute_top_scores_scores_ready_videos():
         row = (await db.execute(select(Video).where(Video.id == vid))).scalars().first()
         assert row is not None
         assert row.score_updated_at is not None
-
-

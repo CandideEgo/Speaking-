@@ -1,3 +1,4 @@
+import sys
 from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -37,6 +38,20 @@ def get_engine():
 def get_session_maker() -> async_sessionmaker[AsyncSession]:
     """Create the session factory lazily (builds the engine on first call)."""
     return async_sessionmaker(get_engine(), class_=AsyncSession, expire_on_commit=False)
+
+
+def get_async_session_maker() -> async_sessionmaker[AsyncSession]:
+    """Return the current ``async_session`` factory, resolved at call time.
+
+    This is the single seam for code that opens its own DB sessions outside a
+    FastAPI ``Depends`` (Celery task bodies, the media publish-state gate).
+    Reading the module attribute at call time lets tests monkeypatch
+    ``async_session`` (see ``tests/conftest.py``) to route those sessions to
+    the in-memory test DB; a module-level
+    ``from app.core.database import async_session`` would instead freeze the
+    real engine at import time.
+    """
+    return sys.modules[__name__].async_session
 
 
 def __getattr__(name: str):

@@ -5,9 +5,11 @@ from pathlib import Path
 import httpx
 import pytest
 import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_token
+from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
 
 @pytest.fixture
@@ -140,16 +142,12 @@ async def test_public_media_has_nosniff(client, media_dir):
 
 
 async def test_proxy_rejects_aliyuncs_host(client):
-    resp = await client.get(
-        "/media/proxy", params={"url": "https://evil.oss-cn-beijing.aliyuncs.com/x.jpg"}
-    )
+    resp = await client.get("/media/proxy", params={"url": "https://evil.oss-cn-beijing.aliyuncs.com/x.jpg"})
     assert resp.status_code == 400
 
 
 async def test_proxy_rejects_internal_ip_url(client):
-    resp = await client.get(
-        "/media/proxy", params={"url": "http://100.100.100.200/latest/meta-data/"}
-    )
+    resp = await client.get("/media/proxy", params={"url": "http://100.100.100.200/latest/meta-data/"})
     assert resp.status_code == 400
 
 
@@ -163,9 +161,7 @@ async def test_proxy_does_not_follow_redirects(client, monkeypatch):
     from app.api.v1 import media as media_module
 
     transport = httpx.MockTransport(handler)
-    monkeypatch.setattr(
-        media_module, "_proxy_client", httpx.AsyncClient(transport=transport, follow_redirects=False)
-    )
+    monkeypatch.setattr(media_module, "_proxy_client", httpx.AsyncClient(transport=transport, follow_redirects=False))
     resp = await client.get("/media/proxy", params={"url": "https://ytimg.com/x.jpg"})
     assert resp.status_code == 502
 
@@ -202,9 +198,14 @@ def _clear_video_access_cache():
     media_module._VIDEO_ACCESS_CACHE.clear()
 
 
-async def _make_video(db, *, is_official=False, review_status="draft", user_id=None, snapshot=None):
-    from app.models.video import Video, VideoSource, VideoStatus, VideoReviewStatus
-
+async def _make_video(
+    db: AsyncSession,
+    *,
+    is_official: bool = False,
+    review_status: str = "draft",
+    user_id: str | None = None,
+    snapshot: dict | None = None,
+) -> Video:
     video = Video(
         title="Test Video",
         source_url="https://example.com/source.mp4",
@@ -238,7 +239,10 @@ async def video_media_dir(tmp_path, monkeypatch, db_session):
     (tmp_path / f"{ugc_published.id}_480p.mp4").write_bytes(b"published ugc")
 
     snapshot_video = await _make_video(
-        db_session, is_official=False, review_status="pending_review", user_id="owner-3",
+        db_session,
+        is_official=False,
+        review_status="pending_review",
+        user_id="owner-3",
         snapshot={"subtitles": []},
     )
     (tmp_path / f"{snapshot_video.id}_720p.mp4").write_bytes(b"snapshot video")
