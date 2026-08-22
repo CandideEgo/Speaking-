@@ -47,7 +47,7 @@ AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese lear
           └──────────┘  └──────────────┘
 ```
 
-Key patterns: Fail-open Redis. Lazy initialization. Celery async bridge (`run_async()`). Pluggable translation engine. Dual auth sessions. Actor-aware notification dedup (same actor → update, different actors → separate notifications). **Video media served from HK VPS** (source station nginx proxies `/media/` → HK VPS nginx static files, not through Python Range service).
+Key patterns: Fail-open Redis. Lazy initialization. Celery async bridge (`run_async()`). Pluggable translation engine. Dual auth sessions. Actor-aware notification dedup (same actor → update, different actors → separate notifications). **Video media served from the backend's local media volume** (repo truth: `nginx.ssl.conf` proxies `/media/` → backend container, range-aware `api/v1/media.py`; external thumbnails localized at ingest since 2026-08, see `docs/operations/MEDIA-TOPOLOGY.md`). The earlier "media lives on HK VPS" claim was never backed by any in-repo config.
 
 For pipeline details, see wiki/architecture/video-pipeline.md.
 For service layer details, see wiki/architecture/backend-services.md.
@@ -67,7 +67,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - New components must use semantic tokens, not hardcoded color values
 - UGC videos must not be auto-processed — admin-triggered only (ADR-0004)
 - Payment disabled (ICP compliance) — redemption code channel only
-- Video media files stored on HK VPS (`/data/seeword_media/`), not source station — source nginx proxies `/media/` to HK VPS; new videos need manual SCP until automated
+- Video media files live in the backend's local media volume (`LOCAL_MEDIA_PATH`, served by the range-aware `/media` router); covers are localized at ingest (`thumbnail_service`) so rendering never depends on external CDNs. Any server-side HK VPS proxying would be out-of-repo config — verify with the MEDIA-TOPOLOGY runbook before assuming it
 - For image handling in agent sessions, see wiki/problems/image-handling.md
 - LearningEvent emission must be non-blocking (try/except, logged but never raised) — must not disrupt existing service flows (practice submission, video completion, vocabulary review)
 - LearningEvent is distinct from BehaviorEvent — different query patterns (daily aggregation vs analytics), different retention, different nullability (LearningEvent always has user_id)
@@ -123,6 +123,8 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **提议回写 (Propose-back)** | fork 持有者向标准版提 PR（按批字幕修改）；管理员审/合/驳 | 合并后按行传播到未动该行的 fork |
 | **VideoStatus** | `pending_processing → processing → ready_subtitles → ready / error` | 处理状态机 |
 | **VideoReviewStatus** | `draft → pending_review → published / rejected` | 审核状态机，UGC 必走 |
+| **Channel（频道）** | 官方策展频道（`channels` 表，ADR-0014）：管理员维护排序/封面/简介/显隐；`videos.channel_ref` 归属（SET NULL）。与抓取的 `channel_id/channel_name` 分离：后者是上游元数据，经 `upstream_channel_id` 登记后 ingest 自动挂接。与 category/tag 主题维度正交 |
+| **封面本地化** | 2026-08 起：入库时 `thumbnail_service` 把外部封面下载到 `media/{id}_thumb{ext}`，存量用 `scripts/backfill_local_thumbnails.py` 回填；渲染不再依赖 `/media/proxy` 出口（见 docs/operations/MEDIA-TOPOLOGY.md） |
 
 ### 管线
 
