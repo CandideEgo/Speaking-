@@ -94,6 +94,7 @@ jobs:
         # deferred: the fastapi upgrade is tracked separately — the local pip
         # mirror lacks newer fastapi versions, so it ships after CI-verified
         # upgrade. Remove the ignore once fastapi is bumped.
+        working-directory: backend
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt -r requirements-cloud.txt --skip-editable \

@@ -78,9 +78,9 @@
 
 ### 覆盖率策略
 
-- 目标：30%（当前基线），逐步提升至 50%
+- 门禁：`--cov-fail-under=60`（2026-08-14 审查修复后基线 ~61%）
 - 重点覆盖：auth、payment、speaking evaluation、video pipeline
-- CI 命令：`pytest --cov=app --cov-report=term-missing`
+- CI 命令：`pytest --cov=app --cov-report=term-missing --cov-fail-under=60`
 
 ---
 
