@@ -37,9 +37,18 @@ def get_redis() -> aioredis.Redis:
 
 
 async def close_redis() -> None:
-    """Close the shared Redis client.  Called on app shutdown."""
+    """Close the shared Redis client.  Called on app shutdown.
+
+    ``aclose()`` only exists on redis-py >= 5.0.1; production pins 5.0.0,
+    where the async client exposes ``close()`` instead. Using the wrong one
+    raises AttributeError and makes gunicorn report "Application shutdown
+    failed" on every worker stop.
+    """
     global _redis
     if _redis is not None:
-        await _redis.aclose()
+        if hasattr(_redis, "aclose"):
+            await _redis.aclose()
+        else:
+            await _redis.close()
         _redis = None
         logger.info("redis_client_closed")
