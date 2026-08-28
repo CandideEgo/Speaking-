@@ -199,6 +199,36 @@ export default function ProfilePage() {
         {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
         {activeTab === "progress" && (
           <div className="max-w-2xl space-y-6">
+            {/* D3a：周循环回顾（从首页移入，只回顾不施压）：
+                一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
+            <div>
+              <h2 className="text-sm font-semibold text-ink mb-4">学习闭环</h2>
+              <div className="bg-canvas border border-hairline rounded-xl p-5">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {[
+                    { icon: "🎬", label: "看视频" },
+                    { icon: "📚", label: "查词汇" },
+                    { icon: "✍️", label: "做练习" },
+                    { icon: "🔁", label: "复习" },
+                  ].map((t, i) => (
+                    <span key={t.label} className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-[13px] font-medium text-ink">
+                        <span aria-hidden>{t.icon}</span>
+                        {t.label}
+                      </span>
+                      {i < 3 && <span className="text-muted-soft text-xs">+</span>}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-3 text-[13px] text-muted">
+                  一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
+                  <span className="font-semibold text-ink">
+                    {learningProfile?.weekly_cycles_completed ?? 0}
+                  </span>{" "}
+                  个闭环。
+                </p>
+              </div>
+            </div>
             <div>
               <h2 className="text-sm font-semibold text-ink mb-4">掌握度趋势</h2>
               <MasteryTrend weeks={8} />

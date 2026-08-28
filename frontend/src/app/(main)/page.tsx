@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { useUnlockedIds } from "@/hooks/useUnlockedIds";
+import { CompactStatsBar } from "@/components/home/CompactStatsBar";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { TabPills } from "@/components/ui/TabPills";
@@ -82,6 +83,11 @@ export default function HomePage() {
               weekday: "long",
             })}
           </p>
+        </div>
+
+        {/* D3a 紧凑统计行：只展示事实，不施压（替代旧进度环） */}
+        <div className="mb-6">
+          <CompactStatsBar />
         </div>
 
         {/* ── 成就达成 Banner ── */}
