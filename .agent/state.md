@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-全站审查修复（REVIEW-2026-08-14）12 批次已全部完成并提交（6 个 commit，627 后端测试 + 前端 tsc/lint/vitest/build 全绿）。**待办**：① 推远程后观察 CI（pip-audit/npm audit/coverage 门槛/e2e seed 首次生效）；② 按 REVIEW 报告延后项继续（fastapi 升级、SQLite→Postgres 测试迁移、e2e 播放/词汇/考试覆盖、转写回调 payload 上限、/metrics 鉴权）；③ 服务器侧验证：nginx.ssl.conf 挂载 + SMS send-code 复测（requirements 修复后）。
+Phase 0 落地中（产品设计规划-2026-08）：D0b 过期代码清理已完成并提交（后端 579 passed / 6 skipped，前端 tsc/eslint 全绿，交接见 `.agent/handover-d0b.md`）。**当前批次**：D8b streak bug → D0 访问控制与会员模型（登录墙 + Free 每月 3 次解锁制 + 注册 3 天试用）→ D1 播放器控制条 → D3a 首页统计行。**已拍板**：不做 streak 保护卡（断签归零）；示范视频以 `videos.is_demo` 承载。
 
 ## Completed Milestones
 
@@ -88,11 +88,13 @@
 1. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
 2. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
 3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
-4. UX 后续：DailyProgressCard / WeeklyCycleCounter 组件内部适配紧凑布局（当前仅压缩了外层 grid）
+4. Phase 0 落地（产品设计规划-2026-08）：D0 访问控制与会员模型 → D1 播放器控制条 → D3a 首页统计行；~~DailyProgressCard / WeeklyCycleCounter 紧凑布局适配~~ 组件已随 D0b 删除，周循环将在 D3a 重建到 profile
 
 ## Last Updated
 
-Date: 2026-08-14
+Date: 2026-08-28
+- **D0b 过期代码清理完成（产品设计规划 §D0b）**：后端删 17 文件（ai.py/comments.py/ai_plan_service/comment_service/learning_plan_service/proposal_service/upload_service/plan_tasks/comment_analysis + 8 测试），5 个 /plan/* 端点返 410，词卡砍实时 AI fallback（纯 ECDICT + 预热笔记）；前端删 FocusCard/plan 组件/ForkBadge，planStore 精简，/pricing → /upgrade。后端 579 passed / 6 skipped；前端 tsc + eslint 0 errors。交接：`.agent/handover-d0b.md`。保留：支付链路/兑换码/`word_ai_notes` 管线预热/profile 统计聚合
+- **云端数据全量迁移至本地（云端服务器 47.122.127.105 即将停用，换新服务器）**：PostgreSQL（speaking/speaking：6 用户、1 视频、187 字幕、10 兑换码，alembic b2c3d4e5f6a7）已恢复进本地 `speaking-db-1`（seeword/seeword_dev@localhost/seeword，`--no-owner`）；云端 media 卷 2 文件（63288cd3 `_720p`/`_raw`，共 286MB，MD5 校验一致）已放入 `backend/media/`；本地旧媒体（~4.5GB）与旧库已按用户确认清除。备份：本地 `backend/tmp/cloud-migration/`（cloud.env、letsencrypt.tar.gz、seeword.dump、local-db-before-migration.dump）；云端 `/home/admin/migration-to-local/` 留有完整副本。注意：该视频 `thumbnail_url` 仍是外部 ytimg URL（未本地化）
 - **全站综合审查 + 修复（docs/progress/REVIEW-2026-08-14.md）**：7 路并行审查 87 条发现（18 高危）；已修复：上传存储型 XSS（服务端扩展名白名单 + nosniff + 媒体扩展名 allowlist）、/media/proxy SSRF（禁重定向 + 移除 aliyuncs.com）、requirements.txt 补 Dypnsapi SDK、watch 快捷键双重监听与 navigateSubtitle seek 失效、admin 引导刷新竞态、limiter Redis 故障 fail-open（in-memory fallback）、草稿/未发布视频媒体发布态门控（owner/admin token 预览）、e2e seed（核心旅程不再 skip）、Celery 任务体直测、SMS 冷却 TTL 测试、nginx ssl 配置挂载 + 安全头 + /media XFF 覆盖、后端容器非 root + HEALTHCHECK、pip-audit/npm audit/dependabot 门禁、deploy 模板对齐 compose、ADR-0013（Shadowing 持久化）与文档漂移更正
 - 遗留（见 REVIEW 报告 §8）：fastapi 升级（P2，starlette CVE-2024-47874 显式 ignore）、SQLite→Postgres 测试迁移（延后）、e2e 播放/词汇/考试流程覆盖
 - **D2 后续（08-16）**：新增 Postgres 集成测试 `backend/tests/test_celery_tasks_pg.py`（marker `integration`，CI backend job 的 Postgres service 现被 pytest 真实使用）：覆盖 Celery 任务体 `with_for_update(skip_locked=True)` 行锁语义（expire/reconcile/downgrade/expire-codes）、并发不重复处理、reconcile 已支付升级路径、PG 评分 parity。conftest 增加 `PG_TEST_URL`（或显式 postgresql `DATABASE_URL`）探测 + NullPool 引擎（task body 跑在 celery-asyncio loop）；无 PG 时 skip，CI 必跑。
