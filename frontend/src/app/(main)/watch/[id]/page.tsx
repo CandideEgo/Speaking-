@@ -24,6 +24,7 @@ import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/Subtit
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { UnlockPanel } from "@/components/paywall/UnlockPanel";
+import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
@@ -47,6 +48,18 @@ import { Textarea } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { STEP_LABELS } from "@/lib/videoStatus";
+
+// D1：字幕字号档位 → 像素（英文行/中文行分别映射）。
+const SUBTITLE_FONT_EN: Record<SubtitleFontSize, string> = {
+  small: "14px",
+  medium: "17px",
+  large: "20px",
+};
+const SUBTITLE_FONT_ZH: Record<SubtitleFontSize, string> = {
+  small: "12px",
+  medium: "14px",
+  large: "16px",
+};
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -116,6 +129,14 @@ export default function WatchPage() {
     play,
     seekTo,
     retry,
+    rate,
+    setRate,
+    muted,
+    toggleMute,
+    setVolume,
+    cycleSubtitleMode,
+    fullscreenElRef,
+    toggleFullscreen,
   } = useVideoPlayer({
     videoId: id,
     onTimeTick: handleTimeTick,
@@ -187,15 +208,28 @@ export default function WatchPage() {
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
 
-  // Load the user's target exam level from preferences on mount.
+  // D1：字幕字号（小/中/大）持久化到用户偏好。
+  const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>("medium");
+
+  // Load the user's target exam level + subtitle font size from preferences on mount.
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
     (async () => {
       try {
-        const prefs = await api<{ target_exam: string | null }>("/api/v1/users/me/preferences");
+        const prefs = await api<{
+          target_exam: string | null;
+          subtitle_font_size?: string | null;
+        }>("/api/v1/users/me/preferences");
         if (cancelled) return;
         setSelectedExamLevel(prefs.target_exam ?? "cet4");
+        if (
+          prefs.subtitle_font_size === "small" ||
+          prefs.subtitle_font_size === "medium" ||
+          prefs.subtitle_font_size === "large"
+        ) {
+          setSubtitleFontSize(prefs.subtitle_font_size);
+        }
       } catch {
         if (!cancelled) setSelectedExamLevel("cet4");
       }
@@ -236,6 +270,19 @@ export default function WatchPage() {
     } catch {
       // non-fatal: selection still applies for this session
       toast.error("偏好保存失败，本次会话仍生效");
+    }
+  }
+
+  // D1：字幕字号变更 —— 立即生效 + 写入偏好（尽力而为）。
+  async function handleFontSizeChange(size: SubtitleFontSize) {
+    setSubtitleFontSize(size);
+    try {
+      await api("/api/v1/users/me/preferences", {
+        method: "PUT",
+        body: JSON.stringify({ subtitle_font_size: size }),
+      });
+    } catch {
+      // non-fatal: 本次会话仍生效
     }
   }
 
@@ -281,24 +328,8 @@ export default function WatchPage() {
     return selectedWord === cleanToken(word);
   }
 
-  // --- Keyboard shortcuts: only ArrowDown is handled here (advance subtitle,
-  // which resets the speaking/recording state). Space/←/→/↑ are handled by
-  // useVideoPlayer's own keydown listener — each key must be handled exactly
-  // once (double registration made space a no-op and arrows seek/advance
-  // twice).
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        handleNextSubtitle();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleNextSubtitle]);
+  // --- Keyboard shortcuts: 页面层不再持有快捷键 —— D1 后统一由
+  // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；「下一句」由录音展开态按钮承担。
 
   // --- Loading / Error states ---
   if (!video && playbackMode !== "error") return <FullPageSpinner />;
@@ -508,6 +539,10 @@ export default function WatchPage() {
             className="relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift"
           >
             <div
+              ref={(el) => {
+                // D1：F 全屏的目标容器（播放器外壳）。
+                fullscreenElRef.current = el;
+              }}
               className={cn(
                 "transition-all duration-300",
                 isPip
@@ -524,7 +559,6 @@ export default function WatchPage() {
                       // <video> 无法带 Authorization 头，统一用 ?token= 携带。
                       withToken: true,
                     })}
-                    controls
                     className="h-full w-full object-contain"
                     onTimeUpdate={(e) => {
                       const t = e.currentTarget.currentTime;
@@ -545,6 +579,24 @@ export default function WatchPage() {
                       track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
                   />
+                  {/* D1 自定义控制条（PiP 小窗不渲染，避免小窗内控件拥挤） */}
+                  {!isPip && (
+                    <VideoControls
+                      videoRef={videoRef}
+                      duration={video.duration}
+                      rate={rate}
+                      setRate={setRate}
+                      muted={muted}
+                      toggleMute={toggleMute}
+                      setVolume={setVolume}
+                      subtitleMode={subtitleMode}
+                      onCycleSubtitleMode={cycleSubtitleMode}
+                      subtitleFontSize={subtitleFontSize}
+                      onFontSizeChange={handleFontSizeChange}
+                      toggleFullscreen={toggleFullscreen}
+                      isMobile={isMobile}
+                    />
+                  )}
                   {isPip && (
                     <button
                       type="button"
@@ -607,24 +659,37 @@ export default function WatchPage() {
               </div>
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="now-sub-en text-left leading-[1.7]">
-                    {currentSubtitle.text_en.split(" ").map((word, i) => (
-                      <span
-                        key={i}
-                        className={cn(
-                          "now-sub-word",
-                          levelClassFor(word, currentSubtitle.word_levels),
-                          isSelectedWord(word) && "now-sub-word-hl"
-                        )}
-                        onClick={() => handleWordClick(word)}
-                      >
-                        {word}{" "}
-                      </span>
-                    ))}
-                  </div>
+                  {subtitleMode !== "chinese" && subtitleMode !== "hidden" && (
+                    <div
+                      className="now-sub-en text-left leading-[1.7]"
+                      style={{ fontSize: SUBTITLE_FONT_EN[subtitleFontSize] }}
+                    >
+                      {currentSubtitle.text_en.split(" ").map((word, i) => (
+                        <span
+                          key={i}
+                          className={cn(
+                            "now-sub-word",
+                            levelClassFor(word, currentSubtitle.word_levels),
+                            isSelectedWord(word) && "now-sub-word-hl"
+                          )}
+                          onClick={() => handleWordClick(word)}
+                        >
+                          {word}{" "}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {subtitleMode === "hidden" && (
+                    <p className="text-[12px] text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
+                  )}
                   {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                     currentSubtitle.text_zh && (
-                      <div className="now-sub-zh">{currentSubtitle.text_zh}</div>
+                      <div
+                        className="now-sub-zh"
+                        style={{ fontSize: SUBTITLE_FONT_ZH[subtitleFontSize] }}
+                      >
+                        {currentSubtitle.text_zh}
+                      </div>
                     )}
                 </div>
 
@@ -795,47 +860,53 @@ export default function WatchPage() {
                 />
               </div>
 
-              {/* 字幕列表 —— 只保留核心三种模式 */}
-              <div
-                ref={subtitleListRef}
-                className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
-              >
-                <div className="flex flex-col gap-0.5">
-                  {video.subtitles.map((sub, i) => (
-                    <button
-                      key={sub.id}
-                      id={`subtitle-${i}`}
-                      onClick={() => {
-                        setCurrentSubtitleIndex(i);
-                        seekTo(sub.start_time);
-                      }}
-                      className={cn(
-                        "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
-                        i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
-                      )}
-                    >
-                      {subtitleMode !== "chinese" && (
-                        <div
-                          className={cn(
-                            "font-medium text-sm leading-relaxed",
-                            i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
-                          )}
-                        >
-                          {sub.text_en.split(" ").map((word, wi) => (
-                            <span key={wi} className={levelClassFor(word, sub.word_levels)}>
-                              {word}{" "}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-                        sub.text_zh && (
-                          <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
-                        )}
-                    </button>
-                  ))}
+              {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
+              {subtitleMode === "hidden" ? (
+                <div className="p-8 text-center text-xs text-muted">
+                  字幕已隐藏，按 S 键或控制条切换显示模式
                 </div>
-              </div>
+              ) : (
+                <div
+                  ref={subtitleListRef}
+                  className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    {video.subtitles.map((sub, i) => (
+                      <button
+                        key={sub.id}
+                        id={`subtitle-${i}`}
+                        onClick={() => {
+                          setCurrentSubtitleIndex(i);
+                          seekTo(sub.start_time);
+                        }}
+                        className={cn(
+                          "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
+                          i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
+                        )}
+                      >
+                        {subtitleMode !== "chinese" && (
+                          <div
+                            className={cn(
+                              "font-medium text-sm leading-relaxed",
+                              i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
+                            )}
+                          >
+                            {sub.text_en.split(" ").map((word, wi) => (
+                              <span key={wi} className={levelClassFor(word, sub.word_levels)}>
+                                {word}{" "}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+                          sub.text_zh && (
+                            <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
+                          )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </aside>

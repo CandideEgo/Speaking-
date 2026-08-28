@@ -1,7 +1,18 @@
 import { create } from "zustand";
 
-/** 字幕模式只保留核心三种：双语 / 英语 / 中文。其余练习模式已精简移除。 */
-export type SubtitleMode = "bilingual" | "english" | "chinese";
+/** 字幕显示模式：双语 / 英语 / 中文 / 隐藏（D1：S 键循环，含隐藏档）。 */
+export type SubtitleMode = "bilingual" | "english" | "chinese" | "hidden";
+
+/** localStorage key：字幕模式跨会话保持（产品设计规划 §D1）。 */
+export const SUBTITLE_MODE_STORAGE_KEY = "seeword_subtitle_mode";
+
+const VALID_MODES: SubtitleMode[] = ["bilingual", "english", "chinese", "hidden"];
+
+function loadPersistedSubtitleMode(): SubtitleMode {
+  if (typeof window === "undefined") return "bilingual";
+  const saved = window.localStorage.getItem(SUBTITLE_MODE_STORAGE_KEY);
+  return VALID_MODES.includes(saved as SubtitleMode) ? (saved as SubtitleMode) : "bilingual";
+}
 
 interface WatchStore {
   subtitleMode: SubtitleMode;
@@ -31,7 +42,13 @@ const INITIAL_STATE = {
 
 export const useWatchStore = create<WatchStore>((set) => ({
   ...INITIAL_STATE,
-  setSubtitleMode: (mode) => set({ subtitleMode: mode }),
+  subtitleMode: loadPersistedSubtitleMode(),
+  setSubtitleMode: (mode) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SUBTITLE_MODE_STORAGE_KEY, mode);
+    }
+    set({ subtitleMode: mode });
+  },
   setPanelCollapsed: (collapsed) => set({ panelCollapsed: collapsed }),
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setVideoAspectRatio: (ratio) => set({ videoAspectRatio: ratio }),

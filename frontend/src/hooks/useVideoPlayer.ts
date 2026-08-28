@@ -3,9 +3,23 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
 import type { VideoWithSubtitles } from "@/types";
 
 export type PlaybackMode = "ready" | "processing" | "loading" | "error";
+
+// D1 播放器控制条：倍速档位与持久化（产品设计规划 §D1）。
+export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const RATE_STORAGE_KEY = "seeword_playback_rate";
+
+/** 字幕显示模式循环顺序（S 键）：双语 → 英 → 中 → 隐藏。 */
+const SUBTITLE_MODE_CYCLE: SubtitleMode[] = ["bilingual", "english", "chinese", "hidden"];
+
+function loadPersistedRate(): number {
+  if (typeof window === "undefined") return 1;
+  const saved = Number(window.localStorage.getItem(RATE_STORAGE_KEY));
+  return PLAYBACK_RATES.includes(saved) ? saved : 1;
+}
 
 /** Pick the best available video URL (1080p > 720p > 480p). */
 export function bestVideoUrl(v: VideoWithSubtitles): string | null {
@@ -39,6 +53,10 @@ interface YTPlayerInstance {
   pauseVideo: () => void;
   getCurrentTime: () => number;
   destroy: () => void;
+  setPlaybackRate?: (rate: number) => void;
+  setVolume?: (volume: number) => void;
+  mute?: () => void;
+  unMute?: () => void;
 }
 
 interface YTPlayerOptions {
@@ -80,6 +98,20 @@ interface UseVideoPlayerReturn {
   seekTo: (time: number) => void;
   navigateSubtitle: (delta: number) => void;
   retry: () => void;
+  // ── D1 控制条能力 ─────────────────────────────────────────────
+  /** 当前倍速（持久化到 localStorage）。 */
+  rate: number;
+  setRate: (rate: number) => void;
+  cycleRate: () => void;
+  /** 音量 0-1（HTML5）；YT 模式映射到 0-100。 */
+  setVolume: (v: number) => void;
+  muted: boolean;
+  toggleMute: () => void;
+  /** S 键：字幕显示模式循环（双语/英/中/隐藏）。 */
+  cycleSubtitleMode: () => void;
+  /** 全屏目标容器（watch 页把播放器外壳赋给它）；F 键切换。 */
+  fullscreenElRef: React.MutableRefObject<HTMLElement | null>;
+  toggleFullscreen: () => void;
 }
 
 /**
@@ -109,6 +141,17 @@ export function useVideoPlayer({
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isYtMode, setIsYtMode] = useState(false);
+
+  // ── D1 控制条状态 ──────────────────────────────────────────────
+  const [rate, setRateState] = useState<number>(loadPersistedRate);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  const rateRef = useRef(rate);
+  useEffect(() => {
+    rateRef.current = rate;
+  }, [rate]);
+  // 全屏目标：watch 页把播放器外壳节点赋给此 ref（F 键切换）。
+  const fullscreenElRef = useRef<HTMLElement | null>(null);
 
   // Keep a ref in sync so callbacks (navigateSubtitle) can read the latest
   // video data without stale closures or putting side effects in updaters.
@@ -388,7 +431,75 @@ export function useVideoPlayer({
     [seekTo]
   );
 
-  // Keyboard shortcuts (skip when focus is on interactive elements)
+  // ---------------------------------------------------------------------------
+  // D1 控制条能力：倍速 / 音量 / 静音 / 字幕模式 / 全屏（双后端）
+  // ---------------------------------------------------------------------------
+
+  const setRate = useCallback((next: number) => {
+    if (!PLAYBACK_RATES.includes(next)) return;
+    setRateState(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RATE_STORAGE_KEY, String(next));
+    }
+    if (videoRef.current) videoRef.current.playbackRate = next;
+    ytPlayerRef.current?.setPlaybackRate?.(next);
+  }, []);
+
+  const cycleRate = useCallback(() => {
+    const idx = PLAYBACK_RATES.indexOf(rateRef.current);
+    const next = PLAYBACK_RATES[(idx + 1) % PLAYBACK_RATES.length];
+    setRate(next);
+  }, [setRate]);
+
+  // ready 后（含切换视频）把持久化倍速应用到 HTML5 元素。
+  useEffect(() => {
+    if (playbackMode !== "ready" || isYtMode) return;
+    if (videoRef.current) videoRef.current.playbackRate = rateRef.current;
+  }, [playbackMode, isYtMode, video]);
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    if (videoRef.current) {
+      videoRef.current.volume = clamped;
+      if (clamped > 0 && videoRef.current.muted) {
+        videoRef.current.muted = false;
+        setMuted(false);
+        mutedRef.current = false;
+      }
+    }
+    ytPlayerRef.current?.setVolume?.(Math.round(clamped * 100));
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setMuted(next);
+    if (videoRef.current) videoRef.current.muted = next;
+    if (next) ytPlayerRef.current?.mute?.();
+    else ytPlayerRef.current?.unMute?.();
+  }, []);
+
+  const cycleSubtitleMode = useCallback(() => {
+    const { subtitleMode, setSubtitleMode } = useWatchStore.getState();
+    const idx = SUBTITLE_MODE_CYCLE.indexOf(subtitleMode);
+    const next = SUBTITLE_MODE_CYCLE[(idx + 1) % SUBTITLE_MODE_CYCLE.length];
+    setSubtitleMode(next);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = fullscreenElRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      el.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // Keyboard shortcuts (skip when focus is on interactive elements).
+  // D1 统一快捷键：空格播放/暂停，←/→ 快退快进 10s，↑/↓ 音量，
+  // M 静音，F 全屏，C 倍速循环，S 字幕模式循环。
+  // （↑/↓ 原为字幕导航，按 §D1 改为音量；字幕导航仍可在列表中点击。）
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (
@@ -399,28 +510,60 @@ export function useVideoPlayer({
         e.target instanceof HTMLAnchorElement
       )
         return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       switch (e.key) {
         case " ":
           e.preventDefault();
           togglePlayPause();
           break;
         case "ArrowLeft":
-          seekBy(-5);
+          seekBy(-10);
           break;
         case "ArrowRight":
-          seekBy(5);
+          seekBy(10);
           break;
-        case "ArrowUp":
-          navigateSubtitle(-1);
+        case "ArrowUp": {
+          e.preventDefault();
+          const v = Math.min(1, (videoRef.current?.volume ?? 1) + 0.1);
+          setVolume(v);
           break;
-        // NOTE: ArrowDown is deliberately NOT handled here — the watch page
-        // owns it (handleNextSubtitle: advance + reset speaking state).
-        // Handling it in both places would advance two subtitles per press.
+        }
+        case "ArrowDown": {
+          e.preventDefault();
+          const v = Math.max(0, (videoRef.current?.volume ?? 1) - 0.1);
+          setVolume(v);
+          break;
+        }
+        case "m":
+        case "M":
+          toggleMute();
+          break;
+        case "f":
+        case "F":
+          toggleFullscreen();
+          break;
+        case "c":
+        case "C":
+          cycleRate();
+          break;
+        case "s":
+        case "S":
+          cycleSubtitleMode();
+          break;
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [togglePlayPause, seekBy, navigateSubtitle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    togglePlayPause,
+    seekBy,
+    setVolume,
+    toggleMute,
+    toggleFullscreen,
+    cycleRate,
+    cycleSubtitleMode,
+  ]);
 
   // Resume from last saved position on first ready (HTML5 backend).
   useEffect(() => {
@@ -486,5 +629,14 @@ export function useVideoPlayer({
     seekTo,
     navigateSubtitle,
     retry: loadVideo,
+    rate,
+    setRate,
+    cycleRate,
+    setVolume,
+    muted,
+    toggleMute,
+    cycleSubtitleMode,
+    fullscreenElRef,
+    toggleFullscreen,
   };
 }
