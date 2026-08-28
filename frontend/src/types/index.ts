@@ -9,8 +9,6 @@ export interface User {
   plan_expires_at: string | null;
   timezone: string | null;
   role?: "user" | "admin";
-  streak_count: number;
-  longest_streak: number;
   last_active_at: string | null;
   onboarding_completed: boolean;
   created_at: string;
@@ -422,41 +420,8 @@ export interface VocabPracticeSubmitRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Learning Plan types (ADR-0012)
+// Learning Profile (ADR-0012) — streak/掌握度统计由 /plan/profile 提供
 // ---------------------------------------------------------------------------
-
-export interface LearningPlanItem {
-  id: string;
-  sort_order: number;
-  item_type: "review_words" | "watch_video" | "practice" | "vocab_drill" | "shadowing";
-  video_id: string | null;
-  item_config: Record<string, unknown> | null;
-  completed: boolean;
-  completed_at: string | null;
-}
-
-export interface LearningPlan {
-  id: string;
-  plan_date: string;
-  generation_method: "rule" | "ai";
-  total_review_words: number;
-  total_new_words: number;
-  total_practice_items: number;
-  estimated_minutes: number;
-  completed: boolean;
-  items: LearningPlanItem[];
-}
-
-export interface DailyProgress {
-  today_words_learned: number;
-  today_minutes_spent: number;
-  daily_goal_type: "words" | "minutes";
-  daily_goal_value: number;
-  goal_met: boolean;
-  goal_progress: number;
-  current_streak: number;
-  weekly_cycles_completed: number;
-}
 
 export interface LearningProfile {
   estimated_level: string | null;
@@ -467,12 +432,6 @@ export interface LearningProfile {
   strengths: string[] | null;
   weaknesses: string[] | null;
   milestones?: Milestone[];
-}
-
-export interface TodayPlanResponse {
-  plan: LearningPlan | null;
-  progress: DailyProgress;
-  profile: LearningProfile;
 }
 
 // ---------------------------------------------------------------------------

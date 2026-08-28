@@ -16,7 +16,14 @@ import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
 import { isProUser } from "@/lib/api";
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
-import type { User, UserPreferences, Milestone, Paginated, LearningRecord } from "@/types";
+import type {
+  User,
+  UserPreferences,
+  Milestone,
+  Paginated,
+  LearningRecord,
+  LearningProfile,
+} from "@/types";
 
 interface VocabStats {
   total: number;
@@ -58,6 +65,7 @@ export default function ProfilePage() {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
+  const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -70,12 +78,13 @@ export default function ProfilePage() {
 
     async function loadData() {
       try {
-        const [u, p, m, vs, rec] = await Promise.allSettled([
+        const [u, p, m, vs, rec, lp] = await Promise.allSettled([
           api<User>("/api/v1/users/me"),
           api<UserPreferences>("/api/v1/users/me/preferences"),
           api<Milestone[]>("/api/v1/plan/milestones"),
           api<VocabStats>("/api/v1/vocabulary/stats"),
           api<Paginated<LearningRecord>>("/api/v1/learning/records?page=1&page_size=1"),
+          api<LearningProfile>("/api/v1/plan/profile"),
         ]);
         if (cancelled) return;
         if (u.status === "fulfilled") setUser(u.value);
@@ -84,6 +93,7 @@ export default function ProfilePage() {
         if (m.status === "fulfilled") setMilestones(m.value);
         if (vs.status === "fulfilled") setVocabStats(vs.value);
         if (rec.status === "fulfilled") setRecordsTotal(rec.value.total ?? null);
+        if (lp.status === "fulfilled") setLearningProfile(lp.value);
       } catch {
         toast.error("加载失败");
       } finally {
@@ -156,7 +166,7 @@ export default function ProfilePage() {
             {[
               { n: recordsTotal, l: "已学视频" },
               { n: vocabStats?.mastered_count, l: "掌握词汇" },
-              { n: user.streak_count, l: "连续天数" },
+              { n: learningProfile?.current_streak, l: "连续天数" },
             ].map((s) => (
               <div key={s.l} className="text-center">
                 <div className="text-xl font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
