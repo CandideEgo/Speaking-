@@ -190,7 +190,20 @@ export default function HistoryPage() {
                 <div className="w-6 h-6 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
               </div>
             ) : records.length === 0 ? (
-              <EmptyState icon={Calendar} title="暂无学习记录" className="py-12" />
+              <EmptyState
+                icon={Calendar}
+                title="暂无学习记录"
+                description="看完第一个视频就会出现在这里"
+                action={
+                  <Link
+                    href="/browse"
+                    className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                  >
+                    开始学习 →
+                  </Link>
+                }
+                className="py-12"
+              />
             ) : (
               <div>
                 {groups.map((group) => (

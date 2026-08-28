@@ -104,7 +104,7 @@ export default function ContactPage() {
   return (
     <PageTransition>
       <main className="container-page py-6 sm:py-12 max-w-3xl">
-        <PageHeader crumb="学习" title="联系我们" />
+        <PageHeader crumb="学习" title="帮助与反馈" />
 
         {/* Developer contact */}
         <Card padding={5} className="mb-6">

@@ -17,6 +17,9 @@ class VocabularyResponse(BaseModel):
     mastery_level: str
     context_sentence: str | None = None
     video_id: str | None = None
+    # Phase 1 D3b: drill "回看原句" needs the originating subtitle; null when
+    # the word was added before the column existed (no source shown).
+    subtitle_id: str | None = None
     review_count: int
     next_review_at: datetime | None = None
     created_at: datetime

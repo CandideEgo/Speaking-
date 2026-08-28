@@ -5,6 +5,7 @@ These handlers parse requests, call the service, and return responses.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
@@ -12,7 +13,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.video import (
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
@@ -401,8 +402,6 @@ async def get_video_quality_reports(
     Admin-only. Powers the video-detail quality panel: shows each stage's
     pass/fail, coverage, and per-check breakdown across re-runs.
     """
-    from sqlalchemy import select
-
     from app.models.video_quality_report import VideoQualityReport
 
     rows = (
@@ -856,6 +855,200 @@ async def list_unlocked_video_ids(
         "remaining_this_month": remaining,
         "quota": quota,
     }
+
+
+# Phase 1 B0 — list the current user's favorite videos. Declared before the
+# /{video_id} dynamic route so the static "favorites" path wins the match
+# (FastAPI's route ordering is registration order; the previous attempt got
+# swallowed by the catch-all and returned 404).
+@router.get("/favorites", response_model=PaginatedResponse[dict])
+@rate_limit("30/minute")
+async def list_user_favorites(
+    request: Request,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Paginated list of the current user's favorited videos.
+
+    Joins user_favorites → videos (LEFT user_notes for excerpt). The response
+    shape is intentionally flat: each item carries the fields the favorites
+    page needs (id, title, thumbnail, like/favorite counts, note excerpt)
+    so the frontend can render VideoCard without a second round-trip.
+    """
+    from app.models.favorite import UserFavorite, UserNote
+
+    total = (
+        await db.execute(select(func.count(UserFavorite.id)).where(UserFavorite.user_id == current_user.id))
+    ).scalar_one()
+
+    rows = (
+        await db.execute(
+            select(Video, UserFavorite.created_at, UserNote.content)
+            .join(UserFavorite, UserFavorite.video_id == Video.id)
+            .outerjoin(
+                UserNote,
+                (UserNote.video_id == Video.id) & (UserNote.user_id == current_user.id),
+            )
+            .where(UserFavorite.user_id == current_user.id)
+            .order_by(UserFavorite.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.page_size)
+        )
+    ).all()
+
+    items = [
+        {
+            "id": v.id,
+            "title": v.title,
+            "thumbnail_url": v.thumbnail_url,
+            "duration": v.duration,
+            "difficulty_level": v.difficulty_level,
+            "topic_tags": v.topic_tags,
+            "channel_name": v.channel_name,
+            "like_count": getattr(v, "like_count", 0) or 0,
+            "favorite_count": getattr(v, "favorite_count", 0) or 0,
+            "note_excerpt": (note.content[:60] + "…")
+            if note and note.content and len(note.content) > 60
+            else (note.content if note else None),
+            "has_note": bool(note and note.content),
+            "favorited_at": fav_at.isoformat() if fav_at else None,
+        }
+        for v, fav_at, note in rows
+    ]
+    return paginated(items, pagination, total=total)
+
+
+# Phase 1 B0 — list the current user's vocabulary for a single video, used by
+# the EndScreen "复习本视频生词" entry on the watch page.
+@router.get("/{video_id}/vocabulary", response_model=PaginatedResponse[dict])
+@rate_limit("30/minute")
+async def list_video_vocabulary(
+    request: Request,
+    video_id: str,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's vocabulary rows for this video, newest first."""
+    from app.models.learning import Vocabulary
+
+    video = await db.get(Video, video_id)
+    if video is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    total = (
+        await db.execute(
+            select(func.count(Vocabulary.id)).where(
+                Vocabulary.user_id == current_user.id, Vocabulary.video_id == video_id
+            )
+        )
+    ).scalar_one()
+
+    rows = (
+        (
+            await db.execute(
+                select(Vocabulary)
+                .where(Vocabulary.user_id == current_user.id, Vocabulary.video_id == video_id)
+                .order_by(Vocabulary.created_at.desc())
+                .offset(pagination.offset)
+                .limit(pagination.page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    items = [
+        {
+            "id": w.id,
+            "word": w.word,
+            "definition": w.definition,
+            "translation": w.translation,
+            "mastery_level": w.mastery_level,
+            "context_sentence": w.context_sentence,
+            "video_id": w.video_id,
+            "subtitle_id": w.subtitle_id,
+            "review_count": w.review_count,
+            "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
+            "created_at": w.created_at.isoformat(),
+        }
+        for w in rows
+    ]
+    return paginated(items, pagination, total=total)
+
+
+# Phase 1 B0 — return the top-N sentences with the highest exam-word density,
+# used by the EndScreen "跟读重点句" entry. Falls back to the first N
+# sentences when no exam words are tagged.
+@router.get("/{video_id}/shadowing-sentences", response_model=list[dict])
+@rate_limit("30/minute")
+async def list_shadowing_sentences(
+    request: Request,
+    video_id: str,
+    limit: int = Query(3, ge=1, le=10),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pick the top `limit` subtitles with the most exam-tagged words.
+
+    The target exam comes from the user's preferences (target_exam); if not
+    set, defaults to cet4. When the video has no exam-tagged subtitles at
+    all, return the first `limit` sentences by sentence_index so the
+    EndScreen still surfaces something useful.
+    """
+    from app.models.preferences import UserPreferences
+    from app.models.subtitle import Subtitle
+
+    video = await db.get(Video, video_id)
+    if video is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    # Read the user's target exam (defaults to cet4).
+    target_exam = (
+        await db.execute(select(UserPreferences.target_exam).where(UserPreferences.user_id == current_user.id))
+    ).scalar_one_or_none() or "cet4"
+
+    subtitles = (
+        (
+            await db.execute(
+                select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    def _exam_count(sub: Subtitle) -> int:
+        wl = sub.word_levels or {}
+        if not isinstance(wl, dict):
+            return 0
+        n = 0
+        for levels in wl.values():
+            if isinstance(levels, list) and target_exam in levels:
+                n += 1
+            elif isinstance(levels, str) and levels == target_exam:
+                n += 1
+        return n
+
+    scored = sorted(subtitles, key=_exam_count, reverse=True)
+    if scored and _exam_count(scored[0]) > 0:
+        picked = scored[:limit]
+    else:
+        picked = subtitles[:limit]  # fallback: first N
+
+    return [
+        {
+            "subtitle_id": s.id,
+            "sentence_index": s.sentence_index,
+            "text_en": s.text_en,
+            "text_zh": s.text_zh,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+            "exam_word_count": _exam_count(s),
+        }
+        for s in picked
+    ]
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)

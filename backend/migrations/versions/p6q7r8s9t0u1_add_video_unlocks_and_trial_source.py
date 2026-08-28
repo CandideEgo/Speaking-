@@ -1,6 +1,6 @@
 """add user_video_unlocks + users.plan_source + videos.is_demo
 
-Revision ID: c3d4e5f6g7h8
+Revision ID: p6q7r8s9t0u1
 Revises: b2c3d4e5f6a7
 Create Date: 2026-08-28 10:00:00.000000
 
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
-revision: str = "c3d4e5f6g7h8"
+revision: str = "p6q7r8s9t0u1"
 down_revision: str | None = "b2c3d4e5f6a7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

@@ -335,8 +335,32 @@ export default function VocabularyPage() {
               searchQuery
                 ? `未找到匹配“${searchQuery}”的单词`
                 : dueOnly
-                  ? "今天没有需要复习的单词！"
-                  : "词汇本为空。观看视频时点击单词即可收藏。"
+                  ? "今天的词都复习完了！"
+                  : "还没有生词"
+            }
+            description={
+              searchQuery
+                ? "试试其他关键词，或清空筛选条件"
+                : dueOnly
+                  ? "保持节奏，明天继续"
+                  : "看视频时点击字幕里的单词，就能加入词汇本"
+            }
+            action={
+              searchQuery ? null : dueOnly ? (
+                <Link
+                  href="/browse"
+                  className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                >
+                  去看视频 →
+                </Link>
+              ) : (
+                <Link
+                  href="/browse"
+                  className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                >
+                  去发现视频 →
+                </Link>
+              )
             }
           />
         ) : (

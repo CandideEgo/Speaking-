@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { useVocabularyPractice } from "@/hooks/usePractice";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
@@ -15,11 +16,15 @@ import { FullPageSpinner } from "@/components/common/Spinner";
  */
 export default function VocabDrillPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
+  const searchParams = useSearchParams();
+  const videoId = searchParams.get("video_id") ?? undefined;
   const session = useVocabularyPractice({
     count: 10,
-    dueOnly: true,
+    dueOnly: !videoId, // when scoped to a single video, no due-only filter
+    videoId,
     enabled: isAuthenticated && !isLoading,
   });
+  const headerLabel = videoId ? "本视频生词" : "词汇本 · 待复习";
 
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
@@ -43,7 +48,7 @@ export default function VocabDrillPage() {
           </Link>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
             <span className="w-2 h-2 rounded-full bg-brand-500" />
-            词汇本 · 待复习
+            {headerLabel}
           </span>
           <div className="flex-1 h-1.5 rounded-full bg-surface-card overflow-hidden">
             <div

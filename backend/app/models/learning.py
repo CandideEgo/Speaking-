@@ -92,6 +92,12 @@ class Vocabulary(Base):
     video_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # Phase 1 D3b: drill "回看原句" needs the originating subtitle. Nullable
+    # so old words without a source still display normally; SET NULL on
+    # subtitle deletion preserves word history.
+    subtitle_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("subtitles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     review_count: Mapped[int] = mapped_column(Integer, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

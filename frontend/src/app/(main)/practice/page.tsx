@@ -183,8 +183,15 @@ export default function PracticePage() {
             )}
           </div>
           {wrongTotal === 0 ? (
-            <div className="bg-canvas border border-dashed border-hairline-strong rounded-xl p-6 text-center text-[13px] text-muted">
-              暂无错题——去刷一套真题，错题会自动沉淀到这里。
+            <div className="bg-canvas border border-dashed border-hairline-strong rounded-xl p-6 flex flex-col items-center gap-3 text-center">
+              <p className="text-[13px] text-muted">还没有错题，继续保持！</p>
+              <Link
+                href="/practice/exams"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-500 hover:underline"
+              >
+                去做真题
+                <ArrowRight size={14} />
+              </Link>
             </div>
           ) : (
             <div className="flex flex-col gap-2">

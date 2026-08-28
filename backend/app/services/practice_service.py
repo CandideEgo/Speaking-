@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exam_levels import should_display
 from app.models.learning import Vocabulary
+from app.models.subtitle import Subtitle
 from app.services import ecdict
 from app.services.sr_service import calculate_next_review
 
@@ -132,11 +133,18 @@ async def build_vocabulary_drill(
     target_level: str | None = None,
     count: int = 10,
     due_only: bool = False,
+    video_id: str | None = None,
 ) -> list[dict]:
     """Build adaptive practice items from the user's personal vocabulary list.
 
     Item types are chosen based on each word's SM-2 mastery level.
     All grading is client-side.
+
+    When ``video_id`` is provided, the candidate pool is restricted to words
+    the user added while watching that video, and each emitted item carries
+    ``video_id`` / ``subtitle_id`` / ``start_time`` so the frontend can build
+    a "回看原句" deep link (D3b). Words without a subtitle source still appear,
+    just without those fields.
 
     Raises:
         ValueError: no vocabulary words available
@@ -147,11 +155,16 @@ async def build_vocabulary_drill(
     if due_only:
         stmt = stmt.where((Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now))
 
+    if video_id:
+        stmt = stmt.where(Vocabulary.video_id == video_id)
+
     stmt = stmt.order_by(Vocabulary.created_at.desc()).limit(count * 3)
     result = await db.execute(stmt)
     words = result.scalars().all()
 
     if not words:
+        if video_id:
+            raise ValueError("该视频还没有生词，去看视频时点击字幕里的单词就能加入词汇本")
         raise ValueError("词汇本为空，请先在学习中添加词汇")
 
     # Filter by target exam level when requested. Words whose ECDICT lookup
@@ -182,6 +195,15 @@ async def build_vocabulary_drill(
     # Pool of translations for distractors
     all_translations = [w.translation for w in selected if w.translation]
 
+    # Phase 1 D3b: when video_id is set, batch-join Subtitle for the
+    # start_time so items can deep-link "回看原句" back to the source cue.
+    subtitle_starts: dict[str, float] = {}
+    if video_id:
+        sub_ids = [w.subtitle_id for w in selected if w.subtitle_id]
+        if sub_ids:
+            sub_rows = (await db.execute(select(Subtitle).where(Subtitle.id.in_(sub_ids)))).scalars().all()
+            subtitle_starts = {s.id: s.start_time for s in sub_rows}
+
     items: list[dict] = []
     for w in selected:
         word = w.word
@@ -191,25 +213,35 @@ async def build_vocabulary_drill(
         category = MASTERY_TO_CATEGORY.get(mastery, "recognition")
 
         if category == "recognition":
-            items.append(_build_recognition_item(word, translation, phonetic, all_translations))
+            item = _build_recognition_item(word, translation, phonetic, all_translations)
         elif category == "production":
-            items.append(_build_production_item(word, translation, phonetic))
+            item = _build_production_item(word, translation, phonetic)
         elif category == "context":
             # For vocabulary page, use sentence_repeat with context_sentence if available
             if w.context_sentence:
-                items.append(
-                    _build_sentence_repeat_item(
-                        word=word,
-                        translation=translation,
-                        phonetic=phonetic,
-                        full_sentence=w.context_sentence,
-                        start_time=None,
-                        end_time=None,
-                    )
+                start = subtitle_starts.get(w.subtitle_id) if w.subtitle_id else None
+                item = _build_sentence_repeat_item(
+                    word=word,
+                    translation=translation,
+                    phonetic=phonetic,
+                    full_sentence=w.context_sentence,
+                    start_time=start,
+                    end_time=None,
                 )
             else:
                 # Fall back to production (spelling)
-                items.append(_build_production_item(word, translation, phonetic))
+                item = _build_production_item(word, translation, phonetic)
+        else:
+            continue
+
+        # Phase 1 D3b: attach source metadata for "回看原句" deep linking.
+        if video_id and w.subtitle_id:
+            start = subtitle_starts.get(w.subtitle_id)
+            item["video_id"] = w.video_id or video_id
+            item["subtitle_id"] = w.subtitle_id
+            if start is not None:
+                item["start_time"] = float(start)
+        items.append(item)
 
     return items
 

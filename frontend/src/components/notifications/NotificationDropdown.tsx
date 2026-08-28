@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { api } from "@/lib/api";
@@ -266,6 +267,13 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
             {isMarkingAll ? "标记中..." : "全部已读"}
           </button>
         )}
+        <Link
+          href="/notifications"
+          onClick={onClose}
+          className="text-xs text-muted hover:text-ink transition-colors ml-auto"
+        >
+          查看全部 →
+        </Link>
       </div>
 
       {/* Body */}

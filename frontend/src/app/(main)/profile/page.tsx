@@ -13,6 +13,13 @@ import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
 import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
+import { Confetti } from "@/components/common/Confetti";
+import { HeatmapCalendar, type HeatmapDay } from "@/components/profile/HeatmapCalendar";
+import {
+  EventDistributionChart,
+  type EventDistributionItem,
+} from "@/components/profile/EventDistributionChart";
+import { useMilestoneCelebration } from "@/hooks/useMilestoneCelebration";
 import { isProUser } from "@/lib/api";
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
@@ -64,6 +71,31 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+
+  // D5: weekly stats, event distribution, heatmap (all best-effort)
+  const [weeklyStats, setWeeklyStats] = useState<{
+    this_week_minutes: number;
+    last_week_minutes: number;
+    week_delta_pct: number | null;
+    daily_minutes: { date: string; minutes: number }[];
+  } | null>(null);
+  const [eventDist, setEventDist] = useState<EventDistributionItem[]>([]);
+  const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
+  useEffect(() => {
+    if (activeTab !== "progress") return;
+    api<typeof weeklyStats>("/api/v1/learning/stats/weekly")
+      .then(setWeeklyStats)
+      .catch(() => {});
+    api<EventDistributionItem[]>("/api/v1/learning/stats/event-distribution?days=30")
+      .then(setEventDist)
+      .catch(() => {});
+    api<HeatmapDay[]>("/api/v1/learning/stats/heatmap?days=90")
+      .then(setHeatmap)
+      .catch(() => {});
+  }, [activeTab]);
+
+  // D5: milestone celebration (confetti)
+  const celebration = useMilestoneCelebration();
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
@@ -234,6 +266,63 @@ export default function ProfilePage() {
               <MasteryTrend weeks={8} />
             </div>
             <div>
+              <h2 className="text-sm font-semibold text-ink mb-4">本周学习时长</h2>
+              <div className="bg-canvas border border-hairline rounded-xl p-5">
+                {weeklyStats ? (
+                  <div className="space-y-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-extrabold text-ink tabular-nums">
+                        {weeklyStats.this_week_minutes}
+                      </span>
+                      <span className="text-sm text-muted">分钟</span>
+                      {weeklyStats.week_delta_pct !== null && weeklyStats.last_week_minutes > 0 && (
+                        <span
+                          className={
+                            "text-xs font-semibold ml-auto " +
+                            (weeklyStats.week_delta_pct >= 0 ? "text-success" : "text-error")
+                          }
+                        >
+                          {weeklyStats.week_delta_pct >= 0 ? "↑" : "↓"}{" "}
+                          {Math.abs(weeklyStats.week_delta_pct)}% vs 上周
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-end gap-1.5 h-12">
+                      {weeklyStats.daily_minutes.map((d, i) => {
+                        const max = Math.max(1, ...weeklyStats.daily_minutes.map((x) => x.minutes));
+                        const h = (d.minutes / max) * 100;
+                        const labels = ["一", "二", "三", "四", "五", "六", "日"];
+                        return (
+                          <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
+                            <div
+                              className="w-full bg-brand-500 rounded-t"
+                              style={{ height: h + "%", minHeight: 2 }}
+                              title={d.date + " · " + d.minutes + " 分钟"}
+                            />
+                            <span className="text-[9px] text-muted-soft">{labels[i] ?? ""}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted text-center py-4">加载中…</div>
+                )}
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-ink mb-4">事件占比（近 30 天）</h2>
+              <div className="bg-canvas border border-hairline rounded-xl p-5">
+                <EventDistributionChart data={eventDist} />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-ink mb-4">活动热力图（90 天）</h2>
+              <div className="bg-canvas border border-hairline rounded-xl p-5">
+                <HeatmapCalendar days={heatmap} range={90} />
+              </div>
+            </div>
+            <div>
               <h2 className="text-sm font-semibold text-ink mb-4">成就徽章</h2>
               <MilestoneGrid milestones={milestones} />
             </div>
@@ -243,6 +332,10 @@ export default function ProfilePage() {
           <SettingsTab user={user} preferences={preferences} onUpdatePreferences={setPreferences} />
         )}
       </main>
+      <Confetti
+        fire={!!celebration.current}
+        onDone={() => celebration.current && celebration.acknowledge(celebration.current)}
+      />
     </PageTransition>
   );
 }

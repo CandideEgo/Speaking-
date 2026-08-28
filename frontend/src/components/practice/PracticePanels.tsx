@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
+import Link from "next/link";
 import { Volume2, Check, X, RotateCcw, Loader2, Trophy, Mic, MicOff } from "lucide-react";
 import type { GradedResult, PracticeItem } from "@/types";
 import { usePracticeAudio } from "@/hooks/usePracticeAudio";
@@ -671,7 +672,23 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
 
       {/* Wrong answer → manual "next" (correct answers auto-advance) */}
       {currentGraded && !currentGraded.correct && !isLast && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {/* D3b: 回看原句 — only when the item was scoped to a video
+              (drill/?video_id=) so the source subtitle/start_time are present. */}
+          {(() => {
+            const it = session.items[currentIndex];
+            if (it?.video_id && it.subtitle_id && it.start_time != null) {
+              return (
+                <Link
+                  href={`/watch/${it.video_id}?t=${Math.floor(it.start_time)}&word=${encodeURIComponent(it.word)}`}
+                  className="text-xs text-brand-500 hover:underline"
+                >
+                  回看原句 →
+                </Link>
+              );
+            }
+            return <span />;
+          })()}
           <Button onClick={() => setCurrentIndex((i) => i + 1)}>下一题</Button>
         </div>
       )}

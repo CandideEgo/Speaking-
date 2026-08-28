@@ -1,6 +1,6 @@
 """Learning records API — list and detail endpoints for per-video learning progress."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -10,6 +10,7 @@ from app.api.dependencies import get_current_user
 from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord
+from app.models.learning_plan import LearningEvent
 from app.models.user import User
 from app.models.video import Video
 from app.schemas.common import VideoBrief
@@ -218,3 +219,169 @@ async def get_watch_progress(
         "position_seconds": record.position_seconds if record else None,
         "progress_percentage": record.progress_percentage if record else 0.0,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 1 B0 — profile stats (D5 激励体系)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _week_bounds(now: datetime | None = None) -> tuple[datetime, datetime, datetime]:
+    """Return (this_week_start, last_week_start, last_week_end) using ISO week.
+
+    Week starts Monday 00:00 in the user's local UTC time (server-side
+    approximation; full TZ is a future enhancement).
+    """
+    now = now or datetime.now(UTC)
+    # Monday of this week
+    start_of_today = datetime(now.year, now.month, now.day, tzinfo=UTC)
+    this_monday = start_of_today - timedelta(days=start_of_today.weekday())
+    last_monday = this_monday - timedelta(days=7)
+    return this_monday, last_monday, this_monday
+
+
+@router.get("/stats/weekly")
+@rate_limit("30/minute")
+async def stats_weekly(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregated weekly activity for the profile 学习进度 page.
+
+    - this_week_minutes: total watched minutes (LearningRecord.time_spent_seconds)
+    - last_week_minutes: same for the prior Monday–Sunday window
+    - week_delta_pct: 0.0 when last week is 0 (handle "first week" UI)
+    - this_week_words/videos: counted from LearningEvent (learned_words /
+      completed_video) so they reflect this calendar week
+    - daily_minutes: 7-element list, Mon→Sun, 0 when no activity
+    """
+    now = datetime.now(UTC)
+    this_monday, last_monday, _ = _week_bounds(now)
+
+    async def _minutes_since(start: datetime, end: datetime) -> int:
+        result = await db.execute(
+            select(func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0)).where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.last_accessed_at >= start,
+                LearningRecord.last_accessed_at < end,
+            )
+        )
+        return result.scalars().one() // 60
+
+    this_week_minutes = await _minutes_since(this_monday, now)
+    last_week_minutes = await _minutes_since(last_monday, this_monday)
+
+    if last_week_minutes > 0:
+        week_delta_pct = round((this_week_minutes - last_week_minutes) / last_week_minutes * 100, 1)
+    else:
+        week_delta_pct = None  # "first week" → UI shows no arrow
+
+    async def _event_count(event_type: str, start: datetime) -> int:
+        result = await db.execute(
+            select(func.coalesce(func.sum(LearningEvent.event_value), 0)).where(
+                LearningEvent.user_id == current_user.id,
+                LearningEvent.event_type == event_type,
+                LearningEvent.event_date >= start.date(),
+            )
+        )
+        return result.scalars().one()
+
+    this_week_words = await _event_count("learned_words", this_monday)
+    this_week_videos = await _event_count("completed_video", this_monday)
+
+    # Daily minutes for the 7 days of this week, Mon→Sun.
+    daily_minutes: list[dict] = []
+    rows = (
+        await db.execute(
+            select(
+                func.date(LearningRecord.last_accessed_at).label("d"),
+                func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0).label("s"),
+            )
+            .where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.last_accessed_at >= this_monday,
+            )
+            .group_by(func.date(LearningRecord.last_accessed_at))
+        )
+    ).all()
+    by_day = {str(r.d): int(r.s) // 60 for r in rows}
+    for i in range(7):
+        d = (this_monday + timedelta(days=i)).date().isoformat()
+        daily_minutes.append({"date": d, "minutes": by_day.get(d, 0)})
+
+    return {
+        "this_week_minutes": this_week_minutes,
+        "last_week_minutes": last_week_minutes,
+        "week_delta_pct": week_delta_pct,
+        "this_week_words": this_week_words,
+        "this_week_videos": this_week_videos,
+        "daily_minutes": daily_minutes,
+    }
+
+
+@router.get("/stats/event-distribution")
+@rate_limit("30/minute")
+async def stats_event_distribution(
+    request: Request,
+    days: int = Query(30, ge=1, le=180),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sum of LearningEvent.event_value grouped by event_type over the last N days.
+
+    Used by the profile EventDistributionChart (D5). The frontend maps
+    event_type → Chinese label and color.
+    """
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).date()
+    rows = (
+        await db.execute(
+            select(
+                LearningEvent.event_type,
+                func.coalesce(func.sum(LearningEvent.event_value), 0).label("total"),
+            )
+            .where(
+                LearningEvent.user_id == current_user.id,
+                LearningEvent.event_date >= cutoff,
+            )
+            .group_by(LearningEvent.event_type)
+        )
+    ).all()
+    return [{"event_type": r.event_type, "count": int(r.total)} for r in rows]
+
+
+@router.get("/stats/heatmap")
+@rate_limit("30/minute")
+async def stats_heatmap(
+    request: Request,
+    days: int = Query(90, ge=30, le=180),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Daily activity count for the last N days, zero-filled for missing days.
+
+    `count` is the number of distinct LearningEvent rows for that date; the
+    frontend's HeatmapCalendar bins it into 4 intensity tiers.
+    """
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).date()
+    rows = (
+        await db.execute(
+            select(
+                LearningEvent.event_date,
+                func.count(LearningEvent.id).label("n"),
+            )
+            .where(
+                LearningEvent.user_id == current_user.id,
+                LearningEvent.event_date >= cutoff,
+            )
+            .group_by(LearningEvent.event_date)
+        )
+    ).all()
+    by_day: dict[str, int] = {str(r.event_date): int(r.n) for r in rows}
+    today = date.today()
+    out: list[dict] = []
+    for i in range(days):
+        d = (today - timedelta(days=days - 1 - i)).isoformat()
+        n = by_day.get(d, 0)
+        out.append({"date": d, "count": n, "active": n > 0})
+    return out

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { MessageSquare } from "lucide-react";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
@@ -171,6 +173,15 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
         <h2 className="text-sm font-semibold text-ink">账户</h2>
         <PasswordChangeForm />
         <NotificationPreferences />
+        <div className="pt-2 border-t border-hairline">
+          <Link
+            href="/contact"
+            className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand-500 transition-colors"
+          >
+            <MessageSquare size={13} />
+            意见反馈与帮助
+          </Link>
+        </div>
       </section>
 
       {/* Unified save for learning prefs + timezone */}

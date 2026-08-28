@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { CoachMark } from "@/components/common/CoachMark";
+import { useCoachMark } from "@/hooks/useCoachMark";
+import { EndScreen, type ShadowingSentence } from "@/components/watch/EndScreen";
 import { useWatchStore } from "@/stores/watchStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -88,6 +91,13 @@ export default function WatchPage() {
   const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
+  // D13: deep link from /favorites with ?note=1 opens the note drawer
+  // immediately so the user lands on their saved note.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("note") === "1") setNoteOpen(true);
+  }, [searchParams]);
+
   // Auto-upload recording when entering reviewing state
   useEffect(() => {
     if (speakingState === "reviewing" && audioBlob && !shadowingSaved) {
@@ -164,6 +174,37 @@ export default function WatchPage() {
     setSubtitleIndexRef.current = setCurrentSubtitleIndex;
   }, [video, setCurrentSubtitleIndex]);
 
+  // D3b: seek to ?t=<seconds> once the video is ready. Triggered when
+  // the user drills an answer wrong and clicks "回看原句" → /watch/{id}?t=...
+  useEffect(() => {
+    if (playbackMode !== "ready" || !video || !videoRef.current) return;
+    const t = searchParams.get("t");
+    if (!t) return;
+    const seconds = parseFloat(t);
+    if (!Number.isNaN(seconds) && seconds >= 0) {
+      videoRef.current.currentTime = seconds;
+    }
+    // videoRef is a stable ref; intentionally not in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackMode, video, searchParams]);
+
+  // D2: first-time coach mark tour. Only shows when the watch page is
+  // fully ready (subtitles loaded, video URL known) so the spotlight
+  // rects aren't zero. The hook writes seeword_coach_done on finish/skip.
+  const coach = useCoachMark({
+    isAuthenticated,
+    isReady: playbackMode === "ready" && !!video && (video.subtitles?.length ?? 0) > 0,
+  });
+
+  // D3b: EndScreen state. Activated when the <video> fires onEnded.
+  const [ended, setEnded] = useState(false);
+  const [videoVocabCount, setVideoVocabCount] = useState(0);
+  const [shadowingSentences, setShadowingSentences] = useState<ShadowingSentence[]>([]);
+  // Session-scoped stats. Lookups/adds are tracked by useWordLookup;
+  // watch time is approximated from videoRef.currentTime on ended.
+  const sessionLookupsRef = useRef(0);
+  const sessionAddsRef = useRef(0);
+
   // 字幕自动居中：只滚动右侧内层字幕列表，绝不触碰整页 <main>。
   // 用 scrollIntoView 会连带 <main> 一起拽回顶部，导致停在底部练习区时页面被拽走白屏。
   const subtitleListRef = useRef<HTMLDivElement>(null);
@@ -188,13 +229,14 @@ export default function WatchPage() {
   const {
     isFavorited,
     isLiked,
+    likeCount,
     noteDraft,
     setNoteDraft,
     toggleFavorite,
     toggleLike,
     saveNote,
     clearNote,
-  } = useVideoMeta(id);
+  } = useVideoMeta(id, video?.like_count ?? 0);
   const { selectedWord, wordGloss, handleWordClick, saveToVocabulary, speakWord, clearWord } =
     useWordLookup({
       requireAuth,
@@ -442,12 +484,20 @@ export default function WatchPage() {
           </h1>
           <div className="flex items-center gap-1 shrink-0">
             <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+              className="h-9 px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
               onClick={toggleLike}
-              aria-label={isLiked ? "取消点赞" : "点赞"}
+              aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
               title={isLiked ? "取消点赞" : "点赞"}
             >
               <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+              <span
+                className={cn(
+                  "text-xs font-semibold tabular-nums",
+                  isLiked ? "text-error" : "text-muted"
+                )}
+              >
+                {likeCount > 0 ? likeCount : "点赞"}
+              </span>
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
@@ -575,9 +625,27 @@ export default function WatchPage() {
                     onSeeked={() =>
                       track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
-                    onEnded={() =>
-                      track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
+                    onEnded={() => {
+                      track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id);
+                      // D3b: trigger the EndScreen. Fetch this video's vocab
+                      // count + top-3 shadowing sentences in parallel; both
+                      // are best-effort — failures are silent.
+                      setEnded(true);
+                      const vid = video?.id;
+                      if (!vid) return;
+                      Promise.all([
+                        api<{ total?: number }>(
+                          `/api/v1/videos/${vid}/vocabulary?page=1&page_size=1`
+                        )
+                          .then((d) => setVideoVocabCount(d.total ?? 0))
+                          .catch(() => {}),
+                        api<ShadowingSentence[]>(
+                          `/api/v1/videos/${vid}/shadowing-sentences?limit=3`
+                        )
+                          .then(setShadowingSentences)
+                          .catch(() => {}),
+                      ]);
+                    }}
                   />
                   {/* D1 自定义控制条（PiP 小窗不渲染，避免小窗内控件拥挤） */}
                   {!isPip && (
@@ -606,6 +674,35 @@ export default function WatchPage() {
                     >
                       <X size={14} />
                     </button>
+                  )}
+                  {/* D3b EndScreen — only when the <video> has fired onEnded. */}
+                  {ended && !isPip && video?.id && (
+                    <EndScreen
+                      stats={{
+                        watchSeconds: Math.round(videoRef.current?.currentTime ?? 0),
+                        wordsLookedUp: sessionLookupsRef.current,
+                        wordsAdded: sessionAddsRef.current,
+                      }}
+                      videoVocabCount={videoVocabCount}
+                      shadowingSentences={shadowingSentences}
+                      onReplay={() => {
+                        setEnded(false);
+                        videoRef.current?.play().catch(() => {});
+                      }}
+                      onReviewVocab={() => router.push(`/vocabulary/drill?video_id=${video.id}`)}
+                      onShadowing={() => {
+                        // Jump back to the first shadowing sentence and resume
+                        // playback so the user can immediately start shadowing.
+                        if (shadowingSentences[0]) {
+                          if (videoRef.current && shadowingSentences[0]) {
+                            videoRef.current.currentTime = shadowingSentences[0].start_time;
+                          }
+                          setEnded(false);
+                          videoRef.current?.play().catch(() => {});
+                        }
+                      }}
+                      onGoHome={() => router.push("/")}
+                    />
                   )}
                 </>
               ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
@@ -812,7 +909,9 @@ export default function WatchPage() {
               )}
 
               {/* Shadowing history: recent attempts for this video */}
-              <ShadowingHistory attempts={attempts} />
+              <div data-coach="practice">
+                <ShadowingHistory attempts={attempts} />
+              </div>
             </div>
           )}
 
@@ -868,6 +967,7 @@ export default function WatchPage() {
               ) : (
                 <div
                   ref={subtitleListRef}
+                  data-coach="subtitles"
                   className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
                 >
                   <div className="flex flex-col gap-0.5">
@@ -938,12 +1038,25 @@ export default function WatchPage() {
 
       {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
       {selectedWord && (
-        <WordTooltipInline
-          word={selectedWord}
-          gloss={wordGloss}
-          onClose={clearWord}
-          onPronounce={() => speakWord(selectedWord)}
-          onSave={saveToVocabulary}
+        <div data-coach="word-card">
+          <WordTooltipInline
+            word={selectedWord}
+            gloss={wordGloss}
+            onClose={clearWord}
+            onPronounce={() => speakWord(selectedWord)}
+            onSave={saveToVocabulary}
+          />
+        </div>
+      )}
+
+      {/* D2 CoachMark — only renders when active (gated by localStorage flag). */}
+      {coach.active && (
+        <CoachMark
+          steps={coach.steps}
+          stepIndex={coach.stepIndex}
+          onNext={coach.next}
+          onSkip={coach.skip}
+          onFinish={coach.finish}
         />
       )}
     </div>

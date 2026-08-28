@@ -15,7 +15,7 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
-import { Search, Bell, Sun, Moon, User, Crown, LogOut } from "lucide-react";
+import { Search, Bell, Sun, Moon, User, Crown, LogOut, HelpCircle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,8 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
   // 1B 设计减法：原「个人资料」「学习偏好」两项同指 /profile，收敛为一项。
   const items = [
     { label: "个人中心", icon: User, href: "/profile" },
+    { label: "我的收藏", icon: Bookmark, href: "/favorites" },
+    { label: "帮助与反馈", icon: HelpCircle, href: "/contact" },
     { label: "Pro 会员", icon: Crown, href: "/upgrade" },
   ];
 

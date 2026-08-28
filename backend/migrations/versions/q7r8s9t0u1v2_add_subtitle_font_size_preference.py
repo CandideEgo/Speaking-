@@ -1,7 +1,7 @@
 """add user_preferences.subtitle_font_size
 
-Revision ID: d4e5f6g7h8i9
-Revises: c3d4e5f6g7h8
+Revision ID: q7r8s9t0u1v2
+Revises: p6q7r8s9t0u1
 Create Date: 2026-08-28 15:00:00.000000
 
 D1 player controls: subtitle font-size preference (small/medium/large),
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
-revision: str = "d4e5f6g7h8i9"
-down_revision: str | None = "c3d4e5f6g7h8"
+revision: str = "q7r8s9t0u1v2"
+down_revision: str | None = "p6q7r8s9t0u1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

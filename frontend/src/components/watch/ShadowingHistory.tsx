@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Mic } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import type { ShadowingAttempt } from "@/hooks/useShadowing";
 
@@ -10,10 +10,23 @@ interface ShadowingHistoryProps {
 
 /**
  * Lightweight inline list of recent shadowing attempts for the current video.
- * Renders nothing when there are no attempts (zero visual noise).
+ * When the user has zero attempts, show a tiny guidance line so the section
+ * doesn't look broken.
  */
 export function ShadowingHistory({ attempts }: ShadowingHistoryProps) {
-  if (!attempts.length) return null;
+  if (!attempts.length) {
+    return (
+      <div className="mt-3 pt-3 border-t border-hairline">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">
+          最近跟读
+        </p>
+        <div className="flex items-center gap-2 px-1 py-2 text-[11px] text-muted-soft">
+          <Mic size={12} />
+          观看视频时可以录音跟读，跟读记录会出现在这里
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3 pt-3 border-t border-hairline">

@@ -74,6 +74,8 @@ interface UseVocabularyPracticeOptions {
   level?: string | null;
   count?: number;
   dueOnly?: boolean;
+  /** Phase 1 D3b: restrict drill to words added from this video. */
+  videoId?: string;
   enabled?: boolean;
 }
 
@@ -100,6 +102,7 @@ export function useVocabularyPractice({
   level,
   count = 10,
   dueOnly = false,
+  videoId,
   enabled = true,
 }: UseVocabularyPracticeOptions): UseVocabularyPracticeReturn {
   const fetcher = useCallback(async (): Promise<PracticeItem[]> => {
@@ -107,9 +110,10 @@ export function useVocabularyPractice({
     if (level) params.set("level", level);
     params.set("count", String(count));
     if (dueOnly) params.set("due_only", "true");
+    if (videoId) params.set("video_id", videoId);
     const data = await api<VocabularyPracticeSet>(`/api/v1/vocabulary/practice?${params}`);
     return data.items ?? [];
-  }, [level, count, dueOnly]);
+  }, [level, count, dueOnly, videoId]);
 
   const grader = useCallback((item: PracticeItem, userAnswer: string): GradedResult => {
     return gradePracticeItem(item, userAnswer);

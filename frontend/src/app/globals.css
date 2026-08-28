@@ -775,3 +775,36 @@
     }
   }
 }
+
+/* D2 CoachMark pulse (border ring around the spotlight) */
+@keyframes coach-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--brand-500, #ff6b4a);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+.coach-pulse {
+  animation: coach-pulse 2s ease-in-out infinite;
+}
+
+/* D2 first-time word-card gold flash (1.5s) */
+@keyframes gold-edge {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 200, 80, 0);
+    border-color: rgba(255, 200, 80, 0);
+  }
+  20% {
+    box-shadow: 0 0 0 4px rgba(255, 200, 80, 0.55);
+    border-color: rgba(255, 200, 80, 1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 200, 80, 0);
+    border-color: rgba(255, 200, 80, 0);
+  }
+}
+.coach-gold-flash {
+  animation: gold-edge 1.5s ease-out 1;
+}

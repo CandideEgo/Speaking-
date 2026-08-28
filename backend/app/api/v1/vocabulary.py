@@ -64,16 +64,20 @@ async def get_vocabulary_practice(
     level: str | None = Query(None, description="Target exam level key"),
     count: int = Query(10, ge=1, le=30),
     due_only: bool = Query(False, description="Only include words due for review"),
+    video_id: str | None = Query(None, description="Restrict drill to words from this video (D3b)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Generate adaptive practice items from the user's vocabulary list.
 
     Item types are chosen based on each word's SM-2 mastery level.
-    All grading is client-side.
+    All grading is client-side. When ``video_id`` is set, the candidate pool
+    is restricted to that video's words and each item carries
+    ``video_id`` / ``subtitle_id`` / ``start_time`` for the EndScreen's
+    "复习本视频生词" deep link.
     """
     try:
-        items = await practice_service.build_vocabulary_drill(db, current_user.id, level, count, due_only)
+        items = await practice_service.build_vocabulary_drill(db, current_user.id, level, count, due_only, video_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
@@ -117,6 +121,7 @@ async def add_word(
     word: str,
     context_sentence: str | None = None,
     video_id: str | None = None,
+    subtitle_id: str | None = Query(None, description="Source subtitle for D3b 回看原句"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -135,6 +140,7 @@ async def add_word(
         word=word.strip().lower(),
         context_sentence=context_sentence,
         video_id=video_id,
+        subtitle_id=subtitle_id,
     )
     db.add(vocab)
     await commit_refresh(db, vocab)
@@ -143,6 +149,8 @@ async def add_word(
         "id": vocab.id,
         "word": vocab.word,
         "context_sentence": vocab.context_sentence,
+        "video_id": vocab.video_id,
+        "subtitle_id": vocab.subtitle_id,
         "created_at": vocab.created_at.isoformat(),
     }
 

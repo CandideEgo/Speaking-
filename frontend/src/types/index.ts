@@ -414,6 +414,11 @@ export interface PracticeItem {
   end_time?: number | null;
   full_sentence?: string | null;
   phonetic?: string | null;
+  /** Phase 1 D3b: source video/subtitle for "回看原句" deep link.
+   *  Populated when the drill was scoped to a single video (B0 video_id filter).
+   *  start_time/end_time above are reused as the seek targets. */
+  video_id?: string | null;
+  subtitle_id?: string | null;
 }
 
 export interface PracticeResultItem {

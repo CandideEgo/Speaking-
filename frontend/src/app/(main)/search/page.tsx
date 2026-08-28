@@ -1,12 +1,17 @@
 ﻿"use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/common/EmptyState";
 import { ArrowLeft, SearchIcon, Loader2, FileSearch, Subtitles } from "lucide-react";
+
+// 一期热门搜索词（前端静态；二期可由后端 Redis 缓存提供）
+const POPULAR_SEARCHES = ["TED Talks", "面试", "发音", "经济学人", "六级", "词汇", "演讲", "BBC"];
 
 // --- Types (mirrored from SearchDropdown) ---
 
@@ -51,7 +56,9 @@ function formatTime(seconds: number): string {
 
 export default function SearchPage() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get("q") ?? "";
+  const [query, setQuery] = useState(initialQ);
   const [videoResults, setVideoResults] = useState<SearchResultItem[]>([]);
   const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -63,6 +70,19 @@ export default function SearchPage() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Re-sync when navigating to /search?q=... (e.g. from a hot search chip)
+  useEffect(() => {
+    setQuery(initialQ);
+    if (initialQ) {
+      performSearch(initialQ);
+    } else {
+      setVideoResults([]);
+      setSubtitleResults([]);
+      setHasSearched(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQ]);
 
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -173,10 +193,24 @@ export default function SearchPage() {
 
         {/* No results */}
         {!isSearching && hasSearched && !hasAnyResults && (
-          <div className="flex flex-col items-center gap-2 py-12">
-            <FileSearch className="h-10 w-10 text-muted/40" />
-            <span className="text-sm text-muted">没有找到相关视频</span>
-          </div>
+          <EmptyState
+            icon={FileSearch}
+            title="没有找到相关视频"
+            description="试试换个关键词，或从下方热门搜索开始"
+            action={
+              <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                {POPULAR_SEARCHES.map((kw) => (
+                  <Link
+                    key={kw}
+                    href={`/search?q=${encodeURIComponent(kw)}`}
+                    className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
+                  >
+                    {kw}
+                  </Link>
+                ))}
+              </div>
+            }
+          />
         )}
 
         {/* Initial state */}

@@ -8,7 +8,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-# Default notification preferences — all types enabled
+# Default notification preferences — all types enabled.
+# Phase 1 D6 adds the 20:00 review reminder time + the streak warning
+# toggle. These keys live inside notification_preferences JSON so the
+# existing PUT/GET merge logic carries them through (exclude_none merge).
 DEFAULT_NOTIFICATION_PREFS: dict = {
     "system": True,
     "comment": True,
@@ -17,6 +20,11 @@ DEFAULT_NOTIFICATION_PREFS: dict = {
     "speaking_feedback": True,
     "achievement": True,
     "marketing": False,
+    # Phase 1 D6 — vocabulary review reminder
+    "vocabulary_reminder": True,
+    "vocabulary_reminder_time": "20:00",
+    # Phase 1 D5/D6 — streak warning at 21:00 when streak ≥ 2
+    "streak_warning_enabled": True,
 }
 
 
