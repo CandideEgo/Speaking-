@@ -11,7 +11,6 @@ import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
-import { FocusCard } from "@/components/home/FocusCard";
 import { getMilestoneLabel } from "@/components/profile/MilestoneBadge";
 
 const DIFFICULTY_LEVELS = [
@@ -32,9 +31,8 @@ export default function HomePage() {
   const hour = new Date().getHours();
   const greeting = hour < 6 ? "夜深了" : hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
 
-  // Learning plan data (FocusCard + milestone banner). 今日计划列表已移除，
-  // AI 计划生成入口收到 FocusCard CTA（无计划时显示「生成今日计划」）。
-  const { plan, progress, profile, generateAIPlan, generating } = usePlan();
+  // Learning profile (for milestone banner).
+  const { profile } = usePlan();
 
   // Video feed (B方案: 首页视频流 = filter-bar + 网格 + 无限滚动)
   const {
@@ -102,16 +100,6 @@ export default function HomePage() {
             </button>
           </div>
         )}
-
-        {/* ── Focus Card ── */}
-        <div className="mb-8">
-          <FocusCard
-            progress={progress}
-            planItems={plan?.items ?? []}
-            onGeneratePlan={generateAIPlan}
-            generating={generating}
-          />
-        </div>
 
         {/* ── 分类筛选栏（filter-bar，复用 browse 模式） ── */}
         <div className="filter-bar">

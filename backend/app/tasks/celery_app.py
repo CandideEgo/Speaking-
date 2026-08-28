@@ -22,7 +22,7 @@ celery_app.conf.update(
     # Queue topology: the cloud worker consumes the default ``celery`` queue;
     # the remote GPU worker consumes ``transcription_gpu`` exclusively. Only
     # the transcription task is routed off the default queue — everything else
-    # (video pipeline head/tail, localize, comment analysis, order expiry) runs
+    # (video pipeline head/tail, localize, order expiry) runs
     # on the cloud.
     task_default_queue="celery",
     task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name)),

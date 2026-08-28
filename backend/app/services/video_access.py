@@ -7,9 +7,8 @@ that were previously duplicated across:
   - app/services/practice_service.py:should_use_snapshot
 
 These are pure domain functions with no HTTP/FastAPI dependency, so they
-belong in the service layer. The API dependency layer (dependencies.py)
-imports from here; route handlers still use require_video_access /
-require_video_owner from dependencies.py.
+belong in the service layer. Route handlers and services import them
+directly from here.
 """
 
 from app.models.user import RoleType, User

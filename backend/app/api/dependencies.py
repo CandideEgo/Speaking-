@@ -10,7 +10,6 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.core.token_blacklist import is_token_blacklisted
 from app.models.user import PlanType, RoleType, User
-from app.models.video import Video
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()
@@ -164,65 +163,3 @@ async def require_pro_user(
             detail="Pro subscription has expired.",
         )
     return user
-
-
-def check_video_access(video: Video, current_user: User | None) -> bool:
-    """Check whether a user can access a video.
-
-    Thin pass-through to the domain module so route handlers that already
-    import from app.api.dependencies keep working. The authoritative
-    implementation lives in app.services.video_access.
-    """
-    from app.services.video_access import check_video_access as _check
-
-    return _check(video, current_user)
-
-
-def is_video_owner(video: Video, current_user: User | None) -> bool:
-    """True if ``current_user`` owns ``video`` (UGC ownership check).
-
-    Thin pass-through to the domain module.
-    """
-    from app.services.video_access import is_video_owner as _is_owner
-
-    return _is_owner(video, current_user)
-
-
-async def require_video_owner(
-    video_id: str,
-    current_user: User,
-    db: AsyncSession,
-) -> Video:
-    """Fetch a video and enforce that ``current_user`` is its owner.
-
-    Returns 404 (not 403) when the video is missing or not owned by the caller,
-    so non-owners cannot probe which video ids exist. Used by the UGC creator
-    edit / submit-review / withdraw endpoints.
-    """
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    video = result.scalar_one_or_none()
-    if video is None or not is_video_owner(video, current_user):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    return video
-
-
-async def require_video_access(
-    video_id: str,
-    current_user: User | None,
-    db: AsyncSession,
-) -> Video:
-    """Fetch a video and enforce access control.
-
-    Raises HTTPException 404 if the video does not exist or the user lacks access.
-    Returns the Video ORM object on success.
-
-    Usage in route handlers:
-        video = await require_video_access(video_id, current_user, db)
-    """
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    video = result.scalar_one_or_none()
-    if not video:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    if not check_video_access(video, current_user):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    return video

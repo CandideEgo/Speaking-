@@ -4,18 +4,15 @@ All business logic lives in app.services.video_service.
 These handlers parse requests, call the service, and return responses.
 """
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_admin_user, get_current_user, get_optional_user, require_video_owner
+from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
-from app.models.video import VideoReviewStatus
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
-    ProposalCreate,
-    ProposalReject,
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
     SubtitleBatchUpdate,
@@ -33,27 +30,6 @@ from app.schemas.video import (
     VideoResponse,
     VideoStatusResponse,
     WordLevelsUpdate,
-)
-from app.services.proposal_service import (
-    apply_mergeable_update as _apply_mergeable_update,
-)
-from app.services.proposal_service import (
-    list_mergeable_updates as _list_mergeable_updates,
-)
-from app.services.proposal_service import (
-    list_proposals as _list_proposals,
-)
-from app.services.proposal_service import (
-    merge_proposal as _merge_proposal,
-)
-from app.services.proposal_service import (
-    propose_subtitle_changes as _propose_subtitle_changes,
-)
-from app.services.proposal_service import (
-    reject_proposal as _reject_proposal,
-)
-from app.services.proposal_service import (
-    withdraw_proposal as _withdraw_proposal,
 )
 from app.services.search_service import (
     search_subtitles as _search_subtitles,
@@ -100,7 +76,6 @@ from app.services.subtitle_edit_service import (
 from app.services.subtitle_edit_service import (
     update_word_levels as _update_word_levels,
 )
-from app.services.upload_service import handle_video_upload
 from app.services.video_like_service import (
     get_video_like_status as _get_video_like_status,
 )
@@ -111,25 +86,10 @@ from app.services.video_review_service import (
     approve_review as _approve_review,
 )
 from app.services.video_review_service import (
-    begin_edit as _begin_edit,
-)
-from app.services.video_review_service import (
     reject_review as _reject_review,
-)
-from app.services.video_review_service import (
-    submit_for_review as _submit_for_review,
-)
-from app.services.video_review_service import (
-    withdraw_submission as _withdraw_submission,
-)
-from app.services.video_seed_service import (
-    seed_user_video as _seed_user_video,
 )
 from app.services.video_seed_service import (
     seed_video as _seed_video,
-)
-from app.services.video_seed_service import (
-    submit_video as _submit_video,
 )
 from app.services.video_service import (
     delete_video as _delete_video,
@@ -150,9 +110,6 @@ from app.services.video_service import (
     list_public_videos as _list_public_videos,
 )
 from app.services.video_service import (
-    list_user_videos as _list_user_videos,
-)
-from app.services.video_service import (
     localize_video_admin as _localize_video_admin,
 )
 from app.services.video_service import (
@@ -160,17 +117,6 @@ from app.services.video_service import (
 )
 
 router = APIRouter(prefix="/videos", tags=["videos"])
-
-
-@router.post("", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("5/minute")
-async def submit_video(
-    request: Request,
-    data: VideoCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    return await _submit_video(db, data.source_url, current_user)
 
 
 @router.get("/public", response_model=PaginatedResponse[VideoResponse])
@@ -892,429 +838,6 @@ async def get_video_status(
     return result
 
 
-@router.get("", response_model=PaginatedResponse[VideoResponse])
-@rate_limit("30/minute")
-async def list_videos(
-    request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=50),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    return await _list_user_videos(db, current_user.id, page=page, page_size=page_size)
-
-
-@router.post("/upload", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("5/minute")
-async def upload_video(
-    request: Request,
-    file: UploadFile = File(...),
-    title: str = Form(""),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Upload a local video file for processing."""
-    return await handle_video_upload(file=file, title=title, current_user=current_user, db=db)
-
-
-# ---------------------------------------------------------------------------
-# UGC creator endpoints (owner-scoped)
-#
-# Owners can edit their own video's subtitles + manage the review lifecycle.
-# Editing a published video is blocked until the owner calls begin-edit (which
-# freezes the approved version and flips to pending_review so the public keeps
-# watching the snapshot).
-# ---------------------------------------------------------------------------
-
-
-async def _require_editable_own_video(video_id: str, current_user: User, db: AsyncSession):
-    """Fetch a video owned by the caller and ensure it is in an editable state.
-
-    Returns the Video. Raises 404 if not owned, 409 if currently published
-    (owner must begin-edit first to avoid clobbering the public version), 403
-    if the video is a standard version body (决议 5 — standard edits go via PR).
-    """
-    video = await require_video_owner(video_id, current_user, db)
-    if video.review_status == VideoReviewStatus.published.value:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="视频已发布，请先调用 begin-edit 触发重新审核后再编辑",
-        )
-    # Standard version body is admin-only (决议 5); owners must propose via PR.
-    from sqlalchemy import select
-
-    from app.models.video_standard import VideoStandard
-
-    std = (
-        await db.execute(select(VideoStandard).where(VideoStandard.canonical_video_id == video_id))
-    ).scalar_one_or_none()
-    if std is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="该视频是标准版本体，请通过 PR 提议修改",
-        )
-    return video
-
-
-@router.patch("/{video_id}/subtitles/{subtitle_id}", response_model=SubtitleResponse)
-@rate_limit("60/minute")
-async def update_own_subtitle(
-    request: Request,
-    video_id: str,
-    subtitle_id: str,
-    payload: SubtitleUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Edit one subtitle on your own video. Owner only; blocked while published."""
-    await _require_editable_own_video(video_id, current_user, db)
-    try:
-        return await _update_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.patch("/{video_id}/subtitles", response_model=list[SubtitleResponse])
-@rate_limit("60/minute")
-async def update_own_subtitles_batch(
-    request: Request,
-    video_id: str,
-    payload: SubtitleBatchUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Apply many subtitle edits in one transaction to your own video. Owner only."""
-    await _require_editable_own_video(video_id, current_user, db)
-    try:
-        return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.post(
-    "/{video_id}/subtitles/{subtitle_id}/split",
-    response_model=list[SubtitleResponse],
-)
-@rate_limit("60/minute")
-async def split_own_subtitle(
-    request: Request,
-    video_id: str,
-    subtitle_id: str,
-    payload: SubtitleSplit,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Split one subtitle into two at split_time. Owner only; blocked while published."""
-    await _require_editable_own_video(video_id, current_user, db)
-    try:
-        return await _split_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.post(
-    "/{video_id}/subtitles/{subtitle_id}/merge",
-    response_model=SubtitleResponse,
-)
-@rate_limit("60/minute")
-async def merge_own_subtitle(
-    request: Request,
-    video_id: str,
-    subtitle_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Merge a subtitle with the next one. Owner only; blocked while published."""
-    await _require_editable_own_video(video_id, current_user, db)
-    try:
-        return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.get("/{video_id}/subtitles/{subtitle_id}/revisions")
-@rate_limit("30/minute")
-async def list_own_subtitle_revisions(
-    request: Request,
-    video_id: str,
-    subtitle_id: str,
-    page: int = 1,
-    page_size: int = 50,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List edit revisions for one subtitle on your own video. Owner only;
-    allowed even when published (read-only history)."""
-    await require_video_owner(video_id, current_user, db)
-    return await _list_subtitle_revisions(db, video_id, subtitle_id=subtitle_id, page=page, page_size=page_size)
-
-
-@router.post(
-    "/{video_id}/subtitles/{subtitle_id}/rollback/{revision_id}",
-    response_model=SubtitleResponse,
-)
-@rate_limit("30/minute")
-async def rollback_own_subtitle(
-    request: Request,
-    video_id: str,
-    subtitle_id: str,
-    revision_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Roll back a subtitle to the before-state of a prior edit on your own
-    video. Owner only; blocked while published (begin-edit first)."""
-    await _require_editable_own_video(video_id, current_user, db)
-    try:
-        return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-# ---------------------------------------------------------------------------
-# Phase 3e: PR propose-back + mergeable updates
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{video_id}/propose", response_model=dict, status_code=status.HTTP_201_CREATED)
-@rate_limit("10/minute")
-async def propose_subtitle_changes(
-    request: Request,
-    video_id: str,
-    payload: ProposalCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Submit a PR proposing this fork's subtitle edits back to the standard body."""
-    try:
-        proposal = await _propose_subtitle_changes(
-            db,
-            video_id,
-            title=payload.title,
-            body=payload.body,
-            subtitle_ids=payload.subtitle_ids,
-            submitted_by=current_user.id,
-        )
-        return {"id": proposal.id, "status": proposal.status}
-    except ValueError as e:
-        msg = str(e)
-        if "owner" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.get("/proposals/mine")
-@rate_limit("30/minute")
-async def list_my_proposals(
-    request: Request,
-    page: int = 1,
-    page_size: int = 50,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List the current user's submitted PRs."""
-    return await _list_proposals(db, submitted_by=current_user.id, page=page, page_size=page_size)
-
-
-@router.post("/proposals/{proposal_id}/withdraw", response_model=dict)
-@rate_limit("10/minute")
-async def withdraw_my_proposal(
-    request: Request,
-    proposal_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Withdraw one of your own pending PRs."""
-    try:
-        proposal = await _withdraw_proposal(db, proposal_id, submitted_by=current_user.id)
-        return {"id": proposal.id, "status": proposal.status}
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        if "submitter" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.get("/{video_id}/mergeable-updates")
-@rate_limit("30/minute")
-async def list_my_mergeable_updates(
-    request: Request,
-    video_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List pending mergeable-update markers on one of the caller's forks."""
-    video = await require_video_owner(video_id, current_user, db)
-    return await _list_mergeable_updates(db, video.id)
-
-
-@router.post("/{video_id}/mergeable-updates/{update_id}/apply", response_model=SubtitleResponse)
-@rate_limit("10/minute")
-async def apply_mergeable_update(
-    request: Request,
-    video_id: str,
-    update_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Apply one mergeable update: pull the standard's value onto this fork line."""
-    try:
-        sub = await _apply_mergeable_update(db, video_id, update_id, user_id=current_user.id)
-        return SubtitleResponse.model_validate(sub)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        if "owner" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.get("/admin/proposals")
-@rate_limit("30/minute")
-async def list_admin_proposals(
-    request: Request,
-    status_filter: str | None = Query(None, alias="status"),
-    page: int = 1,
-    page_size: int = 50,
-    _admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List PRs for admin review (optionally filtered by status). Admin only."""
-    return await _list_proposals(db, status=status_filter, page=page, page_size=page_size)
-
-
-@router.post("/admin/proposals/{proposal_id}/merge", response_model=dict)
-@rate_limit("10/minute")
-async def merge_admin_proposal(
-    request: Request,
-    proposal_id: str,
-    current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Merge a PR: write to standard body + propagate to forks. Admin only."""
-    try:
-        proposal = await _merge_proposal(db, proposal_id, reviewed_by=current_user.id)
-        return {"id": proposal.id, "status": proposal.status}
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.post("/admin/proposals/{proposal_id}/reject", response_model=dict)
-@rate_limit("10/minute")
-async def reject_admin_proposal(
-    request: Request,
-    proposal_id: str,
-    payload: ProposalReject,
-    current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Reject a PR with a reason. Admin only."""
-    try:
-        proposal = await _reject_proposal(db, proposal_id, reviewed_by=current_user.id, reason=payload.reason)
-        return {"id": proposal.id, "status": proposal.status}
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
-@router.post("/{video_id}/begin-edit", response_model=VideoResponse)
-@rate_limit("10/minute")
-async def begin_own_edit(
-    request: Request,
-    video_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Start editing a published video: freezes the approved version (public keeps
-    watching it) and flips to pending_review. Owner only."""
-    video = await require_video_owner(video_id, current_user, db)
-    try:
-        return VideoResponse.model_validate(await _begin_edit(db, video))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-
-@router.post("/{video_id}/submit-review", response_model=VideoResponse)
-@rate_limit("10/minute")
-async def submit_own_review(
-    request: Request,
-    video_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Submit your video for admin review. Owner only."""
-    video = await require_video_owner(video_id, current_user, db)
-    try:
-        return VideoResponse.model_validate(await _submit_for_review(db, video))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-
-@router.post("/{video_id}/withdraw", response_model=VideoResponse)
-@rate_limit("10/minute")
-async def withdraw_own_review(
-    request: Request,
-    video_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Withdraw your pending review back to draft. Owner only."""
-    video = await require_video_owner(video_id, current_user, db)
-    try:
-        return VideoResponse.model_validate(await _withdraw_submission(db, video))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-
-@router.post("/{video_id}/fork", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("10/minute")
-async def fork_video(
-    request: Request,
-    video_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Fork a ready video into the current user's library.
-
-    Copies subtitles + practice questions + metadata; the fork is born ready
-    and editable. No GPU pipeline runs (扩展 A4).
-    """
-    from app.services.video_seed_service import fork_video as _fork_video
-
-    try:
-        return await _fork_video(db, video_id, current_user)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
-
-
 @router.post("/seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit("5/minute")
 async def seed_video(
@@ -1363,48 +886,6 @@ async def seed_video_full(
     """
     await _require_valid_cookies(data.source_url)
     return await _seed_video(db, data.source_url, auto_publish=True)
-
-
-@router.post("/user-seed", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("3/minute")
-async def user_seed_video(
-    request: Request,
-    data: VideoCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Seed a video from URL on behalf of a regular user (UGC pipeline).
-
-    Creates a non-official video owned by the user, starting in draft
-    review status. The user must edit subtitles and submit for review
-    before the video becomes publicly visible.
-    """
-    return await _seed_user_video(db, data.source_url, current_user)
-
-
-@router.post("/user-seed-full", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
-@rate_limit("3/minute")
-async def user_seed_video_full(
-    request: Request,
-    data: VideoCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """One-click user seed: ensure cookies, seed, run full pipeline.
-
-    Like user-seed but also ensures YouTube cookies are valid before
-    processing. The video is created as UGC (is_official=False) and
-    stays in draft after processing completes, so the creator can
-    edit subtitles and practice questions before submitting for admin
-    review.
-    """
-    await _require_valid_cookies(data.source_url)
-    return await _seed_user_video(db, data.source_url, current_user)
-
-
-# ---------------------------------------------------------------------------
-# Video likes
-# ---------------------------------------------------------------------------
 
 
 @router.post("/{video_id}/like")

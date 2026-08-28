@@ -14,12 +14,10 @@ from sqlalchemy import text
 
 from app.api.v1 import (
     admin,
-    ai,
     auth,
     behavior,
     browse,
     channels,
-    comments,
     exams,
     favorites,
     feedback,
@@ -243,7 +241,6 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(favorites.router, prefix="/api/v1")
-    app.include_router(ai.router, prefix="/api/v1")
     app.include_router(redeem.router, prefix="/api/v1")
     app.include_router(presence.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
@@ -256,7 +253,6 @@ def create_app() -> FastAPI:
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
     app.include_router(channels.router, prefix="/api/v1")
-    app.include_router(comments.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(feedback.router, prefix="/api/v1")
     app.include_router(feedback.admin_router, prefix="/api/v1")

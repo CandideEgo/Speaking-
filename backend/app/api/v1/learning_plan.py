@@ -1,16 +1,24 @@
-"""Learning plan API — daily plan, progress, profile, and history (ADR-0012).
+"""Learning profile API — profile, milestones, mastery trend.
+
+The daily-plan / plan-item / history / AI-generation endpoints were removed
+on 2026-08-27 (learning-plan task assignment was cut). They return 410 Gone so
+old clients get a clear signal instead of 404.
 
 Endpoints:
-  GET  /plan/today           — Today's plan + progress + profile (combined)
-  POST /plan/items/{id}/complete — Mark a plan item as completed
-  GET  /plan/progress        — Today's progress only
   GET  /plan/profile         — Learning profile
   POST /plan/profile/refresh — Force-refresh profile from raw data
-  GET  /plan/history         — Paginated plan history
-  POST /plan/generate/ai     — AI-powered plan generation (Pro-only)
+  GET  /plan/mastery-trend   — Mastery snapshots for trend chart
+  GET  /plan/milestones      — Achieved milestones
+
+Removed (410 Gone):
+  GET  /plan/today
+  POST /plan/items/{id}/complete
+  GET  /plan/progress
+  GET  /plan/history
+  POST /plan/generate/ai
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -18,116 +26,51 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.learning_plan import (
-    AIPlanGenerateResponse,
-    DailyProgressResponse,
     LearningProfileResponse,
     MasterySnapshotItem,
     MasteryTrendResponse,
     MilestoneResponse,
-    PlanHistoryItem,
-    PlanItemCompleteRequest,
-    PlanItemCompleteResponse,
-    PlanResponse,
-    TodayPlanResponse,
 )
-from app.schemas.pagination import PaginatedResponse, paginated
-from app.services import learning_event_service, learning_plan_service, milestone_service, profile_service
+from app.services import milestone_service, profile_service
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 
+_GONE = {"message": "This endpoint has been removed.", "code": "GONE"}
 
-@router.get("/today", response_model=TodayPlanResponse)
+
+@router.get("/today", status_code=410)
 @rate_limit("30/minute")
-async def get_today_plan(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get today's learning plan with progress and profile."""
-    # Generate plan if not exists
-    plan_dict = await learning_plan_service.generate_daily_plan(db, current_user.id)
-
-    # Get progress
-    progress_dict = await learning_event_service.get_today_progress(db, current_user.id)
-
-    # Get profile
-    profile_dict = await profile_service.get_or_create_profile(db, current_user.id)
-    profile_resp = LearningProfileResponse(
-        estimated_level=profile_dict.estimated_level,
-        current_streak=profile_dict.current_streak,
-        longest_streak=profile_dict.longest_streak,
-        weekly_cycles_completed=profile_dict.weekly_cycles_completed,
-        mastery_by_level=profile_dict.mastery_by_level,
-        strengths=profile_dict.strengths,
-        weaknesses=profile_dict.weaknesses,
-    )
-
-    # Build plan response
-    plan_resp = PlanResponse(**plan_dict) if plan_dict else None
-
-    progress_resp = DailyProgressResponse(**progress_dict)
-
-    return TodayPlanResponse(
-        plan=plan_resp,
-        progress=progress_resp,
-        profile=profile_resp,
-    )
+async def get_today_plan(request: Request):
+    """Removed: daily learning plan."""
+    return _GONE
 
 
-@router.post("/items/{item_id}/complete", response_model=PlanItemCompleteResponse)
+@router.post("/items/{item_id}/complete", status_code=410)
 @rate_limit("10/minute")
-async def complete_plan_item(
-    request: Request,
-    item_id: str,
-    body: PlanItemCompleteRequest | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Mark a plan item as completed. Emits LearningEvent."""
-    # We need the plan_id to verify ownership — extract from the item
-    from sqlalchemy import select
-
-    from app.models.learning_plan import LearningPlan, LearningPlanItem
-
-    result = await db.execute(select(LearningPlanItem).where(LearningPlanItem.id == item_id))
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Plan item not found")
-
-    # Verify plan ownership
-    plan_result = await db.execute(
-        select(LearningPlan).where(
-            LearningPlan.id == item.plan_id,
-            LearningPlan.user_id == current_user.id,
-        )
-    )
-    if not plan_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Plan not found")
-
-    try:
-        result = await learning_plan_service.mark_plan_item_completed(
-            db,
-            item.plan_id,
-            item_id,
-            current_user.id,
-            result_data=body.result if body else None,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-    return PlanItemCompleteResponse(**result)
+async def complete_plan_item(request: Request, item_id: str):
+    """Removed: plan item completion."""
+    return _GONE
 
 
-@router.get("/progress", response_model=DailyProgressResponse)
+@router.get("/progress", status_code=410)
 @rate_limit("30/minute")
-async def get_today_progress(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get today's learning progress without the full plan."""
-    progress_dict = await learning_event_service.get_today_progress(db, current_user.id)
-    return DailyProgressResponse(**progress_dict)
+async def get_today_progress(request: Request):
+    """Removed: daily plan progress."""
+    return _GONE
+
+
+@router.get("/history", status_code=410)
+@rate_limit("30/minute")
+async def get_plan_history(request: Request):
+    """Removed: plan history."""
+    return _GONE
+
+
+@router.post("/generate/ai", status_code=410)
+@rate_limit("3/minute")
+async def generate_ai_plan(request: Request):
+    """Removed: AI plan generation."""
+    return _GONE
 
 
 @router.get("/profile", response_model=LearningProfileResponse)
@@ -162,46 +105,6 @@ async def refresh_learning_profile(
     """Force-refresh the learning profile from raw data."""
     profile_dict = await profile_service.refresh_profile(db, current_user.id)
     return LearningProfileResponse(**profile_dict)
-
-
-@router.get("/history", response_model=PaginatedResponse[PlanHistoryItem])
-@rate_limit("30/minute")
-async def get_plan_history(
-    request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=50),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get paginated history of past learning plans."""
-    result = await learning_plan_service.get_plan_history(db, current_user.id, page, page_size)
-    items = [PlanHistoryItem(**item) for item in result["items"]]
-    return paginated(
-        items,
-        page=result["page"],
-        page_size=result["page_size"],
-        total=result["total"],
-    )
-
-
-@router.post("/generate/ai", response_model=AIPlanGenerateResponse)
-@rate_limit("3/minute")
-async def generate_ai_plan(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Generate an AI-powered learning plan."""
-    try:
-        from app.services.ai_plan_service import generate_ai_plan as _generate
-
-        plan_dict = await _generate(db, current_user.id)
-        return AIPlanGenerateResponse(
-            status="completed",
-            plan_id=plan_dict.get("id"),
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"AI plan generation failed: {e}") from e
 
 
 @router.get("/mastery-trend", response_model=MasteryTrendResponse)

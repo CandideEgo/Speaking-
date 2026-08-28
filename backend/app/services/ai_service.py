@@ -163,15 +163,6 @@ class AIService:
         except json.JSONDecodeError as e:
             raise AIServiceError("AI 返回测验格式无效") from e
 
-    async def word_context_meaning(self, word: str, sentence: str) -> str:
-        system = (
-            "You are an English dictionary for Chinese learners. Given a word and the sentence "
-            "it appears in, provide: phonetic transcription, the exact meaning in this context "
-            "(in Chinese), and one more example sentence. Keep it concise — under 80 Chinese characters."
-        )
-        user = f"Word: {word}\nSentence: {sentence}"
-        return await self._chat(system, user)
-
     async def extract_difficulty_words(self, sentence: str) -> list[str]:
         """Extract 0-3 challenging words from a sentence for Chinese learners."""
         system = (
@@ -186,23 +177,6 @@ class AIService:
             return parsed if isinstance(parsed, list) else []
         except json.JSONDecodeError as e:
             raise AIServiceError("AI 返回难词列表格式无效") from e
-
-    async def assistant_daily_summary(self, stats: dict) -> str:
-        system = (
-            "You are a friendly, encouraging English learning coach for Chinese users. "
-            "Based on today's learning stats, write a short (2-3 sentences) summary in Chinese. "
-            "Be specific about what was practiced and give one suggestion for tomorrow."
-        )
-        return await self._chat(system, json.dumps(stats, ensure_ascii=False))
-
-    async def assistant_recommend(self, user_level: str, history_summary: str) -> str:
-        system = (
-            "Based on the user's English level and learning history, write a short "
-            "recommendation (in Chinese) for what type of video they should learn next. "
-            "Be specific — mention a topic or scenario. Under 50 characters."
-        )
-        user = f"Level: {user_level}\nHistory: {history_summary}"
-        return await self._chat(system, user)
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from LLM response, handling markdown code fences."""
@@ -278,47 +252,6 @@ class AIService:
         except json.JSONDecodeError as e:
             raise AIServiceError("AI 返回词汇释义格式无效") from e
         # AIServiceError from _chat propagates as-is.
-
-    async def gloss_word_context(self, word: str, context_sentence: str = "") -> dict:
-        """Generate context-sensitive learning notes for a word in a subtitle.
-
-        Unlike ``enrich_vocabulary_word`` (word-only cache), this is context-
-        sensitive — the same word in different sentences may carry different
-        meanings — so the cache key includes the sentence hash. Results live in
-        a separate ``word_gloss:`` Redis namespace to stay decoupled.
-
-        Returns a dict with:
-            contextual_note: the word's meaning in THIS context (Chinese)
-            pitfalls:        common mistakes / confusions for Chinese learners (Chinese)
-            knowledge:       etymology / usage extension / collocations (Chinese)
-        """
-        import hashlib
-
-        cache_key = hashlib.sha256(f"gloss:{word}:{context_sentence}".encode()).hexdigest()
-        cached = await self._cache_get(f"word_gloss:{cache_key}")
-        if cached:
-            return json.loads(cached)
-
-        system = (
-            "You are an English learning tutor for Chinese students preparing for CET/高考/考研. "
-            "Given a word and the sentence it appears in, return JSON with:\n"
-            '- "contextual_note": the exact meaning of the word in THIS context, in Chinese (concise)\n'
-            '- "pitfalls": common mistakes or confusions Chinese learners make with this word, in Chinese\n'
-            '- "knowledge": a short usage extension — collocation, etymology, or register, in Chinese\n'
-            "Keep each field under 120 Chinese characters. Return JSON only."
-        )
-        user = f"Word: {word}\nSentence: {context_sentence}" if context_sentence else f"Word: {word}"
-
-        try:
-            result = await self._chat(system, user, response_format={"type": "json_object"})
-            parsed = json.loads(self._extract_json(result))
-            parsed.setdefault("contextual_note", "")
-            parsed.setdefault("pitfalls", "")
-            parsed.setdefault("knowledge", "")
-            await self._cache_set(f"word_gloss:{cache_key}", json.dumps(parsed, ensure_ascii=False))
-            return parsed
-        except json.JSONDecodeError as e:
-            raise AIServiceError("AI 返回词汇语境释义格式无效") from e
 
     async def generate_practice_questions(
         self,
@@ -581,74 +514,6 @@ class AIService:
                 }
             )
         return aligned
-
-    # -----------------------------------------------------------------------
-    # Learning plan generation (ADR-0012, Pro feature)
-    # -----------------------------------------------------------------------
-
-    async def generate_learning_plan(
-        self,
-        profile_summary: str,
-        vocabulary_summary: str,
-        recent_events_summary: str,
-        video_pool_summary: str,
-        daily_goal_type: str = "words",
-        daily_goal_value: int = 5,
-        target_exam: str | None = None,
-    ) -> list[dict]:
-        """Generate an AI-powered daily learning plan via LLM.
-
-        Returns a list of plan item dicts:
-          [{"item_type": "review_words", "count": N, "reason": "..."}, ...]
-        """
-        system = (
-            "You are an English learning plan generator for Chinese learners. "
-            "Generate a daily learning plan as a JSON object with an 'items' array. "
-            "Each item must have: item_type (review_words/watch_video/practice/vocab_drill), "
-            "and a reason string. Review items need count. Watch items need video_id. "
-            "Practice items need exam_level and item_count. Vocab drill items need count and due_only.\n\n"
-            "Rules:\n"
-            "- Due reviews always come first\n"
-            "- Total estimated time should match the daily goal\n"
-            "- Interleave different activity types for engagement\n"
-            "- Prioritize weak areas\n"
-            "- Include at most 2 new videos\n"
-            '- Respond with a JSON object: {"items": [...]}'
-        )
-
-        user = (
-            f"User profile:\n{profile_summary}\n\n"
-            f"Vocabulary mastery:\n{vocabulary_summary}\n\n"
-            f"Recent activity (last 7 days):\n{recent_events_summary}\n\n"
-            f"Available videos (matching level):\n{video_pool_summary}\n\n"
-            f"Daily goal: {daily_goal_value} {daily_goal_type}\n"
-            f"Target exam: {target_exam or 'not set'}\n\n"
-            "Generate the daily learning plan:"
-        )
-
-        raw = await self._chat(
-            system,
-            user,
-            temperature=0.4,
-            response_format={"type": "json_object"},
-        )
-
-        # Parse response — the LLM may wrap the array in an object
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                items = parsed.get("items") or parsed.get("plan") or []
-            elif isinstance(parsed, list):
-                items = parsed
-            else:
-                items = []
-        except json.JSONDecodeError:
-            logger.warning("AI plan response not valid JSON: %s", raw[:200])
-            items = []
-
-        # Validate items
-        valid_types = {"review_words", "watch_video", "practice", "vocab_drill"}
-        return [i for i in items if isinstance(i, dict) and i.get("item_type") in valid_types]
 
 
 # --- Thread-safe singleton ---

@@ -321,12 +321,12 @@ async def test_get_best_note_falls_back_to_surface_key_for_inflected_forms(db_se
     assert best_lemma["contextual_note"] == "lemma video note"
 
 
-# --- gloss endpoint: DB-first, live-fallback ---
+# --- gloss endpoint: DB notes only (no live AI fallback) ---
 
 
 @pytest.mark.asyncio
-async def test_gloss_returns_db_note_no_live_ai_call(client, auth_headers, monkeypatch):
-    """When a preheated note exists, gloss must not call live AI."""
+async def test_gloss_returns_preheated_db_note(client, auth_headers, monkeypatch):
+    """When a preheated note exists, gloss returns it; no live AI is called."""
     from app.services import ecdict, word_notes
     from tests.conftest import TestSessionLocal
 
@@ -359,11 +359,6 @@ async def test_gloss_returns_db_note_no_live_ai_call(client, auth_headers, monke
             ],
         )
 
-    # If live AI is called, this will fail the test (assertion + mock will count).
-    ai = type("FakeAI", (), {})()
-    ai.gloss_word_context = AsyncMock(side_effect=AssertionError("live AI should NOT be called when DB note exists"))
-    monkeypatch.setattr("app.api.v1.words.get_ai_service", lambda: ai)
-
     resp = await client.get(
         "/api/v1/words/gloss",
         params={"word": "accumulate", "context_sentence": "We accumulate data."},
@@ -374,42 +369,3 @@ async def test_gloss_returns_db_note_no_live_ai_call(client, auth_headers, monke
     assert data["contextual_note"] == "preheated note"
     assert data["pitfalls"] == "preheated pitfall"
     assert data["knowledge"] == "preheated knowledge"
-    ai.gloss_word_context.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_gloss_writes_global_note_on_first_live_call(client, auth_headers, monkeypatch):
-    """On a cold lookup, gloss calls AI and persists the result as a global note,
-    so the next call for the same word is instant."""
-    from app.services import word_notes
-    from tests.conftest import TestSessionLocal
-
-    # Ensure no pre-existing note.
-    async with TestSessionLocal() as db:
-        await db.execute(__import__("sqlalchemy").text("DELETE FROM word_ai_notes WHERE word='unknownword'"))
-        await db.commit()
-
-    ai = type("FakeAI", (), {})()
-    ai.gloss_word_context = AsyncMock(
-        return_value={"contextual_note": "live cn", "pitfalls": "live pit", "knowledge": "live know"}
-    )
-    monkeypatch.setattr("app.api.v1.words.get_ai_service", lambda: ai)
-
-    resp1 = await client.get(
-        "/api/v1/words/gloss",
-        params={"word": "unknownword", "context_sentence": "test"},
-        headers=auth_headers,
-    )
-    assert resp1.status_code == 200
-    assert resp1.json()["contextual_note"] == "live cn"
-    ai.gloss_word_context.assert_called_once()
-
-    # Second call should hit the DB and not call AI again.
-    ai.gloss_word_context = AsyncMock(side_effect=AssertionError("live AI should not be called after preheat"))
-    resp2 = await client.get(
-        "/api/v1/words/gloss",
-        params={"word": "unknownword", "context_sentence": "test"},
-        headers=auth_headers,
-    )
-    assert resp2.status_code == 200
-    assert resp2.json()["contextual_note"] == "live cn"

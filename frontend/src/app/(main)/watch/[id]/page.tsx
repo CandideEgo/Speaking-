@@ -21,7 +21,6 @@ import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
-import { ForkBadge } from "@/components/video/ForkBadge";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
@@ -407,12 +406,6 @@ export default function WatchPage() {
           <span>{video.difficulty_level || "B2"}</span>
           <span>·</span>
           <span>{formatDuration(video.duration)}</span>
-          {video.forked_from && (
-            <>
-              <span>·</span>
-              <ForkBadge forkedFrom={video.forked_from} />
-            </>
-          )}
         </div>
 
         {/* 笔记抽屉 */}

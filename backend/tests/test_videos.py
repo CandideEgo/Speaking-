@@ -3,59 +3,6 @@
 from httpx import AsyncClient
 
 
-class TestSubmitVideo:
-    async def test_submit_video_requires_auth(self, client: AsyncClient):
-        resp = await client.post(
-            "/api/v1/videos",
-            json={
-                "source_url": "https://www.youtube.com/watch?v=abcdefghijk",
-            },
-        )
-        assert resp.status_code == 401
-
-    async def test_submit_youtube_video_creates_record(self, client: AsyncClient, auth_headers: dict):
-        resp = await client.post(
-            "/api/v1/videos",
-            headers=auth_headers,
-            json={"source_url": "https://www.youtube.com/watch?v=abcdefghijk"},
-        )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["source_url"] == "https://www.youtube.com/watch?v=abcdefghijk"
-        assert data["video_source"] == "imported"
-        assert data["status"] in ("pending_processing", "processing", "ready_subtitles", "ready", "error")
-
-    async def test_submit_bilibili_video(self, client: AsyncClient, auth_headers: dict):
-        resp = await client.post(
-            "/api/v1/videos",
-            headers=auth_headers,
-            json={"source_url": "https://www.bilibili.com/video/BV1xx411c7mD"},
-        )
-        assert resp.status_code == 201
-        assert resp.json()["video_source"] == "imported"
-
-
-class TestListVideos:
-    async def test_list_videos_requires_auth(self, client: AsyncClient):
-        resp = await client.get("/api/v1/videos")
-        assert resp.status_code == 401
-
-    async def test_list_videos_returns_user_videos(self, client: AsyncClient, auth_headers: dict):
-        # Submit a video first
-        await client.post(
-            "/api/v1/videos",
-            headers=auth_headers,
-            json={"source_url": "https://www.youtube.com/watch?v=abcdefghijk"},
-        )
-        resp = await client.get("/api/v1/videos", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        # Paginated response shape: {items, page, page_size, has_more}
-        assert isinstance(data, dict)
-        assert "items" in data
-        assert len(data["items"]) >= 1
-
-
 class TestPublicVideos:
     async def test_list_public_videos(self, client: AsyncClient):
         resp = await client.get("/api/v1/videos/public")

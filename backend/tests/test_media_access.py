@@ -72,53 +72,6 @@ async def test_public_media_no_token_ok(client, media_dir):
 # ---------------------------------------------------------------------------
 
 
-async def test_upload_ignores_client_filename_extension(client, auth_headers, tmp_path, monkeypatch):
-    """The stored extension must come from the server-side content-type map,
-    never from the client-controlled filename (stored-XSS defense)."""
-    settings = get_settings()
-    media_root = tmp_path / "media"
-    monkeypatch.setattr(settings, "local_media_path", str(media_root))
-    monkeypatch.setattr(settings, "upload_temp_dir", str(media_root / "uploads"))
-    (media_root / "uploads").mkdir(parents=True)
-
-    resp = await client.post(
-        "/api/v1/videos/upload",
-        headers=auth_headers,
-        files={"file": ("x.html", b"fake video bytes", "video/mp4")},
-    )
-    assert resp.status_code == 201, resp.text
-    source_url = resp.json()["source_url"]
-    assert source_url.endswith(".mp4"), source_url
-    stored = Path(source_url)
-    assert stored.exists() and stored.suffix == ".mp4"
-    # Nothing was written with the attacker-chosen extension.
-    assert not list((media_root / "uploads").glob("*.html"))
-
-
-async def test_upload_unsupported_content_type_rejected(client, auth_headers, tmp_path, monkeypatch):
-    settings = get_settings()
-    monkeypatch.setattr(settings, "upload_temp_dir", str(tmp_path / "uploads"))
-    resp = await client.post(
-        "/api/v1/videos/upload",
-        headers=auth_headers,
-        files={"file": ("evil.html", b"<script>x</script>", "text/html")},
-    )
-    assert resp.status_code == 400
-
-
-async def test_upload_oversized_rejected(client, auth_headers, tmp_path, monkeypatch):
-    settings = get_settings()
-    monkeypatch.setattr(settings, "upload_temp_dir", str(tmp_path / "uploads"))
-    monkeypatch.setattr(settings, "max_upload_file_size", 1024)
-    resp = await client.post(
-        "/api/v1/videos/upload",
-        headers=auth_headers,
-        files={"file": ("big.mp4", b"x" * 4096, "video/mp4")},
-    )
-    assert resp.status_code == 400
-    assert "too large" in resp.json()["detail"].lower()
-
-
 async def test_serve_media_rejects_non_media_extension(client, media_dir):
     """Planting a non-media file must not make it servable (stored-XSS)."""
     (media_dir / "evil.html").write_bytes(b"<script>alert(1)</script>")

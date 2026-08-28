@@ -120,10 +120,7 @@ async def test_gloss_endpoint_surfaces_corpus_example_and_freq(client, auth_head
         )
 
     # ECDICT lookup already monkeypatched via ecdict_lookup fixture for "accumulate".
-    # Stub AI so the endpoint doesn't hit a real LLM.
-    ai = type("FakeAI", (), {})()
-    ai.gloss_word_context = AsyncMock(return_value={"contextual_note": "积累", "pitfalls": "", "knowledge": ""})
-    monkeypatch.setattr("app.api.v1.words.get_ai_service", lambda: ai)
+    # AI notes are pipeline-preheated only (no live LLM fallback), so no stub needed.
 
     resp = await client.get(
         "/api/v1/words/gloss",
@@ -148,9 +145,6 @@ async def test_gloss_corpus_fields_null_when_empty(client, auth_headers, monkeyp
     from app.services import ecdict
 
     monkeypatch.setattr(ecdict, "lookup", lambda token: None)
-    ai = type("FakeAI", (), {})()
-    ai.gloss_word_context = AsyncMock(return_value={"contextual_note": "", "pitfalls": "", "knowledge": ""})
-    monkeypatch.setattr("app.api.v1.words.get_ai_service", lambda: ai)
 
     resp = await client.get(
         "/api/v1/words/gloss",
