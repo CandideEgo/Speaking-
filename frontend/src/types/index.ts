@@ -58,6 +58,8 @@ export interface Video {
   created_at: string;
   /** Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks */
   forked_from: string | null;
+  /** D0 示范视频：不消耗解锁额度，卡片不显示锁标。 */
+  is_demo?: boolean;
 }
 
 export interface VideoAdmin extends Video {
@@ -135,6 +137,15 @@ export interface SubtitleRevision {
 
 export interface VideoWithSubtitles extends Video {
   subtitles: Subtitle[];
+  /** D0 解锁制：当前观看者的访问权限（后端 video detail 返回）。 */
+  access?: VideoAccessInfo;
+}
+
+/** 观看权限信息（解锁制）：Pro/admin 的 remaining_this_month 为 null（无限）。 */
+export interface VideoAccessInfo {
+  unlocked: boolean;
+  remaining_this_month: number | null;
+  quota: number;
 }
 
 export interface LearningRecord {

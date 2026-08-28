@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
-import { LandingContent } from "@/components/landing/LandingContent";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 
@@ -64,10 +63,10 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
     return <ShellSkeleton />;
   }
 
-  // Unauthenticated visitors see the public landing page (with login/register CTAs)
-  // instead of being bounced to a bare login form.
+  // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
+  // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
   if (!isAuthenticated) {
-    return <LandingContent />;
+    return <div className="min-h-screen bg-canvas">{children}</div>;
   }
 
   // Render shell immediately — onboarding check runs in background

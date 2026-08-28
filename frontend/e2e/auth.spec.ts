@@ -69,11 +69,12 @@ test.describe("Login", () => {
 });
 
 test.describe("Guards and Logout", () => {
-  test("unauthenticated visit to / shows the public landing page", async ({ page }) => {
+  test("unauthenticated visit to / redirects to /login (login wall)", async ({ page }) => {
     await page.goto("/");
-    // ADR-0005: unauthenticated "/" renders the landing page, not the app.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
-    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
+    // D0 登录墙：middleware 302 到 /login?next=/（落地页已删）。
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(page.url()).toContain("/login");
+    expect(page.url()).toContain("next=");
     // The app sidebar (logout button) must NOT be present.
     await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
   });
@@ -84,8 +85,9 @@ test.describe("Guards and Logout", () => {
     await page.waitForURL(/\/login/, { timeout: 10000 });
     expect(page.url()).toContain("/login");
 
-    // After logout, "/" shows the landing page again (no app shell).
+    // After logout, "/" bounces back to the login wall again.
     await page.goto("/");
+    await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
   });
 });
@@ -122,9 +124,10 @@ test.describe("Cross-Page Links", () => {
 });
 
 test.describe("Navigation", () => {
-  test("landing page shows a login link for unauthenticated visitors", async ({ page }) => {
+  test("unauthenticated visitors land on the login page (wall)", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
   });
 
   test("mobile viewport renders without overflow", async ({ page }) => {

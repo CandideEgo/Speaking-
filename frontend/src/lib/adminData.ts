@@ -195,6 +195,7 @@ export async function updateVideo(id: string, patch: Partial<VideoAdmin>): Promi
   if (patch.is_featured !== undefined) body.is_featured = patch.is_featured;
   if (patch.is_published !== undefined) body.is_published = patch.is_published;
   if (patch.show_on_homepage !== undefined) body.show_on_homepage = patch.show_on_homepage;
+  if (patch.is_demo !== undefined) body.is_demo = patch.is_demo;
   if (patch.admin_notes !== undefined) body.admin_notes = patch.admin_notes;
   // ADR-0014: "" clears the channel assignment (backend maps it to NULL).
   if (patch.channel_ref !== undefined) body.channel_ref = patch.channel_ref ?? "";

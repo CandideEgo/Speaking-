@@ -9,13 +9,10 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.describe("Redeem - Unauthenticated", () => {
-  test("shows the public landing page (redeem form is gated)", async ({ page }) => {
+  test("redeem form is public (whitelisted under the login wall)", async ({ page }) => {
     await page.goto("/redeem");
-    // (main) routes render the public landing for unauthenticated visitors
-    // (ADR-0005), so the redeem form is not shown.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
-    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
-    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toHaveCount(0);
+    // D0 白名单（产品设计规划 §2.1）：/redeem 未登录可访问，表单直接渲染。
+    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
   });
 });
 

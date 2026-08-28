@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Home Page", () => {
-  test("landing page renders for unauthenticated visitors", async ({ page }) => {
+  test("unauthenticated visit redirects to the login wall", async ({ page }) => {
     await page.goto("/");
-    // ADR-0005: unauthenticated "/" shows the public landing page.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
-    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
+    // D0：落地页已删，未登录 302 到 /login?next=/。
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(page.url()).toContain("/login");
   });
 
   test("home page loads within 5 seconds", async ({ page }) => {
@@ -25,12 +25,11 @@ test.describe("Watch Page", () => {
 });
 
 test.describe("Auth Surface", () => {
-  test("redeem page is gated for unauthenticated visitors (landing shown)", async ({ page }) => {
+  test("redeem page is public (whitelisted under the login wall)", async ({ page }) => {
     await page.goto("/redeem");
     await expect(page.locator("body")).toBeVisible();
-    // (main) routes render the public landing for unauthenticated visitors
-    // (ADR-0005), so the redeem form itself is not shown.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
+    // D0 白名单：/redeem 未登录可访问并直接渲染兑换表单。
+    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
   });
 
   test("login form can be submitted with the Enter key", async ({ page }) => {
@@ -42,10 +41,10 @@ test.describe("Auth Surface", () => {
     await expect(page.locator("body")).toBeVisible();
   });
 
-  test("home page is keyboard navigable", async ({ page }) => {
-    await page.goto("/");
-    // Wait for the landing to render before testing keyboard focus.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
+  test("login page is keyboard navigable", async ({ page }) => {
+    await page.goto("/login");
+    // Wait for the login form to render before testing keyboard focus.
+    await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
     await page.keyboard.press("Tab");
     // Tab should move focus off <body> onto the first focusable element.
     const activeIsBody = await page.evaluate(() => document.activeElement === document.body);

@@ -12,7 +12,12 @@
 
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
-import { migrateTokenKeys, deriveAuthenticated, type BaseAuthUser } from "@/lib/authHelpers";
+import {
+  migrateTokenKeys,
+  deriveAuthenticated,
+  syncAuthCookie,
+  type BaseAuthUser,
+} from "@/lib/authHelpers";
 
 /** JWT payload（role 不在 JWT 里，admin role 经 /users/me DB 查询 + get_admin_user 叠加）。 */
 export type AdminAuthUser = BaseAuthUser;
@@ -54,6 +59,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
   login(token: string, refreshToken?: string | null) {
     if (typeof window !== "undefined") {
       localStorage.setItem(TOKEN_KEY, token);
+      // D0 登录墙：镜像到同名 cookie 供 middleware 校验 /admin 会话。
+      syncAuthCookie(TOKEN_KEY, token);
       if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
       else localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
@@ -88,6 +95,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      syncAuthCookie(TOKEN_KEY, null);
     }
     set({
       token: null,
@@ -110,6 +118,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
     const token = localStorage.getItem(TOKEN_KEY);
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!token) {
+      syncAuthCookie(TOKEN_KEY, null); // 清理残留镜像 cookie，避免 middleware 误放行 /admin
       set({
         token: null,
         refreshToken: null,
@@ -127,6 +136,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       isAuthenticated: deriveAuthenticated(token, user),
       isLoading: false,
     });
+    // 回访管理员的镜像 cookie 可能已丢失 — 用有效 token 重新镜像。
+    syncAuthCookie(TOKEN_KEY, token);
     // If expired, refresh BEFORE clearing the loading state: the shell guard
     // redirects to /admin/login as soon as isLoading=false && !isAuthenticated,
     // so clearing isLoading synchronously would bounce an expired-but-

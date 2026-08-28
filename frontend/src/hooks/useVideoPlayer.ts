@@ -64,6 +64,8 @@ interface UseVideoPlayerOptions {
 interface UseVideoPlayerReturn {
   video: VideoWithSubtitles | null;
   playbackMode: PlaybackMode;
+  /** D0 解锁制：Free 未解锁时为 true，watch 页渲染解锁面板而非播放器。 */
+  locked: boolean;
   currentSubtitleIndex: number;
   setCurrentSubtitleIndex: (idx: number) => void;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -143,7 +145,10 @@ export function useVideoPlayer({
     api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
-        if (v.status === "ready" && canPlay(v)) setPlaybackMode("ready");
+        // 锁定的视频不算 ready：未解锁时字幕/媒体 URL 已被后端置空，
+        // 交给 watch 页渲染解锁面板。
+        const unlocked = v.access ? v.access.unlocked : true;
+        if (v.status === "ready" && canPlay(v) && unlocked) setPlaybackMode("ready");
         else if (v.status === "ready_subtitles" || v.status === "processing")
           setPlaybackMode("processing");
         else setPlaybackMode("loading");
@@ -165,7 +170,8 @@ export function useVideoPlayer({
       try {
         const updated = await api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`);
         setVideo(updated);
-        if (updated.status === "ready" && canPlay(updated)) setPlaybackMode("ready");
+        const unlocked = updated.access ? updated.access.unlocked : true;
+        if (updated.status === "ready" && canPlay(updated) && unlocked) setPlaybackMode("ready");
         else if (updated.status === "ready_subtitles" || updated.status === "processing")
           setPlaybackMode("processing");
         else if (updated.status === "error") setPlaybackMode("loading");
@@ -467,6 +473,7 @@ export function useVideoPlayer({
   return {
     video,
     playbackMode,
+    locked: video?.access ? !video.access.unlocked : false,
     currentSubtitleIndex,
     setCurrentSubtitleIndex,
     videoRef,

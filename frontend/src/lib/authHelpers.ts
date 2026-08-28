@@ -45,3 +45,29 @@ export function deriveAuthenticated<U extends BaseAuthUser>(
   }
   return true;
 }
+
+/**
+ * 把 auth token 镜像到同名 cookie，供 Next.js middleware 读取（D0 登录墙）。
+ *
+ * middleware 运行在服务端，看不到 localStorage；cookie 仅作存在性镜像，
+ * 事实来源仍是 localStorage（API 调用照旧用 Authorization 头）。
+ * 传 null 则删除 cookie（登出/失效时调用）。
+ */
+export function syncAuthCookie(name: string, token: string | null, maxAgeDays = 30): void {
+  if (typeof document === "undefined") return;
+  if (token) {
+    document.cookie = `${name}=${encodeURIComponent(token)}; path=/; max-age=${maxAgeDays * 86400}; SameSite=Lax`;
+  } else {
+    document.cookie = `${name}=; path=/; max-age=0`;
+  }
+}
+
+/**
+ * 校验登录回跳地址（?next=）：只允许站内相对路径，防开放重定向。
+ * 非法/缺失时返回默认值。
+ */
+export function safeNext(raw: string | null, fallback = "/"): string {
+  if (!raw) return fallback;
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return fallback;
+  return raw;
+}

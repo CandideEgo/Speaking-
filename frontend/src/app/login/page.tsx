@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { safeNext } from "@/lib/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
@@ -13,10 +14,22 @@ import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { Lock } from "lucide-react";
 
+// D0 登录墙：未登录被 middleware 302 到 /login?next=…，登录成功后跳回原页。
+// useSearchParams 需要 Suspense 包裹（客户端页面静态预渲染约束）。
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
   const login = useAuthStore((s) => s.login);
-  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated();
+  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated(next);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -42,7 +55,7 @@ export default function LoginPage() {
         body: JSON.stringify({ phone, password }),
       });
       login(res.token, res.refresh_token);
-      router.push("/");
+      router.replace(next);
     } catch (err) {
       setError(apiErrorMessage(err, "登录失败，请重试"));
     } finally {
@@ -104,7 +117,7 @@ export default function LoginPage() {
       <p className="mt-5 text-center text-[13px] text-muted">
         还没有账号？{" "}
         <Link
-          href="/register"
+          href={next === "/" ? "/register" : `/register?next=${encodeURIComponent(next)}`}
           className="font-semibold text-ink hover:text-brand-600 transition-colors"
         >
           创建账号

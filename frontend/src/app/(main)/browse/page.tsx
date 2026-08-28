@@ -7,6 +7,7 @@ import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
+import { useUnlockedIds } from "@/hooks/useUnlockedIds";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ChannelStrip } from "@/components/channels/ChannelStrip";
 import { Compass } from "lucide-react";
@@ -35,6 +36,9 @@ export default function BrowsePage() {
     retry,
     loaderRef,
   } = usePlatformFeed({ platform: "browse" });
+
+  // D0 解锁制：Free 视角的卡片角标（已解锁 ✓ / 锁标 / 耗尽灰度）
+  const unlockedInfo = useUnlockedIds();
 
   return (
     <PageTransition>
@@ -94,7 +98,11 @@ export default function BrowsePage() {
         {!error && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {videos.map((video) => (
-              <VideoCard key={video.id || video.video_id} video={video} />
+              <VideoCard
+                key={video.id || video.video_id}
+                video={video}
+                lockState={unlockedInfo?.lockStateFor(video)}
+              />
             ))}
           </div>
         )}

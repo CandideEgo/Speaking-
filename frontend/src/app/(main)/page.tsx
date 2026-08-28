@@ -5,6 +5,7 @@ import { Trophy, X, Compass } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
+import { useUnlockedIds } from "@/hooks/useUnlockedIds";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { TabPills } from "@/components/ui/TabPills";
@@ -50,6 +51,9 @@ export default function HomePage() {
   } = usePlatformFeed({ platform: "home" });
 
   const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
+
+  // D0 解锁制：Free 视角的卡片角标（已解锁 ✓ / 锁标 / 耗尽灰度）
+  const unlockedInfo = useUnlockedIds();
 
   // Find milestones achieved in the last 24h for the banner
   const recentMilestone = useMemo(() => {
@@ -143,7 +147,11 @@ export default function HomePage() {
         {!error && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {videos.map((video) => (
-              <VideoCard key={video.id || video.video_id} video={video} />
+              <VideoCard
+                key={video.id || video.video_id}
+                video={video}
+                lockState={unlockedInfo?.lockStateFor(video)}
+              />
             ))}
           </div>
         )}

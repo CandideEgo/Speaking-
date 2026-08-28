@@ -6,6 +6,7 @@ import { Pencil, Plus } from "lucide-react";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { bestVideoUrl } from "@/hooks/useVideoPlayer";
 import { mediaUrl } from "@/lib/api";
+import { useAdminAuthStore } from "@/stores/adminAuthStore";
 import { cn } from "@/lib/utils";
 import {
   TARGET_LEVEL_OPTIONS,
@@ -79,6 +80,8 @@ export function VideoSubtitleEditorPanel({
 }: VideoSubtitleEditorPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // 管理端字幕编辑器预览：媒体门控需可识别观看者，显式带 admin token。
+  const adminToken = useAdminAuthStore((s) => s.token);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [editId, setEditId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -186,7 +189,7 @@ export function VideoSubtitleEditorPanel({
             {url ? (
               <video
                 ref={videoRef}
-                src={mediaUrl(url)}
+                src={mediaUrl(url, { token: adminToken })}
                 controls
                 className="h-full w-full object-contain"
                 onTimeUpdate={(e) => {

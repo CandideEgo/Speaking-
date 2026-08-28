@@ -48,14 +48,22 @@ function shouldProxyHost(host: string): boolean {
   return PROXY_HOST_SUFFIXES.some((s) => h === s || h.endsWith("." + s));
 }
 
-export function mediaUrl(path: string, opts?: { withToken?: boolean }): string {
+export function mediaUrl(
+  path: string,
+  opts?: { withToken?: boolean; token?: string | null }
+): string {
   if (!path) return "";
   // Shadowing recordings are access-controlled per user; non-public video
   // media (drafts) require an owner/admin JWT. The backend reads ?token=
   // because <audio>/<video> tags cannot attach Authorization headers.
-  if (path.startsWith("/media/shadowing/") || opts?.withToken === true) {
+  if (
+    path.startsWith("/media/shadowing/") ||
+    opts?.withToken === true ||
+    opts?.token !== undefined
+  ) {
     try {
-      const token = getToken();
+      // 显式 token 优先（管理端预览传 admin token，与用户端会话分离）。
+      const token = opts?.token ?? getToken();
       if (token) {
         const sep = path.includes("?") ? "&" : "?";
         return `${API_URL}${path}${sep}token=${encodeURIComponent(token)}`;

@@ -13,7 +13,12 @@
 
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
-import { migrateTokenKeys, deriveAuthenticated, type BaseAuthUser } from "@/lib/authHelpers";
+import {
+  migrateTokenKeys,
+  deriveAuthenticated,
+  syncAuthCookie,
+  type BaseAuthUser,
+} from "@/lib/authHelpers";
 
 /** JWT payload shape we care about (role 不在 JWT 里，见 authHelpers.BaseAuthUser) */
 export type AuthUser = BaseAuthUser;
@@ -89,6 +94,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login(token: string, refreshToken?: string | null) {
     if (typeof window !== "undefined") {
       localStorage.setItem(TOKEN_KEY, token);
+      // D0 登录墙：镜像到同名 cookie 供 middleware 读取（事实来源仍是 localStorage）
+      syncAuthCookie(TOKEN_KEY, token);
       if (refreshToken) {
         localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
       } else {
@@ -135,6 +142,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      syncAuthCookie(TOKEN_KEY, null);
     }
     set({
       token: null,
@@ -171,6 +179,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const token = localStorage.getItem(TOKEN_KEY);
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!token) {
+      syncAuthCookie(TOKEN_KEY, null); // 清理可能残留的镜像 cookie，避免 middleware 误放行
       set({
         token: null,
         refreshToken: null,
@@ -202,6 +211,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       // console, which manages its own auth via a separate token store).
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      syncAuthCookie(TOKEN_KEY, null);
       set({
         token: null,
         refreshToken: null,
@@ -220,6 +230,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       // Token structurally invalid - clear and redirect
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      syncAuthCookie(TOKEN_KEY, null);
       set({
         token: null,
         refreshToken: null,
@@ -240,6 +251,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       isAuthenticated: deriveAuthenticated(token, user),
       isLoading: false,
     });
+    // 回访用户 cookie 可能已丢失/过期 — 用有效 token 重新镜像，
+    // 否则 middleware 会把已登录用户拦到 /login。
+    syncAuthCookie(TOKEN_KEY, token);
   },
 
   async refreshAccessToken(): Promise<boolean> {

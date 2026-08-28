@@ -300,6 +300,7 @@ function MetadataForm({
   const [showOnHomepage, setShowOnHomepage] = useState(
     "show_on_homepage" in video ? (video.show_on_homepage as boolean) : false
   );
+  const [isDemo, setIsDemo] = useState(video.is_demo ?? false);
   const [isPublished, setIsPublished] = useState(video.is_published);
   const [adminNotes, setAdminNotes] = useState(
     "admin_notes" in video ? ((video.admin_notes as string | null) ?? "") : ""
@@ -336,6 +337,7 @@ function MetadataForm({
         is_official: isOfficial,
         is_featured: isFeatured,
         show_on_homepage: showOnHomepage,
+        is_demo: isDemo,
         is_published: isPublished,
         admin_notes: adminNotes || null,
         channel_ref: channelRef || null,
@@ -417,6 +419,10 @@ function MetadataForm({
             onChange={(e) => setShowOnHomepage(e.target.checked)}
           />
           首页展示
+        </label>
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" checked={isDemo} onChange={(e) => setIsDemo(e.target.checked)} />
+          示范视频（不消耗解锁额度）
         </label>
         <label className="inline-flex items-center gap-2">
           <input

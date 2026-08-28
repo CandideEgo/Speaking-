@@ -11,9 +11,11 @@ test.beforeAll(async ({ request }) => {
   await registerUserViaApi(request, MOBILE_PHONE);
 });
 
-test.describe("Mobile - Landing Page", () => {
-  test("renders without horizontal overflow", async ({ page }) => {
+test.describe("Mobile - Login Wall", () => {
+  test("login page renders without horizontal overflow", async ({ page }) => {
+    // D0 登录墙：未登录 / 302 到 /login。
     await page.goto("/");
+    await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.locator("body")).toBeVisible();
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
@@ -21,12 +23,11 @@ test.describe("Mobile - Landing Page", () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
   });
 
-  test("brand and mobile menu button are visible", async ({ page }) => {
+  test("login form inputs are visible on mobile", async ({ page }) => {
     await page.goto("/");
-    // On mobile the login CTA lives inside the hamburger menu, so the
-    // hamburger trigger (not the desktop login link) is the visible affordance.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
-    await expect(page.locator('button[aria-label="菜单"]')).toBeVisible();
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toBeVisible();
   });
 });
 
@@ -59,10 +60,10 @@ test.describe("Mobile - Login Form", () => {
 });
 
 test.describe("Mobile - Redeem Page", () => {
-  test("redeem page is gated for unauthenticated visitors (landing shown)", async ({ page }) => {
+  test("redeem page is public (whitelisted under the login wall)", async ({ page }) => {
     await page.goto("/redeem");
-    // (main) routes render the public landing for unauthenticated visitors.
-    await expect(page.getByText("SeeWord").first()).toBeVisible();
+    // D0 白名单：/redeem 未登录直接渲染兑换表单。
+    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
   });
 });
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { safeNext } from "@/lib/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { useSmsCode } from "@/hooks/useSmsCode";
@@ -34,10 +35,21 @@ function scorePassword(pw: string): number {
   return score;
 }
 
+// ?next= 透传（登录页跳注册时携带），注册成功后跳回原页。
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
   const login = useAuthStore((s) => s.login);
-  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated();
+  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated(next);
   const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
 
   const [phone, setPhone] = useState("");
@@ -92,7 +104,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ phone, code, password }),
       });
       login(res.token, res.refresh_token);
-      router.push("/");
+      router.replace(next);
     } catch (err) {
       setError(apiErrorMessage(err, "注册失败，请重试"));
     } finally {

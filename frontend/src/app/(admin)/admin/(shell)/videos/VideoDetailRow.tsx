@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
+import { useAdminAuthStore } from "@/stores/adminAuthStore";
 import { useVideoPolling } from "@/hooks/useVideoPolling";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -68,6 +69,8 @@ export function VideoDetailRow({
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
   const hasLocal = Boolean(video.video_url_720p || video.video_url_480p || video.video_url_1080p);
+  // 管理端会话与用户端分离：媒体预览需显式带 admin token。
+  const adminToken = useAdminAuthStore((s) => s.token);
   const isProcessing = video.status === "processing" || video.status === "ready_subtitles";
   const stepLabel = video.processing_step
     ? STEP_LABELS_SHORT[video.processing_step] || video.processing_step
@@ -81,6 +84,7 @@ export function VideoDetailRow({
   const [isFeatured, setIsFeatured] = useState(video.is_featured);
   const [isPublished, setIsPublished] = useState(video.is_published);
   const [showOnHomepage, setShowOnHomepage] = useState(video.show_on_homepage ?? false);
+  const [isDemo, setIsDemo] = useState(video.is_demo ?? false);
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -99,6 +103,7 @@ export function VideoDetailRow({
         is_featured: isFeatured,
         is_published: isPublished,
         show_on_homepage: showOnHomepage,
+        is_demo: isDemo,
         admin_notes: adminNotes || null,
       });
       patchVideo(video.id, updated);
@@ -120,9 +125,9 @@ export function VideoDetailRow({
             {hasLocal && video.video_url_720p ? (
               <video
                 src={mediaUrl(video.video_url_720p, {
-                  // Draft media is gated server-side; the admin's JWT grants
-                  // preview access to unpublished videos.
-                  withToken: !video.is_official && video.review_status !== "published",
+                  // D0 媒体门控：/media 需可识别观看者；管理端会话独立，
+                  // 显式传 admin token（不能依赖用户端 authStore）。
+                  token: adminToken,
                 })}
                 controls
                 className="h-full w-full object-contain"
@@ -404,6 +409,15 @@ export function VideoDetailRow({
               className="h-4 w-4 rounded-sm border-hairline"
             />
             首页展示
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isDemo}
+              onChange={(e) => setIsDemo(e.target.checked)}
+              className="h-4 w-4 rounded-sm border-hairline"
+            />
+            示范视频（不消耗解锁额度）
           </label>
         </div>
 
