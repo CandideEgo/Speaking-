@@ -143,6 +143,7 @@ class UserPreferencesResponse(BaseModel):
     reminder_timezone: str | None = None
     auto_play_next_subtitle: bool = True
     subtitle_mode_default: str = "bilingual"
+    subtitle_font_size: str = "medium"
     preferred_difficulty: str | None = None
     target_exam: str | None = None
 
@@ -157,6 +158,7 @@ class UserPreferencesUpdate(BaseModel):
     reminder_timezone: str | None = None
     auto_play_next_subtitle: bool | None = None
     subtitle_mode_default: Literal["bilingual", "english", "chinese"] | None = None
+    subtitle_font_size: Literal["small", "medium", "large"] | None = None
     preferred_difficulty: str | None = None
     target_exam: str | None = None
 

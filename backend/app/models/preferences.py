@@ -40,6 +40,8 @@ class UserPreferences(Base):
     reminder_timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     auto_play_next_subtitle: Mapped[bool] = mapped_column(Boolean, default=True)
     subtitle_mode_default: Mapped[str] = mapped_column(String(20), default="bilingual")
+    # D1 字幕字号档位（小/中/大），watch 页字幕列表按此渲染。
+    subtitle_font_size: Mapped[str] = mapped_column(String(10), default="medium")
     preferred_difficulty: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # User's target exam level (canonical key from app.core.exam_levels, e.g. "cet4").
     # Drives which annotated words are highlighted on the watch page.
