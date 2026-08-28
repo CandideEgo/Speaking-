@@ -11,6 +11,7 @@ from app.api.dependencies import get_admin_user, get_current_user, get_optional_
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.video import (
     RecomputeWordLevelsRequest,
@@ -810,6 +811,53 @@ async def get_admin_video_score(
     }
 
 
+@router.get("/unlocked", response_model=PaginatedResponse[VideoResponse])
+@rate_limit("30/minute")
+async def list_unlocked_videos(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The current user's permanently unlocked videos (newest first).
+
+    Powers the /history 「已解锁」 tab. Registered before ``/{video_id}``
+    so the static path wins route matching.
+    """
+    from app.services.unlock_service import list_unlocked_videos as _list_unlocked_videos
+
+    return await _list_unlocked_videos(db, current_user, page=page, page_size=page_size)
+
+
+@router.get("/unlocked-ids")
+@rate_limit("30/minute")
+async def list_unlocked_video_ids(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """All unlocked video ids for the current user (card badge lookups).
+
+    Also reports the month's remaining quota for Free viewers so card grids
+    can render the three badge states (✓ unlocked / lock / lock+exhausted)
+    without one request per video. Pro/admin get ``remaining_this_month: null``.
+    """
+    from app.core.config import get_settings
+    from app.services.unlock_service import is_active_pro, remaining_unlocks
+    from app.services.unlock_service import list_unlocked_video_ids as _list_unlocked_video_ids
+
+    quota = get_settings().free_monthly_unlock_quota
+    remaining = None
+    if not (current_user.role == "admin" or is_active_pro(current_user)):
+        remaining = await remaining_unlocks(db, current_user)
+    return {
+        "video_ids": await _list_unlocked_video_ids(db, current_user),
+        "remaining_this_month": remaining,
+        "quota": quota,
+    }
+
+
 @router.get("/{video_id}", response_model=VideoDetailResponse)
 @rate_limit("30/minute")
 async def get_video(
@@ -822,6 +870,48 @@ async def get_video(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     return result
+
+
+@router.post("/{video_id}/unlock")
+@rate_limit("10/minute")
+async def unlock_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Consume one monthly Free quota to permanently unlock this video.
+
+    Idempotent (re-unlock consumes nothing). Pro/admin/demo requests succeed
+    without writing an unlock row. 409 when the month's quota is exhausted.
+    """
+    from app.services.unlock_service import UnlockQuotaExhaustedError
+    from app.services.unlock_service import unlock_video as _unlock_video
+    from app.services.video_access import check_video_access
+
+    video = await db.get(Video, video_id)
+    if video is None or not check_video_access(video, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    try:
+        access = await _unlock_video(db, current_user, video)
+    except UnlockQuotaExhaustedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"message": str(exc), "remaining": exc.remaining, "quota": exc.quota},
+        ) from exc
+
+    # Best-effort: drop the viewer's cached (locked) detail so the next read
+    # reflects the unlock immediately.
+    try:
+        from app.core.redis import get_redis
+
+        redis = await get_redis()
+        await redis.delete(f"video:detail:{video_id}:u:{current_user.id}")
+    except Exception:
+        pass
+
+    return {"access": access}
 
 
 @router.get("/{video_id}/status", response_model=VideoStatusResponse)

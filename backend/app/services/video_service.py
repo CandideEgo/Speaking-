@@ -158,17 +158,13 @@ async def get_video_detail(
     When *skip_access_check* is True the ``check_video_access`` gate is
     bypassed (used by the admin detail endpoint so admins can view UGC
     drafts they don't own).
+
+    D0 membership gate: Free viewers who have not unlocked the video get the
+    metadata (cover/title/difficulty) but empty subtitles and no media URLs —
+    the watch page renders the unlock panel from the ``access`` field.
     """
-
-    # Check cache for official videos (user-owned videos are never cached)
     from app.core.cache import cache_get, cache_set
-
-    cache_key = f"video:detail:{video_id}"
-    if current_user is None or current_user.plan == "free":
-        # Only cache for anonymous/free users on official videos
-        cached = await cache_get(cache_key)
-        if cached:
-            return VideoDetailResponse.model_validate_json(cached)
+    from app.services.unlock_service import get_video_access_info
 
     result = await db.execute(select(Video).options(selectinload(Video.subtitles)).where(Video.id == video_id))
     video = result.scalar_one_or_none()
@@ -180,8 +176,31 @@ async def get_video_detail(
     if not skip_access_check and not check_video_access(video, current_user):
         return None
 
-    # Create LearningRecord on first view for authenticated users (after access check)
-    if current_user:
+    # Membership gate (D0): admins (skip path) and Pro see everything; Free
+    # viewers need an unlock (demo videos are always open).
+    if skip_access_check:
+        from app.core.config import get_settings
+
+        access = {"unlocked": True, "remaining_this_month": None, "quota": get_settings().free_monthly_unlock_quota}
+    else:
+        access = await get_video_access_info(db, current_user, video)
+    can_watch = bool(access["unlocked"])
+
+    # Cache strategy: the locked shape (no subtitles/URLs) is identical for
+    # every locked viewer → shared key. Unlocked Free responses carry a
+    # per-viewer ``remaining`` → per-user key. Pro/admin stay uncached.
+    cache_key = f"video:detail:{video_id}"
+    if current_user is not None and current_user.plan == "free":
+        cache_key = f"video:detail:{video_id}:u:{current_user.id}"
+    cacheable = current_user is None or current_user.plan == "free"
+    if cacheable:
+        cached = await cache_get(cache_key)
+        if cached:
+            return VideoDetailResponse.model_validate_json(cached)
+
+    # Create LearningRecord on first view for authenticated viewers — only
+    # once they can actually watch (locked panel views don't count).
+    if current_user and can_watch:
         lr_result = await db.execute(
             select(LearningRecord)
             .where(
@@ -206,7 +225,9 @@ async def get_video_detail(
     # draft the owner is editing.
     use_snapshot = should_use_snapshot(video, current_user)
 
-    if use_snapshot:
+    if not can_watch:
+        subtitle_responses: list[SubtitleResponse] = []
+    elif use_snapshot:
         from app.services.video_publish import subtitles_from_snapshot
 
         subtitle_responses = subtitles_from_snapshot(video.published_snapshot)
@@ -243,9 +264,11 @@ async def get_video_detail(
         # never learns why an unpublished draft was rejected.
         # Cached responses (anonymous/free) must never include it.
         rejection_reason=video.rejection_reason if is_video_owner(video, current_user) else None,
-        video_url_480p=video.video_url_480p,
-        video_url_720p=video.video_url_720p,
-        video_url_1080p=video.video_url_1080p,
+        # Locked viewers get metadata but no playable URLs (media gate is the
+        # real enforcement; blanking URLs keeps the player from attempting it).
+        video_url_480p=video.video_url_480p if can_watch else None,
+        video_url_720p=video.video_url_720p if can_watch else None,
+        video_url_1080p=video.video_url_1080p if can_watch else None,
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         processing_mode=video.processing_mode,
@@ -254,12 +277,13 @@ async def get_video_detail(
         error_message=video.error_message if is_video_owner(video, current_user) else None,
         created_at=video.created_at.isoformat(),
         subtitles=subtitle_responses,
+        access=access,
     )
 
     # Cache official video details for 5 minutes.
     # Only cache if owner-only fields are None to prevent leaking them
     # to anonymous/free users via the shared cache.
-    if video.is_official and detail.rejection_reason is None and detail.error_message is None:
+    if cacheable and video.is_official and detail.rejection_reason is None and detail.error_message is None:
         await cache_set(cache_key, detail.model_dump_json(), ttl=300)
 
     return detail
@@ -427,6 +451,7 @@ async def update_video(
         "is_featured",
         "is_published",
         "show_on_homepage",
+        "is_demo",
         "admin_notes",
     ):
         value = getattr(payload, field)

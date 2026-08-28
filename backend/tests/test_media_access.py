@@ -1,5 +1,6 @@
 """Media access control — shadowing recordings are owner-only (?token= JWT)."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -142,13 +143,15 @@ async def test_proxy_success(client, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _clear_video_access_cache():
-    """The access-decision cache is module-global with a 60s TTL — clear it
-    per test so decisions from one test never leak into the next."""
+    """The access-decision caches are module-global with a 60s TTL — clear
+    them per test so decisions from one test never leak into the next."""
     from app.api.v1 import media as media_module
 
     media_module._VIDEO_ACCESS_CACHE.clear()
+    media_module._UNLOCK_GATE_CACHE.clear()
     yield
     media_module._VIDEO_ACCESS_CACHE.clear()
+    media_module._UNLOCK_GATE_CACHE.clear()
 
 
 async def _make_video(
@@ -206,24 +209,86 @@ async def video_media_dir(tmp_path, monkeypatch, db_session):
     return {"official": official, "ugc_draft": ugc_draft, "ugc_published": ugc_published, "snapshot": snapshot_video}
 
 
-async def test_official_video_media_public(client, video_media_dir):
+async def _make_user(
+    db: AsyncSession,
+    *,
+    phone: str,
+    plan: str = "free",
+    role: str = "user",
+    expires: datetime | None = None,
+):
+    from app.models.user import PlanType, RoleType, User
+
+    user = User(
+        phone=phone,
+        hashed_password="x",
+        name=f"User {phone[-4:]}",
+        plan=PlanType(plan),
+        plan_expires_at=expires,
+        role=RoleType(role),
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def test_official_video_media_locked_for_anonymous(client, video_media_dir):
+    """D0 membership gate: publish state passes, but anonymous viewers hold
+    neither Pro nor an unlock — the stream is refused (403, not 404)."""
     v = video_media_dir["official"]
     for name in (f"{v.id}.mp4", f"{v.id}_720p.mp4"):
         resp = await client.get(f"/media/{name}")
-        assert resp.status_code == 200, name
+        assert resp.status_code == 403, name
 
 
-async def test_published_ugc_media_public(client, video_media_dir):
+async def test_official_video_media_pro_ok(client, video_media_dir, db_session):
+    v = video_media_dir["official"]
+    pro = await _make_user(db_session, phone="13700000001", plan="pro", expires=datetime(2099, 12, 31, tzinfo=UTC))
+    resp = await client.get(f"/media/{v.id}.mp4?token={create_token(pro.id)}")
+    assert resp.status_code == 200
+    assert resp.content == b"official video"
+
+
+async def test_official_video_media_expired_pro_locked(client, video_media_dir, db_session):
+    v = video_media_dir["official"]
+    expired = await _make_user(db_session, phone="13700000002", plan="pro", expires=datetime(2020, 1, 1, tzinfo=UTC))
+    resp = await client.get(f"/media/{v.id}.mp4?token={create_token(expired.id)}")
+    assert resp.status_code == 403
+
+
+async def test_official_video_media_unlocked_free_ok(client, video_media_dir, db_session):
+    from app.models.user_video_unlock import UserVideoUnlock
+
+    v = video_media_dir["official"]
+    free = await _make_user(db_session, phone="13700000003")
+    db_session.add(UserVideoUnlock(user_id=free.id, video_id=v.id))
+    await db_session.commit()
+    resp = await client.get(f"/media/{v.id}_720p.mp4?token={create_token(free.id)}")
+    assert resp.status_code == 200
+    assert resp.content == b"official 720p"
+
+
+async def test_demo_video_media_open_to_anonymous(client, video_media_dir, db_session):
+    v = video_media_dir["official"]
+    v.is_demo = True
+    await db_session.commit()
+    resp = await client.get(f"/media/{v.id}.mp4")
+    assert resp.status_code == 200
+
+
+async def test_published_ugc_media_locked_for_anonymous(client, video_media_dir):
     v = video_media_dir["ugc_published"]
     resp = await client.get(f"/media/{v.id}_480p.mp4")
-    assert resp.status_code == 200
+    assert resp.status_code == 403
 
 
-async def test_snapshot_video_media_public(client, video_media_dir):
-    """Pending-re-review with a frozen snapshot stays publicly viewable."""
+async def test_snapshot_video_media_locked_for_anonymous(client, video_media_dir):
+    """Pending-re-review with a frozen snapshot stays *viewable* for viewers
+    with access, but anonymous streaming still needs membership (D0)."""
     v = video_media_dir["snapshot"]
     resp = await client.get(f"/media/{v.id}_720p.mp4")
-    assert resp.status_code == 200
+    assert resp.status_code == 403
 
 
 async def test_draft_ugc_media_private_without_token(client, video_media_dir):

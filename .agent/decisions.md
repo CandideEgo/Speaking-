@@ -249,3 +249,14 @@
 **Reason**: 前端全链路（录音面板/计划项/里程碑）+ 3 端点 + 测试已上线，回退成本高；持久化录音 owner-only JWT 鉴权，隐私可控。
 **Trade-offs**: 录音存储增长需监控（media/shadowing/ 容量）；「录音不落盘」的旧隐私承诺作废。
 **ADR**: [0013](docs/adr/0013-shadowing-recording-persistence.md)
+
+---
+
+## 2026-08-28 — 会员模型：登录墙 + Free 解锁制（D0）
+
+**Problem**: 产品设计规划-2026-08 要求登录墙 + 「Free 每月 3 视频」；需确定额度语义与执行位置。
+**Options**: A) 按月租借（当月可看 3 个，次月失效）；B) 解锁制（每月 3 次解锁机会，解锁后永久可看）
+**Decision**: B
+**Reason**: 解锁制给用户积累感（永久资产），额度模型简单（`user_video_unlocks` 表 + 当月计数）；浏览/元数据不设限，只闸字幕与媒体流。
+**Trade-offs**: 已解锁视频永久可看意味着长期内容成本上升，但种子期量小可接受；额度 3 是配置项（`free_monthly_unlock_quota`）可调。Pro 期间观看记录不写解锁表，降级后需重新解锁（已知体验代价，换取模型简单）。示范视频以 `videos.is_demo` 列标记，不消耗额度。
+配套决策：① 注册即发 3 天试用（`plan_source='trial'`，到期由既有 `downgrade-expired-pro` beat 降级）；② 登录墙用 Next.js middleware，token 仍存 localStorage，登录/刷新时镜像写 `seeword_token` cookie 供 middleware 读取（不在 middleware 查 DB，会员/额度校验在后端 API）；③ 不做 streak 保护卡（断签归零，真实反馈）。

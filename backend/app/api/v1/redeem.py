@@ -196,6 +196,7 @@ async def redeem_code(
     current_user = user_result.scalar_one()
 
     current_user.plan = PlanType.pro
+    current_user.plan_source = "redeem"
     new_expires: datetime | None = None
     if code.duration_days and code.duration_days > 0:
         now = _utcnow()

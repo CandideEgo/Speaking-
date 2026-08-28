@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,7 +14,7 @@ from app.core.logging import mask_phone
 from app.core.redis import get_redis
 from app.core.security import create_token, decode_token, hash_password, verify_password
 from app.core.token_blacklist import blacklist_token, is_token_blacklisted
-from app.models.user import User
+from app.models.user import PlanType, User
 from app.schemas.user import (
     ChangePasswordRequest,
     ChangePhoneRequest,
@@ -134,6 +134,13 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
         hashed_password=hash_password(data.password),
         name=data.name,
         onboarding_completed=False,
+        # Signup trial (D0): every new phone gets trial_days of Pro, full
+        # feature parity with paid Pro. The downgrade-expired-pro beat flips
+        # the plan back to free on expiry — no extra code path needed.
+        # One trial per phone is guaranteed by the phone uniqueness check above.
+        plan=PlanType.pro,
+        plan_expires_at=datetime.now(UTC) + timedelta(days=settings.trial_days),
+        plan_source="trial",
     )
     db.add(user)
     try:

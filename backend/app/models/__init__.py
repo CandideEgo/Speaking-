@@ -22,6 +22,7 @@ from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate
 from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
+from app.models.user_video_unlock import UserVideoUnlock
 from app.models.video import Video
 from app.models.video_quality_report import VideoQualityReport
 from app.models.video_score import VideoScore

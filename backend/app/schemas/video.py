@@ -67,6 +67,9 @@ class VideoResponse(BaseModel):
     created_at: str
     # Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks
     forked_from: str | None = None
+    # D0: demo/tutorial videos are watchable without consuming unlock quotas;
+    # card grids skip the lock badge for them.
+    is_demo: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -99,6 +102,9 @@ class SubtitleResponse(BaseModel):
 
 class VideoDetailResponse(VideoResponse):
     subtitles: list[SubtitleResponse]
+    # D0 membership gate: how the current viewer may watch this video.
+    # ``remaining_this_month`` is null for Pro/admin (unlimited).
+    access: dict | None = None
 
 
 class VideoAdminResponse(VideoResponse):
@@ -124,6 +130,8 @@ class VideoAdminResponse(VideoResponse):
     external_meta: dict | None = None
     # ADR-0014 in-site curated channel (null = unassigned).
     channel_ref: str | None = None
+    # D0: demo/tutorial videos are watchable without consuming unlock quotas.
+    is_demo: bool = False
 
     @field_validator("submitted_at", "reviewed_at", mode="before")
     @classmethod
@@ -153,6 +161,8 @@ class VideoAdminUpdate(BaseModel):
     # ADR-0014 curated channel. Empty string clears the assignment (the loop
     # below skips None, so a dedicated sentinel keeps clearing expressible).
     channel_ref: str | None = None
+    # D0 demo-video toggle (解锁制下示范视频不消耗额度).
+    is_demo: bool | None = None
 
     @field_validator("difficulty_level")
     @classmethod

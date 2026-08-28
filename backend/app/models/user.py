@@ -39,6 +39,9 @@ class User(Base):
     level: Mapped[str | None] = mapped_column(String(10), nullable=True)  # A1-C2
     plan: Mapped[PlanType] = mapped_column(SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+    # Where the current/most recent Pro entitlement came from: "trial" for the
+    # signup trial, "redeem" after a redeem code, null for never-Pro users.
+    plan_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     role: Mapped[RoleType] = mapped_column(SAEnum(RoleType, name="roletype"), default=RoleType.user, nullable=False)
     # Timestamp of the last password change/reset. Tokens issued before this
     # moment are rejected by the auth dependency, effectively invalidating all
@@ -68,3 +71,4 @@ class User(Base):
     learning_profile = relationship("UserLearningProfile", back_populates="user", uselist=False)
     learning_plans = relationship("LearningPlan", back_populates="user", cascade="all, delete-orphan")
     learning_events = relationship("LearningEvent", back_populates="user", cascade="all, delete-orphan")
+    video_unlocks = relationship("UserVideoUnlock", back_populates="user", cascade="all, delete-orphan")

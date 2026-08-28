@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     # redeem codes (no on-site payment per ICP compliance).
     redeem_code_unused_expiry_days: int = 180  # unused codes auto-expire after N days
 
+    # Free-tier video unlock quota (产品设计规划 §2.2): Free users may unlock
+    # this many videos per calendar month; each unlock is permanent. Quotas
+    # reset on the 1st, unused quotas do not roll over.
+    free_monthly_unlock_quota: int = 3
+    # Signup trial: new registrations get Pro for this many days (plan_source='trial').
+    trial_days: int = 3
+
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt

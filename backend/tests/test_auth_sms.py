@@ -45,7 +45,9 @@ class TestSmsRegister:
         data = resp.json()
         assert "token" in data
         assert data["user"]["phone"] == _TEST_PHONE
-        assert data["user"]["plan"] == "free"
+        # Signup trial (D0): new registrations start on Pro with an expiry.
+        assert data["user"]["plan"] == "pro"
+        assert data["user"]["plan_expires_at"] is not None
 
     async def test_register_with_name(self, client: AsyncClient):
         await client.post(

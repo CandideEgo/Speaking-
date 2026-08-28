@@ -335,6 +335,55 @@ async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
     return allowed
 
 
+# ---------------------------------------------------------------------------
+# Membership gate (D0 unlock model).
+#
+# The publish-state gate above only answers "is this video public/previewable";
+# the membership gate answers "may THIS viewer stream it". Free viewers need
+# active Pro or a permanent unlock row; demo videos stay open to everyone.
+# Anonymous viewers never qualify (the login wall sends them to /login first,
+# and direct URL access must not bypass the quota). Separate per-(video,viewer)
+# cache because unlock decisions differ per viewer, unlike the publish state.
+# ---------------------------------------------------------------------------
+_UNLOCK_GATE_CACHE: dict[str, tuple[float, bool]] = {}
+_UNLOCK_GATE_CACHE_TTL = 60.0
+_UNLOCK_GATE_CACHE_MAX = 2048
+
+
+async def _video_unlock_allowed(video_id: str, viewer_id: str | None) -> bool:
+    from app.models.video import Video
+    from app.services.unlock_service import is_active_pro, is_unlocked
+    from app.services.video_access import is_admin
+
+    key = f"{video_id}:{viewer_id or ''}"
+    now = time.monotonic()
+    cached = _UNLOCK_GATE_CACHE.get(key)
+    if cached is not None and cached[0] > now:
+        return cached[1]
+
+    allowed = False
+    async with get_async_session_maker()() as db:
+        video = await db.get(Video, video_id)
+        if video is None:
+            allowed = False
+        elif video.is_demo:
+            allowed = True
+        elif viewer_id is not None:
+            viewer = await db.get(User, viewer_id)
+            if viewer is not None and (is_admin(viewer) or is_active_pro(viewer)):
+                allowed = True
+            elif video.user_id == viewer_id:
+                # Legacy UGC owners keep draft preview (UGC is retired; no new rows).
+                allowed = True
+            else:
+                allowed = await is_unlocked(db, viewer_id, video_id)
+
+    if len(_UNLOCK_GATE_CACHE) >= _UNLOCK_GATE_CACHE_MAX:
+        _UNLOCK_GATE_CACHE.clear()
+    _UNLOCK_GATE_CACHE[key] = (now + _UNLOCK_GATE_CACHE_TTL, allowed)
+    return allowed
+
+
 @router.get("/{file_path:path}")
 @router.head("/{file_path:path}")
 @rate_limit("60/minute")
@@ -367,8 +416,16 @@ async def serve_media(file_path: str, request: Request):
         # {uuid}.mp4 match too — they belong to no video row yet, so the
         # lookup fails and they 404, which also removes the source_url leak.
         m = _VIDEO_FILE_RE.match(full.stem)
-        if m is not None and not await _video_media_allowed(m.group("vid"), _viewer_id_from_request(request)):
-            raise HTTPException(status_code=404)
+        if m is not None:
+            vid = m.group("vid")
+            viewer_id = _viewer_id_from_request(request)
+            if not await _video_media_allowed(vid, viewer_id):
+                raise HTTPException(status_code=404)
+            if not await _video_unlock_allowed(vid, viewer_id):
+                # Membership gate (D0): 403 (not 404) so the player surfaces
+                # "locked" distinctly — the frontend gates on the access field
+                # before playback anyway.
+                raise HTTPException(status_code=403, detail="Video locked")
 
     total = full.stat().st_size
     media_type = mimetypes.guess_type(full.name)[0] or "application/octet-stream"

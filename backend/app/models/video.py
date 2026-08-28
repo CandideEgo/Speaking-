@@ -83,6 +83,9 @@ class Video(Base):
     # the ready step it auto-publishes (is_published=True) without a manual
     # PATCH. Default false preserves the existing review-then-publish flow.
     auto_publish: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Demo/tutorial video (D0): always watchable for Free users without
+    # consuming the monthly unlock quota. Admin-toggled via the video manager.
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── UGC review lifecycle (user-uploaded videos) ──
@@ -207,3 +210,4 @@ class Video(Base):
     favorites = relationship("UserFavorite", back_populates="video", cascade="all, delete-orphan")
     notes = relationship("UserNote", back_populates="video", cascade="all, delete-orphan")
     likes = relationship("VideoLike", back_populates="video", cascade="all, delete-orphan")
+    unlocks = relationship("UserVideoUnlock", back_populates="video", cascade="all, delete-orphan")
