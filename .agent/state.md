@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-Phase 0 落地中（产品设计规划-2026-08）：D0b 过期代码清理已完成并提交（后端 579 passed / 6 skipped，前端 tsc/eslint 全绿，交接见 `.agent/handover-d0b.md`）。**当前批次**：D8b streak bug → D0 访问控制与会员模型（登录墙 + Free 每月 3 次解锁制 + 注册 3 天试用）→ D1 播放器控制条 → D3a 首页统计行。**已拍板**：不做 streak 保护卡（断签归零）；示范视频以 `videos.is_demo` 承载。
+Phase 0 已完成（产品设计规划-2026-08，提交链：f855613 D0b → 836fe3b D8b → ac1e7e5 D0 后端 → 2025310 D0 前端 → 8505a20/46a5380 D1 → 94c143a D3a）。后端 599 passed / 6 skipped；前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过。**待办**：① 本地/生产库 `alembic upgrade head`（c3d4e5f6g7h8 解锁表/试用/示范 + d4e5f6g7h8i9 字幕字号）；② 浏览器冒烟验收（登录墙回跳/解锁流程/角标/已解锁 Tab/控制条）+ D1 移动端真机验收；③ 示范视频内容指定（`videos.is_demo` admin 开关已就绪）；④ 跨模块变更已动 ≥2 模块，后续执行 /knowledge-maintain（decisions.md 已录解锁制决策）。**已拍板**：不做 streak 保护卡；↑↓ 键由字幕导航改为音量（§D1）。Phase 1（D2→D3b→D6→D4→D5，D13/14/15 插空）待启动。
 
 ## Completed Milestones
 
@@ -93,7 +93,7 @@ Phase 0 落地中（产品设计规划-2026-08）：D0b 过期代码清理已完
 ## Last Updated
 
 Date: 2026-08-28
-- **D0b 过期代码清理完成（产品设计规划 §D0b）**：后端删 17 文件（ai.py/comments.py/ai_plan_service/comment_service/learning_plan_service/proposal_service/upload_service/plan_tasks/comment_analysis + 8 测试），5 个 /plan/* 端点返 410，词卡砍实时 AI fallback（纯 ECDICT + 预热笔记）；前端删 FocusCard/plan 组件/ForkBadge，planStore 精简，/pricing → /upgrade。后端 579 passed / 6 skipped；前端 tsc + eslint 0 errors。交接：`.agent/handover-d0b.md`。保留：支付链路/兑换码/`word_ai_notes` 管线预热/profile 统计聚合
+- **Phase 0 完成（产品设计规划-2026-08 §4）**：D0 解锁制会员模型（登录墙用 Next 16 proxy 约定 src/proxy.ts + token cookie 镜像；user_video_unlocks 表/幂等解锁/月额度 3/详情与 /media 门控/注册 3 天试用/示范视频 is_demo；/history 已解锁 Tab；卡片三态角标）；D1 自定义控制条（倍速/字幕四模式含隐藏/字号偏好/快捷键统一，↑↓改音量）；D3a 紧凑统计行 + 周循环移 profile；D8b streak 修复；落地页删除。验收：后端 599 passed / 6 skipped（+20 新解锁测试），前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过（Proxy 已注册）。待办见 Current Focus
 - **云端数据全量迁移至本地（云端服务器 47.122.127.105 即将停用，换新服务器）**：PostgreSQL（speaking/speaking：6 用户、1 视频、187 字幕、10 兑换码，alembic b2c3d4e5f6a7）已恢复进本地 `speaking-db-1`（seeword/seeword_dev@localhost/seeword，`--no-owner`）；云端 media 卷 2 文件（63288cd3 `_720p`/`_raw`，共 286MB，MD5 校验一致）已放入 `backend/media/`；本地旧媒体（~4.5GB）与旧库已按用户确认清除。备份：本地 `backend/tmp/cloud-migration/`（cloud.env、letsencrypt.tar.gz、seeword.dump、local-db-before-migration.dump）；云端 `/home/admin/migration-to-local/` 留有完整副本。注意：该视频 `thumbnail_url` 仍是外部 ytimg URL（未本地化）
 - **全站综合审查 + 修复（docs/progress/REVIEW-2026-08-14.md）**：7 路并行审查 87 条发现（18 高危）；已修复：上传存储型 XSS（服务端扩展名白名单 + nosniff + 媒体扩展名 allowlist）、/media/proxy SSRF（禁重定向 + 移除 aliyuncs.com）、requirements.txt 补 Dypnsapi SDK、watch 快捷键双重监听与 navigateSubtitle seek 失效、admin 引导刷新竞态、limiter Redis 故障 fail-open（in-memory fallback）、草稿/未发布视频媒体发布态门控（owner/admin token 预览）、e2e seed（核心旅程不再 skip）、Celery 任务体直测、SMS 冷却 TTL 测试、nginx ssl 配置挂载 + 安全头 + /media XFF 覆盖、后端容器非 root + HEALTHCHECK、pip-audit/npm audit/dependabot 门禁、deploy 模板对齐 compose、ADR-0013（Shadowing 持久化）与文档漂移更正
 - 遗留（见 REVIEW 报告 §8）：fastapi 升级（P2，starlette CVE-2024-47874 显式 ignore）、SQLite→Postgres 测试迁移（延后）、e2e 播放/词汇/考试流程覆盖
