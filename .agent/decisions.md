@@ -260,3 +260,24 @@
 **Reason**: 解锁制给用户积累感（永久资产），额度模型简单（`user_video_unlocks` 表 + 当月计数）；浏览/元数据不设限，只闸字幕与媒体流。
 **Trade-offs**: 已解锁视频永久可看意味着长期内容成本上升，但种子期量小可接受；额度 3 是配置项（`free_monthly_unlock_quota`）可调。Pro 期间观看记录不写解锁表，降级后需重新解锁（已知体验代价，换取模型简单）。示范视频以 `videos.is_demo` 列标记，不消耗额度。
 配套决策：① 注册即发 3 天试用（`plan_source='trial'`，到期由既有 `downgrade-expired-pro` beat 降级）；② 登录墙用 Next.js middleware，token 仍存 localStorage，登录/刷新时镜像写 `seeword_token` cookie 供 middleware 读取（不在 middleware 查 DB，会员/额度校验在后端 API）；③ 不做 streak 保护卡（断签归零，真实反馈）。
+
+---
+
+## 2026-08-29 — D6 提醒调度：单条每小时扫描 + 用户本地时间匹配（Phase 2）
+
+**Problem**: 词汇提醒需按用户设定的提醒点（默认 20:00）触发，断签警告固定 21:00；用户 `reminder_timezone` 各不相同，Celery beat 不支持按用户动态调度。
+**Options**: A) 固定 UTC 时间每日一次；B) 单条每小时 :00 扫描，逐用户按本地时区匹配小时数；C) 每用户动态注册定时任务
+**Decision**: B（`reminder_tasks.send_hourly_reminders`）
+**Reason**: C 在 beat 中不可行；A 对非北京时区用户提醒点漂移。B 用一条调度覆盖所有时区，实现与既有整点扫描任务同构。
+**Trade-offs**: 每小时全表扫用户×偏好（种子期量小可接受，量大后可改为按提醒小时分桶索引）。去重不变量：Redis `SET NX EX 86400` 每日一键，**故障时 fail-open 照发**，靠 `create_notification` 的 (user, type, related_url) 未读去重兜底——宁可偶尔更新旧通知，不因 Redis 故障丢提醒或死锁不发。
+
+---
+
+## 2026-08-29 — D9 周报：不可变快照 + 周一 00:00 UTC beat（Phase 2）
+
+**Problem**: 周报需要稳定的周聚合数据供分享卡片使用；生成时机与幂等性需定义。
+**Options**: A) 请求时实时聚合；B) 周一生成不可变快照行（`weekly_reports`）
+**Decision**: B（`generate_weekly_reports`，crontab 周一 00:00 UTC = 北京 08:00）
+**Reason**: 分享卡片数据必须稳定（环比/亮点不能随后续活动变动）；UNIQUE(user_id, week_start) 使重跑幂等；口径复用 `stats_weekly`（LearningRecord 时长 + LearningEvent 计数）保证两处数据一致。
+**Trade-offs**: `streak_at_week_end` 用当前 profile 值近似（不重建历史快照，换取实现简单）；环比首周为 `None`（UI 隐藏箭头而非显示 0%/∞）；无活动用户不生成行，前端以 404 → 「学习满一周后生成」空状态承接。
+配套：分享卡片用 Canvas 手绘 + `qrcode` 包（新增前端依赖，`--legacy-peer-deps` 安装），固定品牌色不随暗色主题；热门搜索（D7）同样采用 Redis fail-open 不变量（ZSET 计数 best-effort，故障退回后端静态列表，绝不让计数拖垮搜索主流程）。
