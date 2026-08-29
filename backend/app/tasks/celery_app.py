@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from kombu import Queue
 
 from app.core.config import get_settings
@@ -79,6 +80,22 @@ celery_app.conf.update(
             "task": "app.tasks.redeem_tasks.expire_unused_redeem_codes",
             "schedule": 86400,  # every day
         },
+        # D6 学习提醒：每小时扫一次，按用户本地时间匹配词汇复习提醒点与 21:00 断签警告。
+        "send-hourly-reminders": {
+            "task": "app.tasks.reminder_tasks.send_hourly_reminders",
+            "schedule": crontab(minute=0),  # every hour on the hour
+        },
+        # D6 学习提醒：每日扫一次，Pro（含试用）到期前 3 天 / 1 天提醒。
+        # 01:00 UTC = 09:00 北京。
+        "send-pro-expiring-reminders": {
+            "task": "app.tasks.reminder_tasks.send_pro_expiring_reminders",
+            "schedule": crontab(minute=0, hour=1),
+        },
+        # D9 周报：周一 00:00 UTC（= 北京周一 08:00）生成上一周的学习周报。
+        "generate-weekly-reports": {
+            "task": "app.tasks.report_tasks.generate_weekly_reports",
+            "schedule": crontab(minute=0, hour=0, day_of_week=1),
+        },
     },
 )
 
@@ -90,5 +107,7 @@ import app.core.logging as _logging
 import app.models
 import app.tasks.order_tasks
 import app.tasks.redeem_tasks
+import app.tasks.reminder_tasks
+import app.tasks.report_tasks
 import app.tasks.scoring_tasks
 import app.tasks.video_processing

@@ -27,4 +27,5 @@ from app.models.video import Video
 from app.models.video_quality_report import VideoQualityReport
 from app.models.video_score import VideoScore
 from app.models.video_standard import VideoStandard
+from app.models.weekly_report import WeeklyReport
 from app.models.word_note import WordAINote

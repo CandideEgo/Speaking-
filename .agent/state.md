@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-Phase 0 已完成（产品设计规划-2026-08，提交链：f855613 D0b → 836fe3b D8b → ac1e7e5 D0 后端 → 2025310 D0 前端 → 8505a20/46a5380 D1 → 94c143a D3a）。后端 599 passed / 6 skipped；前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过。**收尾已完成（2026-08-28）**：① 修复迁移 revision ID 冲突（新迁移与旧迁移撞 ID 致 CycleDetected，重命名为 p6q7r8s9t0u1 解锁表 + q7r8s9t0u1v2 字幕字号）；② 本地库 `alembic upgrade head` 已执行并验证（user_video_unlocks/plan_source/is_demo/subtitle_font_size 就位）；③ 浏览器冒烟验收 9 项：登录墙回跳/解锁流程/三态角标/已解锁 Tab/控制条均通过；④ 修复 watch 页 `GET /videos/{id}/like` 405 → 改调 `/like-status`（已浏览器复验 200）。**待办/待拍板**：① D1 移动端真机验收；② 示范视频内容指定（`videos.is_demo` admin 开关已就绪）；③ 登录页仅密码登录、未接 SMS 验证码登录（后端 /sms/send-code+/sms/login 正常）——是否补验证码登录 Tab 待拍板；④ 解锁/进入 watch 后视频不自动播放（代码未设 autoPlay，属设计现状，与「解锁并观看」文案预期有差）——待拍板是否加自动播放；⑤ /knowledge-maintain 未执行。**已拍板**：不做 streak 保护卡；↑↓ 键由字幕导航改为音量（§D1）。**Phase 1 B0 首批已落地（2026-08-29）**：D2 CoachMark 新手引导（useCoachMark + watch 页 4 步高亮 + 首次加词金色高光）、D3b 结束闭环（EndScreen + GET /videos/{id}/vocabulary + /shadowing-sentences + vocabulary.subtitle_id 迁移 c6d7e8f9g0h1 + drill video_id 定向）、D4 六处空状态引导、D5 激励数据（/learning/stats/weekly|event-distribution|heatmap + profile 热力图/占比图/Confetti/StreakBadge）、D6 部分（/notifications 页 + 提醒偏好默认值，beat 任务未做）、D13 /favorites 页 + GET /videos/favorites、D14 反馈入口两处、D15 点赞数。验证：后端 605 passed / 6 skipped（+test_phase1_b0_smoke），前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过（/favorites+/notifications 在路由表）。**待办**：D6 beat 提醒任务、D5 里程碑触发点核实、/knowledge-maintain、D1 移动端真机验收、示范视频指定；待拍板项（登录页 SMS 验证码入口、解锁后自动播放）仍在。
+**Phase 2 全量完成（2026-08-29）+ D6 beat 补债**（产品设计规划-2026-08）。前置：Phase 0 已完成（2026-08-28，提交链：f855613 D0b → 836fe3b D8b → ac1e7e5 D0 后端 → 2025310 D0 前端 → 8505a20/46a5380 D1 → 94c143a D3a）；Phase 1 全量完成（2026-08-29，B0-B5，commit 8db75a6）。本轮落地：① **D6 beat 补债**：`tasks/reminder_tasks.py`（send_hourly_reminders 每小时按用户本地时间匹配词汇提醒点 + 21:00 断签警告；send_pro_expiring_reminders 每日扫 Pro/试用到期 3/1 天）；Redis NX 每日一键去重、故障 fail-open 靠 create_notification 未读去重兜底；② **D11 转化触点**：`UnlockQuotaHint` 挂首页/发现页 filter bar（本月剩余 N 次/已用完 → /upgrade）；/upgrade 页权益列表对齐 §2.4 + 删「返回定价页」死链；③ **D7 搜索增强**：`/videos/search/suggest`（ILIKE 前缀优先）+ `/videos/search/hot`（Redis ZSET + 1h 缓存 + 静态兜底）+ search_videos 内 ZINCRBY 计数；搜索页加建议下拉（键盘导航）+ 热门（后端）+ 历史（localStorage 10 条可删）；④ **D9 学习周报**：`WeeklyReport` 模型 + 迁移 d9e0f1g2h3i4（本地已应用）+ `weekly_report_service`（复用 stats_weekly 口径 + 每日新词曲线）+ `report_tasks.generate_weekly_reports`（crontab 周一 00:00 UTC = 北京 08:00，幂等）+ `/learning/weekly-reports[/latest]`（latest 无报告 404）；前端 /weekly-report 页（大数字/热力条/词汇曲线 recharts/亮点/ShareCard 1080×1920 canvas + qrcode 二维码 + toDataURL 保存）+ profile 学习进度页周报入口。验证：后端 632 passed / 6 skipped（+27 新：提醒 13/搜索 9/周报 5）、ruff 全过；前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过（/weekly-report 入路由表）；冒烟：suggest/hot 200、weekly-reports 401 未认证、beat 调度表 11 项含三个新任务。新增依赖：qrcode + @types/qrcode（--legacy-peer-deps）。**待办/待拍板（沿用）**：① D1 移动端真机验收；② 示范视频内容指定（is_demo 开关已就绪）；③ 登录页仅密码登录，是否补 SMS 验证码 Tab 待拍板；④ 解锁后不自动播放待拍板；⑤ 集成测试/Playwright e2e 对新页面的覆盖；⑥ /knowledge-maintain 未执行。
 
 ## Completed Milestones
 
@@ -85,14 +85,15 @@ Phase 0 已完成（产品设计规划-2026-08，提交链：f855613 D0b → 836
 
 ## Next Steps
 
-1. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
-2. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
-3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
-4. Phase 0 落地（产品设计规划-2026-08）：D0 访问控制与会员模型 → D1 播放器控制条 → D3a 首页统计行；~~DailyProgressCard / WeeklyCycleCounter 紧凑布局适配~~ 组件已随 D0b 删除，周循环将在 D3a 重建到 profile
+1. Phase 3 落地（产品设计规划-2026-08）：D10 跟读增强（逐句模式 + 波形对比，不碰 AI 评分）→ D12 可访问性（Lighthouse a11y ≥ 90）
+2. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
+3. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
+4. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
 
 ## Last Updated
 
 Date: 2026-08-29
+- **Phase 2 全量完成 + D6 beat 补债（2026-08-29）**：见 Current Focus。后端 632 passed / 6 skipped；新迁移 d9e0f1g2h3i4（weekly_reports）已应用到本地库；beat 新增 3 项（每小时提醒/每日 Pro 到期/周一周报）；前端新增依赖 qrcode（--legacy-peer-deps，项目 eslint peer 冲突为既有问题）；待拍板项（SMS 登录/解锁自动播放/周报卡片样式确认）按用户决定全部暂缓，周报卡片按规划默认样式实现。
 - **Phase 1 B0 首批提交**：D2/D3b/D4/D5数据/D6页面层/D13/D14/D15 一次性落地（见 Current Focus）；提交前验证修复三处：notifications 页 TabPills 旧 API 适配、NotificationDropdown 「查看全部」Link 残标修复+导入、notifications 页未用 X 导入清理；后端 605 passed、前端 tsc/eslint/vitest/build 全绿；新迁移 c6d7e8f9g0h1 已应用到本地库。另含 Phase 0 收尾：迁移 revision 重命名（p6q7r8s9t0u1/q7r8s9t0u1v2）+ like-status 路径修复。
 - **Phase 0 收尾（数据库迁移 + 冒烟验收）**：发现并修复迁移 revision ID 撞车（新解锁/字号迁移复用旧 c3d4e5f6g7h8/d4e5f6g7h8i9 致 alembic CycleDetected，重命名 p6q7r8s9t0u1/q7r8s9t0u1v2，文档同步更新）；本地库 upgrade head 完成；浏览器冒烟 9 项（7 通过、2 带偏差：登录页无 SMS 验证码入口、解锁后不自动播放）；修复 useVideoMeta 点赞状态请求路径（/like → /like-status，405 消除，浏览器复验 200）；截图存 .debug-shots/smoke-*。未提交（等用户确认是否一并提交）。
 - **Phase 0 完成（产品设计规划-2026-08 §4）**：D0 解锁制会员模型（登录墙用 Next 16 proxy 约定 src/proxy.ts + token cookie 镜像；user_video_unlocks 表/幂等解锁/月额度 3/详情与 /media 门控/注册 3 天试用/示范视频 is_demo；/history 已解锁 Tab；卡片三态角标）；D1 自定义控制条（倍速/字幕四模式含隐藏/字号偏好/快捷键统一，↑↓改音量）；D3a 紧凑统计行 + 周循环移 profile；D8b streak 修复；落地页删除。验收：后端 599 passed / 6 skipped（+20 新解锁测试），前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过（Proxy 已注册）。待办见 Current Focus

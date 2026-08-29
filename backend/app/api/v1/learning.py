@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
 from app.models.user import User
 from app.models.video import Video
+from app.models.weekly_report import WeeklyReport
 from app.schemas.common import VideoBrief
 from app.schemas.learning import (
     LearningRecordResponse,
@@ -385,3 +386,82 @@ async def stats_heatmap(
         n = by_day.get(d, 0)
         out.append({"date": d, "count": n, "active": n > 0})
     return out
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 2 D9 — 学习周报（weekly_reports，周一 08:00 beat 生成）
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _weekly_report_payload(r: WeeklyReport) -> dict:
+    return {
+        "id": r.id,
+        "week_start": r.week_start.isoformat(),
+        "study_days": r.study_days,
+        "total_minutes": r.total_minutes,
+        "new_words": r.new_words,
+        "reviewed_words": r.reviewed_words,
+        "videos_completed": r.videos_completed,
+        "streak_at_week_end": r.streak_at_week_end,
+        "delta_minutes_pct": r.delta_minutes_pct,
+        "daily_minutes": r.daily_minutes or [],
+        "daily_new_words": r.daily_new_words or [],
+        "highlight": r.highlight,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+@router.get("/weekly-reports")
+@rate_limit("30/minute")
+async def list_weekly_reports(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """用户的历史周报，按周倒序（最新在前）。"""
+    offset = (page - 1) * page_size
+    total = (
+        await db.execute(select(func.count(WeeklyReport.id)).where(WeeklyReport.user_id == current_user.id))
+    ).scalar()
+    rows = (
+        (
+            await db.execute(
+                select(WeeklyReport)
+                .where(WeeklyReport.user_id == current_user.id)
+                .order_by(WeeklyReport.week_start.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "items": [_weekly_report_payload(r) for r in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": total or 0,
+    }
+
+
+@router.get("/weekly-reports/latest")
+@rate_limit("30/minute")
+async def latest_weekly_report(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """最新一期周报；无报告返 404（前端显示「学习满一周后生成」空状态）。"""
+    report = (
+        await db.execute(
+            select(WeeklyReport)
+            .where(WeeklyReport.user_id == current_user.id)
+            .order_by(WeeklyReport.week_start.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no_weekly_report_yet")
+    return _weekly_report_payload(report)

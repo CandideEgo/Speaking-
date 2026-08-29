@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -81,6 +82,8 @@ export default function ProfilePage() {
   } | null>(null);
   const [eventDist, setEventDist] = useState<EventDistributionItem[]>([]);
   const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
+  // D9: 最新一期周报（有报告才显示入口）
+  const [latestReport, setLatestReport] = useState<{ week_start: string } | null>(null);
   useEffect(() => {
     if (activeTab !== "progress") return;
     api<typeof weeklyStats>("/api/v1/learning/stats/weekly")
@@ -92,6 +95,9 @@ export default function ProfilePage() {
     api<HeatmapDay[]>("/api/v1/learning/stats/heatmap?days=90")
       .then(setHeatmap)
       .catch(() => {});
+    api<{ week_start: string }>("/api/v1/learning/weekly-reports/latest")
+      .then(setLatestReport)
+      .catch(() => setLatestReport(null));
   }, [activeTab]);
 
   // D5: milestone celebration (confetti)
@@ -231,6 +237,23 @@ export default function ProfilePage() {
         {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
         {activeTab === "progress" && (
           <div className="max-w-2xl space-y-6">
+            {/* D9：周报入口（有报告才显示，不足一周不出现） */}
+            {latestReport && (
+              <Link
+                href="/weekly-report"
+                className="flex items-center justify-between bg-canvas border border-hairline rounded-xl p-5 hover:border-brand-500/40 transition-colors group"
+              >
+                <div>
+                  <h2 className="text-sm font-semibold text-ink">学习周报</h2>
+                  <p className="text-xs text-muted mt-1">
+                    最新一期：{latestReport.week_start} 周 · 每周一自动生成，可保存分享卡片
+                  </p>
+                </div>
+                <span className="text-brand-500 text-sm font-semibold group-hover:translate-x-0.5 transition-transform">
+                  查看 →
+                </span>
+              </Link>
+            )}
             {/* D3a：周循环回顾（从首页移入，只回顾不施压）：
                 一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
             <div>
