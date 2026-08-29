@@ -34,10 +34,19 @@ from app.schemas.video import (
     WordLevelsUpdate,
 )
 from app.services.search_service import (
+    get_hot_searches as _get_hot_searches,
+)
+from app.services.search_service import (
+    record_search_query as _record_search_query,
+)
+from app.services.search_service import (
     search_subtitles as _search_subtitles,
 )
 from app.services.search_service import (
     search_videos as _search_videos,
+)
+from app.services.search_service import (
+    suggest_titles as _suggest_titles,
 )
 from app.services.subtitle_edit_service import (
     create_subtitle as _create_subtitle,
@@ -150,7 +159,29 @@ async def search_videos(
     not the PaginatedResponse envelope.
     """
     user_id = current_user.id if current_user else None
-    return await _search_videos(db, query=q, limit=limit, user_id=user_id)
+    results = await _search_videos(db, query=q, limit=limit, user_id=user_id)
+    # D7: 搜索热度计数（best-effort，Redis 故障静默）
+    await _record_search_query(q)
+    return results
+
+
+@router.get("/search/suggest")
+@rate_limit("30/minute")
+async def suggest_search(
+    request: Request,
+    q: str = "",
+    limit: int = Query(8, ge=1, le=10),
+    db: AsyncSession = Depends(get_db),
+):
+    """D7 搜索建议：已发布视频标题，前缀匹配优先。公开（无需登录）。"""
+    return {"suggestions": await _suggest_titles(db, q, limit)}
+
+
+@router.get("/search/hot")
+@rate_limit("30/minute")
+async def hot_searches(request: Request):
+    """D7 热门搜索：Redis ZSET Top 10（1h 缓存），故障时退回静态列表。"""
+    return {"hot": await _get_hot_searches()}
 
 
 @router.get("/search/subtitles", response_model=list[SubtitleSearchResult])

@@ -10,6 +10,8 @@ The PostgreSQL trigger automatically updates ``search_vector`` from
   grouped by video with snippets.
 """
 
+import json
+
 import structlog
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +21,84 @@ from app.models.video import Video, VideoStatus
 from app.schemas.video import VideoResponse
 
 logger = structlog.get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# D7 热门搜索（Redis ZSET 计数，1h 缓存，故障时退回静态列表）
+# ---------------------------------------------------------------------------
+
+HOT_SEARCH_FALLBACK: list[str] = ["TED Talks", "面试", "发音", "经济学人", "六级", "词汇", "演讲", "BBC"]
+_HOT_ZSET_KEY = "search:hot"
+_HOT_CACHE_KEY = "search:hot:top"
+_HOT_CACHE_TTL = 3600  # 1h
+
+
+async def record_search_query(query: str) -> None:
+    """Best-effort 搜索热度计数（ZINCRBY）。任何异常静默 —— 计数不影响搜索本身。"""
+    q = (query or "").strip()
+    if not q or len(q) > 50:
+        return
+    try:
+        from app.core.redis import get_redis
+
+        await get_redis().zincrby(_HOT_ZSET_KEY, 1, q)
+    except Exception:
+        pass  # fail-open：Redis 不可用时热门退回静态列表
+
+
+async def get_hot_searches(limit: int = 10) -> list[str]:
+    """Top N 热搜词（结果缓存 1h）。Redis 不可用 → 静态兜底列表。"""
+    limit = max(1, min(limit, 20))
+    try:
+        from app.core.redis import get_redis
+
+        r = get_redis()
+        cached = await r.get(_HOT_CACHE_KEY)
+        if cached:
+            data = json.loads(cached)
+            if isinstance(data, list):
+                return [str(t) for t in data][:limit]
+        terms = await r.zrevrange(_HOT_ZSET_KEY, 0, limit - 1)
+        result = list(terms) if terms else HOT_SEARCH_FALLBACK[:limit]
+        try:
+            await r.set(_HOT_CACHE_KEY, json.dumps(result, ensure_ascii=False), ex=_HOT_CACHE_TTL)
+        except Exception:
+            pass  # 缓存写失败不影响本次返回
+        return result
+    except Exception:
+        return HOT_SEARCH_FALLBACK[:limit]
+
+
+async def suggest_titles(db: AsyncSession, query: str, limit: int = 8) -> list[str]:
+    """搜索建议：已发布视频标题，前缀匹配优先于包含匹配。
+
+    只用 ILIKE（SQLite 测试友好）；标题去重后返回纯文本列表。
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    limit = max(1, min(limit, 10))
+    escaped = q.replace("%", "\\%").replace("_", "\\_")
+    prefix_order = case(
+        (Video.title.ilike(f"{escaped}%", escape="\\"), 0),
+        else_=1,
+    )
+    stmt = (
+        select(Video.title)
+        .where(
+            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+            Video.is_official == True,
+            Video.is_published == True,
+            Video.title.ilike(f"%{escaped}%", escape="\\"),
+        )
+        .order_by(prefix_order, Video.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    titles: list[str] = []
+    for (t,) in result.all():
+        if t and t not in titles:
+            titles.append(t)
+    return titles
 
 
 # ---------------------------------------------------------------------------

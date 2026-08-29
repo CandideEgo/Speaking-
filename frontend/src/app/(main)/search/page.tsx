@@ -8,10 +8,39 @@ import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ArrowLeft, SearchIcon, Loader2, FileSearch, Subtitles } from "lucide-react";
+import {
+  ArrowLeft,
+  SearchIcon,
+  Loader2,
+  FileSearch,
+  Subtitles,
+  Flame,
+  History,
+  X,
+} from "lucide-react";
 
-// 一期热门搜索词（前端静态；二期可由后端 Redis 缓存提供）
-const POPULAR_SEARCHES = ["TED Talks", "面试", "发音", "经济学人", "六级", "词汇", "演讲", "BBC"];
+// D7 搜索历史（localStorage，最近 10 条）
+const HISTORY_KEY = "seeword_search_history";
+
+function loadHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr)
+      ? arr.filter((x): x is string => typeof x === "string").slice(0, 10)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(items: string[]) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 10)));
+  } catch {
+    /* 存储满/隐私模式 → 历史功能静默降级 */
+  }
+}
 
 // --- Types (mirrored from SearchDropdown) ---
 
@@ -63,12 +92,22 @@ export default function SearchPage() {
   const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  // D7：热门（后端）/ 历史（localStorage）/ 建议（后端下拉）
+  const [hotTerms, setHotTerms] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-focus on mount
+  // Auto-focus + load history + hot terms on mount
   useEffect(() => {
     inputRef.current?.focus();
+    setHistory(loadHistory());
+    api<{ hot: string[] }>("/api/v1/videos/search/hot")
+      .then((d) => setHotTerms(d.hot ?? []))
+      .catch(() => {});
   }, []);
 
   // Re-sync when navigating to /search?q=... (e.g. from a hot search chip)
@@ -114,9 +153,28 @@ export default function SearchPage() {
     }
   }, []);
 
+  /** 提交一次搜索：写历史、关建议、执行查询。 */
+  const submitSearch = useCallback(
+    (q: string) => {
+      const term = q.trim();
+      if (!term) return;
+      setSuggestOpen(false);
+      setActiveIdx(-1);
+      setQuery(term);
+      setHistory((prev) => {
+        const next = [term, ...prev.filter((h) => h !== term)].slice(0, 10);
+        saveHistory(next);
+        return next;
+      });
+      performSearch(term);
+    },
+    [performSearch]
+  );
+
   const handleInput = useCallback(
     (value: string) => {
       setQuery(value);
+      setHasSearched(false);
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -124,22 +182,72 @@ export default function SearchPage() {
         setVideoResults([]);
         setSubtitleResults([]);
         setIsSearching(false);
+        setSuggestions([]);
+        setSuggestOpen(false);
         return;
       }
-      debounceTimerRef.current = setTimeout(() => {
-        performSearch(value);
-      }, 300);
+      // D7：输入 ≥2 字拉取建议（防抖 300ms），同时预查结果
+      if (value.trim().length >= 2) {
+        debounceTimerRef.current = setTimeout(() => {
+          api<{ suggestions: string[] }>(
+            `/api/v1/videos/search/suggest?q=${encodeURIComponent(value.trim())}&limit=8`
+          )
+            .then((d) => {
+              setSuggestions(d.suggestions ?? []);
+              setSuggestOpen(true);
+              setActiveIdx(-1);
+            })
+            .catch(() => setSuggestions([]));
+          performSearch(value);
+        }, 300);
+      } else {
+        setSuggestions([]);
+        setSuggestOpen(false);
+        debounceTimerRef.current = setTimeout(() => {
+          performSearch(value);
+        }, 300);
+      }
     },
     [performSearch]
   );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // 建议下拉打开时：键盘导航优先
+    if (suggestOpen && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIdx((i) => (i + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (activeIdx >= 0) {
+          submitSearch(suggestions[activeIdx]);
+        } else {
+          submitSearch(query);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        setSuggestOpen(false);
+        return;
+      }
+    }
     if (e.key === "Escape") {
       router.back();
     }
-    if (e.key === "Enter" && videoResults.length > 0) {
+    if (e.key === "Enter") {
       e.preventDefault();
-      router.push(`/watch/${videoResults[0].id}`);
+      if (query.trim()) {
+        submitSearch(query);
+      } else if (videoResults.length > 0) {
+        router.push(`/watch/${videoResults[0].id}`);
+      }
     }
   }
 
@@ -151,9 +259,18 @@ export default function SearchPage() {
     }
   }
 
+  function removeHistoryItem(term: string) {
+    setHistory((prev) => {
+      const next = prev.filter((h) => h !== term);
+      saveHistory(next);
+      return next;
+    });
+  }
+
   const hasVideoResults = videoResults.length > 0;
   const hasSubtitleResults = subtitleResults.length > 0;
   const hasAnyResults = hasVideoResults || hasSubtitleResults;
+  const showDiscovery = !hasSearched && !isSearching && !query.trim();
 
   return (
     <main className="min-h-full bg-canvas">
@@ -171,12 +288,47 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => handleInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={() => {
+                if (suggestions.length > 0 && query.trim().length >= 2) setSuggestOpen(true);
+              }}
+              onBlur={() => {
+                // 延迟关闭，让点击建议项的 onClick 先触发
+                setTimeout(() => setSuggestOpen(false), 150);
+              }}
               className="w-full h-10 pl-10 pr-4 rounded-md bg-surface-soft border border-hairline
                          text-sm text-ink placeholder:text-muted
                          focus:border-brand-500 focus:outline-none focus:ring-[3px] focus:ring-brand-500/15
                          transition-colors duration-150"
             />
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+
+            {/* D7 搜索建议下拉 */}
+            {suggestOpen && suggestions.length > 0 && (
+              <ul
+                className="absolute left-0 right-0 top-11 z-40 rounded-md border border-hairline bg-surface-card shadow-lg overflow-hidden"
+                role="listbox"
+              >
+                {suggestions.map((s, i) => (
+                  <li key={s} role="option" aria-selected={i === activeIdx}>
+                    <button
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                        i === activeIdx
+                          ? "bg-surface-soft text-ink"
+                          : "text-body hover:bg-surface-soft"
+                      }`}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // 避免 input 先 blur 导致点击失效
+                        submitSearch(s);
+                      }}
+                      onMouseEnter={() => setActiveIdx(i)}
+                    >
+                      <SearchIcon size={13} className="flex-shrink-0 text-muted-soft" />
+                      <span className="truncate">{s}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
@@ -198,26 +350,82 @@ export default function SearchPage() {
             title="没有找到相关视频"
             description="试试换个关键词，或从下方热门搜索开始"
             action={
-              <div className="flex flex-wrap gap-2 justify-center max-w-md">
-                {POPULAR_SEARCHES.map((kw) => (
-                  <Link
-                    key={kw}
-                    href={`/search?q=${encodeURIComponent(kw)}`}
-                    className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
-                  >
-                    {kw}
-                  </Link>
-                ))}
-              </div>
+              hotTerms.length > 0 ? (
+                <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                  {hotTerms.map((kw) => (
+                    <Link
+                      key={kw}
+                      href={`/search?q=${encodeURIComponent(kw)}`}
+                      className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
+                    >
+                      {kw}
+                    </Link>
+                  ))}
+                </div>
+              ) : undefined
             }
           />
         )}
 
-        {/* Initial state */}
-        {!hasSearched && !isSearching && (
-          <div className="flex flex-col items-center gap-2 py-12">
-            <SearchIcon className="h-10 w-10 text-muted/30" />
-            <span className="text-sm text-muted">输入关键词搜索视频或字幕</span>
+        {/* D7 发现态：热门搜索 + 搜索历史 */}
+        {showDiscovery && (
+          <div className="space-y-8 py-6">
+            {hotTerms.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted mb-3">
+                  <Flame size={12} className="text-brand-500" />
+                  热门搜索
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {hotTerms.map((kw, i) => (
+                    <button
+                      key={kw}
+                      onClick={() => submitSearch(kw)}
+                      className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
+                    >
+                      <span className="mr-1.5 font-mono text-muted-soft">{i + 1}</span>
+                      {kw}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {history.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted mb-3">
+                  <History size={12} />
+                  搜索历史
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {history.map((kw) => (
+                    <span
+                      key={kw}
+                      className="inline-flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body"
+                    >
+                      <button
+                        onClick={() => submitSearch(kw)}
+                        className="hover:text-brand-500 transition-colors"
+                      >
+                        {kw}
+                      </button>
+                      <button
+                        onClick={() => removeHistoryItem(kw)}
+                        aria-label={`删除「${kw}」`}
+                        className="p-0.5 rounded-full text-muted-soft hover:text-ink transition-colors"
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+            {hotTerms.length === 0 && history.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-12">
+                <SearchIcon className="h-10 w-10 text-muted/30" />
+                <span className="text-sm text-muted">输入关键词搜索视频或字幕</span>
+              </div>
+            )}
           </div>
         )}
 
