@@ -16,6 +16,8 @@ export interface ShadowingAttempt {
   duration_ms: number | null;
   is_satisfied: boolean;
   created_at: string;
+  /** Present when fetched with include_subtitle_time (D10 progress-bar timeline). */
+  subtitle_start_time?: number | null;
 }
 
 interface UploadAndSaveOptions {
@@ -53,8 +55,11 @@ export function useShadowing(videoId: string | undefined): UseShadowingReturn {
   const refreshAttempts = useCallback(async () => {
     if (!videoId) return;
     try {
+      // D10: fetch up to 100 attempts with subtitle start_time so the watch
+      // page can both render the recent-5 history list and the progress-bar
+      // timeline markers from a single source.
       const data = await api<{ items: ShadowingAttempt[] }>(
-        `/api/v1/shadowing/attempts?video_id=${videoId}&page=1&page_size=5`
+        `/api/v1/shadowing/attempts?video_id=${videoId}&page=1&page_size=100&include_subtitle_time=true`
       );
       setAttempts(data.items ?? []);
     } catch {

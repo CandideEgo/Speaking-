@@ -200,7 +200,9 @@ async def upload_shadowing_audio(
     current_user: User = Depends(get_current_user),
 ):
     """Upload a shadowing recording blob. Returns the media URL for playback."""
-    content_type = file.content_type or ""
+    # Chromium MediaRecorder sends "audio/webm;codecs=opus" — strip MIME
+    # parameters before validating against the allow-list.
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
     if content_type not in _SHADOWING_ALLOWED_TYPES:
         raise HTTPException(
             status_code=415,

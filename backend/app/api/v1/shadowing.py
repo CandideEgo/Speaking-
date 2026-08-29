@@ -40,6 +40,8 @@ class AttemptResponse(BaseModel):
     duration_ms: int | None
     is_satisfied: bool
     created_at: str | None
+    # Present only when listing with include_subtitle_time=true (D10 timeline)
+    subtitle_start_time: float | None = None
 
 
 class AttemptListResponse(BaseModel):
@@ -89,6 +91,9 @@ async def list_attempts(
     video_id: str = Query(..., description="Filter attempts by video"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    include_subtitle_time: bool = Query(
+        False, description="Enrich items with the subtitle start_time (D10 timeline)"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -99,6 +104,7 @@ async def list_attempts(
         video_id=video_id,
         page=page,
         page_size=page_size,
+        include_subtitle_time=include_subtitle_time,
     )
 
 

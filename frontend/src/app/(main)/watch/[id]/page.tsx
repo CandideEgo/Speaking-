@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -11,7 +11,8 @@ import { useWatchStore } from "@/stores/watchStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
-import { useShadowing } from "@/hooks/useShadowing";
+import { useShadowing, type ShadowingAttempt } from "@/hooks/useShadowing";
+import { useSentenceShadowing } from "@/hooks/useSentenceShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useVideoPlayer, bestVideoUrl, youtubeId } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -29,6 +30,7 @@ import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { UnlockPanel } from "@/components/paywall/UnlockPanel";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
+import { WaveformCompare } from "@/components/speaking/WaveformCompare";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
 import {
@@ -43,8 +45,8 @@ import {
   X,
   AlertCircle,
   Check,
-  Volume2,
   Layers,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -81,11 +83,12 @@ export default function WatchPage() {
     audioUrl,
     audioBlob,
     recordingStream,
+    seconds,
     startRecording,
     stopRecording,
     stopSpeaking,
     reRecord,
-  } = useSpeakingRecorder(requireAuth);
+  } = useSpeakingRecorder(requireAuth, { timer: true });
   const { uploadAndSave, uploading, attempts } = useShadowing(id);
   const [shadowingSaved, setShadowingSaved] = useState(false);
   const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
@@ -105,6 +108,8 @@ export default function WatchPage() {
       uploadAndSave(audioBlob, {
         videoId: id,
         subtitleId: video?.subtitles?.[currentSubtitleIndex]?.id ?? null,
+        // D10: 上报录音时长，后端按秒累计进 LearningEvent。
+        durationMs: seconds > 0 ? seconds * 1000 : null,
         isSatisfied: false,
       });
     }
@@ -113,6 +118,8 @@ export default function WatchPage() {
   // 时间同步回调通过 ref 读取最新 video / setter（避免与 useVideoPlayer 返回值的前向引用）。
   const videoForTickRef = useRef<VideoWithSubtitles | null>(null);
   const setSubtitleIndexRef = useRef<(idx: number) => void>(() => {});
+  // D10 逐句跟读：句尾检测回调（钩子在 useVideoPlayer 之后创建，经 ref 接入）。
+  const sentenceHandleTimeRef = useRef<(t: number) => void>(() => {});
 
   // Playback-time tick shared by both backends (HTML5 timeupdate / YouTube
   // poll): keeps the current-subtitle highlight and watch-time tracking in sync.
@@ -123,6 +130,7 @@ export default function WatchPage() {
       const idx = findSubtitleIndex(v.subtitles, t);
       if (idx !== -1) setSubtitleIndexRef.current(idx);
       trackWatchTime(id, t);
+      sentenceHandleTimeRef.current(t);
     },
     [id]
   );
@@ -173,6 +181,73 @@ export default function WatchPage() {
     videoForTickRef.current = video;
     setSubtitleIndexRef.current = setCurrentSubtitleIndex;
   }, [video, setCurrentSubtitleIndex]);
+
+  // D10 逐句跟读：状态机（仅 HTML5 本地播放可用）。与手动跟读共用
+  // useSpeakingRecorder，退出模式即回到手动流程。
+  const pauseVideo = useCallback(() => {
+    videoRef.current?.pause();
+  }, [videoRef]);
+
+  const handleSentenceAdvance = useCallback(() => {
+    setShadowingSaved(false);
+    setShadowingSatisfied(false);
+  }, []);
+
+  const sentenceShadow = useSentenceShadowing({
+    subtitles: video?.subtitles,
+    currentIndex: currentSubtitleIndex,
+    setCurrentIndex: setCurrentSubtitleIndex,
+    seekTo,
+    play,
+    pause: pauseVideo,
+    speakingState,
+    startRecording,
+    stopSpeaking,
+    reRecord,
+    onAdvance: handleSentenceAdvance,
+  });
+
+  // 句尾检测从播放 tick 接入状态机（handleTime 内部经 ref 自稳）。
+  useEffect(() => {
+    sentenceHandleTimeRef.current = sentenceShadow.handleTime;
+  }, [sentenceShadow.handleTime]);
+
+  // D10 跟读时间线：进度条绿点（点击定位到对应句并回放该句录音）。
+  const replayAttempt = useCallback(
+    (a: ShadowingAttempt) => {
+      const subs = video?.subtitles;
+      if (typeof a.subtitle_start_time === "number" && subs) {
+        const idx = findSubtitleIndex(subs, a.subtitle_start_time);
+        if (idx !== -1) setCurrentSubtitleIndex(idx);
+        seekTo(a.subtitle_start_time);
+      }
+      const audio = new Audio(mediaUrl(a.audio_url, { withToken: true }));
+      audio.play().catch(() => {});
+    },
+    [video, seekTo, setCurrentSubtitleIndex]
+  );
+
+  const shadowMarkers = useMemo(() => {
+    if (!video?.duration) return [];
+    return attempts
+      .filter((a) => typeof a.subtitle_start_time === "number")
+      .map((a) => ({
+        position: a.subtitle_start_time as number,
+        onClick: () => replayAttempt(a),
+      }));
+  }, [attempts, video, replayAttempt]);
+
+  // D10 波形对比：原声取视频文件尽力解码切片；稳定对象标识避免重复拉取。
+  const originalSourceUrl = useMemo(() => {
+    if (isYtMode || !video) return null;
+    const url = bestVideoUrl(video);
+    return url ? mediaUrl(url, { withToken: true }) : null;
+  }, [video, isYtMode]);
+
+  const originalClip = useMemo(() => {
+    const sub = video?.subtitles?.[currentSubtitleIndex];
+    return sub ? { start: sub.start_time, end: sub.end_time } : null;
+  }, [video, currentSubtitleIndex]);
 
   // D3b: seek to ?t=<seconds> once the video is ready. Triggered when
   // the user drills an answer wrong and clicks "回看原句" → /watch/{id}?t=...
@@ -610,12 +685,11 @@ export default function WatchPage() {
                       withToken: true,
                     })}
                     className="h-full w-full object-contain"
-                    onTimeUpdate={(e) => {
-                      const t = e.currentTarget.currentTime;
-                      const idx = findSubtitleIndex(video.subtitles, t);
-                      if (idx !== -1) setCurrentSubtitleIndex(idx);
-                      trackWatchTime(id, t);
-                    }}
+                    onTimeUpdate={(e) =>
+                      // 统一走 handleTimeTick（字幕同步 + 观看时长 + D10 句尾检测）；
+                      // 此前内联实现漏接逐句跟读句尾回调，自动录音永不触发。
+                      handleTimeTick(e.currentTarget.currentTime)
+                    }
                     onPlay={() =>
                       track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                     }
@@ -663,6 +737,7 @@ export default function WatchPage() {
                       onFontSizeChange={handleFontSizeChange}
                       toggleFullscreen={toggleFullscreen}
                       isMobile={isMobile}
+                      markers={shadowMarkers}
                     />
                   )}
                   {isPip && (
@@ -790,6 +865,28 @@ export default function WatchPage() {
                     )}
                 </div>
 
+                {/* D10 逐句跟读模式开关（YouTube 源不可控时序，置灰） */}
+                <button
+                  className={cn(
+                    "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors",
+                    sentenceShadow.active
+                      ? "bg-success text-white shadow-brand cursor-pointer"
+                      : "text-muted bg-surface-soft hover:bg-hairline cursor-pointer",
+                    isYtMode && "opacity-50 cursor-not-allowed hover:bg-surface-soft"
+                  )}
+                  onClick={() => {
+                    if (isYtMode) return;
+                    if (sentenceShadow.active) sentenceShadow.exit();
+                    else sentenceShadow.start();
+                  }}
+                  disabled={isYtMode}
+                  title={isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"}
+                  aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
+                >
+                  <Repeat size={15} />
+                  {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
+                </button>
+
                 {/* 录音：默认只一个小按钮，点击才展开录音 UI */}
                 <button
                   className={cn(
@@ -808,6 +905,20 @@ export default function WatchPage() {
                 </button>
               </div>
 
+              {/* D10 逐句模式状态行（播放中/录音中/回放引导） */}
+              {sentenceShadow.active && (
+                <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
+                  <Repeat size={13} className="shrink-0" />
+                  <span className="font-medium">
+                    {sentenceShadow.phase === "playing"
+                      ? "正在播放本句，播完自动开始录音"
+                      : sentenceShadow.phase === "recording"
+                        ? "正在录音，读完后点击上方停止"
+                        : "录音完成，回放后点「下一句」继续"}
+                  </span>
+                </div>
+              )}
+
               {/* 录音展开态：录音 / 回放 / 下一句 */}
               {speakingActive && (
                 <div className="mt-4 pt-4 border-t border-hairline">
@@ -816,6 +927,7 @@ export default function WatchPage() {
                       <button
                         className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
                         onClick={startRecording}
+                        aria-label="开始录音"
                       >
                         <Mic size={20} />
                       </button>
@@ -831,6 +943,7 @@ export default function WatchPage() {
                       <button
                         className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
                         onClick={stopRecording}
+                        aria-label="停止录音"
                       >
                         <Mic size={20} />
                       </button>
@@ -868,20 +981,14 @@ export default function WatchPage() {
                         )}
                       </div>
 
-                      {/* Audio players: original + mine */}
-                      <div className="flex items-center gap-3">
-                        <button
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                            bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors cursor-pointer"
-                          onClick={playOriginal}
-                        >
-                          <Volume2 size={13} />
-                          听原声
-                        </button>
-                        {audioUrl && (
-                          <audio src={audioUrl} controls className="h-8 flex-1 max-w-xs" />
-                        )}
-                      </div>
+                      {/* D10 波形对比（原声/录音），自带播放按钮 */}
+                      <WaveformCompare
+                        recordingBlob={audioBlob}
+                        recordingUrl={audioUrl}
+                        originalUrl={originalSourceUrl}
+                        originalClip={originalClip}
+                        onPlayOriginal={playOriginal}
+                      />
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2">
@@ -899,7 +1006,10 @@ export default function WatchPage() {
                           <Check size={13} className="mr-1" />
                           满意
                         </Button>
-                        <Button size="sm" onClick={handleNextSubtitle}>
+                        <Button
+                          size="sm"
+                          onClick={sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle}
+                        >
                           下一句
                         </Button>
                       </div>
@@ -910,7 +1020,7 @@ export default function WatchPage() {
 
               {/* Shadowing history: recent attempts for this video */}
               <div data-coach="practice">
-                <ShadowingHistory attempts={attempts} />
+                <ShadowingHistory attempts={attempts.slice(0, 5)} />
               </div>
             </div>
           )}

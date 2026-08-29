@@ -52,6 +52,8 @@ interface VideoControlsProps {
   toggleFullscreen: () => void;
   isMobile: boolean;
   /** PiP 小窗时不渲染控制条（由调用方决定）。 */
+  /** D10 跟读时间线：绿点标记已跟读句子的位置（秒），点击回到对应句。 */
+  markers?: { position: number; onClick: () => void }[];
 }
 
 export function VideoControls({
@@ -68,6 +70,7 @@ export function VideoControls({
   onFontSizeChange,
   toggleFullscreen,
   isMobile,
+  markers,
 }: VideoControlsProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [paused, setPaused] = useState(true);
@@ -184,17 +187,40 @@ export function VideoControls({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 进度条 */}
-        <input
-          type="range"
-          aria-label="播放进度"
-          min={0}
-          max={Math.max(total, 0.1)}
-          step={0.1}
-          value={Math.min(currentTime, total)}
-          onChange={(e) => handleSeek(Number(e.target.value))}
-          className="w-full h-1.5 cursor-pointer accent-brand-500"
-        />
+        {/* 进度条（D10：绿点标记已跟读句子，点击回到对应句） */}
+        <div className="relative">
+          <input
+            type="range"
+            aria-label="播放进度"
+            min={0}
+            max={Math.max(total, 0.1)}
+            step={0.1}
+            value={Math.min(currentTime, total)}
+            onChange={(e) => handleSeek(Number(e.target.value))}
+            className="w-full h-1.5 cursor-pointer accent-brand-500"
+          />
+          {markers && total > 0 && (
+            <div className="absolute inset-x-0 -top-1 h-2 pointer-events-none">
+              {markers.map((m, i) => (
+                <button
+                  key={`${i}-${m.position}`}
+                  type="button"
+                  aria-label={`已跟读，回到 ${formatDuration(m.position)}`}
+                  title="已跟读，点击回到这一句"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    m.onClick();
+                    handleActivity();
+                  }}
+                  className="absolute w-2 h-2 -translate-x-1/2 rounded-full bg-success
+                    ring-1 ring-black/20 hover:scale-125 transition-transform
+                    pointer-events-auto cursor-pointer"
+                  style={{ left: `${(Math.min(m.position, total) / total) * 100}%` }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="mt-1 flex items-center gap-2.5 text-white">
           {/* 播放/暂停 */}

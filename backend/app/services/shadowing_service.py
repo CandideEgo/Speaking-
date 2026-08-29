@@ -2,7 +2,8 @@
 
 Lightweight shadowing (no AI scoring): user records audio per subtitle
 sentence, compares with original. Each attempt is persisted and feeds the
-learning loop north-star metric via LearningEvent(shadowed_sentences).
+learning loop north-star metric via LearningEvent(shadowed_sentences) — the
+event value is the shadowed duration in seconds when known (>= 1), else 1.
 """
 
 import logging
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.learning_plan import UserLearningProfile
 from app.models.shadowing import ShadowingAttempt
+from app.models.subtitle import Subtitle
 from app.services import learning_event_service
 
 logger = logging.getLogger(__name__)
@@ -39,12 +41,15 @@ async def create_attempt(
     db.add(attempt)
     await db.flush()
 
-    # Emit learning event (non-blocking)
+    # Emit learning event (non-blocking). Value = shadowed seconds when the
+    # client reports a duration (D10: cumulative shadowing time tracking),
+    # falling back to 1 sentence for legacy/durationless attempts.
+    event_value = max(1, duration_ms // 1000) if duration_ms else 1
     await learning_event_service.emit_event(
         db,
         user_id=user_id,
         event_type=learning_event_service.EVENT_SHADOWED_SENTENCES,
-        event_value=1,
+        event_value=event_value,
         video_id=video_id,
     )
 
@@ -64,8 +69,13 @@ async def list_by_video(
     video_id: str,
     page: int = 1,
     page_size: int = 20,
+    include_subtitle_time: bool = False,
 ) -> dict:
-    """Paginated list of shadowing attempts for a video, newest first."""
+    """Paginated list of shadowing attempts for a video, newest first.
+
+    When ``include_subtitle_time`` is set, each item is enriched with the
+    referenced subtitle's ``start_time`` (D10 progress-bar timeline).
+    """
     offset = (page - 1) * page_size
 
     count_result = await db.execute(
@@ -76,20 +86,36 @@ async def list_by_video(
     )
     total = count_result.scalar() or 0
 
-    result = await db.execute(
-        select(ShadowingAttempt)
-        .where(
-            ShadowingAttempt.user_id == user_id,
-            ShadowingAttempt.video_id == video_id,
+    if include_subtitle_time:
+        query = (
+            select(ShadowingAttempt, Subtitle.start_time)
+            .outerjoin(Subtitle, ShadowingAttempt.subtitle_id == Subtitle.id)
+            .where(
+                ShadowingAttempt.user_id == user_id,
+                ShadowingAttempt.video_id == video_id,
+            )
+            .order_by(ShadowingAttempt.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
         )
-        .order_by(ShadowingAttempt.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-    )
-    attempts = result.scalars().all()
+        rows = (await db.execute(query)).all()
+        items = [_attempt_to_dict(a, subtitle_start_time=st) for a, st in rows]
+    else:
+        result = await db.execute(
+            select(ShadowingAttempt)
+            .where(
+                ShadowingAttempt.user_id == user_id,
+                ShadowingAttempt.video_id == video_id,
+            )
+            .order_by(ShadowingAttempt.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        attempts = result.scalars().all()
+        items = [_attempt_to_dict(a) for a in attempts]
 
     return {
-        "items": [_attempt_to_dict(a) for a in attempts],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -142,8 +168,10 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
     }
 
 
-def _attempt_to_dict(attempt: ShadowingAttempt) -> dict:
-    return {
+def _attempt_to_dict(
+    attempt: ShadowingAttempt, subtitle_start_time: float | None = None
+) -> dict:
+    data = {
         "id": attempt.id,
         "user_id": attempt.user_id,
         "video_id": attempt.video_id,
@@ -153,3 +181,6 @@ def _attempt_to_dict(attempt: ShadowingAttempt) -> dict:
         "is_satisfied": attempt.is_satisfied,
         "created_at": attempt.created_at.isoformat() if attempt.created_at else None,
     }
+    if subtitle_start_time is not None:
+        data["subtitle_start_time"] = subtitle_start_time
+    return data
