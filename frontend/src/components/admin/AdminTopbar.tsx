@@ -164,8 +164,12 @@ export function AdminTopbar() {
         )}
 
         {/* Notification bell (placeholder) */}
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft hover:text-ink transition-colors">
-          <Bell size={18} />
+        <button
+          type="button"
+          aria-label="通知"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <Bell size={18} aria-hidden="true" />
         </button>
 
         {/* Divider */}
