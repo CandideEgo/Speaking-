@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Phase 2 全量完成（2026-08-29）+ D6 beat 补债**（产品设计规划-2026-08）。前置：Phase 0 已完成（2026-08-28，提交链：f855613 D0b → 836fe3b D8b → ac1e7e5 D0 后端 → 2025310 D0 前端 → 8505a20/46a5380 D1 → 94c143a D3a）；Phase 1 全量完成（2026-08-29，B0-B5，commit 8db75a6）。本轮落地：① **D6 beat 补债**：`tasks/reminder_tasks.py`（send_hourly_reminders 每小时按用户本地时间匹配词汇提醒点 + 21:00 断签警告；send_pro_expiring_reminders 每日扫 Pro/试用到期 3/1 天）；Redis NX 每日一键去重、故障 fail-open 靠 create_notification 未读去重兜底；② **D11 转化触点**：`UnlockQuotaHint` 挂首页/发现页 filter bar（本月剩余 N 次/已用完 → /upgrade）；/upgrade 页权益列表对齐 §2.4 + 删「返回定价页」死链；③ **D7 搜索增强**：`/videos/search/suggest`（ILIKE 前缀优先）+ `/videos/search/hot`（Redis ZSET + 1h 缓存 + 静态兜底）+ search_videos 内 ZINCRBY 计数；搜索页加建议下拉（键盘导航）+ 热门（后端）+ 历史（localStorage 10 条可删）；④ **D9 学习周报**：`WeeklyReport` 模型 + 迁移 d9e0f1g2h3i4（本地已应用）+ `weekly_report_service`（复用 stats_weekly 口径 + 每日新词曲线）+ `report_tasks.generate_weekly_reports`（crontab 周一 00:00 UTC = 北京 08:00，幂等）+ `/learning/weekly-reports[/latest]`（latest 无报告 404）；前端 /weekly-report 页（大数字/热力条/词汇曲线 recharts/亮点/ShareCard 1080×1920 canvas + qrcode 二维码 + toDataURL 保存）+ profile 学习进度页周报入口。验证：后端 632 passed / 6 skipped（+27 新：提醒 13/搜索 9/周报 5）、ruff 全过；前端 tsc/eslint 0 errors、vitest 10 passed、next build 通过（/weekly-report 入路由表）；冒烟：suggest/hot 200、weekly-reports 401 未认证、beat 调度表 11 项含三个新任务。新增依赖：qrcode + @types/qrcode（--legacy-peer-deps）。**待办/待拍板（沿用）**：① D1 移动端真机验收；② 示范视频内容指定（is_demo 开关已就绪）；③ 登录页仅密码登录，是否补 SMS 验证码 Tab 待拍板；④ 解锁后不自动播放待拍板；⑤ 集成测试/Playwright e2e 对新页面的覆盖；⑥ /knowledge-maintain 未执行。
+**产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2 已落地，Phase 3 收尾完成 + §10 拍板落定。**Phase 3** 提交链：5ebbf8d D10 跟读体验增强 → e1b2e5c D12 考试词 dotted underline → 8048c5a e2e mobile 真机验收 → d08fc41 D12 admin aria-label + focus ring → 8609847 §10 #7 首页「已解锁优先」开关。ADR-0015/0016 入库 `.agent/decisions.md` + `docs/adr/`。**§10 拍板**：#4 示范视频暂缓（`is_demo=true` 待指）/ #5 slogan + 品牌色沿用规划默认（"用真实视频学英语" + coral #FF6B4A）/ #6 首页统计行不加（维持 streak + 词汇数 + 视频数 3 项）/ #7 已解锁入口重定义为首页开关（已实施 8609847）。**剩余 polish**（不在规划内）：品牌色 token 对比度（Lighthouse 96→100）、iOS Safari 真机 D10 验收。
 
 ## Completed Milestones
 
@@ -85,14 +85,16 @@
 
 ## Next Steps
 
-1. Phase 3 落地（产品设计规划-2026-08）：D10 跟读增强（逐句模式 + 波形对比，不碰 AI 评分）→ D12 可访问性（Lighthouse a11y ≥ 90）
-2. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
-3. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
-4. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
+1. Recommendation system 深度个性化 P2 (ADR-0011) — P1 评分 + 推荐 feed 已落地，behavior_events P0 已解锁
+2. ICP-unblocked items (payment, frontend unit tests, E2E coverage)
+3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
+4. **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2/3 + §10 拍板（#4 暂缓 / #5 默认 / #6 不加 / #7 重定义已实施）。剩余 polish：品牌色 token 对比度、示范视频内容、iOS Safari 真机 D10 验收。
+5. 集成测试/Playwright e2e 对新页面（/weekly-report / 收藏 / CoachMark / ShareCard）的覆盖
 
 ## Last Updated
 
-Date: 2026-08-29
+Date: 2026-08-30
+- **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2 已完成 → Phase 3 落地 D10 跟读体验增强（5ebbf8d 逐句模式 + 波形对比 + 时间线 markers + LearningEvent 累计秒数 + MIME 参数解析修复）+ D12 可访问性（e1b2e5c 考试词 dotted underline + d08fc41 admin 铃铛 aria-label/focus ring，Lighthouse mobile 3 页 96/100）+ D1 移动端真机验收（8048c5a Pixel 5 viewport 自动隐藏验证 opacity=0/pointer-events=none）+ §10 #7 重定义为首页「已解锁优先」开关（8609847 useBoostUnlocked hook + 首页筛选栏 peer 模式开关 + orderedVideos 排序）。ADR-0015（D10 跟读）/ 0016（D12 可访问性）入库。验证：后端 636 passed / 6 skipped（无回归），前端 tsc/eslint 0 errors，vitest 10 passed，新增 e2e mobile-d1-d10.spec.ts 2 passed。§10 拍板：#4 示范视频暂缓 / #5 沿用规划默认（"用真实视频学英语" + coral）/ #6 首页统计不加 / #7 已实施。
 - **Phase 2 全量完成 + D6 beat 补债（2026-08-29）**：见 Current Focus。后端 632 passed / 6 skipped；新迁移 d9e0f1g2h3i4（weekly_reports）已应用到本地库；beat 新增 3 项（每小时提醒/每日 Pro 到期/周一周报）；前端新增依赖 qrcode（--legacy-peer-deps，项目 eslint peer 冲突为既有问题）；待拍板项（SMS 登录/解锁自动播放/周报卡片样式确认）按用户决定全部暂缓，周报卡片按规划默认样式实现。
 - **Phase 1 B0 首批提交**：D2/D3b/D4/D5数据/D6页面层/D13/D14/D15 一次性落地（见 Current Focus）；提交前验证修复三处：notifications 页 TabPills 旧 API 适配、NotificationDropdown 「查看全部」Link 残标修复+导入、notifications 页未用 X 导入清理；后端 605 passed、前端 tsc/eslint/vitest/build 全绿；新迁移 c6d7e8f9g0h1 已应用到本地库。另含 Phase 0 收尾：迁移 revision 重命名（p6q7r8s9t0u1/q7r8s9t0u1v2）+ like-status 路径修复。
 - **Phase 0 收尾（数据库迁移 + 冒烟验收）**：发现并修复迁移 revision ID 撞车（新解锁/字号迁移复用旧 c3d4e5f6g7h8/d4e5f6g7h8i9 致 alembic CycleDetected，重命名 p6q7r8s9t0u1/q7r8s9t0u1v2，文档同步更新）；本地库 upgrade head 完成；浏览器冒烟 9 项（7 通过、2 带偏差：登录页无 SMS 验证码入口、解锁后不自动播放）；修复 useVideoMeta 点赞状态请求路径（/like → /like-status，405 消除，浏览器复验 200）；截图存 .debug-shots/smoke-*。未提交（等用户确认是否一并提交）。

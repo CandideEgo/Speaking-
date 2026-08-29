@@ -281,3 +281,58 @@
 **Reason**: 分享卡片数据必须稳定（环比/亮点不能随后续活动变动）；UNIQUE(user_id, week_start) 使重跑幂等；口径复用 `stats_weekly`（LearningRecord 时长 + LearningEvent 计数）保证两处数据一致。
 **Trade-offs**: `streak_at_week_end` 用当前 profile 值近似（不重建历史快照，换取实现简单）；环比首周为 `None`（UI 隐藏箭头而非显示 0%/∞）；无活动用户不生成行，前端以 404 → 「学习满一周后生成」空状态承接。
 配套：分享卡片用 Canvas 手绘 + `qrcode` 包（新增前端依赖，`--legacy-peer-deps` 安装），固定品牌色不随暗色主题；热门搜索（D7）同样采用 Redis fail-open 不变量（ZSET 计数 best-effort，故障退回后端静态列表，绝不让计数拖垮搜索主流程）。
+
+## 2026-08-30 — D10 跟读体验增强：逐句模式 + 波形对比 + 时间线（Phase 3）
+
+**Problem**: 跟读需从"单句手动录"升级为更顺滑的逐句循环 + 视觉反馈 + 时间线回顾；不可引入 AI 评分（ADR-0002 红线）。
+**Options**: A) 只做 UI 提示，不接系统状态机；B) 完整状态机 + 波形 + 时间线
+**Decision**: B（详见 ADR-0015）
+**Reason**: 单点改造价值低（用户仍需手动点"下一句"），完整闭环符合 D10 工作量（L=3-4 天）。
+**Trade-offs**：
+- 状态机用 ref 自稳避免 hook 依赖环，复杂度集中于 `useSentenceShadowing` 钩子；调用方集成成本小（1 状态 + 4 回调）。
+- 波形对比是尽力而为（解码失败降级为只显示录音），YouTube 源无法解码就降级——不破坏 UX 而非阻塞。
+- 进度条绿点 markers 复用现有 VideoControls 组件（`markers` prop），未引入新组件。
+- `LearningEvent` 累计时长 + 后端 `include_subtitle_time` 查询参数是 D10 的数据支撑。
+- 顺手修：MIME 参数解析（`audio/webm;codecs=opus` 之前返 415），`useSpeakingRecorder` 加 timer 选项。
+
+**ADR**: [0015](docs/adr/0015-d10-sentence-shadowing-waveform.md)
+
+---
+
+## 2026-08-30 — D12 可访问性：浅层落地（Lighthouse 96/100，超 90 达标线）
+
+**Problem**: §4-D12 5 项（快捷键/形状区分/aria-label/focus ring/Lighthouse ≥ 90）。
+**Options**: A) 引 axe-core + jest-axe 全量自动化；B) 手工浅层修复
+**Decision**: B（详见 ADR-0016）
+**Reason**: 工作量 M=2 天，全量 axe 集成超 1 周；当前全局 a11y 基础好（82 个 lucide 文件仅 1 处缺漏），手工足够到 96/100。
+**Trade-offs**：
+- 7 个 `WORD_COLOR_CLASSES` 加 `decoration-{color}-400 decoration-dotted`（色盲友好），不依赖颜色。
+- 全局 `*:focus-visible` 已在 globals.css:320 覆盖大多数按钮，无须每按钮写。
+- 唯一修：admin 后台 placeholder 铃铛（1 处 aria-label）。
+- Lighthouse 3 页 96/100，**唯一未修**：brand-500/muted-soft 小字号对比度（牵全局设计，超 D12 范围）。
+- **未引入新依赖**（无 axe-core/jest-axe）——CI 自动化 a11y 留给后续 Phase。
+
+**ADR**: [0016](docs/adr/0016-d12-accessibility.md)
+
+---
+
+## 2026-08-30 — §10 待拍板 4 项（用户拍板）
+
+**Problem**: 产品设计规划-2026-08 §10 列 4 项需用户拍板，影响 Phase 0/1/2/3 落地完整性。
+**Decision**:
+
+1. **#4 示范视频**：暂不弄（`videos.is_demo=true` 不指任何视频；D2 新手引导语需相应去掉"看示范视频"措辞，或后续再补）
+2. **#5 周报分享卡片 slogan + 品牌色**：A. 沿用规划默认值（"用真实视频学英语" + coral #FF6B4A + 暖白 #FDF8F3）——已是 D9 现状，无需改动
+3. **#6 首页统计行**：不加（维持 streak + 词汇数 + 视频数 3 项）
+4. **#7 已解锁视频入口**：**重定义为首页「已解锁优先」开关**（不在 /history 加 Tab）
+
+**#7 实施**（commit 8609847）：
+- `useBoostUnlocked` hook：localStorage 持久化，per-device UI 偏好（不污染后端 UserPreferences）
+- 首页筛选栏右侧（sm: 以上）加 peer 模式开关，Pro 用户（`unlockedInfo=null`）隐藏
+- 排序逻辑：`useMemo` 把 videos 拆 unlocked + rest 拼接，**保持各自内部相对顺序**（不打乱后端推荐/分类/难度）
+- a11y：aria-label + focus-visible ring（走全局 brand 描边）
+- mobile 393px 下隐藏（节省空间）
+
+**Trade-offs**：
+- localStorage 而非 backend：开关是 UI 偏好非学习偏好；如未来需跨设备同步，再迁 `UserPreferences`。
+- 移动端不显示：避免 393px 筛选栏拥挤；如用户反馈需要，再加 mobile popover 入口。
