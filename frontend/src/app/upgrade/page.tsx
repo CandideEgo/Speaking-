@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingBag, Gift, ShieldCheck, ArrowLeft } from "lucide-react";
+import { ShoppingBag, Gift, ShieldCheck, Check } from "lucide-react";
 import { siteConfig } from "@/lib/siteConfig";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -12,6 +12,14 @@ const STEPS = [
   { t: "前往微信小商店购买", d: "在小商店完成支付，获得 Pro 会员兑换码" },
   { t: "复制兑换码", d: "格式为 XXXX-XXXX-XX，共 10 位" },
   { t: "回本站激活", d: "在兑换页输入兑换码，立即开通 Pro 权益" },
+];
+
+/** D11 权益列表（与解锁面板升级态 §2.4 对齐，只强调无限解锁观看）。 */
+const PRO_PERKS = [
+  "所有视频无限解锁、随时观看",
+  "双语字幕 + AI 词注释",
+  "真题练习 + 词汇复习",
+  "跟读录音",
 ];
 
 export default function UpgradePage() {
@@ -36,7 +44,19 @@ export default function UpgradePage() {
           <h1 className="mt-5 text-center font-display text-2xl font-normal text-ink tracking-display-sm">
             开通 Pro 会员
           </h1>
-          <p className="mt-2 text-center text-sm text-muted">¥9.9 / 月 · 30 天有效 · 兑换码激活</p>
+          <p className="mt-2 text-center text-sm text-muted">
+            无限解锁所有视频 · ¥9.9 / 月 · 兑换码激活
+          </p>
+
+          {/* D11 权益列表（对齐 §2.4，不堆 AI 功能） */}
+          <ul className="mt-5 space-y-2">
+            {PRO_PERKS.map((perk) => (
+              <li key={perk} className="flex items-center gap-2.5 text-sm text-body">
+                <Check size={15} className="flex-shrink-0 text-brand-500" />
+                {perk}
+              </li>
+            ))}
+          </ul>
 
           {/* 合规告知 */}
           <div className="mt-5 flex gap-2.5 rounded-md border border-hairline bg-canvas p-3.5">
@@ -102,14 +122,6 @@ export default function UpgradePage() {
             </Link>
           </div>
         </div>
-
-        <Link
-          href="/pricing"
-          className="mt-5 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
-        >
-          <ArrowLeft size={14} />
-          返回定价页
-        </Link>
       </div>
     </main>
   );

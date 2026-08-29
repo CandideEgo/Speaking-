@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { useUnlockedIds } from "@/hooks/useUnlockedIds";
+import { UnlockQuotaHint } from "@/components/paywall/UnlockQuotaHint";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
@@ -138,12 +139,15 @@ export default function HomePage() {
                 size="sm"
               />
             </div>
-            {/* Result count */}
-            {total > 0 && (
-              <span className="ml-auto text-xs text-muted flex-shrink-0 hidden sm:block font-medium">
-                {total} 个视频
-              </span>
-            )}
+            {/* D11 Free 额度入口 + 结果计数 */}
+            <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+              <UnlockQuotaHint info={unlockedInfo} />
+              {total > 0 && (
+                <span className="text-xs text-muted hidden sm:block font-medium">
+                  {total} 个视频
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
