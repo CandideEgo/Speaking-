@@ -60,14 +60,23 @@ export function displayLevel(wordLevels: string[]): ExamLevelMeta | null {
 }
 
 // Static class strings (one per color token) so Tailwind JIT detects them.
+// D12: each highlight carries a dotted underline so exam-level words stay
+// distinguishable without relying on color alone (a11y).
 const WORD_COLOR_CLASSES: Record<string, string> = {
-  slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  green: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  red: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-  rose: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+  slate:
+    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 underline decoration-slate-400 decoration-dotted underline-offset-2",
+  green:
+    "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 underline decoration-green-400 decoration-dotted underline-offset-2",
+  blue:
+    "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 underline decoration-blue-400 decoration-dotted underline-offset-2",
+  purple:
+    "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 underline decoration-purple-400 decoration-dotted underline-offset-2",
+  orange:
+    "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 underline decoration-orange-400 decoration-dotted underline-offset-2",
+  red:
+    "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 underline decoration-red-400 decoration-dotted underline-offset-2",
+  rose:
+    "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300 underline decoration-rose-400 decoration-dotted underline-offset-2",
 };
 
 const DOT_COLOR_CLASSES: Record<string, string> = {
