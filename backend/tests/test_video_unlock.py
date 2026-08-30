@@ -262,6 +262,29 @@ class TestUnlockedList:
         assert item["channel_slug"] == "ted"
 
 
+class TestShadowingSentencesGate:
+    """EndScreen 跟读重点句端点必须走 D0 门控——字幕是付费内容，
+    未解锁不得泄露（审查发现：原实现只查登录态，绕过解锁门控）。"""
+
+    async def test_locked_video_returns_403(self, client: AsyncClient, auth_headers: dict, db_session):
+        video = await _seed_ready_video(db_session, title="LockedSentences")
+        resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=auth_headers)
+        assert resp.status_code == 403
+
+    async def test_unlocked_video_returns_sentences(self, client: AsyncClient, auth_headers: dict, db_session):
+        video = await _seed_ready_video(db_session, title="UnlockedSentences")
+        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
+        resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=auth_headers)
+        assert resp.status_code == 200
+        items = resp.json()
+        assert items and items[0]["text_en"] == "Hello world"
+
+    async def test_pro_sees_sentences_without_unlock(self, client: AsyncClient, pro_headers: dict, db_session):
+        video = await _seed_ready_video(db_session, title="ProSentences")
+        resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=pro_headers)
+        assert resp.status_code == 200
+
+
 class TestRedeemDuringTrial:
     async def test_redeem_stacks_from_trial_end(self, client: AsyncClient, db_session):
         """A redeem code entered during the trial extends from the trial end

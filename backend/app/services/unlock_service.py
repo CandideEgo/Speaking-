@@ -8,12 +8,13 @@ Rules (产品设计规划-2026-08 §2.2, .agent/decisions.md 2026-08-28):
 - Pro users, admins and ``is_demo`` videos never consume quota and never
   write unlock rows.
 - Unlocking is idempotent: re-unlocking an already-unlocked video consumes
-  nothing (composite PK guards concurrent races too).
+  nothing (composite PK guards same-video races; the monthly quota itself is
+  enforced by an atomic conditional INSERT, see unlock_video).
 """
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, literal, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -104,6 +105,12 @@ async def unlock_video(db: AsyncSession, user: User, video: Video) -> dict:
     Idempotent: an already-unlocked video returns success without consuming
     quota. Raises ``UnlockQuotaExhaustedError`` when the month's quota is spent.
     Returns the post-unlock access info.
+
+    The quota check and the insert run as one conditional INSERT
+    (``INSERT ... SELECT ... WHERE used < quota``), so two concurrent
+    requests can never both pass the check and overshoot the monthly quota
+    (the old check-then-insert was TOCTOU: with 1 remaining, racing two
+    *different* videos inserted both rows).
     """
     if video.is_demo or user.role == RoleType.admin or is_active_pro(user):
         return await get_video_access_info(db, user, video)
@@ -111,15 +118,33 @@ async def unlock_video(db: AsyncSession, user: User, video: Video) -> dict:
     if await is_unlocked(db, user.id, video.id):
         return await get_video_access_info(db, user, video)
 
-    if await remaining_unlocks(db, user) <= 0:
-        raise UnlockQuotaExhaustedError(remaining=0, quota=get_settings().free_monthly_unlock_quota)
-
-    db.add(UserVideoUnlock(user_id=user.id, video_id=video.id))
+    quota = get_settings().free_monthly_unlock_quota
+    used_this_month = (
+        select(func.count())
+        .select_from(UserVideoUnlock)
+        .where(
+            UserVideoUnlock.user_id == user.id,
+            UserVideoUnlock.unlocked_at >= _month_start(datetime.now(UTC)),
+        )
+        .scalar_subquery()
+    )
+    stmt = insert(UserVideoUnlock).from_select(
+        ["user_id", "video_id", "unlocked_at"],
+        # Bound timestamp (not func.now()): SQLite's CURRENT_TIMESTAMP is
+        # second-granular and same-second unlocks would tie in the
+        # newest-first ordering of the /history tab.
+        select(literal(user.id), literal(video.id), literal(datetime.now(UTC))).where(used_this_month < quota),
+    )
+    result = await db.execute(stmt)
+    if result.rowcount == 0:
+        # The WHERE clause filtered the insert out: quota already spent.
+        await db.rollback()
+        raise UnlockQuotaExhaustedError(remaining=0, quota=quota)
     try:
         await db.commit()
     except IntegrityError:
-        # Concurrent duplicate unlock raced past the check above — the row
-        # exists now, which is exactly the desired end state.
+        # Concurrent duplicate unlock of the same video — the row exists now,
+        # which is exactly the desired end state (idempotent success).
         await db.rollback()
     return await get_video_access_info(db, user, video)
 

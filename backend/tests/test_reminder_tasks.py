@@ -240,6 +240,33 @@ async def test_streak_warning_respects_opt_out():
         assert await _notifications(db, user_id, "streak_warning") == []
 
 
+async def test_streak_warning_not_sent_and_counter_reset_when_already_broken():
+    """Streak 已断（最后活跃早于昨天）：不再发警告（“已连续 N 天”文案会失真，
+    且旧实现会无限期每天发），并顺带把惰性更新的 current_streak 归零。"""
+    async with _session_maker()() as db:
+        user = await _make_user(db, "13800100010")
+        await _set_prefs(db, user.id)
+        db.add(
+            UserLearningProfile(
+                user_id=user.id,
+                current_streak=5,
+                last_active_date=date(2026, 8, 27),  # two days ago → already broken
+            )
+        )
+        await db.commit()
+        user_id = user.id
+
+    sent = send_hourly_reminders(now=_NOW_STREAK_HOUR)
+
+    assert sent["streak_warning"] == 0
+    async with _session_maker()() as db:
+        assert await _notifications(db, user_id, "streak_warning") == []
+        profile = (
+            await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
+        ).scalar_one()
+        assert profile.current_streak == 0
+
+
 # ── Pro expiry reminders ────────────────────────────────────────────────
 
 

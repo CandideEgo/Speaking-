@@ -1038,6 +1038,14 @@ async def list_shadowing_sentences(
     if video is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
+    # D0 membership gate: subtitles are paid content — locked videos must not
+    # leak them here (mirrors get_video_detail blanking subtitles when locked).
+    from app.services.unlock_service import get_video_access_info
+
+    access = await get_video_access_info(db, current_user, video)
+    if not access["unlocked"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Video not unlocked")
+
     # Read the user's target exam (defaults to cet4).
     target_exam = (
         await db.execute(select(UserPreferences.target_exam).where(UserPreferences.user_id == current_user.id))

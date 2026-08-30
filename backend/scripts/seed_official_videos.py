@@ -469,12 +469,6 @@ async def seed_video(entry: dict, force_update: bool = False) -> bool:
 
         await db.commit()
 
-        # Trigger async comment analysis
-        from app.tasks.comment_analysis import analyze_video_comments
-
-        analyze_video_comments.delay(video.id)
-        print(f"  [ANALYSIS] Queued comment analysis for {video_id_yt}")
-
         print(f"  [DONE] Seeded: {video.title} (id={video.id}, category={category})")
         return True
 

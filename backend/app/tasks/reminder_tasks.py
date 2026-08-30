@@ -6,7 +6,11 @@ Three reminder families, all delivered as in-app notifications via
 - ``send_hourly_reminders``: hourly sweep. Sends the vocabulary-review
   reminder when the user's local clock hits their ``vocabulary_reminder_time``
   hour and they have due words; sends the streak-at-risk warning at local
-  21:00 when the streak is ≥2 and today has no learning activity yet.
+  21:00 when the streak is ≥2 and the last active day was *yesterday* (the
+  only day the streak is genuinely at risk). Streaks already broken (last
+  activity before yesterday) are reset to 0 in the same sweep instead of
+  being nagged about — ``current_streak`` is otherwise updated lazily only
+  when the user next learns, so stale values would linger indefinitely.
 - ``send_pro_expiring_reminders``: daily sweep for Pro (incl. trial) that
   expires in 3 / 1 days.
 
@@ -21,7 +25,7 @@ is the fallback. Task bodies accept an optional aware-UTC ``now`` as a
 test seam; beat always invokes them with no arguments.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -103,6 +107,7 @@ def send_hourly_reminders(now: datetime | None = None):
 
         now_utc = now or datetime.now(UTC)
         sent = {"vocabulary_reminder": 0, "streak_warning": 0}
+        streak_resets = 0
 
         async with async_session() as db:
             rows = (
@@ -141,26 +146,33 @@ def send_hourly_reminders(now: datetime | None = None):
                 # ── Streak-at-risk warning (local 21:00) ──
                 if local_now.hour == _STREAK_WARNING_HOUR and nprefs.get("streak_warning_enabled", True):
                     profile = profiles.get(user.id)
-                    if (
-                        profile is not None
-                        and profile.current_streak >= _STREAK_MIN
-                        and (profile.last_active_date is None or profile.last_active_date < local_now.date())
-                    ):
-                        key = f"reminder:streak_warning:{user.id}:{local_now.date().isoformat()}"
-                        if await _claim_daily_slot(key):
-                            await create_notification(
-                                user_id=user.id,
-                                type="streak_warning",
-                                title="连续学习提醒",
-                                message=f"已连续学习 {profile.current_streak} 天，今天还没有学习记录，别让记录中断",
-                                db=db,
-                                related_url="/",
-                            )
-                            sent["streak_warning"] += 1
+                    if profile is not None and profile.last_active_date is not None:
+                        yesterday = local_now.date() - timedelta(days=1)
+                        if profile.current_streak >= _STREAK_MIN and profile.last_active_date == yesterday:
+                            # Warn only on the first day the streak is at risk:
+                            # once last_active_date falls behind yesterday the
+                            # streak is already broken and the "已连续 N 天" copy
+                            # would be false (and nag forever).
+                            key = f"reminder:streak_warning:{user.id}:{local_now.date().isoformat()}"
+                            if await _claim_daily_slot(key):
+                                await create_notification(
+                                    user_id=user.id,
+                                    type="streak_warning",
+                                    title="连续学习提醒",
+                                    message=f"已连续学习 {profile.current_streak} 天，今天还没有学习记录，别让记录中断",
+                                    db=db,
+                                    related_url="/",
+                                )
+                                sent["streak_warning"] += 1
+                        elif profile.last_active_date < yesterday and profile.current_streak > 0:
+                            # Streak already broken — reset the stale counter
+                            # (normally updated lazily on the next learning event).
+                            profile.current_streak = 0
+                            streak_resets += 1
 
-            if sent["vocabulary_reminder"] or sent["streak_warning"]:
+            if sent["vocabulary_reminder"] or sent["streak_warning"] or streak_resets:
                 await db.commit()
-            logger.info("hourly_reminders_sent", **sent)
+            logger.info("hourly_reminders_sent", streak_resets=streak_resets, **sent)
             return sent
 
     try:

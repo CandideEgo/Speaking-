@@ -346,6 +346,10 @@ async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
 # Anonymous viewers never qualify (the login wall sends them to /login first,
 # and direct URL access must not bypass the quota). Separate per-(video,viewer)
 # cache because unlock decisions differ per viewer, unlike the publish state.
+# Only POSITIVE decisions are cached: a denied viewer may unlock at any moment
+# and must gain access immediately (caching False would 403 them for up to the
+# TTL right after paying). Grants are permanent (Pro lapses at most hourly via
+# the downgrade beat), so caching True is safe.
 # ---------------------------------------------------------------------------
 _UNLOCK_GATE_CACHE: dict[str, tuple[float, bool]] = {}
 _UNLOCK_GATE_CACHE_TTL = 60.0
@@ -380,9 +384,10 @@ async def _video_unlock_allowed(video_id: str, viewer_id: str | None) -> bool:
             else:
                 allowed = await is_unlocked(db, viewer_id, video_id)
 
-    if len(_UNLOCK_GATE_CACHE) >= _UNLOCK_GATE_CACHE_MAX:
-        _UNLOCK_GATE_CACHE.clear()
-    _UNLOCK_GATE_CACHE[key] = (now + _UNLOCK_GATE_CACHE_TTL, allowed)
+    if allowed:
+        if len(_UNLOCK_GATE_CACHE) >= _UNLOCK_GATE_CACHE_MAX:
+            _UNLOCK_GATE_CACHE.clear()
+        _UNLOCK_GATE_CACHE[key] = (now + _UNLOCK_GATE_CACHE_TTL, True)
     return allowed
 
 
