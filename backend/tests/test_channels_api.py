@@ -311,6 +311,34 @@ async def test_channel_detail_cover_falls_back_to_newest_video(client, db_sessio
     assert resp.json()["channel"]["cover_url"] == "/media/new.jpg"
 
 
+async def test_channel_detail_carries_upstream_stats(client, db_session):
+    """Author-page header data: follower count + verified flag from the newest
+    video's scraped external_meta (snapshot at ingest time)."""
+    auto = Channel(name="CNBC", slug="cnbc", upstream_channel_id="UCcn", is_auto=True)
+    db_session.add(auto)
+    await db_session.commit()
+    v = await _make_video(db_session, channel_id="UCcn", channel_ref=auto.id)
+    v.external_meta = {"channel": {"follower_count": 12_300_000, "is_verified": True}}
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/channels/cnbc")
+    assert resp.status_code == 200
+    ch = resp.json()["channel"]
+    assert ch["follower_count"] == 12_300_000
+    assert ch["is_verified"] is True
+
+
+async def test_channel_detail_upstream_stats_null_without_meta(client, db_session):
+    channel = await _make_channel(db_session, slug="plain")
+    await _make_video(db_session, channel_ref=channel.id)
+
+    resp = await client.get("/api/v1/channels/plain")
+    assert resp.status_code == 200
+    ch = resp.json()["channel"]
+    assert ch["follower_count"] is None
+    assert ch["is_verified"] is None
+
+
 async def test_browse_feed_items_carry_channel_name_and_slug(client, db_session):
     channel = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
     video = await _make_video(db_session, channel_id="UC12345", channel_name="TED", channel_ref=channel.id)

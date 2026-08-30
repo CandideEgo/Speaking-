@@ -138,8 +138,18 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
     # Cover fallback: newest public video's thumbnail (videos are newest-first).
     cover_fallback = videos[0].thumbnail_url if videos else None
 
+    # Upstream channel stats (scraped with the newest video's external_meta):
+    # follower count + verified badge for the author-page header.
+    upstream_stats: dict = {}
+    if videos:
+        upstream_stats = (videos[0].external_meta or {}).get("channel") or {}
+
+    channel_dict = _channel_public(channel, total, cover_fallback)
+    channel_dict["follower_count"] = upstream_stats.get("follower_count")
+    channel_dict["is_verified"] = upstream_stats.get("is_verified")
+
     return {
-        "channel": _channel_public(channel, total, cover_fallback),
+        "channel": channel_dict,
         "videos": paginated(
             [_video_to_dict(v, channel.slug) for v in videos], page=page, page_size=page_size, total=total
         ),

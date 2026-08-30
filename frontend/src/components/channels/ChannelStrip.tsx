@@ -13,6 +13,9 @@ export interface ChannelSummary {
   description: string | null;
   cover_url: string | null;
   video_count: number;
+  /** 上游频道统计（详情响应携带，列表不返回）：抓取时的粉丝数快照 + 认证标记。 */
+  follower_count?: number | null;
+  is_verified?: boolean | null;
 }
 
 /**

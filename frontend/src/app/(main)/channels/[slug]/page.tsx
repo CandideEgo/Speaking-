@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Radio } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Radio } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { Button } from "@/components/ui/Button";
@@ -12,12 +12,15 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useUnlockedIds } from "@/hooks/useUnlockedIds";
+import { formatViews } from "@/lib/format";
+import { avatarColor, userInitial } from "@/lib/avatar";
 import type { ChannelSummary } from "@/components/channels/ChannelStrip";
 
 interface ChannelDetailResponse {
   channel: ChannelSummary;
   videos: {
-    items: VideoCardData[];
+    // 后端 _video_to_dict 下发 channel_name；VideoCard 读 channel_title，映射后再渲染。
+    items: (VideoCardData & { channel_name?: string | null })[];
     page: number;
     page_size: number;
     total: number;
@@ -53,7 +56,11 @@ export default function ChannelDetailPage() {
         setChannel(data.channel);
         setTotal(data.videos.total);
         setPage(targetPage);
-        setVideos((prev) => (append ? [...prev, ...data.videos.items] : data.videos.items));
+        const mapped = data.videos.items.map((v) => ({
+          ...v,
+          channel_title: v.channel_title ?? v.channel_name ?? undefined,
+        }));
+        setVideos((prev) => (append ? [...prev, ...mapped] : mapped));
       } catch (e) {
         setError(e instanceof Error ? e.message : "加载失败");
       } finally {
@@ -94,23 +101,66 @@ export default function ChannelDetailPage() {
 
         {!error && channel && !loading && (
           <>
-            {/* Channel header */}
-            <div className="flex items-center gap-5 mb-8">
-              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border border-hairline bg-surface-card flex-shrink-0">
-                <Image src={channel.cover_url} alt={channel.name} />
+            {/* Channel header — banner 横条式（主流流媒体作者页布局，适配 16:9 兜底封面） */}
+            <div className="mb-8">
+              <div className="relative h-28 sm:h-40 lg:h-48 rounded-xl overflow-hidden border border-hairline bg-surface-card">
+                <Image
+                  src={channel.cover_url}
+                  alt={channel.name}
+                  fallback={
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center text-4xl sm:text-5xl font-bold text-white/90 ${avatarColor(channel.name)}`}
+                    >
+                      {userInitial(channel.name)}
+                    </div>
+                  }
+                />
+                <div
+                  className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/55 to-transparent"
+                  aria-hidden
+                />
               </div>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-ink flex items-center gap-2">
-                  <Radio size={20} className="text-brand-500 flex-shrink-0" />
-                  {channel.name}
-                </h1>
-                {channel.description && (
-                  <p className="text-[13px] text-muted mt-1.5 leading-relaxed line-clamp-2">
-                    {channel.description}
+
+              <div className="flex items-end gap-4 px-3 sm:px-5 -mt-8 sm:-mt-10">
+                {/* 圆形头像：有封面用封面图，无封面用首字母渐变块 */}
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-canvas bg-surface-card flex-shrink-0 shadow-sm">
+                  <Image
+                    src={channel.cover_url}
+                    alt=""
+                    fallback={
+                      <div
+                        className={`absolute inset-0 flex items-center justify-center text-xl sm:text-2xl font-bold text-white ${avatarColor(channel.name)}`}
+                      >
+                        {userInitial(channel.name)}
+                      </div>
+                    }
+                  />
+                </div>
+                <div className="min-w-0 pb-0.5">
+                  <h1 className="text-lg sm:text-2xl font-extrabold text-ink flex items-center gap-1.5">
+                    <span className="truncate">{channel.name}</span>
+                    {channel.is_verified && (
+                      <BadgeCheck
+                        size={19}
+                        className="text-brand-500 flex-shrink-0"
+                        aria-label="已认证频道"
+                      />
+                    )}
+                  </h1>
+                  <p className="text-xs sm:text-[13px] text-muted mt-0.5">
+                    {typeof channel.follower_count === "number" && (
+                      <>{formatViews(channel.follower_count)} 粉丝 · </>
+                    )}
+                    {total} 个视频
                   </p>
-                )}
-                <p className="text-xs text-muted mt-2">{total} 个视频</p>
+                </div>
               </div>
+
+              {channel.description && (
+                <p className="text-[13px] text-muted mt-3 px-3 sm:px-5 leading-relaxed line-clamp-2">
+                  {channel.description}
+                </p>
+              )}
             </div>
 
             {/* Videos */}

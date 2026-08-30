@@ -129,7 +129,14 @@ export default function HistoryPage() {
               <>
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {unlockedVideos.map((video) => (
-                    <VideoCard key={video.id} video={video} />
+                    <VideoCard
+                      key={video.id}
+                      video={{
+                        ...video,
+                        channel_title: video.channel_name ?? undefined,
+                        channel_slug: video.channel_slug,
+                      }}
+                    />
                   ))}
                 </div>
                 <div ref={unlockedLoaderRef} className="flex justify-center mt-8">

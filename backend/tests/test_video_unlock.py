@@ -243,6 +243,24 @@ class TestUnlockedList:
         data = (await client.get("/api/v1/videos/unlocked", headers=auth_headers)).json()
         assert data["total"] == 0
 
+    async def test_unlocked_list_items_carry_channel_slug(self, client: AsyncClient, auth_headers: dict, db_session):
+        """History 已解锁 Tab 的卡片要能跳作者页（ADR-0014 修订）：item 携带 channel_slug。"""
+        from app.models.channel import Channel
+
+        channel = Channel(name="TED", slug="ted", upstream_channel_id="UC12345")
+        db_session.add(channel)
+        await db_session.commit()
+        video = await _seed_ready_video(db_session, title="ChanVideo", with_subtitle=False)
+        video.channel_ref = channel.id
+        video.channel_name = "TED"
+        await db_session.commit()
+        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
+
+        data = (await client.get("/api/v1/videos/unlocked", headers=auth_headers)).json()
+        item = next(i for i in data["items"] if i["id"] == video.id)
+        assert item["channel_name"] == "TED"
+        assert item["channel_slug"] == "ted"
+
 
 class TestRedeemDuringTrial:
     async def test_redeem_stacks_from_trial_end(self, client: AsyncClient, db_session):
