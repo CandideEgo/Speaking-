@@ -80,6 +80,13 @@ export function usePaginatedList<T>(
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // First-fetch gate: the IntersectionObserver shouldn't fire `loadMore`
+  // before the initial page-1 fetch has resolved. Otherwise the IO callback
+  // runs on mount with hasMore=true (initial state) and !loading (initial
+  // state), triggers fetchPage(2), and the fetchId guard discards the
+  // arriving page-1 response in favor of the empty page-2 result — leaving
+  // the list visibly empty.
+  const hasFetchedOnceRef = useRef(false);
 
   // Guard against stale fetches when filters change rapidly.
   const fetchIdRef = useRef(0);
@@ -119,6 +126,7 @@ export function usePaginatedList<T>(
         }
         setHasMore(data.has_more);
         if (data.total !== undefined) setTotal(data.total);
+        hasFetchedOnceRef.current = true;
       } catch (err) {
         if (fetchId !== fetchIdRef.current) return;
         const msg = err instanceof Error ? err.message : "加载失败";
@@ -140,6 +148,7 @@ export function usePaginatedList<T>(
     setHasMore(true);
     setTotal(0);
     setError(null);
+    hasFetchedOnceRef.current = false;
     fetchPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...filters, enabled]);
@@ -167,7 +176,7 @@ export function usePaginatedList<T>(
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
+        if (entries[0].isIntersecting && hasFetchedOnceRef.current && hasMore && !loading) {
           const nextPage = pageRef.current + 1;
           setPage(nextPage);
           fetchPage(nextPage);
