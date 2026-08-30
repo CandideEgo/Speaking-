@@ -1,11 +1,12 @@
 """Shadowing API — sentence read-along recording endpoints.
 
-POST /shadowing/attempts — create a shadowing attempt record
-GET  /shadowing/attempts — list attempts by video (paginated)
-GET  /shadowing/stats    — user shadowing statistics
+POST   /shadowing/attempts         — create a shadowing attempt record
+GET    /shadowing/attempts         — list attempts by video (paginated)
+GET    /shadowing/stats            — user shadowing statistics
+DELETE /shadowing/attempts/{id}    — delete a single owned attempt
 """
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,9 +92,7 @@ async def list_attempts(
     video_id: str = Query(..., description="Filter attempts by video"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    include_subtitle_time: bool = Query(
-        False, description="Enrich items with the subtitle start_time (D10 timeline)"
-    ),
+    include_subtitle_time: bool = Query(False, description="Enrich items with the subtitle start_time (D10 timeline)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -117,3 +116,26 @@ async def shadowing_stats(
 ):
     """Get aggregated shadowing statistics for the current user."""
     return await shadowing_service.get_stats(db, current_user.id)
+
+
+@router.delete("/attempts/{attempt_id}", status_code=status.HTTP_204_NO_CONTENT)
+@rate_limit("30/minute")
+async def delete_attempt(
+    request: Request,
+    attempt_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a single shadowing attempt owned by the caller.
+
+    Returns 204 on success, 404 if the attempt doesn't exist OR belongs to
+    another user (don't leak existence of other users' attempts). Used by
+    the watch page's "recent shadowing" list so users can clean up
+    recordings they're not happy with.
+    """
+    from app.services.shadowing_service import DeleteAttemptResult, delete_attempt
+
+    outcome = await delete_attempt(db, current_user.id, attempt_id)
+    if outcome != DeleteAttemptResult.OK:
+        raise HTTPException(status_code=404, detail="录音不存在")
+    return None

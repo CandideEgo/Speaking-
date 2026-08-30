@@ -34,6 +34,10 @@ interface UseShadowingReturn {
   attempts: ShadowingAttempt[];
   /** Refresh the attempts list from the server. */
   refreshAttempts: () => Promise<void>;
+  /** Delete an attempt owned by the current user. Optimistic — removes from
+   *  the local list immediately, then awaits the server; on failure restores
+   *  the attempt and surfaces an error toast. */
+  deleteAttempt: (id: string) => Promise<boolean>;
   /** Whether an upload+save is in progress. */
   uploading: boolean;
   /** Resolve a relative audio_url to a playable URL. */
@@ -46,7 +50,7 @@ interface UseShadowingReturn {
 
 /**
  * Hook encapsulating the shadowing (sentence read-along) workflow:
- * upload recording -> save attempt -> list history.
+ * upload recording -> save attempt -> list history -> delete.
  */
 export function useShadowing(videoId: string | undefined): UseShadowingReturn {
   const [attempts, setAttempts] = useState<ShadowingAttempt[]>([]);
@@ -123,10 +127,36 @@ export function useShadowing(videoId: string | undefined): UseShadowingReturn {
 
   const resolveAudioUrl = useCallback((path: string) => mediaUrl(path), []);
 
+  const deleteAttempt = useCallback(async (id: string): Promise<boolean> => {
+    // Snapshot for rollback so the user sees their recording reappear if
+    // the server rejects (e.g. 404, 5xx, network down).
+    let snapshot: ShadowingAttempt | null = null;
+    setAttempts((prev) => {
+      snapshot = prev.find((a) => a.id === id) ?? null;
+      return prev.filter((a) => a.id !== id);
+    });
+    try {
+      await api<void>(`/api/v1/shadowing/attempts/${id}`, { method: "DELETE" });
+      return true;
+    } catch (err) {
+      // Roll back so the UI matches the server state.
+      if (snapshot) {
+        setAttempts((prev) => {
+          if (prev.some((a) => a.id === id)) return prev;
+          return [snapshot as ShadowingAttempt, ...prev];
+        });
+      }
+      const msg = err instanceof Error ? err.message : "删除失败";
+      toast.error(msg);
+      return false;
+    }
+  }, []);
+
   return {
     uploadAndSave,
     attempts,
     refreshAttempts,
+    deleteAttempt,
     uploading,
     resolveAudioUrl,
   };

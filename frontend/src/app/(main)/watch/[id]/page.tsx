@@ -89,7 +89,7 @@ export default function WatchPage() {
     stopSpeaking,
     reRecord,
   } = useSpeakingRecorder(requireAuth, { timer: true });
-  const { uploadAndSave, uploading, attempts } = useShadowing(id);
+  const { uploadAndSave, uploading, attempts, deleteAttempt } = useShadowing(id);
   const [shadowingSaved, setShadowingSaved] = useState(false);
   const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1020,7 +1020,7 @@ export default function WatchPage() {
 
               {/* Shadowing history: recent attempts for this video */}
               <div data-coach="practice">
-                <ShadowingHistory attempts={attempts.slice(0, 5)} />
+                <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
               </div>
             </div>
           )}

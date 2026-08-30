@@ -5,9 +5,11 @@ import io
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.core.security import create_token, hash_password
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.shadowing import ShadowingAttempt
 from app.models.subtitle import Subtitle
+from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoSource, VideoStatus
 from tests.conftest import TestSessionLocal
 
@@ -85,9 +87,7 @@ class TestCreateAttempt:
             assert event is not None
             assert event.event_value == 2
 
-    async def test_event_value_falls_back_to_sentence_count(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_event_value_falls_back_to_sentence_count(self, client: AsyncClient, auth_headers: dict):
         video_id = await _seed_video()
 
         # No duration_ms -> legacy semantics: value counts one sentence.
@@ -171,9 +171,7 @@ class TestListAttempts:
         assert len(data2["items"]) == 1
         assert data2["has_more"] is False
 
-    async def test_include_subtitle_time_enriches_items(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_include_subtitle_time_enriches_items(self, client: AsyncClient, auth_headers: dict):
         video_id = await _seed_video()
         subtitle_id = await _seed_subtitle(video_id, start_time=12.5)
 
@@ -188,9 +186,7 @@ class TestListAttempts:
         )
 
         # Default listing keeps the legacy shape (no subtitle time).
-        resp = await client.get(
-            f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
         item = resp.json()["items"][0]
         assert item["subtitle_start_time"] is None
 
@@ -202,9 +198,7 @@ class TestListAttempts:
         item2 = resp2.json()["items"][0]
         assert item2["subtitle_start_time"] == 12.5
 
-    async def test_include_subtitle_time_handles_missing_subtitle(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_include_subtitle_time_handles_missing_subtitle(self, client: AsyncClient, auth_headers: dict):
         video_id = await _seed_video()
 
         # Attempt without subtitle_id: outer join yields NULL start_time.
@@ -252,6 +246,104 @@ class TestShadowingStats:
         assert data["today_count"] == 3
 
 
+class TestDeleteAttempt:
+    """``DELETE /shadowing/attempts/{id}`` — owner-only delete.
+
+    Authorization rule: only the owner can delete. Non-owners get 404 (same
+    as not found, so existence isn't leaked). Used by the watch page's
+    "recent shadowing" list to let users clean up recordings they don't
+    want to keep.
+    """
+
+    async def test_requires_auth(self, client: AsyncClient):
+        resp = await client.delete("/api/v1/shadowing/attempts/anything")
+        assert resp.status_code == 401
+
+    async def test_delete_own_attempt_succeeds(self, client: AsyncClient, auth_headers: dict):
+        video_id = await _seed_video()
+        create = await client.post(
+            "/api/v1/shadowing/attempts",
+            headers=auth_headers,
+            json={"video_id": video_id, "audio_url": "/media/shadowing/del.webm"},
+        )
+        attempt_id = create.json()["id"]
+
+        resp = await client.delete(f"/api/v1/shadowing/attempts/{attempt_id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+        # Subsequent listing should not return it.
+        listing = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
+        assert listing.json()["total"] == 0
+
+    async def test_delete_missing_returns_404(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.delete(
+            "/api/v1/shadowing/attempts/00000000-0000-0000-0000-000000000000",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
+    async def test_delete_other_users_attempt_returns_404(self, client: AsyncClient, auth_headers: dict):
+        """Non-owners must NOT learn whether the attempt exists. We return 404
+        with the same message as the missing case so probing another user's
+        attempts can't enumerate them."""
+        # Owner creates an attempt.
+        video_id = await _seed_video()
+        create = await client.post(
+            "/api/v1/shadowing/attempts",
+            headers=auth_headers,
+            json={"video_id": video_id, "audio_url": "/media/shadowing/owned.webm"},
+        )
+        attempt_id = create.json()["id"]
+
+        # Spawn a second user with their own auth headers.
+        other_phone = "13700137000"
+        other_password = "Otherpass1!"
+        async with TestSessionLocal() as db:
+            other = User(
+                phone=other_phone,
+                hashed_password=hash_password(other_password),
+                name="Other",
+                plan=PlanType.free,
+                role=RoleType.user,
+            )
+            db.add(other)
+            await db.commit()
+            await db.refresh(other)
+            other_token = create_token(other.id)
+        other_headers = {"Authorization": f"Bearer {other_token}"}
+
+        resp = await client.delete(f"/api/v1/shadowing/attempts/{attempt_id}", headers=other_headers)
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "录音不存在"
+
+        # Original owner's attempt is still there.
+        listing = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
+        assert listing.json()["total"] == 1
+
+    async def test_delete_then_listing_drops_count(self, client: AsyncClient, auth_headers: dict):
+        """After the owner deletes, the listing endpoint must reflect the
+        removal (no cache, no zombie)."""
+        video_id = await _seed_video()
+        ids = []
+        for i in range(2):
+            create = await client.post(
+                "/api/v1/shadowing/attempts",
+                headers=auth_headers,
+                json={
+                    "video_id": video_id,
+                    "audio_url": f"/media/shadowing/z{i}.webm",
+                },
+            )
+            ids.append(create.json()["id"])
+
+        # Delete the first.
+        await client.delete(f"/api/v1/shadowing/attempts/{ids[0]}", headers=auth_headers)
+        listing = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
+        data = listing.json()
+        assert data["total"] == 1
+        assert data["items"][0]["id"] == ids[1]
+
+
 class TestUploadShadowingAudio:
     async def test_requires_auth(self, client: AsyncClient):
         resp = await client.post(
@@ -288,9 +380,7 @@ class TestUploadShadowingAudio:
         )
         assert resp.status_code == 415
 
-    async def test_upload_accepts_webm_with_codec_param(
-        self, client: AsyncClient, auth_headers: dict, tmp_path
-    ):
+    async def test_upload_accepts_webm_with_codec_param(self, client: AsyncClient, auth_headers: dict, tmp_path):
         # Chromium MediaRecorder reports "audio/webm;codecs=opus"; the MIME
         # parameter must not trip the allow-list (regression: 415).
         from unittest.mock import patch

@@ -1,11 +1,15 @@
 "use client";
 
-import { Check, Mic } from "lucide-react";
+import { Check, Mic, Trash2 } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import type { ShadowingAttempt } from "@/hooks/useShadowing";
 
 interface ShadowingHistoryProps {
   attempts: ShadowingAttempt[];
+  /** Owner-only: when provided, each row shows a delete button. The list
+   *  will optimistically remove the row and the parent is expected to
+   *  reflect the server state on failure (handled inside useShadowing). */
+  onDelete?: (id: string) => void;
 }
 
 /**
@@ -13,7 +17,7 @@ interface ShadowingHistoryProps {
  * When the user has zero attempts, show a tiny guidance line so the section
  * doesn't look broken.
  */
-export function ShadowingHistory({ attempts }: ShadowingHistoryProps) {
+export function ShadowingHistory({ attempts, onDelete }: ShadowingHistoryProps) {
   if (!attempts.length) {
     return (
       <div className="mt-3 pt-3 border-t border-hairline">
@@ -35,7 +39,7 @@ export function ShadowingHistory({ attempts }: ShadowingHistoryProps) {
         {attempts.map((a) => (
           <div
             key={a.id}
-            className="flex items-center gap-2.5 rounded-lg bg-surface-soft px-3 py-2"
+            className="group flex items-center gap-2.5 rounded-lg bg-surface-soft px-3 py-2"
           >
             <audio
               src={mediaUrl(a.audio_url)}
@@ -54,6 +58,22 @@ export function ShadowingHistory({ attempts }: ShadowingHistoryProps) {
                 <Check size={11} />
                 满意
               </span>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(a.id)}
+                aria-label="删除这条跟读录音"
+                title="删除"
+                className="inline-flex items-center justify-center w-6 h-6 rounded
+                  text-muted-soft opacity-0 group-hover:opacity-100
+                  hover:text-danger hover:bg-danger/10
+                  focus-visible:opacity-100 focus-visible:outline-none
+                  focus-visible:ring-2 focus-visible:ring-danger/40
+                  transition-[opacity,color,background-color] duration-150"
+              >
+                <Trash2 size={13} />
+              </button>
             )}
           </div>
         ))}

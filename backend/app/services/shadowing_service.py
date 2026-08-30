@@ -123,6 +123,40 @@ async def list_by_video(
     }
 
 
+class DeleteAttemptResult:
+    """Outcome of delete_attempt — distinguishes "not found" from "forbidden"
+    so the API layer can return 404 vs 403 without leaking existence info to
+    non-owners. Keeping this inside the service avoids a second SELECT in the
+    route handler just to disambiguate.
+    """
+
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    FORBIDDEN = "forbidden"
+
+
+async def delete_attempt(db: AsyncSession, user_id: str, attempt_id: str) -> str:
+    """Delete a single shadowing attempt owned by ``user_id``.
+
+    Returns one of ``DeleteAttemptResult.OK`` / ``NOT_FOUND`` / ``FORBIDDEN``.
+    Authorization rule: only the owner can delete — admins are not granted
+    delete (a single user's recordings are private learning data, not
+    moderation content). Note we don't decrement the LearningEvent counter
+    because events are append-only history and the user already saw the
+    count; rewinding would create confusing "I deleted a recording and my
+    streak went down" UX.
+    """
+    result = await db.execute(select(ShadowingAttempt).where(ShadowingAttempt.id == attempt_id))
+    attempt = result.scalar_one_or_none()
+    if attempt is None:
+        return DeleteAttemptResult.NOT_FOUND
+    if attempt.user_id != user_id:
+        return DeleteAttemptResult.FORBIDDEN
+    await db.delete(attempt)
+    await db.commit()
+    return DeleteAttemptResult.OK
+
+
 async def get_stats(db: AsyncSession, user_id: str) -> dict:
     """Aggregate shadowing statistics for a user."""
     # Total attempts
@@ -168,9 +202,7 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
     }
 
 
-def _attempt_to_dict(
-    attempt: ShadowingAttempt, subtitle_start_time: float | None = None
-) -> dict:
+def _attempt_to_dict(attempt: ShadowingAttempt, subtitle_start_time: float | None = None) -> dict:
     data = {
         "id": attempt.id,
         "user_id": attempt.user_id,
