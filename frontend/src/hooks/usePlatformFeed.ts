@@ -52,7 +52,7 @@ function homeVideoToItem(v: Video): VideoItem {
     id: v.id,
     url: v.source_url,
     title: v.title,
-    channel_title: "",
+    channel_title: v.channel_name ?? "",
     thumbnail_url: v.thumbnail_url ?? "",
     duration: v.duration,
     view_count: null,
