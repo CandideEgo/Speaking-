@@ -48,6 +48,8 @@ export interface Video {
   /** External (YouTube) metadata + speech metrics (阶段 1/3). Null for local videos. */
   yt_video_id: string | null;
   channel_name: string | null;
+  /** 作者页 slug（ADR-0014 修订）：视频已挂频道时非空，卡片/播放页链接到 /channels/{slug}。 */
+  channel_slug?: string | null;
   upload_date: string | null;
   ext_view_count: number | null;
   ext_like_count: number | null;
@@ -85,6 +87,8 @@ export interface AdminChannel {
   upstream_channel_id: string | null;
   sort_order: number;
   is_visible: boolean;
+  /** ADR-0014 修订：true = ingest 自动建档的作者页，false = 管理员手建策展频道。 */
+  is_auto?: boolean;
   video_count: number;
   created_at: string | null;
 }

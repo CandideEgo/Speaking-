@@ -247,6 +247,15 @@ async def get_video_detail(
             for s in (video.subtitles or [])
         ]
 
+    # Author page link (ADR-0014 rev.): channel slug for the watch page.
+    channel_slug = None
+    if video.channel_ref:
+        from app.models.channel import Channel
+
+        channel_slug = (
+            await db.execute(select(Channel.slug).where(Channel.id == video.channel_ref))
+        ).scalar_one_or_none()
+
     detail = VideoDetailResponse(
         id=video.id,
         title=video.title,
@@ -276,6 +285,8 @@ async def get_video_detail(
         # Only the owner sees the error message; non-owners get null.
         error_message=video.error_message if is_video_owner(video, current_user) else None,
         created_at=video.created_at.isoformat(),
+        channel_name=video.channel_name,
+        channel_slug=channel_slug,
         subtitles=subtitle_responses,
         access=access,
     )

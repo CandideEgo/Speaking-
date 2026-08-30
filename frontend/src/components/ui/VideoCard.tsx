@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Lock, Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
@@ -20,6 +21,8 @@ export interface VideoCardData {
   difficulty_level?: string | null;
   topic_tags?: string | null;
   channel_title?: string;
+  /** 作者页 slug（ADR-0014 修订）：非空时频道名可点跳转。 */
+  channel_slug?: string | null;
   is_demo?: boolean;
 }
 
@@ -59,8 +62,19 @@ export function VideoCard({
   className,
   lockState,
 }: VideoCardProps) {
+  const router = useRouter();
   const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
   const videoId = String(video.id || video.video_id || "");
+
+  // 频道名跳作者页：外层卡片是 <Link>，不能嵌套 <a>，用受控 span 拦截冒泡。
+  // 未挂频道的视频（channel_slug 为空）保持纯文本。
+  const channelLink = video.channel_slug ? `/channels/${video.channel_slug}` : null;
+
+  function onChannelClick(e: React.MouseEvent | React.KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (channelLink) router.push(channelLink);
+  }
 
   return (
     <Link
@@ -167,7 +181,22 @@ export function VideoCard({
         </p>
         {footer ?? (
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span>{video.channel_title || "SeeWord"}</span>
+            {channelLink ? (
+              <span
+                role="link"
+                tabIndex={0}
+                onClick={onChannelClick}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onChannelClick(e);
+                }}
+                className="hover:text-ink transition-colors cursor-pointer truncate max-w-[9rem]"
+                title={video.channel_title}
+              >
+                {video.channel_title || "SeeWord"}
+              </span>
+            ) : (
+              <span>{video.channel_title || "SeeWord"}</span>
+            )}
             <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
             <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
               {category}

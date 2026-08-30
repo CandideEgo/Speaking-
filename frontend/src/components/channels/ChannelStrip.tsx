@@ -16,7 +16,8 @@ export interface ChannelSummary {
 }
 
 /**
- * Horizontal strip of curated channels (ADR-0014) for the browse page.
+ * Horizontal strip of channels (ADR-0014, full author pages) for the browse
+ * page - top rows only (curated first, then biggest auto author pages).
  * Silently renders nothing when there are no visible channels.
  */
 export function ChannelStrip() {
@@ -24,7 +25,7 @@ export function ChannelStrip() {
 
   useEffect(() => {
     let cancelled = false;
-    api<{ items: ChannelSummary[] }>("/api/v1/channels")
+    api<{ items: ChannelSummary[] }>("/api/v1/channels?page_size=12")
       .then((data) => !cancelled && setChannels(data.items))
       .catch(() => !cancelled && setChannels([]));
     return () => {

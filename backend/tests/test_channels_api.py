@@ -1,10 +1,13 @@
-"""Tests for the Channels API (ADR-0014)."""
+"""Tests for the Channels API (ADR-0014, rev. 2026-08-30 full author pages)."""
 
 from app.models.channel import Channel
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
+from app.services.channel_service import auto_attach_channel, list_public_channels
 
 
-async def _make_video(db, *, official=True, published=True, ready=True, channel_id=None, channel_ref=None) -> Video:
+async def _make_video(
+    db, *, official=True, published=True, ready=True, channel_id=None, channel_name=None, channel_ref=None
+) -> Video:
     video = Video(
         title="Channel Test Video",
         source_url="https://example.com/channel-test.mp4",
@@ -14,6 +17,7 @@ async def _make_video(db, *, official=True, published=True, ready=True, channel_
         is_official=official,
         is_published=published,
         channel_id=channel_id,
+        channel_name=channel_name,
         channel_ref=channel_ref,
     )
     db.add(video)
@@ -171,3 +175,187 @@ async def test_admin_video_patch_sets_channel_ref(client, admin_headers, db_sess
     )
     assert resp.status_code == 200
     assert resp.json()["channel_ref"] is None
+
+
+# ---------------------------------------------------------------------------
+# Full author pages (ADR-0014 rev. 2026-08-30): auto-creation at ingest
+# ---------------------------------------------------------------------------
+
+
+async def test_auto_attach_creates_channel_for_unknown_upstream(db_session):
+    video = await _make_video(db_session, channel_id="UCabc123", channel_name="某中文频道")
+
+    await auto_attach_channel(db_session, video)
+    await db_session.commit()
+
+    assert video.channel_ref is not None
+    channel = await db_session.get(Channel, video.channel_ref)
+    assert channel is not None
+    assert channel.is_auto is True
+    assert channel.is_visible is True
+    assert channel.name == "某中文频道"
+    assert channel.upstream_channel_id == "UCabc123"
+    # Chinese display name has no ASCII slug -> lowercased upstream id.
+    assert channel.slug == "ucabc123"
+
+
+async def test_auto_attach_ascii_name_slugifies(db_session):
+    video = await _make_video(db_session, channel_id="UCxyz789", channel_name="TED Talks")
+
+    await auto_attach_channel(db_session, video)
+    await db_session.commit()
+
+    channel = await db_session.get(Channel, video.channel_ref)
+    assert channel.slug == "ted-talks"
+
+
+async def test_auto_attach_slug_conflict_falls_back_to_upstream(db_session):
+    # An unrelated curated channel already owns the slug an auto channel would want.
+    await _make_channel(db_session, name="TED Talks 精选", slug="ted-talks")
+    video = await _make_video(db_session, channel_id="UCxyz789", channel_name="TED Talks")
+
+    await auto_attach_channel(db_session, video)
+    await db_session.commit()
+
+    channel = await db_session.get(Channel, video.channel_ref)
+    assert channel.slug == "ucxyz789"
+
+
+async def test_auto_attach_registered_channel_wins(db_session):
+    curated = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
+    video = await _make_video(db_session, channel_id="UC12345", channel_name="TED")
+
+    await auto_attach_channel(db_session, video)
+    await db_session.commit()
+
+    assert video.channel_ref == curated.id
+    # No duplicate auto channel was created.
+    from sqlalchemy import select
+
+    assert len(list((await db_session.execute(select(Channel))).scalars())) == 1
+
+
+async def test_auto_attach_noop_without_channel_id_or_when_attached(db_session):
+    local_video = await _make_video(db_session, channel_id=None)
+    await auto_attach_channel(db_session, local_video)
+    assert local_video.channel_ref is None
+
+    channel = await _make_channel(db_session)
+    attached = await _make_video(db_session, channel_id="UC1", channel_ref=channel.id)
+    await auto_attach_channel(db_session, attached)
+    assert attached.channel_ref == channel.id
+
+
+# ---------------------------------------------------------------------------
+# Public list: ordering / empty-channel hiding / pagination / cover fallback
+# ---------------------------------------------------------------------------
+
+
+async def test_list_channels_curated_first_then_auto_by_count(client, db_session):
+    await _make_channel(db_session, name="Empty curated", slug="empty-curated")  # no videos -> hidden
+    curated = await _make_channel(db_session, name="Curated", slug="curated", sort_order=5)
+    await _make_video(db_session, channel_ref=curated.id)
+
+    small_auto = Channel(name="Small Author", slug="small-author", upstream_channel_id="UCsmall", is_auto=True)
+    big_auto = Channel(name="Big Author", slug="big-author", upstream_channel_id="UCbig", is_auto=True)
+    db_session.add_all([small_auto, big_auto])
+    await db_session.commit()
+    await _make_video(db_session, channel_id="UCbig", channel_ref=big_auto.id)
+    await _make_video(db_session, channel_id="UCbig", channel_ref=big_auto.id)
+    await _make_video(db_session, channel_id="UCsmall", channel_ref=small_auto.id)
+
+    resp = await client.get("/api/v1/channels")
+    assert resp.status_code == 200
+    data = resp.json()
+    slugs = [c["slug"] for c in data["items"]]
+    # Curated leads regardless of count; auto rows follow by video count desc.
+    assert slugs == ["curated", "big-author", "small-author"]
+    assert data["total"] == 3
+    assert data["has_more"] is False
+
+
+async def test_list_channels_paginated(client, db_session):
+    for i in range(5):
+        ch = Channel(name=f"Author {i}", slug=f"author-{i}", upstream_channel_id=f"UC{i}", is_auto=True)
+        db_session.add(ch)
+        await db_session.flush()
+        await _make_video(db_session, channel_id=f"UC{i}", channel_ref=ch.id)
+
+    resp = await client.get("/api/v1/channels?page=1&page_size=4")
+    data = resp.json()
+    assert len(data["items"]) == 4
+    assert data["has_more"] is True
+
+    resp = await client.get("/api/v1/channels?page=2&page_size=4")
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["has_more"] is False
+
+
+async def test_channel_detail_cover_falls_back_to_newest_video(client, db_session):
+    from datetime import UTC, datetime, timedelta
+
+    auto = Channel(name="Author", slug="author", upstream_channel_id="UCx", is_auto=True)
+    db_session.add(auto)
+    await db_session.commit()
+    v1 = await _make_video(db_session, channel_id="UCx", channel_ref=auto.id)
+    v1.thumbnail_url = "/media/old.jpg"
+    v1.created_at = datetime.now(UTC) - timedelta(hours=1)
+    v2 = await _make_video(db_session, channel_id="UCx", channel_ref=auto.id)
+    v2.thumbnail_url = "/media/new.jpg"
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/channels/author")
+    assert resp.status_code == 200
+    # Cover fallback = newest public video's thumbnail (cover_url itself empty).
+    assert resp.json()["channel"]["cover_url"] == "/media/new.jpg"
+
+
+async def test_browse_feed_items_carry_channel_name_and_slug(client, db_session):
+    channel = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
+    video = await _make_video(db_session, channel_id="UC12345", channel_name="TED", channel_ref=channel.id)
+
+    resp = await client.get("/api/v1/browse/feed")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert items, "feed should contain the published video"
+    item = next(i for i in items if i["id"] == video.id)
+    assert item["channel_name"] == "TED"
+    assert item["channel_slug"] == "ted"
+
+
+async def test_home_feed_items_carry_channel_slug(client, db_session):
+    channel = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
+    video = await _make_video(db_session, channel_id="UC12345", channel_ref=channel.id)
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/recommendations/home")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert items, "home feed should contain the published video"
+    item = next(i for i in items if i["id"] == video.id)
+    assert item["channel_slug"] == "ted"
+
+
+async def test_video_detail_carries_channel_name_and_slug(client, db_session):
+    channel = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
+    video = await _make_video(db_session, channel_id="UC12345", channel_name="TED", channel_ref=channel.id)
+
+    resp = await client.get(f"/api/v1/videos/{video.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["channel_name"] == "TED"
+    assert data["channel_slug"] == "ted"
+
+
+async def test_admin_list_channels_marks_is_auto(client, admin_headers, db_session):
+    await _make_channel(db_session, name="Curated", slug="curated")
+    auto = Channel(name="Author", slug="author", upstream_channel_id="UCx", is_auto=True)
+    db_session.add(auto)
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/channels/admin/all", headers=admin_headers)
+    assert resp.status_code == 200
+    by_slug = {c["slug"]: c for c in resp.json()["items"]}
+    assert by_slug["curated"]["is_auto"] is False
+    assert by_slug["author"]["is_auto"] is True

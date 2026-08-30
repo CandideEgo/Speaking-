@@ -59,6 +59,10 @@ class VideoResponse(BaseModel):
     # (distinct from the in-app like/view counters above).
     yt_video_id: str | None = None
     channel_name: str | None = None
+    # In-site author page (ADR-0014 rev.): slug of the video's channel, when
+    # attached. Serializers that want the link populate it explicitly; the
+    # default None keeps legacy payloads (and cached detail JSON) valid.
+    channel_slug: str | None = None
     upload_date: str | None = None
     ext_view_count: int | None = None
     ext_like_count: int | None = None

@@ -2,6 +2,8 @@
 
 ## Current Focus
 
+**频道升级全量作者页 Auto-Channel（2026-08-30，ADR-0014 修订）**：ingest 按 `channel_id` 自动建档（`ensure_channel_for` find-or-create）；迁移 `e0f1g2h3i4j5`（`channels.is_auto` + `upstream_channel_id` 唯一索引）已应用本地库；序列化补 `channel_slug`（browse/home/favorites/detail + browse 补 `channel_name` 修卡片恒显 SeeWord 旧 bug）；前端 VideoCard 频道名可点 + watch 页 meta 行作者名入口 + 频道列表分页 + admin「自动/策展」来源列；回填脚本 `scripts/backfill_auto_channels.py` 已对本地库执行（CNBC 频道自动建档生效）。验证：后端 653 passed / 6 skipped（+17 频道测试）、mypy 76 errors（低于基线 79，无新增）、前端 tsc/eslint/vitest 全绿、API 冒烟（/channels /channels/{slug} /browse/feed /recommendations/home /videos/{id} 全带 slug）。**产品设计规划-2026-08 亦全部完成**（见 Completed Milestones）。
+
 **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2 已落地，Phase 3 收尾完成 + §10 拍板落定。**Phase 3** 提交链：5ebbf8d D10 跟读体验增强 → e1b2e5c D12 考试词 dotted underline → 8048c5a e2e mobile 真机验收 → d08fc41 D12 admin aria-label + focus ring → 8609847 §10 #7 首页「已解锁优先」开关。ADR-0015/0016 入库 `.agent/decisions.md` + `docs/adr/`。**§10 拍板**：#4 示范视频暂缓（`is_demo=true` 待指）/ #5 slogan + 品牌色沿用规划默认（"用真实视频学英语" + coral #FF6B4A）/ #6 首页统计行不加（维持 streak + 词汇数 + 视频数 3 项）/ #7 已解锁入口重定义为首页开关（已实施 8609847）。**剩余 polish**（不在规划内）：品牌色 token 对比度（Lighthouse 96→100）、iOS Safari 真机 D10 验收。
 
 ## Completed Milestones
@@ -94,6 +96,7 @@
 ## Last Updated
 
 Date: 2026-08-30
+- **频道升级全量作者页 Auto-Channel（ADR-0014 修订，2026-08-30）**：见 Current Focus。后端 653 passed / 6 skipped（+17 频道测试）；迁移 e0f1g2h3i4j5 已 upgrade 本地库（downgrade/upgrade 往返验证）；回填脚本已跑（本地 1 视频 -> CNBC 频道自动建档）；mypy 无新增（76 < 基线 79）；前端 tsc/eslint/vitest 全绿；curl 冒烟 5 端点全通过（CNBC 频道 cover 兜底到视频缩略图生效）。
 - **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2 已完成 → Phase 3 落地 D10 跟读体验增强（5ebbf8d 逐句模式 + 波形对比 + 时间线 markers + LearningEvent 累计秒数 + MIME 参数解析修复）+ D12 可访问性（e1b2e5c 考试词 dotted underline + d08fc41 admin 铃铛 aria-label/focus ring，Lighthouse mobile 3 页 96/100）+ D1 移动端真机验收（8048c5a Pixel 5 viewport 自动隐藏验证 opacity=0/pointer-events=none）+ §10 #7 重定义为首页「已解锁优先」开关（8609847 useBoostUnlocked hook + 首页筛选栏 peer 模式开关 + orderedVideos 排序）。ADR-0015（D10 跟读）/ 0016（D12 可访问性）入库。验证：后端 636 passed / 6 skipped（无回归），前端 tsc/eslint 0 errors，vitest 10 passed，新增 e2e mobile-d1-d10.spec.ts 2 passed。§10 拍板：#4 示范视频暂缓 / #5 沿用规划默认（"用真实视频学英语" + coral）/ #6 首页统计不加 / #7 已实施。
 - **Phase 2 全量完成 + D6 beat 补债（2026-08-29）**：见 Current Focus。后端 632 passed / 6 skipped；新迁移 d9e0f1g2h3i4（weekly_reports）已应用到本地库；beat 新增 3 项（每小时提醒/每日 Pro 到期/周一周报）；前端新增依赖 qrcode（--legacy-peer-deps，项目 eslint peer 冲突为既有问题）；待拍板项（SMS 登录/解锁自动播放/周报卡片样式确认）按用户决定全部暂缓，周报卡片按规划默认样式实现。
 - **Phase 1 B0 首批提交**：D2/D3b/D4/D5数据/D6页面层/D13/D14/D15 一次性落地（见 Current Focus）；提交前验证修复三处：notifications 页 TabPills 旧 API 适配、NotificationDropdown 「查看全部」Link 残标修复+导入、notifications 页未用 X 导入清理；后端 605 passed、前端 tsc/eslint/vitest/build 全绿；新迁移 c6d7e8f9g0h1 已应用到本地库。另含 Phase 0 收尾：迁移 revision 重命名（p6q7r8s9t0u1/q7r8s9t0u1v2）+ like-status 路径修复。

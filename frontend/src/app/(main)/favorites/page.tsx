@@ -22,6 +22,7 @@ interface FavoriteVideoItem {
   difficulty_level: string | null;
   topic_tags: string | null;
   channel_name: string | null;
+  channel_slug?: string | null;
   like_count: number;
   favorite_count: number;
   note_excerpt: string | null;
@@ -130,6 +131,7 @@ export default function FavoritesPage() {
                       difficulty_level: v.difficulty_level,
                       topic_tags: v.topic_tags,
                       channel_title: v.channel_name ?? "SeeWord",
+                      channel_slug: v.channel_slug ?? undefined,
                     }}
                     footer={
                       v.has_note && v.note_excerpt ? (

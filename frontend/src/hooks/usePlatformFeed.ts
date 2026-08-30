@@ -53,6 +53,7 @@ function homeVideoToItem(v: Video): VideoItem {
     url: v.source_url,
     title: v.title,
     channel_title: v.channel_name ?? "",
+    channel_slug: v.channel_slug ?? undefined,
     thumbnail_url: v.thumbnail_url ?? "",
     duration: v.duration,
     view_count: null,

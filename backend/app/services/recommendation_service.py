@@ -66,6 +66,15 @@ def _to_response(v: Video) -> dict:
     return VideoResponse.model_validate(v).model_dump()
 
 
+async def _responses_with_slug(db: AsyncSession, videos: list[Video]) -> list[dict]:
+    """_to_response per video plus the author-page slug (ADR-0014 rev.) -
+    one batched lookup for the whole page, None for unattached videos."""
+    from app.services.channel_service import channel_slugs_for
+
+    slug_map = await channel_slugs_for(db, videos)
+    return [{**_to_response(v), "channel_slug": slug_map.get(v.channel_ref)} for v in videos]
+
+
 def _score_ordered(pool: list[Video]) -> list[Video]:
     """score desc (nulls last) → is_featured → created_at desc.
 
@@ -490,7 +499,7 @@ async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_siz
     has_more = total > page * page_size
 
     result = {
-        "items": [_to_response(v) for v in page_items],
+        "items": await _responses_with_slug(db, page_items),
         "page": page,
         "page_size": page_size,
         "has_more": has_more,
@@ -547,7 +556,7 @@ async def get_category_feed(db: AsyncSession, user: User | None, tag: str, page:
     has_more = total > page * page_size
 
     result_dict = {
-        "items": [_to_response(v) for v in page_items],
+        "items": await _responses_with_slug(db, page_items),
         "tag": tag_lower,
         "page": page,
         "page_size": page_size,

@@ -908,6 +908,7 @@ async def list_user_favorites(
     so the frontend can render VideoCard without a second round-trip.
     """
     from app.models.favorite import UserFavorite, UserNote
+    from app.services.channel_service import channel_slugs_for
 
     total = (
         await db.execute(select(func.count(UserFavorite.id)).where(UserFavorite.user_id == current_user.id))
@@ -928,6 +929,7 @@ async def list_user_favorites(
         )
     ).all()
 
+    slug_map = await channel_slugs_for(db, [v for v, _, _ in rows])
     items = [
         {
             "id": v.id,
@@ -937,6 +939,7 @@ async def list_user_favorites(
             "difficulty_level": v.difficulty_level,
             "topic_tags": v.topic_tags,
             "channel_name": v.channel_name,
+            "channel_slug": slug_map.get(v.channel_ref),
             "like_count": getattr(v, "like_count", 0) or 0,
             "favorite_count": getattr(v, "favorite_count", 0) or 0,
             "note_excerpt": (note.content[:60] + "…")

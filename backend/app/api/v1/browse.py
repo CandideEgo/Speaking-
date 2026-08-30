@@ -79,8 +79,9 @@ async def _browse_feed_query(
     result = await db.execute(stmt)
     videos = result.scalars().all()
 
+    slug_map = await _channel_slug_map(db, videos)
     return paginated(
-        [_video_to_dict(v) for v in videos],
+        [_video_to_dict(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
         page=page,
         page_size=page_size,
         total=total,
@@ -125,8 +126,9 @@ async def _browse_featured_query(*, db: AsyncSession, limit: int) -> dict:
     result = await db.execute(stmt)
     videos = result.scalars().all()
 
+    slug_map = await _channel_slug_map(db, videos)
     return {
-        "items": [_video_to_dict(v) for v in videos],
+        "items": [_video_to_dict(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
     }
 
 
@@ -141,8 +143,13 @@ async def browse_featured(
     return await _browse_featured_query(db=db, limit=limit)
 
 
-def _video_to_dict(v: Video) -> dict:
-    """Convert a Video model to a dict for the feed response."""
+def _video_to_dict(v: Video, channel_slug: str | None = None) -> dict:
+    """Convert a Video model to a dict for the feed response.
+
+    ``channel_slug`` (author page link, ADR-0014 rev.) is passed in by callers
+    that resolved the video's channel - keep it a parameter rather than a
+    per-row query so paged feeds resolve slugs in one batch.
+    """
     return {
         "id": v.id,
         "title": v.title,
@@ -152,11 +159,20 @@ def _video_to_dict(v: Video) -> dict:
         "topic_tags": v.topic_tags,
         "is_official": v.is_official,
         "video_source": v.video_source.value if v.video_source else None,
+        "channel_name": v.channel_name,
+        "channel_slug": channel_slug,
         "like_count": v.like_count,
         "favorite_count": v.favorite_count,
         "status": v.status.value if v.status else None,
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }
+
+
+async def _channel_slug_map(db: AsyncSession, videos) -> dict[str, str]:
+    """channel_ref -> slug for a page of videos (author-page card links)."""
+    from app.services.channel_service import channel_slugs_for
+
+    return await channel_slugs_for(db, videos)
 
 
 async def invalidate_browse_cache() -> None:

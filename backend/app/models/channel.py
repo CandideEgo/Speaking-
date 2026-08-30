@@ -1,11 +1,14 @@
-"""Official curated video channels (ADR-0014).
+"""Video channels - author pages (ADR-0014, rev. 2026-08-30).
 
-Channels are an admin-maintained "content source" dimension, orthogonal to
-the topic-tag dimension used by recommendations. The scraped upstream fields
-on Video (``channel_id`` / ``channel_name``) stay as external metadata; this
-table is the in-site curation identity (ordering / cover / description /
-visibility / slug routing). ``Channel.upstream_channel_id`` bridges the two:
-videos are auto-attached by matching their scraped ``channel_id``.
+Channels are the "content source" dimension, orthogonal to the topic-tag
+dimension used by recommendations. Since the 2026-08-30 revision (full author
+pages), every video ingested with a scraped upstream ``channel_id``
+auto-creates a channel (``is_auto=True``) so each author has a browsable
+home; admins curate rows by editing them (``is_auto=False`` marks rows
+created by hand). The scraped upstream fields on Video
+(``channel_id`` / ``channel_name``) stay as external metadata;
+``Channel.upstream_channel_id`` bridges the two - videos are auto-attached
+by matching their scraped ``channel_id``.
 """
 
 import uuid
@@ -30,6 +33,9 @@ class Channel(Base):
     upstream_channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # ADR-0014 rev. 2026-08-30 (full author pages): True when auto-created at
+    # ingest from a scraped upstream channel id; False for admin-curated rows.
+    is_auto: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

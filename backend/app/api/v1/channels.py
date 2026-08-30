@@ -1,6 +1,10 @@
 """Channels API — official curated video channels (ADR-0014).
 
-Public:  GET /channels, GET /channels/{slug} (anonymous-friendly, like
+Author pages - every scraped author gets one, auto-created at ingest
+(ADR-0014 rev. 2026-08-30).
+
+Public:  GET /channels (paginated; curated rows first, auto author pages by
+video count), GET /channels/{slug} (anonymous-friendly, like
 recommendations). Admin: CRUD under /channels/admin* plus a batch attach
 endpoint. Channels are orthogonal to the topic-tag recommendation dimension.
 
@@ -12,12 +16,15 @@ constraint as exams.py).
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.models.channel import Channel
 from app.models.user import User
+from app.models.video import Video
 from app.services import channel_service
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -30,9 +37,15 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 
 @router.get("")
 @rate_limit("30/minute")
-async def list_channels(request: Request, db: AsyncSession = Depends(get_db)):
-    """Visible channels ordered by sort_order, with public video counts."""
-    return {"items": await channel_service.list_public_channels(db)}
+async def list_channels(
+    request: Request,
+    page: int = Query(1, ge=1, le=100),
+    page_size: int = Query(50, ge=4, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Visible non-empty channels (curated first, auto author pages by video
+    count) as a paginated envelope."""
+    return await channel_service.list_public_channels(db, page, page_size)
 
 
 @router.get("/{slug}")
@@ -106,6 +119,15 @@ async def admin_create_channel(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     await db.commit()
+    # Videos may have just been auto-attached - feed cards embed the link.
+    attached_ids = list((await db.execute(select(Video.id).where(Video.channel_ref == channel.id))).scalars())
+    if attached_ids:
+        try:
+            await channel_service.invalidate_channel_caches(attached_ids)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning("channel create cache invalidation failed", exc_info=True)
     return {"id": channel.id, "slug": channel.slug, "name": channel.name}
 
 
@@ -155,14 +177,15 @@ async def admin_attach_videos(
     db: AsyncSession = Depends(get_db),
 ):
     """Set this channel as the curated home for the given videos (overwrite)."""
-    from sqlalchemy import update
-
-    from app.models.channel import Channel
-    from app.models.video import Video
-
     channel = await db.get(Channel, channel_id)
     if channel is None:
         raise HTTPException(status_code=404, detail="频道不存在")
     result = await db.execute(update(Video).where(Video.id.in_(payload.video_ids)).values(channel_ref=channel_id))
     await db.commit()
+    try:
+        await channel_service.invalidate_channel_caches(payload.video_ids)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("channel attach cache invalidation failed", exc_info=True)
     return {"attached": result.rowcount}

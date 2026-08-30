@@ -606,9 +606,22 @@ export default function WatchPage() {
           </div>
         </div>
 
-        {/* meta 细行 */}
+        {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
         <div className="flex items-center gap-2 text-[12px] text-muted mt-2">
-          <span className="font-semibold text-ink">SeeWord</span>
+          {video.channel_name ? (
+            video.channel_slug ? (
+              <Link
+                href={`/channels/${video.channel_slug}`}
+                className="font-semibold text-ink hover:text-brand-500 transition-colors"
+              >
+                {video.channel_name}
+              </Link>
+            ) : (
+              <span className="font-semibold text-ink">{video.channel_name}</span>
+            )
+          ) : (
+            <span className="font-semibold text-ink">SeeWord</span>
+          )}
           <span>·</span>
           <span>{video.difficulty_level || "B2"}</span>
           <span>·</span>
