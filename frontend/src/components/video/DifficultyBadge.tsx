@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { cefrExamHint } from "@/lib/cefrLevels";
 
 /** CEFR level → color token mapping. */
 const LEVEL_COLORS: Record<string, string> = {
@@ -34,6 +35,8 @@ export function DifficultyBadge({ level, size = "sm", className, style }: Diffic
   if (!level) return null;
 
   const color = LEVEL_COLORS[level] || FALLBACK_COLOR;
+  // CEFR 附考试体系对照（与引导/筛选/高亮统一语言），hover 可见。
+  const hint = cefrExamHint(level);
 
   return (
     <span
@@ -44,6 +47,7 @@ export function DifficultyBadge({ level, size = "sm", className, style }: Diffic
         className
       )}
       style={style}
+      title={hint ? `${level} · ≈${hint}` : undefined}
     >
       {level}
     </span>

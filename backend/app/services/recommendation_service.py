@@ -34,15 +34,16 @@ from app.schemas.video import VideoResponse
 
 # target_exam → CEFR band (soft boost only; videos carry no exam_level field).
 # Used to nudge videos of a matching difficulty upward for the user's goal.
+# Keys MUST be canonical exam_levels keys (app/core/exam_levels.py) — anything
+# else can never match UserPreferences.target_exam and silently no-ops.
 _EXAM_CEFR_BAND: dict[str, set[str]] = {
+    "gaoKao": {"A2", "B1"},
     "cet4": {"A2", "B1"},
-    "gaokao": {"A2", "B1"},
-    "zhuan4": {"A1", "A2"},
     "cet6": {"B1", "B2"},
-    "kaoyan": {"B1", "B2"},
-    "zhuan8": {"B2", "C1"},
+    "ky": {"B1", "B2"},
     "ielts": {"B2", "C1"},
     "toefl": {"B2", "C1"},
+    "gre": {"C1", "C2"},
 }
 
 _BUCKET_ORDER = ("top", "potential", "cold", "long")

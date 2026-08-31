@@ -33,6 +33,7 @@ import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
+import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
   ArrowLeft,
   Loader2,
@@ -623,7 +624,8 @@ export default function WatchPage() {
             <span className="font-semibold text-ink">SeeWord</span>
           )}
           <span>·</span>
-          <span>{video.difficulty_level || "B2"}</span>
+          {/* CEFR 附考试体系对照，与引导/筛选统一语言 */}
+          <span>{cefrWithExamHint(video.difficulty_level || "B2")}</span>
           <span>·</span>
           <span>{formatDuration(video.duration)}</span>
         </div>

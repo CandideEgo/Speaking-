@@ -11,6 +11,7 @@ import { useUnlockedIds } from "@/hooks/useUnlockedIds";
 import { UnlockQuotaHint } from "@/components/paywall/UnlockQuotaHint";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ChannelStrip } from "@/components/channels/ChannelStrip";
+import { cefrWithExamHint } from "@/lib/cefrLevels";
 import { Compass } from "lucide-react";
 
 const DIFFICULTY_LEVELS = [
@@ -69,12 +70,12 @@ export default function BrowsePage() {
             </div>
             {/* Separator */}
             <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
-            {/* Difficulty pills */}
+            {/* Difficulty pills —— CEFR 档位附考试体系对照，与引导/高亮统一语言 */}
             <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
               <TabPills
                 tabs={DIFFICULTY_LEVELS.map((lv) => ({
                   key: lv.id,
-                  label: lv.label,
+                  label: lv.id === "all" ? lv.label : cefrWithExamHint(lv.label),
                 }))}
                 activeKey={activeLevel}
                 onChange={setActiveLevel}

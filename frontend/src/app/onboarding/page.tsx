@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { cefrExamHint } from "@/lib/cefrLevels";
 
 const LEVELS = [
   { value: "A1", label: "A1 入门", description: "刚接触英语" },
@@ -18,11 +19,14 @@ const LEVELS = [
 ];
 
 const EXAMS = [
+  // value 必须是后端 canonical 考试键（app/core/exam_levels.py），
+  // 否则 preferences PUT 会被 422 拒。与 watch 页高亮选择器同一套键。
+  { value: "gaoKao", label: "高考英语", description: "全国高考" },
   { value: "cet4", label: "大学英语四级", description: "CET-4" },
   { value: "cet6", label: "大学英语六级", description: "CET-6" },
+  { value: "ky", label: "考研英语", description: "研究生入学考试" },
   { value: "ielts", label: "雅思", description: "IELTS" },
-  { value: "kaoyan", label: "考研英语", description: "研究生入学考试" },
-  { value: "gaokao", label: "高考英语", description: "全国高考" },
+  // "daily" 无对应考试级别：保存时传 null，不高亮任何考试词。
   { value: "daily", label: "日常提升", description: "无特定考试，提升综合能力" },
 ];
 
@@ -94,7 +98,8 @@ export default function OnboardingPage() {
         api("/api/v1/users/me/preferences", {
           method: "PUT",
           body: JSON.stringify({
-            target_exam: targetExam,
+            // "daily" 无 canonical 考试键 → 清空目标（后端校验只收 exam_levels 键）。
+            target_exam: targetExam === "daily" ? null : targetExam,
             daily_goal_type: "minutes",
             daily_goal_value: dailyMinutes,
           }),
@@ -160,7 +165,10 @@ export default function OnboardingPage() {
                   )}
                 >
                   <span className="font-medium">{l.label}</span>
-                  <span className="ml-2 text-sm text-muted">{l.description}</span>
+                  <span className="ml-2 text-sm text-muted">
+                    {l.description}
+                    {cefrExamHint(l.value) && ` · ≈${cefrExamHint(l.value)}`}
+                  </span>
                 </button>
               ))}
             </div>
