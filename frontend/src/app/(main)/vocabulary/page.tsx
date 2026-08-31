@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useVocabularyPractice } from "@/hooks/usePractice";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
 import {
   BookOpen,
   Trash2,
@@ -13,19 +13,19 @@ import {
   Target,
   CheckCircle2,
   Flame,
-  Dumbbell,
   Search,
   GraduationCap,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
-import { Button, type ButtonVariant } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState } from "@/components/common/ErrorState";
 import { MetricCard } from "@/components/ui/MetricCard";
-import { Modal } from "@/components/common/Modal";
-import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { PageTransition } from "@/components/common/PageTransition";
 import { useSpeech } from "@/hooks/useSpeech";
 import type { Paginated, VocabularyWord } from "@/types";
@@ -39,18 +39,7 @@ interface VocabStatsResponse {
   due_count: number;
 }
 
-// SM-2 review quality buttons — simplified to 3 tiers for faster review.
-// Keyboard shortcuts: 1=忘了, 2=模糊, 3=记住了
-const QUALITY_BUTTONS: {
-  value: number;
-  label: string;
-  variant: ButtonVariant;
-  key: string;
-}[] = [
-  { value: 1, label: "忘了", variant: "destructive", key: "1" },
-  { value: 3, label: "模糊", variant: "outline", key: "2" },
-  { value: 5, label: "记住了", variant: "primary", key: "3" },
-];
+const PAGE_SIZE = 24;
 
 function masteryBadge(level: string | null | undefined): {
   tone: BadgeTone;
@@ -63,62 +52,49 @@ function masteryBadge(level: string | null | undefined): {
 
 export default function VocabularyPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-  const [words, setWords] = useState<VocabularyWord[]>([]);
   const [stats, setStats] = useState({
     total: 0,
     due: 0,
     mastered: 0,
     learning: 0,
   });
-  const [loading, setLoading] = useState(true);
   const [dueOnly, setDueOnly] = useState(false);
   const [masteryFilter, setMasteryFilter] = useState<string>("all");
   const undoneRef = useRef(false);
-  const [practiceOpen, setPracticeOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const vocabPractice = useVocabularyPractice({
-    count: 10,
-    dueOnly: true,
-    enabled: practiceOpen,
-  });
+  // 搜索防抖：避免每次击键都请求后端。
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const { speak } = useSpeech();
 
-  // Keyboard shortcuts for review: 1=忘了, 2=模糊, 3=记住了
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if typing in an input/textarea
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const btn = QUALITY_BUTTONS.find((b) => b.key === e.key);
-      if (btn && words.length > 0) {
-        // Apply to the first due word, or first word if none due
-        const target = words.find((w) => w.mastery_level !== "mastered") ?? words[0];
-        if (target) handleReview(target.id, btn.value);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [words]);
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // 服务端筛选 + 分页：掌握度/待复习/搜索全部下推到后端，
+  // 分页器 total 与筛选口径一致（此前 page_size=100 硬编码，
+  // 超过 100 词的用户看不到剩余词）。
+  // 复习入口收敛为唯一的「单词训练」（/vocabulary/drill）：
+  // 本页只承担浏览/管理，不再内嵌快速复习模态与卡片评分按钮。
+  const list = usePaginatedList<VocabularyWord>({
+    fetcher: (page) => {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(PAGE_SIZE),
+      });
+      if (dueOnly) params.set("due_only", "true");
+      if (masteryFilter !== "all") params.set("mastery", masteryFilter);
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      return api<Paginated<VocabularyWord>>(`/api/v1/vocabulary?${params.toString()}`);
+    },
+    filters: [dueOnly, masteryFilter, debouncedQuery],
+    enabled: isAuthenticated && !isLoading,
+  });
 
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
-    loadWords();
     loadStats();
-  }, [dueOnly, isLoading, isAuthenticated]);
-
-  async function loadWords() {
-    setLoading(true);
-    try {
-      const data = await api<Paginated<VocabularyWord>>(
-        `/api/v1/vocabulary?due_only=${dueOnly}&page=1&page_size=100`
-      );
-      setWords(data.items);
-    } catch {
-      toast.error("加载词汇失败");
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [isLoading, isAuthenticated]);
 
   async function loadStats() {
     try {
@@ -131,18 +107,6 @@ export default function VocabularyPage() {
       });
     } catch {
       // keep existing stats on error
-    }
-  }
-
-  async function handleReview(wordId: string, quality: number) {
-    try {
-      await api(`/api/v1/vocabulary/${wordId}/review?quality=${quality}`, {
-        method: "POST",
-      });
-      loadWords();
-      loadStats();
-    } catch {
-      toast.error("复习记录失败");
     }
   }
 
@@ -159,7 +123,7 @@ export default function VocabularyPage() {
   function handleDeleteWithUndo(word: VocabularyWord) {
     // Remove from UI immediately
     undoneRef.current = false;
-    setWords((prev) => prev.filter((w) => w.id !== word.id));
+    list.setItems((prev) => prev.filter((w) => w.id !== word.id));
     setStats((prev) => ({ ...prev, total: prev.total - 1 }));
 
     // Show undo toast
@@ -170,7 +134,7 @@ export default function VocabularyPage() {
         onClick: () => {
           // Undo: re-add the word to local state
           undoneRef.current = true;
-          setWords((prev) => [word, ...prev]);
+          list.setItems((prev) => [word, ...prev]);
           setStats((prev) => ({ ...prev, total: prev.total + 1 }));
         },
       },
@@ -183,30 +147,17 @@ export default function VocabularyPage() {
     });
   }
 
-  // Filter words by search query + mastery level
-  const filteredWords = useMemo(() => {
-    let list = words;
-    if (masteryFilter !== "all") {
-      list = list.filter((w) => w.mastery_level === masteryFilter);
-    }
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(
-      (w) =>
-        w.word.toLowerCase().includes(q) ||
-        w.translation?.toLowerCase().includes(q) ||
-        w.definition?.toLowerCase().includes(q)
-    );
-  }, [words, searchQuery, masteryFilter]);
-
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
   }
 
+  const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
+  const showEmpty = !list.loading && !list.error && list.items.length === 0;
+
   return (
     <PageTransition>
       <main className="container-page py-6 sm:py-12">
-        {/* Page head: title + desc + drill CTA (原型09) */}
+        {/* Page head: title + desc + drill CTA — 唯一的复习入口 */}
         <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
           <div>
             <h1 className="text-[26px] font-extrabold tracking-tight text-ink">词汇本</h1>
@@ -253,26 +204,7 @@ export default function VocabularyPage() {
           />
         </div>
 
-        {/* Inline review entry (keep existing practice modal for quick review) */}
-        {stats.due > 0 && !practiceOpen && (
-          <div className="mb-6">
-            <Button onClick={() => setPracticeOpen(true)} icon={Dumbbell}>
-              快速复习
-            </Button>
-          </div>
-        )}
-
-        {/* Practice modal */}
-        <Modal
-          open={practiceOpen}
-          onClose={() => setPracticeOpen(false)}
-          title="词汇练习"
-          footer={null}
-        >
-          <UnifiedPracticePanel session={vocabPractice} levelLabel="词汇练习" />
-        </Modal>
-
-        {/* Filter bar: 掌握度筛选 + 全部/待复习 + 搜索 (原型09 filter-bar) */}
+        {/* Filter bar: 掌握度筛选 + 全部/待复习 + 搜索（均为服务端筛选） */}
         <div className="filter-bar mb-5">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
             <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
@@ -325,28 +257,29 @@ export default function VocabularyPage() {
           </div>
         </div>
 
+        {/* Error state */}
+        {list.error && <ErrorState title={list.error} onRetry={list.reload} className="py-8" />}
+
         {/* Word grid */}
-        {loading ? (
-          <InlineSpinner />
-        ) : filteredWords.length === 0 ? (
+        {showEmpty ? (
           <EmptyState
             icon={BookOpen}
             title={
-              searchQuery
-                ? `未找到匹配“${searchQuery}”的单词`
+              debouncedQuery
+                ? `未找到匹配“${debouncedQuery}”的单词`
                 : dueOnly
                   ? "今天的词都复习完了！"
                   : "还没有生词"
             }
             description={
-              searchQuery
+              debouncedQuery
                 ? "试试其他关键词，或清空筛选条件"
                 : dueOnly
                   ? "保持节奏，明天继续"
                   : "看视频时点击字幕里的单词，就能加入词汇本"
             }
             action={
-              searchQuery ? null : dueOnly ? (
+              debouncedQuery ? null : dueOnly ? (
                 <Link
                   href="/browse"
                   className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
@@ -365,7 +298,7 @@ export default function VocabularyPage() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {filteredWords.map((w) => {
+            {list.items.map((w) => {
               const mb = masteryBadge(w.mastery_level);
               return (
                 <Card key={w.id} variant="outline" padding={5} className="flex flex-col gap-3">
@@ -403,28 +336,48 @@ export default function VocabularyPage() {
                       </button>
                     </div>
                   </div>
-
-                  {/* Inline review controls — only show for words that need review */}
-                  {w.mastery_level !== "mastered" && (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-hairline">
-                      <span className="text-xs text-muted mr-1">评分复习：</span>
-                      {QUALITY_BUTTONS.map((q) => (
-                        <Button
-                          key={q.value}
-                          variant={q.variant}
-                          size="sm"
-                          onClick={() => handleReview(w.id, q.value)}
-                          title={`快捷键 ${q.key}`}
-                        >
-                          {q.label}
-                          <kbd className="ml-1 text-[10px] opacity-50">{q.key}</kbd>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {/* 翻页中指示 */}
+        {list.loading && list.items.length > 0 && (
+          <div className="mt-6 flex justify-center">
+            <InlineSpinner />
+          </div>
+        )}
+        {list.loading && list.items.length === 0 && !list.error && (
+          <div className="mt-10 flex justify-center">
+            <InlineSpinner />
+          </div>
+        )}
+
+        {/* Pager — 服务端分页，筛选口径与 total 一致 */}
+        {!list.error && !showEmpty && totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => list.setPage((p) => Math.max(1, p - 1))}
+              disabled={list.page <= 1 || list.loading}
+            >
+              <ChevronLeft size={14} />
+              上一页
+            </Button>
+            <span className="text-[13px] text-muted tabular-nums">
+              第 {list.page} / {totalPages} 页 · 共 {list.total} 词
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => list.setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={list.page >= totalPages || list.loading}
+            >
+              下一页
+              <ChevronRight size={14} />
+            </Button>
           </div>
         )}
       </main>

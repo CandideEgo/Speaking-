@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -160,13 +160,23 @@ async def add_word(
 async def list_vocabulary(
     request: Request,
     due_only: bool = Query(False, description="Only show words due for review"),
+    mastery: str | None = Query(
+        None,
+        description="Comma-separated mastery levels to include (new/learning/reviewing/mastered)",
+    ),
+    q: str | None = Query(
+        None,
+        description="Search word/translation/definition (case-insensitive substring)",
+    ),
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List vocabulary words. Optionally filter to only due words.
+    """List vocabulary words with server-side filters + pagination.
 
-    Stats (total/due/mastery) live in ``GET /vocabulary/stats``.
+    Filters (due_only / mastery / q) compose; all apply to both the page
+    query and the total count so the pager stays correct. Stats
+    (total/due/mastery) live in ``GET /vocabulary/stats``.
     """
     now = datetime.now(UTC)
     due_filter = (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now)
@@ -176,6 +186,21 @@ async def list_vocabulary(
     if due_only:
         stmt = stmt.where(due_filter)
         count_stmt = count_stmt.where(due_filter)
+    if mastery:
+        # Same comma-separated convention as GET /vocabulary/words.
+        levels = [lv.strip() for lv in mastery.split(",") if lv.strip()]
+        if levels:
+            stmt = stmt.where(Vocabulary.mastery_level.in_(levels))
+            count_stmt = count_stmt.where(Vocabulary.mastery_level.in_(levels))
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        search_filter = or_(
+            Vocabulary.word.ilike(like),
+            Vocabulary.translation.ilike(like),
+            Vocabulary.definition.ilike(like),
+        )
+        stmt = stmt.where(search_filter)
+        count_stmt = count_stmt.where(search_filter)
 
     total = (await db.execute(count_stmt)).scalar() or 0
 
