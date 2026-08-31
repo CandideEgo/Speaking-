@@ -212,9 +212,11 @@ def _fetch_metadata(video_id: str) -> dict | None:
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            from app.services.external_meta import pick_best_thumbnail
+
             return {
                 "title": info.get("title", ""),
-                "thumbnail": info.get("thumbnail", ""),
+                "thumbnail": pick_best_thumbnail(info) or "",
                 "duration": info.get("duration"),
                 "youtube_video_id": video_id,
                 "like_count": info.get("like_count"),

@@ -74,6 +74,34 @@ async def test_localize_failure_keeps_external_url(media_dir, monkeypatch):
     assert v.thumbnail_url == "https://i.ytimg.com/vi/z/maxresdefault.jpg"
 
 
+def test_find_local_video_file_prefers_transcode(media_dir):
+    (media_dir / "vidX_raw.mp4").write_bytes(b"raw")
+    assert thumbnail_service.find_local_video_file("vidX") == media_dir / "vidX_raw.mp4"
+    (media_dir / "vidX_720p.mp4").write_bytes(b"720p")
+    assert thumbnail_service.find_local_video_file("vidX") == media_dir / "vidX_720p.mp4"
+    assert thumbnail_service.find_local_video_file("missing") is None
+
+
+async def test_localize_falls_back_to_frame_extraction(media_dir, monkeypatch):
+    """Egress dead + local file present → ffmpeg frame becomes the cover."""
+
+    async def fake_download(url, dest, proxy=None):
+        return False
+
+    async def fake_frame(video_path, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(_JPEG_HEAD)
+        return True
+
+    monkeypatch.setattr(thumbnail_service, "download_thumbnail", fake_download)
+    monkeypatch.setattr(thumbnail_service, "extract_frame_thumbnail", fake_frame)
+    (media_dir / "vid6_720p.mp4").write_bytes(b"video")
+    v = _FakeVideo("vid6", "https://i.ytimg.com/vi/w/maxresdefault.jpg")
+    assert await thumbnail_service.localize_video_thumbnail(v) is True
+    assert v.thumbnail_url == "/media/vid6_thumb.jpg"
+    assert (media_dir / "vid6_thumb.jpg").exists()
+
+
 async def test_localize_noop_for_local_or_missing_urls(media_dir):
     v = _FakeVideo("vid4", "/media/vid4_thumb.jpg")
     assert await thumbnail_service.localize_video_thumbnail(v) is True

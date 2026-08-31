@@ -5,8 +5,9 @@ HTTP_PROXY）的运行时依赖。遍历 thumbnail_url 仍为外部 URL 的 vide
 ``services.thumbnail_service`` 下载为 ``media/{video_id}_thumb{ext}`` 并把 DB
 改写为本地路径。幂等、可重跑；失败清单落盘 tmp/thumbnail_failures.txt。
 
-网络要求：执行机必须能直连 ytimg/hdslb 等 CDN（或经 --proxy 指定的出口）。
-服务器直连不通时：在有外网的机器上跑本脚本 → rsync 媒体目录回服务器 →
+网络要求：执行机能直连 ytimg/hdslb 等 CDN（或经 --proxy 指定的出口）时下载原封面；
+直连不通但本地已有视频文件（{id}_720p/_raw）时，自动用 ffmpeg 抽帧生成封面。
+服务器两者都不满足时：在有外网的机器上跑本脚本 → rsync 媒体目录回服务器 →
 服务器上再跑一次 ``--update-db-only``（只按已存在的本地文件改写 DB）。
 
 Usage:
@@ -29,9 +30,24 @@ from sqlalchemy import select
 from app.core.database import async_session
 from app.models.video import Video
 from app.services.thumbnail_service import (
-    download_thumbnail,
     local_thumbnail_stems,
+    localize_video_thumbnail,
 )
+
+
+def _youtube_fallbacks(video) -> list[str]:
+    """Build YouTube thumbnail fallback URLs from the video's source URL."""
+    src = video.source_url or ""
+    yt_id = video.yt_video_id
+    if not yt_id and "youtube.com/watch" in src:
+        # Extract video id from URL
+        for part in src.split("v=")[-1:]:
+            yt_id = part.split("&")[0]
+            break
+    if not yt_id:
+        return []
+    return [f"https://i.ytimg.com/vi/{yt_id}/{q}.jpg" for q in ("maxresdefault", "hqdefault", "sddefault", "default")]
+
 
 _FAILURES_PATH = Path(__file__).resolve().parent.parent / "tmp" / "thumbnail_failures.txt"
 
@@ -80,24 +96,17 @@ async def run(args: argparse.Namespace) -> int:
                 failed += 1
                 continue
 
-            from app.core.config import get_settings
-            from app.services.thumbnail_service import _ext_for_content_type, _sniff
-
-            base = Path(get_settings().local_media_path).resolve()
-            probe = base / f"{vid}_thumb.probe"
-            if not await download_thumbnail(url, probe, proxy=args.proxy):
+            # localize 内部完成下载→探测扩展名→改名→改 DB；CDN 不可达时自动
+            # 用本地视频文件抽帧兜底（出口断掉也能产出封面）。
+            fallbacks = _youtube_fallbacks(video)
+            if await localize_video_thumbnail(video, proxy=args.proxy, fallback_urls=fallbacks):
+                await db.commit()
+                ok += 1
+                print(f"  [OK] {vid[:8]} {(title or '')[:45]} -> {video.thumbnail_url}")
+            else:
                 failures.append(f"{vid}\t{url}\tdownload failed")
                 failed += 1
                 print(f"  [FAIL] {vid[:8]} {(title or '')[:45]} | {url[:70]}")
-                await asyncio.sleep(args.sleep)
-                continue
-            ext = _ext_for_content_type(_sniff(probe))
-            dest = base / f"{vid}_thumb{ext}"
-            probe.replace(dest)
-            video.thumbnail_url = f"/media/{dest.name}"
-            await db.commit()
-            ok += 1
-            print(f"  [OK] {vid[:8]} {(title or '')[:45]} -> {dest.name}")
             await asyncio.sleep(args.sleep)
 
     _FAILURES_PATH.parent.mkdir(parents=True, exist_ok=True)

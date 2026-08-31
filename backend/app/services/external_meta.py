@@ -14,6 +14,46 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 
+def pick_best_thumbnail(info: dict) -> str | None:
+    """Pick the best thumbnail URL from a yt-dlp info dict.
+
+    Prefers the original author's chosen cover over auto-generated frames:
+
+    1. ``thumbnails`` list (yt-dlp returns all candidates ordered by the
+       source platform's preference — for YouTube the first entry is the
+       custom thumbnail the creator uploaded).
+    2. Single ``thumbnail`` field as fallback.
+
+    Filters out auto-generated sprite sheets and storyboards that some
+    extractors include in the list.
+    """
+    thumbnails = info.get("thumbnails") or []
+    if thumbnails:
+        # Filter out sprite/sheet/auto-generated entries.
+        candidates = [
+            t
+            for t in thumbnails
+            if t.get("url") and "sprite" not in t["url"].lower() and "storyboard" not in t["url"].lower()
+        ]
+        if candidates:
+            # Prefer entries with explicit preference score (yt-dlp internal).
+            scored = [t for t in candidates if t.get("preference") is not None]
+            if scored:
+                return max(scored, key=lambda t: t["preference"])["url"]
+            # Among equal-preference entries pick the highest resolution.
+            by_res = sorted(
+                candidates,
+                key=lambda t: (
+                    t.get("width") or 0,
+                    t.get("height") or 0,
+                ),
+                reverse=True,
+            )
+            return by_res[0]["url"]
+
+    return info.get("thumbnail")
+
+
 def _parse_upload_date(raw: str | None) -> datetime | None:
     """yt-dlp upload_date is ``YYYYMMDD`` (UTC, no time component)."""
     if not raw or len(raw) != 8 or not raw.isdigit():

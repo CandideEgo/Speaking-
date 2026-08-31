@@ -286,7 +286,10 @@ def process_video(self, video_id: str):
                     if video.thumbnail_url:
                         from app.services.thumbnail_service import localize_video_thumbnail
 
-                        await localize_video_thumbnail(video)
+                        await localize_video_thumbnail(
+                            video,
+                            fallback_urls=info.get("thumbnail_fallbacks") or [],
+                        )
                     # 阶段 1: persist external (YouTube) metadata — channel,
                     # upload date, external view/like counts, extras blob.
                     if info.get("external"):
@@ -711,6 +714,17 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 else:
                     logger.info("Video %s: skipping transcoding (already done)", video_id)
 
+                # --- Cover localization retry ---
+                # The first attempt ran at extraction (needs CDN egress). After
+                # download/transcode the local file exists, so the ffmpeg frame
+                # fallback can synthesize a cover even with the egress dead.
+                # Non-blocking: failures keep the external URL for backfill.
+                if (video.thumbnail_url or "").startswith("http"):
+                    from app.services.thumbnail_service import localize_video_thumbnail
+
+                    if await localize_video_thumbnail(video):
+                        await db.commit()
+
                 # --- Step: done ---
                 video.status = VideoStatus.ready
                 video.processing_step = None
@@ -966,13 +980,27 @@ async def _extract_video_info(url: str) -> dict | None:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                from app.services.external_meta import parse_external_meta
+                from urllib.parse import urlparse
+
+                from app.services.external_meta import parse_external_meta, pick_best_thumbnail
+
+                # 从 thumbnails 列表选原视频作者设置的封面（而非自动截帧）
+                best_thumb = pick_best_thumbnail(info)
+                # 构造 fallback URLs：当最佳封面下载失败时尝试其他分辨率
+                thumb_fallbacks = []
+                yt_id = info.get("id")
+                if yt_id and ("youtube.com" in url or "youtu.be" in url):
+                    for qual in ("maxresdefault", "hqdefault", "sddefault", "default"):
+                        fb = f"https://i.ytimg.com/vi/{yt_id}/{qual}.jpg"
+                        if fb != best_thumb:
+                            thumb_fallbacks.append(fb)
 
                 return {
                     "title": info.get("title"),
-                    "thumbnail": info.get("thumbnail"),
+                    "thumbnail": best_thumb,
+                    "thumbnail_fallbacks": thumb_fallbacks,
                     "duration": info.get("duration"),
-                    "youtube_video_id": info.get("id"),
+                    "youtube_video_id": yt_id,
                     "external": parse_external_meta(info),
                 }
         except Exception:

@@ -31,8 +31,9 @@ from app.core.database import async_session
 from app.core.logging import get_logger
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoSource
-from app.services.external_meta import apply_external_meta, parse_external_meta
+from app.services.external_meta import apply_external_meta, parse_external_meta, pick_best_thumbnail
 from app.services.subtitle_metrics_service import compute_video_speech_metrics
+from app.services.thumbnail_service import localize_video_thumbnail
 
 logger = get_logger(__name__)
 
@@ -119,6 +120,66 @@ async def pass_external(dry_run: bool, sleep_s: float) -> tuple[int, int, int]:
     return len(rows), ok, failed
 
 
+async def pass_thumbnails(dry_run: bool, sleep_s: float, proxy: str | None) -> tuple[int, int, int]:
+    """Re-extract thumbnails for imported videos using pick_best_thumbnail.
+
+    Uses the full ``thumbnails`` list from yt-dlp to pick the original
+    author's chosen cover instead of a possibly auto-generated frame.
+    Returns (candidates, ok, failed).
+    """
+    async with async_session() as db:
+        result = await db.execute(
+            select(Video.id, Video.title, Video.source_url, Video.thumbnail_url).where(
+                Video.video_source == VideoSource.imported,
+            )
+        )
+        rows = result.all()
+
+    print(f"[thumbs] {len(rows)} imported videos to re-check thumbnails")
+    if dry_run:
+        for vid, title, _url, thumb in rows:
+            print(f"  - {vid[:8]} {(title or '')[:45]} | {thumb[:70] if thumb else 'None'}")
+        return len(rows), 0, 0
+
+    ok = failed = 0
+    for vid, title, url, old_thumb in rows:
+        info = await _fetch_info(url)
+        if info is None:
+            failed += 1
+            print(f"  [FAIL] {vid[:8]} {(title or '')[:45]}")
+            await asyncio.sleep(sleep_s)
+            continue
+        best = pick_best_thumbnail(info)
+        if not best or best == old_thumb:
+            ok += 1  # already has the best thumbnail
+            await asyncio.sleep(sleep_s)
+            continue
+        # Build YouTube fallback URLs
+        yt_id = info.get("id")
+        fallbacks = []
+        if yt_id:
+            for q in ("maxresdefault", "hqdefault", "sddefault", "default"):
+                fb = f"https://i.ytimg.com/vi/{yt_id}/{q}.jpg"
+                if fb != best:
+                    fallbacks.append(fb)
+        async with async_session() as db:
+            video = await db.scalar(select(Video).where(Video.id == vid))
+            if video is not None:
+                video.thumbnail_url = best
+                # Try to localize (download to local media)
+                if await localize_video_thumbnail(video, proxy=proxy, fallback_urls=fallbacks):
+                    await db.commit()
+                    ok += 1
+                    print(f"  [OK] {vid[:8]} {(title or '')[:45]} -> {video.thumbnail_url}")
+                else:
+                    # Keep the external URL even if download failed
+                    await db.commit()
+                    ok += 1
+                    print(f"  [EXT] {vid[:8]} {(title or '')[:45]} -> {best[:70]}")
+        await asyncio.sleep(sleep_s)
+    return len(rows), ok, failed
+
+
 async def pass_speech(dry_run: bool) -> tuple[int, int]:
     """Returns (candidates, computed)."""
     async with async_session() as db:
@@ -156,7 +217,9 @@ async def main():
     ap.add_argument("--dry-run", action="store_true", help="list candidates without writing")
     ap.add_argument("--skip-external", action="store_true", help="skip the yt-dlp pass")
     ap.add_argument("--skip-speech", action="store_true", help="skip the local WPM/density pass")
+    ap.add_argument("--refresh-thumbnails", action="store_true", help="re-extract thumbnails using pick_best_thumbnail")
     ap.add_argument("--sleep", type=float, default=1.0, help="seconds between yt-dlp calls")
+    ap.add_argument("--proxy", type=str, default=None, help="egress proxy URL for thumbnail downloads")
     args = ap.parse_args()
 
     if not args.skip_external:
@@ -165,6 +228,10 @@ async def main():
     if not args.skip_speech:
         c, computed = await pass_speech(args.dry_run)
         print(f"[speech] done: {computed} computed of {c}")
+
+    if args.refresh_thumbnails:
+        c, ok, failed = await pass_thumbnails(args.dry_run, args.sleep, args.proxy)
+        print(f"[thumbs] done: {ok} updated, {failed} failed of {c}")
 
 
 if __name__ == "__main__":
