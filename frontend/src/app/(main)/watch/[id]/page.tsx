@@ -90,9 +90,11 @@ export default function WatchPage() {
     stopSpeaking,
     reRecord,
   } = useSpeakingRecorder(requireAuth, { timer: true });
-  const { uploadAndSave, uploading, attempts, deleteAttempt } = useShadowing(id);
+  const { uploadAndSave, uploading, attempts, deleteAttempt, setSatisfied } = useShadowing(id);
   const [shadowingSaved, setShadowingSaved] = useState(false);
   const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
+  // 当前句已上传录音的 attempt id —— 「满意」按钮靠它 PATCH 持久化。
+  const [lastAttemptId, setLastAttemptId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
 
   // D13: deep link from /favorites with ?note=1 opens the note drawer
@@ -106,12 +108,15 @@ export default function WatchPage() {
   useEffect(() => {
     if (speakingState === "reviewing" && audioBlob && !shadowingSaved) {
       setShadowingSaved(true); // prevent double-upload
+      setLastAttemptId(null);
       uploadAndSave(audioBlob, {
         videoId: id,
         subtitleId: video?.subtitles?.[currentSubtitleIndex]?.id ?? null,
         // D10: 上报录音时长，后端按秒累计进 LearningEvent。
         durationMs: seconds > 0 ? seconds * 1000 : null,
         isSatisfied: false,
+      }).then((attempt) => {
+        if (attempt) setLastAttemptId(attempt.id);
       });
     }
   }, [speakingState, audioBlob]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -192,6 +197,7 @@ export default function WatchPage() {
   const handleSentenceAdvance = useCallback(() => {
     setShadowingSaved(false);
     setShadowingSatisfied(false);
+    setLastAttemptId(null);
   }, []);
 
   const sentenceShadow = useSentenceShadowing({
@@ -414,9 +420,26 @@ export default function WatchPage() {
       if (speakingActive) reRecord();
       setShadowingSaved(false);
       setShadowingSatisfied(false);
+      setLastAttemptId(null);
       setCurrentSubtitleIndex(currentSubtitleIndex + 1);
       seekTo(next.start_time);
     }
+  }
+
+  /** 重录：除录音钩子自身重置外，同步清掉上传/满意标记 ——
+   * 否则重录后的新录音因 shadowingSaved 仍为 true 而永不上传。 */
+  function handleReRecord() {
+    reRecord();
+    setShadowingSaved(false);
+    setShadowingSatisfied(false);
+    setLastAttemptId(null);
+  }
+
+  /** 「满意」：本地立即翻转 + PATCH 持久化（失败时 hook 内部回滚并提示）。 */
+  function handleToggleSatisfied() {
+    const next = !shadowingSatisfied;
+    setShadowingSatisfied(next);
+    if (lastAttemptId) void setSatisfied(lastAttemptId, next);
   }
 
   /** Play the original audio by seeking the video to the current subtitle. */
@@ -1007,13 +1030,15 @@ export default function WatchPage() {
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={reRecord}>
+                        <Button variant="outline" size="sm" onClick={handleReRecord}>
                           重录
                         </Button>
                         <Button
                           variant={shadowingSatisfied ? "primary" : "outline"}
                           size="sm"
-                          onClick={() => setShadowingSatisfied((v) => !v)}
+                          onClick={handleToggleSatisfied}
+                          disabled={uploading || !lastAttemptId}
+                          title={uploading || !lastAttemptId ? "录音保存后可标记" : undefined}
                           className={
                             shadowingSatisfied ? "bg-success hover:bg-success/90 shadow-none" : ""
                           }

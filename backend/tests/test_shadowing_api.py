@@ -246,6 +246,99 @@ class TestShadowingStats:
         assert data["today_count"] == 3
 
 
+class TestUpdateSatisfied:
+    """``PATCH /shadowing/attempts/{id}`` — owner-only is_satisfied toggle.
+
+    Backs the watch page's “满意” button: uploads always create the attempt
+    with is_satisfied=false (auto-upload fires before the user listens), so
+    the verdict must be patchable afterwards.
+    """
+
+    async def test_requires_auth(self, client: AsyncClient):
+        resp = await client.patch("/api/v1/shadowing/attempts/anything", json={"is_satisfied": True})
+        assert resp.status_code == 401
+
+    async def test_update_own_attempt_succeeds(self, client: AsyncClient, auth_headers: dict):
+        video_id = await _seed_video()
+        create = await client.post(
+            "/api/v1/shadowing/attempts",
+            headers=auth_headers,
+            json={"video_id": video_id, "audio_url": "/media/shadowing/sat.webm"},
+        )
+        attempt_id = create.json()["id"]
+        assert create.json()["is_satisfied"] is False
+
+        resp = await client.patch(
+            f"/api/v1/shadowing/attempts/{attempt_id}",
+            headers=auth_headers,
+            json={"is_satisfied": True},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["is_satisfied"] is True
+
+        # Persists across reads and feeds stats.satisfied_count.
+        listing = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
+        assert listing.json()["items"][0]["is_satisfied"] is True
+        stats = await client.get("/api/v1/shadowing/stats", headers=auth_headers)
+        assert stats.json()["satisfied_count"] == 1
+
+        # Toggle back off.
+        resp2 = await client.patch(
+            f"/api/v1/shadowing/attempts/{attempt_id}",
+            headers=auth_headers,
+            json={"is_satisfied": False},
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["is_satisfied"] is False
+
+    async def test_update_missing_returns_404(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.patch(
+            "/api/v1/shadowing/attempts/00000000-0000-0000-0000-000000000000",
+            headers=auth_headers,
+            json={"is_satisfied": True},
+        )
+        assert resp.status_code == 404
+
+    async def test_update_other_users_attempt_returns_404(self, client: AsyncClient, auth_headers: dict):
+        """Same existence-hiding policy as DELETE: non-owners get the
+        identical 404 shape as the missing case."""
+        video_id = await _seed_video()
+        create = await client.post(
+            "/api/v1/shadowing/attempts",
+            headers=auth_headers,
+            json={"video_id": video_id, "audio_url": "/media/shadowing/owned-sat.webm"},
+        )
+        attempt_id = create.json()["id"]
+
+        other_phone = "13700137001"
+        other_password = "Otherpass1!"
+        async with TestSessionLocal() as db:
+            other = User(
+                phone=other_phone,
+                hashed_password=hash_password(other_password),
+                name="Other",
+                plan=PlanType.free,
+                role=RoleType.user,
+            )
+            db.add(other)
+            await db.commit()
+            await db.refresh(other)
+            other_token = create_token(other.id)
+        other_headers = {"Authorization": f"Bearer {other_token}"}
+
+        resp = await client.patch(
+            f"/api/v1/shadowing/attempts/{attempt_id}",
+            headers=other_headers,
+            json={"is_satisfied": True},
+        )
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "录音不存在"
+
+        # Owner's flag is untouched.
+        listing = await client.get(f"/api/v1/shadowing/attempts?video_id={video_id}", headers=auth_headers)
+        assert listing.json()["items"][0]["is_satisfied"] is False
+
+
 class TestDeleteAttempt:
     """``DELETE /shadowing/attempts/{id}`` — owner-only delete.
 

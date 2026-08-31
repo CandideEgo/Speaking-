@@ -38,6 +38,9 @@ interface UseShadowingReturn {
    *  the local list immediately, then awaits the server; on failure restores
    *  the attempt and surfaces an error toast. */
   deleteAttempt: (id: string) => Promise<boolean>;
+  /** Persist the “满意” verdict on an attempt (PATCH is_satisfied).
+   *  Optimistic with rollback, same contract as deleteAttempt. */
+  setSatisfied: (id: string, value: boolean) => Promise<boolean>;
   /** Whether an upload+save is in progress. */
   uploading: boolean;
   /** Resolve a relative audio_url to a playable URL. */
@@ -152,11 +155,40 @@ export function useShadowing(videoId: string | undefined): UseShadowingReturn {
     }
   }, []);
 
+  const setSatisfied = useCallback(async (id: string, value: boolean): Promise<boolean> => {
+    // Snapshot the previous flag so a rejected PATCH can restore the row.
+    let previous: boolean | null = null;
+    setAttempts((prev) =>
+      prev.map((a) => {
+        if (a.id !== id) return a;
+        previous = a.is_satisfied;
+        return { ...a, is_satisfied: value };
+      })
+    );
+    try {
+      await api<ShadowingAttempt>(`/api/v1/shadowing/attempts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_satisfied: value }),
+      });
+      return true;
+    } catch (err) {
+      if (previous !== null) {
+        setAttempts((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, is_satisfied: previous! } : a))
+        );
+      }
+      const msg = err instanceof Error ? err.message : "保存失败";
+      toast.error(msg);
+      return false;
+    }
+  }, []);
+
   return {
     uploadAndSave,
     attempts,
     refreshAttempts,
     deleteAttempt,
+    setSatisfied,
     uploading,
     resolveAudioUrl,
   };

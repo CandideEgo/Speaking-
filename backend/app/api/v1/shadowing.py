@@ -3,6 +3,7 @@
 POST   /shadowing/attempts         — create a shadowing attempt record
 GET    /shadowing/attempts         — list attempts by video (paginated)
 GET    /shadowing/stats            — user shadowing statistics
+PATCH  /shadowing/attempts/{id}    — update the is_satisfied flag (owner only)
 DELETE /shadowing/attempts/{id}    — delete a single owned attempt
 """
 
@@ -51,6 +52,10 @@ class AttemptListResponse(BaseModel):
     page: int
     page_size: int
     has_more: bool
+
+
+class UpdateSatisfiedRequest(BaseModel):
+    is_satisfied: bool
 
 
 class ShadowingStatsResponse(BaseModel):
@@ -116,6 +121,26 @@ async def shadowing_stats(
 ):
     """Get aggregated shadowing statistics for the current user."""
     return await shadowing_service.get_stats(db, current_user.id)
+
+
+@router.patch("/attempts/{attempt_id}", response_model=AttemptResponse)
+@rate_limit("60/minute")
+async def update_satisfied(
+    body: UpdateSatisfiedRequest,
+    request: Request,
+    attempt_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set the is_satisfied flag on an owned attempt (watch page “满意” button).
+
+    Same 404-for-both-failures policy as DELETE so non-owners can't probe
+    existence of other users' attempts.
+    """
+    outcome, data = await shadowing_service.update_satisfied(db, current_user.id, attempt_id, body.is_satisfied)
+    if outcome != shadowing_service.DeleteAttemptResult.OK or data is None:
+        raise HTTPException(status_code=404, detail="录音不存在")
+    return data
 
 
 @router.delete("/attempts/{attempt_id}", status_code=status.HTTP_204_NO_CONTENT)

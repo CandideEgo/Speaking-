@@ -157,6 +157,30 @@ async def delete_attempt(db: AsyncSession, user_id: str, attempt_id: str) -> str
     return DeleteAttemptResult.OK
 
 
+async def update_satisfied(
+    db: AsyncSession, user_id: str, attempt_id: str, is_satisfied: bool
+) -> tuple[str, dict | None]:
+    """Toggle/set the ``is_satisfied`` flag on an owned attempt.
+
+    Returns ``(outcome, attempt_dict)`` where outcome is one of
+    ``DeleteAttemptResult.OK`` / ``NOT_FOUND`` / ``FORBIDDEN`` (same
+    tri-state as delete — the API layer maps both failures to 404 so
+    non-owners can't enumerate attempts). The watch page's “满意” button
+    persists through this so the flag survives reloads and feeds
+    ``satisfied_count`` in stats.
+    """
+    result = await db.execute(select(ShadowingAttempt).where(ShadowingAttempt.id == attempt_id))
+    attempt = result.scalar_one_or_none()
+    if attempt is None:
+        return DeleteAttemptResult.NOT_FOUND, None
+    if attempt.user_id != user_id:
+        return DeleteAttemptResult.FORBIDDEN, None
+    attempt.is_satisfied = is_satisfied
+    await db.commit()
+    await db.refresh(attempt)
+    return DeleteAttemptResult.OK, _attempt_to_dict(attempt)
+
+
 async def get_stats(db: AsyncSession, user_id: str) -> dict:
     """Aggregate shadowing statistics for a user."""
     # Total attempts
