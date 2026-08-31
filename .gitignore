@@ -68,6 +68,7 @@ test_audio.wav
 *.wav
 
 # Playwright CLI artifacts
+.playwright/
 .playwright-cli/
 backend/.playwright-cli/
 frontend/.playwright-cli/
