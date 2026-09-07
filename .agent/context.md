@@ -124,6 +124,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **VideoStatus** | `pending_processing → processing → ready_subtitles → ready / error` | 处理状态机 |
 | **VideoReviewStatus** | `draft → pending_review → published / rejected` | 审核状态机，UGC 必走 |
 | **Channel（频道）** | 官方策展频道（`channels` 表，ADR-0014）：管理员维护排序/封面/简介/显隐；`videos.channel_ref` 归属（SET NULL）。与抓取的 `channel_id/channel_name` 分离：后者是上游元数据，经 `upstream_channel_id` 登记后 ingest 自动挂接。与 category/tag 主题维度正交 |
+| **Catalog（候选池）** | 抓取发现的视频候选暂存区（`catalog_items` 表，ADR-0017），与 `videos` 解耦。管理员按 `fit_score` 排序 + 频道筛选，逐条 `promote` 复用 `seed_video` 完整管线「处理一个上线一个」；`status` new/queued/processing/published/skipped/error，`promoted_video_id` 关联生成的 Video。数据源：Language Reactor 公开目录 API |
 | **封面本地化** | 2026-08 起：入库时 `thumbnail_service` 把外部封面下载到 `media/{id}_thumb{ext}`，存量用 `scripts/backfill_local_thumbnails.py` 回填；渲染不再依赖 `/media/proxy` 出口（见 docs/operations/MEDIA-TOPOLOGY.md） |
 
 ### 管线

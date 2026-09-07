@@ -6,6 +6,7 @@
 |--------|---------------|
 | `api/v1/*` | REST route handlers, thin layer delegating to services |
 | `services/video_*` | Video CRUD, seeding, review, upload, caching |
+| `services/catalog_service` + `api/v1/catalog` | 候选池（ADR-0017）：抓取导入 + fit_score 排序 + 逐条 promote 复用 seed_video 管线 |
 | `services/transcription/*` | WhisperX transcription + wav2vec2 alignment + **hallucination detection** |
 | `services/translation/*` | Pluggable translation (qwen default + hy_mt2 concurrent fallback; agnes/glm/custom optional) + **exponential backoff retry** + **quality gate** |
 | `services/ai_service` | Central AI singleton — translate/enrich/rubric/quiz/prewarm, shared by 6+ callers |

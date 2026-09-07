@@ -18,6 +18,9 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0012](0012-cut-community-ugc-pivot-to-learning-plan.md) | 砍社区 UGC，转向 AI 学习计划 | Accepted |
 | [0013](0013-shadowing-recording-persistence.md) | 跟读（Shadowing）录音持久化（推翻 ADR-0002 零留存） | Accepted |
 | [0014](0014-video-channels.md) | 视频频道（官方策展维度）— Channel 实体表 | Accepted |
+| [0015](0015-d10-sentence-shadowing-waveform.md) | 跟读体验增强（D10）— 逐句模式 + 波形对比 + 时间线 | Accepted |
+| [0016](0016-d12-accessibility.md) | 可访问性（D12）— 浅层落地：3 项小修 + 全局聚焦环默认值 | Accepted |
+| [0017](0017-catalog-candidate-pool.md) | 视频候选池（Catalog）— 抓取发现与逐条策展上线解耦 | Accepted |
 
 ## Companion docs
 

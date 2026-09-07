@@ -2,6 +2,8 @@
 
 ## Current Focus
 
+**视频候选池 Catalog 后端 MVP（2026-09-08，ADR-0017）**：新增 `catalog_items` 候选池（与 videos 解耦）承载抓取发现，promote 复用 `seed_video` 完整管线实现「处理一个上线一个」。从 Language Reactor 公开目录 API 抓取 772 条候选：`t_yt_all_en` 按时间池 100 条（~80% 新闻/体育）+ 按 `sortBy=views` 重抓 56 个英语教学/教育/谈话频道 672 条（全带字幕、播放量中位 700万），import 按 category 加权使学习内容 fit 领先。后端 `/api/v1/admin/catalog*`（list/summary/get/promote/mark）+ `scripts/import_catalog.py`（--dry-run）+ 迁移 `f1g2h3i4j5k6` 已应用本地 PG。验证：新增 15 测试（全量 687 passed / 6 skipped）、ruff/mypy 干净。**未做**：admin 前端页（Phase 2）、生产部署（Phase 3）、重抓脚本收进 backend/scripts。**版权注意**：promote=下载自托管第三方内容，上线前需评估（见 ADR-0017）。
+
 **频道升级全量作者页 Auto-Channel（2026-08-30，ADR-0014 修订）**：ingest 按 `channel_id` 自动建档（`ensure_channel_for` find-or-create）；迁移 `e0f1g2h3i4j5`（`channels.is_auto` + `upstream_channel_id` 唯一索引）已应用本地库；序列化补 `channel_slug`（browse/home/favorites/detail + browse 补 `channel_name` 修卡片恒显 SeeWord 旧 bug）；前端 VideoCard 频道名可点 + watch 页 meta 行作者名入口 + 频道列表分页 + admin「自动/策展」来源列；回填脚本 `scripts/backfill_auto_channels.py` 已对本地库执行（CNBC 频道自动建档生效）。验证：后端 653 passed / 6 skipped（+17 频道测试）、mypy 76 errors（低于基线 79，无新增）、前端 tsc/eslint/vitest 全绿、API 冒烟（/channels /channels/{slug} /browse/feed /recommendations/home /videos/{id} 全带 slug）。**产品设计规划-2026-08 亦全部完成**（见 Completed Milestones）。
 
 **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2 已落地，Phase 3 收尾完成 + §10 拍板落定。**Phase 3** 提交链：5ebbf8d D10 跟读体验增强 → e1b2e5c D12 考试词 dotted underline → 8048c5a e2e mobile 真机验收 → d08fc41 D12 admin aria-label + focus ring → 8609847 §10 #7 首页「已解锁优先」开关。ADR-0015/0016 入库 `.agent/decisions.md` + `docs/adr/`。**§10 拍板**：#4 示范视频暂缓（`is_demo=true` 待指）/ #5 slogan + 品牌色沿用规划默认（"用真实视频学英语" + coral #FF6B4A）/ #6 首页统计行不加（维持 streak + 词汇数 + 视频数 3 项）/ #7 已解锁入口重定义为首页开关（已实施 8609847）。**剩余 polish**（不在规划内）：品牌色 token 对比度（Lighthouse 96→100）、iOS Safari 真机 D10 验收。
@@ -92,10 +94,12 @@
 3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
 4. **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2/3 + §10 拍板（#4 暂缓 / #5 默认 / #6 不加 / #7 重定义已实施）。剩余 polish：品牌色 token 对比度、示范视频内容、iOS Safari 真机 D10 验收。
 5. 集成测试/Playwright e2e 对新页面（/weekly-report / 收藏 / CoachMark / ShareCard）的覆盖
+6. **Catalog Phase 2/3（ADR-0017）**：admin「内容目录」前端页（浏览/筛选/一键处理上线）；部署 seeword.top（迁移 + 导入 772 条 + 端到端验证一条 promote）；重抓脚本从 `.lr-scrape/` 收进 `backend/scripts/`；promote 前对版权敏感内容评估 embed vs download
 
 ## Last Updated
 
-Date: 2026-08-30
+Date: 2026-09-08
+- **视频候选池 Catalog 后端 MVP（ADR-0017，2026-09-08）**：`catalog_items` 表 + 迁移 `f1g2h3i4j5k6`（← e0f1g2h3i4j5，已应用本地 PG）+ `catalog_service`（fit_score/幂等导入/列表派生 effective_status/promote 复用 seed_video/mark）+ `/api/v1/admin/catalog*` + `scripts/import_catalog.py` + 数据文件 `scripts/data/*.json`。从 Language Reactor 目录 API 抓 772 条候选（672 学习 + 100 新闻，全带字幕）。新增 15 测试，全量 687 passed / 6 skipped，ruff/mypy 干净。待办：Phase 2 admin UI / Phase 3 部署 / promote 前版权评估。
 - **两天 26 提交深度审查 + 5 项修复（43d69be，2026-08-30）**：审查 f855613..ff8798f（180 文件 +10899/-6930），结论主干可作稳定基线；修复 1 Critical（shadowing-sentences 端点无解锁门控→付费字幕可被任意登录用户读取，补 403 门控）+ 3 High（seed 脚本导入已删模块必崩；解锁额度 TOCTOU→原子条件 INSERT；streak 提醒对流失用户无限发送→只发断签首日且过期 streak 归零）+ 1 Medium（媒体门控负缓存→只缓存正向判定）。+4 回归测试，660 passed。遗留 2 个 Low 未修（可接受）：token 镜像 cookie 缺 Secure 标志（生产上 HTTPS 时补）、stats_heatmap 用服务器本地日期非 UTC。
 - **频道前端补全收尾（db2d90e，2026-08-30）**：ff8798f 遗留 3 项设计补齐——频道详情页头部改 banner 横条式（16:9 兜底封面 + 圆形头像/首字母渐变块）+ 粉丝数/认证标展示（详情 API 从最新视频 external_meta.channel 下发 follower_count/is_verified）；history 已解锁 Tab 卡片频道名可点（/videos/unlocked 补 channel_slug 批量查询）；修复详情页视频卡页脚显示 SeeWord（channel_name→channel_title 映射）。后端 656 passed / 6 skipped（+3）；登录态截图冒烟通过（浅色/暗色/已解锁 Tab）。原列的第 4 项（频道页 e2e/截图矩阵）非本功能引入，仍挂待办。
 - **频道升级全量作者页 Auto-Channel（ADR-0014 修订，2026-08-30）**：见 Current Focus。后端 653 passed / 6 skipped（+17 频道测试）；迁移 e0f1g2h3i4j5 已 upgrade 本地库（downgrade/upgrade 往返验证）；回填脚本已跑（本地 1 视频 -> CNBC 频道自动建档）；mypy 无新增（76 < 基线 79）；前端 tsc/eslint/vitest 全绿；curl 冒烟 5 端点全通过（CNBC 频道 cover 兜底到视频缩略图生效）。

@@ -1,6 +1,7 @@
 # Import all models in dependency order so SQLAlchemy can resolve relationships
 from app.models.admin_setting import AdminSetting
 from app.models.behavior import BehaviorEvent
+from app.models.catalog import CatalogItem
 from app.models.channel import Channel
 from app.models.comment import VideoComment, VideoCommentStats
 from app.models.engagement import VideoLike

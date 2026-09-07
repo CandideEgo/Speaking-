@@ -356,3 +356,17 @@
 - 频道数 = 作者数（可能数百）：靠排序 + 分页消化；自动频道观感依赖封面兜底，运营可在 admin 逐步装修
 - 并发建档竞态交给唯一索引 + Celery 重试，不额外加锁
 - 订阅/关注、频道内搜索、频道级统计维持一期不做
+
+---
+
+## 2026-09-08 — 视频候选池 Catalog（抓取发现与逐条策展解耦）
+
+**Problem**: 官方视频只有硬编码 seed 脚本 + 单条 URL seed 两路，缺「批量发现候选 → 人工逐条筛选上线」中间层；竞品 Language Reactor 公开目录 API（`api-cdn.dioco.io/base_media_getMediaDocs_5`，无需鉴权）可批量拉元数据，但默认「全英语·按时间」池 ~80% 新闻/体育，不符合选材标准。
+**Options**: A) 直接灌进 `videos` 表；B) 独立候选池表 + 复用现有 `seed_video` 管线逐条提升；C) 只做外部脚本不改后端
+**Decision**: B（详见 [ADR-0017](docs/adr/0017-catalog-candidate-pool.md)）：新增 `catalog_items`（与 videos 解耦，`(source,upstream_id)` 唯一幂等，`promoted_video_id` FK→videos SET NULL）+ `catalog_service`（fit_score 数值筛 / 幂等导入 / 列表 join Video 派生 effective_status 免 beat / promote 复用 seed_video / mark）+ `/api/v1/admin/catalog*`（list/summary/get/promote/mark）+ `scripts/import_catalog.py`（--dry-run）。内容侧改按 LR 频道级 API `sortBy=views` 重抓 56 个英语教学/教育/谈话频道 672 条，import 按 category 加权（+18/+12/+8）使学习内容 fit 领先。
+**Reason**: 解耦「发现」与「处理」不污染 videos 语义；复用久经测试的 seed 管线不重造轮子；候选池让管理员按 fit 排序 + 频道筛选逐条策展。
+**Trade-offs**:
+- promote 走完整管线=下载自托管，依赖服务器 YouTube cookies（失效 423 需重登）；embed 轻量模式暂未接入（现有轻量路径仅在 seed 脚本、未抽 service）
+- **版权风险**：下载自托管第三方 YouTube 内容（含新闻媒体）= 侵权 + 违反 ToS；上线前对敏感内容应改 embed 或选可授权/CC 素材（已知会产品负责人决策）
+- fit_score 是数值筛非主题判断；主题策展靠人工 promote + category 加权
+- 未做：admin 前端页（Phase 2）、生产部署（Phase 3）、重抓脚本收进 backend/scripts
