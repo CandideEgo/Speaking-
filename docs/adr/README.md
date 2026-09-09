@@ -21,6 +21,7 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0015](0015-d10-sentence-shadowing-waveform.md) | 跟读体验增强（D10）— 逐句模式 + 波形对比 + 时间线 | Accepted |
 | [0016](0016-d12-accessibility.md) | 可访问性（D12）— 浅层落地：3 项小修 + 全局聚焦环默认值 | Accepted |
 | [0017](0017-catalog-candidate-pool.md) | 视频候选池（Catalog）— 抓取发现与逐条策展上线解耦 | Accepted |
+| [0018](0018-ark-cody-translation-engine.md) | 翻译引擎统一为火山引擎 ARK（ark-code-latest）— 替代 agnes/qwen/hy_mt2/glm | Accepted |
 
 ## Companion docs
 

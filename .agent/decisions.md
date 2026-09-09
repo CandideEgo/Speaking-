@@ -299,6 +299,70 @@
 
 ---
 
+## 2026-09-08 — 翻译引擎统一为火山引擎 ARK (ark-code-latest)
+
+**Problem**: 翻译引擎 registry 中 `agnes`(走 deepseek)/`qwen`/`hy_mt2`/`glm` 的 API key 多数已删（2026-08-05 expired），只剩 agnes 实际可用但质量参差；火山引擎 ARK Coding 端点 `https://ark.cn-beijing.volces.com/api/coding/v3` 上线 ark-code-latest 声称 OpenAI 协议兼容（chat.completions + Responses API）。
+**Options**: A) 新建 `BUILTIN_ENGINES['ark']` 条目 + `_resolve_engine` 分支 + Settings + 测试；B) 复用现有 `custom` 引擎条目只改 `.env`（`TRANSLATION_CUSTOM_*` 三个 env 已有），`ai_service._get_engine_client(name)` 复用 translation client，prewarm 同步切只需改 `PREWARM_ENGINES=custom`
+**Decision**: B（详见 [ADR-0018](docs/adr/0018-ark-cody-translation-engine.md)）：`.env` 末尾追加 7 行（TRANSLATION_ENGINE=custom + TRANSLATION_FALLBACK_ENGINE= 空 + TRANSLATION_CUSTOM_BASE_URL/MODEL/API_KEY + PREWARM_ENGINES=custom + TRANSLATION_BATCH_SIZE=5）。代码零改动。
+**Reason**: 零代码改动即接入，未来切换供应商也只需改 env 三行；端到端本地验证完整 pipeline 跑通：catalog promote → WhisperX 转录 35 段 → ark 翻译 35/35 → ark prewarm 词注释 → YouTube 下载 24.7MB → ffmpeg 720p 转码 → ready/published，整段 finalize 117s
+**Trade-offs**:
+- `TRANSLATION_FALLBACK_ENGINE` settings 默认 'hy_mt2'（无 key 会启动失败），**必须显式置空**
+- API key 字段暂填 ARK endpoint ID（值见密码库，勿写入仓库；按用户指示），生产前做一次 promo 冒烟观察 5-10 分钟
+- ark-code-latest 是 coding 命名（可能原意是代码模型），翻译/prewarm 是非典型场景；本地质量好，生产头两周需持续观察
+- batch_size 5 偏保守（ark 单次响应 20-30s/批），后续可 benchmark 调高
+- 旧 `TRANSLATION_ENGINE=agnes` 行（`.env:33`）已注释（dotenv 按文件顺序读，否则会覆盖新设置）
+- celery 5.4.0 + Windows + `--loglevel=info` 有 bug（`tasks, accept, hostname = _loc` 报 "not enough values to unpack"，`_localized=[]`），**生产 Linux 不会遇到**，本地用 `--pool=solo` 绕开
+---
+
+## 2026-09-09 — YouTube anti-bot：POT provider + 代理中继（48 条批量上线）
+
+**Problem**: catalog 批量 promote 全线失败。两个叠加症状：(1) metadata extract 报 `Sign in to confirm you're not a bot`；(2) cookies 换新后 extract 通了，但音频下载 34 次全部 600s 超时、一个字节都没下来。
+**Options**: A) 频繁手工换 cookies（治标，YouTube 几分钟就轮换）；B) 部署 bgutil POT provider 提供 proof-of-origin token；C) 放弃自托管改 embed 播放（ADR-0017 已记的版权路线，但产品形态要改）
+**Decision**: B。docker 起 `bgutil-ytdlp-pot-provider` + 一个 socat `proxy-relay` 容器；`extractor_args` 三项固定为 `player_client=web,android` + `youtubepot-bgutilhttp:base_url`；新增 `scripts/setup_pot_proxy.ps1` 自动发现宿主 LAN IP 并双侧验证。
+**Reason**: 下载从 600s 超时变成 12MB/1-3 秒。一夜 48 条上线，3 条失败全是源视频真失效（private/deleted），零管线故障。
+
+**Trade-offs / 非直觉约束（都是实测踩出来的）**:
+- **代理地址不能用 `127.0.0.1`**。插件源码 `'proxy': request.request_proxy` 会把 yt-dlp 的 `--proxy` 值原样转发进容器请求体，容器里 `127.0.0.1` 指向自己 → `ECONNREFUSED` → 无 POT → YouTube 强制 SABR → 格式全跳过 → 下载空转。必须用宿主/容器同解的地址（socat relay 发布在全网卡）。
+- **容器启动时那次 POT 会成功**（用自己 env），之后每次请求都失败。**只验一次会得到假阳性** —— 我第一轮就是这么误判的。必须两侧都测。
+- `base_url` 必须显式传，否则插件访问自己默认的 `127.0.0.1:4416` 也走 proxy，每次 20s 读超时。
+- `tv` player_client 对多数视频返回 `UNPLAYABLE`；带 cookies 时 `android` 会被跳过（不支持 cookies），实际只剩 `web`，而 web 强依赖 POT。
+- `--net=host` 在 Windows Docker Desktop 不通；宿主 hosts 里的 `host.docker.internal` 可能是陈旧地址（本机指向已失联的 192.168.1.2）。
+- 地址是 DHCP LAN IP，**不能写死**在 `.env`（该文件被 gitignore，换网络后静默失效）。由脚本重建。
+- **PowerShell 改 `.env` 必须显式 UTF-8**：`Set-Content` 默认写 ANSI(GBK)，把 28 处中文注释的三字节 UTF-8 第三字节打成 `?`，python-dotenv 直接 `UnicodeDecodeError`，两个 worker 全起不来。脚本已改 `WriteAllText` + `UTF8Encoding($false)` 并在写后强制校验。
+- **cookies 双向写回**：yt-dlp 的 `cookiefile` 是读写的（官方文档"read from and dump to"），anti-bot 响应带清 auth 的 `Set-Cookie`，会把 `LOGIN_INFO` 洗掉（实测 739KB → 377KB）。用 `disposable_cookiefile()` 传副本规避。
+- **cookies 必须无痕窗口导出**：普通窗口导出的会被服务端几分钟内轮换；无痕导出后关窗口可用 3-5 天。有效性判据是 `LOGIN_INFO` 是否存在。
+
+---
+
+## 2026-09-09 — 批量驱动与 worker 必须服务化托管（NSSM）
+
+**Problem**: celery worker 反复"消失"，任务卡在 `processing`。`nohup` 和 `Start-Process` 起的进程都在 bash 工具调用结束时被回收。
+**Options**: A) 每次手工在前台窗口起（无法无人值守）；B) NSSM 服务托管（GPU worker 已用这套且能活）
+**Decision**: B。新增 `scripts/run_celery_worker.ps1` 和 `run_batch_driver.ps1`，套用 `run_gpu_worker.ps1` 的 wrapper 模式。
+**Reason**: 服务化后同一 PID 跨调用存活，6 小时无人值守跑完 48 条。
+
+**Trade-offs**:
+- **服务以 SYSTEM 运行，PATH 里没有 per-user 的 Python 和 console scripts**。这暴露了一个既有 bug：`_get_ytdlp_path()` 只探 `sys.executable` 同级目录，但 Windows 上 console script 在 `Scripts\` 下一层 → `[WinError 2]`。之前从交互式 shell 启动才没显形。已补 `Scripts`/`bin` 探测。
+- 批量驱动是一次性的（队列空就退出），NSSM 需配 `AppExit Default Exit` 否则会被无限重启。
+- 服务的 TEMP 不是 Administrator 的，token 路径不能用 `ADMINI~1` 短名，改绝对路径 `C:/tmp/`。
+
+---
+
+## 2026-09-09 — 上线验证判据：feed 排名不算、mp4 404 才算
+
+**Problem**: 批量 4 条 error 里 **3 条是校验误报**，视频线上完全健康。逐条核实后才发现判据本身有问题。
+**Decision**: 通过条件 = 详情端点 `is_published` + 封面 HTTP 200 + mp4 **非 404**；feed 位置只记录不判罚；媒体上传加 3 次重试。
+**Reason**: 三种误判各有根因：
+- **feed top20**：排名是排序结果不是发布事实，上线量一多新视频必被挤出，会随规模持续误杀。
+- **wait timeout 900s**：1009s 的视频光 ASR+对齐+分批翻译就要 15 分钟。两条 539s/1009s 视频本地已出 115/229 条字幕却被判失败。改 2400s。
+- **push 超时**：SQL 进了、媒体没进 → 站上可见但没封面播不了。**比单纯失败更糟，因为它能通过原校验**。mp4 有解锁门所以 **403 = 健康，404 = 文件没落地**，这是唯一能识别半推送的硬信号。
+
+**Trade-offs**:
+- 媒体文件名不能按 id 拼：低于 720p 的源跳过转码（`video_url_720p` 指向 `<id>.mp4`），封面新 `.webp` 旧 `.jpg`，磁盘上可能只有 `<id>_raw.mp4`。必须从 DB 读 + `_raw` 回退。
+- SQL 导入必须 `cat ... | docker exec -i psql`。`docker cp` + `psql -f` 报 `INSERT has more expressions than target columns`，即使列数确认一致、同语句 `psql -c` 正常。原因未查明，疑似 `docker cp` 对 UTF-8 内容的处理差异。**RUNBOOK §6.7 3b 原先的 sed 删列指令已作废**（生产 schema 已有 `is_demo`/`is_auto`，照做反而出错）。
+
+---
+
 ## 2026-08-30 — D12 可访问性：浅层落地（Lighthouse 96/100，超 90 达标线）
 
 **Problem**: §4-D12 5 项（快捷键/形状区分/aria-label/focus ring/Lighthouse ≥ 90）。

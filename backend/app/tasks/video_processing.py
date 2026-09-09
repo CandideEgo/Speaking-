@@ -951,6 +951,26 @@ def watchdog_stale_pipeline():
 # yt-dlp / ffmpeg helpers (cloud-side)
 # ---------------------------------------------------------------------------
 
+# YouTube anti-bot 重试参数（2026-09-08 batch 教训：拦截是概率性的，退避重试可救回）
+_EXTRACT_MAX_ATTEMPTS = 5
+_EXTRACT_RETRY_BASE_DELAY = 8  # 秒；第 n 次重试等 n * base
+
+
+def _youtube_extractor_args(settings) -> dict:
+    """yt-dlp ``extractor_args`` for YouTube: client choice + POT provider.
+
+    - ``player_client``: web+android. The ``tv`` client answers UNPLAYABLE /
+      "The page needs to be reloaded" for many videos, so it is left out.
+    - ``youtubepot-bgutilhttp.base_url``: the bgutil POT provider address. It has
+      to be spelled out — otherwise the plugin's request to its own default
+      (127.0.0.1:4416) is routed through ``http_proxy``, which cannot reach the
+      host loopback, and every POT fetch dies on a 20s read timeout.
+    """
+    args: dict = {"youtube": {"player_client": ["web", "android"]}}
+    if settings.youtube_pot_base_url:
+        args["youtubepot-bgutilhttp"] = {"base_url": [settings.youtube_pot_base_url]}
+    return args
+
 
 async def _extract_video_info(url: str) -> dict | None:
     """Extract video metadata via yt-dlp without downloading.
@@ -975,7 +995,16 @@ async def _extract_video_info(url: str) -> dict | None:
         if settings.http_proxy:
             opts["proxy"] = settings.http_proxy
         if settings.youtube_cookies_path:
-            opts["cookiefile"] = settings.youtube_cookies_path
+            # 副本：yt-dlp 退出时会把 cookie jar 写回 cookiefile，YouTube 的 anti-bot
+            # 响应里带清 auth 的 Set-Cookie，直接传原文件会把 LOGIN_INFO 洗掉
+            from app.services.youtube_cookies_service import disposable_cookiefile
+
+            ck = disposable_cookiefile(settings.youtube_cookies_path)
+            if ck:
+                opts["cookiefile"] = ck
+        # tv/web/android client：默认 web client 常触发 anti-bot（"Sign in to confirm"），
+        # 即便 cookies 有效；tv+android 通常放行（2026-09-08 batch 教训）
+        opts["extractor_args"] = _youtube_extractor_args(settings)
         opts["socket_timeout"] = 30
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -1007,7 +1036,24 @@ async def _extract_video_info(url: str) -> dict | None:
             logger.exception("Failed to extract video info")
             return None
 
-    return await loop.run_in_executor(None, _sync_extract)
+    # YouTube 的 anti-bot 是概率性的：同一 URL 同一 cookies 连续请求会有部分被
+    # "Sign in to confirm you're not a bot" 拦下（实测 5 次里过 1 次）。这里退避重试，
+    # 而不是让整条 pipeline 因一次拦截就 error。
+    for attempt in range(_EXTRACT_MAX_ATTEMPTS):
+        info = await loop.run_in_executor(None, _sync_extract)
+        if info is not None:
+            return info
+        if attempt < _EXTRACT_MAX_ATTEMPTS - 1:
+            delay = _EXTRACT_RETRY_BASE_DELAY * (attempt + 1)
+            logger.info(
+                "extract_video_info_retry",
+                url=url,
+                attempt=attempt + 1,
+                max_attempts=_EXTRACT_MAX_ATTEMPTS,
+                delay=delay,
+            )
+            await asyncio.sleep(delay)
+    return None
 
 
 async def _download_video(url: str, video_id: str) -> str | None:
@@ -1038,7 +1084,16 @@ async def _download_video(url: str, video_id: str) -> str | None:
         if settings.http_proxy:
             opts["proxy"] = settings.http_proxy
         if settings.youtube_cookies_path:
-            opts["cookiefile"] = settings.youtube_cookies_path
+            # 副本：yt-dlp 退出时会把 cookie jar 写回 cookiefile，YouTube 的 anti-bot
+            # 响应里带清 auth 的 Set-Cookie，直接传原文件会把 LOGIN_INFO 洗掉
+            from app.services.youtube_cookies_service import disposable_cookiefile
+
+            ck = disposable_cookiefile(settings.youtube_cookies_path)
+            if ck:
+                opts["cookiefile"] = ck
+        # tv/web/android client：默认 web client 常触发 anti-bot（"Sign in to confirm"），
+        # 即便 cookies 有效；tv+android 通常放行（2026-09-08 batch 教训）
+        opts["extractor_args"] = _youtube_extractor_args(settings)
         opts["socket_timeout"] = 30
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:

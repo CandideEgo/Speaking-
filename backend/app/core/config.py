@@ -133,6 +133,11 @@ class Settings(BaseSettings):
     # Proxy for external services (yt-dlp, AI)
     http_proxy: str = ""  # e.g. http://172.25.176.1:7897
     youtube_cookies_path: str = ""  # e.g. ./youtube_cookies.txt
+    # bgutil POT provider (proof-of-origin token) HTTP server — needed to clear
+    # YouTube's "Sign in to confirm you're not a bot" gate. Must be passed to the
+    # plugin explicitly: left to its default the plugin's own request goes through
+    # http_proxy, which can't reach the host loopback and times out.
+    youtube_pot_base_url: str = "http://127.0.0.1:4416"
 
     # Observability
     sentry_dsn: str = ""

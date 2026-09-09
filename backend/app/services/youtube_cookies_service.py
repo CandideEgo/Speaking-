@@ -29,6 +29,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,6 +65,50 @@ def _cookies_file() -> str | None:
     return path
 
 
+def _has_auth_cookies(path: str) -> bool:
+    """True if the cookies file carries a YouTube auth session.
+
+    ``refresh_cookies_from_persistent`` can write a large-but-logged-out file
+    (observed 377KB with zero LOGIN_INFO), so file size alone can't tell a
+    user-supplied session apart from a stale export. LOGIN_INFO is the marker
+    yt-dlp actually needs to clear the "Sign in to confirm you're not a bot"
+    gate.
+    """
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return "LOGIN_INFO" in f.read()
+    except OSError:
+        return False
+
+
+def disposable_cookiefile(path: str | None) -> str | None:
+    """Copy ``path`` to a throwaway file for yt-dlp to use as its ``cookiefile``.
+
+    yt-dlp treats ``cookiefile`` as read-**write**: on exit it serializes its
+    in-memory cookie jar back over the file. When YouTube answers with the
+    anti-bot challenge it also sends Set-Cookie headers that clear the auth
+    cookies, so handing yt-dlp the real file silently strips LOGIN_INFO/SID
+    from it (observed 739KB -> 377KB) and every later call is unauthenticated.
+
+    Callers pass the copy instead, so yt-dlp's write-back lands on a temp file
+    and the authenticated source stays intact. Returns None if ``path`` is unset
+    or unreadable, which callers should treat as "no cookies".
+    """
+    if not path:
+        return None
+    src = Path(path)
+    if not src.exists():
+        return None
+    try:
+        fd, tmp = tempfile.mkstemp(prefix="ytdlp-cookies-", suffix=".txt")
+        os.close(fd)
+        shutil.copyfile(src, tmp)
+        return tmp
+    except OSError as e:
+        logger.warning("cookies_copy_failed", path=path, error=str(e)[:200])
+        return None
+
+
 def _build_opts() -> dict:
     """yt-dlp opts mirroring _extract_video_info (probe only, no download)."""
     settings = get_settings()
@@ -77,7 +124,20 @@ def _build_opts() -> dict:
         opts["proxy"] = settings.http_proxy
     cookies = _cookies_file()
     if cookies:
-        opts["cookiefile"] = cookies
+        # 副本：yt-dlp 会把 cookie jar 写回 cookiefile，见 disposable_cookiefile
+        opts["cookiefile"] = disposable_cookiefile(cookies) or cookies
+    # 强制 tv/web/android client：YouTube 默认的 web client 经常触发 anti-bot，
+    # 即便有 cookies 也返回 "Sign in to confirm"；tv+android client 通常放行
+    # web+android client（去掉 tv：多数视频返回 UNPLAYABLE）+ POT provider 地址。
+    # base_url 必须显式给：否则插件请求自身默认 127.0.0.1:4416 会走 http_proxy，
+    # 代理回连不到宿主 loopback，每次 POT 获取都 20s 读超时（2026-09-08 实测）。
+    ea: dict = {"youtube": {"player_client": ["web", "android"]}}
+    if settings.youtube_pot_base_url:
+        ea["youtubepot-bgutilhttp"] = {"base_url": [settings.youtube_pot_base_url]}
+    opts["extractor_args"] = ea
+    # 限速节流：per-video rate limit 缓解（2026-09-08 batch 教训）
+    opts["sleep_interval_subtitles"] = 5
+    opts["max_sleep_interval"] = 30
     return opts
 
 
@@ -135,7 +195,16 @@ async def refresh_cookies_from_persistent(output_path: str, *, timeout: int = _L
     Opens the persistent browser if needed, waits for a logged-in YouTube state
     (LOGIN_INFO cookie), then exports + converts to Netscape. Returns
     ``ok`` / ``need_manual_login`` / ``error``.
+
+    No-ops when ``output_path`` already holds an authenticated session: the
+    persistent profile is frequently logged out even while a user-supplied
+    cookies file is perfectly good, and re-exporting over it is a downgrade,
+    not a refresh (2026-09-08: this silently broke every yt-dlp call mid-batch).
     """
+    if _has_auth_cookies(output_path):
+        logger.info("cookies_refresh_skipped_existing_auth", path=output_path)
+        return OK
+
     gyc = _import_pw_helpers()
     if gyc is None:
         return ERROR
@@ -173,18 +242,39 @@ async def refresh_cookies_from_persistent(output_path: str, *, timeout: int = _L
 
     # Step 3: export state -> Netscape (replicates get_cookies_from_session's
     # core three steps, skipping its interactive input() branch).
+    #
+    # Writes to a temp file first and only replaces ``output_path`` when the
+    # export actually carries LOGIN_INFO. A logged-out persistent session still
+    # exports a plausible-looking file (observed 1KB-377KB, zero LOGIN_INFO),
+    # and clobbering a working user-supplied cookies file with it breaks every
+    # subsequent yt-dlp call.
     def _export() -> bool:
+        tmp_path = f"{output_path}.refresh.tmp"
         try:
             state_path = gyc.save_session_state()
-            ok = gyc.convert_to_netscape(state_path, output_path)
+            ok = gyc.convert_to_netscape(state_path, tmp_path)
             try:
                 Path(state_path).unlink(missing_ok=True)
             except OSError:
                 pass
-            return bool(ok)
+            if not ok:
+                return False
+            if not _has_auth_cookies(tmp_path):
+                logger.warning(
+                    "cookies_refresh_discarded_no_auth",
+                    reason="export has no LOGIN_INFO — keeping existing cookies file",
+                )
+                return False
+            os.replace(tmp_path, output_path)
+            return True
         except Exception as e:
             logger.warning("cookies_export_failed", error=str(e)[:200])
             return False
+        finally:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
     if not await loop.run_in_executor(None, _export):
         return ERROR
@@ -270,6 +360,16 @@ async def ensure_cookies_for_pipeline(url: str) -> CookiesCheckResult:
     # File doesn't exist yet — probe will say cookies_invalid, but we can
     # still try a refresh.
     file_exists = Path(cookies_path).exists()
+
+    # === 2026-09-08 patch: 用户提供的 cookies 不 refresh ===
+    # 背景：persistent 浏览器登出后 refresh 会写"大但无 auth"的文件覆盖用户手工 cookies
+    # （实测 377KB 但 LOGIN_INFO 缺失）。判据改为「有 LOGIN_INFO」而非单纯看体积。
+    if file_exists and _has_auth_cookies(cookies_path):
+        return CookiesCheckResult(
+            status="ok",
+            cookies_path=cookies_path,
+            message="user-provided cookies with LOGIN_INFO, skip refresh",
+        )
 
     # Step 1: probe with current cookies.
     probe_status = await probe_cookies(url)

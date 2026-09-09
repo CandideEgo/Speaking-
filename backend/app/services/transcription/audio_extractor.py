@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -28,6 +29,10 @@ _FFMPEG_WAV_ARGS = ["-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1"]
 _NO_WINDOW = 0
 if hasattr(subprocess, "CREATE_NO_WINDOW"):
     _NO_WINDOW = subprocess.CREATE_NO_WINDOW
+
+# YouTube anti-bot retry (see extract_streaming_audio; mirrors video_processing)
+_YTDLP_MAX_ATTEMPTS = 5
+_YTDLP_RETRY_BASE_DELAY = 8  # seconds; attempt n waits n * base
 
 
 # Known video streaming hostnames that yt-dlp can handle
@@ -72,15 +77,24 @@ _URL_NORMALIZERS = [
 
 
 def _get_ytdlp_path() -> str:
-    """Get the yt-dlp executable path."""
+    """Get the yt-dlp executable path.
+
+    ``shutil.which`` misses it when the process has no user PATH — which is the
+    case for the NSSM-hosted worker services, since they run as SYSTEM. Fall
+    back to the interpreter's own ``Scripts``/``bin`` directory (2026-09-08:
+    every transcription under the service died on ``[WinError 2]`` because only
+    ``sys.executable.parent`` was probed, and on Windows the console scripts
+    live one level deeper in ``Scripts\\``).
+    """
     found = shutil.which("yt-dlp")
     if found:
         return found
-    scripts = Path(sys.executable).parent
-    for suffix in (".exe", ""):
-        p = scripts / f"yt-dlp{suffix}"
-        if p.exists():
-            return str(p)
+    py_dir = Path(sys.executable).parent
+    for base in (py_dir, py_dir / "Scripts", py_dir / "bin"):
+        for suffix in (".exe", ""):
+            p = base / f"yt-dlp{suffix}"
+            if p.exists():
+                return str(p)
     return "yt-dlp"
 
 
@@ -122,11 +136,24 @@ def _build_ytdlp_extra_args() -> list[str]:
     if settings.http_proxy:
         extra.extend(["--proxy", settings.http_proxy])
     if settings.youtube_cookies_path and Path(settings.youtube_cookies_path).exists():
-        extra.extend(["--cookies", settings.youtube_cookies_path])
+        # 副本：yt-dlp 退出时把 cookie jar 写回 --cookies 指向的文件，YouTube anti-bot
+        # 响应带清 auth 的 Set-Cookie，直传原文件会洗掉 LOGIN_INFO
+        from app.services.youtube_cookies_service import disposable_cookiefile
+
+        ck = disposable_cookiefile(settings.youtube_cookies_path)
+        if ck:
+            extra.extend(["--cookies", ck])
     # node 运行时：解 YouTube n-challenge 签名（无 JS 运行时只能拿到图片格式）
     extra.extend(["--js-runtimes", "node"])
     # 启用 EJS 组件（challenge solver 脚本），缓存已预置
     extra.extend(["--remote-components", "ejs:github"])
+    # tv/web/android client：默认 web client 常触发 "Sign in to confirm you're not
+    # a bot" 即便 cookies 有效（2026-09-08 batch 教训，同 video_processing）
+    # web+android client（tv 对多数视频返回 UNPLAYABLE）；POT provider 的 base_url
+    # 必须显式给，否则插件请求走 --proxy 回连不到宿主 loopback，20s 读超时
+    extra.extend(["--extractor-args", "youtube:player_client=web,android"])
+    if settings.youtube_pot_base_url:
+        extra.extend(["--extractor-args", f"youtubepot-bgutilhttp:base_url={settings.youtube_pot_base_url}"])
     return extra
 
 
@@ -175,15 +202,34 @@ def extract_streaming_audio(url: str, output_path: str) -> None:
     raw_file: str | None = None
     try:
         # Step 1: yt-dlp downloads audio to a temp file (exits when done — no pipe)
-        ytdlp_proc = subprocess.run(
-            ytdlp_cmd,
-            capture_output=True,
-            timeout=600,
-            creationflags=_NO_WINDOW,
-        )
-        if ytdlp_proc.returncode != 0:
-            stderr = ytdlp_proc.stderr.decode(errors="replace") if ytdlp_proc.stderr else ""
-            raise AudioExtractionError(f"yt-dlp audio download failed: {stderr[-1000:]}")
+        #
+        # Retried: YouTube's anti-bot gate fires probabilistically, so the same
+        # URL with the same cookies can fail then succeed seconds later
+        # (2026-09-08: ~1-in-5 success without retry, which failed whole batches).
+        ytdlp_proc = None
+        last_stderr = ""
+        for attempt in range(_YTDLP_MAX_ATTEMPTS):
+            ytdlp_proc = subprocess.run(
+                ytdlp_cmd,
+                capture_output=True,
+                timeout=600,
+                creationflags=_NO_WINDOW,
+            )
+            if ytdlp_proc.returncode == 0:
+                break
+            last_stderr = ytdlp_proc.stderr.decode(errors="replace") if ytdlp_proc.stderr else ""
+            if attempt < _YTDLP_MAX_ATTEMPTS - 1:
+                delay = _YTDLP_RETRY_BASE_DELAY * (attempt + 1)
+                logger.info(
+                    "ytdlp_audio_retry",
+                    url=url[:80],
+                    attempt=attempt + 1,
+                    max_attempts=_YTDLP_MAX_ATTEMPTS,
+                    delay=delay,
+                )
+                time.sleep(delay)
+        if ytdlp_proc is None or ytdlp_proc.returncode != 0:
+            raise AudioExtractionError(f"yt-dlp audio download failed: {last_stderr[-1000:]}")
 
         # Locate the downloaded file (yt-dlp appended the extension)
         candidates = [
