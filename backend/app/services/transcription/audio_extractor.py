@@ -147,11 +147,12 @@ def _build_ytdlp_extra_args() -> list[str]:
     extra.extend(["--js-runtimes", "node"])
     # 启用 EJS 组件（challenge solver 脚本），缓存已预置
     extra.extend(["--remote-components", "ejs:github"])
-    # tv/web/android client：默认 web client 常触发 "Sign in to confirm you're not
-    # a bot" 即便 cookies 有效（2026-09-08 batch 教训，同 video_processing）
-    # web+android client（tv 对多数视频返回 UNPLAYABLE）；POT provider 的 base_url
-    # 必须显式给，否则插件请求走 --proxy 回连不到宿主 loopback，20s 读超时
-    extra.extend(["--extractor-args", "youtube:player_client=web,android"])
+    # player_client：web_safari 置首位，web/android 兜底。web_safari 才能解锁
+    # 自适应高清流——仅 web/android 时 YouTube 只给 360p format 18（2026-09-16
+    # 实测，46 个视频糊的根因）。tv 对多数视频返回 UNPLAYABLE。
+    # POT provider 的 base_url 必须显式给，否则插件请求走 --proxy 回连不到宿主
+    # loopback，20s 读超时（2026-09-08 batch 教训，同 video_processing）
+    extra.extend(["--extractor-args", "youtube:player_client=web_safari,web,android"])
     if settings.youtube_pot_base_url:
         extra.extend(["--extractor-args", f"youtubepot-bgutilhttp:base_url={settings.youtube_pot_base_url}"])
     return extra

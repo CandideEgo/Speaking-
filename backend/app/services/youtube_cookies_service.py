@@ -126,12 +126,12 @@ def _build_opts() -> dict:
     if cookies:
         # 副本：yt-dlp 会把 cookie jar 写回 cookiefile，见 disposable_cookiefile
         opts["cookiefile"] = disposable_cookiefile(cookies) or cookies
-    # 强制 tv/web/android client：YouTube 默认的 web client 经常触发 anti-bot，
-    # 即便有 cookies 也返回 "Sign in to confirm"；tv+android client 通常放行
-    # web+android client（去掉 tv：多数视频返回 UNPLAYABLE）+ POT provider 地址。
+    # player_client：web_safari 置首位，web/android 兜底。web_safari 才能解锁
+    # 自适应高清流——仅 web/android 时 YouTube 扣留全部高清流只给 360p format 18
+    # （2026-09-16 实测，46 个视频糊的根因）。tv 对多数视频返回 UNPLAYABLE。
     # base_url 必须显式给：否则插件请求自身默认 127.0.0.1:4416 会走 http_proxy，
     # 代理回连不到宿主 loopback，每次 POT 获取都 20s 读超时（2026-09-08 实测）。
-    ea: dict = {"youtube": {"player_client": ["web", "android"]}}
+    ea: dict = {"youtube": {"player_client": ["web_safari", "web", "android"]}}
     if settings.youtube_pot_base_url:
         ea["youtubepot-bgutilhttp"] = {"base_url": [settings.youtube_pot_base_url]}
     opts["extractor_args"] = ea

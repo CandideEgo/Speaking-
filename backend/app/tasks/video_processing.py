@@ -21,9 +21,12 @@ from app.tasks.pipeline_helpers import (
 
 logger = get_logger(__name__)
 
-# Resolutions to transcode
+# Resolutions to produce from a downloaded source. The source is already a
+# YouTube-encoded H.264 stream, so when source height <= target height we remux
+# (stream-copy + faststart) instead of re-encoding: zero quality loss, no CPU
+# burn on the 2-core prod VPS. Only a genuinely-higher source gets scaled.
 TRANSCODE_PROFILES = {
-    "720p": {"height": 720, "bitrate": "1500k"},
+    "720p": {"height": 720},
 }
 
 
@@ -702,7 +705,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
                         video.video_url_480p = urls.get("480p")
-                        video.video_url_720p = urls.get("720p", f"/media/{video.id}.mp4")
+                        video.video_url_720p = urls.get("720p", f"/media/{video.id}_raw.mp4")
                         video.video_url_1080p = urls.get("1080p")
                     else:
                         logger.warning("No video file to transcode for %s", video_id)
@@ -959,14 +962,18 @@ _EXTRACT_RETRY_BASE_DELAY = 8  # 秒；第 n 次重试等 n * base
 def _youtube_extractor_args(settings) -> dict:
     """yt-dlp ``extractor_args`` for YouTube: client choice + POT provider.
 
-    - ``player_client``: web+android. The ``tv`` client answers UNPLAYABLE /
-      "The page needs to be reloaded" for many videos, so it is left out.
+    - ``player_client``: web_safari first, then web+android as fallback.
+      web_safari is required to unlock the adaptive high-res ladder:
+      with only web/android, YouTube withholds all adaptive formats and
+      returns just format 18 (360p), which was the root cause of the
+      46×640x360 blurry videos (2026-09-16 实测). ``tv`` answers
+      UNPLAYABLE / "The page needs to be reloaded" for many videos.
     - ``youtubepot-bgutilhttp.base_url``: the bgutil POT provider address. It has
       to be spelled out — otherwise the plugin's request to its own default
       (127.0.0.1:4416) is routed through ``http_proxy``, which cannot reach the
       host loopback, and every POT fetch dies on a 20s read timeout.
     """
-    args: dict = {"youtube": {"player_client": ["web", "android"]}}
+    args: dict = {"youtube": {"player_client": ["web_safari", "web", "android"]}}
     if settings.youtube_pot_base_url:
         args["youtubepot-bgutilhttp"] = {"base_url": [settings.youtube_pot_base_url]}
     return args
@@ -1074,7 +1081,7 @@ async def _download_video(url: str, video_id: str) -> str | None:
         opts = {
             "quiet": True,
             "no_warnings": True,
-            "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+            "format": f"bestvideo[height<={settings.video_max_height}]+bestaudio/best[height<={settings.video_max_height}]/best",
             "outtmpl": output,
             "merge_output_format": "mp4",
             "remote_components": "ejs:github",
@@ -1117,9 +1124,16 @@ async def _download_video(url: str, video_id: str) -> str | None:
 
 
 async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
-    """Transcode video to multiple resolutions using FFmpeg.
+    """Produce the target-resolution variant of a downloaded source.
 
-    Generates 480p, 720p, and 1080p variants stored alongside the raw file.
+    The source is already a YouTube-encoded H.264 stream. When its height is
+    at or below the target (TRANSCODE_PROFILES) we remux — stream-copy video
+    and audio, add +faststart — instead of re-encoding. This is zero quality
+    loss and near-zero CPU, which matters on the 2-core prod VPS (re-encoding
+    1080p with libx264 there takes minutes per video and only adds loss).
+    A genuinely-higher source (e.g. a 1080p download targeting 720p) gets
+    scaled with libx264 at CRF 20.
+
     Returns a dict mapping resolution key to URL path.
     """
     settings = get_settings()
@@ -1134,37 +1148,48 @@ async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
     source_res = await _get_video_height(source_path)
 
     for label, profile in TRANSCODE_PROFILES.items():
-        # Skip if source is already lower res than target
-        if source_res and source_res < profile["height"]:
-            logger.info(f"Skipping {label} - source is only {source_res}p")
-            continue
+        # Remux when the source is at or below the target height. Re-encoding
+        # a 720p source to 720p is pure generation loss (same pixels, new loss).
+        needs_scale = bool(source_res and source_res > profile["height"])
 
         out_name = f"{video_id}_{label}.mp4"
         out_path = media_dir / out_name
 
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(source),
-            "-vf",
-            f"scale=-2:{profile['height']}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "23",
-            "-b:v",
-            profile["bitrate"],
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
-            str(out_path),
-        ]
+        if needs_scale:
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(source),
+                "-vf",
+                f"scale=-2:{profile['height']}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-crf",
+                "20",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-movflags",
+                "+faststart",
+                str(out_path),
+            ]
+        else:
+            # Stream copy both video and audio: no decode, no re-encode.
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(source),
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                str(out_path),
+            ]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -1176,7 +1201,8 @@ async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
 
             if proc.returncode == 0 and out_path.exists():
                 urls[label] = f"/media/{out_name}"
-                logger.info(f"Transcoded {label}: {out_name}")
+                mode = "scaled" if needs_scale else "remuxed"
+                logger.info(f"{mode.capitalize()} {label}: {out_name}")
             else:
                 logger.error(f"FFmpeg {label} failed: {stderr.decode()[:200]}")
         except FileNotFoundError:

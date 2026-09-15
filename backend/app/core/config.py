@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     # http_proxy, which can't reach the host loopback and times out.
     youtube_pot_base_url: str = "http://127.0.0.1:4416"
 
+    # Max video resolution to download (height). Production runs on a 40G disk /
+    # 2-core VPS, so the default is 720p (~9.5 MB/min). Raise to 1080 after
+    # expanding disk capacity — the change is config-only, no code edit needed.
+    video_max_height: int = 720
+
     # Observability
     sentry_dsn: str = ""
     log_level: str = "INFO"
