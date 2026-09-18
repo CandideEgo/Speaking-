@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 interface ProgressRingProps {
   /** 0–1 progress value */
   progress: number;
@@ -7,12 +9,12 @@ interface ProgressRingProps {
   size?: number;
   /** Stroke width in px (default 3) */
   strokeWidth?: number;
-  /** Track color (Tailwind text-* class applied via `stroke="currentColor"`) */
+  /** Track color class (Tailwind text-* token applied via `stroke="currentColor"`) */
   trackClass?: string;
-  /** Fill color when not met — CSS color string (default "#ff5a1f") */
-  fillActive?: string;
-  /** Fill color when met — CSS color string (default "#22c55e") */
-  fillMet?: string;
+  /** Fill color class while in progress (default `text-brand-500`) */
+  fillClass?: string;
+  /** Fill color class when met (default `text-success`) */
+  metClass?: string;
   /** Whether the goal is met */
   isMet?: boolean;
   /** Optional label rendered in the center */
@@ -24,8 +26,8 @@ export function ProgressRing({
   size = 36,
   strokeWidth = 3,
   trackClass = "text-hairline",
-  fillActive = "#ff5a1f",
-  fillMet = "#22c55e",
+  fillClass = "text-brand-500",
+  metClass = "text-success",
   isMet = false,
   label,
 }: ProgressRingProps) {
@@ -50,7 +52,8 @@ export function ProgressRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={isMet ? fillMet : fillActive}
+          stroke="currentColor"
+          className={cn(isMet ? metClass : fillClass)}
           strokeWidth={strokeWidth}
           strokeDasharray={`${clampedProgress * circumference} ${circumference}`}
           strokeLinecap="round"

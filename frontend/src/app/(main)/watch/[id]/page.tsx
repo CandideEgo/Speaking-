@@ -21,7 +21,7 @@ import { api, mediaUrl } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
-import type { VideoWithSubtitles } from "@/types";
+import type { VideoWithSubtitles, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
@@ -42,6 +42,7 @@ import {
   Bookmark,
   Heart,
   BookOpen,
+  GraduationCap,
   Pencil,
   X,
   AlertCircle,
@@ -383,6 +384,61 @@ export default function WatchPage() {
     };
   }, [isAuthenticated]);
 
+  // 词汇集合：本视频是否已生成过筛集合（GET /vocab-sets 按 video_id 匹配）。
+  // 已加入 → 图标点亮并跳转集合页；未加入 → POST 创建并 toast 服务端 message。
+  const [vocabSet, setVocabSet] = useState<VocabSet | null>(null);
+  const [addingVocabSet, setAddingVocabSet] = useState(false);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sets = await api<VocabSet[]>("/api/v1/vocab-sets");
+        if (!cancelled) setVocabSet(sets.find((s) => s.video_id === id) ?? null);
+      } catch {
+        // non-fatal: 按钮保持「加入学习」态
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, id]);
+
+  async function handleVocabSetClick() {
+    if (!requireAuth()) return;
+    if (vocabSet) {
+      router.push(`/vocabulary/sets/${vocabSet.id}`);
+      return;
+    }
+    if (addingVocabSet) return;
+    setAddingVocabSet(true);
+    try {
+      const res = await api<VocabSetCreateResponse>("/api/v1/vocab-sets", {
+        method: "POST",
+        body: JSON.stringify({
+          video_id: id,
+          ...(selectedExamLevel ? { exam_level: selectedExamLevel } : {}),
+        }),
+      });
+      toast.success(res.message || "已加入学习");
+      setVocabSet({
+        id: res.id,
+        video_id: res.video_id,
+        exam_level: res.exam_level,
+        title: video?.title ?? "",
+        thumbnail_url: video?.thumbnail_url ?? null,
+        total: res.total,
+        mastered_count: 0,
+        last_activity_at: null,
+        created_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "加入失败，请重试"));
+    } finally {
+      setAddingVocabSet(false);
+    }
+  }
+
   // Persist a target-level change back to preferences (best-effort).
   async function handleExamLevelChange(lv: string) {
     setSelectedExamLevel(lv);
@@ -605,6 +661,22 @@ export default function WatchPage() {
               title={isFavorited ? "取消收藏" : "收藏"}
             >
               <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+            </button>
+            <button
+              className={cn(
+                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+                vocabSet ? "text-brand-500" : "text-muted hover:bg-surface-card hover:text-ink"
+              )}
+              onClick={handleVocabSetClick}
+              aria-label={vocabSet ? "已加入学习，查看词汇集合" : "把本视频单词加入学习"}
+              title={vocabSet ? "已加入学习" : "加入学习"}
+              disabled={addingVocabSet}
+            >
+              {addingVocabSet ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <GraduationCap size={18} className={cn(vocabSet && "fill-current")} />
+              )}
             </button>
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"

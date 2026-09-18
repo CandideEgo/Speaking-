@@ -238,6 +238,91 @@ export interface VocabularyWord {
   created_at: string;
 }
 
+/* ── Vocab sets (视频词汇集合 + 快速过筛) ── */
+
+/** Sieve/learn lifecycle of a word inside a vocab set. */
+export type VocabSetWordStatus = "pending" | "known" | "unknown" | "learned";
+
+/** GET /api/v1/vocab-sets — one video's vocab set summary card. */
+export interface VocabSet {
+  id: string;
+  video_id: string;
+  exam_level: string | null;
+  /** Denormalized video fields for card rendering. */
+  title: string;
+  thumbnail_url: string | null;
+  total: number;
+  /** known + learned — 集合进度 = mastered_count / total. */
+  mastered_count: number;
+  last_activity_at: string | null;
+  created_at: string;
+}
+
+/** POST /api/v1/vocab-sets — creation result (dedupes per video). */
+export interface VocabSetCreateResponse {
+  id: string;
+  video_id: string;
+  exam_level: string | null;
+  total: number;
+  added: number;
+  existed: number;
+  message: string;
+}
+
+/** One word row inside a vocab set (GET /api/v1/vocab-sets/{id}). */
+export interface VocabSetWord {
+  set_word_id: string;
+  position: number;
+  status: VocabSetWordStatus;
+  word: string;
+  ipa: string | null;
+  translation: string | null;
+  part_of_speech: string | null;
+  definition: string | null;
+  mastery_level: MasteryLevel | null;
+  context_sentence: string | null;
+}
+
+export type VocabSetScope = "all" | "unmastered" | "learning";
+
+/** GET /api/v1/vocab-sets/{id}?scope=... — set detail incl. word rows. */
+export interface VocabSetDetail extends VocabSet {
+  words: VocabSetWord[];
+}
+
+/** GET /api/v1/vocab-sets/{id}/sieve — current sieve position (resumable). */
+export interface VocabSieveState {
+  /** Current unsieved word id; null when the pending pass is exhausted. */
+  set_word_id: string | null;
+  position: number;
+  /** 已过筛词数（已掌握 + 待学清单）— 进度 = sieved_count / total。 */
+  sieved_count: number;
+  total: number;
+  /** 已掌握词数（known + learned）— 集合进度分子。 */
+  mastered_count: number;
+  /** 尚未过筛的词数（第一遍剩余）。 */
+  pending_count: number;
+  /** 待学清单词数（判「不会」的词，需标记已掌握才闭环）。 */
+  unknown_count: number;
+  /** 闭环：无 pending 且无 unknown。 */
+  completed: boolean;
+  word: {
+    word: string;
+    ipa: string | null;
+    translation: string | null;
+    part_of_speech: string | null;
+    definition: string | null;
+  } | null;
+}
+
+/** POST /api/v1/vocab-sets/{id}/words/{set_word_id}/sieve — judge result. */
+export interface VocabSieveJudgeResponse {
+  status: VocabSetWordStatus;
+  completed: boolean;
+  mastered_count: number;
+  total: number;
+}
+
 /* ── Admin ── */
 export interface RedeemCode {
   id: string;

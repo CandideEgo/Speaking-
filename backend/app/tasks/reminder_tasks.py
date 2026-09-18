@@ -83,6 +83,8 @@ async def _count_due_words(db, user_id: str, now_utc: datetime) -> int:
         select(func.count(Vocabulary.id)).where(
             Vocabulary.user_id == user_id,
             (Vocabulary.next_review_at.is_(None)) | (Vocabulary.next_review_at <= now_utc),
+            # Mastered words exited review (tri-state semantics) — no reminder.
+            Vocabulary.mastery_level != "mastered",
         )
     )
     return result.scalar() or 0

@@ -81,9 +81,12 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
     result = await db.execute(stmt)
     level_counts = dict(result.all())
 
+    # Mastered words have exited review (tri-state semantics) and don't
+    # count toward the due queue.
     due_stmt = select(func.count(Vocabulary.id)).where(
         Vocabulary.user_id == user_id,
         (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
+        Vocabulary.mastery_level != MASTERY_MASTERED,
     )
     due_result = await db.execute(due_stmt)
     due_count = due_result.scalar() or 0

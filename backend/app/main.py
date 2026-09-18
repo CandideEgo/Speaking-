@@ -34,6 +34,7 @@ from app.api.v1 import (
     shadowing,
     users,
     videos,
+    vocab_sets,
     vocabulary,
     words,
 )
@@ -250,6 +251,7 @@ def create_app() -> FastAPI:
 
         app.include_router(mock_payments.router, prefix="/api/v1")
     app.include_router(vocabulary.router, prefix="/api/v1")
+    app.include_router(vocab_sets.router, prefix="/api/v1")
     app.include_router(words.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")

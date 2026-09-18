@@ -153,7 +153,12 @@ async def build_vocabulary_drill(
     stmt = select(Vocabulary).where(Vocabulary.user_id == user_id)
 
     if due_only:
-        stmt = stmt.where((Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now))
+        # Mastered words exited the review loop (tri-state semantics) — due
+        # drills must not resurrect them.
+        stmt = stmt.where(
+            ((Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now)),
+            Vocabulary.mastery_level != "mastered",
+        )
 
     if video_id:
         stmt = stmt.where(Vocabulary.video_id == video_id)
