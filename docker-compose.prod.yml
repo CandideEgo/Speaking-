@@ -99,6 +99,9 @@ services:
       - "8000"
     volumes:
       - media:/app/media
+      # Runtime reference data (ECDICT dictionary + exam paper bank). Excluded
+      # from the image by backend/.dockerignore, so bind-mount read-only.
+      - ./backend/data:/app/data:ro
     depends_on:
       db:
         condition: service_healthy
@@ -149,6 +152,7 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - media:/app/media
+      - ./backend/data:/app/data:ro
     depends_on:
       db:
         condition: service_healthy
@@ -156,6 +160,10 @@ services:
         condition: service_healthy
     # Whisper-adjacent workers can spike; cap to protect the host.
     mem_limit: 4g
+    # Worker runs no HTTP server, so the image HEALTHCHECK (curl :8000/health)
+    # would always fail and wrongly mark it unhealthy. Disable the inherited probe.
+    healthcheck:
+      disable: true
     restart: unless-stopped
     logging:
       driver: json-file
@@ -185,6 +193,9 @@ services:
       redis:
         condition: service_healthy
     mem_limit: 512m
+    # Beat scheduler runs no HTTP server; disable the inherited image healthcheck.
+    healthcheck:
+      disable: true
     restart: unless-stopped
     logging:
       driver: json-file

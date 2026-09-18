@@ -30,4 +30,5 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: [--maxkb=1024]
+        exclude: ^seeword-beta-assets/
       - id: detect-private-key
