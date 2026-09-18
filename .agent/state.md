@@ -84,8 +84,9 @@
 
 - 本地 dev 环境 SMS 走真实阿里云发送（.env 配置了凭据）但 SDK 初始化失败→send-code 502；CI/无凭据环境自动回退 dev-fake 码 1234（E2E 依赖此路径）。**根因已定位（2026-08-14 审查）**：requirements.txt 曾缺 Dypnsapi SDK，已修复，本地 .venv 与云端镜像需重新安装依赖后复测
 - docs/architecture/ 旧架构文档已清理删除（见 docs/progress/DEV-LOG-2026-08.md）——`.agent/system-map.md` + `wiki/` 为权威
-- **2 unfixed risk items**: comment quality scoring (pure keyword matching), E2E test coverage（2026-08-14 起 CI e2e 已有 seed，核心旅程不再整体跳过；watch 播放/词汇复习/考试等关键流程的 e2e 仍缺失）
+- **风险项**：E2E test coverage 不完整（CI e2e 已有 seed，核心旅程不再整体跳过；watch 播放/词汇复习/考试等关键流程的 e2e 仍缺失）
 - ICP compliance: awaiting individual business license for full deployment
+- **文档曾滞后**：f855613（D0b 清理，2026-08-28）后 .agent 未同步，2026-09-18 已对齐；后续改动请同步 context.md
 
 ## Next Steps
 
@@ -95,10 +96,13 @@
 4. **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2/3 + §10 拍板（#4 暂缓 / #5 默认 / #6 不加 / #7 重定义已实施）。剩余 polish：品牌色 token 对比度、示范视频内容、iOS Safari 真机 D10 验收。
 5. 集成测试/Playwright e2e 对新页面（/weekly-report / 收藏 / CoachMark / ShareCard）的覆盖
 6. **Catalog Phase 2/3（ADR-0017）**：admin「内容目录」前端页（浏览/筛选/一键处理上线）；部署 seeword.top（迁移 + 导入 772 条 + 端到端验证一条 promote）；重抓脚本从 `.lr-scrape/` 收进 `backend/scripts/`；promote 前对版权敏感内容评估 embed vs download
+7. **免费化（注册即用）方向评估已出**（docs/progress/FREE-TIER-ASSESSMENT-2026-09.md）：待用户拍板后实施——解除解锁门控 + 前端 paywall 清理 + 保留 dormant + 公开落地页（未登录入口）
+8. 部署准备：工作区已有未提交部署改动（docker-compose.prod.yml / nginx.ssl.conf / deploy*.sh / seeword-beta-assets/），需用户确认后提交
 
 ## Last Updated
 
-Date: 2026-09-08
+Date: 2026-09-18
+- **文档同步：D0b 清理（f855613，2026-08-28）后 .agent 长期滞后，本次全量对齐**。核实结论：① 点词 gloss 无实时 AI（ECDICT + 真题例句 + 预生成 `word_ai_notes`，cache miss 返回空）；② 运行时 AI 调用仅视频处理管线（翻译 + prewarm）；③ AI 学习计划/每日学习计划已下线（learning_plan 端点 410）；④ 用户提交 URL 已删（处理入口只剩 admin seed + catalog promote）。已同步 context.md / system-map.md / decisions.md。另产出 `docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`（免费化影响评估：注册即用方向）。
 - **视频候选池 Catalog 后端 MVP（ADR-0017，2026-09-08）**：`catalog_items` 表 + 迁移 `f1g2h3i4j5k6`（← e0f1g2h3i4j5，已应用本地 PG）+ `catalog_service`（fit_score/幂等导入/列表派生 effective_status/promote 复用 seed_video/mark）+ `/api/v1/admin/catalog*` + `scripts/import_catalog.py` + 数据文件 `scripts/data/*.json`。从 Language Reactor 目录 API 抓 772 条候选（672 学习 + 100 新闻，全带字幕）。新增 15 测试，全量 687 passed / 6 skipped，ruff/mypy 干净。待办：Phase 2 admin UI / Phase 3 部署 / promote 前版权评估。
 - **两天 26 提交深度审查 + 5 项修复（43d69be，2026-08-30）**：审查 f855613..ff8798f（180 文件 +10899/-6930），结论主干可作稳定基线；修复 1 Critical（shadowing-sentences 端点无解锁门控→付费字幕可被任意登录用户读取，补 403 门控）+ 3 High（seed 脚本导入已删模块必崩；解锁额度 TOCTOU→原子条件 INSERT；streak 提醒对流失用户无限发送→只发断签首日且过期 streak 归零）+ 1 Medium（媒体门控负缓存→只缓存正向判定）。+4 回归测试，660 passed。遗留 2 个 Low 未修（可接受）：token 镜像 cookie 缺 Secure 标志（生产上 HTTPS 时补）、stats_heatmap 用服务器本地日期非 UTC。
 - **频道前端补全收尾（db2d90e，2026-08-30）**：ff8798f 遗留 3 项设计补齐——频道详情页头部改 banner 横条式（16:9 兜底封面 + 圆形头像/首字母渐变块）+ 粉丝数/认证标展示（详情 API 从最新视频 external_meta.channel 下发 follower_count/is_verified）；history 已解锁 Tab 卡片频道名可点（/videos/unlocked 补 channel_slug 批量查询）；修复详情页视频卡页脚显示 SeeWord（channel_name→channel_title 映射）。后端 656 passed / 6 skipped（+3）；登录态截图冒烟通过（浅色/暗色/已解锁 Tab）。原列的第 4 项（频道页 e2e/截图矩阵）非本功能引入，仍挂待办。

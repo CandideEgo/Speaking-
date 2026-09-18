@@ -263,6 +263,21 @@
 
 ---
 
+## 2026-08-28 — D0b 产品瘦身：下线 AI 助手 / 评论 / UGC / 学习计划（f855613）
+
+**Problem**: 功能面过宽——AI 助手、评论、UGC 提交/fork/propose-back、AI 学习计划、每日学习计划与核心闭环（看→点词→复习→练习）无关，带来维护成本、GPU/LLM 成本风险与版权负担。
+**Options**: A) 保留继续迭代；B) D0b 清理：全部下线，收敛为「运营精选内容 + 预生成词注释 + 学习档案」
+**Decision**: B（提交 f855613，2026-08-28；完整清单见 `.agent/handover-d0b.md`）
+**Reason**: 产品收敛后运行时 AI 调用只剩视频处理管线（翻译 + 词注释预热），成本可控且单一；内容由 admin seed + catalog promote 提供（与 ADR-0012 砍 UGC 的方向一致，进一步收口）。
+**Trade-offs**:
+- 删除 17 个后端文件 + 8 个前端文件 + 5400 行（含测试）；`learning_plan.py` 5 个端点返回 410（保留 profile/milestones/mastery-trend）；模型表（learning_plans/items、Video UGC 列）保留 dormant 未删
+- **词卡实时 AI 释义下线**：gloss 端点只读预生成 `word_ai_notes`（管线预热 + `scripts/precompute_global_word_notes.py`），cache miss 返回空字段——点词零 LLM 成本，代价是冷门词可能无 AI 注释
+- 前端 plan 组件（DailyProgressCard/PlanItemCard 等）删除，planStore 精简为仅 profile
+- `ai_service.py` 残留 5 个死方法 + `GET /vocabulary/{id}/enrich` 无前端入口（dormant，可后续清理）
+**Status**: 完成；后端 579 passed / 6 skipped，ruff 干净；**注意：本次提交后 `.agent` 文档长期未同步，2026-09-18 已全量对齐（context/system-map/state）**。
+
+---
+
 ## 2026-08-29 — D6 提醒调度：单条每小时扫描 + 用户本地时间匹配（Phase 2）
 
 **Problem**: 词汇提醒需按用户设定的提醒点（默认 20:00）触发，断签警告固定 21:00；用户 `reminder_timezone` 各不相同，Celery beat 不支持按用户动态调度。
