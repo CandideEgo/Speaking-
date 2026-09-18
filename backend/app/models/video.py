@@ -134,6 +134,12 @@ class Video(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
+    # First-publish timestamp — set once by video_publish._publish_video (never
+    # overwritten on later re-reviews). Pre-existing rows are backfilled as
+    # COALESCE(reviewed_at, created_at) by the g2h3i4j5k6l7 migration. Sort key
+    # for the homepage 「最新」 ranking (NULLs last). See app.services.ranking_service.
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
     # When processing actually started (set by start_processing or seed_video).
     # Used by the watchdog to detect stale transcriptions — more accurate than
     # created_at because admin may delay triggering start_processing.

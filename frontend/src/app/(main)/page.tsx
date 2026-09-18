@@ -9,6 +9,7 @@ import { useUnlockedIds } from "@/hooks/useUnlockedIds";
 import { useBoostUnlocked } from "@/hooks/useBoostUnlocked";
 import { UnlockQuotaHint } from "@/components/paywall/UnlockQuotaHint";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
+import { RankingBlock } from "@/components/home/RankingBlock";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { TabPills } from "@/components/ui/TabPills";
@@ -60,8 +61,11 @@ export default function HomePage() {
 
   // §10 #7：用户可选「已解锁优先」开关。开启后把 unlocked 视频排到
   // 视频流前面，未解锁的跟在后面（保持各自内部相对顺序）。
-  const { enabled: boostUnlocked, setEnabled: setBoostUnlocked, ready: boostReady } =
-    useBoostUnlocked();
+  const {
+    enabled: boostUnlocked,
+    setEnabled: setBoostUnlocked,
+    ready: boostReady,
+  } = useBoostUnlocked();
 
   const orderedVideos = useMemo(() => {
     if (!boostUnlocked || !unlockedInfo) return videos;
@@ -129,6 +133,11 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* ── 排行 ── */}
+        <div className="mb-6">
+          <RankingBlock />
+        </div>
+
         {/* ── 分类筛选栏（filter-bar，复用 browse 模式） ── */}
         <div className="filter-bar">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -190,9 +199,7 @@ export default function HomePage() {
                   </span>
                   <span
                     className={
-                      boostUnlocked
-                        ? "inline-flex items-center gap-0.5 text-brand-600"
-                        : ""
+                      boostUnlocked ? "inline-flex items-center gap-0.5 text-brand-600" : ""
                     }
                   >
                     {boostUnlocked && <Check size={11} aria-hidden="true" />}

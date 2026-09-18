@@ -102,6 +102,28 @@ export interface Paginated<T> {
   total?: number;
 }
 
+/** GET /api/v1/videos/rankings 排行项（latest / weekly_views / weekly_favorites，最多 20 条）。 */
+export interface RankedVideo {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  duration: number | null;
+  difficulty_level: string | null;
+  topic_tags: string[] | null;
+  is_official: boolean;
+  video_source: string | null;
+  channel_name: string | null;
+  channel_slug: string | null;
+  like_count: number;
+  favorite_count: number;
+  status: string;
+  created_at: string;
+  view_count: number;
+  published_at: string | null;
+  /** 周增量（weekly_views/weekly_favorites）；latest 榜为 null。 */
+  metric: number | null;
+}
+
 export interface Subtitle {
   id: string;
   video_id: string;

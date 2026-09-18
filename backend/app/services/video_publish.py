@@ -55,7 +55,12 @@ async def _publish_video(
     video.is_published = True
     video.review_status = VideoReviewStatus.published.value
     video.reviewed_by = reviewed_by
-    video.reviewed_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    video.reviewed_at = now
+    if video.published_at is None:
+        # First publish only — later re-review cycles must not move the
+        # original publish timestamp (homepage 「最新」 ranking sort key).
+        video.published_at = now
     video.rejection_reason = None
     await commit_refresh(db, video)
     await invalidate_video_detail_cache(video.id)

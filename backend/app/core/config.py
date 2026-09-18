@@ -257,6 +257,11 @@ class Settings(BaseSettings):
     recommend_vocab_boost_max: float = 5.0
     recommend_vocab_word_limit: int = 200  # max learning words to consider
 
+    # 首页排行榜快照 TTL（Redis，秒）。snapshot-rankings beat 任务每日 01:23 UTC
+    # 重算三个榜单（latest / weekly_views / weekly_favorites）并覆写快照；
+    # GET /videos/rankings 读穿这些快照，Redis 故障时 fail-open 直接查库。
+    rankings_snapshot_ttl_seconds: int = 172800  # 48h
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
     # Extra domains allowed by the production Content-Security-Policy connect-src

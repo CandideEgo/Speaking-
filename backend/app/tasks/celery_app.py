@@ -67,6 +67,13 @@ celery_app.conf.update(
             "task": "app.tasks.scoring_tasks.compute_all_scores",
             "schedule": 86400,  # every day — full recompute
         },
+        # 首页排行榜快照：每日 01:23 UTC 重算三个榜单（latest / weekly_views /
+        # weekly_favorites）并覆写 Redis 快照；GET /videos/rankings 读穿缓存，
+        # Redis 故障时 fail-open 直接查库。
+        "snapshot-rankings": {
+            "task": "app.tasks.ranking_tasks.snapshot_rankings",
+            "schedule": crontab(minute=23, hour=1),
+        },
         # ADR-0007: write back plan=free for users whose Pro has expired.
         # require_pro_user only blocks expired Pro on access; it never wrote
         # back free, so pro_users was inflated. Hourly downgrade closes that.
@@ -106,6 +113,7 @@ celery_app.conf.update(
 import app.core.logging as _logging
 import app.models
 import app.tasks.order_tasks
+import app.tasks.ranking_tasks
 import app.tasks.redeem_tasks
 import app.tasks.reminder_tasks
 import app.tasks.report_tasks

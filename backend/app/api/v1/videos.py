@@ -953,6 +953,34 @@ async def list_user_favorites(
     return paginated(items, pagination, total=total)
 
 
+# 首页排行榜 — static route registered before the /{video_id} dynamic route so
+# the static "rankings" path wins the match (same ordering constraint as
+# /favorites above). Optional auth: the lists are public; the dependency only
+# mirrors the neighboring endpoints.
+@router.get("/rankings", response_model=list[dict])
+@rate_limit("30/minute")
+async def list_video_rankings(
+    request: Request,
+    scope: str = Query("latest"),
+    current_user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """首页排行榜：最新发布 / 近 7 天播放 / 近 7 天收藏，各取前 20。
+
+    scope 不合法返回 422。结果读穿 Redis 快照（fail-open，Redis 故障时直接
+    查库）；快照由 snapshot-rankings beat 任务每日刷新。周播放榜按 session_id
+    去重计数（防刷规则，见 ranking_service）。
+    """
+    from app.services.ranking_service import RANKING_SCOPES, get_rankings
+
+    if scope not in RANKING_SCOPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid scope: {scope!r} (expected one of: {', '.join(RANKING_SCOPES)})",
+        )
+    return await get_rankings(db, scope)
+
+
 # Phase 1 B0 — list the current user's vocabulary for a single video, used by
 # the EndScreen "复习本视频生词" entry on the watch page.
 @router.get("/{video_id}/vocabulary", response_model=PaginatedResponse[dict])
