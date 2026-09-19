@@ -2,10 +2,17 @@
 # Install with: pip install -r requirements-dev.txt
 
 # Testing
-pytest>=8.2.0
-pytest-asyncio>=0.23.7
-pytest-cov>=5.0.0
-pytest-timeout>=2.3.1
+# Pinned for the same reason as ruff below: an open range let CI resolve a
+# different stack than the one the suite is verified against, and the two
+# disagree — CI (pytest 9.1.1 / pytest-asyncio 1.4.0) completes the suite but
+# never exits the process, blowing the step's 10-minute budget, while the
+# versions pinned here finish the same suite (including the Postgres
+# integration tests) and exit cleanly. Bump these and re-verify in CI, not just
+# locally: pytest-asyncio 1.x changed its event-loop handling.
+pytest==8.2.0
+pytest-asyncio==0.23.7
+pytest-cov==5.0.0
+pytest-timeout==2.4.0
 aiosqlite>=0.20.0
 
 # Linting & formatting
