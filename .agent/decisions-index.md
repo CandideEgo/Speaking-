@@ -3,7 +3,7 @@
 > Navigation for `decisions.md`. Read this first, then open the one entry you need.
 >
 > IDs are assigned in **file order** (which is append order, not date order — 9 dates repeat and
-> the tail of the file is not chronological). `DEC-001..DEC-037` are historical and must not be
+> the tail of the file is not chronological). `DEC-001..DEC-038` are historical and must not be
 > reassigned. To add a decision: append the entry at the end of `decisions.md`, add a row here
 > with the next free ID. The `index` check fails if this table and `decisions.md` disagree on
 > count, order, date or title.
@@ -50,3 +50,4 @@
 | DEC-035 | 2026-08-30 | 频道升级为全量作者页 Auto-Channel（ADR-0014 修订） | ADR-0014 | active |
 | DEC-036 | 2026-09-08 | 视频候选池 Catalog（抓取发现与逐条策展解耦） | ADR-0017 | active |
 | DEC-037 | 2026-09-19 | 内测上线四件套（排行 / 学习闭环 / 免费开放 / 存储三态） | ADR-0019, ADR-0020 | active |
+| DEC-038 | 2026-09-19 | 周榜改自然周口径 + 首页卡片信息密度（简介 / 总播放 / 收藏） | — | active |

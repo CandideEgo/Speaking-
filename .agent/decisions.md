@@ -488,3 +488,23 @@
 - `_FakeRedis` 补 `scan_iter` 后才暴露/覆盖「缓存失效」路径；此前 fail-open 会静默吞掉 AttributeError。
 - 验证：后端 735 passed（含 +15 排行 / +24 集合闭环 / +13 下线）；三支端到端冒烟 31+18+24 全通过；前端 tsc/eslint/vitest/build 全绿；mypy 77 基线。
 - 未做：proxy 实现、公开落地页、海报视觉稿（运营物料）、Proxy 二期的 Pro 差异项。
+
+---
+
+## 2026-09-19 — 周榜改自然周口径 + 首页卡片信息密度（简介 / 总播放 / 收藏）
+
+**Problem**: DEC-037 第 1 点周榜采用「当前时刻滚动近 7 天」窗口，产品方内测前拍板改为自然周（与「本周热播 / 本周收藏」文案和用户心智一致，周一固定换榜）；同时首页视频卡片只有标题 + 频道 + 分类，用户无法在 feed 里判断内容，也看不到视频的总播放 / 收藏（站内 `Video.view_count` 早已计数但列表接口从未下发）。本条修订 DEC-037 第 1 点的窗口口径，其余三点不变。
+
+**Options**: 周窗口 A) 维持滚动 7 天 B) 自然周（时区按 UTC / 用户本地 / 北京固定）；卡片简介 A) 不加 B) 标题下两行截断简介；指标 A) 只显示周增量（排行榜已有）B) 卡片显示累计总播放 / 收藏。
+
+**Decision**:
+1. **自然周**：`ranking_service.current_week_start_utc()` 返回 Asia/Shanghai（UTC+8 固定偏移，中国无夏令时；Windows 无 tzdata 故不用 zoneinfo）周一 00:00 折算的 UTC 时刻，weekly_views / weekly_favorites 两处 since 统一使用，删除滚动 `_WEEK`。`snapshot-rankings` beat 从 UTC 01:23 改为 UTC 16:30（北京每日 00:30），周一换榜快照滞后 ≤30 分钟。测试改为不依赖运行当天星期几的固定窗口口径，并新增 ±7 天边界遍历用例。
+2. **卡片信息密度**：`Video.description` 为读取 `external_meta["description"]` 的 ORM property（本地视频 / 未抽取为 None）；`VideoResponse` 新增 `view_count`（站内 complete 事件累计，区别于 YouTube 侧 `ext_view_count`）与 `description`，均有默认值以兼容旧缓存 JSON。列表路径（推荐 home/category、browse、channel、favorites）统一下发，简介在序列化层截断到 `CARD_DESCRIPTION_LIMIT=200`；详情接口保留全文。前端 `VideoCard` 标题下新增两行简介（无则不占位）与播放（Eye）/ 收藏（Bookmark）指标行（万级格式化，0 正常显示，字段缺省不渲染），指标行独立于自定义 footer。
+
+**Reason**: 「本周」在中文语境默认指自然周，滚动窗口会让用户困惑「为什么周一榜单没变」；固定周一换榜可预期、可解释。累计计数是最基础的社会证明与选片依据，周增量只在排行榜有意义；简介两行让用户不点进详情即可筛内容，直接服务内测留存。
+
+**Trade-offs**:
+- 北京 00:00~00:30 之间周榜快照仍是上周（≤30 分钟滞后）；Redis 故障读穿实时计算用新窗口，二者可能短暂不一致。
+- 简介覆盖率取决于 `external_meta` 回填（本地视频与早期数据为 None，卡片不渲染简介、不报错）；上线前应跑 `scripts/backfill_external_meta.py` 或抽查填充率。
+- feed 缓存（推荐 60s / browse 300s / 详情 300s）内旧载荷无新字段，schema 默认值兜底、自然过期。
+- legacy 列表端点（/videos/public、UGC community feed）经 model_validate 携带未截断全文简介，但当前无前端消费方，未做截断。
