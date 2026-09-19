@@ -53,22 +53,28 @@ echo ""
 echo "[3/6] 配置环境变量..."
 if [ ! -f ".env" ]; then
     echo "创建 .env 文件..."
+    # 变量名必须与 docker-compose.prod.yml 一致：DB_USER / DB_PASSWORD / DB_NAME /
+    # JWT_SECRET（compose 不读 POSTGRES_USER / SECRET_KEY）。
     cat > .env << 'EOF'
-# 数据库配置
-POSTGRES_USER=speaking
-POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_DB=speaking
+# 数据库配置（compose 据此拼 DATABASE_URL）
+DB_USER=speaking
+DB_NAME=speaking
+DB_PASSWORD=change-me-strong-random-password
 
-# 后端配置
-DATABASE_URL=postgresql://speaking:your_secure_password_here@db:5432/speaking
-SECRET_KEY=your_secret_key_here
+# 后端必须（production 启动时强制校验）
+JWT_SECRET=change-me-openssl-rand-hex-32
+TRANSCRIPTION_CALLBACK_SECRET=change-me-random-hex-32
+OPENAI_API_KEY=sk-your-key-here
+REDIS_URL=redis://redis:6379/0
+ENV=production
 
 # 前端配置
-NEXT_PUBLIC_API_URL=http://your_server_ip:8000
+NEXT_PUBLIC_API_URL=http://your_server_ip
 
 # GPU Worker（如需要）
 WHISPER_MODEL=base
 EOF
+    chmod 600 .env
     echo "⚠️  请编辑 .env 文件，填入正确的配置信息"
     echo "   执行: nano .env"
     read -p "按回车继续..."

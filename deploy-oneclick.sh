@@ -1,15 +1,25 @@
 #!/bin/bash
 # Speaking 项目一键部署脚本
 # 使用方法：在服务器上执行 bash deploy-oneclick.sh
+#
+# 安全说明（2026-09-19 review 修复）：
+# - 绝不把任何密钥/密码写进仓库历史。首次部署时本脚本现场生成随机值并落本地 .env。
+# - 已存在 .env 时绝不覆盖；只补齐缺失项。
+# - 变量名与 docker-compose.prod.yml 严格一致：DB_USER / DB_PASSWORD / DB_NAME /
+#   JWT_SECRET（旧版误用 POSTGRES_USER / SECRET_KEY，compose 根本读不到，且把
+#   生产密码明文提交进了 git）。
 
 set -e
 
+PROJECT_DIR="/opt/speaking"
+REPO_URL="https://github.com/CandideEgo/Speaking.git"
+# 服务器公网地址（NEXT_PUBLIC_API_URL 用）。内测期先用 http；上 HTTPS 后改这里。
+PUBLIC_URL="${PUBLIC_URL:-http://47.122.109.52}"
+
 echo "========================================="
 echo "  Speaking 项目一键部署"
-echo "  服务器: 47.122.109.52"
+echo "  项目目录: $PROJECT_DIR"
 echo "========================================="
-
-PROJECT_DIR="/opt/speaking"
 
 # 1. 安装必要工具
 echo ""
@@ -39,38 +49,62 @@ echo "✓ Git: $(git --version)"
 # 2. 克隆或更新代码
 echo ""
 echo "[2/6] 获取项目代码..."
-mkdir -p $PROJECT_DIR
-cd $PROJECT_DIR
+mkdir -p "$PROJECT_DIR"
+cd "$PROJECT_DIR"
 
 if [ -d ".git" ]; then
     echo "更新现有代码..."
     git pull origin master
 else
     echo "克隆新代码..."
-    git clone https://github.com/CandideEgo/Speaking.git .
+    git clone "$REPO_URL" .
 fi
 
 echo "✓ 代码已就绪: $(git rev-parse --short HEAD)"
 
-# 3. 配置环境变量
+# 3. 配置环境变量（已存在 .env 绝不覆盖；缺失项现场生成）
 echo ""
 echo "[3/6] 配置环境变量..."
-cat > .env << 'EOF'
-POSTGRES_USER=speaking
-POSTGRES_PASSWORD=Speaking@2026Secure
-POSTGRES_DB=speaking
-DATABASE_URL=postgresql://speaking:Speaking@2026Secure@db:5432/speaking
-SECRET_KEY=a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
-NEXT_PUBLIC_API_URL=http://47.122.109.52:8000
-WHISPER_MODEL=base
-EOF
 
-echo "✓ .env 文件已创建"
+if [ ! -f ".env" ]; then
+    echo "首次部署，生成 .env（随机密码 / 随机 JWT_SECRET）..."
+    DB_PASSWORD="$(openssl rand -hex 16)"
+    JWT_SECRET="$(openssl rand -hex 32)"
+    CALLBACK_SECRET="$(openssl rand -hex 32)"
+    cat > .env << EOF
+# 由 deploy-oneclick.sh 于 $(date -Iseconds) 生成。请勿提交到 git。
+DB_USER=speaking
+DB_NAME=speaking
+DB_PASSWORD=${DB_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+TRANSCRIPTION_CALLBACK_SECRET=${CALLBACK_SECRET}
+WHISPER_MODEL=base
+ENV=production
+# 前端访问地址
+NEXT_PUBLIC_API_URL=${PUBLIC_URL}
+# ── 以下两项必须手动填入后再 up（后端在 production 下会强制校验）──
+# OPENAI_API_KEY=sk-...
+# REDIS_URL=redis://redis:6379/0
+EOF
+    chmod 600 .env
+    echo ""
+    echo "⚠️  已生成 .env 但还缺 OPENAI_API_KEY（与可选 REDIS_URL）。"
+    echo "   执行: nano $PROJECT_DIR/.env  填入后重跑本脚本。"
+    exit 1
+else
+    echo ".env 已存在，跳过生成（不覆盖）。"
+    # 防御性检查：compose 必需的变量是否齐。
+    missing=0
+    for v in DB_USER DB_PASSWORD DB_NAME JWT_SECRET; do
+        grep -q "^${v}=" .env || { echo "⚠️  .env 缺少 $v"; missing=1; }
+    done
+    [ "$missing" -eq 1 ] && { echo "请补全 .env 后重试。"; exit 1; }
+fi
 
 # 4. 构建镜像
 echo ""
-echo "[4/6] 构建 Docker 镜像（这可能需要几分钟）..."
-docker-compose -f docker-compose.prod.yml build --no-cache
+echo "[4/6] 构建 Docker 镜像..."
+docker-compose -f docker-compose.prod.yml build
 
 echo "✓ 镜像构建完成"
 
@@ -100,10 +134,5 @@ echo "========================================="
 echo "  部署完成！"
 echo "========================================="
 echo ""
-echo "📊 查看服务状态: docker-compose -f docker-compose.prod.yml ps"
-echo "📋 查看实时日志: docker-compose -f docker-compose.prod.yml logs -f"
-echo "🔄 重启服务: docker-compose -f docker-compose.prod.yml restart"
-echo "⏹️  停止服务: docker-compose -f docker-compose.prod.yml down"
-echo ""
-echo "🌐 访问地址: http://47.122.109.52"
-echo ""
+echo "🌐 访问地址: ${PUBLIC_URL}"
+echo "📋 实时日志: docker-compose -f docker-compose.prod.yml logs -f"
