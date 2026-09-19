@@ -4,7 +4,7 @@ import { uniquePhone, registerUserViaApi, loginViaUi } from "./helpers";
 // Mobile viewport for the whole file.
 test.use({ viewport: { width: 375, height: 812 } });
 
-// A shared, onboarding-completed user for the authenticated sidebar tests.
+// A shared, onboarding-completed user for the authenticated navigation tests.
 const MOBILE_PHONE = uniquePhone();
 
 test.beforeAll(async ({ request }) => {
@@ -60,35 +60,18 @@ test.describe("Mobile - Login Form", () => {
 });
 
 test.describe("Mobile - Redeem Page", () => {
-  test("redeem page is public (whitelisted under the login wall)", async ({ page }) => {
+  test("redeem page is public, then redirects to the home URL", async ({ page }) => {
     await page.goto("/redeem");
-    // D0 白名单：/redeem 未登录直接渲染兑换表单。
-    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
+    // D0 白名单：/redeem 对未登录开放（墙放行），退役后的页面 redirect("/")；
+    // 随后的登录墙是 "/" 触发的 —— next 参数为 "/" 而不是 "/redeem"。
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/");
   });
 });
 
-test.describe("Mobile - Sidebar (authenticated)", () => {
+test.describe("Mobile - Navigation (authenticated)", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, MOBILE_PHONE);
-  });
-
-  test("hamburger menu opens the sidebar drawer", async ({ page }) => {
-    await page.locator('button[aria-label="打开菜单"]').first().click();
-    // The drawer's close button only exists in the mobile overlay, so its
-    // visibility confirms the drawer opened.
-    const closeBtn = page.locator('button[aria-label="关闭侧边栏"]');
-    await expect(closeBtn).toBeVisible({ timeout: 5000 });
-    // A nav link is reachable inside the drawer (the last match - the desktop
-    // sidebar's copy is display:none on mobile).
-    await expect(page.locator('a[href="/browse"]').last()).toBeVisible({ timeout: 5000 });
-  });
-
-  test("sidebar closes via the backdrop close button", async ({ page }) => {
-    await page.locator('button[aria-label="打开菜单"]').first().click();
-    const closeBtn = page.locator('button[aria-label="关闭侧边栏"]');
-    await expect(closeBtn).toBeVisible({ timeout: 5000 });
-    await closeBtn.click();
-    await expect(closeBtn).toBeHidden({ timeout: 5000 });
   });
 
   test("mobile tab bar navigates to browse", async ({ page }) => {

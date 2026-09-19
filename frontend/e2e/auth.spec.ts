@@ -46,12 +46,11 @@ test.describe("Login", () => {
   test("login with phone + password redirects to home", async ({ page }) => {
     await loginViaUi(page, SHARED_PHONE);
     expect(page.url()).toMatch(/\/$/);
-    // Authenticated home shell: the sidebar logout button is present.
-    // (Two logout buttons exist in the DOM - desktop sidebar + mobile drawer -
-    // so target the first, which is the visible desktop one.)
-    await expect(page.locator('button[aria-label="退出登录"]').first()).toBeVisible({
-      timeout: 10000,
-    });
+    // Authenticated home shell: the TopBar avatar menu is present, and 退出登录
+    // lives inside it (阶段0 导航重构删除左 Sidebar，登出迁入头像下拉菜单).
+    await expect(page.getByRole("button", { name: "账号菜单" })).toBeVisible({ timeout: 10000 });
+    await page.getByRole("button", { name: "账号菜单" }).click();
+    await expect(page.getByRole("button", { name: "退出登录" })).toBeVisible({ timeout: 10000 });
   });
 
   test("wrong credentials do not grant access", async ({ page }) => {
@@ -75,20 +74,21 @@ test.describe("Guards and Logout", () => {
     await page.waitForURL(/\/login/, { timeout: 10000 });
     expect(page.url()).toContain("/login");
     expect(page.url()).toContain("next=");
-    // The app sidebar (logout button) must NOT be present.
-    await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
+    // The app shell (avatar menu) must NOT be present behind the login wall.
+    await expect(page.getByRole("button", { name: "账号菜单" })).toHaveCount(0);
   });
 
   test("logout redirects to /login and blocks the app", async ({ page }) => {
     await loginViaUi(page, SHARED_PHONE);
-    await page.locator('button[aria-label="退出登录"]').first().click();
+    await page.getByRole("button", { name: "账号菜单" }).click();
+    await page.getByRole("button", { name: "退出登录" }).click();
     await page.waitForURL(/\/login/, { timeout: 10000 });
     expect(page.url()).toContain("/login");
 
     // After logout, "/" bounces back to the login wall again.
     await page.goto("/");
     await page.waitForURL(/\/login/, { timeout: 10000 });
-    await expect(page.locator('button[aria-label="退出登录"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "账号菜单" })).toHaveCount(0);
   });
 });
 
@@ -102,12 +102,22 @@ test.describe("Password Reset", () => {
 
   test("forgot-password page renders the phone + code + new-password form", async ({ page }) => {
     await page.goto("/forgot-password");
-    await expect(page.locator("h1")).toHaveText(/重置密码/);
+    // 三步向导（原型 15）：手机号 → 验证码 → 新密码，标题与字段随步骤切换。
+    await expect(page.locator("h1")).toHaveText(/找回密码/);
     await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
-    await expect(page.locator('input[placeholder="请输入验证码"]')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toHaveCount(2);
-    await expect(page.locator('button[type="submit"]')).toHaveText(/重置密码/);
     await expect(page.locator('a[href="/login"]')).toBeVisible();
+
+    await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
+    await page.getByRole("button", { name: "发送验证码" }).click();
+
+    await expect(page.locator("h1")).toHaveText(/输入验证码/);
+    await expect(page.locator('input[placeholder="请输入验证码"]')).toBeVisible();
+    await page.locator('input[placeholder="请输入验证码"]').fill(DEV_SMS_CODE);
+    await page.getByRole("button", { name: "验证", exact: true }).click();
+
+    await expect(page.locator("h1")).toHaveText(/设置新密码/);
+    await expect(page.locator('input[type="password"]')).toHaveCount(2);
+    await expect(page.locator('button[type="submit"]')).toHaveText(/完成修改/);
   });
 });
 

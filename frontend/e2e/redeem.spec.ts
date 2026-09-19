@@ -9,10 +9,13 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.describe("Redeem - Unauthenticated", () => {
-  test("redeem form is public (whitelisted under the login wall)", async ({ page }) => {
+  test("redeem page is public, then redirects to the home URL", async ({ page }) => {
     await page.goto("/redeem");
-    // D0 白名单（产品设计规划 §2.1）：/redeem 未登录可访问，表单直接渲染。
-    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
+    // D0 白名单（产品设计规划 §2.1）：/redeem 未登录可访问 —— 页面自身的
+    // redirect("/") 才是落点。登录墙随后接过 "/"，所以 next 参数是 "/" 而不是
+    // "/redeem"：这正是「/redeem 没被登录墙拦下」的证据。
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/");
   });
 });
 
@@ -21,32 +24,9 @@ test.describe("Redeem - Authenticated", () => {
     await loginViaUi(page, REDEEM_PHONE);
   });
 
-  test("form is visible when authenticated", async ({ page }) => {
+  test("redeem page redirects to home", async ({ page }) => {
     await page.goto("/redeem");
-    await expect(page.locator("h1")).toHaveText(/兑换 Pro 会员/);
-    await expect(page.locator('input[placeholder="XXXX-XXXX-XX"]')).toBeVisible();
-    await expect(page.locator('button[type="submit"]')).toBeVisible();
-  });
-
-  test("submit button is disabled until a code is entered", async ({ page }) => {
-    await page.goto("/redeem");
-    await expect(page.locator('button[type="submit"]')).toBeDisabled();
-  });
-
-  test("invalid code shows an error message", async ({ page }) => {
-    await page.goto("/redeem");
-    await page.locator('input[placeholder="XXXX-XXXX-XX"]').fill("INVALID-1");
-    await page.locator('button[type="submit"]').click();
-    // Error renders in a red-tinted box (bg-red-soft / text-error).
-    await expect(page.locator("[class*='bg-red-soft']")).toBeVisible({
-      timeout: 10000,
-    });
-  });
-
-  test("code input uppercases on input", async ({ page }) => {
-    await page.goto("/redeem");
-    const input = page.locator('input[placeholder="XXXX-XXXX-XX"]');
-    await input.fill("abc123");
-    await expect(input).toHaveValue("ABC123");
+    // 内测期免费开放（需求 §2.3）：兑换码页退役，page.tsx 只剩 redirect("/")。
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 10000 });
   });
 });

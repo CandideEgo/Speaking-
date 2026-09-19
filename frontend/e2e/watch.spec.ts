@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
 
 /**
  * Watch-page e2e tests.
@@ -9,7 +10,12 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 test.describe("Watch Page - Error States", () => {
-  test("invalid video ID shows an error state, not a white screen", async ({ page }) => {
+  test("invalid video ID shows an error state, not a white screen", async ({ page, request }) => {
+    // /watch/* is behind the D0 login wall (proxy.ts)：未登录会被 302 到
+    // /login，那里既没有 spinner 也没有错误态 —— 必须先登录才测得到错误态。
+    const { token } = await registerUserViaApi(request, uniquePhone());
+    await loginViaToken(page, token);
+
     await page.goto("/watch/nonexistent-video-id-12345");
 
     // While loading the page shows a spinner; once the 404 resolves it shows
