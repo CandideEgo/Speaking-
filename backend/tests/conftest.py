@@ -261,6 +261,24 @@ def _mock_celery(monkeypatch):
     yield calls
 
 
+class _SocketShim:
+    """A stand-in for the ``socket`` module with ``getaddrinfo`` replaced.
+
+    Patching ``socket.getaddrinfo`` itself would be process-wide: every library
+    that does ``import socket`` resolves through the same module object, so a
+    fake resolver here would also hijack redis-py's and asyncpg's hostname
+    resolution. Rebinding the *name* ``socket`` inside ``video_url_guard``
+    confines the fake to the one module that wants it.
+    """
+
+    def __init__(self, real, getaddrinfo) -> None:
+        self._real = real
+        self.getaddrinfo = getaddrinfo
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
 @pytest.fixture(autouse=True)
 def _mock_dns_lookup(request: pytest.FixtureRequest, monkeypatch):
     """Stub DNS lookups for the SSRF guard so tests never hit real DNS.
@@ -269,13 +287,13 @@ def _mock_dns_lookup(request: pytest.FixtureRequest, monkeypatch):
     logic stays exercised); test_video_url_guard.py overrides this per-test
     to simulate private-IP / rebinding scenarios.
 
-    ``video_url_guard`` calls the global ``socket.getaddrinfo`` (it does
-    ``import socket``), so this patch also affects asyncpg's hostname
-    resolution. Postgres integration tests therefore skip the mock entirely:
-    they need real DNS to connect (CI's Postgres service is reachable by
-    hostname). Checked here rather than restored in ``_async_setup`` because
-    autouse-fixture ordering between the sync DNS mock and the async DB setup
-    is not guaranteed.
+    The fake is scoped to ``video_url_guard`` via ``_SocketShim`` rather than
+    written onto the ``socket`` module, so it cannot leak into unrelated
+    resolution — a leak here previously made the sync Redis client in
+    ``pipeline_helpers`` dial the fake IP (and hang until the CI test-step
+    timeout). Postgres integration tests still skip the mock so they resolve
+    the Postgres hostname for real; the shim makes that belt-and-braces
+    rather than a requirement.
     """
     if request.node.get_closest_marker("integration") is not None:
         return  # real DNS — asyncpg must resolve the Postgres hostname
@@ -284,7 +302,7 @@ def _mock_dns_lookup(request: pytest.FixtureRequest, monkeypatch):
     def fake_getaddrinfo(host, port=None, *args, **kwargs):
         return [(2, 1, 6, "", ("93.184.216.34", 0))]
 
-    monkeypatch.setattr(guard.socket, "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(guard, "socket", _SocketShim(guard.socket, fake_getaddrinfo))
 
 
 @pytest_asyncio.fixture

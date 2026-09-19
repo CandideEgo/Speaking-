@@ -61,6 +61,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-addopts = "-v --tb=short --timeout=60"
+# Intentionally empty: pytest.ini takes precedence over this table, so a section here
+# was silently ignored — including `--timeout=60`, which is why a hung test used to
+# consume the whole CI job budget instead of failing. Pytest config lives in pytest.ini.
+# If you move it back here, delete pytest.ini in the same change.

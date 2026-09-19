@@ -101,3 +101,28 @@ async def test_validation_errors_are_app_errors():
         await validate_video_url("https://example.com/v", rebinding_delay=0)
     assert excinfo.value.status_code == 400
     assert excinfo.value.code == ErrorCode.VALIDATION_ERROR
+
+
+def test_dns_mock_does_not_leak_into_global_socket():
+    """The autouse DNS fake must stay inside ``video_url_guard``.
+
+    It used to be written onto the ``socket`` module itself, which every
+    ``import socket`` caller shares — including redis-py's ``_connect`` and
+    asyncpg. The sync Redis client in ``pipeline_helpers`` then dialled the
+    fake IP on every call, and on a CI runner (which drops the packets rather
+    than refusing them) each call blocked for the ~134s kernel SYN timeout.
+    ``_run_localize`` makes three such calls, which is what turned one test
+    into a 404s hang and blew the job's 10-minute budget.
+
+    Asserted here rather than in a conftest-internal test so the contract is
+    visible next to the code that depends on it.
+    """
+    import socket
+
+    import app.services.video_url_guard as guard
+
+    assert guard.socket is not socket, "guard must resolve through a shim, not the real module"
+    assert socket.getaddrinfo("localhost", 6379, type=socket.SOCK_STREAM)[0][4][0] in (
+        "127.0.0.1",
+        "::1",
+    ), "global getaddrinfo must still resolve real hosts"
