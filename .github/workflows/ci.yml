@@ -96,15 +96,14 @@ jobs:
         run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=60
 
       - name: Vulnerability scan (pip-audit)
-        # Hard gate. CVE-2024-47874 (starlette <0.40 via fastapi 0.111) is
-        # deferred: the fastapi upgrade is tracked separately — the local pip
-        # mirror lacks newer fastapi versions, so it ships after CI-verified
-        # upgrade. Remove the ignore once fastapi is bumped.
+        # Hard gate. Advisories we knowingly accept are listed in
+        # backend/.pip-audit-ignore with a review date; when a date lapses the
+        # gate fails, so an accepted advisory has to be re-argued rather than
+        # inherited. Rationale for each entry is in that file.
         working-directory: backend
         run: |
           pip install pip-audit
-          pip-audit -r requirements.txt -r requirements-cloud.txt --skip-editable \
-            --ignore-vuln CVE-2024-47874
+          python scripts/pip_audit_gate.py
 
   frontend:
     runs-on: ubuntu-latest

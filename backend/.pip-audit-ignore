@@ -1,0 +1,41 @@
+# Accepted security advisories for the backend pip-audit gate.
+#
+# Read by scripts/pip_audit_gate.py. One row per advisory:
+#
+#     <ID>  <review-by>  <owner>  <why accepting this is safe>
+#
+# `review-by` is a deadline, not a note: once it passes, the gate fails and the
+# row must be re-assessed. Keep `why` falsifiable — name the code fact that makes
+# the advisory unreachable, not an opinion. Delete rows pip-audit stops
+# reporting; the gate prints those as stale.
+#
+# Scope note: every row below is a dependency of requirements.txt only, i.e. the
+# GPU worker image. The public server installs requirements-cloud.txt, which
+# carries no suppressions — torch/transformers/nltk are not in it, and its web
+# stack (fastapi/starlette/sentry-sdk) sits on fixed versions.
+#
+# Re-assessed 2026-09-19: none of these are fixable by a version bump we can land
+# safely today. nltk has no upstream fix at all (3.10.3 is the newest release).
+# The torch and transformers fixes are GPU-stack major upgrades — torch is pinned
+# in lockstep with torchaudio/torchvision CUDA builds and pyannote-audio — which
+# belong in their own change, not in a scanner-driven bump.
+
+# ── torch: the 8 advisories all target operator/deserialization paths we do not call ──
+PYSEC-2025-193  2027-03-01  backend  torch.nn.utils.rnn.unpack_sequence 内存破坏。公告的 last_affected 写作 "2.6.0-NA"（非法版本号），OSV 据此判 2.8.0 不在范围内、pip-audit 判在范围内——按公告本体我们本就出界；且需本地访问（AV:L），app/ 只用 torch.cuda.*
+PYSEC-2025-194  2027-03-01  backend  torch.jit.script 内存破坏，同样本地攻击面、同样受 "2.6.0-NA" 边界影响；项目任何地方都不使用 TorchScript
+PYSEC-2025-195  2027-03-01  backend  torch.lstm_cell 内存破坏，同样本地攻击面、同样受 "2.6.0-NA" 边界影响；项目不调用该算子，RNN 由 ctranslate2 以自有实现执行
+PYSEC-2025-203  2027-03-01  backend  torch.linalg.lu 切片 DoS，需攻击者控制送入该算子的张量；项目无任何 linalg.lu 调用路径
+PYSEC-2025-204  2027-03-01  backend  torch.rot90 + torch.randn_like 组合异常，需攻击者控制张量；项目无这两个算子的调用路径
+PYSEC-2025-206  2027-03-01  backend  torch.nan_to_num().long() 整数溢出，需攻击者控制张量；项目无该调用路径
+PYSEC-2026-139  2027-03-01  backend  pt2 加载处理器反序列化，公告标注仅本地可利用；项目不加载 .pt2 产物
+PYSEC-2026-2286  2027-03-01  backend  恶意 .pth 即使经 torch.load(weights_only=True) 也能内存破坏（修复于 2.10.0）；app/ 无 torch.load 调用，模型产物来自固定仓库名
+
+# ── transformers: all 5 require loading an attacker-controlled model repo or checkpoint ──
+PYSEC-2025-217  2027-03-01  backend  X-CLIP checkpoint 转换反序列化，需受害者打开恶意文件；项目不加载 X-CLIP，且无 checkpoint 转换路径
+PYSEC-2026-2288  2027-03-01  backend  Trainer._load_rng_state 未加 weights_only；项目不使用 Trainer，且 torch 2.8（>=2.6）已使 safe_globals 生效
+PYSEC-2026-2289  2027-03-01  backend  恶意 config.json 的 _attn_implementation_internal 触发远端代码执行；项目不调用 AutoModelForCausalLM.from_pretrained，也不接受用户提供的模型仓库
+PYSEC-2026-2290  2027-03-01  backend  LightGlue 加载路径下 trust_remote_code 被 config.json 覆盖；项目不加载 LightGlue，全仓无 trust_remote_code 调用
+PYSEC-2026-3929  2027-03-01  backend  save_pretrained 经 chat template 名做路径穿越；项目只做推理，全仓无 save_pretrained 调用
+
+# ── nltk: not imported by first-party code, and no fix exists upstream ──
+PYSEC-2026-3740  2027-03-01  backend  TransitionParser/AveragedPerceptron/PerceptronTagger/maxent 参数 API 路径穿越；app/ 不 import nltk（经 whisperx/torchmetrics 传递引入），且 3.10.3 已是上游最新、无修复版本

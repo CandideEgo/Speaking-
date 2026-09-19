@@ -1,11 +1,18 @@
-fastapi==0.111.0
+# Web stack. fastapi / starlette / pydantic move as one set: fastapi <0.135 pins
+# starlette <0.38, and starlette <1.3.1 carries the advisories listed in
+# .pip-audit-ignore's header (BadHost host-header bypass, form-limit bypass).
+# fastapi >=0.135 declares `starlette>=0.46` with no upper bound, so the pair
+# below is what actually clears them. Keep starlette explicit: nothing else
+# pins it, and a silent downgrade would re-open those advisories.
+fastapi==0.141.1
+starlette==1.6.0
 uvicorn[standard]==0.29.0
 gunicorn==22.0.0
 sqlalchemy[asyncio]==2.0.30
 asyncpg==0.29.0
 alembic==1.13.1
-pydantic==2.7.0
-pydantic-settings==2.3.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
 PyJWT>=2.8.0
 bcrypt>=4.0.0
 # >=0.0.18 fixes CVE-2024-53981 (multipart form-part DoS)
@@ -28,8 +35,12 @@ yt-dlp>=2025.0.0
 
 # Observability
 structlog==24.2.0
-sentry-sdk[fastapi]==2.7.0
-prometheus-fastapi-instrumentator>=7.0.0
+# 2.8.0 is the first release that stops leaking env vars into subprocesses
+# (PYSEC-2026-1917); verified against the 1.6/0.141 stack — sentry_sdk.init()
+# still loads both the starlette and fastapi integrations.
+sentry-sdk[fastapi]==2.8.0
+# 8.0.2 is the first release that accepts starlette>=1.0.
+prometheus-fastapi-instrumentator>=8.0.2
 
 # Alibaba Cloud OSS
 oss2>=2.18.0

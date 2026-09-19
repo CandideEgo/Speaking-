@@ -2,14 +2,17 @@
 # Used by Dockerfile.cloud (backend server, celery default queue, celery-beat).
 # GPU worker uses the full requirements.txt instead.
 
-fastapi==0.111.0
+# Web stack — keep in lockstep with requirements.txt (see the note there:
+# fastapi <0.135 pins starlette <0.38, which re-opens the advisories).
+fastapi==0.141.1
+starlette==1.6.0
 uvicorn[standard]==0.29.0
 gunicorn==22.0.0
 sqlalchemy[asyncio]==2.0.30
 asyncpg==0.29.0
 alembic==1.13.1
-pydantic==2.7.0
-pydantic-settings==2.3.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
 PyJWT>=2.8.0
 bcrypt>=4.0.0
 # >=0.0.18 fixes CVE-2024-53981 (multipart form-part DoS)
@@ -26,8 +29,10 @@ yt-dlp>=2025.0.0
 
 # Observability
 structlog==24.2.0
-sentry-sdk[fastapi]==2.7.0
-prometheus-fastapi-instrumentator>=7.0.0
+# See requirements.txt: 2.8.0 is the first release without PYSEC-2026-1917.
+sentry-sdk[fastapi]==2.8.0
+# 8.0.2 is the first release that accepts starlette>=1.0.
+prometheus-fastapi-instrumentator>=8.0.2
 
 # Alibaba Cloud OSS
 oss2>=2.18.0
