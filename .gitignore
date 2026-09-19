@@ -18,6 +18,9 @@ venv/
 wsl.localhost/
 .ruff_cache/
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # IDE
 .idea/
