@@ -36,6 +36,19 @@ NUL
 # Logs
 logs/*.log
 *.log
+# 运维脚本与产物：logs/ 下除 .gitkeep 外一律不入库。
+# 原因：这里会落 admin JWT（logs/admin_token.txt）、生产服务器访问脚本等
+# 本地运维物料 —— 曾有一次 admin_token.txt 出现在未跟踪列表里（从未提交过，
+# 但只差一次 `git add -A`）。真需要版本化的运维脚本放 backend/scripts/ 或
+# scripts/。见 wiki/problems/cache-invalidation-and-media-gate-blindspots.md 同期笔记。
+logs/*
+!logs/.gitkeep
+
+# 一次性迁移/抓取临时产物（非可复用代码）
+.deploy-tmp/
+.lr-scrape/
+backend/scripts/_*.txt
+.claude/plans/
 
 # Temporary files
 backend/temp/
