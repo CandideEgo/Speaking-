@@ -321,6 +321,24 @@ def requires_ecdict():
         pytest.skip("ecdict.db absent (run scripts/download_ecdict.py)")
 
 
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Dump every thread's stack if the interpreter does not exit after the session.
+
+    Only the Linux CI runner hangs here: the suite prints its result
+    (746 passed, 0 failed) and then the process stays alive until the step's
+    10-minute timeout kills it, failing the job. Aligning the runner's pytest
+    dependencies with the verified local stack did not change it, so arm
+    faulthandler to print where it is stuck instead of guessing further.
+    Remove this once the cause is known — it is a diagnostic, not a fix.
+    """
+    import faulthandler
+
+    try:
+        faulthandler.dump_traceback_later(90, exit=False)
+    except (AttributeError, RuntimeError, ValueError):
+        pass  # not supported on this platform — nothing to diagnose locally
+
+
 @pytest_asyncio.fixture
 async def fake_redis(request: pytest.FixtureRequest, monkeypatch):
     """An in-memory fake Redis, injected into ``app.core.redis``.
