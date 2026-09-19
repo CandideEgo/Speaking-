@@ -27,7 +27,7 @@ export default function VocabSievePage() {
   // 待学清单阶段的词表（unknown），只在需要时拉取。
   const inSievePass = !!state?.set_word_id;
   const needsUnknownList = !!state && !state.completed && !inSievePass;
-  const { detail: unknownDetail } = useVocabSetDetail(
+  const { detail: unknownDetail, reload: reloadUnknownList } = useVocabSetDetail(
     id,
     "learning",
     isAuthenticated && !isLoading && needsUnknownList
@@ -68,6 +68,9 @@ export default function VocabSievePage() {
     try {
       await markLearned(setWordId);
       toast.success("已标记为掌握");
+      // 刷新待学清单：POST 返回时后端已提交，reload 后该词立即从列表移除，
+      // 最后一个词学完时 sieve state 切到完成态（否则用户会以为点击未生效）。
+      reloadUnknownList();
     } catch {
       toast.error("保存失败，请重试");
     }
