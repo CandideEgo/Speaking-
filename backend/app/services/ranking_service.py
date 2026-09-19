@@ -6,21 +6,23 @@ module (GET /api/v1/videos/rankings):
 - ``latest``: visible videos ordered by first-publish ``published_at`` DESC,
   NULLs last (created_at DESC tiebreak keeps pre-backfill rows stable).
 - ``weekly_views``: behavior_events with event_type IN ('play','complete')
-  and server_ts within the last 7 days, grouped by video_id, metric =
-  COUNT(DISTINCT COALESCE(session_id, 'row:'||id)) — the session_id dedup is
-  the anti-fraud rule from the product spec; events without a session_id
-  count individually via a synthetic per-row key.
-- ``weekly_favorites``: user_favorites.created_at within the last 7 days,
-  grouped by video_id, metric = COUNT(*).
+  since Monday 00:00 Asia/Shanghai of the **current calendar week**, grouped
+  by video_id, metric = COUNT(DISTINCT COALESCE(session_id, 'row:'||id)) —
+  the session_id dedup is the anti-fraud rule from the product spec; events
+  without a session_id count individually via a synthetic per-row key.
+- ``weekly_favorites``: user_favorites.created_at since Monday 00:00
+  Asia/Shanghai of the current calendar week, grouped by video_id,
+  metric = COUNT(*).
 
 Reads are cache read-through under ``rankings:snapshot:{scope}`` (TTL
 ``rankings_snapshot_ttl_seconds``), refreshed daily by the
-``snapshot_rankings`` beat task (app.tasks.ranking_tasks). Redis is
-fail-open: a miss or outage just falls through to the database.
+``snapshot_rankings`` beat task just after local midnight
+(app.tasks.ranking_tasks). Redis is fail-open: a miss or outage just falls
+through to the database.
 """
 
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import String, func, literal, select
@@ -35,7 +37,18 @@ from app.services.channel_service import channel_slugs_for
 
 RANKING_SCOPES: tuple[str, ...] = ("latest", "weekly_views", "weekly_favorites")
 _RANKING_LIMIT = 20
-_WEEK = timedelta(days=7)
+
+# 周榜按自然周切分（需求 §3.1「本周」，2026-09 决策）：面向中文用户，以北京时间
+# 周一 00:00 为周界。中国不实行夏令时，固定 UTC+8 比 zoneinfo 更省心（无需 tzdata）。
+_CST = timezone(timedelta(hours=8))
+
+
+def current_week_start_utc(now: datetime | None = None) -> datetime:
+    """Lower bound of the weekly scopes: this Monday 00:00 Asia/Shanghai as UTC."""
+    now_cst = (now or datetime.now(UTC)).astimezone(_CST)
+    monday_cst = (now_cst - timedelta(days=now_cst.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return monday_cst.astimezone(UTC)
+
 
 # Visibility triple (same convention as browse.list_public_videos): official +
 # published + ready. UGC/private videos never appear on home rankings.
@@ -90,8 +103,8 @@ async def _latest_rankings(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def _weekly_views_rankings(db: AsyncSession) -> list[dict[str, Any]]:
-    """Top 20 visible videos by deduped play/complete sessions in the last 7 days."""
-    since = datetime.now(UTC) - _WEEK
+    """Top 20 visible videos by deduped play/complete sessions this week."""
+    since = current_week_start_utc()
     # Anti-fraud dedup (product spec): each session counts once per video;
     # session-less events count individually via a synthetic per-row key.
     row_key = func.coalesce(
@@ -122,8 +135,8 @@ async def _weekly_views_rankings(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def _weekly_favorites_rankings(db: AsyncSession) -> list[dict[str, Any]]:
-    """Top 20 visible videos by user_favorites created in the last 7 days."""
-    since = datetime.now(UTC) - _WEEK
+    """Top 20 visible videos by user_favorites created this week."""
+    since = current_week_start_utc()
     subq = (
         select(UserFavorite.video_id.label("video_id"), func.count().label("metric"))
         .where(UserFavorite.created_at >= since)

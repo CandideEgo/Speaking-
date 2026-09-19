@@ -67,12 +67,13 @@ celery_app.conf.update(
             "task": "app.tasks.scoring_tasks.compute_all_scores",
             "schedule": 86400,  # every day — full recompute
         },
-        # 首页排行榜快照：每日 01:23 UTC 重算三个榜单（latest / weekly_views /
-        # weekly_favorites）并覆写 Redis 快照；GET /videos/rankings 读穿缓存，
-        # Redis 故障时 fail-open 直接查库。
+        # 首页排行榜快照：每日 16:30 UTC（= 北京次日 00:30）重算三个榜单
+        # （latest / weekly_views / weekly_favorites）并覆写 Redis 快照；
+        # GET /videos/rankings 读穿缓存，Redis 故障时 fail-open 直接查库。
+        # 周榜按北京自然周（周一 00:00）切分，排在 00:30 刷新让周一换榜最多滞后半小时。
         "snapshot-rankings": {
             "task": "app.tasks.ranking_tasks.snapshot_rankings",
-            "schedule": crontab(minute=23, hour=1),
+            "schedule": crontab(minute=30, hour=16),
         },
         # ── 内测期免费开放（需求 §2.3）：以下三个 Pro/兑换码相关 beat 已停用。
         # 任务体保留（tests 直调 + 未来收费复用），仅摘掉调度。

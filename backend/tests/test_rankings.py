@@ -1,16 +1,17 @@
 """Tests for the home rankings feature (GET /api/v1/videos/rankings).
 
 Covers the three scopes (latest / weekly_views / weekly_favorites): the
-visibility triple, the 7-day windows, the session_id anti-fraud dedup, the
-top-20 cap, the snapshot beat task, and the endpoint's cache read-through.
-Reuses the test_recommendations.py fixture pattern: auth_headers +
-TestSessionLocal + explicit BehaviorEvent ids (BigInteger PK on SQLite).
+visibility triple, the calendar-week windows (Monday 00:00 Asia/Shanghai),
+the session_id anti-fraud dedup, the top-20 cap, the snapshot beat task, and
+the endpoint's cache read-through. Reuses the test_recommendations.py fixture
+pattern: auth_headers + TestSessionLocal + explicit BehaviorEvent ids
+(BigInteger PK on SQLite).
 
 async tests run under pytest-asyncio auto mode (no @mark needed), same as
 test_recommendations.py.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -19,9 +20,25 @@ from app.models.behavior import BehaviorEvent
 from app.models.favorite import UserFavorite
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
-from app.services.ranking_service import RANKING_SCOPES, compute_rankings, rankings_cache_key
+from app.services.ranking_service import (
+    RANKING_SCOPES,
+    compute_rankings,
+    current_week_start_utc,
+    rankings_cache_key,
+)
 from app.tasks.ranking_tasks import snapshot_rankings
 from tests.conftest import TestSessionLocal
+
+
+def _in_window(hours: float = 1.0) -> datetime:
+    """A timestamp inside the current calendar week (Monday 00:00 CST + hours)."""
+    return current_week_start_utc() + timedelta(hours=hours)
+
+
+def _before_window(hours: float = 1.0) -> datetime:
+    """A timestamp just before this week started — excluded by weekly scopes."""
+    return current_week_start_utc() - timedelta(hours=hours)
+
 
 # SQLite only auto-increments INTEGER PRIMARY KEY; BehaviorEvent.id is
 # BigInteger (Postgres serial), so tests assign explicit unique ids.
@@ -171,24 +188,17 @@ class TestWeeklyViewsRankings:
     async def test_session_dedup_counts_each_session_once(self, auth_headers):
         """Anti-fraud rule: same session many plays = 1; distinct sessions add up;
         session-less events count individually ('row:'||id fallback)."""
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             hot = await _make_video(db, title="hot", owner_id=user.id)
             warm = await _make_video(db, title="warm", owner_id=user.id)
             cold = await _make_video(db, title="cold", owner_id=user.id)
             for _ in range(5):  # same session → 1
-                await _event(
-                    db, video_id=hot.id, event_type="play", session_id="s-1", server_ts=now - timedelta(days=1)
-                )
+                await _event(db, video_id=hot.id, event_type="play", session_id="s-1", server_ts=_in_window(1))
             for s in ("s-2", "s-3", "s-4"):  # three distinct sessions → 3
-                await _event(
-                    db, video_id=warm.id, event_type="complete", session_id=s, server_ts=now - timedelta(days=2)
-                )
+                await _event(db, video_id=warm.id, event_type="complete", session_id=s, server_ts=_in_window(2))
             for _ in range(2):  # no session_id → each row counts → 2
-                await _event(
-                    db, video_id=cold.id, event_type="play", session_id=None, server_ts=now - timedelta(days=1)
-                )
+                await _event(db, video_id=cold.id, event_type="play", session_id=None, server_ts=_in_window(3))
             items = await compute_rankings(db, "weekly_views")
         assert [i["id"] for i in items] == [warm.id, cold.id, hot.id]
         by_id = {i["id"]: i["metric"] for i in items}
@@ -196,46 +206,40 @@ class TestWeeklyViewsRankings:
         assert by_id[cold.id] == 2
         assert by_id[hot.id] == 1
 
-    async def test_window_cutoff_excludes_events_older_than_7_days(self, auth_headers):
-        now = datetime.now(UTC)
+    async def test_window_cutoff_excludes_events_before_this_week(self, auth_headers):
+        """Calendar-week window: anything before Monday 00:00 CST is excluded,
+        no matter how high its volume; events this week count."""
         async with TestSessionLocal() as db:
             user = await _owner(db)
             stale = await _make_video(db, title="stale", owner_id=user.id)
             fresh = await _make_video(db, title="fresh", owner_id=user.id)
-            for _ in range(10):  # high volume but 8 days old → out of window
-                await _event(
-                    db, video_id=stale.id, event_type="play", session_id=None, server_ts=now - timedelta(days=8)
-                )
-            await _event(db, video_id=fresh.id, event_type="play", session_id="s-9", server_ts=now - timedelta(days=6))
+            for _ in range(10):  # high volume but last week → out of window
+                await _event(db, video_id=stale.id, event_type="play", session_id=None, server_ts=_before_window(1))
+            await _event(db, video_id=fresh.id, event_type="play", session_id="s-9", server_ts=_in_window(1))
             items = await compute_rankings(db, "weekly_views")
         assert [i["id"] for i in items] == [fresh.id]
         assert items[0]["metric"] == 1
 
     async def test_only_play_and_complete_events_count(self, auth_headers):
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             clicked = await _make_video(db, title="clicked", owner_id=user.id)
             played = await _make_video(db, title="played", owner_id=user.id)
             for _ in range(4):
-                await _event(
-                    db, video_id=clicked.id, event_type="click", session_id=None, server_ts=now - timedelta(days=1)
-                )
-            await _event(db, video_id=played.id, event_type="play", session_id=None, server_ts=now - timedelta(days=1))
+                await _event(db, video_id=clicked.id, event_type="click", session_id=None, server_ts=_in_window(1))
+            await _event(db, video_id=played.id, event_type="play", session_id=None, server_ts=_in_window(2))
             items = await compute_rankings(db, "weekly_views")
         assert [i["id"] for i in items] == [played.id]
 
     async def test_visibility_join_excludes_hidden_videos(self, auth_headers):
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             hidden = await _make_video(db, title="hidden", is_published=False, owner_id=user.id)
-            await _event(db, video_id=hidden.id, event_type="play", session_id=None, server_ts=now - timedelta(days=1))
+            await _event(db, video_id=hidden.id, event_type="play", session_id=None, server_ts=_in_window(1))
             items = await compute_rankings(db, "weekly_views")
         assert items == []
 
     async def test_top_20_cap(self, auth_headers):
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             for i in range(25):
@@ -246,7 +250,7 @@ class TestWeeklyViewsRankings:
                         video_id=v.id,
                         event_type="play",
                         session_id=f"s-{v.id}-{j}",
-                        server_ts=now - timedelta(days=1),
+                        server_ts=_in_window(1),
                     )
             items = await compute_rankings(db, "weekly_views")
         assert len(items) == 20
@@ -257,17 +261,16 @@ class TestWeeklyViewsRankings:
 
 class TestWeeklyFavoritesRankings:
     async def test_counts_favorites_in_window_only(self, auth_headers):
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             other = await _make_user(db, "13800000021")
             hot = await _make_video(db, title="hot", owner_id=user.id)
             warm = await _make_video(db, title="warm", owner_id=user.id)
             cold = await _make_video(db, title="cold", owner_id=user.id)
-            await _favorite(db, user_id=user.id, video_id=hot.id, created_at=now - timedelta(days=1))
-            await _favorite(db, user_id=other.id, video_id=hot.id, created_at=now - timedelta(days=2))
-            await _favorite(db, user_id=user.id, video_id=warm.id, created_at=now - timedelta(days=1))
-            await _favorite(db, user_id=user.id, video_id=cold.id, created_at=now - timedelta(days=8))
+            await _favorite(db, user_id=user.id, video_id=hot.id, created_at=_in_window(1))
+            await _favorite(db, user_id=other.id, video_id=hot.id, created_at=_in_window(2))
+            await _favorite(db, user_id=user.id, video_id=warm.id, created_at=_in_window(3))
+            await _favorite(db, user_id=user.id, video_id=cold.id, created_at=_before_window(1))
             items = await compute_rankings(db, "weekly_favorites")
         assert [i["id"] for i in items] == [hot.id, warm.id]
         by_id = {i["id"]: i["metric"] for i in items}
@@ -275,13 +278,27 @@ class TestWeeklyFavoritesRankings:
         assert by_id[warm.id] == 1
 
     async def test_visibility_join_excludes_hidden_videos(self, auth_headers):
-        now = datetime.now(UTC)
         async with TestSessionLocal() as db:
             user = await _owner(db)
             hidden = await _make_video(db, title="hidden", is_official=False, owner_id=user.id)
-            await _favorite(db, user_id=user.id, video_id=hidden.id, created_at=now - timedelta(days=1))
+            await _favorite(db, user_id=user.id, video_id=hidden.id, created_at=_in_window(1))
             items = await compute_rankings(db, "weekly_favorites")
         assert items == []
+
+
+class TestWeekBoundary:
+    def test_week_start_is_monday_midnight_cst_for_any_day(self):
+        """The window lower bound is always Monday 00:00 Asia/Shanghai, and the
+        given instant lies within [week_start, week_start+7d)."""
+        cst = timezone(timedelta(hours=8))
+        anchor = datetime.now(UTC)
+        for d in range(-7, 8):
+            now = anchor + timedelta(days=d)
+            ws = current_week_start_utc(now).astimezone(cst)
+            assert ws.weekday() == 0  # Monday
+            assert (ws.hour, ws.minute, ws.second, ws.microsecond) == (0, 0, 0, 0)
+            now_cst = now.astimezone(cst)
+            assert ws <= now_cst < ws + timedelta(days=7)
 
 
 class TestSnapshotRankingsTask:
