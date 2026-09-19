@@ -1,10 +1,11 @@
 {
-  "_comment": "Size ceilings for the knowledge layer. A ceiling is a limit, not a target: lower it by hand freely, raise it only with `--budget-refresh` after a deliberate decision. `slack` reserves room for the machine-owned GitNexus block in AGENTS.md / CLAUDE.md, which `npx gitnexus analyze` rewrites on every reindex.",
+  "_comment": "Size ceilings for the knowledge layer. A ceiling is `limit` + `slack`, not a target: lower it by hand freely, raise it only with `--budget-refresh` after a deliberate decision. `slack` is headroom for content the repo does not author — the machine-owned GitNexus block in AGENTS.md / CLAUDE.md, which `npx gitnexus analyze` rewrites on every reindex. It is per-file only; a tier inherits its members' slack and never gets its own.",
   "_history": {
-    "_comment": "Every-session cost, before and after the 2026-09-19 restructure. The old model mandated reading four files (context + decisions + state + system-map) before any major work.",
+    "_comment": "Every-session cost, before and after the 2026-09-19 restructure. The old model mandated reading four files (context + decisions + state + system-map) before any major work. `measured` is the actual sum at that commit; `limit` is the tier ceiling recorded at the time.",
     "before_session_total_B": 104110,
-    "after_session_total_B": 33792,
-    "reduction": "68%"
+    "after_measured_B": 29083,
+    "after_tier_limit_B": 33792,
+    "reduction": "72%"
   },
   "_targets": {
     "_comment": "Where these should land as content is trimmed further. Not enforced.",

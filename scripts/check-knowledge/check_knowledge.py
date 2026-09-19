@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Four independent checks, all deterministic (no LLM, no network):
+Six independent checks, all deterministic (no LLM, no network):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
   frontmatter  wiki/ documents carry a valid schema, and every `related_code`
                module exists and still matches at least one real file.
   ownership    Git commit hashes stay in the places allowed to narrate history.
-  budget       The must-read knowledge set never grows past its recorded size.
+  index        decisions-index.md and decisions.md agree on count, order, date
+               and title.
+  paths        Repo-convention invariants that reduce to a path check.
+  budget       The must-read knowledge set never grows past its recorded size,
+               plus the declared `slack` for each file and tier.
 
 Usage:
     python scripts/check-knowledge/check_knowledge.py            # all checks
@@ -317,24 +321,45 @@ def check_ownership(files: list[Path]) -> list[Violation]:
 # ------------------------------------------------------------------------- budget
 
 
+def ceiling(spec: dict) -> int:
+    """The size a file is actually held to: `limit` plus declared `slack`.
+
+    `slack` is headroom for content this repo does not author — currently the GitNexus
+    block that `npx gitnexus analyze` rewrites in AGENTS.md and CLAUDE.md on every
+    reindex. Without it, a reindex trips the budget for a change no one made by hand.
+    """
+    return spec["limit"] + spec.get("slack", 0)
+
+
+def tier_ceiling(spec: dict, files: dict) -> int:
+    """A tier's ceiling is its own limit plus its members' slack, and nothing more.
+
+    A tier is the sum of its files, so it cannot be granted slack its members do not
+    have — otherwise the tier would pass while every file in it was over.
+    """
+    return spec["limit"] + sum(files.get(where, {}).get("slack", 0) for where in spec["files"])
+
+
 def check_budget(budget: dict) -> list[Violation]:
     violations: list[Violation] = []
+    files = budget.get("files", {})
 
-    for where, spec in budget.get("files", {}).items():
+    for where, spec in files.items():
         path = REPO_ROOT / where
         if not path.is_file():
             continue
         size = path.stat().st_size
-        if size > spec["limit"]:
+        allowed = ceiling(spec)
+        if size > allowed:
             violations.append(
                 Violation(
                     "budget",
                     where,
-                    f"{size} B exceeds limit {spec['limit']} B (+{size - spec['limit']} B)",
+                    f"{size} B exceeds ceiling {allowed} B (+{size - allowed} B)",
                 )
             )
 
-    named = set(budget.get("files", {}))
+    named = set(files)
     for spec in budget.get("globs", []):
         for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
             where = Path(hit).as_posix()
@@ -357,12 +382,13 @@ def check_budget(budget: dict) -> list[Violation]:
             for where in spec["files"]
             if (REPO_ROOT / where).is_file()
         )
-        if total > spec["limit"]:
+        allowed = tier_ceiling(spec, files)
+        if total > allowed:
             violations.append(
                 Violation(
                     "budget",
                     f"tier:{name}",
-                    f"{total} B exceeds limit {spec['limit']} B (+{total - spec['limit']} B)",
+                    f"{total} B exceeds ceiling {allowed} B (+{total - allowed} B)",
                 )
             )
 
@@ -486,13 +512,18 @@ def run_checks(selected: list[str]) -> list[Violation]:
 
 
 def refresh_budget() -> None:
-    """Raise every size ceiling to the current size. Deliberate growth only."""
+    """Raise every ceiling to the current size. Deliberate growth only.
+
+    Writes the *measured* size into `limit` and leaves `slack` alone: the ceiling is
+    `limit + slack` (see `ceiling`), so folding slack into the limit would grant it twice.
+    A tier's limit is likewise the sum of its members' measured sizes, which lets the tier
+    inherit their slack instead of landing at zero headroom.
+    """
     budget = load_json(BUDGET_FILE)
     for where, spec in budget.get("files", {}).items():
         path = REPO_ROOT / where
         if path.is_file():
-            # Slack absorbs size churn in machine-owned files (the GitNexus block).
-            spec["limit"] = path.stat().st_size + spec.get("slack", 0)
+            spec["limit"] = path.stat().st_size
     for spec in budget.get("tiers", {}).values():
         spec["limit"] = sum(
             (REPO_ROOT / where).stat().st_size

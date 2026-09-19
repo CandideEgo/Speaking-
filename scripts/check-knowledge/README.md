@@ -23,7 +23,8 @@ Exit code 0 = clean, 1 = a violation not recorded in `knowledge-baseline.json`.
 | `frontmatter` | A `wiki/**` document lacks valid frontmatter schema, names a module that is not in `modules.json`, points `related` at a missing path, or leaves `related_code` empty in `architecture/` and `problems/` |
 | `ownership` | A commit hash appears outside the locations allowed to narrate history (`.agent/decisions.md`, `.agent/decisions-index.md`, `.agent/archive/`, `docs/`, `CHANGELOG.md`) |
 | `index` | `.agent/decisions-index.md` and `.agent/decisions.md` disagree on entry count, order, date or title, or an ID is out of sequence |
-| `budget` | A knowledge file or tier exceeds its recorded size ceiling |
+| `budget` | A knowledge file or tier exceeds its recorded size ceiling (`limit` + `slack`) |
+| `paths` | A file that `invariants.json` declares forbidden exists, or a required one is missing |
 
 `frontmatter` also fails when a module in `modules.json` matches no file on disk **and** is
 referenced somewhere. That is the drift detector: delete the code and the check tells you the
@@ -56,11 +57,18 @@ python scripts/check-knowledge/check_knowledge.py --budget-refresh    # raise ev
 ```
 
 `--budget-refresh` is how debt becomes permanent. Run it only when the growth was a decision you
-would defend in review.
+would defend in review. It writes each file's *measured* size into `limit` and leaves `slack` alone,
+so a refreshed file keeps its slack instead of absorbing it twice.
 
 Tier ceilings cover a set of files read together, so a tier trips whenever any member grows —
-`session_total` is the real cost of a coding session and should only ever fall. `slack` reserves
-room for `AGENTS.md` and `CLAUDE.md`, whose GitNexus block `npx gitnexus analyze` rewrites.
+`session_total` is the real cost of a coding session and should only ever fall. A tier's ceiling is
+its own `limit` plus the slack of its members, so `--budget-refresh` leaves a tier with exactly the
+headroom its files have, never zero.
+
+`slack` is headroom for content the repo does not author: the GitNexus block that
+`npx gitnexus analyze` rewrites in `AGENTS.md` and `CLAUDE.md` on every reindex. Without it, a
+reindex trips the budget for a change no one made by hand. It is per-file only — a tier cannot be
+granted slack its members do not have, or the tier would pass while every file in it was over.
 
 ## Exemptions
 

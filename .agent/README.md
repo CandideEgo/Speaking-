@@ -52,7 +52,8 @@ If a fact fits two rows, it belongs in the more specific one and the other shoul
   `scripts/check-knowledge/modules.json`. A module that matches no file fails the check — that is
   how code deletion surfaces as documentation drift.
 - **Size ceilings are ceilings, not targets.** `scripts/check-knowledge/knowledge-budget.json`
-  records them; they may only be lowered by hand, or raised deliberately with `--budget-refresh`.
+  records them as `limit` + `slack`; they may only be lowered by hand, or raised deliberately with
+  `--budget-refresh`.
 - **`.agent/archive/` is exempt from the checks.** Frozen records are correct as of when they were
   written, not held to today's links.
 
