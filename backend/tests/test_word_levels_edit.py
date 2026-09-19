@@ -86,7 +86,7 @@ class TestWordLevelsUpdate:
 
 
 class TestWordLevelsRecompute:
-    async def test_recompute_whole_video(self, client: AsyncClient, admin_headers: dict):
+    async def test_recompute_whole_video(self, client: AsyncClient, admin_headers: dict, requires_ecdict):
         vid, _ = await _seed()
         resp = await client.post(
             f"/api/v1/videos/admin/{vid}/subtitles/word-levels/recompute",
@@ -100,7 +100,7 @@ class TestWordLevelsRecompute:
         # Two subtitles in the seed.
         assert data["subtitles_updated"] == 2
 
-    async def test_recompute_selected_ids(self, client: AsyncClient, admin_headers: dict):
+    async def test_recompute_selected_ids(self, client: AsyncClient, admin_headers: dict, requires_ecdict):
         vid, sids = await _seed()
         resp = await client.post(
             f"/api/v1/videos/admin/{vid}/subtitles/word-levels/recompute",
@@ -120,7 +120,7 @@ class TestWordLevelsRecompute:
         assert resp.status_code == 200
         assert resp.json()["subtitles_updated"] == 0
 
-    async def test_recompute_no_body_defaults_to_all(self, client: AsyncClient, admin_headers: dict):
+    async def test_recompute_no_body_defaults_to_all(self, client: AsyncClient, admin_headers: dict, requires_ecdict):
         vid, _ = await _seed()
         resp = await client.post(
             f"/api/v1/videos/admin/{vid}/subtitles/word-levels/recompute",

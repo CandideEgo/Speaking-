@@ -13,6 +13,7 @@ Covers:
 """
 
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 from httpx import AsyncClient
@@ -20,6 +21,12 @@ from sqlalchemy import select
 
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
+
+# The GPU worker subprocess needs the backend root on sys.path (it does
+# ``from scripts.start_gpu_worker import ...``). Derive it from this file so the
+# test runs anywhere — a hardcoded absolute path here made it fail on every
+# machine but the one it was written on.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 async def _owner_id(db) -> str:
@@ -192,7 +199,7 @@ class TestGPUWorkerSecurity:
             ],
             capture_output=True,
             text=True,
-            cwd="C:/Users/Administrator/Speaking/backend",
+            cwd=BACKEND_ROOT,
             env=env,
         )
         assert result.returncode == 1
@@ -217,7 +224,7 @@ class TestGPUWorkerSecurity:
             ],
             capture_output=True,
             text=True,
-            cwd="C:/Users/Administrator/Speaking/backend",
+            cwd=BACKEND_ROOT,
             env=env,
         )
         assert result.returncode == 1
@@ -243,7 +250,7 @@ class TestGPUWorkerSecurity:
             ],
             capture_output=True,
             text=True,
-            cwd="C:/Users/Administrator/Speaking/backend",
+            cwd=BACKEND_ROOT,
             env=env,
         )
         assert result.returncode == 0

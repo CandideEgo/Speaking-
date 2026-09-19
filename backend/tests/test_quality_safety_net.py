@@ -183,7 +183,7 @@ class TestWordLevelsPreservation:
         assert fetched.word_levels == {"hello": ["cet4"], "world": ["cet6"]}
 
     @pytest.mark.asyncio
-    async def test_null_word_levels_computed(self, db_session):
+    async def test_null_word_levels_computed(self, db_session, requires_ecdict):
         """When word_levels is null, it should be computed from text_en."""
         sub = Subtitle(
             video_id="test-video-id",

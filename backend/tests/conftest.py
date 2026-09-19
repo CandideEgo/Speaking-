@@ -305,6 +305,22 @@ def _mock_dns_lookup(request: pytest.FixtureRequest, monkeypatch):
     monkeypatch.setattr(guard, "socket", _SocketShim(guard.socket, fake_getaddrinfo))
 
 
+@pytest.fixture
+def requires_ecdict():
+    """Skip a test that asserts ECDICT-derived values when the DB is absent.
+
+    ``backend/data/ecdict.db`` is gitignored (851MB) and CI does not vendor it;
+    ``ecdict`` documents that callers degrade gracefully in that case
+    (``is_available()`` False, ``lookup`` None). Tests asserting computed
+    glosses/levels must therefore skip rather than fail — run
+    ``python scripts/download_ecdict.py`` to make them run.
+    """
+    from app.services import ecdict
+
+    if not ecdict.is_available():
+        pytest.skip("ecdict.db absent (run scripts/download_ecdict.py)")
+
+
 @pytest_asyncio.fixture
 async def fake_redis(request: pytest.FixtureRequest, monkeypatch):
     """An in-memory fake Redis, injected into ``app.core.redis``.
