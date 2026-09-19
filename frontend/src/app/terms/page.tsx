@@ -14,7 +14,7 @@ const uscc = siteConfig.companyUscc;
 
 const SECTIONS: LegalSection[] = [
   { id: "sec-1", title: "一、服务性质" },
-  { id: "sec-2", title: "二、会员与付费" },
+  { id: "sec-2", title: "二、服务与费用" },
   { id: "sec-3", title: "三、账号" },
   { id: "sec-4", title: "四、内容与知识产权" },
   { id: "sec-5", title: "五、免责声明" },
@@ -23,7 +23,7 @@ const SECTIONS: LegalSection[] = [
 
 export default function TermsPage() {
   return (
-    <LegalLayout title="用户协议" updatedAt="2026 年 7 月 9 日" sections={SECTIONS}>
+    <LegalLayout title="用户协议" updatedAt="2026 年 9 月 19 日" sections={SECTIONS}>
       <section id="sec-1" className="space-y-2 scroll-mt-10">
         <h2 className="text-base font-semibold text-ink">一、服务性质</h2>
         <p>
@@ -36,15 +36,14 @@ export default function TermsPage() {
       </section>
 
       <section id="sec-2" className="space-y-2 scroll-mt-10">
-        <h2 className="text-base font-semibold text-ink">二、会员与付费</h2>
+        <h2 className="text-base font-semibold text-ink">二、服务与费用</h2>
         <p>
-          本站不在站内提供在线支付功能。Pro 会员服务通过第三方电商平台（微信小商店）购买，
-          购买完成后用户凭借兑换码在本站激活会员权益。购买款项由第三方平台收取，
-          本站不直接收取、保管或处置任何用户资金。
+          本站当前处于内测阶段，全部功能对内测用户免费开放，不收取任何费用，
+          站内亦不提供在线支付功能。内测期间不销售任何会员或付费权益。
         </p>
         <p>
-          退款、发票等事宜均依据购买所在第三方平台的规则处理，本站不承担资金侧责任。
-          会员有效期以兑换码激活时写入的到期时间为准。
+          内测结束后如需调整收费方式，本站将提前在本页面公示，并明确收费项目、
+          价格与生效时间；未公示前不向用户收取任何费用。
         </p>
       </section>
 
