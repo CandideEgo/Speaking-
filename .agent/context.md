@@ -57,8 +57,8 @@ For service layer details, see wiki/architecture/backend-services.md.
 ## Important Flows
 
 1. **Video processing**: admin seed / catalog promote → dedup → Head/GPU/Tail → checkpoint resume → ready（含 prewarm_notes 步骤批量生成 AI 词注释）
-2. **Vocabulary learning**: watch video → click word → **gloss 端点查库**（ECDICT + 真题例句 + 预生成 AI 注释，无实时 LLM）→ vocabulary book → SM-2 review
-3. **Redemption code**: input code → row lock → plan=pro + extend 30 days → atomic
+2. **Vocabulary learning**: watch video → click word → **gloss 端点查库**（ECDICT + 真题例句 + 预生成 AI 注释，无实时 LLM）→ vocabulary book → SM-2 review。**内测期主路径为「加入学习 → 视频集合 → 快速过筛 → 闭环」**（见 Domain Terms「词汇集合 / 快速过筛」）
+3. **Redemption code**: input code → row lock → plan=pro + extend 30 days → atomic（**内测期用户面已退役**：免费开放，`/redeem` 页 redirect('/')，后端端点与表 dormant 保留）
 4. **Learning profile aggregation**: 学习行为（完成视频/学词/练习/复习/跟读）→ LearningEvent → 聚合 streak / 里程碑 / 掌握度（`/plan/profile`、`/plan/milestones`、`/plan/mastery-trend`）。**每日学习计划（plan/today 等）已下线（410）**
 
 ## Important Constraints
@@ -70,6 +70,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - Video processing is **admin/catalog-triggered only** — 用户面无提交入口（用户 UGC 与提交 URL 已删，f855613）；GPU 成本由运营节奏决定
 - AI 词注释**无实时 LLM 兜底**：gloss 只读预生成库，cache miss 返回空字段（`api/v1/words.py`）；唯一实时 AI 调用在视频处理管线（翻译 + prewarm）
 - Payment disabled (ICP compliance) — redemption code channel only
+- **内测期免费开放（2026-09-19）**：媒体门/详情对**登录用户**全量放行；匿名仍拒（登录墙）；`is_demo` 示范视频对匿名开放。Pro/解锁额度/兑换码表 dormant 保留，勿再在前端引入 Pro 概念（见 `.agent/decisions.md` 2026-09-19）
 - Video media files live in the backend's local media volume (`LOCAL_MEDIA_PATH`, served by the range-aware `/media` router); covers are localized at ingest (`thumbnail_service`) so rendering never depends on external CDNs. Any server-side HK VPS proxying would be out-of-repo config — verify with the MEDIA-TOPOLOGY runbook before assuming it
 - For image handling in agent sessions, see wiki/problems/image-handling.md
 - LearningEvent emission must be non-blocking (try/except, logged but never raised) — must not disrupt existing service flows (practice submission, video completion, vocabulary review)
@@ -95,7 +96,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 - authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
 - Error handling unified through `core/errors.py`, frontend reads `err.code`
 - ECDICT database: 下载包 ~30MB，落盘 SQLite ~0.8GB（backend/data/ecdict.db），.gitignore 已忽略
-- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-pipeline (10min), retry-failed-downloads (daily), score-videos-hourly, score-videos-daily, downgrade-expired-pro (hourly), expire-unused-redeem-codes (daily), send-hourly-reminders (hourly), send-pro-expiring-reminders (daily 01:00), generate-weekly-reports (Mon 00:00 UTC)
+- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-pipeline (10min), retry-failed-downloads (daily), score-videos-hourly, score-videos-daily, snapshot-rankings (daily 01:23 UTC), send-hourly-reminders (hourly), generate-weekly-reports (Mon 00:00 UTC)。**内测期已停用**：downgrade-expired-pro / expire-unused-redeem-codes / send-pro-expiring-reminders（任务体保留，仅摘调度）
 - Notification model has composite index `ix_notifications_dedup` on (user_id, type, related_url, is_read) for dedup queries
 
 ## Key Files
@@ -146,7 +147,11 @@ For service layer details, see wiki/architecture/backend-services.md.
 
 | 术语 | 含义 |
 |------|------|
-| **SM-2 词汇复习** | 间隔重复算法，词汇模块核心 |
+| **SM-2 词汇复习** | 间隔重复算法，词汇模块核心。**内测期「基本复习」保留**；`mastered` 词退出复习队列（三态语义：已掌握 = 闭环终点），高级复习算法属 Pro 二期 |
+| **词汇集合（VocabSet）** | 用户 × 视频 × 等级 的收词集合（`vocab_sets` + `vocab_set_words`）。集合只**引用**词汇本词行（`vocabulary_id` FK），掌握态仍归 `Vocabulary` ——「集合 = 按视频聚合的视图」，可随时重建。`vocab_set_words.status` 是集合内流程态：`pending`（未过筛）/`known`（会）/`unknown`（不会，进待学清单）/`learned`（待学清单已学完）|
+| **快速过筛** | 两档自评「会 / 不会」（模糊归不会）。判「会」→ 词汇本 mastered；判「不会」→ 待学清单。按词粒度服务端保存进度，可随时退出续筛 |
+| **闭环终点** | 集合 `completed` = **无 pending 且无 unknown**（不是「过筛走完」）。待学清单词经 `POST /vocab-sets/{id}/words/{id}/learned` 标记已掌握后触发，发一条 `LearningEvent(learned_words, value=集合总数)` |
+| **存储三态（storage_mode）** | `local` 本地精品（默认，全功能）/ `proxy` 代理播放（**仅占位，本期未实现**）/ `offline` 已下线（隐藏 + 删媒体，学习记录保留）。见 ADR-0020 |
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
 | **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释写入 `word_ai_notes` 表（video 级 + global 级）；**点词只读库，无实时 LLM 兜底**（`api/v1/words.py`） |
 | **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读（ADR-0002） |
@@ -174,7 +179,7 @@ For service layer details, see wiki/architecture/backend-services.md.
 |------|------|
 | **统一组件库** | 以 watch 页为风格锚点，保持 coral/cream/brand 色系 |
 | **mediaUrl** | `api.ts` 的媒体 URL 解析 helper：相对路径→`${API_URL}${path}` |
-| **公开路由（访问矩阵）** | `frontend/src/proxy.ts` PUBLIC_PATHS：`/login /register /forgot-password /terms /privacy /contact`（+ admin 登录）。**落地页已删（D0）**，未登录访问受保护路由 → 302 `/login?next=…`；`/pricing` 在登录墙内 |
+| **公开路由（访问矩阵）** | `frontend/src/proxy.ts` PUBLIC_PATHS：`/login /register /forgot-password /terms /privacy /contact`（+ admin 登录）。**落地页已删（D0）**，未登录访问受保护路由 → 302 `/login?next=…`；`/pricing` 在登录墙内。**内测期 `/upgrade` `/pricing` `/redeem` `/checkout` 均 redirect('/')**（免费开放，无 Pro 概念） |
 | **双 Auth 会话** | 用户端 `seeword_token` vs 管理端 `seeword_admin_*`，独立 localStorage |
 
 ### 推荐（ADR-0011，P1 评分 + 推荐 feed 已落地）

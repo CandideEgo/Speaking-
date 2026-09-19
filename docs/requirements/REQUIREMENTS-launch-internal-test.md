@@ -277,8 +277,10 @@
 
 * 海报具体文案与视觉稿
 
-* 排行聚合任务与接口字段设计
+* 排行聚合任务与接口字段设计 → **已细化并落地**（`/videos/rankings` 三 scope + `snapshot-rankings` beat；见 `.agent/decisions.md` 2026-09-19）
 
-* 学习闭环的数据表结构与接口设计
+* 学习闭环的数据表结构与接口设计 → **已细化并落地**（ADR-0019：`vocab_sets` / `vocab_set_words` + 5 端点）
 
-* 下线阈值参数
+* 下线阈值参数 → **已落地为 config 旋钮**（`takedown_min_age_days=30` / `takedown_min_views=100` / `takedown_min_favorites=5`，见 ADR-0020）
+
+* 存储三态 → **已落地**（ADR-0020；`proxy` 按 §5.4 仅保留取值，本期未实现）

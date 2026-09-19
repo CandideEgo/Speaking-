@@ -2,6 +2,15 @@
 
 ## Current Focus
 
+**内测上线四件套全部落地（2026-09-19）**：按 `docs/requirements/REQUIREMENTS-launch-internal-test.md`（产品方逐项确认，最高优先级输入）实施四个 Phase，均已提交并过验证门：
+
+1. **主页排行**（d86fa2d）：`videos.published_at` 迁移 + `GET /videos/rankings?scope=latest|weekly_views|weekly_favorites`（热播=BehaviorEvent 7 天按 session_id 去重；收藏=UserFavorite 7 天聚合）+ Redis 快照每日 beat + 首页三 Tab 区块 + `/rankings` 完整页
+2. **词汇学习闭环**（01d87f9，ADR-0019）：`vocab_sets` + `vocab_set_words`（引用词汇本，状态分「集合内流程态」与「全局掌握态」两个维度）；批量收词（纯 ECDICT，零 AI）；5 个端点；闭环需显式标记待学清单；前端 watch「加入学习」+ 词汇本集合视图 + 集合详情 + 快速过筛页
+3. **内测免费开放**（889b746）：解除 D0 解锁门控（登录即看，匿名仍拒）；退役 `/unlock` `/unlocked` `/unlocked-ids`；停 3 个 Pro beat；前端删 paywall 组件与 4 个 Pro 页
+4. **内容三态与下线**（e1e23b6，ADR-0020）：`videos.storage_mode`（local/proxy/offline，proxy 仅占位）；下线 = 状态翻转 + 删媒体（缩略图保留）+ 行保留 dormant；半自动阈值建议 + 管理员确认
+
+验证：后端 735 passed；三支端到端冒烟 31+18+24 全通过（`backend/scripts/smoke_vocab_loop.py` / `smoke_free_access.py` / `smoke_takedown.py`）；前端 tsc/eslint/vitest/build 全绿；ruff 干净、mypy 77 基线。**未做**：proxy 代理播放实现、公开落地页、海报视觉稿（运营物料）。
+
 **视频候选池 Catalog 后端 MVP（2026-09-08，ADR-0017）**：新增 `catalog_items` 候选池（与 videos 解耦）承载抓取发现，promote 复用 `seed_video` 完整管线实现「处理一个上线一个」。从 Language Reactor 公开目录 API 抓取 772 条候选：`t_yt_all_en` 按时间池 100 条（~80% 新闻/体育）+ 按 `sortBy=views` 重抓 56 个英语教学/教育/谈话频道 672 条（全带字幕、播放量中位 700万），import 按 category 加权使学习内容 fit 领先。后端 `/api/v1/admin/catalog*`（list/summary/get/promote/mark）+ `scripts/import_catalog.py`（--dry-run）+ 迁移 `f1g2h3i4j5k6` 已应用本地 PG。验证：新增 15 测试（全量 687 passed / 6 skipped）、ruff/mypy 干净。**未做**：admin 前端页（Phase 2）、生产部署（Phase 3）、重抓脚本收进 backend/scripts。**版权注意**：promote=下载自托管第三方内容，上线前需评估（见 ADR-0017）。
 
 **频道升级全量作者页 Auto-Channel（2026-08-30，ADR-0014 修订）**：ingest 按 `channel_id` 自动建档（`ensure_channel_for` find-or-create）；迁移 `e0f1g2h3i4j5`（`channels.is_auto` + `upstream_channel_id` 唯一索引）已应用本地库；序列化补 `channel_slug`（browse/home/favorites/detail + browse 补 `channel_name` 修卡片恒显 SeeWord 旧 bug）；前端 VideoCard 频道名可点 + watch 页 meta 行作者名入口 + 频道列表分页 + admin「自动/策展」来源列；回填脚本 `scripts/backfill_auto_channels.py` 已对本地库执行（CNBC 频道自动建档生效）。验证：后端 653 passed / 6 skipped（+17 频道测试）、mypy 76 errors（低于基线 79，无新增）、前端 tsc/eslint/vitest 全绿、API 冒烟（/channels /channels/{slug} /browse/feed /recommendations/home /videos/{id} 全带 slug）。**产品设计规划-2026-08 亦全部完成**（见 Completed Milestones）。
@@ -96,12 +105,14 @@
 4. **产品设计规划-2026-08 全部完成（2026-08-30）**：Phase 0/1/2/3 + §10 拍板（#4 暂缓 / #5 默认 / #6 不加 / #7 重定义已实施）。剩余 polish：品牌色 token 对比度、示范视频内容、iOS Safari 真机 D10 验收。
 5. 集成测试/Playwright e2e 对新页面（/weekly-report / 收藏 / CoachMark / ShareCard）的覆盖
 6. **Catalog Phase 2/3（ADR-0017）**：admin「内容目录」前端页（浏览/筛选/一键处理上线）；部署 seeword.top（迁移 + 导入 772 条 + 端到端验证一条 promote）；重抓脚本从 `.lr-scrape/` 收进 `backend/scripts/`；promote 前对版权敏感内容评估 embed vs download
-7. **免费化（注册即用）方向评估已出**（docs/progress/FREE-TIER-ASSESSMENT-2026-09.md）：待用户拍板后实施——解除解锁门控 + 前端 paywall 清理 + 保留 dormant + 公开落地页（未登录入口）
+7. **免费化（注册即用）已实施（2026-09-19，889b746）**：门控解除 + 前端 paywall 清理完成；`docs/progress/FREE-TIER-ASSESSMENT-2026-09.md` 的 P2（公开落地页）未做——需求 §6 明确「暂不做落地页」
 8. 部署准备：工作区已有未提交部署改动（docker-compose.prod.yml / nginx.ssl.conf / deploy*.sh / seeword-beta-assets/），需用户确认后提交
+9. **内测上线待办**：proxy 代理播放实现（§5.4 优先级 3）、海报视觉稿（运营物料）、内测反馈收集渠道；生产部署需先跑三个迁移（published_at → vocab_sets → storage_mode）
 
 ## Last Updated
 
-Date: 2026-09-18
+Date: 2026-09-19
+- **内测上线四件套全部落地**：见 Current Focus（排行 d86fa2d / 学习闭环 01d87f9 / 免费开放 889b746 / 存储三态 e1e23b6）。ADR-0019（词汇集合 + 快速过筛三态）与 ADR-0020（存储三态与半自动下线）入库 `docs/adr/` + `.agent/decisions.md`。需求文档 §8 的四个「待后续细化」项已由实现与 ADR 覆盖。三处**行为变更**需知悉：① `mastered` 词退出复习队列（三态语义）② 匿名用户对非 `is_demo` 视频的媒体/详情/跟读句一律被拒（登录墙语义保留）③ 首页/详情的 Pro 与解锁额度 UI 全部移除。
 - **文档同步：D0b 清理（f855613，2026-08-28）后 .agent 长期滞后，本次全量对齐**。核实结论：① 点词 gloss 无实时 AI（ECDICT + 真题例句 + 预生成 `word_ai_notes`，cache miss 返回空）；② 运行时 AI 调用仅视频处理管线（翻译 + prewarm）；③ AI 学习计划/每日学习计划已下线（learning_plan 端点 410）；④ 用户提交 URL 已删（处理入口只剩 admin seed + catalog promote）。已同步 context.md / system-map.md / decisions.md。另产出 `docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`（免费化影响评估：注册即用方向）。
 - **视频候选池 Catalog 后端 MVP（ADR-0017，2026-09-08）**：`catalog_items` 表 + 迁移 `f1g2h3i4j5k6`（← e0f1g2h3i4j5，已应用本地 PG）+ `catalog_service`（fit_score/幂等导入/列表派生 effective_status/promote 复用 seed_video/mark）+ `/api/v1/admin/catalog*` + `scripts/import_catalog.py` + 数据文件 `scripts/data/*.json`。从 Language Reactor 目录 API 抓 772 条候选（672 学习 + 100 新闻，全带字幕）。新增 15 测试，全量 687 passed / 6 skipped，ruff/mypy 干净。待办：Phase 2 admin UI / Phase 3 部署 / promote 前版权评估。
 - **两天 26 提交深度审查 + 5 项修复（43d69be，2026-08-30）**：审查 f855613..ff8798f（180 文件 +10899/-6930），结论主干可作稳定基线；修复 1 Critical（shadowing-sentences 端点无解锁门控→付费字幕可被任意登录用户读取，补 403 门控）+ 3 High（seed 脚本导入已删模块必崩；解锁额度 TOCTOU→原子条件 INSERT；streak 提醒对流失用户无限发送→只发断签首日且过期 streak 归零）+ 1 Medium（媒体门控负缓存→只缓存正向判定）。+4 回归测试，660 passed。遗留 2 个 Low 未修（可接受）：token 镜像 cookie 缺 Secure 标志（生产上 HTTPS 时补）、stats_heatmap 用服务器本地日期非 UTC。

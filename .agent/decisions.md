@@ -449,3 +449,28 @@
 - **版权风险**：下载自托管第三方 YouTube 内容（含新闻媒体）= 侵权 + 违反 ToS；上线前对敏感内容应改 embed 或选可授权/CC 素材（已知会产品负责人决策）
 - fit_score 是数值筛非主题判断；主题策展靠人工 promote + category 加权
 - 未做：admin 前端页（Phase 2）、生产部署（Phase 3）、重抓脚本收进 backend/scripts
+
+---
+
+## 2026-09-19 — 内测上线四件套（排行 / 学习闭环 / 免费开放 / 存储三态）
+
+**Problem**: 内测上线需要四块新能力，且彼此耦合：① 首页排行（最新/本周热播/本周收藏）② 词汇学习闭环（收词 → 集合 → 过筛 → 闭环）③ 内测期免费开放全功能、不引入 Pro 概念 ④ 内容存储三态与下线释放空间。需求见 `docs/requirements/REQUIREMENTS-launch-internal-test.md`（产品方逐项确认，为最高优先级输入）。
+
+**Options**: 学习闭环状态机 A) 沿用 SM-2 四态 B) 新建独立三态体系 C) 三态对外 + SM-2 对内；收词数据 A) 复用 `Vocabulary` 平铺 + 按 `video_id` 聚合 B) 新建 `vocab_sets` 双表；下线 A) 物理删除 video 行 B) 行保留 dormant + 状态翻转。
+
+**Decision**:
+1. **排行**（[ADR-0018](docs/adr/) 无，实现见 commit d86fa2d）：新增 `videos.published_at`（回填 `COALESCE(reviewed_at, created_at)`，`_publish_video` 幂等写入）；`GET /videos/rankings?scope=latest|weekly_views|weekly_favorites`（各前 20）。热播 = `behavior_events` 的 play/complete 近 7 天按 `session_id` 去重计数；收藏 = `user_favorites.created_at` 近 7 天计数（需求 §3.1 指定，**无新埋点**）。Redis 快照读穿 + `snapshot-rankings` 每日 beat 刷新。
+2. **学习闭环**（[ADR-0019](docs/adr/0019-vocab-set-quick-sieve-loop.md)）：`vocab_sets`（user×video×exam_level 唯一）+ `vocab_set_words`（引用 Vocabulary + position + 流程状态 pending/known/unknown/learned）。**掌握态仍归 Vocabulary**，集合只存引用与集合内进度；对外三态（reviewing 并入学习中展示，后端不迁数据）。收词只读 ECDICT（**禁用 `enrich_word`，那是 AI 路径**）。闭环需 `POST .../learned` 显式标记待学清单，`completed` = 无 pending 且无 unknown。配套行为变更：**mastered 退出复习队列**（due 过滤 4 处）。
+3. **内测免费开放**（实施按 `docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`）：媒体门对所有登录用户放行（匿名仅 `is_demo`）；详情不再遮蔽字幕/URL；`/unlock`、`/unlocked`、`/unlocked-ids` 退役为放行/空载荷（不写 `user_video_unlocks`）；停用 3 个 Pro beat；前端删 paywall 组件与 4 个 Pro 页（`/upgrade` `/pricing` `/redeem` `/checkout` → redirect）。**保留**登录墙、shadowing owner-only、`plan`/`RedeemCode` 表 dormant。
+4. **存储三态**（[ADR-0020](docs/adr/0020-storage-modes-and-takedown.md)）：`videos.storage_mode`（local/proxy/offline，proxy 仅留值不实现 —— §5.4 优先级 3）。下线 = `is_published=False` + `storage_mode='offline'` + 清 URL + 删媒体（**缩略图保留**），**行保留 dormant** 以避开 `vocabulary`/`UserFavorite` 的 CASCADE；隐藏复用既有 `is_published` 过滤，仅媒体门/收藏夹/详情三处显式处理。
+
+**Reason**: 排行复用既有字段与 BehaviorEvent，零新埋点即可上（但「最新」需补 `published_at`，因 Video 原本没有该列）。集合表只存引用让「集合 = 按视频聚合的视图」成立且可重建，掌握态单一事实来源不被污染。三态对外 + SM-2 对内让「闭环终点可定义」与「现有复习引擎不拆」同时成立。行保留式下线是唯一能同时满足「释放空间」与「学习记录不断链」的方案。
+
+**Trade-offs**:
+- **mastered 退出复习队列是行为变更**：存量已 mastered 的词不再日常复现。语义更诚实（已掌握 = 终点），但削弱长期间隔复现；Pro 二期高级复习算法需显式定义 mastered 的复现策略。
+- 集合进度无冗余计数列，靠聚合查询（量级小，可接受）；换得集合可任意重建。
+- 内测期免费 = 收入为零，唯一随用户量增长的成本是媒体带宽/存储（见 FREE-TIER-ASSESSMENT §五）。
+- proxy 模式仅占位，未解决「不下载」的版权路径；ADR-0017 的版权风险不变。
+- `_FakeRedis` 补 `scan_iter` 后才暴露/覆盖「缓存失效」路径；此前 fail-open 会静默吞掉 AttributeError。
+- 验证：后端 735 passed（含 +15 排行 / +24 集合闭环 / +13 下线）；三支端到端冒烟 31+18+24 全通过；前端 tsc/eslint/vitest/build 全绿；mypy 77 基线。
+- 未做：proxy 实现、公开落地页、海报视觉稿（运营物料）、Proxy 二期的 Pro 差异项。
