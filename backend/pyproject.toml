@@ -60,8 +60,9 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 
-[tool.pytest.ini_options]
-# Intentionally empty: pytest.ini takes precedence over this table, so a section here
-# was silently ignored — including `--timeout=60`, which is why a hung test used to
-# consume the whole CI job budget instead of failing. Pytest config lives in pytest.ini.
-# If you move it back here, delete pytest.ini in the same change.
+# Pytest configuration lives in pytest.ini, which takes precedence over a
+# [tool.pytest.ini_options] table here — pytest warns "ignoring pytest config in
+# pyproject.toml" when one exists, and silently dropping it is what lost
+# `--timeout=60` and let a hung test burn the whole CI job budget. Declaring the
+# table at all (even empty) re-triggers that warning, so it is deliberately absent.
+# If you move pytest config back here, delete pytest.ini in the same change.
