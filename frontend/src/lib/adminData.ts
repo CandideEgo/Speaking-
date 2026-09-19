@@ -216,6 +216,32 @@ export async function localizeVideo(id: string): Promise<VideoAdmin> {
   });
 }
 
+/** 下线视频（需求 §5.3）：隐藏 + 删除本地媒体释放空间，学习记录保留。 */
+export async function takedownVideo(id: string): Promise<VideoAdmin> {
+  return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/takedown`, {
+    method: "POST",
+  });
+}
+
+export interface TakedownSuggestion {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  view_count: number;
+  favorite_count: number;
+  created_at: string | null;
+  published_at: string | null;
+  storage_mode: string;
+}
+
+/** 半自动下线的「建议下线」候选（阈值规则，管理员确认后执行）。 */
+export async function takedownSuggestions(limit = 20): Promise<TakedownSuggestion[]> {
+  const res = await adminApi<{ items: TakedownSuggestion[] }>(
+    `/api/v1/videos/admin/takedown-suggestions?limit=${limit}`
+  );
+  return res.items;
+}
+
 /** Re-run translation, optionally with a different engine. Use after a quality
  *  block to retry — same engine + same input would reproduce low coverage.
  *  Engines: glm | qwen | hy_mt2 | agnes | custom. Clears text_zh + quality_flag. */

@@ -88,6 +88,18 @@ class Video(Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 内容存储三态（需求 §5.1）:
+    #   local   — 本地精品：下载转码自托管，全功能（字幕/词标注/点词/收词）
+    #   proxy   — 代理播放：不下载媒体，播放器走外部源；零存储，不可收词
+    #              （需求 §5.4 优先级 3「远期/占位」，本期仅保留取值，不实现）
+    #   offline — 已下线：从首页/推荐/排行隐藏（同时置 is_published=False，
+    #              既有可见性过滤自动生效），媒体文件已删除释放空间；
+    #              video 行保留 dormant，学习记录与词表不断链（§5.3）
+    # 存字符串而非原生 enum：SQLite（测试）与 Postgres 迁移回填一致。
+    storage_mode: Mapped[str] = mapped_column(
+        String(10), default="local", server_default="local", nullable=False, index=True
+    )
+
     # ── UGC review lifecycle (user-uploaded videos) ──
     # Stored as a plain string column (not a native enum) so migrations backfill
     # cleanly across SQLite (tests) and Postgres (prod). See VideoReviewStatus.

@@ -314,7 +314,11 @@ def _viewer_id_from_request(request: Request) -> str | None:
 
 
 async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
-    """Publish-state gate for a pipeline-produced video media file."""
+    """Publish-state gate for a pipeline-produced video media file.
+
+    已下线（``storage_mode='offline'``）的视频一律不再提供媒体流：媒体文件
+    此时已删除，且即使残留也不该被播放（需求 §5.3）。管理员仍可预览以复核。
+    """
     now = time.monotonic()
     cached = _VIDEO_ACCESS_CACHE.get(video_id)
     if cached is not None and cached[0] > now:
@@ -327,12 +331,16 @@ async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
     async with get_async_session_maker()() as db:
         video = await db.get(Video, video_id)
         if video is not None:
-            allowed = check_video_access_by_owner(video, viewer_id)
-            if not allowed and viewer_id is not None:
-                # Admin preview bypass — the rule lives in video_access.is_admin
-                # (role read from the DB-backed User row, not the JWT).
-                viewer = await db.get(User, viewer_id)
+            if video.storage_mode == "offline":
+                viewer = await db.get(User, viewer_id) if viewer_id is not None else None
                 allowed = is_admin(viewer)
+            else:
+                allowed = check_video_access_by_owner(video, viewer_id)
+                if not allowed and viewer_id is not None:
+                    # Admin preview bypass — the rule lives in video_access.is_admin
+                    # (role read from the DB-backed User row, not the JWT).
+                    viewer = await db.get(User, viewer_id)
+                    allowed = is_admin(viewer)
     _cache_access_decision(video_id, allowed)
     return allowed
 

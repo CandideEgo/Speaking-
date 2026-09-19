@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
 import type { VideoWithSubtitles } from "@/types";
 
-export type PlaybackMode = "ready" | "processing" | "loading" | "error";
+export type PlaybackMode = "ready" | "processing" | "loading" | "error" | "offline";
 
 // D1 播放器控制条：倍速档位与持久化（产品设计规划 §D1）。
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -186,8 +186,13 @@ export function useVideoPlayer({
     api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
-        // 锁定的视频不算 ready：未解锁时字幕/媒体 URL 已被后端置空，
-        // 交给 watch 页渲染解锁面板。
+        // 已下线（需求 §5.1 offline）：媒体已删除，不再可播；字幕/学习记录保留，
+        // 由 watch 页渲染「已下架」态（收藏夹与集合页入口不断链）。
+        if (v.storage_mode === "offline") {
+          setPlaybackMode("offline");
+          return;
+        }
+        // 锁定的视频不算 ready：未解锁时字幕/媒体 URL 已被后端置空。
         const unlocked = v.access ? v.access.unlocked : true;
         if (v.status === "ready" && canPlay(v) && unlocked) setPlaybackMode("ready");
         else if (v.status === "ready_subtitles" || v.status === "processing")
@@ -552,7 +557,6 @@ export function useVideoPlayer({
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     togglePlayPause,
     seekBy,

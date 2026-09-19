@@ -262,6 +262,12 @@ class Settings(BaseSettings):
     # GET /videos/rankings 读穿这些快照，Redis 故障时 fail-open 直接查库。
     rankings_snapshot_ttl_seconds: int = 172800  # 48h
 
+    # 半自动下线阈值（需求 §5.3）：上线满 N 天 + 播放/收藏均低于阈值 →
+    # 进入「建议下线」候选，由管理员一键确认。仅建议，不自动执行。
+    takedown_min_age_days: int = 30
+    takedown_min_views: int = 100
+    takedown_min_favorites: int = 5
+
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:3000"
     # Extra domains allowed by the production Content-Security-Policy connect-src

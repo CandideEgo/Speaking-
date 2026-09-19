@@ -62,6 +62,8 @@ export interface Video {
   forked_from: string | null;
   /** D0 示范视频：不消耗解锁额度，卡片不显示锁标。 */
   is_demo?: boolean;
+  /** 内容三态（需求 §5.1）：`offline` = 已下线（不可播，学习记录保留）。 */
+  storage_mode?: "local" | "proxy" | "offline";
 }
 
 export interface VideoAdmin extends Video {

@@ -185,6 +185,10 @@ async def get_video_detail(
     else:
         access = await get_video_access_info(db, current_user, video)
     can_watch = bool(access["unlocked"])
+    # 已下线（需求 §5.1 offline）：不再可播。字幕/词标注仍下发（学习记录不断链，
+    # 收藏夹与集合页「回看原视频」落到一个显示「已下架」的 watch 页）。
+    is_offline = video.storage_mode == "offline"
+    playable = can_watch and not is_offline
 
     # 内测免费期：登录用户即放行（见 unlock_service.get_video_access_info）。
     # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
@@ -267,16 +271,17 @@ async def get_video_detail(
         topic_tags=video.topic_tags,
         is_official=video.is_official,
         is_published=video.is_published,
+        storage_mode=video.storage_mode,
         review_status=video.review_status,
         # Only the owner sees the rejection reason; a public/snapshot viewer
         # never learns why an unpublished draft was rejected.
         # Cached responses (anonymous/free) must never include it.
         rejection_reason=video.rejection_reason if is_video_owner(video, current_user) else None,
-        # Locked viewers get metadata but no playable URLs (media gate is the
-        # real enforcement; blanking URLs keeps the player from attempting it).
-        video_url_480p=video.video_url_480p if can_watch else None,
-        video_url_720p=video.video_url_720p if can_watch else None,
-        video_url_1080p=video.video_url_1080p if can_watch else None,
+        # 播放 URL：锁定（匿名）或已下线时不下发。已下线的视频媒体文件已被
+        # 删除，此处留空让前端渲染「已下架」态而不是一个必然 404 的播放器。
+        video_url_480p=video.video_url_480p if playable else None,
+        video_url_720p=video.video_url_720p if playable else None,
+        video_url_1080p=video.video_url_1080p if playable else None,
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         processing_mode=video.processing_mode,
@@ -547,7 +552,13 @@ async def delete_video(db: AsyncSession, video_id: str) -> bool:
 
 
 def _delete_media_files(video_id: str) -> None:
-    """Remove raw + transcoded media files for a video from local storage."""
+    """Remove raw + transcoded media files for a video from local storage.
+
+    Covers every variant the pipeline can produce, including the bare
+    ``{video_id}.mp4`` 720p fallback. Thumbnails are intentionally kept: they
+    are tiny, and the favorites list still renders a card for a taken-down
+    video (需求 §5.3「收藏夹保留入口并标注已下架」).
+    """
     try:
         from app.core.config import get_settings
 
@@ -558,12 +569,103 @@ def _delete_media_files(video_id: str) -> None:
         return
     import glob
 
-    for pattern in (f"{video_id}_raw.*", f"{video_id}_480p.mp4", f"{video_id}_720p.mp4", f"{video_id}_1080p.mp4"):
+    for pattern in (
+        f"{video_id}.mp4",
+        f"{video_id}_raw.*",
+        f"{video_id}_480p.mp4",
+        f"{video_id}_720p.mp4",
+        f"{video_id}_1080p.mp4",
+    ):
         for path in glob.glob(str(media_dir / pattern)):
             try:
                 Path(path).unlink()
             except Exception:
                 pass
+
+
+# ── 内容三态：下线（需求 §5.3） ────────────────────────────────────────────
+STORAGE_LOCAL = "local"
+STORAGE_PROXY = "proxy"
+STORAGE_OFFLINE = "offline"
+
+
+async def takedown_video(db: AsyncSession, video_id: str) -> VideoAdminResponse:
+    """下线一个视频：隐藏 + 删本地媒体，保留 video 行与学习记录（§5.3）。
+
+    幂等。动作：
+      1. ``is_published=False`` —— 复用既有可见性过滤，feed/browse/推荐/搜索/
+         频道/排行一次性全部隐藏，无需逐个改查询
+      2. ``storage_mode='offline'`` —— 供媒体门控与前端「已下架」态判定
+      3. 清空 ``video_url_*`` + 删除本地媒体文件（缩略图保留，收藏夹仍要渲染）
+    字幕、word_levels、Vocabulary、VocabSetWord 与 LearningRecord 全部保留，
+    收藏夹入口不断链，集合页「回看原视频」落到一个已下架的 watch 页。
+    """
+    video = await _get_video_or_404(db, video_id)
+
+    was_offline = video.storage_mode == STORAGE_OFFLINE
+    video.storage_mode = STORAGE_OFFLINE
+    video.is_published = False
+    video.video_url_480p = None
+    video.video_url_720p = None
+    video.video_url_1080p = None
+    await commit_refresh(db, video)
+
+    if not was_offline:
+        _delete_media_files(video_id)
+
+    await _invalidate_video_detail_cache(video_id)
+    from app.services.video_cache import invalidate_browse_cache
+
+    await invalidate_browse_cache()
+    return VideoAdminResponse.model_validate(video)
+
+
+async def takedown_suggestions(db: AsyncSession, *, limit: int = 20) -> list[dict]:
+    """半自动下线的「建议下线」候选（需求 §5.3：阈值建议 + 管理员确认）。
+
+    规则（全部由 config 控制）：已发布、上线超过 ``takedown_min_age_days``
+    天、且 ``view_count`` / ``favorite_count`` 均低于阈值 —— 即冷启动期没有
+    产生学习价值的视频。按热度升序（最冷门的排最前），仅建议，不自动执行。
+    """
+    from datetime import timedelta
+
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    cutoff = datetime.now(UTC) - timedelta(days=settings.takedown_min_age_days)
+
+    rows = (
+        (
+            await db.execute(
+                select(Video)
+                .where(
+                    Video.is_published.is_(True),
+                    Video.storage_mode != STORAGE_OFFLINE,
+                    Video.created_at <= cutoff,
+                    Video.view_count < settings.takedown_min_views,
+                    Video.favorite_count < settings.takedown_min_favorites,
+                    or_(Video.published_at.is_(None), Video.published_at <= cutoff),
+                )
+                .order_by(Video.view_count.asc(), Video.favorite_count.asc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": v.id,
+            "title": v.title,
+            "thumbnail_url": v.thumbnail_url,
+            "view_count": v.view_count,
+            "favorite_count": v.favorite_count,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+            "published_at": v.published_at.isoformat() if v.published_at else None,
+            "storage_mode": v.storage_mode,
+        }
+        for v in rows
+    ]
 
 
 # Single source of truth: import from pipeline_helpers instead of

@@ -375,6 +375,43 @@ async def retry_video(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
 
 
+@router.get("/admin/takedown-suggestions")
+@rate_limit("30/minute")
+async def list_takedown_suggestions(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """半自动下线的候选列表（需求 §5.3）：阈值建议 + 管理员确认。
+
+    注册在 /admin/{video_id} 之前，避免 "takedown-suggestions" 被动态段吞掉。
+    """
+    from app.services.video_service import takedown_suggestions
+
+    return {"items": await takedown_suggestions(db, limit=limit)}
+
+
+@router.post("/admin/{video_id}/takedown", response_model=VideoAdminResponse)
+@rate_limit("10/minute")
+async def takedown_admin_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """下线视频：隐藏 + 删除本地媒体释放空间，保留 video 行与学习记录（§5.3）。
+
+    幂等；缩略图保留以便收藏夹仍能渲染卡片。
+    """
+    from app.services.video_service import takedown_video
+
+    try:
+        return await takedown_video(db, video_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+
+
 @router.post("/admin/{video_id}/localize", response_model=VideoAdminResponse)
 @rate_limit("5/minute")
 async def localize_admin_video(
@@ -893,6 +930,10 @@ async def list_user_favorites(
     shape is intentionally flat: each item carries the fields the favorites
     page needs (id, title, thumbnail, like/favorite counts, note excerpt)
     so the frontend can render VideoCard without a second round-trip.
+
+    已下线（``storage_mode='offline'``）的视频**仍然出现在收藏夹**：需求 §5.3
+    要求「收藏夹保留入口并标注已下架」。故此处刻意不加发布态过滤，而是把
+    ``storage_mode`` 下发，由前端渲染「已下架」角标。
     """
     from app.models.favorite import UserFavorite, UserNote
     from app.services.channel_service import channel_slugs_for
@@ -934,6 +975,8 @@ async def list_user_favorites(
             else (note.content if note else None),
             "has_note": bool(note and note.content),
             "favorited_at": fav_at.isoformat() if fav_at else None,
+            # 已下线标注（需求 §5.3）：前端据此显示「已下架」角标。
+            "storage_mode": getattr(v, "storage_mode", "local") or "local",
         }
         for v, fav_at, note in rows
     ]

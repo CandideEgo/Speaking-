@@ -15,6 +15,7 @@ import {
   Play,
   RefreshCw,
   AlertCircle,
+  Archive,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
@@ -24,7 +25,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { STEP_LABELS_SHORT } from "@/lib/videoStatus";
 import type { VideoAdmin } from "@/types";
-import { updateVideo, retryVideo } from "@/lib/adminData";
+import { updateVideo } from "@/lib/adminData";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -50,6 +51,7 @@ interface DetailRowProps {
   reviewBusy: boolean;
   onEditSubtitles: (id: string) => void;
   onRetry: (v: VideoAdmin) => void;
+  onTakedown: (v: VideoAdmin) => void;
 }
 
 export function VideoDetailRow({
@@ -66,6 +68,7 @@ export function VideoDetailRow({
   workerOnline,
   reviewBusy,
   onRetry,
+  onTakedown,
 }: DetailRowProps) {
   const ytId = youtubeId(video.source_url);
   const hasLocal = Boolean(video.video_url_720p || video.video_url_480p || video.video_url_1080p);
@@ -188,6 +191,24 @@ export function VideoDetailRow({
           >
             <Download size={12} />
             {isProcessing ? "搬运中..." : hasLocal ? "已有本地" : "搬运到本地"}
+          </Button>
+        </div>
+
+        {/* 内容三态（需求 §5.3）：下线 = 隐藏 + 释放媒体，保留学习记录。 */}
+        <div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onTakedown(video)}
+            disabled={video.storage_mode === "offline"}
+            title={
+              video.storage_mode === "offline"
+                ? "已下线"
+                : "从所有列表隐藏并删除本地媒体文件，学习记录保留"
+            }
+          >
+            <Archive size={12} />
+            {video.storage_mode === "offline" ? "已下线" : "下线"}
           </Button>
         </div>
       </div>

@@ -74,6 +74,9 @@ class VideoResponse(BaseModel):
     # D0: demo/tutorial videos are watchable without consuming unlock quotas;
     # card grids skip the lock badge for them.
     is_demo: bool = False
+    # 内容三态（需求 §5.1）：local / proxy / offline。前端据此渲染「已下架」态；
+    # 默认 local 让历史缓存 JSON 与旧客户端仍可解析。
+    storage_mode: str = "local"
 
     model_config = {"from_attributes": True}
 

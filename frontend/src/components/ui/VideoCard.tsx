@@ -23,6 +23,8 @@ export interface VideoCardData {
   /** 作者页 slug（ADR-0014 修订）：非空时频道名可点跳转。 */
   channel_slug?: string | null;
   is_demo?: boolean;
+  /** 内容三态（需求 §5.1）：offline 时卡片显示「已下架」角标。 */
+  storage_mode?: string | null;
 }
 
 export interface VideoCardProps {
@@ -135,6 +137,12 @@ export function VideoCard({
             <Play size={20} fill="#fff" className="text-white ml-0.5" />
           </div>
         </div>
+        {/* 已下线标注（需求 §5.3）：收藏夹保留入口，但明确告知不可播。 */}
+        {video.storage_mode === "offline" && (
+          <span className="absolute left-2 bottom-2 inline-flex items-center rounded-pill bg-ink/85 px-2 py-0.5 text-[11px] font-semibold text-canvas backdrop-blur-sm">
+            已下架
+          </span>
+        )}
       </div>
 
       {/* Meta */}

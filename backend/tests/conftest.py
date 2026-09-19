@@ -165,6 +165,21 @@ class _FakeRedis:
             keys = [k for k in keys if fnmatch.fnmatch(k, match)]
         return (0, keys)
 
+    def scan_iter(self, match: str | None = None, count: int | None = None):
+        """Async generator mirroring redis-py's ``scan_iter`` (used by
+        ``cache_delete``). Without it, cache invalidation silently no-ops in
+        tests (fail-open swallows the AttributeError), which would hide stale
+        cache reads — e.g. a taken-down video still showing in the feed.
+        """
+        import fnmatch
+
+        async def _gen():
+            for key in list(self._store.keys()):
+                if match is None or fnmatch.fnmatch(key, match):
+                    yield key
+
+        return _gen()
+
     async def llen(self, key: str) -> int:
         """LLEN: Celery broker lists aren't modelled; tests don't enqueue real tasks."""
         return 0

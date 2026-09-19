@@ -530,6 +530,30 @@ export default function WatchPage() {
 
   if (!video) return <FullPageSpinner />;
 
+  // 已下线（需求 §5.1 offline / §5.3）：媒体已释放，学习记录仍在。
+  // 收藏夹与集合页「回看原视频」会落到这里，故给出明确说明与出口。
+  if (playbackMode === "offline") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-canvas">
+        <div className="text-center max-w-md px-4">
+          <AlertCircle size={48} className="mx-auto text-muted mb-4" />
+          <p className="text-lg font-semibold text-ink">该视频已下架</p>
+          <p className="mt-2 text-sm text-muted leading-relaxed">
+            视频媒体已释放存储空间，不再提供播放。
+            <br />
+            你的学习记录（词汇本与视频集合）仍然保留，可以继续学习。
+          </p>
+          <div className="flex gap-3 justify-center mt-6">
+            <Button onClick={() => router.push("/vocabulary")}>去词汇本</Button>
+            <Button variant="outline" onClick={() => router.push("/browse")}>
+              浏览其他视频
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (playbackMode === "processing") {
     const stepLabel = video.processing_step
       ? (STEP_LABELS[video.processing_step] ?? "处理中...")

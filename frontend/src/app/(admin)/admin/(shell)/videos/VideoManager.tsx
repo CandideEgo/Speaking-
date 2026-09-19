@@ -29,6 +29,7 @@ import {
   getWorkerStatus,
   listVideos,
   localizeVideo,
+  takedownVideo,
   recoverVideo,
   rejectReview,
   retryVideo,
@@ -177,6 +178,16 @@ export default function VideoManager() {
       if (editingId === video.id) setEditingId(null);
     } catch (err) {
       toastApiError(err, "删除失败");
+    }
+  }
+
+  async function handleTakedown(video: VideoAdmin) {
+    try {
+      const updated = await takedownVideo(video.id);
+      setVideos((prev) => prev.map((v) => (v.id === video.id ? updated : v)));
+      toast.success("已下线：媒体已释放，学习记录保留");
+    } catch (err) {
+      toastApiError(err, "下线失败");
     }
   }
 
@@ -496,6 +507,7 @@ export default function VideoManager() {
               patchVideo={patchVideo}
               onSaved={() => loadVideos(page)}
               onLocalize={handleLocalize}
+              onTakedown={handleTakedown}
               onDelete={(vid) => setDeleteTarget(vid)}
               onApprove={handleApprove}
               onReject={(vid) => {
