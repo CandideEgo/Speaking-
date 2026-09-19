@@ -144,12 +144,17 @@ class TestTranslationQualityGate:
 
 
 class TestWordLevelsPreservation:
-    """Tests for word_levels preservation during re-translation."""
+    """Column-level checks that an existing word_levels value survives a read-modify-write.
+
+    NOT covered here: INV-013 itself. The pipeline guard is inlined in `finalize_video`
+    (app/tasks/video_processing.py, the "annotating" step) and these tests never call it.
+    Until that decision is extracted from the Celery task, INV-013 stays unenforced — see
+    .agent/invariants.md.
+    """
 
     @pytest.mark.asyncio
     async def test_existing_word_levels_preserved(self, db_session):
-        """When annotating runs on a subtitle with existing word_levels,
-        the existing values should be preserved (not overwritten)."""
+        """An existing word_levels value round-trips through the DB unchanged."""
         # Create a subtitle with manually set word_levels
         sub = Subtitle(
             video_id="test-video-id",

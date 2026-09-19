@@ -15,6 +15,7 @@ select = [
     "SIM",  # flake8-simplify
     "TCH",  # flake8-type-checking
     "RUF",  # ruff-specific rules
+    "TID251", # flake8-tidy-imports banned-api (INV-005)
 ]
 ignore = [
     "E501",   # line length handled by formatter
@@ -33,6 +34,17 @@ ignore = [
     "N806",   # non-lowercase variable (DB model patterns)
     "TC003",  # typing-only standard library import
 ]
+
+# INV-005: AI calls must go through the service layer so cost control, retries and
+# logging live in one place. Only TID251 is selected (not all of TID) to avoid
+# pulling in unrelated tidy-imports rules.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"openai".msg = "AI calls must go through app.services.ai_service or app.services.translation (INV-005)"
+
+[tool.ruff.lint.per-file-ignores]
+"app/services/ai_service.py" = ["TID251"]                  # the gateway itself
+"app/services/translation/*" = ["TID251"]                  # the pluggable translation engine
+"scripts/precompute_global_word_notes_dual.py" = ["TID251"] # one-off operator tooling, not a runtime path
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
