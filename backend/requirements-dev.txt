@@ -19,7 +19,7 @@ ruff==0.15.18
 mypy>=1.10
 
 # Security scanning
-pip-audit>=0.8
+pip-audit>=2.10.1
 bandit>=1.7
 
 # Pre-commit hooks
