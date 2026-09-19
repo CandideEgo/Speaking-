@@ -2,18 +2,26 @@
 # Install with: pip install -r requirements-dev.txt
 
 # Testing
-# Pinned for the same reason as ruff below: an open range let CI resolve a
-# different stack than the one the suite is verified against, and the two
-# disagree — CI (pytest 9.1.1 / pytest-asyncio 1.4.0) completes the suite but
-# never exits the process, blowing the step's 10-minute budget, while the
-# versions pinned here finish the same suite (including the Postgres
-# integration tests) and exit cleanly. Bump these and re-verify in CI, not just
-# locally: pytest-asyncio 1.x changed its event-loop handling.
+# Pinned: an open range let CI resolve a different stack than the one the suite
+# is verified against, and for aiosqlite the two disagree in a way that breaks
+# the job rather than a test.
+#
+# aiosqlite runs every connection on its own worker thread. In 0.20.0 that
+# thread is a daemon; 0.22.1 has no daemon flag at all, so it is a normal
+# thread. The suite never closes the test engines, so the thread outlives the
+# session and the interpreter parks in threading._shutdown() forever. Symptom:
+# CI reports "746 passed, 0 failed" and is then killed by the step's 10-minute
+# timeout — confirmed with faulthandler, see pytest_sessionfinish in
+# tests/conftest.py.
+#
+# The pytest pins below did NOT fix that hang (measured in CI) — they are here
+# for the same general reason and are the combination the suite was verified
+# against. Bump any of these and re-verify in CI, not just locally.
 pytest==8.2.0
 pytest-asyncio==0.23.7
 pytest-cov==5.0.0
 pytest-timeout==2.4.0
-aiosqlite>=0.20.0
+aiosqlite==0.20.0
 
 # Linting & formatting
 # Pinned to match the astral-sh/ruff-pre-commit rev in .pre-commit-config.yaml.
