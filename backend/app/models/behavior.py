@@ -26,9 +26,7 @@ class BehaviorEvent(Base):
     # SQLite (tests) only auto-increments an exact INTEGER PRIMARY KEY, so the
     # BigInteger PK falls back to Integer there — production (Postgres) keeps
     # BIGINT autoincrement.
-    id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
-    )
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

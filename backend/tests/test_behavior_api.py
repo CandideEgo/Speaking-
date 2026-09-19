@@ -65,9 +65,7 @@ async def test_authenticated_event_has_user_id(client, auth_headers):
 
 
 async def test_batch_ingest(client, auth_headers):
-    events = [
-        {"event_type": f"type_{i}", "event_payload": {"i": i}} for i in range(3)
-    ]
+    events = [{"event_type": f"type_{i}", "event_payload": {"i": i}} for i in range(3)]
     resp = await client.post(
         "/api/v1/behavior/events/batch",
         headers=auth_headers,

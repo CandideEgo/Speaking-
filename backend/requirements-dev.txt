@@ -9,7 +9,11 @@ pytest-timeout>=2.3.1
 aiosqlite>=0.20.0
 
 # Linting & formatting
-ruff>=0.5.0
+# Pinned to match the astral-sh/ruff-pre-commit rev in .pre-commit-config.yaml.
+# Ruff's formatter can change its output between minor versions, so an open range
+# lets CI disagree with local pre-commit — this actually happened: CI installed
+# 0.16.4 while pre-commit pinned 0.15.18. Bump both in the same commit.
+ruff==0.15.18
 
 # Type checking
 mypy>=1.10
