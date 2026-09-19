@@ -123,16 +123,19 @@ export function useSentenceShadowing({
   }, [reRecord, setCurrentIndex, setPhaseBoth]);
 
   // 句尾检测：由页面 timeupdate tick 驱动。
-  const handleTime = useCallback((t: number) => {
-    if (!activeRef.current || phaseRef.current !== "playing") return;
-    const sub = subtitlesRef.current?.[currentIndexRef.current];
-    if (!sub) return;
-    if (t >= sub.end_time - 0.05) {
-      optsRef.current.pause();
-      setPhaseBoth("recording");
-      optsRef.current.startRecording();
-    }
-  }, [setPhaseBoth]);
+  const handleTime = useCallback(
+    (t: number) => {
+      if (!activeRef.current || phaseRef.current !== "playing") return;
+      const sub = subtitlesRef.current?.[currentIndexRef.current];
+      if (!sub) return;
+      if (t >= sub.end_time - 0.05) {
+        optsRef.current.pause();
+        setPhaseBoth("recording");
+        optsRef.current.startRecording();
+      }
+    },
+    [setPhaseBoth]
+  );
 
   // 录音结束（speakingState → reviewing）时同步阶段。
   useEffect(() => {
