@@ -338,57 +338,35 @@ async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Membership gate (D0 unlock model).
+# Membership gate — DISABLED for the internal test (需求 §2.3 内测期免费开放).
 #
-# The publish-state gate above only answers "is this video public/previewable";
-# the membership gate answers "may THIS viewer stream it". Free viewers need
-# active Pro or a permanent unlock row; demo videos stay open to everyone.
-# Anonymous viewers never qualify (the login wall sends them to /login first,
-# and direct URL access must not bypass the quota). Separate per-(video,viewer)
-# cache because unlock decisions differ per viewer, unlike the publish state.
-# Only POSITIVE decisions are cached: a denied viewer may unlock at any moment
-# and must gain access immediately (caching False would 403 them for up to the
-# TTL right after paying). Grants are permanent (Pro lapses at most hourly via
-# the downgrade beat), so caching True is safe.
+# History: under the D0 unlock model this gate required active Pro or a
+# permanent unlock row for Free viewers. The internal-test requirement is
+# "免费开放全功能，不引入 Pro 概念", so every logged-in viewer may stream any
+# video that passes the publish-state gate above. Anonymous viewers are still
+# refused except for ``is_demo`` videos, whose open access is a deliberate
+# carve-out for the (deferred) public landing page — the login wall sends
+# everyone else to /login. The Pro/unlock tables stay dormant for a future
+# paid tier — see docs/progress/FREE-TIER-ASSESSMENT-2026-09.md.
+#
+# Draft/unpublished protection is NOT this gate's job: ``_video_media_allowed``
+# above still enforces owner/admin-only preview for those.
 # ---------------------------------------------------------------------------
-_UNLOCK_GATE_CACHE: dict[str, tuple[float, bool]] = {}
-_UNLOCK_GATE_CACHE_TTL = 60.0
-_UNLOCK_GATE_CACHE_MAX = 2048
 
 
 async def _video_unlock_allowed(video_id: str, viewer_id: str | None) -> bool:
+    """Whether this viewer may stream the video's media.
+
+    内测期：登录用户一律放行（免费开放）；匿名仅 ``is_demo`` 示范视频放行
+    （落地页预留，见 FREE-TIER-ASSESSMENT §D 登录墙保留）。
+    """
+    if viewer_id is not None:
+        return True
     from app.models.video import Video
-    from app.services.unlock_service import is_active_pro, is_unlocked
-    from app.services.video_access import is_admin
 
-    key = f"{video_id}:{viewer_id or ''}"
-    now = time.monotonic()
-    cached = _UNLOCK_GATE_CACHE.get(key)
-    if cached is not None and cached[0] > now:
-        return cached[1]
-
-    allowed = False
     async with get_async_session_maker()() as db:
         video = await db.get(Video, video_id)
-        if video is None:
-            allowed = False
-        elif video.is_demo:
-            allowed = True
-        elif viewer_id is not None:
-            viewer = await db.get(User, viewer_id)
-            if viewer is not None and (is_admin(viewer) or is_active_pro(viewer)):
-                allowed = True
-            elif video.user_id == viewer_id:
-                # Legacy UGC owners keep draft preview (UGC is retired; no new rows).
-                allowed = True
-            else:
-                allowed = await is_unlocked(db, viewer_id, video_id)
-
-    if allowed:
-        if len(_UNLOCK_GATE_CACHE) >= _UNLOCK_GATE_CACHE_MAX:
-            _UNLOCK_GATE_CACHE.clear()
-        _UNLOCK_GATE_CACHE[key] = (now + _UNLOCK_GATE_CACHE_TTL, True)
-    return allowed
+        return bool(video is not None and video.is_demo)
 
 
 @router.get("/{file_path:path}")

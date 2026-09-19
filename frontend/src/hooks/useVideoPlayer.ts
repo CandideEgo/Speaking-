@@ -82,8 +82,6 @@ interface UseVideoPlayerOptions {
 interface UseVideoPlayerReturn {
   video: VideoWithSubtitles | null;
   playbackMode: PlaybackMode;
-  /** D0 解锁制：Free 未解锁时为 true，watch 页渲染解锁面板而非播放器。 */
-  locked: boolean;
   currentSubtitleIndex: number;
   setCurrentSubtitleIndex: (idx: number) => void;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -616,7 +614,6 @@ export function useVideoPlayer({
   return {
     video,
     playbackMode,
-    locked: video?.access ? !video.access.unlocked : false,
     currentSubtitleIndex,
     setCurrentSubtitleIndex,
     videoRef,

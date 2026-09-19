@@ -83,20 +83,15 @@ async def get_video_access_info(db: AsyncSession, user: User | None, video: Vide
     """Build the ``access`` payload embedded in the video detail response.
 
     Shape: ``{unlocked: bool, remaining_this_month: int | None, quota: int}``.
-    ``remaining_this_month`` is None for Pro/admin viewers (unlimited); for
-    Free/anonymous viewers it reports the current month's remaining quotas.
+
+    **内测期免费开放（需求 §2.3）**：门控已解除，所有登录用户对已发布视频
+    均 ``unlocked=True``；``plan`` / 解锁额度保留 dormant 但不再约束观看。
+    ``remaining_this_month`` 保留字段形状（前端兼容），内测期固定为 None
+    （不限量）。
     """
     quota = get_settings().free_monthly_unlock_quota
-    if user is not None and (user.role == RoleType.admin or is_active_pro(user)):
-        return {"unlocked": True, "remaining_this_month": None, "quota": quota}
-    if video.is_demo:
-        remaining = await remaining_unlocks(db, user) if user is not None else quota
-        return {"unlocked": True, "remaining_this_month": remaining, "quota": quota}
-    if user is None:
-        return {"unlocked": False, "remaining_this_month": quota, "quota": quota}
-    unlocked = await is_unlocked(db, user.id, video.id)
-    remaining = await remaining_unlocks(db, user)
-    return {"unlocked": unlocked, "remaining_this_month": remaining, "quota": quota}
+    # 内测免费期：登录用户全量放行；匿名仍不进（登录墙在 proxy.ts）。
+    return {"unlocked": user is not None, "remaining_this_month": None, "quota": quota}
 
 
 async def unlock_video(db: AsyncSession, user: User, video: Video) -> dict:

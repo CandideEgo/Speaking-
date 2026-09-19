@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Trophy, X, Compass, Check } from "lucide-react";
+import { Trophy, X, Compass } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
-import { useUnlockedIds } from "@/hooks/useUnlockedIds";
-import { useBoostUnlocked } from "@/hooks/useBoostUnlocked";
-import { UnlockQuotaHint } from "@/components/paywall/UnlockQuotaHint";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
 import { RankingBlock } from "@/components/home/RankingBlock";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -55,28 +52,6 @@ export default function HomePage() {
   } = usePlatformFeed({ platform: "home" });
 
   const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
-
-  // D0 解锁制：Free 视角的卡片角标（已解锁 ✓ / 锁标 / 耗尽灰度）
-  const unlockedInfo = useUnlockedIds();
-
-  // §10 #7：用户可选「已解锁优先」开关。开启后把 unlocked 视频排到
-  // 视频流前面，未解锁的跟在后面（保持各自内部相对顺序）。
-  const {
-    enabled: boostUnlocked,
-    setEnabled: setBoostUnlocked,
-    ready: boostReady,
-  } = useBoostUnlocked();
-
-  const orderedVideos = useMemo(() => {
-    if (!boostUnlocked || !unlockedInfo) return videos;
-    const unlocked: typeof videos = [];
-    const rest: typeof videos = [];
-    for (const v of videos) {
-      if (unlockedInfo.lockStateFor(v) === "unlocked") unlocked.push(v);
-      else rest.push(v);
-    }
-    return [...unlocked, ...rest];
-  }, [videos, unlockedInfo, boostUnlocked]);
 
   // Find milestones achieved in the last 24h for the banner
   const recentMilestone = useMemo(() => {
@@ -165,49 +140,8 @@ export default function HomePage() {
                 size="sm"
               />
             </div>
-            {/* D11 Free 额度入口 + 结果计数 */}
+            {/* 结果计数 */}
             <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-              {/* §10 #7：已解锁优先开关（仅 Free 视角且有解锁历史时显示）。
-                  Pro 用户走 D11 额度提示即可，无需此开关。 */}
-              {boostReady && unlockedInfo && (
-                <label
-                  className="hidden sm:inline-flex items-center gap-1.5 cursor-pointer
-                    text-[12px] font-medium select-none
-                    text-muted hover:text-ink transition-colors"
-                  title="开启后已解锁视频排到前面"
-                >
-                  <input
-                    type="checkbox"
-                    className="peer sr-only"
-                    checked={boostUnlocked}
-                    onChange={(e) => setBoostUnlocked(e.target.checked)}
-                    aria-label="把已解锁视频排到前面"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="relative inline-flex h-4 w-7 items-center rounded-full
-                      transition-colors
-                      bg-hairline peer-checked:bg-brand-500
-                      peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500
-                      peer-focus-visible:ring-offset-1"
-                  >
-                    <span
-                      className="inline-block h-3 w-3 transform rounded-full bg-white shadow
-                        transition-transform
-                        translate-x-0.5 peer-checked:translate-x-3.5"
-                    />
-                  </span>
-                  <span
-                    className={
-                      boostUnlocked ? "inline-flex items-center gap-0.5 text-brand-600" : ""
-                    }
-                  >
-                    {boostUnlocked && <Check size={11} aria-hidden="true" />}
-                    已解锁优先
-                  </span>
-                </label>
-              )}
-              <UnlockQuotaHint info={unlockedInfo} />
               {total > 0 && (
                 <span className="text-xs text-muted hidden sm:block font-medium">
                   {total} 个视频
@@ -222,12 +156,8 @@ export default function HomePage() {
 
         {!error && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {orderedVideos.map((video) => (
-              <VideoCard
-                key={video.id || video.video_id}
-                video={video}
-                lockState={unlockedInfo?.lockStateFor(video)}
-              />
+            {videos.map((video) => (
+              <VideoCard key={video.id || video.video_id} video={video} />
             ))}
           </div>
         )}

@@ -186,13 +186,12 @@ async def get_video_detail(
         access = await get_video_access_info(db, current_user, video)
     can_watch = bool(access["unlocked"])
 
-    # Cache strategy: the locked shape (no subtitles/URLs) is identical for
-    # every locked viewer → shared key. Unlocked Free responses carry a
-    # per-viewer ``remaining`` → per-user key. Pro/admin stay uncached.
+    # 内测免费期：登录用户即放行（见 unlock_service.get_video_access_info）。
+    # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
+    # 是 locked 形状（空字幕/空 URL），绝不能缓存后回给登录用户，因此只有
+    # can_watch 的响应才读写缓存。
     cache_key = f"video:detail:{video_id}"
-    if current_user is not None and current_user.plan == "free":
-        cache_key = f"video:detail:{video_id}:u:{current_user.id}"
-    cacheable = current_user is None or current_user.plan == "free"
+    cacheable = can_watch
     if cacheable:
         cached = await cache_get(cache_key)
         if cached:

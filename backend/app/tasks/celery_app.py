@@ -74,29 +74,25 @@ celery_app.conf.update(
             "task": "app.tasks.ranking_tasks.snapshot_rankings",
             "schedule": crontab(minute=23, hour=1),
         },
-        # ADR-0007: write back plan=free for users whose Pro has expired.
-        # require_pro_user only blocks expired Pro on access; it never wrote
-        # back free, so pro_users was inflated. Hourly downgrade closes that.
-        "downgrade-expired-pro": {
-            "task": "app.tasks.redeem_tasks.downgrade_expired_pro",
-            "schedule": 3600,  # every hour
-        },
-        # ADR-0007: flip unused codes past their expires_at to expired so
-        # stale inventory can't be redeemed.
-        "expire-unused-redeem-codes": {
-            "task": "app.tasks.redeem_tasks.expire_unused_redeem_codes",
-            "schedule": 86400,  # every day
-        },
+        # ── 内测期免费开放（需求 §2.3）：以下三个 Pro/兑换码相关 beat 已停用。
+        # 任务体保留（tests 直调 + 未来收费复用），仅摘掉调度。
+        # "downgrade-expired-pro": {
+        #     "task": "app.tasks.redeem_tasks.downgrade_expired_pro",
+        #     "schedule": 3600,  # every hour
+        # },
+        # "expire-unused-redeem-codes": {
+        #     "task": "app.tasks.redeem_tasks.expire_unused_redeem_codes",
+        #     "schedule": 86400,  # every day
+        # },
+        # "send-pro-expiring-reminders": {
+        #     "task": "app.tasks.reminder_tasks.send_pro_expiring_reminders",
+        #     "schedule": crontab(minute=0, hour=1),
+        # },
         # D6 学习提醒：每小时扫一次，按用户本地时间匹配词汇复习提醒点与 21:00 断签警告。
+        # （与 Pro 无关，保留。）
         "send-hourly-reminders": {
             "task": "app.tasks.reminder_tasks.send_hourly_reminders",
             "schedule": crontab(minute=0),  # every hour on the hour
-        },
-        # D6 学习提醒：每日扫一次，Pro（含试用）到期前 3 天 / 1 天提醒。
-        # 01:00 UTC = 09:00 北京。
-        "send-pro-expiring-reminders": {
-            "task": "app.tasks.reminder_tasks.send_pro_expiring_reminders",
-            "schedule": crontab(minute=0, hour=1),
         },
         # D9 周报：周一 00:00 UTC（= 北京周一 08:00）生成上一周的学习周报。
         "generate-weekly-reports": {

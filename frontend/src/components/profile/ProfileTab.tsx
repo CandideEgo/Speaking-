@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
 import { Modal } from "@/components/common/Modal";
-import { api, isProUser } from "@/lib/api";
+import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import type { User } from "@/types";
@@ -104,8 +104,6 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     }
   }
 
-  const isPro = isProUser(user);
-
   return (
     <div className="max-w-2xl space-y-6">
       {/* Avatar */}
@@ -171,17 +169,10 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
 
         <div className="flex items-center justify-between border-t border-hairline pt-4">
           <p className="text-sm font-semibold text-ink">会员</p>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-medium ${
-              isPro ? "bg-brand-50 text-brand-600" : "bg-surface-card text-muted"
-            }`}
-          >
-            {isPro ? "Pro 会员" : "免费用户"}
-            {user.plan_expires_at && (
-              <span className="text-xs opacity-70">
-                至 {new Date(user.plan_expires_at).toLocaleDateString("zh-CN")}
-              </span>
-            )}
+          {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念，统一显示「内测免费」。
+              plan 字段保留 dormant，未来收费可复用。 */}
+          <span className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-medium bg-surface-card text-muted">
+            内测免费 · 全功能开放
           </span>
         </div>
       </div>

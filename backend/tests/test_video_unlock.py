@@ -1,13 +1,13 @@
-"""D0 unlock model — Free monthly unlock quota, signup trial, detail/media gates.
+"""内测免费开放 — 门控解除后的访问行为（需求 §2.3）+ 保留的 dormant 逻辑。
 
-Covers 产品设计规划-2026-08 §2:
-- registration grants a 3-day Pro trial (plan_source='trial')
-- Free detail gate: metadata visible, subtitles/URLs withheld until unlocked
-- POST /videos/{id}/unlock consumes quota, idempotent, 409 when exhausted
-- unlocks are permanent; quota counts only the current calendar month
-- demo videos never consume quota; Pro never writes unlock rows
-- GET /videos/unlocked + /videos/unlocked-ids for the /history tab and badges
-- redeeming during the trial stacks from the trial end date
+Covers:
+- registration still grants the 3-day trial (plan fields dormant but intact)
+- 登录用户对已发布视频直接可看：详情带字幕/URL，access.unlocked=True
+- 匿名仍拒（登录墙），示范视频 is_demo 对匿名开放（落地页预留）
+- POST /videos/{id}/unlock 已退役：不消耗额度、恒返回放行 access
+- GET /videos/unlocked + /unlocked-ids 已退役：返回空载荷（表 dormant 保留）
+- shadowing-sentences 对登录用户放行
+- redeeming during the trial stacks from the trial end date（dormant 逻辑保留）
 """
 
 from datetime import UTC, datetime, timedelta
@@ -89,21 +89,19 @@ class TestSignupTrial:
 
 
 class TestFreeDetailGate:
-    async def test_locked_detail_hides_subtitles_and_urls(self, client: AsyncClient, auth_headers: dict, db_session):
+    async def test_free_detail_serves_subtitles_and_urls(self, client: AsyncClient, auth_headers: dict, db_session):
+        """内测免费期：登录用户无需解锁即可拿到字幕与可播放 URL。"""
         video = await _seed_ready_video(db_session, title="LockedOne")
         resp = await client.get(f"/api/v1/videos/{video.id}", headers=auth_headers)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        # Metadata stays visible for the unlock panel...
         assert data["title"] == "LockedOne"
-        assert data["thumbnail_url"] is None or isinstance(data["thumbnail_url"], str)
-        # ...but no playable content leaks.
-        assert data["subtitles"] == []
-        assert data["video_url_720p"] is None
+        # 门控解除：内容直接下发。
+        assert len(data["subtitles"]) == 1
+        assert data["video_url_720p"] == "/media/video-LockedOne.mp4"
         access = data["access"]
-        assert access["unlocked"] is False
-        assert access["remaining_this_month"] == 3
-        assert access["quota"] == 3
+        assert access["unlocked"] is True
+        assert access["remaining_this_month"] is None  # 不限量
 
     async def test_pro_detail_unlocked_with_subtitles(self, client: AsyncClient, pro_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="ProSeesAll")
@@ -115,13 +113,22 @@ class TestFreeDetailGate:
         assert data["access"]["unlocked"] is True
         assert data["access"]["remaining_this_month"] is None
 
+    async def test_anonymous_detail_stays_locked(self, client: AsyncClient, db_session):
+        """匿名仍不进：详情不下发字幕/URL（登录墙语义保留）。"""
+        video = await _seed_ready_video(db_session, title="AnonLocked")
+        resp = await client.get(f"/api/v1/videos/{video.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["subtitles"] == []
+        assert data["video_url_720p"] is None
+        assert data["access"]["unlocked"] is False
+
     async def test_demo_video_open_for_free(self, client: AsyncClient, auth_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="DemoVid", is_demo=True)
         resp = await client.get(f"/api/v1/videos/{video.id}", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["access"]["unlocked"] is True
-        assert data["access"]["remaining_this_month"] == 3  # untouched
         assert len(data["subtitles"]) == 1
 
 
@@ -135,43 +142,36 @@ class TestUnlockFlow:
         resp = await client.post("/api/v1/videos/does-not-exist/unlock", headers=auth_headers)
         assert resp.status_code == 404
 
-    async def test_unlock_consumes_quota_and_grants_access(self, client: AsyncClient, auth_headers: dict, db_session):
+    async def test_unlock_is_retired_no_quota_no_row(self, client: AsyncClient, auth_headers: dict, db_session):
+        """内测期退役：调用返回放行 access，且不写 user_video_unlocks 行。"""
+        from app.models.user_video_unlock import UserVideoUnlock
+
         video = await _seed_ready_video(db_session, title="UnlockMe")
 
         resp = await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
         assert resp.status_code == 200, resp.text
         access = resp.json()["access"]
         assert access["unlocked"] is True
-        assert access["remaining_this_month"] == 2
+        assert access["remaining_this_month"] is None
 
-        # Detail now serves subtitles + URLs.
+        rows = (await db_session.execute(select(UserVideoUnlock))).scalars().all()
+        assert rows == []
+
+        # 详情无需解锁即可播放。
         detail = (await client.get(f"/api/v1/videos/{video.id}", headers=auth_headers)).json()
         assert len(detail["subtitles"]) == 1
         assert detail["video_url_720p"] is not None
-        assert detail["access"]["unlocked"] is True
 
-    async def test_reunlock_is_idempotent(self, client: AsyncClient, auth_headers: dict, db_session):
-        video = await _seed_ready_video(db_session, title="Twice")
-        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
-        resp = await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
-        assert resp.status_code == 200
-        assert resp.json()["access"]["remaining_this_month"] == 2
-
-    async def test_quota_exhausted_returns_409(self, client: AsyncClient, auth_headers: dict, db_session):
+    async def test_no_quota_exhaustion_anymore(self, client: AsyncClient, auth_headers: dict, db_session):
+        """额度概念已废：连开 4 个视频不再有 409。"""
         videos = [await _seed_ready_video(db_session, title=f"Exhaust{i}", with_subtitle=False) for i in range(4)]
-        for v in videos[:3]:
+        for v in videos:
             resp = await client.post(f"/api/v1/videos/{v.id}/unlock", headers=auth_headers)
-            assert resp.status_code == 200
-        resp = await client.post(f"/api/v1/videos/{videos[3].id}/unlock", headers=auth_headers)
-        assert resp.status_code == 409
-        detail = resp.json()["detail"]
-        assert detail["remaining"] == 0
-        assert detail["quota"] == 3
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["access"]["unlocked"] is True
 
-        # The locked detail for the 4th video reports 0 remaining.
         d = (await client.get(f"/api/v1/videos/{videos[3].id}", headers=auth_headers)).json()
-        assert d["access"]["unlocked"] is False
-        assert d["access"]["remaining_this_month"] == 0
+        assert d["access"]["unlocked"] is True
 
     async def test_pro_unlock_writes_no_row(self, client: AsyncClient, pro_headers: dict, db_session):
         from app.models.user_video_unlock import UserVideoUnlock
@@ -183,103 +183,45 @@ class TestUnlockFlow:
         rows = (await db_session.execute(select(UserVideoUnlock))).scalars().all()
         assert rows == []
 
-    async def test_demo_unlock_consumes_nothing(self, client: AsyncClient, auth_headers: dict, db_session):
-        video = await _seed_ready_video(db_session, title="DemoFree", is_demo=True, with_subtitle=False)
-        resp = await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
-        assert resp.status_code == 200
-        assert resp.json()["access"]["remaining_this_month"] == 3
 
+class TestRetiredUnlockLists:
+    """解锁列表端点已退役：返回空载荷（表 dormant 保留）。"""
 
-class TestMonthlyReset:
-    async def test_last_month_unlocks_do_not_count(self, client: AsyncClient, auth_headers: dict, db_session):
-        """Quota counts only the current calendar month; old rows stay valid."""
-        from app.models.user import User
-        from app.models.user_video_unlock import UserVideoUnlock
-
-        user = (await db_session.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
-
-        # Two unlocks dated last month (permanent access, out of quota scope).
-        old_videos = [await _seed_ready_video(db_session, title=f"Old{i}", with_subtitle=False) for i in range(2)]
-        now = datetime.now(UTC)
-        last_month = (now.replace(day=1) - timedelta(days=1)).replace(hour=12)
-        for v in old_videos:
-            db_session.add(UserVideoUnlock(user_id=user.id, video_id=v.id, unlocked_at=last_month))
-        await db_session.commit()
-
-        # Old unlocks still grant access...
-        d = (await client.get(f"/api/v1/videos/{old_videos[0].id}", headers=auth_headers)).json()
-        assert d["access"]["unlocked"] is True
-        # ...and this month's quota is untouched.
-        assert d["access"]["remaining_this_month"] == 3
-
-
-class TestUnlockedList:
     async def test_list_requires_auth(self, client: AsyncClient):
         assert (await client.get("/api/v1/videos/unlocked")).status_code == 401
         assert (await client.get("/api/v1/videos/unlocked-ids")).status_code == 401
 
-    async def test_unlocked_list_and_ids(self, client: AsyncClient, auth_headers: dict, db_session):
-        v1 = await _seed_ready_video(db_session, title="ListOne", with_subtitle=False)
-        v2 = await _seed_ready_video(db_session, title="ListTwo", with_subtitle=False)
-        await client.post(f"/api/v1/videos/{v1.id}/unlock", headers=auth_headers)
-        await client.post(f"/api/v1/videos/{v2.id}/unlock", headers=auth_headers)
+    async def test_unlocked_list_returns_empty(self, client: AsyncClient, auth_headers: dict, db_session):
+        await _seed_ready_video(db_session, title="ListOne", with_subtitle=False)
+        await _seed_ready_video(db_session, title="ListTwo", with_subtitle=False)
 
         resp = await client.get("/api/v1/videos/unlocked", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 2
-        # Newest unlock first.
-        assert [item["title"] for item in data["items"]] == ["ListTwo", "ListOne"]
-
-        ids = (await client.get("/api/v1/videos/unlocked-ids", headers=auth_headers)).json()["video_ids"]
-        assert set(ids) == {v1.id, v2.id}
-
-    async def test_unlocked_list_excludes_unpublished(self, client: AsyncClient, auth_headers: dict, db_session):
-        video = await _seed_ready_video(db_session, title="ThenHidden", with_subtitle=False)
-        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
-        video.is_published = False
-        await db_session.commit()
-
-        data = (await client.get("/api/v1/videos/unlocked", headers=auth_headers)).json()
         assert data["total"] == 0
+        assert data["items"] == []
 
-    async def test_unlocked_list_items_carry_channel_slug(self, client: AsyncClient, auth_headers: dict, db_session):
-        """History 已解锁 Tab 的卡片要能跳作者页（ADR-0014 修订）：item 携带 channel_slug。"""
-        from app.models.channel import Channel
-
-        channel = Channel(name="TED", slug="ted", upstream_channel_id="UC12345")
-        db_session.add(channel)
-        await db_session.commit()
-        video = await _seed_ready_video(db_session, title="ChanVideo", with_subtitle=False)
-        video.channel_ref = channel.id
-        video.channel_name = "TED"
-        await db_session.commit()
-        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
-
-        data = (await client.get("/api/v1/videos/unlocked", headers=auth_headers)).json()
-        item = next(i for i in data["items"] if i["id"] == video.id)
-        assert item["channel_name"] == "TED"
-        assert item["channel_slug"] == "ted"
+        ids_resp = (await client.get("/api/v1/videos/unlocked-ids", headers=auth_headers)).json()
+        assert ids_resp["video_ids"] == []
+        assert ids_resp["remaining_this_month"] is None
 
 
 class TestShadowingSentencesGate:
-    """EndScreen 跟读重点句端点必须走 D0 门控——字幕是付费内容，
-    未解锁不得泄露（审查发现：原实现只查登录态，绕过解锁门控）。"""
+    """EndScreen 跟读重点句端点：内测免费期对登录用户放行（门控解除）。"""
 
-    async def test_locked_video_returns_403(self, client: AsyncClient, auth_headers: dict, db_session):
+    async def test_logged_in_user_gets_sentences(self, client: AsyncClient, auth_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="LockedSentences")
-        resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=auth_headers)
-        assert resp.status_code == 403
-
-    async def test_unlocked_video_returns_sentences(self, client: AsyncClient, auth_headers: dict, db_session):
-        video = await _seed_ready_video(db_session, title="UnlockedSentences")
-        await client.post(f"/api/v1/videos/{video.id}/unlock", headers=auth_headers)
         resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=auth_headers)
         assert resp.status_code == 200
         items = resp.json()
         assert items and items[0]["text_en"] == "Hello world"
 
-    async def test_pro_sees_sentences_without_unlock(self, client: AsyncClient, pro_headers: dict, db_session):
+    async def test_anonymous_requires_auth(self, client: AsyncClient, db_session):
+        video = await _seed_ready_video(db_session, title="AnonSentences")
+        resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences")
+        assert resp.status_code == 401
+
+    async def test_pro_sees_sentences(self, client: AsyncClient, pro_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="ProSentences")
         resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=pro_headers)
         assert resp.status_code == 200

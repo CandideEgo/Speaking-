@@ -143,15 +143,17 @@ async def test_proxy_success(client, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _clear_video_access_cache():
-    """The access-decision caches are module-global with a 60s TTL — clear
-    them per test so decisions from one test never leak into the next."""
+    """The access-decision cache is module-global with a 60s TTL — clear it per
+    test so decisions from one test never leak into the next.
+
+    The unlock-gate cache was removed when the membership gate was opened for
+    the internal test (需求 §2.3); only the publish-state cache remains.
+    """
     from app.api.v1 import media as media_module
 
     media_module._VIDEO_ACCESS_CACHE.clear()
-    media_module._UNLOCK_GATE_CACHE.clear()
     yield
     media_module._VIDEO_ACCESS_CACHE.clear()
-    media_module._UNLOCK_GATE_CACHE.clear()
 
 
 async def _make_video(
@@ -250,11 +252,12 @@ async def test_official_video_media_pro_ok(client, video_media_dir, db_session):
     assert resp.content == b"official video"
 
 
-async def test_official_video_media_expired_pro_locked(client, video_media_dir, db_session):
+async def test_official_video_media_expired_pro_ok(client, video_media_dir, db_session):
+    """内测免费期（需求 §2.3）：门控解除，plan 到期不再影响观看 —— 登录即放行。"""
     v = video_media_dir["official"]
     expired = await _make_user(db_session, phone="13700000002", plan="pro", expires=datetime(2020, 1, 1, tzinfo=UTC))
     resp = await client.get(f"/media/{v.id}.mp4?token={create_token(expired.id)}")
-    assert resp.status_code == 403
+    assert resp.status_code == 200
 
 
 async def test_official_video_media_unlocked_free_ok(client, video_media_dir, db_session):

@@ -21,7 +21,7 @@ import {
   type EventDistributionItem,
 } from "@/components/profile/EventDistributionChart";
 import { useMilestoneCelebration } from "@/hooks/useMilestoneCelebration";
-import { isProUser } from "@/lib/api";
+
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
 import type {
@@ -182,11 +182,10 @@ export default function ProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="text-lg font-bold text-ink flex items-center gap-2 flex-wrap">
               {user.name || "学习者"}
-              {isProUser(user) && (
-                <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
-                  Pro 会员
-                </span>
-              )}
+              {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念。 */}
+              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
+                内测免费
+              </span>
             </div>
             <div className="text-[13px] text-muted mt-1 flex items-center gap-2 flex-wrap">
               {user.phone && <span>{maskPhone(user.phone)}</span>}

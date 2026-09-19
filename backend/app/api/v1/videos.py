@@ -852,12 +852,12 @@ async def list_unlocked_videos(
 ):
     """The current user's permanently unlocked videos (newest first).
 
-    Powers the /history 「已解锁」 tab. Registered before ``/{video_id}``
-    so the static path wins route matching.
+    **内测期已退役（需求 §2.3）**：门控解除后不再有「解锁」概念，保留路由与
+    表 dormant 以便未来收费复用，返回空页。前端「已解锁」Tab 已移除。
     """
-    from app.services.unlock_service import list_unlocked_videos as _list_unlocked_videos
+    from app.schemas.pagination import paginated
 
-    return await _list_unlocked_videos(db, current_user, page=page, page_size=page_size)
+    return paginated([], page=page, page_size=page_size, total=0)
 
 
 @router.get("/unlocked-ids")
@@ -869,23 +869,10 @@ async def list_unlocked_video_ids(
 ):
     """All unlocked video ids for the current user (card badge lookups).
 
-    Also reports the month's remaining quota for Free viewers so card grids
-    can render the three badge states (✓ unlocked / lock / lock+exhausted)
-    without one request per video. Pro/admin get ``remaining_this_month: null``.
+    **内测期已退役（需求 §2.3）**：不再有锁标/额度概念，返回空集；
+    ``remaining_this_month`` 恒为 None（不限量）。表 dormant 保留。
     """
-    from app.core.config import get_settings
-    from app.services.unlock_service import is_active_pro, remaining_unlocks
-    from app.services.unlock_service import list_unlocked_video_ids as _list_unlocked_video_ids
-
-    quota = get_settings().free_monthly_unlock_quota
-    remaining = None
-    if not (current_user.role == "admin" or is_active_pro(current_user)):
-        remaining = await remaining_unlocks(db, current_user)
-    return {
-        "video_ids": await _list_unlocked_video_ids(db, current_user),
-        "remaining_this_month": remaining,
-        "quota": quota,
-    }
+    return {"video_ids": [], "remaining_this_month": None, "quota": None}
 
 
 # Phase 1 B0 — list the current user's favorite videos. Declared before the
@@ -1066,8 +1053,9 @@ async def list_shadowing_sentences(
     if video is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
-    # D0 membership gate: subtitles are paid content — locked videos must not
-    # leak them here (mirrors get_video_detail blanking subtitles when locked).
+    # 内测免费期：门控解除，登录用户即可读字幕（需求 §2.3）。
+    # get_video_access_info 现对登录用户恒为 unlocked；保留调用以便未来收费
+    # 复用同一处判断（见 unlock_service）。
     from app.services.unlock_service import get_video_access_info
 
     access = await get_video_access_info(db, current_user, video)
@@ -1143,38 +1131,18 @@ async def unlock_video(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Consume one monthly Free quota to permanently unlock this video.
+    """**内测期已退役（需求 §2.3）**：免费开放后无解锁概念。
 
-    Idempotent (re-unlock consumes nothing). Pro/admin/demo requests succeed
-    without writing an unlock row. 409 when the month's quota is exhausted.
+    保留路由避免前端旧引用 404，恒返回已放行的 access 形状，不写
+    ``user_video_unlocks`` 行（表 dormant 保留，未来收费可复用）。
     """
-    from app.services.unlock_service import UnlockQuotaExhaustedError
-    from app.services.unlock_service import unlock_video as _unlock_video
+    from app.services.unlock_service import get_video_access_info
     from app.services.video_access import check_video_access
 
     video = await db.get(Video, video_id)
     if video is None or not check_video_access(video, current_user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    try:
-        access = await _unlock_video(db, current_user, video)
-    except UnlockQuotaExhaustedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"message": str(exc), "remaining": exc.remaining, "quota": exc.quota},
-        ) from exc
-
-    # Best-effort: drop the viewer's cached (locked) detail so the next read
-    # reflects the unlock immediately.
-    try:
-        from app.core.redis import get_redis
-
-        redis = await get_redis()
-        await redis.delete(f"video:detail:{video_id}:u:{current_user.id}")
-    except Exception:
-        pass
-
-    return {"access": access}
+    return {"access": await get_video_access_info(db, current_user, video)}
 
 
 @router.get("/{video_id}/status", response_model=VideoStatusResponse)

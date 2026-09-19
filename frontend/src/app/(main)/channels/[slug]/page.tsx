@@ -11,7 +11,6 @@ import { VideoCard, VideoCardSkeleton, type VideoCardData } from "@/components/u
 import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
-import { useUnlockedIds } from "@/hooks/useUnlockedIds";
 import { formatViews } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
 import type { ChannelSummary } from "@/components/channels/ChannelStrip";
@@ -40,9 +39,6 @@ export default function ChannelDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // D0 解锁制：Free 视角的卡片角标（已解锁 ✓ / 锁标 / 耗尽灰度）
-  const unlockedInfo = useUnlockedIds();
 
   const load = useCallback(
     async (targetPage: number, append: boolean) => {
@@ -169,11 +165,7 @@ export default function ChannelDetailPage() {
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {videos.map((video) => (
-                  <VideoCard
-                    key={video.id || video.video_id}
-                    video={video}
-                    lockState={unlockedInfo?.lockStateFor(video)}
-                  />
+                  <VideoCard key={video.id || video.video_id} video={video} />
                 ))}
               </div>
             )}

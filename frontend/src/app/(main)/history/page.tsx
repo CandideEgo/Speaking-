@@ -7,23 +7,16 @@ import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TabPills } from "@/components/ui/TabPills";
 import { MetricCard } from "@/components/ui/MetricCard";
-import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { usePlan } from "@/hooks/usePlan";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
 import { relativeTime, formatTimeSpent, groupByDate } from "@/lib/date";
-import { Calendar, Clock, CheckCircle, PlayCircle, Flame, Unlock } from "lucide-react";
-import type { LearningRecord, Paginated, Video } from "@/types";
+import { Calendar, Clock, CheckCircle, PlayCircle, Flame } from "lucide-react";
+import type { LearningRecord, Paginated } from "@/types";
 
 type FilterKey = "all" | "active" | "completed";
-type TopTab = "records" | "unlocked";
-
-const TOP_TABS: { key: TopTab; label: string }[] = [
-  { key: "records", label: "学习记录" },
-  { key: "unlocked", label: "已解锁" },
-];
 
 const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
@@ -34,7 +27,6 @@ const FILTER_TABS: { key: FilterKey; label: string }[] = [
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
   const { profile } = usePlan();
-  const [topTab, setTopTab] = useState<TopTab>("records");
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const {
@@ -52,20 +44,7 @@ export default function HistoryPage() {
     },
     mode: "append",
     filters: [filter],
-    enabled: isAuthenticated && !isLoading && topTab === "records",
-  });
-
-  // D0 解锁制：已解锁视频永久可看，按解锁时间倒序（/history 找回入口）。
-  const {
-    items: unlockedVideos,
-    hasMore: unlockedHasMore,
-    loading: unlockedLoading,
-    loaderRef: unlockedLoaderRef,
-  } = usePaginatedList<Video>({
-    fetcher: (pg) => api<Paginated<Video>>(`/api/v1/videos/unlocked?page=${pg}&page_size=20`),
-    mode: "append",
-    filters: [],
-    enabled: isAuthenticated && !isLoading && topTab === "unlocked",
+    enabled: isAuthenticated && !isLoading,
   });
 
   // Summary stats（原型 12 stat-grid：本周学习时长/已学视频/学完视频/连续天数）
@@ -90,155 +69,91 @@ export default function HistoryPage() {
         {/* Header */}
         <PageHeader crumb="学习历史" title="学习记录" />
 
-        {/* D0：学习记录 / 已解锁 顶级 Tab */}
+        {/* Summary stats（原型 12 stat-grid） */}
+        {records.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+            <MetricCard
+              icon={Clock}
+              label="本周学习时长"
+              value={formatTimeSpent(stats.weekSeconds)}
+              variant="label-top"
+            />
+            <MetricCard icon={PlayCircle} label="已学视频" value={total} variant="label-top" />
+            <MetricCard
+              icon={CheckCircle}
+              label="学完视频"
+              value={stats.completedCount}
+              tone="success"
+              variant="label-top"
+            />
+            <MetricCard
+              icon={Flame}
+              label="连续天数"
+              value={profile?.current_streak ?? 0}
+              tone="brand"
+              variant="label-top"
+            />
+          </div>
+        )}
+
+        {/* Filter tabs */}
         <div className="mb-6">
           <TabPills
-            tabs={TOP_TABS}
-            activeKey={topTab}
-            onChange={setTopTab}
+            tabs={FILTER_TABS}
+            activeKey={filter}
+            onChange={setFilter}
             variant="default"
             activeStyle="dark"
             size="sm"
           />
         </div>
 
-        {topTab === "unlocked" ? (
-          <>
-            {unlockedLoading && unlockedVideos.length === 0 ? (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <VideoCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : unlockedVideos.length === 0 ? (
-              <EmptyState
-                icon={Unlock}
-                title="还没有解锁的视频"
-                description="Free 每月可解锁 3 个视频，解锁后随时回看"
-                action={
-                  <Link
-                    href="/browse"
-                    className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
-                  >
-                    去发现视频 →
-                  </Link>
-                }
-                className="py-12"
-              />
-            ) : (
-              <>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {unlockedVideos.map((video) => (
-                    <VideoCard
-                      key={video.id}
-                      video={{
-                        ...video,
-                        channel_title: video.channel_name ?? undefined,
-                        channel_slug: video.channel_slug,
-                      }}
-                    />
+        {/* Content */}
+        {loading && records.length === 0 ? (
+          <div className="flex justify-center py-12">
+            <div className="w-6 h-6 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
+          </div>
+        ) : records.length === 0 ? (
+          <EmptyState
+            icon={Calendar}
+            title="暂无学习记录"
+            description="看完第一个视频就会出现在这里"
+            action={
+              <Link
+                href="/browse"
+                className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+              >
+                开始学习 →
+              </Link>
+            }
+            className="py-12"
+          />
+        ) : (
+          <div>
+            {groups.map((group) => (
+              <div key={group.label}>
+                <h4 className="text-xs font-semibold text-muted uppercase tracking-caption-wide mb-3 mt-6 first:mt-0">
+                  {group.label}
+                </h4>
+                <div className="space-y-2">
+                  {group.items.map((record) => (
+                    <RecordCard key={record.id} record={record} />
                   ))}
                 </div>
-                <div ref={unlockedLoaderRef} className="flex justify-center mt-8">
-                  {unlockedLoading && unlockedVideos.length > 0 && (
-                    <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
-                  )}
-                  {!unlockedHasMore && unlockedVideos.length > 0 && !unlockedLoading && (
-                    <p className="text-xs text-muted">已加载全部内容</p>
-                  )}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Summary stats（原型 12 stat-grid） */}
-            {records.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-                <MetricCard
-                  icon={Clock}
-                  label="本周学习时长"
-                  value={formatTimeSpent(stats.weekSeconds)}
-                  variant="label-top"
-                />
-                <MetricCard icon={PlayCircle} label="已学视频" value={total} variant="label-top" />
-                <MetricCard
-                  icon={CheckCircle}
-                  label="学完视频"
-                  value={stats.completedCount}
-                  tone="success"
-                  variant="label-top"
-                />
-                <MetricCard
-                  icon={Flame}
-                  label="连续天数"
-                  value={profile?.current_streak ?? 0}
-                  tone="brand"
-                  variant="label-top"
-                />
               </div>
-            )}
-
-            {/* Filter tabs */}
-            <div className="mb-6">
-              <TabPills
-                tabs={FILTER_TABS}
-                activeKey={filter}
-                onChange={setFilter}
-                variant="default"
-                activeStyle="dark"
-                size="sm"
-              />
-            </div>
-
-            {/* Content */}
-            {loading && records.length === 0 ? (
-              <div className="flex justify-center py-12">
-                <div className="w-6 h-6 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
-              </div>
-            ) : records.length === 0 ? (
-              <EmptyState
-                icon={Calendar}
-                title="暂无学习记录"
-                description="看完第一个视频就会出现在这里"
-                action={
-                  <Link
-                    href="/browse"
-                    className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
-                  >
-                    开始学习 →
-                  </Link>
-                }
-                className="py-12"
-              />
-            ) : (
-              <div>
-                {groups.map((group) => (
-                  <div key={group.label}>
-                    <h4 className="text-xs font-semibold text-muted uppercase tracking-caption-wide mb-3 mt-6 first:mt-0">
-                      {group.label}
-                    </h4>
-                    <div className="space-y-2">
-                      {group.items.map((record) => (
-                        <RecordCard key={record.id} record={record} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Infinite scroll trigger */}
-            <div ref={loaderRef} className="flex justify-center mt-8">
-              {loading && records.length > 0 && (
-                <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
-              )}
-              {!hasMore && records.length > 0 && !loading && (
-                <p className="text-xs text-muted">已加载全部内容</p>
-              )}
-            </div>
-          </>
+            ))}
+          </div>
         )}
+
+        {/* Infinite scroll trigger */}
+        <div ref={loaderRef} className="flex justify-center mt-8">
+          {loading && records.length > 0 && (
+            <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
+          )}
+          {!hasMore && records.length > 0 && !loading && (
+            <p className="text-xs text-muted">已加载全部内容</p>
+          )}
+        </div>
       </main>
     </PageTransition>
   );

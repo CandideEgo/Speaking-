@@ -3,13 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Lock, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { cn } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
-import type { LockState } from "@/hooks/useUnlockedIds";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
 export interface VideoCardData {
@@ -39,8 +38,6 @@ export interface VideoCardProps {
   footer?: ReactNode;
   /** Additional className for the outer link. */
   className?: string;
-  /** D0 解锁制角标（仅 Free 视角传入；Pro/加载态不传，不渲染角标）。 */
-  lockState?: LockState;
 }
 
 function clickSource(): string {
@@ -60,7 +57,6 @@ export function VideoCard({
   durationLabel,
   footer,
   className,
-  lockState,
 }: VideoCardProps) {
   const router = useRouter();
   const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
@@ -91,9 +87,7 @@ export function VideoCard({
       <div
         className={cn(
           "relative aspect-video bg-surface-card overflow-hidden",
-          feat && "aspect-[16/10]",
-          // 额度耗尽：封面降饱和提示不可直接观看（仍可点击看升级引导）
-          lockState === "exhausted" && "grayscale-[5%] opacity-80"
+          feat && "aspect-[16/10]"
         )}
       >
         <Image
@@ -113,32 +107,6 @@ export function VideoCard({
             className="absolute left-2 top-2 backdrop-blur-sm"
             style={{ background: "rgba(255, 255, 255, 0.92)" }}
           />
-        )}
-        {/* D0 解锁制角标（Free 视角）：已解锁 ✓ / 未解锁锁标 / 耗尽锁标+灰度。
-            额度耗尽时不阻止点击 —— 进入可看升级引导。 */}
-        {lockState === "unlocked" && (
-          <span
-            className="absolute right-2 top-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-success/90 text-white"
-            title="已解锁"
-          >
-            <Check size={13} strokeWidth={3} />
-          </span>
-        )}
-        {lockState === "locked" && (
-          <span
-            className="absolute right-2 top-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/55 text-white backdrop-blur-sm"
-            title="未解锁"
-          >
-            <Lock size={12} />
-          </span>
-        )}
-        {lockState === "exhausted" && (
-          <span
-            className="absolute right-2 top-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/55 text-white backdrop-blur-sm"
-            title="本月解锁次数已用完"
-          >
-            <Lock size={12} />
-          </span>
         )}
         {/* Duration badge */}
         {durationLabel ? (

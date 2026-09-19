@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
-import { UnlockPanel } from "@/components/paywall/UnlockPanel";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
@@ -145,7 +144,6 @@ export default function WatchPage() {
   const {
     video,
     playbackMode,
-    locked,
     currentSubtitleIndex,
     setCurrentSubtitleIndex,
     videoRef,
@@ -166,22 +164,6 @@ export default function WatchPage() {
     videoId: id,
     onTimeTick: handleTimeTick,
   });
-
-  // D0 解锁制：Free 未解锁时播放器区域渲染解锁面板；
-  // 解锁成功后重拉详情（字幕/媒体 URL 恢复）直接进入播放。
-  const [unlocking, setUnlocking] = useState(false);
-  const handleUnlock = useCallback(async () => {
-    if (unlocking) return;
-    setUnlocking(true);
-    try {
-      await api(`/api/v1/videos/${id}/unlock`, { method: "POST" });
-      retry();
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "解锁失败，请重试"));
-    } finally {
-      setUnlocking(false);
-    }
-  }, [id, retry, unlocking]);
 
   // Keep the tick callback's video reference in sync.
   useEffect(() => {
@@ -583,38 +565,6 @@ export default function WatchPage() {
       />
     );
 
-  // D0 解锁制：未解锁视频只展示元数据 + 解锁面板（字幕/媒体已被后端闸住）。
-  if (locked) {
-    return (
-      <div className="mx-auto max-w-[1280px] px-4 sm:px-7 pt-6 pb-16">
-        <div className="mb-4 flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
-            onClick={() => router.push("/browse")}
-          >
-            <ArrowLeft size={14} />
-            返回浏览
-          </button>
-          <div className="h-4 w-px bg-hairline shrink-0" />
-          <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
-            {video.title}
-          </h1>
-        </div>
-        <div className="relative w-full max-w-3xl aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift">
-          <UnlockPanel
-            title={video.title}
-            difficultyLevel={video.difficulty_level}
-            duration={video.duration}
-            remaining={video.access?.remaining_this_month ?? 0}
-            quota={video.access?.quota ?? 3}
-            onUnlock={handleUnlock}
-            unlocking={unlocking}
-          />
-        </div>
-      </div>
-    );
-  }
-
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
 
   return (
@@ -790,8 +740,8 @@ export default function WatchPage() {
                   <video
                     ref={videoRef}
                     src={mediaUrl(bestVideoUrl(video)!, {
-                      // D0 媒体门控：/media 需要可识别的观看者（Pro/已解锁），
-                      // <video> 无法带 Authorization 头，统一用 ?token= 携带。
+                      // /media 需要可识别的观看者，<video> 无法带 Authorization
+                      // 头，统一用 ?token= 携带。
                       withToken: true,
                     })}
                     className="h-full w-full object-contain"

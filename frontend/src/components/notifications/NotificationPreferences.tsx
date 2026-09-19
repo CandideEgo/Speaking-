@@ -18,7 +18,7 @@ interface NotificationType {
 const NOTIFICATION_TYPES: NotificationType[] = [
   { id: "system", label: "系统通知", description: "重要更新与维护公告", icon: Bell },
   { id: "video_ready", label: "视频就绪", description: "你提交的视频处理完成时通知", icon: Bell },
-  { id: "pro_expiring", label: "Pro 即将到期", description: "Pro 会员到期前提醒", icon: Bell },
+  // pro_expiring 已随内测免费开放下线（需求 §2.3）：对应 beat 任务已停用。
   { id: "vocabulary_reminder", label: "词汇复习提醒", description: "每日提醒复习词汇", icon: Bell },
   {
     id: "streak_warning",

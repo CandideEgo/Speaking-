@@ -7,8 +7,6 @@ import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
-import { useUnlockedIds } from "@/hooks/useUnlockedIds";
-import { UnlockQuotaHint } from "@/components/paywall/UnlockQuotaHint";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ChannelStrip } from "@/components/channels/ChannelStrip";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
@@ -38,9 +36,6 @@ export default function BrowsePage() {
     retry,
     loaderRef,
   } = usePlatformFeed({ platform: "browse" });
-
-  // D0 解锁制：Free 视角的卡片角标（已解锁 ✓ / 锁标 / 耗尽灰度）
-  const unlockedInfo = useUnlockedIds();
 
   return (
     <PageTransition>
@@ -84,9 +79,8 @@ export default function BrowsePage() {
                 size="sm"
               />
             </div>
-            {/* D11 Free 额度入口 + 结果计数 */}
+            {/* 结果计数 */}
             <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-              <UnlockQuotaHint info={unlockedInfo} />
               {total > 0 && (
                 <span className="text-xs text-muted hidden sm:block font-medium">
                   {total} 个视频
@@ -103,11 +97,7 @@ export default function BrowsePage() {
         {!error && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {videos.map((video) => (
-              <VideoCard
-                key={video.id || video.video_id}
-                video={video}
-                lockState={unlockedInfo?.lockStateFor(video)}
-              />
+              <VideoCard key={video.id || video.video_id} video={video} />
             ))}
           </div>
         )}

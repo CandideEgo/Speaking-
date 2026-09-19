@@ -15,7 +15,7 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
-import { Search, Bell, Sun, Moon, User, Crown, LogOut, HelpCircle, Bookmark } from "lucide-react";
+import { Search, Bell, Sun, Moon, User, LogOut, HelpCircle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ const NAV = [
   { label: "学习记录", href: "/history", shortcut: "5" },
 ];
 
-/** Avatar dropdown menu (个人中心/会员/退出) - migrated from Sidebar UserPopover. */
+/** Avatar dropdown menu (个人中心/收藏/退出) - migrated from Sidebar UserPopover. */
 function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => void }) {
   const logout = useAuthStore((s) => s.logout);
   const ref = useRef<HTMLDivElement>(null);
@@ -49,7 +49,6 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
     { label: "个人中心", icon: User, href: "/profile" },
     { label: "我的收藏", icon: Bookmark, href: "/favorites" },
     { label: "帮助与反馈", icon: HelpCircle, href: "/contact" },
-    { label: "Pro 会员", icon: Crown, href: "/upgrade" },
   ];
 
   return (
