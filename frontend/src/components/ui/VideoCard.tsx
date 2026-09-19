@@ -3,11 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play } from "lucide-react";
+import { Bookmark, Eye, Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { cn } from "@/lib/utils";
+import { cn, formatCount } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
@@ -25,6 +25,12 @@ export interface VideoCardData {
   is_demo?: boolean;
   /** 内容三态（需求 §5.1）：offline 时卡片显示「已下架」角标。 */
   storage_mode?: string | null;
+  /** 站内总播放量（complete 计数，区别于 YouTube 侧 ext_view_count）。 */
+  view_count?: number | null;
+  /** 站内总收藏数。 */
+  favorite_count?: number | null;
+  /** 视频简介（列表接口已截断到 200 字符）；本地视频可能为 null。 */
+  description?: string | null;
 }
 
 export interface VideoCardProps {
@@ -149,12 +155,35 @@ export function VideoCard({
       <div className="p-4">
         <p
           className={cn(
-            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2.5 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
+            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
             feat && "text-lg min-h-[50px]"
           )}
         >
           {video.title}
         </p>
+        {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
+        {video.description && (
+          <p className="text-xs leading-relaxed text-muted line-clamp-2 mb-2">
+            {video.description}
+          </p>
+        )}
+        {/* 站内总播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
+        {(video.view_count != null || video.favorite_count != null) && (
+          <div className="flex items-center gap-3 text-[11px] text-muted mb-2.5">
+            {video.view_count != null && (
+              <span className="inline-flex items-center gap-1" title="播放量">
+                <Eye size={13} className="text-muted-soft" />
+                {formatCount(Number(video.view_count))}
+              </span>
+            )}
+            {video.favorite_count != null && (
+              <span className="inline-flex items-center gap-1" title="收藏数">
+                <Bookmark size={12} className="text-muted-soft" />
+                {formatCount(Number(video.favorite_count))}
+              </span>
+            )}
+          </div>
+        )}
         {footer ?? (
           <div className="flex items-center gap-2 text-xs text-muted">
             {channelLink ? (

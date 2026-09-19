@@ -25,9 +25,15 @@ interface FavoriteVideoItem {
   channel_slug?: string | null;
   like_count: number;
   favorite_count: number;
+  /** 站内总播放量（卡片指标行）。 */
+  view_count?: number;
+  /** 视频简介（列表已截断，卡片展示两行）。 */
+  description?: string | null;
   note_excerpt: string | null;
   has_note: boolean;
   favorited_at: string;
+  /** 内容三态（需求 §5.3）：offline 时卡片显示「已下架」角标，后端 /videos/favorites 已下发。 */
+  storage_mode?: string | null;
 }
 
 /**
@@ -132,6 +138,10 @@ export default function FavoritesPage() {
                       topic_tags: v.topic_tags,
                       channel_title: v.channel_name ?? "SeeWord",
                       channel_slug: v.channel_slug ?? undefined,
+                      storage_mode: v.storage_mode,
+                      view_count: v.view_count,
+                      favorite_count: v.favorite_count,
+                      description: v.description,
                     }}
                     footer={
                       v.has_note && v.note_excerpt ? (

@@ -284,6 +284,9 @@ async def get_video_detail(
         video_url_1080p=video.video_url_1080p if playable else None,
         like_count=video.like_count,
         favorite_count=video.favorite_count,
+        view_count=video.view_count,
+        # 详情页保留完整简介（列表卡片才截断到 CARD_DESCRIPTION_LIMIT）。
+        description=video.description,
         processing_mode=video.processing_mode,
         processing_progress=video.processing_progress or 0,
         # Only the owner sees the error message; non-owners get null.

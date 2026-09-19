@@ -30,7 +30,7 @@ from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoStatus
-from app.schemas.video import VideoResponse
+from app.schemas.video import CARD_DESCRIPTION_LIMIT, VideoResponse
 
 # target_exam → CEFR band (soft boost only; videos carry no exam_level field).
 # Used to nudge videos of a matching difficulty upward for the user's goal.
@@ -64,7 +64,12 @@ def _first_tag(video: Video) -> str:
 
 
 def _to_response(v: Video) -> dict:
-    return VideoResponse.model_validate(v).model_dump()
+    data = VideoResponse.model_validate(v).model_dump()
+    # List payload: truncate the YouTube description so a page of cards stays
+    # small; the detail endpoint serializes VideoResponse without truncation.
+    if data.get("description"):
+        data["description"] = data["description"][:CARD_DESCRIPTION_LIMIT]
+    return data
 
 
 async def _responses_with_slug(db: AsyncSession, videos: list[Video]) -> list[dict]:

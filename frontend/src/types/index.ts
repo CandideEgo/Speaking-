@@ -42,12 +42,16 @@ export interface Video {
   processing_progress: number;
   like_count: number;
   favorite_count: number;
+  /** 站内播放完成数（complete 事件计数，区别于 ext_view_count 的 YouTube 侧数据）。 */
+  view_count: number;
   /** P1 learning_score (0-100). Null until first computed; drives list sorting. */
   score: number | null;
   score_updated_at: string | null;
   /** External (YouTube) metadata + speech metrics (阶段 1/3). Null for local videos. */
   yt_video_id: string | null;
   channel_name: string | null;
+  /** 视频简介（来自 external_meta，列表接口截断到 200 字符，详情为全文）；本地视频为 null。 */
+  description: string | null;
   /** 作者页 slug（ADR-0014 修订）：视频已挂频道时非空，卡片/播放页链接到 /channels/{slug}。 */
   channel_slug?: string | null;
   upload_date: string | null;

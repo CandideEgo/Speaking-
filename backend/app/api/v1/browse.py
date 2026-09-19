@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
+from app.schemas.video import CARD_DESCRIPTION_LIMIT
 
 logger = structlog.get_logger()
 
@@ -163,6 +164,10 @@ def _video_to_dict(v: Video, channel_slug: str | None = None) -> dict:
         "channel_slug": channel_slug,
         "like_count": v.like_count,
         "favorite_count": v.favorite_count,
+        # In-app totals shown on cards (distinct from ext_* YouTube counters).
+        "view_count": v.view_count,
+        # Truncated YouTube blurb for the card subtitle; null for local videos.
+        "description": v.description[:CARD_DESCRIPTION_LIMIT] if v.description else None,
         "status": v.status.value if v.status else None,
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }

@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.video import (
+    CARD_DESCRIPTION_LIMIT,
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
     SubtitleBatchUpdate,
@@ -970,6 +971,8 @@ async def list_user_favorites(
             "channel_slug": slug_map.get(v.channel_ref),
             "like_count": getattr(v, "like_count", 0) or 0,
             "favorite_count": getattr(v, "favorite_count", 0) or 0,
+            "view_count": getattr(v, "view_count", 0) or 0,
+            "description": v.description[:CARD_DESCRIPTION_LIMIT] if v.description else None,
             "note_excerpt": (note.content[:60] + "…")
             if note and note.content and len(note.content) > 60
             else (note.content if note else None),
@@ -995,11 +998,12 @@ async def list_video_rankings(
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """首页排行榜：最新发布 / 近 7 天播放 / 近 7 天收藏，各取前 20。
+    """首页排行榜：最新发布 / 本周播放 / 本周收藏（自然周，北京周一 00:00 切周），
+    各取前 20。
 
     scope 不合法返回 422。结果读穿 Redis 快照（fail-open，Redis 故障时直接
-    查库）；快照由 snapshot-rankings beat 任务每日刷新。周播放榜按 session_id
-    去重计数（防刷规则，见 ranking_service）。
+    查库）；快照由 snapshot-rankings beat 任务每日北京 00:30 刷新。周播放榜按
+    session_id 去重计数（防刷规则，见 ranking_service）。
     """
     from app.services.ranking_service import RANKING_SCOPES, get_rankings
 

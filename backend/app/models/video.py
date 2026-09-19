@@ -203,6 +203,16 @@ class Video(Base):
     # (channel_follower_count when available), fetched_at.
     external_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    @property
+    def description(self) -> str | None:
+        """YouTube-side video description from ``external_meta``; None for
+        local videos / before extraction / when the field is blank. List
+        serializers truncate it (CARD_DESCRIPTION_LIMIT) to keep feeds small."""
+        desc = (self.external_meta or {}).get("description")
+        if isinstance(desc, str) and desc.strip():
+            return desc.strip()
+        return None
+
     # ── Subtitle-derived speech metrics (阶段 3, compute-on-null) ──
     # Written by subtitle_metrics_service at finalize tail; never overwritten.
     wpm: Mapped[float | None] = mapped_column(Float, nullable=True)  # words per minute

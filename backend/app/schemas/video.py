@@ -19,6 +19,12 @@ class VideoCreate(BaseModel):
         return v
 
 
+# Max description characters carried by list/feed responses (home, browse,
+# rankings). Detail responses keep the full description. YouTube descriptions
+# can be several KB; a page of 20 cards must not balloon because of them.
+CARD_DESCRIPTION_LIMIT = 200
+
+
 class VideoResponse(BaseModel):
     id: str
     title: str
@@ -50,6 +56,9 @@ class VideoResponse(BaseModel):
     error_message: str | None = None
     like_count: int = 0
     favorite_count: int = 0
+    # In-app play-completion counter (behavior_service on `complete`), distinct
+    # from ext_view_count (YouTube-side). Home/browse cards show the totals.
+    view_count: int = 0
     # P1 learning_score (0-100, null until first computed). Drives list
     # sorting; full per-factor breakdown via the admin score endpoint.
     score: float | None = None
@@ -59,6 +68,10 @@ class VideoResponse(BaseModel):
     # (distinct from the in-app like/view counters above).
     yt_video_id: str | None = None
     channel_name: str | None = None
+    # Video description (Video.description property → external_meta); null for
+    # local/unextracted videos. List serializers truncate to
+    # CARD_DESCRIPTION_LIMIT to keep feed payloads small; detail keeps full.
+    description: str | None = None
     # In-site author page (ADR-0014 rev.): slug of the video's channel, when
     # attached. Serializers that want the link populate it explicitly; the
     # default None keeps legacy payloads (and cached detail JSON) valid.

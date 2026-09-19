@@ -13,6 +13,10 @@ export interface VideoItem {
   thumbnail_url: string;
   duration: number | null;
   view_count: number | null;
+  /** 站内收藏总数（/browse/feed 下发；搜索等来源可能缺省）。 */
+  favorite_count?: number | null;
+  /** 视频简介（YouTube 侧，列表已截断；本地视频可能为 null/缺省）。 */
+  description?: string | null;
   // Browse-specific fields (returned by /api/v1/browse/feed)
   id?: string;
   difficulty_level?: string | null;
