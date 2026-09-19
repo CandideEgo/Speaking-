@@ -1,0 +1,54 @@
+{
+  "_comment": "Size ceilings for the knowledge layer. A ceiling is a limit, not a target: lower it by hand freely, raise it only with `--budget-refresh` after a deliberate decision. `slack` reserves room for the machine-owned GitNexus block in AGENTS.md / CLAUDE.md, which `npx gitnexus analyze` rewrites on every reindex.",
+  "_history": {
+    "_comment": "Every-session cost, before and after the 2026-09-19 restructure. The old model mandated reading four files (context + decisions + state + system-map) before any major work.",
+    "before_session_total_B": 104110,
+    "after_session_total_B": 33792,
+    "reduction": "68%"
+  },
+  "_targets": {
+    "_comment": "Where these should land as content is trimmed further. Not enforced.",
+    "AGENTS.md": 10240,
+    ".agent/context.md": 12288,
+    ".agent/invariants.md": 8192,
+    ".agent/system-map.md": 8192,
+    ".agent/state.md": 12288,
+    "tier:session_total": 32768
+  },
+  "files": {
+    "AGENTS.md": { "limit": 9216, "slack": 512 },
+    "CLAUDE.md": { "limit": 4608, "slack": 512 },
+    ".agent/README.md": { "limit": 4608 },
+    ".agent/context.md": { "limit": 12288 },
+    ".agent/system-map.md": { "limit": 8192 },
+    ".agent/invariants.md": { "limit": 8192 },
+    ".agent/decisions-index.md": { "limit": 8192 },
+    ".agent/state.md": { "limit": 8192 },
+    ".agent/decisions.md": { "limit": 44725 }
+  },
+  "globs": [
+    { "pattern": "wiki/**/*.md", "limit": 8192 },
+    {
+      "_comment": "ADRs carry the full reasoning behind a decision and legitimately run long; this ceiling only catches a runaway document.",
+      "pattern": "docs/adr/*.md",
+      "limit": 24576
+    }
+  ],
+  "tiers": {
+    "session_start": {
+      "_comment": "Loaded at the start of every session, before knowing what the task is.",
+      "files": ["AGENTS.md", "CLAUDE.md", ".agent/state.md"],
+      "limit": 17408
+    },
+    "before_code_change": {
+      "_comment": "Added before touching code. Replaces the old 'read four files' mandate.",
+      "files": [".agent/invariants.md", ".agent/system-map.md"],
+      "limit": 16384
+    },
+    "session_total": {
+      "_comment": "Union of the two tiers above. This is the real cost of a coding session.",
+      "files": ["AGENTS.md", "CLAUDE.md", ".agent/state.md", ".agent/invariants.md", ".agent/system-map.md"],
+      "limit": 33792
+    }
+  }
+}

@@ -621,7 +621,7 @@ asyncio.run(main())
 | 服务器 | 部署路径 | 容器前缀 | 凭据 |
 |--------|---------|---------|------|
 | **47.122.109.52**（当前 DNS 解析） | `/opt/speaking` | `speaking-*` | root / 见密码库（勿写入仓库） |
-| 47.122.127.105（旧） | `~/seeword` | `seeword-*` | admin / 见 [cloud-server-deployment.md](../../.agent/projects/.../cloud-server-deployment.md) |
+| 47.122.127.105（旧） | `~/seeword` | `seeword-*` | admin / 见密码库（旧服务器部署文档不在本仓库） |
 
 > 推送前必须先 `dig +short seeword.top` 确认 DNS 指向哪台。**只推 DNS 解析到的那台**。
 

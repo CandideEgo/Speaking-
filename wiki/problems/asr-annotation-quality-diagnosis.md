@@ -1,3 +1,14 @@
+---
+title: ASR / 标注质量诊断
+tags: [bug, ecdict, transcription, diagnosis]
+status: active
+confidence: verified
+related_code: [ecdict-service, transcription]
+related: [wiki/architecture/exam-vocabulary.md]
+created: 2026-08-03
+updated: 2026-08-03
+---
+
 # ASR / 标注质量诊断报告 (D3)
 
 > 日期：2026-08-03

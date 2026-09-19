@@ -3,7 +3,7 @@ title: Auth System
 tags: [architecture, auth, security, jwt]
 status: active
 confidence: verified
-related_code: [auth-deps, frontend-stores, api-client]
+related_code: [auth, frontend-stores, frontend-api-client]
 related: [wiki/architecture/backend-services.md]
 created: 2026-07-21
 updated: 2026-07-25

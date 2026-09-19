@@ -1,138 +1,43 @@
 # Project Context
 
+> What this system is, and what its words mean. Read it when a task needs domain context.
+> Structure lives in `system-map.md`, rules in `invariants.md`, decision history in
+> `decisions-index.md`, current work in `state.md`. The every-session file is `AGENTS.md`.
+
 ## Purpose
 
-AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Official videos (admin-seeded or catalog-promoted, **用户面不再接受提交 URL**) get bilingual subtitles via WhisperX, exam-level vocabulary annotation (CET/gaokao) via ECDICT, and **pre-generated AI word notes**（管线预热写 `word_ai_notes` 表，点词查库、无实时 LLM 兜底）. Learners click words for an instant gloss (ECDICT + 真题例句 + pre-generated notes), save to a vocabulary book with SM-2 spaced repetition, practice 真题（past papers + 错题本）, 跟读（Shadowing，录音持久化、owner-only JWT 回放、无 AI 评分 per ADR-0002/0013）, and accumulate a learning profile (streak / milestones / mastery-by-level).
+AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese learners. Official
+videos — admin-seeded or catalog-promoted — get bilingual subtitles via WhisperX, exam-level
+vocabulary annotation (CET4/6, gaokao) via ECDICT, and pre-generated AI word notes written to
+`word_ai_notes` during the pipeline. Learners click a word for an instant gloss, collect words into
+a vocabulary book or a per-video vocab set, review with SM-2 spaced repetition, practise real past
+papers (with a wrong-answer book), do shadowing (recording persisted, owner-only replay, no AI
+scoring), and accumulate a learning profile (streak / milestones / mastery by level).
 
-**AI 只在视频处理管线实时调用**（翻译 + 词注释预热；见 `tasks/video_processing.py`）。点词、复习、练习、档案聚合均无实时 LLM。会员体系（D0 解锁制：Free 月 3 解锁额度 / Pro 兑换码）仍在；**AI 学习计划、每日学习计划、AI 助手、评论、用户面 UGC 已下线（f855613 / D0b 清理，详见 Cut Features）**。
-
-## System Understanding
-
-```
-                    User
-                      │
-                      ▼
-              ┌───────────────┐
-              │   Next.js 16  │  Frontend
-              │   App Router   │
-              └───────┬───────┘
-                      │ api.ts (JWT auto-refresh)
-                      ▼
-              ┌───────────────┐
-              │   FastAPI      │  Backend API
-              │   async        │
-              └───┬───────┬───┘
-                  │       │
-          ┌───────▼──┐  ┌─▼──────────┐
-          │ Services  │  │ Dependencies│
-          │ ai/video/ │  │ auth/plan/  │
-          │ vocab     │  │ access      │
-          └───────┬──┘  └─────────────┘
-                  │
-          ┌───────▼──────────────────────┐
-          │        Celery Workers        │
-          │  ┌─────────┐  ┌───────────┐ │
-          │  │  Head   │  │   Tail    │ │
-          │  │(process)│  │(finalize) │ │
-          │  └────┬────┘  └───────────┘ │
-          └───────┼─────────────────────┘
-                  │ enqueue
-          ┌───────▼──────────────────────┐
-          │     GPU Worker               │
-          │     WhisperX (no DB/OSS)     │
-          │     → HTTP callback          │
-          └──────────────────────────────┘
-                  │
-          ┌───────▼──┐  ┌──────────────┐
-          │PostgreSQL │  │    Redis     │
-          │  Models   │  │ cache/queue  │
-          └──────────┘  └──────────────┘
-```
-
-Key patterns: Fail-open Redis. Lazy initialization. Celery async bridge (`run_async()`). Pluggable translation engine. Dual auth sessions. Actor-aware notification dedup (same actor → update, different actors → separate notifications). **Video media served from the backend's local media volume** (repo truth: `nginx.ssl.conf` proxies `/media/` → backend container, range-aware `api/v1/media.py`; external thumbnails localized at ingest since 2026-08, see `docs/operations/MEDIA-TOPOLOGY.md`). The earlier "media lives on HK VPS" claim was never backed by any in-repo config.
-
-For pipeline details, see wiki/architecture/video-pipeline.md.
-For service layer details, see wiki/architecture/backend-services.md.
+**AI is called at runtime only in the video pipeline** (translation + word-note prewarm). Gloss,
+review, practice and profile aggregation have no live LLM. The membership model is D0 (login wall
++ unlock quotas + Pro redemption codes), currently superseded by free access during the internal
+test — see `state.md`.
 
 ## Important Flows
 
-1. **Video processing**: admin seed / catalog promote → dedup → Head/GPU/Tail → checkpoint resume → ready（含 prewarm_notes 步骤批量生成 AI 词注释）
-2. **Vocabulary learning**: watch video → click word → **gloss 端点查库**（ECDICT + 真题例句 + 预生成 AI 注释，无实时 LLM）→ vocabulary book → SM-2 review。**内测期主路径为「加入学习 → 视频集合 → 快速过筛 → 闭环」**（见 Domain Terms「词汇集合 / 快速过筛」）
-3. **Redemption code**: input code → row lock → plan=pro + extend 30 days → atomic（**内测期用户面已退役**：免费开放，`/redeem` 页 redirect('/')，后端端点与表 dormant 保留）
-4. **Learning profile aggregation**: 学习行为（完成视频/学词/练习/复习/跟读）→ LearningEvent → 聚合 streak / 里程碑 / 掌握度（`/plan/profile`、`/plan/milestones`、`/plan/mastery-trend`）。**每日学习计划（plan/today 等）已下线（410）**
-
-## Important Constraints
-
-- GPU Worker must not have DB access or OSS credentials — security boundary
-- Redis must not be single point of failure — all Redis dependencies must fail-open
-- Tailwind v4 is CSS-first — must not create tailwind.config.js
-- New components must use semantic tokens, not hardcoded color values
-- Video processing is **admin/catalog-triggered only** — 用户面无提交入口（用户 UGC 与提交 URL 已删，f855613）；GPU 成本由运营节奏决定
-- AI 词注释**无实时 LLM 兜底**：gloss 只读预生成库，cache miss 返回空字段（`api/v1/words.py`）；唯一实时 AI 调用在视频处理管线（翻译 + prewarm）
-- Payment disabled (ICP compliance) — redemption code channel only
-- **内测期免费开放（2026-09-19）**：媒体门/详情对**登录用户**全量放行；匿名仍拒（登录墙）；`is_demo` 示范视频对匿名开放。Pro/解锁额度/兑换码表 dormant 保留，勿再在前端引入 Pro 概念（见 `.agent/decisions.md` 2026-09-19）
-- Video media files live in the backend's local media volume (`LOCAL_MEDIA_PATH`, served by the range-aware `/media` router); covers are localized at ingest (`thumbnail_service`) so rendering never depends on external CDNs. Any server-side HK VPS proxying would be out-of-repo config — verify with the MEDIA-TOPOLOGY runbook before assuming it
-- For image handling in agent sessions, see wiki/problems/image-handling.md
-- LearningEvent emission must be non-blocking (try/except, logged but never raised) — must not disrupt existing service flows (practice submission, video completion, vocabulary review)
-- LearningEvent is distinct from BehaviorEvent — different query patterns (daily aggregation vs analytics), different retention, different nullability (LearningEvent always has user_id)
-
-## Known Issues
-
-- docs/architecture/ 旧架构文档已删（漂移），架构知识以 `.agent/system-map.md` + `wiki/` 为权威（见 docs/progress/DEV-LOG-2026-08.md）
-- **`.agent` 文档曾滞后于 f855613（D0b 清理）**：2026-09-18 已同步 context/system-map/state/decisions；若再遇文档与代码矛盾，以代码 + `handover-d0b.md` 为准
-- E2E test coverage 不完整（CI 有 seed 的核心旅程；播放/词汇/考试等关键流程 e2e 仍缺失）
-- Notification dedup is non-atomic (check-then-insert) — acceptable for low-stakes notifications, but rare concurrent duplicates possible
-- User model dead columns `streak_count`/`longest_streak` replaced by `UserLearningProfile.current_streak`/`longest_streak` (ADR-0012)
-- `ai_service.py` 残留死方法 + `GET /vocabulary/{id}/enrich` 无前端入口（Cut Features 已列）
-- ~~Transcription hallucinations silently enter production~~ → **FIXED** (Phase 2: quality check fails fast on callback)
-- ~~Translation API failures cause partial subtitle sets~~ → **FIXED** (Phase 2: exponential backoff retry + per-item fallback)
-- ~~Re-running finalize_video overwrites manual word_levels~~ → **FIXED** (Phase 2: compute-on-null only)
-
-## Future Agent Notes
-
-- AI calls must go through `ai_service.py`（或 `services/translation/*`），never AsyncOpenAI directly in routes；**运行时 AI 调用仅发生在视频处理管线**
-- Dark mode: `.dark` variable block cascades entire site, new components auto-support
-- 6 Zustand stores: authStore, adminAuthStore, feedStore (recommendation feed per ADR-0011), watchStore, vocabularyStore, planStore (**仅剩 profile 状态**：fetchProfile/refreshProfile，每日计划语义已删 f855613)
-- authStore and adminAuthStore are separate implementations — no shared factory (createAuthStore was planned but not implemented, reference removed from code)
-- Error handling unified through `core/errors.py`, frontend reads `err.code`
-- ECDICT database: 下载包 ~30MB，落盘 SQLite ~0.8GB（backend/data/ecdict.db），.gitignore 已忽略
-- Beat tasks: expire-pending-orders (5min), reconcile-pending-orders (15min), watchdog-stale-pipeline (10min), retry-failed-downloads (daily), score-videos-hourly, score-videos-daily, snapshot-rankings (daily 01:23 UTC), send-hourly-reminders (hourly), generate-weekly-reports (Mon 00:00 UTC)。**内测期已停用**：downgrade-expired-pro / expire-unused-redeem-codes / send-pro-expiring-reminders（任务体保留，仅摘调度）
-- Notification model has composite index `ix_notifications_dedup` on (user_id, type, related_url, is_read) for dedup queries
-
-## Key Files
-
-| File | Role |
-|------|------|
-| `docs/progress/DEV-LOG-2026-08.md` | 文档整理归档日志（旧 PRD/旧计划/漂移文档的归档索引） |
-| `docs/adr/` | Architecture Decision Records |
-| `docs/progress/PROGRESS.md` | Development progress tracking |
-| `CONTRIBUTING.md` | Contribution guide + code standards |
-| `backend/app/core/config.py` | Pydantic BaseSettings (~60 env vars) |
-| `backend/app/tasks/video_processing.py` | Video pipeline head/tail（含 prewarm_notes 步骤） |
-| `backend/app/api/dependencies.py` | Auth deps |
-| `backend/app/services/ai_service.py` | Central AI wrapper（**运行时仅管线调用**；残留死方法见 Cut Features） |
-| `backend/app/services/word_notes.py` | 预生成 AI 词注释读写（prewarm/get_best_note） |
-| `backend/app/api/v1/words.py` | **点词 gloss 端点**（ECDICT + 真题例句 + 预生成注释，无实时 LLM） |
-| `backend/app/api/v1/learning_plan.py` | **已删端点返回 410**；保留 profile/milestones/mastery-trend |
-| `.agent/handover-d0b.md` | D0b 清理（f855613）交接文档：删除/保留清单的权威记录 |
-| `frontend/src/lib/api.ts` | API client with JWT auto-refresh |
-| `frontend/src/stores/` | Zustand stores |
-| `frontend/src/types/index.ts` | All TypeScript interfaces |
+1. **Video processing**: admin seed / catalog promote → dedup → Head/GPU/Tail → checkpoint resume → ready (includes the `prewarm_notes` step)
+2. **Vocabulary learning**: watch → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → vocabulary book or vocab set → SM-2 review. The 内测期 main path is 加入学习 → 视频集合 → 快速过筛 → 闭环
+3. **Redemption**: code → row lock (`with_for_update`) → plan=pro + extend 30 days → atomic. The user-facing channel is retired for 内测期 (`/redeem` redirects; backend endpoints and tables stay dormant)
+4. **Profile aggregation**: learning actions → LearningEvent → streak / milestones / mastery (`/plan/profile`, `/plan/milestones`, `/plan/mastery-trend`). The daily-plan endpoints answer 410
 
 ## Domain Terms
 
-### 视频模型
+### Video model
 
 | 术语 | 含义 | 注意 |
 |------|------|------|
-| **Official 视频** | 管理员 seed / catalog promote 的官方视频（`is_official=True`），出现在首页/browse | |
-| **UGC 视频** | **已下线（f855613 / D0b 清理）**：用户面 UGC 上传、提交 URL 全部删除；`is_official=False` 相关列保留 dormant | |
-| **标准版 / Fork / 提议回写** | **已下线**（proposal_service 删除，f855613）；`forked_from` 列保留 dormant，勿再引入 | |
+| **Official 视频** | 管理员 seed / catalog promote 的官方视频（`is_official=True`），出现在首页/browse | 唯一的处理入口 |
 | **VideoStatus** | `pending_processing → processing → ready_subtitles → ready / error` | 处理状态机 |
-| **VideoReviewStatus** | **已下线**（UGC 审核语义，f855613）；admin review 端点保留 dormant | |
-| **Channel（频道）** | 官方策展频道（`channels` 表，ADR-0014）：管理员维护排序/封面/简介/显隐；`videos.channel_ref` 归属（SET NULL）。与抓取的 `channel_id/channel_name` 分离：后者是上游元数据，经 `upstream_channel_id` 登记后 ingest 自动挂接。与 category/tag 主题维度正交 |
-| **Catalog（候选池）** | 抓取发现的视频候选暂存区（`catalog_items` 表，ADR-0017），与 `videos` 解耦。管理员按 `fit_score` 排序 + 频道筛选，逐条 `promote` 复用 `seed_video` 完整管线「处理一个上线一个」；`status` new/queued/processing/published/skipped/error，`promoted_video_id` 关联生成的 Video。数据源：Language Reactor 公开目录 API |
-| **封面本地化** | 2026-08 起：入库时 `thumbnail_service` 把外部封面下载到 `media/{id}_thumb{ext}`，存量用 `scripts/backfill_local_thumbnails.py` 回填；渲染不再依赖 `/media/proxy` 出口（见 docs/operations/MEDIA-TOPOLOGY.md） |
+| **Channel（频道）** | 官方策展频道（`channels` 表，ADR-0014）：管理员维护排序/封面/简介/显隐；`videos.channel_ref` 归属（SET NULL）。与抓取的 `channel_id/channel_name` 分离——后者是上游元数据，经 `upstream_channel_id` 登记后 ingest 自动挂接。与 category/tag 主题维度正交 | 自动建档走 `ensure_channel_for` |
+| **Catalog（候选池）** | 抓取发现的候选暂存区（`catalog_items` 表，ADR-0017），与 `videos` 解耦。按 `fit_score` 排序 + 频道筛选，逐条 `promote` 复用 `seed_video` 完整管线「处理一个上线一个」；`status` new/queued/processing/published/skipped/error | 数据源为 Language Reactor 公开目录 API |
+| **封面本地化** | 入库时 `thumbnail_service` 把外部封面下载到 `media/{id}_thumb{ext}`，渲染不再依赖 `/media/proxy` 出口 | 见 `docs/operations/MEDIA-TOPOLOGY.md` |
+| **存储三态（storage_mode）** | `local` 本地精品（默认，全功能）/ `proxy` 代理播放（仅占位，未实现）/ `offline` 已下线（隐藏 + 删媒体，学习记录保留） | ADR-0020 |
 
 ### 管线
 
@@ -142,62 +47,49 @@ For service layer details, see wiki/architecture/backend-services.md.
 | **transcribe_video_gpu** | GPU worker：WhisperX 转录（无 DB、无 OSS 凭证）→ HTTP callback 回云端 |
 | **finalize_video (tail)** | 云端 worker：翻译 → 考试词汇标注 → AI 词注释预热 → 下载转码 → 标记 ready |
 | **断点续传** | Redis `video:steps:{id}` 记录已完成步骤，重入时跳过 |
+| **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释写入 `word_ai_notes`（video 级 + global 级） |
 
 ### 学习
 
 | 术语 | 含义 |
 |------|------|
-| **SM-2 词汇复习** | 间隔重复算法，词汇模块核心。**内测期「基本复习」保留**；`mastered` 词退出复习队列（三态语义：已掌握 = 闭环终点），高级复习算法属 Pro 二期 |
-| **词汇集合（VocabSet）** | 用户 × 视频 × 等级 的收词集合（`vocab_sets` + `vocab_set_words`）。集合只**引用**词汇本词行（`vocabulary_id` FK），掌握态仍归 `Vocabulary` ——「集合 = 按视频聚合的视图」，可随时重建。`vocab_set_words.status` 是集合内流程态：`pending`（未过筛）/`known`（会）/`unknown`（不会，进待学清单）/`learned`（待学清单已学完）|
+| **SM-2 词汇复习** | 间隔重复算法，词汇模块核心。内测期「基本复习」保留；`mastered` 词退出复习队列（三态语义：已掌握 = 闭环终点），高级复习算法属 Pro 二期 |
+| **词汇集合（VocabSet）** | 用户 × 视频 × 等级 的收词集合（`vocab_sets` + `vocab_set_words`）。集合只**引用**词汇本词行（`vocabulary_id` FK），掌握态仍归 `Vocabulary`——「集合 = 按视频聚合的视图」，可随时重建。`vocab_set_words.status` 是集合内流程态：`pending` / `known` / `unknown` / `learned` |
 | **快速过筛** | 两档自评「会 / 不会」（模糊归不会）。判「会」→ 词汇本 mastered；判「不会」→ 待学清单。按词粒度服务端保存进度，可随时退出续筛 |
-| **闭环终点** | 集合 `completed` = **无 pending 且无 unknown**（不是「过筛走完」）。待学清单词经 `POST /vocab-sets/{id}/words/{id}/learned` 标记已掌握后触发，发一条 `LearningEvent(learned_words, value=集合总数)` |
-| **存储三态（storage_mode）** | `local` 本地精品（默认，全功能）/ `proxy` 代理播放（**仅占位，本期未实现**）/ `offline` 已下线（隐藏 + 删媒体，学习记录保留）。见 ADR-0020 |
+| **闭环终点** | 集合 `completed` = **无 pending 且无 unknown**（不是「过筛走完」）。待学清单词经 `POST /vocab-sets/{id}/words/{id}/learned` 标记后触发，发一条 `LearningEvent(learned_words, value=集合总数)` |
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
-| **AI 词注释预热** | `finalize_video` 中批量调 LLM 生成词注释写入 `word_ai_notes` 表（video 级 + global 级）；**点词只读库，无实时 LLM 兜底**（`api/v1/words.py`） |
-| **SpeakingAttempt 表（冻结）** | 历史口语评分记录，停止新写入，保留只读（ADR-0002） |
-| **ShadowingAttempt** | 活跃的跟读录音记录（`shadowing_attempts` 表，ADR-0013）：每条录音持久化到 `media/shadowing/{user_id}/`，owner-only JWT 鉴权回放；写 LearningEvent(`shadowed_sentences`) + 档案计数 |
-| **LearningEvent** | 结构化学习事件（completed_video/learned_words/practiced_items/reviewed_words/shadowed_sentences），与 BehaviorEvent 分离，喂档案聚合 + 推荐（日目标追踪已随计划下线） |
-| **LearningPlan / LearningPlanItem** | **已下线（f855613）**：表保留 dormant，无服务无端点；勿再引入 |
-| **UserLearningProfile** | 用户学习档案（streak, mastery_by_level, milestones），增量更新 via LearningEvent；**无 daily plan/goal 语义**（today_* 列 dormant） |
-| **周循环** | 原北极星指标（4 种事件类型 = 完整闭环）**已随计划下线**；里程碑/streak 保留 |
-| **错题本（真题）** | exam_answers 派生查询（不另建表）：最近一次已作答仍错才在错题本，重做答对即销账；`wrong_redo` 会话模式承载「只练错题/重做全部」 |
+| **ShadowingAttempt** | 活跃的跟读录音记录（`shadowing_attempts` 表，ADR-0013）：每条录音持久化到 `media/shadowing/{user_id}/`，owner-only JWT 鉴权回放；写 `LearningEvent(shadowed_sentences)` + 档案计数 |
+| **LearningEvent** | 结构化学习事件（completed_video / learned_words / practiced_items / reviewed_words / shadowed_sentences），与 BehaviorEvent 分离，喂档案聚合 + 推荐 |
+| **UserLearningProfile** | 用户学习档案（streak, mastery_by_level, milestones），增量更新 via LearningEvent；无 daily plan/goal 语义（`today_*` 列 dormant） |
+| **错题本（真题）** | `exam_answers` 派生查询（不另建表）：最近一次已作答仍错才在错题本，重做答对即销账；`wrong_redo` 会话模式承载「只练错题 / 重做全部」 |
 
 ### 会员与兑换
 
 | 术语 | 含义 |
 |------|------|
 | **PlanType** | `free` / `pro` 两档（无月/年之分）。Pro 靠 `plan_expires_at` 控到期 |
-| **Pro 会员** | ¥9.9/月，30 天/码，可叠加续期（多码顺延）。无在线支付，走兑换码 |
+| **Pro 会员** | ¥9.9/月，30 天/码，可叠加续期（多码顺延）。无在线支付，走兑换码。**内测期无 Pro 概念，前端入口已全部移除** |
 | **兑换码 (RedeemCode)** | 4 态状态机：`unused → redeemed / revoked / expired`。一张码 = 30 天 Pro |
 | **核销** | 用户在 `/redeem` 输入码 → `plan=pro` + `plan_expires_at` 顺延 30 天。`with_for_update` 行锁防并发 |
-| **退款撤销** | 管理员对已核销码触发：码置 `revoked(reason=refund)` + 从 `plan_expires_at` 扣 30 天 + 若到期则降 `free`。原子事务，全额追回 |
-| **到期主动降级** | beat 任务把 `plan_expires_at < now` 的用户 `plan` 置 `free` |
+| **退款撤销** | 管理员对已核销码触发：码置 `revoked(reason=refund)` + 扣 30 天 + 若到期则降 `free`。原子事务 |
+| **到期主动降级** | beat 任务把 `plan_expires_at < now` 的用户 `plan` 置 `free`（内测期该 beat 已摘调度，任务体保留） |
 
 ### 前端
 
 | 术语 | 含义 |
 |------|------|
 | **统一组件库** | 以 watch 页为风格锚点，保持 coral/cream/brand 色系 |
-| **mediaUrl** | `api.ts` 的媒体 URL 解析 helper：相对路径→`${API_URL}${path}` |
-| **公开路由（访问矩阵）** | `frontend/src/proxy.ts` PUBLIC_PATHS：`/login /register /forgot-password /terms /privacy /contact`（+ admin 登录）。**落地页已删（D0）**，未登录访问受保护路由 → 302 `/login?next=…`；`/pricing` 在登录墙内。**内测期 `/upgrade` `/pricing` `/redeem` `/checkout` 均 redirect('/')**（免费开放，无 Pro 概念） |
-| **双 Auth 会话** | 用户端 `seeword_token` vs 管理端 `seeword_admin_*`，独立 localStorage |
+| **mediaUrl** | `api.ts` 的媒体 URL 解析 helper：相对路径 → `${API_URL}${path}` |
+| **公开路由（访问矩阵）** | `frontend/src/proxy.ts` PUBLIC_PATHS：`/login /register /forgot-password /terms /privacy /contact`（+ admin 登录）。未登录访问受保护路由 → 302 `/login?next=…`。`/upgrade` `/pricing` `/redeem` `/checkout` 均 redirect('/') |
+| **双 Auth 会话** | 用户端 `seeword_token` vs 管理端 `seeword_admin_*`，独立 localStorage，**两套独立实现**（`createAuthStore` 工厂只规划未实现，引用已从代码移除） |
+| **错误处理** | 统一走 `core/errors.py`，前端读 `err.code` |
+| **ECDICT 库** | 下载包 ~30MB，落盘 SQLite ~0.8GB（`backend/data/ecdict.db`，已 gitignore） |
 
-### 推荐（ADR-0011，P1 评分 + 推荐 feed 已落地）
+### 推荐（ADR-0011）
 
 | 术语 | 含义 |
 |------|------|
-| **learning_score** | 视频 0-100 质量分，7 因子加权 + bonus（阶段 2 后：CTR .25/Retention .22/WatchTime .18/TopicMatch .12/Quality .08/Viral .08/Freshness .07）；scoring_tasks 每小时 Top200 + 每日全量 |
-| **行为采集** | `behavior_events` 表 + `behavior_service` 已落地（P0 解除） |
-| **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}` 已实现，前端 feedStore 承接；深度个性化待推进 |
-| **外部元数据/语音指标（阶段 1+3）** | Video 新增 yt_video_id/channel_*/upload_date/ext_view_count/ext_like_count/external_meta + wpm/vocabulary_density；采集于 extracting 步骤（external_meta.py），WPM 在 finalize 尾部 compute-on-null；存量已 backfill。阶段 2 已落地：viral（同频道均值对比 log 归一）+ freshness（views_per_day vs benchmark 10k）入 learning_score，无外部数据时两因子为 0（本地视频不互相对扣）。ext_* 是 YouTube 侧计数，与站内 view_count/like_count 严格分离 |
-
-## Cut Features（勿再引入）
-
-- **AI 口语评分**：`speaking_service.py`、`rubrics.py`、`speaking_alignment.py` 已删（ADR-0002）
-- **口语 streak/目标/统计**：dashboard 口语指标已移除（ADR-0003）
-- **用户面 UGC / 提交 URL / fork-propose-back**：**已彻底删除（f855613 / D0b 清理，2026-08-28）**：`POST /videos`（用户提交）、`upload/fork/propose/begin-edit/submit-review/user-seed*` 端点、`upload_service.py`、`proposal_service.py`、`video_seed_service.seed_ugc_video`、`video_service.list_published_ugc_videos` 全部删除（handover-d0b.md）。Video 的 UGC 列（`forked_from/auto_publish/review_status` 等）保留 dormant。**处理入口只剩 admin seed + catalog promote**
-- **AI 学习计划 / 每日学习计划**：**已下线（f855613）**：`ai_plan_service.py`、`learning_plan_service.py`、`plan_tasks.py` 删除；`/plan/today`、`/plan/progress`、`/plan/history`、`/plan/generate/ai`、`/plan/items/{id}/complete` 返回 410。保留 `/plan/profile|refresh|milestones|mastery-trend`
-- **AI 助手 / 评论**：**已下线（f855613）**：`api/v1/ai.py`、`api/v1/comments.py`、`comment_service.py`、`comment_analysis.py` 删除
-- **词卡实时 AI 释义**：**已下线（f855613）**：gloss 端点不再实时调 LLM，只读预生成 `word_ai_notes`；`ai_service.py` 残留 5 个死方法（grammar_analyze_batch/evaluate_difficulty/generate_quiz/extract_difficulty_words/generate_practice_questions）+ 1 个无前端入口的实时端点 `GET /vocabulary/{id}/enrich`（enrich_vocabulary_word），可清理勿扩展
-
-> 注意：**跟读（Shadowing）不是 Cut Feature** —— 无 AI 评分（ADR-0002 的评分删除仍成立），但录音持久化功能活跃（`ShadowingAttempt` 表 + watch 页录音面板 + 里程碑，见 ADR-0013）。
+| **learning_score** | 视频 0-100 质量分，7 因子加权 + bonus（CTR .25 / Retention .22 / WatchTime .18 / TopicMatch .12 / Quality .08 / Viral .08 / Freshness .07）。`scoring_tasks` 每小时 Top200 + 每日全量 |
+| **行为采集** | `behavior_events` 表 + `behavior_service`（P0 已解除） |
+| **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}`，前端 `feedStore` 承接；深度个性化待推进 |
+| **外部元数据 / 语音指标** | Video 的 `yt_video_id` / `channel_*` / `upload_date` / `ext_view_count` / `ext_like_count` / `external_meta` + `wpm` / `vocabulary_density`。采集于 extracting 步骤（`external_meta.py`），WPM 在 finalize 尾部 compute-on-null。`viral` + `freshness` 两因子入 `learning_score`，无外部数据时为 0（本地视频不互相对扣）。**`ext_*` 是 YouTube 侧计数，与站内 `view_count` / `like_count` 严格分离** |

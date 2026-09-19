@@ -1,0 +1,16 @@
+{
+  "_comment": "Repo-convention invariants that reduce to a path check: files that must not exist, and files that must. Each entry cites the invariant it enforces, so a failure names the rule rather than just the path. The invariant text lives in .agent/invariants.md.",
+  "forbidden": [
+    {
+      "path": "frontend/tailwind.config.js",
+      "invariant": "INV-004",
+      "why": "Tailwind v4 is CSS-first and reads its config from globals.css. A JS config is silently ignored — it misleads the next reader instead of erroring."
+    },
+    {
+      "path": "frontend/tailwind.config.ts",
+      "invariant": "INV-004",
+      "why": "Same as the .js variant."
+    }
+  ],
+  "required": []
+}

@@ -1,0 +1,30 @@
+name: Knowledge
+
+# Gates the knowledge layer (`.agent/`, `wiki/`, `docs/`, `AGENTS.md`) and the repo-convention
+# invariants declared in scripts/check-knowledge/.
+#
+# Runs on every push and PR rather than behind a `paths` filter. The check is stdlib-only and
+# finishes in about a second, so the cost of always running it is smaller than the cost of
+# deciding which changes it covers — and a paths filter would leave blind spots, e.g. a PR that
+# only adds a forbidden file. The heavy backend/frontend/e2e jobs in ci.yml skip markdown-only
+# changes via their own `paths-ignore`.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  knowledge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check knowledge layer
+        run: python scripts/check-knowledge/check_knowledge.py

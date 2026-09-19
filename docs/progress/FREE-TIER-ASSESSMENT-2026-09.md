@@ -3,7 +3,7 @@
 > 日期：2026-09-18
 > 方向：用户拍板「不要 Pro 会员，用户注册就能用全部功能」
 > 状态：**评估完成，待用户拍板后实施**（本报告不包含代码改动）
-> 依据：代码核实（git f855613 + 当前工作区），文档见 `.agent/handover-d0b.md`、`.agent/context.md`
+> 依据：代码核实（git f855613 + 当前工作区），文档见 `.agent/archive/handover-d0b.md`、`.agent/context.md`
 
 ---
 
@@ -146,7 +146,7 @@
 
 ## 七、参考
 
-- `.agent/handover-d0b.md` — D0b 清理完整清单（f855613）
+- `.agent/archive/handover-d0b.md` — D0b 清理完整清单（f855613）
 - `.agent/decisions.md` — D0 会员模型（2026-08-28）/ D0b 瘦身（2026-08-28）
 - `docs/adr/0007-redemption-code-lifecycle.md`、`docs/adr/0017-catalog-candidate-pool.md`
 - `.agent/context.md` / `.agent/system-map.md` — 已同步的现状（2026-09-18）

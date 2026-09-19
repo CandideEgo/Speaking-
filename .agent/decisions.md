@@ -1,5 +1,19 @@
 # Technical Decisions
 
+> Append-only decision log. **Never edit or reorder an existing entry** — an entry records what
+> was true and why at that moment. To change course, append a new entry and mark the old one
+> `superseded by DEC-0xx` in `decisions-index.md`.
+>
+> Entry format: `## <date> — <title>`, then `**Problem** / **Options** / **Decision** / **Reason** /
+> **Trade-offs**`, plus `**ADR**` when a record exists. Older entries legitimately omit `**Options**`.
+>
+> **Navigation**: read `decisions-index.md` first (ID → date → title → ADR → status), then open the
+> one entry you need. Do not read this file end to end — it is the largest file in the knowledge
+> layer and grows with every decision.
+>
+> IDs live in the index, assigned in file order (append order, not date order). 9 dates repeat, so
+> date alone does not identify an entry — cite the `DEC-` ID.
+
 ## 2026-07-03 — Product positioning: video vocabulary + community UGC
 
 **Problem**: Speaking scoring had low ROI, product direction unclear
@@ -7,7 +21,7 @@
 **Decision**: B
 **Reason**: Speaking scoring API cost high, accuracy unstable; video vocabulary loop clearer
 **Trade-offs**: Lost speaking practice differentiation, but gained clearer product focus and lower operating cost
-**ADR**: [0001](docs/adr/0001-product-positioning.md), [0002](docs/adr/0002-cut-ai-scoring-recording-playback.md)
+**ADR**: [0001](../docs/adr/0001-product-positioning.md), [0002](../docs/adr/0002-cut-ai-scoring-recording-playback.md)
 
 ---
 
@@ -18,7 +32,7 @@
 **Decision**: B
 **Reason**: Reduce complexity and cost, preserve basic practice experience
 **Trade-offs**: No AI feedback on pronunciation, but eliminated unreliable API dependency
-**ADR**: [0002](docs/adr/0002-cut-ai-scoring-recording-playback.md)
+**ADR**: [0002](../docs/adr/0002-cut-ai-scoring-recording-playback.md)
 
 ---
 
@@ -29,7 +43,7 @@
 **Decision**: B
 **Reason**: Control GPU cost, audit content quality, prevent malicious submissions
 **Trade-offs**: Slower UGC turnaround, but safe from resource exhaustion attacks
-**ADR**: [0004](docs/adr/0004-ugc-pipeline-admin-triggered.md)
+**ADR**: [0004](../docs/adr/0004-ugc-pipeline-admin-triggered.md)
 
 ---
 
@@ -40,7 +54,7 @@
 **Decision**: B
 **Reason**: Reduce duplicate code, unify visual experience
 **Trade-offs**: Less per-page creative freedom, but consistent UX and lower maintenance
-**ADR**: [0005](docs/adr/0005-frontend-rebuild-unified-components.md)
+**ADR**: [0005](../docs/adr/0005-frontend-rebuild-unified-components.md)
 
 ---
 
@@ -51,7 +65,7 @@
 **Decision**: B
 **Reason**: Dedup saves GPU, shared editing reduces maintenance
 **Trade-offs**: More complex data model (forked_from, propose-back PRs), but N× GPU cost savings
-**ADR**: [0006](docs/adr/0006-standard-version-fork-propose-back.md)
+**ADR**: [0006](../docs/adr/0006-standard-version-fork-propose-back.md)
 
 ---
 
@@ -62,7 +76,7 @@
 **Decision**: B
 **Reason**: Prevent abuse, support refund revocation, proactive expiry
 **Trade-offs**: More complex state management, but full audit trail and refund capability
-**ADR**: [0007](docs/adr/0007-redemption-code-lifecycle.md)
+**ADR**: [0007](../docs/adr/0007-redemption-code-lifecycle.md)
 
 ---
 
@@ -74,7 +88,7 @@
 **Reason**: Improve content discovery efficiency
 **Trade-offs**: Requires behavior collection infrastructure first (P0 blocker), but enables long-term engagement
 **Status**: P1 scoring (scoring_tasks hourly/daily) + recommendation feed (/recommendations/home, /recommendations/category) + behavior_events 已落地；深度个性化待推进
-**ADR**: [0011](docs/adr/0011-recommendation-system.md)
+**ADR**: [0011](../docs/adr/0011-recommendation-system.md)
 
 ---
 
@@ -168,14 +182,14 @@
 
 ---
 
-## 2026-07-24 - ADR-0012: Cut social community UGC, pivot to AI learning plan
+## 2026-07-24 — ADR-0012: Cut social community UGC, pivot to AI learning plan
 
 **Problem**: Social community UGC doesn't solve the core English-learning problem (find content / understand video / remember vocab / sustain learning), yet brings moderation cost + system complexity (6 tables, 4 notification triggers, admin review block, creator center, propose-back PRs).
 **Options**: A) Keep investing in community; B) Cut social community, keep VideoLike (feeds recommendation + watch-page like button), pivot to AI LearningPlan
 **Decision**: B
 **Reason**: Community doesn't serve the learning loop (goal -> plan -> watch -> vocab -> practice -> review -> adjust). The real long-term capability loop is AI-driven learning plans + spaced repetition, not social UGC. VideoLike kept because it feeds recommendation like_count / is_featured and the watch-page like button at near-zero ops cost.
 **Trade-offs**: Sunk cost (Phase 4 community alignment, actor-aware dedup's community triggers) discarded; dedup mechanism retained for non-community notifications. 6 tables dropped (irreversible - pg_dump backup taken); video_likes + Video UGC columns kept dormant to reduce irreversibility. comment_service (video comment quality scoring) retained - independent of social community.
-**ADR**: [0012](docs/adr/0012-cut-community-ugc-pivot-to-learning-plan.md)
+**ADR**: [0012](../docs/adr/0012-cut-community-ugc-pivot-to-learning-plan.md)
 
 ---
 
@@ -226,7 +240,7 @@
 **Decision**: B（12 批次当日完成，627 后端测试 + 前端 tsc/lint/vitest/build 全绿）
 **Reason**: 安全漏洞（上传 XSS/SSRF）直接威胁账户与云凭证；文档漂移（Shadowing「复活」无记录）会误导后续 Agent。
 **Trade-offs**: 限流在 Redis 故障时降级为 in-memory（限流弱化但不再 500，符合 fail-open 不变量）；媒体门控对草稿增加一次 DB 查询（60s TTL 缓存）。
-**ADR**: [0013](docs/adr/0013-shadowing-recording-persistence.md)
+**ADR**: [0013](../docs/adr/0013-shadowing-recording-persistence.md)
 
 ---
 
@@ -248,7 +262,7 @@
 **Decision**: B（详见 ADR-0013）
 **Reason**: 前端全链路（录音面板/计划项/里程碑）+ 3 端点 + 测试已上线，回退成本高；持久化录音 owner-only JWT 鉴权，隐私可控。
 **Trade-offs**: 录音存储增长需监控（media/shadowing/ 容量）；「录音不落盘」的旧隐私承诺作废。
-**ADR**: [0013](docs/adr/0013-shadowing-recording-persistence.md)
+**ADR**: [0013](../docs/adr/0013-shadowing-recording-persistence.md)
 
 ---
 
@@ -267,7 +281,7 @@
 
 **Problem**: 功能面过宽——AI 助手、评论、UGC 提交/fork/propose-back、AI 学习计划、每日学习计划与核心闭环（看→点词→复习→练习）无关，带来维护成本、GPU/LLM 成本风险与版权负担。
 **Options**: A) 保留继续迭代；B) D0b 清理：全部下线，收敛为「运营精选内容 + 预生成词注释 + 学习档案」
-**Decision**: B（提交 f855613，2026-08-28；完整清单见 `.agent/handover-d0b.md`）
+**Decision**: B（提交 f855613，2026-08-28；完整清单见 `.agent/archive/handover-d0b.md`）
 **Reason**: 产品收敛后运行时 AI 调用只剩视频处理管线（翻译 + 词注释预热），成本可控且单一；内容由 admin seed + catalog promote 提供（与 ADR-0012 砍 UGC 的方向一致，进一步收口）。
 **Trade-offs**:
 - 删除 17 个后端文件 + 8 个前端文件 + 5400 行（含测试）；`learning_plan.py` 5 个端点返回 410（保留 profile/milestones/mastery-trend）；模型表（learning_plans/items、Video UGC 列）保留 dormant 未删
@@ -310,7 +324,7 @@
 - `LearningEvent` 累计时长 + 后端 `include_subtitle_time` 查询参数是 D10 的数据支撑。
 - 顺手修：MIME 参数解析（`audio/webm;codecs=opus` 之前返 415），`useSpeakingRecorder` 加 timer 选项。
 
-**ADR**: [0015](docs/adr/0015-d10-sentence-shadowing-waveform.md)
+**ADR**: [0015](../docs/adr/0015-d10-sentence-shadowing-waveform.md)
 
 ---
 
@@ -318,7 +332,7 @@
 
 **Problem**: 翻译引擎 registry 中 `agnes`(走 deepseek)/`qwen`/`hy_mt2`/`glm` 的 API key 多数已删（2026-08-05 expired），只剩 agnes 实际可用但质量参差；火山引擎 ARK Coding 端点 `https://ark.cn-beijing.volces.com/api/coding/v3` 上线 ark-code-latest 声称 OpenAI 协议兼容（chat.completions + Responses API）。
 **Options**: A) 新建 `BUILTIN_ENGINES['ark']` 条目 + `_resolve_engine` 分支 + Settings + 测试；B) 复用现有 `custom` 引擎条目只改 `.env`（`TRANSLATION_CUSTOM_*` 三个 env 已有），`ai_service._get_engine_client(name)` 复用 translation client，prewarm 同步切只需改 `PREWARM_ENGINES=custom`
-**Decision**: B（详见 [ADR-0018](docs/adr/0018-ark-cody-translation-engine.md)）：`.env` 末尾追加 7 行（TRANSLATION_ENGINE=custom + TRANSLATION_FALLBACK_ENGINE= 空 + TRANSLATION_CUSTOM_BASE_URL/MODEL/API_KEY + PREWARM_ENGINES=custom + TRANSLATION_BATCH_SIZE=5）。代码零改动。
+**Decision**: B（详见 [ADR-0018](../docs/adr/0018-ark-cody-translation-engine.md)）：`.env` 末尾追加 7 行（TRANSLATION_ENGINE=custom + TRANSLATION_FALLBACK_ENGINE= 空 + TRANSLATION_CUSTOM_BASE_URL/MODEL/API_KEY + PREWARM_ENGINES=custom + TRANSLATION_BATCH_SIZE=5）。代码零改动。
 **Reason**: 零代码改动即接入，未来切换供应商也只需改 env 三行；端到端本地验证完整 pipeline 跑通：catalog promote → WhisperX 转录 35 段 → ark 翻译 35/35 → ark prewarm 词注释 → YouTube 下载 24.7MB → ffmpeg 720p 转码 → ready/published，整段 finalize 117s
 **Trade-offs**:
 - `TRANSLATION_FALLBACK_ENGINE` settings 默认 'hy_mt2'（无 key 会启动失败），**必须显式置空**
@@ -391,7 +405,7 @@
 - Lighthouse 3 页 96/100，**唯一未修**：brand-500/muted-soft 小字号对比度（牵全局设计，超 D12 范围）。
 - **未引入新依赖**（无 axe-core/jest-axe）——CI 自动化 a11y 留给后续 Phase。
 
-**ADR**: [0016](docs/adr/0016-d12-accessibility.md)
+**ADR**: [0016](../docs/adr/0016-d12-accessibility.md)
 
 ---
 
@@ -418,10 +432,10 @@
 
 ---
 
-## 2026-08-30 - 频道升级为全量作者页 Auto-Channel（ADR-0014 修订）
+## 2026-08-30 — 频道升级为全量作者页 Auto-Channel（ADR-0014 修订）
 
 **Problem**: ADR-0014 频道为策展制--只有管理员建档的作者才有主页；用户期望主流流媒体式的「每个作者都有主页，点作者名看本站该作者全部视频」。
-**Decision**: 全量作者页（详见 [ADR-0014 修订](docs/adr/0014-video-channels.md)）：
+**Decision**: 全量作者页（详见 [ADR-0014 修订](../docs/adr/0014-video-channels.md)）：
 
 1. ingest 自动建档：`ensure_channel_for`（find-or-create），按抓取 `channel_id` 未注册则建 `is_auto=True` 频道；策展频道优先不重复建
 2. `channels.is_auto` 列 + `upstream_channel_id` 唯一索引（迁移 `e0f1g2h3i4j5`，先合并存量重复）
@@ -442,7 +456,7 @@
 
 **Problem**: 官方视频只有硬编码 seed 脚本 + 单条 URL seed 两路，缺「批量发现候选 → 人工逐条筛选上线」中间层；竞品 Language Reactor 公开目录 API（`api-cdn.dioco.io/base_media_getMediaDocs_5`，无需鉴权）可批量拉元数据，但默认「全英语·按时间」池 ~80% 新闻/体育，不符合选材标准。
 **Options**: A) 直接灌进 `videos` 表；B) 独立候选池表 + 复用现有 `seed_video` 管线逐条提升；C) 只做外部脚本不改后端
-**Decision**: B（详见 [ADR-0017](docs/adr/0017-catalog-candidate-pool.md)）：新增 `catalog_items`（与 videos 解耦，`(source,upstream_id)` 唯一幂等，`promoted_video_id` FK→videos SET NULL）+ `catalog_service`（fit_score 数值筛 / 幂等导入 / 列表 join Video 派生 effective_status 免 beat / promote 复用 seed_video / mark）+ `/api/v1/admin/catalog*`（list/summary/get/promote/mark）+ `scripts/import_catalog.py`（--dry-run）。内容侧改按 LR 频道级 API `sortBy=views` 重抓 56 个英语教学/教育/谈话频道 672 条，import 按 category 加权（+18/+12/+8）使学习内容 fit 领先。
+**Decision**: B（详见 [ADR-0017](../docs/adr/0017-catalog-candidate-pool.md)）：新增 `catalog_items`（与 videos 解耦，`(source,upstream_id)` 唯一幂等，`promoted_video_id` FK→videos SET NULL）+ `catalog_service`（fit_score 数值筛 / 幂等导入 / 列表 join Video 派生 effective_status 免 beat / promote 复用 seed_video / mark）+ `/api/v1/admin/catalog*`（list/summary/get/promote/mark）+ `scripts/import_catalog.py`（--dry-run）。内容侧改按 LR 频道级 API `sortBy=views` 重抓 56 个英语教学/教育/谈话频道 672 条，import 按 category 加权（+18/+12/+8）使学习内容 fit 领先。
 **Reason**: 解耦「发现」与「处理」不污染 videos 语义；复用久经测试的 seed 管线不重造轮子；候选池让管理员按 fit 排序 + 频道筛选逐条策展。
 **Trade-offs**:
 - promote 走完整管线=下载自托管，依赖服务器 YouTube cookies（失效 423 需重登）；embed 轻量模式暂未接入（现有轻量路径仅在 seed 脚本、未抽 service）
@@ -459,10 +473,10 @@
 **Options**: 学习闭环状态机 A) 沿用 SM-2 四态 B) 新建独立三态体系 C) 三态对外 + SM-2 对内；收词数据 A) 复用 `Vocabulary` 平铺 + 按 `video_id` 聚合 B) 新建 `vocab_sets` 双表；下线 A) 物理删除 video 行 B) 行保留 dormant + 状态翻转。
 
 **Decision**:
-1. **排行**（[ADR-0018](docs/adr/) 无，实现见 commit d86fa2d）：新增 `videos.published_at`（回填 `COALESCE(reviewed_at, created_at)`，`_publish_video` 幂等写入）；`GET /videos/rankings?scope=latest|weekly_views|weekly_favorites`（各前 20）。热播 = `behavior_events` 的 play/complete 近 7 天按 `session_id` 去重计数；收藏 = `user_favorites.created_at` 近 7 天计数（需求 §3.1 指定，**无新埋点**）。Redis 快照读穿 + `snapshot-rankings` 每日 beat 刷新。
-2. **学习闭环**（[ADR-0019](docs/adr/0019-vocab-set-quick-sieve-loop.md)）：`vocab_sets`（user×video×exam_level 唯一）+ `vocab_set_words`（引用 Vocabulary + position + 流程状态 pending/known/unknown/learned）。**掌握态仍归 Vocabulary**，集合只存引用与集合内进度；对外三态（reviewing 并入学习中展示，后端不迁数据）。收词只读 ECDICT（**禁用 `enrich_word`，那是 AI 路径**）。闭环需 `POST .../learned` 显式标记待学清单，`completed` = 无 pending 且无 unknown。配套行为变更：**mastered 退出复习队列**（due 过滤 4 处）。
+1. **排行**（未编 ADR，实现见 commit d86fa2d）：新增 `videos.published_at`（回填 `COALESCE(reviewed_at, created_at)`，`_publish_video` 幂等写入）；`GET /videos/rankings?scope=latest|weekly_views|weekly_favorites`（各前 20）。热播 = `behavior_events` 的 play/complete 近 7 天按 `session_id` 去重计数；收藏 = `user_favorites.created_at` 近 7 天计数（需求 §3.1 指定，**无新埋点**）。Redis 快照读穿 + `snapshot-rankings` 每日 beat 刷新。
+2. **学习闭环**（[ADR-0019](../docs/adr/0019-vocab-set-quick-sieve-loop.md)）：`vocab_sets`（user×video×exam_level 唯一）+ `vocab_set_words`（引用 Vocabulary + position + 流程状态 pending/known/unknown/learned）。**掌握态仍归 Vocabulary**，集合只存引用与集合内进度；对外三态（reviewing 并入学习中展示，后端不迁数据）。收词只读 ECDICT（**禁用 `enrich_word`，那是 AI 路径**）。闭环需 `POST .../learned` 显式标记待学清单，`completed` = 无 pending 且无 unknown。配套行为变更：**mastered 退出复习队列**（due 过滤 4 处）。
 3. **内测免费开放**（实施按 `docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`）：媒体门对所有登录用户放行（匿名仅 `is_demo`）；详情不再遮蔽字幕/URL；`/unlock`、`/unlocked`、`/unlocked-ids` 退役为放行/空载荷（不写 `user_video_unlocks`）；停用 3 个 Pro beat；前端删 paywall 组件与 4 个 Pro 页（`/upgrade` `/pricing` `/redeem` `/checkout` → redirect）。**保留**登录墙、shadowing owner-only、`plan`/`RedeemCode` 表 dormant。
-4. **存储三态**（[ADR-0020](docs/adr/0020-storage-modes-and-takedown.md)）：`videos.storage_mode`（local/proxy/offline，proxy 仅留值不实现 —— §5.4 优先级 3）。下线 = `is_published=False` + `storage_mode='offline'` + 清 URL + 删媒体（**缩略图保留**），**行保留 dormant** 以避开 `vocabulary`/`UserFavorite` 的 CASCADE；隐藏复用既有 `is_published` 过滤，仅媒体门/收藏夹/详情三处显式处理。
+4. **存储三态**（[ADR-0020](../docs/adr/0020-storage-modes-and-takedown.md)）：`videos.storage_mode`（local/proxy/offline，proxy 仅留值不实现 —— §5.4 优先级 3）。下线 = `is_published=False` + `storage_mode='offline'` + 清 URL + 删媒体（**缩略图保留**），**行保留 dormant** 以避开 `vocabulary`/`UserFavorite` 的 CASCADE；隐藏复用既有 `is_published` 过滤，仅媒体门/收藏夹/详情三处显式处理。
 
 **Reason**: 排行复用既有字段与 BehaviorEvent，零新埋点即可上（但「最新」需补 `published_at`，因 Video 原本没有该列）。集合表只存引用让「集合 = 按视频聚合的视图」成立且可重建，掌握态单一事实来源不被污染。三态对外 + SM-2 对内让「闭环终点可定义」与「现有复习引擎不拆」同时成立。行保留式下线是唯一能同时满足「释放空间」与「学习记录不断链」的方案。
 

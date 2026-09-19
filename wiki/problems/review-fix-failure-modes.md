@@ -3,7 +3,7 @@ title: 审查修复中的三个可复用失败模式（Dypnsapi 依赖漂移 / S
 tags: [backend, infrastructure, bug]
 status: active
 confidence: verified
-related_code: [sms_service, models/behavior, package.json]
+related_code: [sms-service, models-behavior, frontend-package]
 related: [docs/progress/REVIEW-2026-08-14.md]
 created: 2026-08-14
 updated: 2026-08-14

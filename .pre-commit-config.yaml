@@ -21,6 +21,16 @@ repos:
         files: ^frontend/
         types_or: [ts, tsx, css, json, markdown]
 
+      # Knowledge-layer integrity: broken links, ADR references, wiki frontmatter
+      # schema, module vocabulary, growth budgets. Cross-file by nature, so it
+      # ignores the passed filename list and rescans the whole layer.
+      - id: knowledge-check
+        name: knowledge layer integrity
+        entry: python scripts/check-knowledge/check_knowledge.py
+        language: system
+        pass_filenames: false
+        files: ^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|\.agent/|wiki/|docs/|scripts/check-knowledge/|\.claude/skills/)
+
   # General checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

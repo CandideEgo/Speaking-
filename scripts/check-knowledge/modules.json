@@ -1,0 +1,125 @@
+{
+  "_comment": "Canonical module vocabulary for the knowledge layer. Every `related_code` value in wiki/ frontmatter must be a key here, and every module's globs must match at least one tracked file. Adding a module is the only way to make a new area referenceable; deleting the code without deleting the module fails the check.",
+  "modules": {
+    "video-pipeline": {
+      "description": "Head/GPU/Tail video processing pipeline and publish path",
+      "globs": ["backend/app/tasks/video_processing.py", "backend/app/tasks/pipeline_helpers.py", "backend/app/services/video_publish.py"]
+    },
+    "celery-tasks": {
+      "description": "Celery task modules, beat schedule and async helpers",
+      "globs": ["backend/app/tasks/*.py"]
+    },
+    "transcription": {
+      "description": "WhisperX transcription, forced alignment, hallucination detection",
+      "globs": ["backend/app/services/transcription/**"]
+    },
+    "translation": {
+      "description": "Pluggable translation engines, retry, quality gate",
+      "globs": ["backend/app/services/translation/**"]
+    },
+    "ai-service": {
+      "description": "Central AI singleton; the only gateway allowed to call the model provider",
+      "globs": ["backend/app/services/ai_service.py"]
+    },
+    "backend-services": {
+      "description": "Backend service layer",
+      "globs": ["backend/app/services/*.py"]
+    },
+    "api-v1": {
+      "description": "REST route handlers",
+      "globs": ["backend/app/api/v1/*.py"]
+    },
+    "api-media": {
+      "description": "Media serving and access gating",
+      "globs": ["backend/app/api/v1/media.py"]
+    },
+    "video-service": {
+      "description": "Video CRUD, seeding and caching",
+      "globs": ["backend/app/services/video_service.py"]
+    },
+    "auth": {
+      "description": "JWT auth, dual sessions, route dependencies",
+      "globs": ["backend/app/api/dependencies.py", "backend/app/core/security.py"]
+    },
+    "core-cache": {
+      "description": "Cache layer and Redis-fail-open behaviour",
+      "globs": ["backend/app/core/cache.py", "backend/app/core/redis.py"]
+    },
+    "env-config": {
+      "description": "Settings object sourced from environment",
+      "globs": ["backend/app/core/config.py"]
+    },
+    "exam-levels": {
+      "description": "Exam-level vocabulary classification",
+      "globs": ["backend/app/core/exam_levels.py"]
+    },
+    "ecdict-service": {
+      "description": "Local ECDICT gloss lookup",
+      "globs": ["backend/app/services/ecdict.py"]
+    },
+    "sms-service": {
+      "description": "SMS verification-code provider",
+      "globs": ["backend/app/services/sms_service.py"]
+    },
+    "unlock-service": {
+      "description": "Free-tier login wall and video unlock rules",
+      "globs": ["backend/app/services/unlock_service.py"]
+    },
+    "models-behavior": {
+      "description": "BehaviorEvent model",
+      "globs": ["backend/app/models/behavior.py"]
+    },
+    "tests-conftest": {
+      "description": "Shared pytest fixtures",
+      "globs": ["backend/tests/conftest.py"]
+    },
+    "pytest-suite": {
+      "description": "Backend test suite",
+      "globs": ["backend/tests/**"]
+    },
+    "frontend-app": {
+      "description": "Next.js App Router pages and layouts",
+      "globs": ["frontend/src/app/**"]
+    },
+    "frontend-components": {
+      "description": "Shared React components",
+      "globs": ["frontend/src/components/**"]
+    },
+    "frontend-stores": {
+      "description": "Zustand stores",
+      "globs": ["frontend/src/stores/*.ts"]
+    },
+    "frontend-lib": {
+      "description": "Frontend library helpers",
+      "globs": ["frontend/src/lib/**"]
+    },
+    "frontend-api-client": {
+      "description": "API client with JWT auto-refresh",
+      "globs": ["frontend/src/lib/api.ts", "frontend/src/lib/createApiClient.ts", "frontend/src/lib/adminApi.ts"]
+    },
+    "e2e-playwright": {
+      "description": "Playwright end-to-end specs",
+      "globs": ["frontend/e2e/**"]
+    },
+    "docker-compose": {
+      "description": "Local and production Compose definitions",
+      "globs": ["docker-compose*.yml"]
+    },
+    "pre-commit": {
+      "description": "Pre-commit hook configuration",
+      "globs": [".pre-commit-config.yaml"]
+    },
+    "ci-workflows": {
+      "description": "GitHub Actions workflows",
+      "globs": [".github/workflows/*"]
+    },
+    "frontend-package": {
+      "description": "Frontend package manifest and scripts",
+      "globs": ["frontend/package.json"]
+    },
+    "knowledge-layer": {
+      "description": "The knowledge layer itself: .agent/, wiki/ and its checks",
+      "globs": [".agent/*.md", "wiki/**/*.md", "scripts/check-knowledge/*"]
+    }
+  }
+}

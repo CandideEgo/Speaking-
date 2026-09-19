@@ -3,7 +3,7 @@ title: 缓存失效与媒体门控的两个隐形失效模式（fail-open 吞异
 tags: [backend, infrastructure, security, bug]
 status: active
 confidence: verified
-related_code: [core/cache, api/media, services/video_service, tests/conftest]
+related_code: [core-cache, api-media, video-service, tests-conftest]
 related: [docs/adr/0020-storage-modes-and-takedown.md]
 created: 2026-09-19
 updated: 2026-09-19

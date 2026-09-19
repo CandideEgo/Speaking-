@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [master, main]
+    # Markdown-only changes are gated by the Knowledge workflow; skip the
+    # backend/frontend/e2e jobs rather than paying for a full-stack run.
+    paths-ignore:
+      - "**/*.md"
   pull_request:
     branches: [master, main]
+    paths-ignore:
+      - "**/*.md"
 
 jobs:
   backend:

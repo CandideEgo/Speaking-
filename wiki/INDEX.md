@@ -13,7 +13,6 @@
 
 ## Problems
 
-- [Image Handling in Agent Sessions](problems/image-handling.md) — Why images corrupt sessions, how to handle, recovery
 - [ASR / 标注质量诊断](problems/asr-annotation-quality-diagnosis.md) — ECDICT exchange 反向索引 bug 根因与修复验证（good→best 等误报）
 - [审查修复中的三个可复用失败模式](problems/review-fix-failure-modes.md) — Dypnsapi 依赖漂移 / SQLite BigInteger PK / 死依赖误判（react-is）
 - [缓存失效与媒体门控的两个隐形失效模式](problems/cache-invalidation-and-media-gate-blindspots.md) — fail-open 吞异常使失效静默失效 / 门控靠文件名正则，命名不符即整段跳过
@@ -22,3 +21,5 @@
 
 - [Development Setup](guides/setup.md) — Local dev, infrastructure, environment, production deploy, video seeding
 - [Testing Guide](guides/testing.md) — Backend tests, frontend checks, CI, lint & format
+- [Release / Pre-Push Checklist](guides/release-checklist.md) — The four local gates, known CI traps, migration checks before pushing
+- [Image Handling in Agent Sessions](guides/agent-image-handling.md) — Why pasting images corrupts agent sessions, and how to recover

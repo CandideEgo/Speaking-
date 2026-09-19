@@ -17,48 +17,82 @@ not implementation.
 Skills provide capabilities,
 not workflows.
 
-## Context
+## Start Here
 
-Before major work, read:
+Read this file every session. It routes; it deliberately holds no knowledge of its own.
 
-.agent/context.md
+| When | Read |
+|------|------|
+| Every session | this file |
+| Before changing code | `.agent/invariants.md` + `.agent/system-map.md` |
+| You need a decision's reasoning | `.agent/decisions-index.md`, then that one entry |
+| The task needs domain vocabulary | `.agent/context.md` |
+| Resuming work | `.agent/state.md` |
+| Debugging something that feels familiar | `wiki/problems/` |
+| Operating a deployment | `docs/operations/` |
 
-.agent/decisions.md
+Never read `.agent/decisions.md` end to end — it is the largest file in the layer and only grows.
+`.agent/README.md` says which file owns which kind of fact, and how to add to them.
 
-.agent/state.md
+### Task → document map
 
-.agent/system-map.md
+| Touching | Read as well |
+|---|---|
+| `tasks/video_processing.py`, `services/transcription`, `services/translation` | [video-pipeline](wiki/architecture/video-pipeline.md) · [translation safety net](wiki/architecture/translation-quality-safety-net.md) |
+| `services/ai_service.py`, `services/word_notes.py`, `api/v1/words.py`, `services/ecdict.py` | [exam vocabulary](wiki/architecture/exam-vocabulary.md) |
+| `api/v1/media.py`, `services/video_access.py`, `services/video_cache.py` | [cache & media-gate blindspots](wiki/problems/cache-invalidation-and-media-gate-blindspots.md) |
+| `api/dependencies.py`, `core/security.py`, `frontend/src/stores/` | [auth system](wiki/architecture/auth-system.md) |
+| `frontend/src/app/`, `components/`, `lib/` | [frontend architecture](wiki/architecture/frontend-architecture.md) |
+| any other backend service or task | [backend services](wiki/architecture/backend-services.md) |
+| scoring, recommendations, rankings | [backend services](wiki/architecture/backend-services.md) |
+| ECDICT gloss or exam annotation behaving oddly | [ASR / annotation diagnosis](wiki/problems/asr-annotation-quality-diagnosis.md) |
+| a review-fix round repeating an old mistake | [review/fix failure modes](wiki/problems/review-fix-failure-modes.md) |
+| servers, media topology, credentials | [runbook](docs/operations/RUNBOOK.md) · [media topology](docs/operations/MEDIA-TOPOLOGY.md) |
+| local setup, running tests, pushing | [setup](wiki/guides/setup.md) · [testing](wiki/guides/testing.md) · [release checklist](wiki/guides/release-checklist.md) |
 
 ## Knowledge Layers
-
-Knowledge has three layers with distinct, non-overlapping responsibilities:
 
 | Layer | Location | Stores | Does NOT store |
 |-------|----------|--------|----------------|
 | **Architectural** | `.agent/` + `wiki/` (in repo) | Why things are designed this way; module connections; constraints; decisions | Environment-specific operations; deployment state |
-| **Operational** | `memory/` (user-level) | How to operate correctly in this environment; failure modes; user preferences | Architecture understanding; design decisions |
+| **Operational** | `.agent/state.md`, `docs/operations/`, `CHANGELOG.md` | What is in flight; how to operate this environment; failure modes | Architecture understanding; design decisions |
 | **Code** | The codebase itself | What exists; what functions do; what types are used | Why it was designed this way; non-obvious constraints |
 
-**Rule: Knowledge belongs in exactly one layer.** If architectural knowledge exists in .agent/ or wiki/, do not duplicate it in memory/. If code directly expresses something, do not document it in any layer.
+**Rule: knowledge belongs in exactly one layer.** If architectural knowledge exists in `.agent/` or
+`wiki/`, do not restate it elsewhere — link to it. If code directly expresses something, do not
+document it at all.
+
+Older skill versions route operational knowledge to a user-level `memory/` directory. That layer was
+never instantiated in this project and is not used; operational knowledge lives in `.agent/state.md`
+and `docs/operations/`.
 
 ## Knowledge Management Rules
+
+### Enforced by machine
+
+`scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the `Knowledge` CI workflow.
+It fails on: broken links, `ADR-00xx` with no file, invalid `wiki/` frontmatter, unknown or dead
+`related_code` modules, commit hashes in stable knowledge files, index/entry drift, and size-ceiling
+growth. Run it directly with `pre-commit run knowledge-check --all-files`.
 
 ### MUST (强制执行)
 
 - 跨模块变更后（改动了 ≥2 个 service/模块的接口或行为），MUST 执行 `/knowledge-maintain` 再提交
 - 引入新功能/改架构/选技术/不可逆变更前，MUST 执行 `/decision-support`
-- 每 2 周执行一次 `/knowledge-verify`（或用户请求时）
+- 新增决策时，MUST 在 `.agent/decisions.md` **末尾追加**条目，并在 `.agent/decisions-index.md` 补一行（检查会校验二者的数量、顺序、日期与标题一致）
+- 删除代码后，MUST 清理引用它的 `related_code` 模块与文档（检查会因模块匹配不到文件而失败）
 
 ### SHOULD (强烈建议)
 
-- 新会话首次进入项目时，SHOULD 读取 `.agent/` 文件（而非执行 `/context-bootstrap`）
+- 新会话首次进入项目时，SHOULD 按上面的 Start Here 表取用（而非执行 `/context-bootstrap`）
 - `.agent/state.md` 的 Last Updated 超过 14 天时，SHOULD 执行 `/knowledge-verify`
 
 ### NEVER
 
-- NEVER 在不检查 `.agent/decisions.md` 的情况下重做已被记录的决策
-- NEVER 记录不通过 Implicit Knowledge Filter 的知识
-- NEVER 在 memory/ 中重复记录 .agent/ 或 wiki/ 已覆盖的架构知识
+- NEVER 修改或重排 `.agent/decisions.md` 里已存在的条目。改变主意 = 追加新条目 + 在索引里把旧条目标为 `superseded by DEC-0xx`
+- NEVER 把 git 提交哈希写进 `.agent/`（`decisions.md`、`archive/` 除外）或 `wiki/` 的稳定文件；历史属于决策记录与 `CHANGELOG.md`
+- NEVER 为了通过检查而手改预算数字。要么缩小内容，要么显式执行 `--budget-refresh` 接受新上限
+- NEVER 在 `memory/` 中重复记录 `.agent/` 或 `wiki/` 已覆盖的架构知识
 
 ### Implicit Knowledge Filter
 
@@ -85,7 +119,7 @@ and project history.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Speaking-** (9838 symbols, 20804 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Speaking-** (14275 symbols, 25130 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
