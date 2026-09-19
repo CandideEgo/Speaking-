@@ -20,6 +20,7 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exam_levels import EXAM_LEVELS
@@ -172,7 +173,19 @@ async def _find_or_create_vocab(db: AsyncSession, user_id: str, token: str, vide
         if entry.get("example_sentences"):
             vocab.example_sentences = entry["example_sentences"]
     db.add(vocab)
-    await db.flush()
+    try:
+        # SAVEPOINT around the insert: two concurrent collects for the same
+        # (user, new token) can race past the initial SELECT and hit the
+        # (user_id, word) unique constraint. Rolling back the savepoint
+        # discards only this row - NOT the caller's pending VocabSet /
+        # VocabSetWord rows (a full db.rollback() would blow those away).
+        async with db.begin_nested():
+            await db.flush()
+    except IntegrityError:
+        # The concurrent request won; reuse its row.
+        vocab = (
+            await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == token))
+        ).scalar_one()
     return vocab
 
 
@@ -191,6 +204,10 @@ async def collect_set(db: AsyncSession, user: User, video_id: str, exam_level: s
 
     video = await db.get(Video, video_id)
     if video is None:
+        raise ValueError("视频不存在")
+    # 只对公开可见的视频收词：未发布/已下线的视频不应被收词接口拉取字幕 token。
+    # （media 门控挡的是媒体流，这里挡的是字幕标注读取。）
+    if not video.is_published or video.storage_mode == "offline":
         raise ValueError("视频不存在")
 
     vocab_set = (

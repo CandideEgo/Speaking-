@@ -28,13 +28,19 @@ async def invalidate_video_detail_cache(video_id: str) -> None:
 
 
 async def invalidate_browse_cache() -> None:
-    """Invalidate all browse feed caches.
+    """Invalidate all browse feed + home-ranking caches.
 
-    Call this when videos are added/updated (e.g. seed script, video
-    processing completion, publish).  Lives in the service layer so callers
-    don't have to import from the API route module.
+    Call this when videos are added/updated/published/taken-down (e.g. seed
+    script, video processing completion, publish, takedown). Lives in the
+    service layer so callers don't have to import from the API route layer.
+
+    Also drops ``rankings:snapshot:*``: the three home-ranking scopes are read
+    from a Redis snapshot (up to 48h TTL, refreshed daily by beat), so
+    without this a just-taken-down video would linger on the home rankings
+    long after disappearing from the feed.
     """
     from app.core.cache import cache_delete
 
     await cache_delete("browse:feed:*")
     await cache_delete("browse:featured:*")
+    await cache_delete("rankings:snapshot:*")
