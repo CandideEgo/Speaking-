@@ -16,6 +16,7 @@
 - [ASR / 标注质量诊断](problems/asr-annotation-quality-diagnosis.md) — ECDICT exchange 反向索引 bug 根因与修复验证（good→best 等误报）
 - [审查修复中的三个可复用失败模式](problems/review-fix-failure-modes.md) — Dypnsapi 依赖漂移 / SQLite BigInteger PK / 死依赖误判（react-is）
 - [缓存失效与媒体门控的两个隐形失效模式](problems/cache-invalidation-and-media-gate-blindspots.md) — fail-open 吞异常使失效静默失效 / 门控靠文件名正则，命名不符即整段跳过
+- [部署链路的三个失效模式](problems/deploy-failure-modes.md) — 三容器并发迁移撞唯一约束 / backend 缺席使 nginx 崩溃循环并连带停 db / 长命令被 SSH 读超时截断
 
 ## Guides
 

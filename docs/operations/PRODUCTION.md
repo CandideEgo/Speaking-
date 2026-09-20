@@ -256,49 +256,38 @@ npx playwright install chromium
 
 ### 5.1 首次部署
 
+部署一律走**异地构建 + 传镜像**（完整命令见 [RUNBOOK.md §1.1](RUNBOOK.md)）：服务器只放配置、
+`.env`、数据卷并 `docker load` 镜像。生产机 2C/1.6GB，**不具备就地构建能力**（`compose build`
+会把宿主机冻住），`/opt/speaking` 也不是 git 仓库。
+
 ```bash
 # 1. 服务器初始化
 apt update && apt install -y docker.io docker-compose-plugin nginx certbot
 
-# 2. 拉取代码
-git clone https://github.com/your-org/speaking.git /opt/speaking
-cd /opt/speaking
+# 2. 准备目录与运行时要用的配置（源码副本，不需要 .git）
+mkdir -p /opt/speaking/nginx/ssl
+rsync -P docker-compose.prod.yml nginx.ssl.conf promtail.yml root@<server>:/opt/speaking/
 
-# 3. 配置环境变量
-cp backend/.env.example backend/.env
-# 编辑 .env 填入生产环境值（务必设置 JWT_SECRET, DATABASE_URL, OPENAI_API_KEY）
+# 3. 配置环境变量（compose 只读 .env；变量名必须与 docker-compose.prod.yml 一致）
+#    必需：DB_USER / DB_PASSWORD / DB_NAME / JWT_SECRET / TRANSCRIPTION_CALLBACK_SECRET
+#    另需：OPENAI_API_KEY、NGINX_CONF，以及短信 / OSS 相关项
+vi /opt/speaking/.env && chmod 600 /opt/speaking/.env
 
-# 4. 启动服务
-docker compose -f docker-compose.prod.yml up -d
+# 4. 配置 SSL：prod compose 默认挂载 nginx.ssl.conf（TLS + 安全头）
+cp /etc/letsencrypt/live/<domain>/fullchain.pem /opt/speaking/nginx/ssl/
+cp /etc/letsencrypt/live/<domain>/privkey.pem   /opt/speaking/nginx/ssl/
+# 无证书的初始化阶段可临时走纯 HTTP：
+#   NGINX_CONF=nginx.conf docker compose -f docker-compose.prod.yml up -d nginx
 
-# 5. 执行数据库迁移
-docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
-
-# 6. 配置 SSL
-# prod compose 默认挂载 nginx.ssl.conf（TLS + 安全头）。
-# 将证书放置到 nginx SSL 目录（compose 已挂载 ./nginx/ssl:/etc/nginx/ssl:ro）
-mkdir -p nginx/ssl
-cp /etc/letsencrypt/live/api/fullchain.pem nginx/ssl/
-cp /etc/letsencrypt/live/api/privkey.pem nginx/ssl/
-docker compose -f docker-compose.prod.yml restart nginx
-# 无证书的初始化阶段可临时用纯 HTTP：NGINX_CONF=nginx.conf docker compose -f docker-compose.prod.yml up -d nginx
-
-# 7. 验证
-curl https://api.your-domain.com/health
-# 期望: {"status":"ok","timestamp":"...","environment":"production","components":{"database":{"status":"ok"},"redis":{"status":"ok"}}}
+# 5. 构建镜像 → 传输 → docker load → 起服务 → 核验：见 RUNBOOK.md §1.1
 ```
+
+数据库迁移无需手动执行：容器 entrypoint 启动时自动跑，且只有 `backend` 一个执行者。
 
 ### 5.2 日常更新
 
-```bash
-cd /opt/speaking
-git pull
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d
-
-# 如有数据库变更
-docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
-```
+见 [RUNBOOK.md §1.1](RUNBOOK.md) —— 异地构建 + 传镜像。**不要在服务器上 `git pull` 或 `build`**，
+也不要 `docker compose down`（nginx 的 upstream 找不到 backend 会崩溃循环并连带停掉 db/redis）。
 
 ---
 
@@ -312,7 +301,7 @@ docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
 | **structlog** | 结构化日志 | ✅ 已配置 — 生产 JSON 格式 (Loki/ELK 兼容)，开发 ConsoleRenderer |
 | **健康检查端点** | `/health` 探活 | ✅ 已有 — 检查 DB + Redis，503 on failure |
 | **Prometheus** | 指标暴露 | ✅ 已接入 — `prometheus-fastapi-instrumentator`, `/metrics` |
-| **Flower** | Celery 任务监控 | ✅ 已配置 — docker-compose.prod.yml, port 5555 |
+| **Flower** | Celery 任务监控 | ⚙️ 按需启用 — compose 里带 `profiles: ["monitoring"]`，默认不随 `up -d` 启动（2C/1.6GB 不值得常驻 40MB）。要用时 `--profile monitoring up -d flower`，仅绑 `127.0.0.1:5555` |
 | **Docker 重启策略** | 崩溃自动恢复 | ✅ 已设为 `unless-stopped` |
 | **请求 ID 追踪** | X-Request-ID 中间件 | ✅ 已配置 — HTTP header + Celery task_prerun 绑定 |
 | **日志轮转** | Docker json-file | ✅ 所有服务 max-size 10m, max-file 3 |
@@ -366,9 +355,12 @@ python seed_official_videos.py --dry-run
 
 建议准备 **10-20 个** 不同难度（A2-C1）和不同话题的精选视频。
 
-> **数据库迁移已自动化**：容器 entrypoint（`backend/entrypoint.sh`）在每次启动时
-> 跑 `alembic upgrade head`（幂等），无需手动执行。如需手动跑：
-> `docker exec -it $(docker ps -qf "name=backend") alembic upgrade head`
+> **数据库迁移已自动化，且只有一个执行者**：`backend` 容器启动时跑
+> `alembic upgrade head`（幂等）；`celery` / `celery-beat` 在 compose 里设了
+> `RUN_MIGRATIONS=0` 并要等 backend 健康后才启动。三者并发迁移会在同一
+> revision 上打架（2026-09-20 实际撞出 `duplicate key` 唯一约束冲突），故
+> 迁移归属权固定在 backend。如需手动跑：
+> `docker compose -f docker-compose.prod.yml exec backend alembic upgrade head`
 
 ---
 
@@ -432,14 +424,14 @@ python seed_official_videos.py --dry-run
 - [ ] Pro/Free 权益隔离验证通过
 
 ### 部署
-- [x] 数据库迁移自动执行（容器 entrypoint 启动时跑 `alembic upgrade head`，幂等）
+- [x] 数据库迁移自动执行，且只有 backend 一个执行者（entrypoint 跑 `alembic upgrade head`，幂等）
 - [x] faster-whisper 模型已预下载（Docker 构建时缓存）
 - [x] media 目录 volume 挂载已配置
 - [x] nginx 反向代理已配置（SSL + 限流 + 缓存）
 - [ ] 服务健康检查通过（/health 返回 ok）
 - [x] Docker 容器自动重启配置正确 (unless-stopped)
 - [x] 日志轮转已配置 (json-file, 10m × 3)
-- [x] Flower Celery 监控已配置
+- [x] Flower Celery 监控可用（compose `profiles: ["monitoring"]`，默认不随 `up -d` 启动）
 
 ### 运营准备
 - [ ] 管理员账号已创建（见下方「首次创建管理员」）

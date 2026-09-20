@@ -128,7 +128,11 @@ services:
     # Cloud worker consumes only the default queue; the transcription_gpu queue
     # is drained by the remote GPU worker (not this service).
     command: celery -A app.tasks.celery_app worker -Q celery --loglevel=warning
+    # Migrations belong to the backend service alone (see backend/entrypoint.sh).
+    # This worker only consumes the schema, and it starts only once backend is
+    # healthy — i.e. once migrations have been applied.
     environment:
+      RUN_MIGRATIONS: "0"
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
@@ -158,6 +162,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # RUN_MIGRATIONS=0 above means this worker does not migrate; it must not
+      # start serving tasks against a schema backend has not migrated yet.
+      backend:
+        condition: service_healthy
     # Whisper-adjacent workers can spike; cap to protect the host.
     mem_limit: 4g
     # Worker runs no HTTP server, so the image HEALTHCHECK (curl :8000/health)
@@ -177,7 +185,9 @@ services:
       dockerfile: Dockerfile.cloud
     # Periodic tasks: order-expiry + stale-transcription watchdog.
     command: celery -A app.tasks.celery_app beat --loglevel=warning
+    # Migrations belong to the backend service alone (see backend/entrypoint.sh).
     environment:
+      RUN_MIGRATIONS: "0"
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
@@ -192,6 +202,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      # RUN_MIGRATIONS=0 above means beat does not migrate; it must not schedule
+      # against a schema backend has not migrated yet.
+      backend:
+        condition: service_healthy
     mem_limit: 512m
     # Beat scheduler runs no HTTP server; disable the inherited image healthcheck.
     healthcheck:
@@ -205,6 +219,11 @@ services:
 
   flower:
     image: mher/flower:2.0
+    # Opt-in monitoring UI. Kept out of the default `up -d`: this host
+    # (2C/1.6GB) has no memory headroom to spare, and a dashboard is not worth
+    # 40MB of it by default. Start it explicitly when you need it:
+    #   docker compose -f docker-compose.prod.yml --profile monitoring up -d flower
+    profiles: ["monitoring"]
     command: celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flower}
     ports:
       - "127.0.0.1:5555:5555"

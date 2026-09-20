@@ -8,6 +8,11 @@
 # - 变量名与 docker-compose.prod.yml 严格一致：DB_USER / DB_PASSWORD / DB_NAME /
 #   JWT_SECRET（旧版误用 POSTGRES_USER / SECRET_KEY，compose 根本读不到，且把
 #   生产密码明文提交进了 git）。
+#
+# ⚠️ 已失效（2026-09-20）：本脚本假定在服务器上 `git clone/pull` + 就地构建镜像。
+# 实际的 /opt/speaking 是源码副本（无 .git），且生产机规格（2C/1.6GB）不足以
+# 就地构建（会打满内存、冻结宿主机）。首次装机的 [1/6] 工具安装、[3/6] .env
+# 生成仍可参照；构建与启动部分改用 docs/operations/RUNBOOK.md §1.1。
 
 set -e
 

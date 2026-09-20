@@ -1,6 +1,11 @@
 #!/bin/bash
 # Speaking 项目部署脚本
 # 使用方法：在服务器上执行 bash deploy.sh
+#
+# ⚠️ 已失效（2026-09-20）：本脚本假定在服务器上 `git pull` + 就地构建镜像。
+# 实际的 /opt/speaking 是源码副本（无 .git），且生产机规格（2C/1.6GB）不足以
+# 就地构建（会打满内存、冻结宿主机）。现行标准流程见
+# docs/operations/RUNBOOK.md §1.1「异地构建 + 传镜像」。
 
 set -e
 

@@ -18,6 +18,7 @@ Newest first, one line each. Prune the tail into `CHANGELOG.md` when this list g
 authoritative reasoning for each is the cited decision entry.
 
 - 内测上线四件套：排行 / 词汇学习闭环 / 免费开放 / 存储三态（DEC-037，2026-09-19）
+- 生产部署链路加固：迁移单一执行者 + 部署改为异地构建（DEC-039，2026-09-20）
 - 知识层重构 Phase 0/1：GitNexus 索引重建、四项可执行检查、冻结文档归档（2026-09-19）
 - 免费化影响评估报告（`docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`，2026-09-18）
 - YouTube anti-bot：POT provider + 代理中继（DEC-030，2026-09-09）
@@ -47,7 +48,7 @@ authoritative reasoning for each is the cited decision entry.
 ## Next Steps
 
 1. 知识层重构 Phase 3/4：不变量机械检查（ruff banned-api + 架构测试）、skill 收进仓库
-2. 生产部署：按序跑三个迁移（`published_at` → `vocab_sets` → `storage_mode`），跑完再验证三支冒烟
+2. 下次部署补做端到端冒烟：09-20 切换后未复跑三支冒烟
 3. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页（浏览/筛选/一键处理上线）；部署 seeword.top（迁移 + 导入 772 条 + 端到端验证一条 promote）；重抓脚本从 `.lr-scrape/` 收进 `backend/scripts/`；promote 前评估 embed vs download 的版权路径
 4. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
 5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）

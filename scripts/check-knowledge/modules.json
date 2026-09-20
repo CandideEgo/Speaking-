@@ -102,8 +102,8 @@
       "globs": ["frontend/e2e/**"]
     },
     "docker-compose": {
-      "description": "Local and production Compose definitions",
-      "globs": ["docker-compose*.yml"]
+      "description": "Local and production Compose definitions plus the container entrypoint they rely on",
+      "globs": ["docker-compose*.yml", "backend/entrypoint.sh"]
     },
     "pre-commit": {
       "description": "Pre-commit hook configuration",

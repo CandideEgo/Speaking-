@@ -8,48 +8,140 @@
 
 ## 1. 日常操作
 
-### 1.1 部署
+### 1.1 部署（异地构建 + 传镜像）
+
+**服务器不具备构建能力**：`/opt/speaking` 是源码副本（无 `.git`），且规格只有 2C/1.6GB
++ swap。在服务器上 `docker compose build` 会打满内存、把宿主机冻住（2026-09-20 实测两次），
+因此镜像一律在本地/CI 构建好再传上去，服务器上只做 `docker load` + 起服务。
+
+运行时真正依赖的只有**镜像**加上这几个文件：`docker-compose.prod.yml`、`.env`、
+`nginx*.conf`（由 `.env` 的 `NGINX_CONF` 选择）、`nginx/ssl/`、`promtail.yml`，
+以及 bind-mount 的 `backend/data/`（ECDICT + 题库，822MB，仅在数据更新时才同步）。
+`backend/`、`frontend/` 源码在服务器上不参与运行，不必保持同步。
 
 ```bash
-cd /opt/speaking
-git pull
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d
+SRV=root@47.122.109.52     # 部署对象 = DNS 解析到的那台，先 `dig +short seeword.top` 确认（见 §6.6）；密码在密码库
+```
 
-# 如有数据库变更
-docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
+#### 步骤 1 — 本地构建 amd64 镜像
+
+```bash
+# backend / celery / celery-beat 共用同一个镜像
+docker build --platform linux/amd64 -f backend/Dockerfile.cloud -t speaking-backend:latest backend/
+docker tag speaking-backend:latest speaking-celery:latest
+docker tag speaking-backend:latest speaking-celery-beat:latest
+
+# frontend 单独构建（Next.js standalone 产物）
+docker build --platform linux/amd64 -f frontend/Dockerfile.prod -t speaking-frontend:latest frontend/
+
+docker save speaking-backend:latest speaking-celery:latest speaking-celery-beat:latest \
+           speaking-frontend:latest | gzip -1 > images.tgz
+sha256sum images.tgz
+```
+
+- 本地是 Windows/macOS 时必须显式 `--platform linux/amd64`，服务器是 x86_64。
+- 拉不到基础镜像时（`node:22-alpine`、`python:3.12.12-slim`）可经
+  `docker.m.daocloud.io/library/<name>` 拉取后 `docker tag` 回原名；**基础镜像 digest 必须
+  与服务器上已有的一致**（`docker image inspect` 看 `RepoDigests`），否则运行期会漂。
+- `images.tgz` 约 424MB（未压缩约 1.9GB）。
+
+#### 步骤 2 — 传输 + 校验
+
+```bash
+rsync -P --partial images.tgz $SRV:/root/         # 断点续传；约 400KB/s ≈ 17 分钟
+MSYS_NO_PATHCONV=1 ssh $SRV 'sha256sum /root/images.tgz'   # 与步骤 1 的 sha256 比对
+```
+
+MSYS/Git Bash 下凡命令里出现远程绝对路径，都要加 `MSYS_NO_PATHCONV=1`，否则路径会被本地转换。
+
+#### 步骤 3 — 同步配置（仅当 compose / nginx / promtail / data 有改动）
+
+```bash
+rsync -P docker-compose.prod.yml nginx.ssl.conf promtail.yml $SRV:/opt/speaking/
+rsync -a --delete backend/data/ $SRV:/opt/speaking/backend/data/   # 仅数据文件变化时
+```
+
+#### 步骤 4 — 切换（在服务器上执行）
+
+**必须在 `nohup` 后台跑并轮询日志**：`docker load` 1.9GB 比 SSH 会话的读超时更长，前台跑会被
+打断在中间状态（2026-09-20 实际发生过：`up -d` 只完成一半）。
+
+```bash
+ssh $SRV
+cd /opt/speaking
+TS=$(date +%Y%m%d%H%M%S)
+
+# 4.1 备份 + 固化回滚标签（回滚见 §1.2）
+mkdir -p /root/backups
+cp .env /root/backups/env.$TS
+cp docker-compose.prod.yml /root/backups/compose.$TS.yml
+for s in backend celery celery-beat frontend; do docker tag speaking-$s:latest speaking-$s:pre-deploy; done
+
+# 4.2 载入新镜像并核对 ID
+gunzip -c /root/images.tgz | docker load
+docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E 'speaking-(backend|celery|celery-beat|frontend):latest'
+
+# 4.3 先把迁移跑完：迁移失败要在起服务之前发现，而不是起完才发现
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  --entrypoint /app/entrypoint.sh backend migrate-only
+
+# 4.4 起服务（db / redis 不动；镜像 ID 变化会触发四个应用容器重建）
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+```
+
+- **不要 `docker compose down`**：nginx 的 upstream 写着 `backend:8000`，backend 不存在时 nginx 会
+  以 `[emerg] host not found in upstream` 崩溃循环，还会连带把 db / redis 停掉。
+- 迁移只有 `backend` 一个执行者（`celery` / `celery-beat` 设了 `RUN_MIGRATIONS=0`，且要等 backend
+  健康后才启动）。4.3 是额外保险，4.4 里 backend 还会再跑一次，在 head 上即空操作。见 §1.3。
+- 核验通过后删掉服务器上的 `/root/images.tgz`（424MB）。
+
+#### 步骤 5 — 核验
+
+```bash
+docker compose -f docker-compose.prod.yml ps                  # 全 Up，backend/db/redis healthy
+docker compose -f docker-compose.prod.yml exec backend alembic current   # 在 head
+docker inspect speaking-backend-1 --format '{{.Image}}'       # 与本地镜像 ID 一致
+curl -fsS https://seeword.top/health                          # {"status":"ok"}
+curl -fsS -o /dev/null -w '%{http_code}\n' https://seeword.top/login
+docker exec speaking-celery-1 celery -A app.tasks.celery_app inspect ping   # 1 node online
 ```
 
 ### 1.2 回滚
 
+镜像回滚（首选，秒级）：`pre-deploy` 标签固化的是上一次部署的镜像。
+
 ```bash
-# 1. 停止当前服务
-docker compose -f docker-compose.prod.yml down
+cd /opt/speaking
+for s in backend celery celery-beat frontend; do docker tag speaking-$s:pre-deploy speaking-$s:latest; done
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+```
 
-# 2. 切换到上一个稳定版本
-git log --oneline -5          # 找到目标 commit
-git checkout <commit-hash>
+新版本引入的表/列是纯增量（旧代码忽略它们），**回滚通常不需要动数据库**。确实要退数据库时先备份：
 
-# 3. 重新构建并启动
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d
+```bash
+docker compose -f docker-compose.prod.yml exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  | gzip > /root/backups/pg_rollback_$(date +%Y%m%d%H%M%S).sql.gz
 
-# 4. 如需回滚数据库
-docker exec -it $(docker ps -qf "name=backend") alembic downgrade -1
+docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1   # 每步退一个 revision
 ```
 
 ### 1.3 数据库迁移
 
 ```bash
 # 升级到最新版本
-docker exec -it $(docker ps -qf "name=backend") alembic upgrade head
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 
 # 回退一个版本
-docker exec -it $(docker ps -qf "name=backend") alembic downgrade -1
+docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 
-# 查看当前版本
-docker exec -it $(docker ps -qf "name=backend") alembic current
+# 查看当前版本 / 有无分叉
+docker compose -f docker-compose.prod.yml exec backend alembic current
+docker compose -f docker-compose.prod.yml exec backend alembic heads
 ```
+
+迁移由容器 entrypoint 自动执行，**归属权固定在 `backend`**：`celery` / `celery-beat` 带
+`RUN_MIGRATIONS=0` 并 `depends_on backend: service_healthy`。三个容器同时跑
+`alembic upgrade head` 会在同一 revision 上竞争（唯一约束冲突、半迁移），不要退回那种做法。
 
 ### 1.4 种子内容
 

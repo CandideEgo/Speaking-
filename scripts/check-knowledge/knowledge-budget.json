@@ -38,13 +38,13 @@
       "limit": 6667
     },
     ".agent/decisions-index.md": {
-      "limit": 4716
+      "limit": 4841
     },
     ".agent/state.md": {
       "limit": 5322
     },
     ".agent/decisions.md": {
-      "limit": 47825
+      "limit": 51164
     }
   },
   "globs": [

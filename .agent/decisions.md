@@ -508,3 +508,26 @@
 - 简介覆盖率取决于 `external_meta` 回填（本地视频与早期数据为 None，卡片不渲染简介、不报错）；上线前应跑 `scripts/backfill_external_meta.py` 或抽查填充率。
 - feed 缓存（推荐 60s / browse 300s / 详情 300s）内旧载荷无新字段，schema 默认值兜底、自然过期。
 - legacy 列表端点（/videos/public、UGC community feed）经 model_validate 携带未截断全文简介，但当前无前端消费方，未做截断。
+
+---
+
+## 2026-09-20 — 部署形态定稿（异地构建 + 传镜像）+ 迁移归属权收敛到 backend
+
+**Problem**: 生产机规格 2C/1.6GB、`/opt/speaking` 无 `.git`，**无法就地构建**：`docker compose build` 打满内存并把宿主机冻住（2026-09-20 实测）。同时三个容器（backend / celery / celery-beat）共用同一镜像入口，启动时各自跑 `alembic upgrade head`——上线时实际撞出唯一约束冲突（celery 容器 `duplicate key`），而 entrypoint 是 fail-open 设计（迁移失败也继续启动），终态是否正确全靠时序运气。文档侧同样失真：RUNBOOK §1.1、PRODUCTION.md §5、`deploy.sh` / `deploy-oneclick.sh` / `deploy.yml.template` 都写着 `git pull` + 就地 build 这套已不成立的流程。
+
+**Options**: 部署 A) 服务器就地构建 B) 异地构建 + 传镜像（`docker save | gzip` → rsync → `docker load`）C) CI 构建 + 镜像仓库；迁移归属 A) 每个容器各自迁移（现状）B) 只 backend 迁移、其余容器跳过并排在 backend 健康之后 C) 独立迁移 job / init container + 锁。
+
+**Decision**:
+1. **部署 = B**：本地构建 `linux/amd64` 镜像 → `docker save` → rsync（可断点续传）→ 服务器 `docker load` → `up -d --remove-orphans`。服务器只承载运行时文件（compose / nginx conf / `.env` / `backend/data` 822MB bind mount），源码目录不参与运行。选项 C 需要额外凭据与带宽，暂不引入。
+2. **迁移归属 = B**：`entrypoint.sh` 增加 `RUN_MIGRATIONS` 开关（默认 1，保持原语义）；compose 给 celery / celery-beat 设 `RUN_MIGRATIONS=0` 并让两者 `depends_on backend: service_healthy`。显式 `migrate-only` 覆盖该开关，供部署时先把迁移跑完。
+3. **flower 改 `profiles: ["monitoring"]`**：不再随 `up -d` 起床（此前会被顺带拉起，仅绑 loopback 且用默认口令 `admin:flower`）。
+4. **文档收敛到单一来源**：RUNBOOK §1.1 重写为标准流程（含 `pre-deploy` 镜像标签回滚、禁止 `docker compose down`）；PRODUCTION.md §5.1/5.2 改为指向它；`deploy.sh` / `deploy-oneclick.sh` / `deploy.yml.template` 标注失效。
+
+**Reason**: 服务器规格决定它只能是运行时载体，构建必须发生在有 CPU / 内存的地方——把构建移出生产机同时消除了「构建压垮站点」与「镜像来源与源码不同步」两类风险，并且镜像可以在上线前先核对 sha256。迁移是 schema 的单写者操作，最小可行的互斥不是加锁而是**指定唯一写者 + 启动排序**：比 advisory lock / 独立迁移容器成本低，也不依赖迁移本身可并发。
+
+**Trade-offs**:
+- 传镜像约 424MB / 约 17 分钟（400KB/s），比 `git pull` 慢；换来构建不发生在生产机、产物可校验。
+- celery / celery-beat 现在依赖 backend 健康：backend 起不来时队列不再消费（过去会照常启动）。这是刻意的（schema 未就绪时消费更糟），代价是故障面扩大。
+- `RUN_MIGRATIONS=0` 只管「谁迁移」，不改变 fail-open 语义：迁移失败的可见性仍依赖 backend 日志与 `/health`。
+- flower 由默认启动改为按需启动，监控数据不再连续。
+- 未做：CI 构建 + 镜像仓库、GPU worker 镜像的同等流程、迁移前自动 pg 备份。
