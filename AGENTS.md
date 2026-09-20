@@ -49,6 +49,7 @@ Never read `.agent/decisions.md` end to end — it is the largest file in the la
 | a review-fix round repeating an old mistake | [review/fix failure modes](wiki/problems/review-fix-failure-modes.md) |
 | servers, media topology, credentials | [runbook](docs/operations/RUNBOOK.md) · [media topology](docs/operations/MEDIA-TOPOLOGY.md) |
 | local setup, running tests, pushing | [setup](wiki/guides/setup.md) · [testing](wiki/guides/testing.md) · [release checklist](wiki/guides/release-checklist.md) |
+| splitting one task across multiple agents | [module owners](.agent/owners.md) · [handoff format](.agent/handoffs/README.md) |
 
 ## Knowledge Layers
 

@@ -6,10 +6,11 @@
 
 ## Last Updated
 
-Date: 2026-09-19
+Date: 2026-09-20
 
-- **内测上线四件套全部落地**（DEC-037）：主页排行 / 词汇学习闭环 / 内测免费开放 / 内容存储三态。验证：后端 735 passed；三支端到端冒烟 31+18+24 全通过；前端 tsc/eslint/vitest/build 全绿；ruff 干净、mypy 77 基线。三处行为变更需知悉：① `mastered` 词退出复习队列（三态语义）② 匿名用户对非 `is_demo` 视频的媒体/详情/跟读句一律被拒（登录墙保留）③ 首页/详情的 Pro 与解锁额度 UI 全部移除
-- **知识层重构启动**：上下文层按易变性分层 + 新增可执行检查层（`scripts/check-knowledge/`），Phase 0/1 完成、Phase 2 进行中。详见 `.agent/README.md`
+- **多 Agent 协作协议落地**（`owners.md` + `handoffs/`，2026-09-20 基线）；原"未提交改动"已提交，脱敏结论见 Known Issues
+- **内测上线四件套全部落地**（DEC-037）：主页排行 / 词汇学习闭环 / 内测免费开放 / 内容存储三态。验证：735 passed、冒烟 31+18+24 全过、前端全绿（tsc/eslint/vitest/build）。三处行为变更：① `mastered` 退出复习队列（三态语义）② 匿名拒访问非 `is_demo` 视频的媒体/详情/跟读 ③ Pro 与解锁额度 UI 全移除
+- **知识层重构启动**：上下文层按易变性分层 + 新增可执行检查层（`scripts/check-knowledge/`），Phase 0/1 完成、Phase 2 进行中
 
 ## Recently Completed
 
@@ -40,7 +41,7 @@ authoritative reasoning for each is the cited decision entry.
 ## Current Focus
 
 - **知识层重构**（2026-09-19 起，进行中）：Phase 2 按易变性切分上下文层；随后 Phase 3 把可机械化的不变量变成检查，Phase 4 让治理可移植
-- **工作区有未提交改动**：`docker-compose.prod.yml` / `nginx.ssl.conf` / `deploy*.sh` / `backend/app/services/video_cache.py` / `vocab_set_service.py`，等用户确认后提交
+- **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用，未见硬编码
 - **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿（运营物料）、内测反馈收集渠道
 
 ## Next Steps
@@ -55,9 +56,9 @@ authoritative reasoning for each is the cited decision entry.
 
 ## Known Issues
 
-- **本地 dev SMS 走真实阿里云发送但 SDK 初始化失败 → send-code 502**。根因已定位：`requirements.txt` 曾缺 Dypnsapi SDK，已补；本地 `.venv` 与云端镜像需重装依赖后复测。CI / 无凭据环境自动回退 dev-fake 码 `1234`，E2E 依赖此路径
+- **本地 dev SMS 发送 502**：`requirements.txt` 已补 Dypnsapi SDK，待 `.venv` / 云端镜像重装后复测；CI / 无凭据环境回退 dev-fake 码 `1234`，E2E 依赖此路径
 - **E2E coverage 不完整**：CI e2e 已 seed 核心旅程（不再整体跳过），但播放 / 词汇复习 / 考试等关键流程仍缺 e2e
 - **ICP compliance**：等个体营业执照才能全量部署（payment 因此保持禁用）
-- 遗留 2 个 Low 未修（已评估为可接受）：token 镜像 cookie 缺 `Secure` 标志（生产 HTTPS 时补）、`stats_heatmap` 用服务器本地日期而非 UTC
-- 工作区的未提交部署改动含明文服务器信息，提交前需确认是否脱敏
+- 遗留 2 个 Low（已评估可接受）：token 镜像 cookie 缺 `Secure`（生产 HTTPS 补）、`stats_heatmap` 用服务器本地日期
+- 部署文件脱敏已抽查（2026-09-20）：compose / deploy 脚本中的密钥均为环境变量或 `.env` 引用，未见硬编码，关闭
 - **本地 master 领先 origin 47 个提交，从未经过 CI**。上次真实运行（2026-08-27）三个 job 全挂，三处已本地修复（ruff format / alembic `prepend_sys_path` / next→16.3.5 消 audit），**均待 CI 验证**。流程与已知坑见 `wiki/guides/release-checklist.md`
