@@ -2,14 +2,12 @@
 
 > Navigation for `decisions.md`. Read this first, then open the one entry you need.
 >
-> IDs are assigned in **file order** (which is append order, not date order — 9 dates repeat and
-> the tail of the file is not chronological). `DEC-001..DEC-038` are historical and must not be
-> reassigned. To add a decision: append the entry at the end of `decisions.md`, add a row here
-> with the next free ID. The `index` check fails if this table and `decisions.md` disagree on
-> count, order, date or title.
+> IDs are assigned in **file order** — append order, not date order, and dates repeat. An ID is
+> issued once and never reassigned; a body moved to `archive/` keeps its heading here as a stub.
+> To add a decision: append the entry to `decisions.md`, add a row with the next free ID. The
+> `index` check fails if this table and `decisions.md` disagree on count, order, date or title.
 >
-> `superseded` means the decision is still on the record but no longer describes the system.
-> Read the superseding entry instead.
+> `superseded`: still on the record, no longer describing the system — read the superseding entry.
 
 | ID | Date | Title | ADR | Status |
 |----|------|-------|-----|--------|
@@ -52,3 +50,9 @@
 | DEC-037 | 2026-09-19 | 内测上线四件套（排行 / 学习闭环 / 免费开放 / 存储三态） | ADR-0019, ADR-0020 | active |
 | DEC-038 | 2026-09-19 | 周榜改自然周口径 + 首页卡片信息密度（简介 / 总播放 / 收藏） | — | active |
 | DEC-039 | 2026-09-20 | 部署形态定稿（异地构建 + 传镜像）+ 迁移归属权收敛到 backend | — | active |
+| DEC-040 | 2026-09-20 | 知识层归档机制 + stale 提醒检查 | — | active |
+| DEC-041 | 2026-09-20 | 首页排行块并入筛选栏排序（修订 DEC-037 呈现层） | — | active |
+| DEC-042 | 2026-09-21 | LLM 视频自动分类与分级 + 分级颜色目标优先 | — | active |
+| DEC-043 | 2026-09-21 | 视频难度校准：习得级别 + 超纲率（修订 DEC-042 的难度兜底） | — | active |
+| DEC-044 | 2026-09-21 | 点词分级渲染：`/gloss/static` + `/gloss/enrich` 两级端点 | — | active |
+| DEC-045 | 2026-09-21 | 榜单页改版：TopPodium + RankingRow 重写 | — | active |

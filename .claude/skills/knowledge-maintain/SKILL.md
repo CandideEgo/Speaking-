@@ -381,15 +381,18 @@ whether knowledge is worth recording.
 # Mechanical Drift vs Judgement Drift
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the CI `Knowledge` workflow.
-Six checks — `refs`, `frontmatter`, `ownership`, `index`, `paths`, `budget` — already catch, deterministically:
+Seven checks — `refs`, `frontmatter`, `ownership`, `index`, `paths`, `budget` and the advisory
+`stale` — already catch, deterministically:
 
 1. A markdown link that no longer resolves, or an ADR reference with no file in `docs/adr/`
 2. Invalid `wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
 3. A commit hash in a stable knowledge file (`.agent/*.md`, `wiki/*.md`) — point at the decision ID instead
 4. `.agent/decisions-index.md` drifting from `.agent/decisions.md` in count, order, date or title
 5. A forbidden or missing path, and knowledge files growing past their size ceiling
+6. Code changed under a module some `wiki/` page declares, since that page was verified — `stale`
+   prints which pages to re-read, and fails only when its own coverage has a hole
 
-Do not hand-check those. What the checks cannot read is prose that no longer matches reality — that
+Do not hand-check those. What no check can read is prose that no longer matches reality — that
 is what `/knowledge-verify` is for.
 
 Run it directly:
@@ -398,10 +401,17 @@ Run it directly:
 python scripts/check-knowledge/check_knowledge.py
 ```
 
-Fix your own violations. The checker, `knowledge-budget.json` and `knowledge-baseline.json` are not
-edited to make a change pass. `.agent/archive/` is exempt — frozen records are not held to today's
-links or schema.
+Fix your own violations. The checker, `knowledge-budget.json`, `knowledge-baseline.json` and
+`knowledge-stamps.json` are not edited to make a change pass. `.agent/archive/` is exempt — frozen
+records are not held to today's links or schema.
 
-Still unimplemented: automatically flagging a wiki document whose `related_code` module changed.
-Until that exists, changing code in a documented module means running `/knowledge-verify` before
-committing.
+After `/knowledge-verify` has cleared a page, acknowledge it so the reminder goes quiet:
+
+```bash
+python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>
+```
+
+**If the file you must add to is at its ceiling**, shrink it or archive it: move the oldest era's
+entry bodies verbatim into `.agent/archive/decisions-YYYY-MM.md`, leave their headings behind as
+stubs, then lower the ceiling — the procedure is in `scripts/check-knowledge/README.md`. What you
+never do is raise the number so that your own change passes.

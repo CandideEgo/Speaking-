@@ -14,15 +14,15 @@
 | `state.md` | what is in flight, what is next, what is broken | every session | session start |
 | `owners.md` | routing table for multi-agent splits | rarely | splitting a task across agents |
 | `handoffs/` | per-task state transfer between agents | per split task | pickup/acceptance of a split task |
-| `archive/` | frozen point-in-time records | never | archaeology |
+| `archive/` | frozen point-in-time records, incl. archived decision bodies | never | archaeology |
 
 Sibling layers: `wiki/` (long-form — `architecture/`, `problems/`, `guides/`), `docs/adr/`, `docs/progress/`, `CHANGELOG.md`, `docs/operations/`.
 
 ## Read order
 
-1. `AGENTS.md` — every session; it routes to everything else.
+1. `AGENTS.md` — every session.
 2. `invariants.md` + `system-map.md` — before changing code.
-3. `decisions-index.md`, then the single entry you need — never read `decisions.md` end to end.
+3. `decisions-index.md`, then the one entry you need — never read `decisions.md` end to end.
 4. The `wiki/` document for the subsystem you touch.
 
 ## Which file owns which fact
@@ -43,7 +43,7 @@ If a fact fits two rows, the more specific one owns it; the other links.
 
 ## Rules
 
-- **Never edit or reorder an existing decision entry.** To change course, append a new entry and
+- **Never edit or reorder a decision entry.** To change course, append a new entry and
   mark the old one `superseded by DEC-0xx` in `decisions-index.md`.
 - **No commit hashes** outside `decisions.md`, `archive/`, `docs/` and `CHANGELOG.md`. A knowledge
   file that narrates git history goes stale; point at the decision instead.
@@ -53,7 +53,7 @@ If a fact fits two rows, the more specific one owns it; the other links.
 - **Size ceilings are ceilings, not targets.** `knowledge-budget.json` records them as `limit` +
   `slack`; lower by hand, or raise deliberately with `--budget-refresh`.
 - **`.agent/archive/` is exempt from the checks.** Frozen records are correct as written, not held
-  to today's links.
+  to today's links; a file at its ceiling archives its oldest era here and leaves stubs behind.
 
 ## Enforcement
 

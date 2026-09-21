@@ -5,7 +5,10 @@
     "before_session_total_B": 104110,
     "after_measured_B": 29083,
     "after_tier_limit_B": 33792,
-    "reduction": "72%"
+    "reduction": "72%",
+    "_decisions_archive": "2026-09-20: .agent/decisions.md sat at exactly 100% of its ceiling, so the next decision would have forced --budget-refresh — how a ceiling stops meaning anything. DEC-001..DEC-020 moved verbatim to .agent/archive/decisions-2026-07.md; the file fell to 38275 B and its limit was *lowered* to 44032 B, giving roughly two decisions of headroom before the next archive round. Mechanism: scripts/check-knowledge/README.md.",
+    "_index_headroom": "2026-09-20: decisions-index.md was also at exactly 100% of its ceiling (4841 B = 39 rows + the conventions above them), so the *next* decision could not add a row. Unlike decisions.md it has no release valve — the `index` check requires one row per entry, in order — so its ceiling was deliberately raised to 6400 B: about fourteen rows of room, and the conventions were shortened to stop hard-coding an ID range that grows. A raise, not a refresh: every other file keeps its headroom.",
+    "_decisions_archive_2026_09": "2026-09-22: the 44032 B round was spent — decisions.md was back at 42305 B (96%) after DEC-040..043, and the 09-21/09-22 fixes had no decision entries yet. DEC-029..DEC-036 moved verbatim to .agent/archive/decisions-2026-09.md; the file fell to 29516 B and its limit was lowered to 36864 B (file + ~3 KB of entries added the same day + ~2 decisions of room). Same mechanism as the 07/08 rounds: scripts/check-knowledge/README.md."
   },
   "_targets": {
     "_comment": "Where these should land as content is trimmed further. Not enforced.",
@@ -38,13 +41,13 @@
       "limit": 6667
     },
     ".agent/decisions-index.md": {
-      "limit": 4841
+      "limit": 6400
     },
     ".agent/state.md": {
       "limit": 5322
     },
     ".agent/decisions.md": {
-      "limit": 51164
+      "limit": 36864
     }
   },
   "globs": [

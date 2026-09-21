@@ -14,10 +14,15 @@ Prevent the agent's understanding from becoming outdated.
 Code is the source of truth.
 
 Mechanical drift is already caught for you: `scripts/check-knowledge/check_knowledge.py` runs in
-pre-commit and in the CI `Knowledge` workflow, and its six checks — `refs`, `frontmatter`,
+pre-commit and in the CI `Knowledge` workflow, and its six failure checks — `refs`, `frontmatter`,
 `ownership`, `index`, `paths`, `budget` — cover broken links, missing ADRs, invalid wiki frontmatter,
 unknown or dead `related_code` modules, commit hashes in stable knowledge files, index/entry drift,
 forbidden paths and size-ceiling growth.
+
+A seventh check, `stale`, says where to start: it compares each documented module against the digest
+recorded in `scripts/check-knowledge/knowledge-stamps.json` when its pages were last verified, and
+names the pages whose code has moved since. Treat it as a starting point, not a verdict — code
+moving under a page does not make the page wrong.
 
 This skill exists for what no check can parse: **prose that no longer matches the code**.
 
@@ -170,6 +175,16 @@ Update the `updated` date, and keep all eight required keys (`title`, `tags`, `s
 `related_code`, `related`, `created`, `updated`). The `frontmatter` check fails on a missing key, an
 unknown `related_code` module, an empty `related_code` in `wiki/architecture/` or `wiki/problems/`,
 a `related` path that does not exist, or an `updated` date earlier than `created`.
+
+## Acknowledge the reminder
+
+```bash
+python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>
+```
+
+Refresh only the modules you actually re-read — a stamp claims its pages still describe the code.
+Without `--module` the command re-derives the whole watched set from the documents, which is the bulk
+form, for when the module vocabulary itself changed.
 
 ## Implicit Knowledge Filter
 

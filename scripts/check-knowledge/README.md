@@ -25,10 +25,59 @@ Exit code 0 = clean, 1 = a violation not recorded in `knowledge-baseline.json`.
 | `index` | `.agent/decisions-index.md` and `.agent/decisions.md` disagree on entry count, order, date or title, or an ID is out of sequence |
 | `budget` | A knowledge file or tier exceeds its recorded size ceiling (`limit` + `slack`) |
 | `paths` | A file that `invariants.json` declares forbidden exists, or a required one is missing |
+| `stale` | (advisory, never fails on its own) Code under a module some `wiki/` document declares changed since that document was last verified — see below |
 
 `frontmatter` also fails when a module in `modules.json` matches no file on disk **and** is
 referenced somewhere. That is the drift detector: delete the code and the check tells you the
 vocabulary is stale.
+
+## The one advisory check: `stale`
+
+The six checks above decide pass or fail. `stale` only reminds, because to re-read prose you need
+a person, and a reminder that blocks a commit buys silence rather than accuracy.
+
+`knowledge-stamps.json` records, per module, the date its documents were last verified and a
+sha256 over the module's code. Change the code and the digest stops matching:
+
+```
+  [watch] exam-levels: code changed since its documents were verified on 2026-09-20
+          wiki/architecture/exam-vocabulary.md
+          run /knowledge-verify, then: ... --stamp-refresh --module exam-levels
+```
+
+Two things do fail, because a reminder with a hole in it is worse than no reminder: a stamp
+naming a module that is not in `modules.json`, and a module some document declares that no stamp
+covers. Adding a document that references a new module therefore costs one command:
+
+```bash
+python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <name>
+```
+
+`--stamp-refresh` without `--module` re-derives the whole watched set from the documents, so it
+also prunes stamps for modules no document references any more. Refreshing claims the documents
+still describe the code — it is not a way to clear a reminder you did not read.
+
+`--strict` turns the notices into failures, for whoever wants the gate instead of the reminder.
+Digests cover tracked files plus untracked-but-unignored ones, with CRLF normalised, so a local
+run and CI agree; the checker's own state files are excluded so a stamp cannot invalidate itself.
+
+## Archiving a file that hit its ceiling
+
+A ceiling is meant to be hit. When `.agent/decisions.md` reaches its limit the reflex is
+`--budget-refresh`, which is how debt becomes permanent: the file keeps growing and the next
+reader pays. The alternative, used for the first time on 2026-09-20:
+
+1. Move the **oldest era's** entry bodies verbatim into `.agent/archive/decisions-YYYY-MM.md`,
+   under a provenance line saying what it is and that it is frozen.
+2. Leave the entry headings in `.agent/decisions.md` as stubs, one line each pointing at that
+   archive file. The `index` check matches headings, so the index keeps agreeing and no ID is
+   issued, reassigned or reordered.
+3. Lower the file's `limit` in `knowledge-budget.json` to the new size plus deliberate headroom,
+   and record why in `_history` — otherwise the next reader sees a number and no reason.
+4. Re-run the check: `refs` follows the new link, `index` re-checks the headings.
+
+Archived bodies are frozen — `.agent/archive/` is exempt from every check, and markdown links
+inside them were written for their pre-move location in `.agent/`.
 
 ## modules.json
 
@@ -38,9 +87,11 @@ matches a real file. Adding a module is the only way to make a new code area ref
 
 Use one convention — lower-case slugs, not paths. `video-service`, not `services/video_service`.
 
-## Baselines and budgets
+## Baselines, budgets, stamps
 
-Two separate files, two separate flags. Do not mix them up.
+Three separate files, three separate flags. Do not mix them up: `knowledge-baseline.json` (accepted
+violations) with `--baseline-update`, `knowledge-budget.json` (size ceilings) with
+`--budget-refresh`, and `knowledge-stamps.json` (what was verified when) with `--stamp-refresh`.
 
 `knowledge-baseline.json` records violations that already exist and are scheduled to be paid off.
 Anything not in it fails. The mypy baseline gate in `ci.yml` works the same way.
@@ -81,5 +132,9 @@ New files are picked up even before `git add`, so a local run sees the same tree
 
 ## Wiring
 
-Runs as the `knowledge-check` pre-commit hook and as the CI `Knowledge` workflow. Neither ruff
-config covers this directory yet, so keep it PEP 8 clean by hand.
+`knowledge-check` runs all of it in pre-commit; `knowledge-stale` runs the reminder alone with
+`verbose: true`, because pre-commit hides the output of a hook that passes and a reminder nobody
+sees is not a reminder. The CI `Knowledge` workflow runs the same command as the first hook, so the
+notices reach its log without failing the job.
+
+Neither ruff config covers this directory yet, so keep it PEP 8 clean by hand.

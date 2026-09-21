@@ -1,0 +1,109 @@
+{
+  "watched": {
+    "ai-service": {
+      "verified": "2026-09-21",
+      "digest": "sha256:d9cffaa0598f35edb7c9d2f20025c1a1c9cfda8e74ecc942d32ce31cf75e9270"
+    },
+    "api-media": {
+      "verified": "2026-09-22",
+      "digest": "sha256:a31e287bdc308b26c803e86a2c08654e92b62cc17b8cae2c5c61235a82bdb1e9"
+    },
+    "auth": {
+      "verified": "2026-09-20",
+      "digest": "sha256:e8db62d9f538666aeed18ffb0ca942d3d25f86508050a06860ff2dbf3ca89b6e"
+    },
+    "backend-services": {
+      "verified": "2026-09-21",
+      "digest": "sha256:59c21206ce8b58c7dc34c69a75be0609ee509df429dbc652b75df8e47e234856"
+    },
+    "celery-tasks": {
+      "verified": "2026-09-21",
+      "digest": "sha256:73722e123c263b5a93ebced721166c5e6c51549eab414e552735786294c3a364"
+    },
+    "ci-workflows": {
+      "verified": "2026-09-20",
+      "digest": "sha256:869c2e0ee9b0c89341c525fc775a1d285e76708ee6c4ee106cffca77c9342716"
+    },
+    "core-cache": {
+      "verified": "2026-09-20",
+      "digest": "sha256:055e8c9f9391a69171307590c250a5305ff77cf7941c3ec0ffb4dab7c2a728d0"
+    },
+    "docker-compose": {
+      "verified": "2026-09-20",
+      "digest": "sha256:a4cac65d56079e39c79c97c6c55862baaace0d041481063bb708acd277dad42b"
+    },
+    "ecdict-service": {
+      "verified": "2026-09-20",
+      "digest": "sha256:dc2a44c6bcf73d90d01acfe7ca5c8815c09358e898bc2af43c61769f69845765"
+    },
+    "env-config": {
+      "verified": "2026-09-20",
+      "digest": "sha256:24e756880f06ec26a914c98760045847f3e7341a00ff67381a56a9bdc0c79136"
+    },
+    "exam-levels": {
+      "verified": "2026-09-21",
+      "digest": "sha256:2d14165a158fba8df688a743b0e7d20bb7a727b52e56b31b61bf3a539f08725f"
+    },
+    "frontend-api-client": {
+      "verified": "2026-09-20",
+      "digest": "sha256:26437ada9cbaecf1f44f993c5aa40ae9125bd8588ad640b123ae2f7d77744dc8"
+    },
+    "frontend-app": {
+      "verified": "2026-09-21",
+      "digest": "sha256:be90aca7ca14e47457cc30ad129f04096174a6299bf6ea59432e5b69ebbd6e8f"
+    },
+    "frontend-lib": {
+      "verified": "2026-09-21",
+      "digest": "sha256:12c8df29e1a8c66e7c68be25df263552c8f04edc20b72ab64af3e66b850833f8"
+    },
+    "frontend-package": {
+      "verified": "2026-09-20",
+      "digest": "sha256:e011744c1fb81d40fe48d02e8272d1bc7116de2e5582d6fd1272590ab318a7a7"
+    },
+    "frontend-stores": {
+      "verified": "2026-09-20",
+      "digest": "sha256:5ecd3b40efa5a09a0918180b4540043c955d4de204643b075341ee9ce85e5a3e"
+    },
+    "models-behavior": {
+      "verified": "2026-09-20",
+      "digest": "sha256:4ebb00baf11036fa22f774dad5d16d5a1bcaefc47187821672d0bc79bb7f4e63"
+    },
+    "pre-commit": {
+      "verified": "2026-09-20",
+      "digest": "sha256:d4065b113f485ffefb418552da9ab8735280e5ed93c8840a99294e5f65326e66"
+    },
+    "pytest-suite": {
+      "verified": "2026-09-21",
+      "digest": "sha256:a1e3f84db54c7f20ddfab5207daef8a444aef16b572e223f3ee8757302f53a33"
+    },
+    "sms-service": {
+      "verified": "2026-09-20",
+      "digest": "sha256:97ac1f58b1059be1745adeb93124cb7ba53feb9c7dd931231ea3e14943d883ed"
+    },
+    "tests-conftest": {
+      "verified": "2026-09-20",
+      "digest": "sha256:feeaa787294c70b8355580b0f2cfb8e576551a3fa5f8bd0beae472ae1e42115a"
+    },
+    "transcription": {
+      "verified": "2026-09-20",
+      "digest": "sha256:b1b6ff3d618c54760320d9bd51a444788acd13ab2cb621e0fe0b580ed5f04216"
+    },
+    "translation": {
+      "verified": "2026-09-20",
+      "digest": "sha256:9d40f35aa929f39d23f444c04de49f22b875f41d6f995e43becf6da6638e4307"
+    },
+    "unlock-service": {
+      "verified": "2026-09-20",
+      "digest": "sha256:3042bf2acdeafb99d6ac4834001059b8f575bc4bbaa916e371408c6a081bcb86"
+    },
+    "video-pipeline": {
+      "verified": "2026-09-21",
+      "digest": "sha256:c7933e01c3951edf3e3cffedd6e7b5b9411b448fd53c985704bb795f5504e6ff"
+    },
+    "video-service": {
+      "verified": "2026-09-20",
+      "digest": "sha256:0b16fed41b27d0e0380683b47291cff927c438c963af7a2f3e3e222ea6c7fcba"
+    }
+  },
+  "_comment": "Per-module record of the last /knowledge-verify: `verified` is the date, `digest` the sha256 of the module's code as the documents describe it. Rewritten only by --stamp-refresh; a mismatch is a reminder, not a failure."
+}

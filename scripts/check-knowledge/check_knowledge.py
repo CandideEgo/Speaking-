@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Six independent checks, all deterministic (no LLM, no network):
+Six violation checks plus one advisory reminder, all deterministic (no LLM, no network):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
   frontmatter  wiki/ documents carry a valid schema, and every `related_code`
@@ -12,21 +12,32 @@ Six independent checks, all deterministic (no LLM, no network):
   paths        Repo-convention invariants that reduce to a path check.
   budget       The must-read knowledge set never grows past its recorded size,
                plus the declared `slack` for each file and tier.
+  stale        Code changed under a module some wiki/ document describes, since
+               that document was last verified.
 
 Usage:
     python scripts/check-knowledge/check_knowledge.py            # all checks
     python scripts/check-knowledge/check_knowledge.py refs       # one check
+    python scripts/check-knowledge/check_knowledge.py stale      # the reminder alone
     python scripts/check-knowledge/check_knowledge.py --baseline-update
+    python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module auth
 
 Exit code is 0 when clean, 1 when a violation is not already recorded in
 knowledge-baseline.json. Baselines are for debt that is scheduled to be paid
 off, not for silencing a check -- see README.md.
+
+`stale` is the one advisory check: its notices print but do not fail the run unless
+`--strict` asks them to -- nobody verifies prose on command, so a reminder that blocks
+commits buys silence instead of accuracy. Faults in `knowledge-stamps.json` itself do
+fail, so the reminder cannot quietly stop covering a module.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import glob as globlib
+import hashlib
 import json
 import re
 import subprocess
@@ -487,9 +498,151 @@ def check_paths() -> list[Violation]:
     return violations
 
 
+# -------------------------------------------------------------------------- stale
+
+STAMPS_FILE = SCRIPT_DIR / "knowledge-stamps.json"
+REFRESH_HINT = "python scripts/check-knowledge/check_knowledge.py --stamp-refresh"
+# The checker's own state. A module may legitimately glob this directory, and hashing the
+# stamp file into the digest that file stores would make the digest stale as it is written.
+SELF_STATE_FILES = (
+    "scripts/check-knowledge/knowledge-stamps.json",
+    "scripts/check-knowledge/knowledge-baseline.json",
+    "scripts/check-knowledge/knowledge-budget.json",
+)
+NOTICE_LIMIT = 8
+
+
+def documented_modules(files: list[Path]) -> dict[str, list[str]]:
+    """module -> the wiki/ documents declaring it, in path order."""
+    claimants: dict[str, list[str]] = {}
+    for path in files:
+        where = rel(path)
+        if not where.startswith("wiki/") or where.endswith("INDEX.md"):
+            continue
+        fields = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
+        if fields is None:
+            continue
+        for module in parse_list(fields.get("related_code", "")):
+            claimants.setdefault(module, []).append(where)
+    return claimants
+
+
+def module_digest(modules: dict, module: str) -> str:
+    """sha256 over a module's files: path, then content, newline-normalised.
+
+    Normalising CRLF is what makes this portable -- `.gitattributes` pins eol=lf today,
+    and one config change should not turn every watched module into a false alarm.
+
+    Untracked-but-not-ignored files count, so adding a file to a documented area is
+    visible before it is committed rather than after.
+    """
+    paths: dict[str, Path] = {}
+    for pattern in modules.get(module, {}).get("globs", []):
+        for path in repo_paths(pattern, untracked=True):
+            paths.setdefault(rel(path), path)
+
+    digest = hashlib.sha256()
+    for where in sorted(paths):
+        if where in SELF_STATE_FILES:
+            continue
+        digest.update(where.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(paths[where].read_bytes().replace(b"\r\n", b"\n"))
+        digest.update(b"\0")
+    return "sha256:" + digest.hexdigest()
+
+
+def check_stale() -> tuple[list[Violation], list[str]]:
+    """Remind that a wiki/ document may no longer describe the code.
+
+    Returns (faults, notices). Faults are defects in the stamps file -- an unknown
+    module, or a documented module no stamp covers -- and they fail the run, because a
+    reminder with a silent hole in it is worse than no reminder. Notices are the
+    reminder itself, and stay advisory unless `--strict` asks otherwise.
+    """
+    if not STAMPS_FILE.is_file():
+        return [Violation("stale", rel(STAMPS_FILE), f"missing; create it with {REFRESH_HINT}")], []
+
+    modules = load_json(MODULES_FILE)["modules"]
+    docs = documented_modules(md_files())
+    watched: dict = load_json(STAMPS_FILE).get("watched", {})
+
+    faults: list[Violation] = [
+        Violation(
+            "stale",
+            f"{rel(STAMPS_FILE)}#{module}",
+            "watched module is not in modules.json; drop the entry with --stamp-refresh",
+        )
+        for module in sorted(set(watched) - set(modules))
+    ]
+    unwatched = sorted(set(docs) - set(watched))
+    if unwatched:
+        faults.append(
+            Violation(
+                "stale",
+                rel(STAMPS_FILE),
+                f"{len(unwatched)} documented module(s) not watched: {', '.join(unwatched)}"
+                f" -- run {REFRESH_HINT}",
+            )
+        )
+
+    notices: list[str] = []
+    for module in sorted(set(watched) & set(modules)):
+        if watched[module].get("digest") == module_digest(modules, module):
+            continue
+        verified = watched[module].get("verified", "an unknown date")
+        described_in = ", ".join(docs.get(module, [])) or "no wiki/ document"
+        notices.append(
+            f"  [watch] {module}: code changed since its documents were verified on {verified}\n"
+            f"          {described_in}\n"
+            f"          run /knowledge-verify, then: {REFRESH_HINT} --module {module}"
+        )
+    return faults, notices
+
+
+def refresh_stamps(only: list[str]) -> int:
+    """Record the current digest as verified -- the acknowledgement half of the reminder.
+
+    Refresh a module only after reading the documents it points at: a stamp is a claim
+    that they still describe the code, not a way to clear the reminder.
+    """
+    modules = load_json(MODULES_FILE)["modules"]
+    docs = documented_modules(md_files())
+
+    if only:
+        unknown = sorted(set(only) - set(modules))
+        if unknown:
+            print(f"unknown module(s): {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        targets = sorted(set(only))
+    else:
+        # A full refresh is also the prune: coverage is what the documents declare.
+        targets = sorted(module for module in docs if module in modules)
+
+    stamps = load_json(STAMPS_FILE) if STAMPS_FILE.is_file() else {}
+    watched = dict(stamps.get("watched", {})) if only else {}
+    today = datetime.date.today().isoformat()
+    for module in targets:
+        watched[module] = {"verified": today, "digest": module_digest(modules, module)}
+
+    stamps["watched"] = {module: watched[module] for module in sorted(watched)}
+    stamps.setdefault("_comment", (
+        "Per-module record of the last /knowledge-verify: `verified` is the date, `digest` the "
+        "sha256 of the module's code as the documents describe it. Rewritten only by "
+        "--stamp-refresh; a mismatch is a reminder, not a failure."
+    ))
+    STAMPS_FILE.write_text(
+        json.dumps(stamps, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"stamps refreshed: {len(targets)} module(s) verified {today}")
+    return 0
+
+
 # -------------------------------------------------------------------------- main
 
 CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "budget")
+ADVISORY = ("stale",)
+SELECTABLE = CHECKS + ADVISORY
 
 
 def run_checks(selected: list[str]) -> list[Violation]:
@@ -546,38 +699,54 @@ def update_baseline() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("checks", nargs="*", choices=CHECKS, default=None,
+    parser.add_argument("checks", nargs="*", choices=SELECTABLE, default=None,
                         help="run only these checks (default: all)")
     parser.add_argument("--baseline-update", action="store_true",
                         help="accept the current violations as the baseline")
     parser.add_argument("--budget-refresh", action="store_true",
                         help="raise every size ceiling to the current size")
+    parser.add_argument("--stamp-refresh", action="store_true",
+                        help="record the current code as verified for the watched modules")
+    parser.add_argument("--module", action="append", default=[],
+                        help="with --stamp-refresh: refresh only this module (repeatable)")
+    parser.add_argument("--strict", action="store_true",
+                        help="treat `stale` reminders as violations")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+    if args.module and not args.stamp_refresh:
+        parser.error("--module is only meaningful together with --stamp-refresh")
     if args.budget_refresh:
         refresh_budget()
         return 0
+    if args.stamp_refresh:
+        return refresh_stamps(args.module)
     if args.baseline_update:
         update_baseline()
         return 0
 
-    selected = args.checks or list(CHECKS)
+    selected = args.checks or list(SELECTABLE)
     baseline = load_json(BASELINE_FILE) if BASELINE_FILE.is_file() else {}
     accepted = {check: set(baseline.get(check, [])) for check in CHECKS}
 
-    violations = run_checks(selected)
-    new = [v for v in violations if v.fingerprint not in accepted[v.check]]
+    violations = run_checks([check for check in selected if check in CHECKS])
+    notices: list[str] = []
+    if "stale" in selected:
+        stale_faults, notices = check_stale()
+        violations += stale_faults
+    # `stale` has no baseline: a fault means the reminder stopped covering something,
+    # which is the one failure this check exists to prevent.
+    new = [v for v in violations if v.fingerprint not in accepted.get(v.check, set())]
     grandfathered = len(violations) - len(new)
 
     for check in selected:
         check_new = [v for v in new if v.check == check]
         check_old = len([v for v in violations if v.check == check]) - len(check_new)
         if not check_new and not check_old:
-            print(f"[ok]   {check}")
+            print(f"[watch] {check}" if notices and check in ADVISORY else f"[ok]   {check}")
             continue
         status = "FAIL" if check_new else "ok  "
         suffix = f" (+{check_old} grandfathered)" if check_old else ""
@@ -588,8 +757,19 @@ def main(argv: list[str] | None = None) -> int:
     if grandfathered:
         print(f"\n{grandfathered} grandfathered violation(s) in knowledge-baseline.json")
 
+    if notices:
+        print()
+        for notice in notices[:NOTICE_LIMIT]:
+            print(notice)
+        if len(notices) > NOTICE_LIMIT:
+            print(f"  ... and {len(notices) - NOTICE_LIMIT} more module(s)")
+        verdict = "Failing, because --strict is set." if args.strict else "Advisory only."
+        print(f"\n{len(notices)} watched module(s) changed after they were verified. {verdict}")
+
     if new:
         print(f"\n{len(new)} new violation(s). Fix them, or record debt deliberately with --baseline-update.")
+        return 1
+    if args.strict and notices:
         return 1
     return 0
 

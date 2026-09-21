@@ -74,7 +74,9 @@ and `docs/operations/`.
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the `Knowledge` CI workflow.
 It fails on: broken links, `ADR-00xx` with no file, invalid `wiki/` frontmatter, unknown or dead
 `related_code` modules, commit hashes in stable knowledge files, index/entry drift, and size-ceiling
-growth. Run it directly with `pre-commit run knowledge-check --all-files`.
+growth. A seventh check, `stale`, names the `wiki/` pages whose code changed since they were
+verified — a reminder, not a failure. Run it directly with
+`pre-commit run knowledge-check --all-files`.
 
 ### MUST (强制执行)
 
@@ -92,7 +94,7 @@ growth. Run it directly with `pre-commit run knowledge-check --all-files`.
 
 - NEVER 修改或重排 `.agent/decisions.md` 里已存在的条目。改变主意 = 追加新条目 + 在索引里把旧条目标为 `superseded by DEC-0xx`
 - NEVER 把 git 提交哈希写进 `.agent/`（`decisions.md`、`archive/` 除外）或 `wiki/` 的稳定文件；历史属于决策记录与 `CHANGELOG.md`
-- NEVER 为了通过检查而手改预算数字。要么缩小内容，要么显式执行 `--budget-refresh` 接受新上限
+- NEVER 为了通过检查而手改预算数字。要么缩小内容，要么按归档流程处理（`scripts/check-knowledge/README.md`），要么显式执行 `--budget-refresh` 接受新上限
 - NEVER 在 `memory/` 中重复记录 `.agent/` 或 `wiki/` 已覆盖的架构知识
 
 ### Implicit Knowledge Filter
