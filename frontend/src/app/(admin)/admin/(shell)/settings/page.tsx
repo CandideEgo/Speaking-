@@ -414,7 +414,7 @@ export default function AdminSettingsPage() {
 
       {/* Save bar (prototype 32 .save-bar) */}
       {dirty && (
-        <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-xl bg-ink px-[18px] py-3 text-white shadow-xl">
+        <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-xl bg-ink px-[18px] py-3 text-canvas shadow-xl">
           <div className="flex items-center gap-2 text-[13px]">
             <AlertCircle size={15} className="text-warning" />
             有未保存的更改
@@ -425,7 +425,7 @@ export default function AdminSettingsPage() {
               size="sm"
               onClick={handleDiscard}
               disabled={saving}
-              className="border-white/20 bg-transparent text-white hover:bg-white/10"
+              className="border-canvas/20 bg-transparent text-canvas hover:bg-canvas/10"
             >
               放弃
             </Button>
