@@ -129,3 +129,55 @@ class TestWatchdogStalePipeline:
         async with TestSessionLocal() as db:
             fetched = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
             assert fetched.status == VideoStatus.error
+
+    @pytest.mark.asyncio
+    async def test_classifying_uses_its_own_budget(self, db_session, monkeypatch):
+        """A video stuck in classifying is failed on the step budget, not the 1h default.
+
+        15 minutes is past pipeline_step_timeout_classifying (600s) but well
+        inside pipeline_step_timeout_default (3600s), so this only passes when
+        the step actually has an entry in the budget map.
+        """
+        await _patch_async_session(monkeypatch)
+        from app.tasks.video_processing import _run_watchdog_pipeline
+
+        v = Video(
+            title="stuck classifying",
+            source_url="x",
+            status=VideoStatus.ready_subtitles,
+            processing_step="classifying",
+            step_started_at=datetime.now(UTC) - timedelta(minutes=15),
+            processing_progress=74,
+        )
+        db_session.add(v)
+        await db_session.commit()
+        vid = v.id
+
+        await _run_watchdog_pipeline()
+
+        async with TestSessionLocal() as db:
+            fetched = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert fetched.status == VideoStatus.error
+            assert "classifying" in (fetched.error_message or "")
+
+
+class TestStepBudgets:
+    """INV: every pipeline step declares its own watchdog budget."""
+
+    def test_every_pipeline_step_has_a_budget(self):
+        """A step in STEP_PROGRESS without a budget inherits the 1h default.
+
+        That is a silent hour of latency before a hung step is detected, so
+        adding a step to the progress map without a budget fails here instead.
+        """
+        from app.tasks.pipeline_helpers import STEP_PROGRESS, get_step_timeouts
+
+        # "done" is terminal — nothing is left running under it to time out.
+        missing = sorted(set(STEP_PROGRESS) - {"done"} - set(get_step_timeouts()))
+        assert missing == [], f"steps with no watchdog budget (they fall back to the default): {missing}"
+
+    def test_budgets_are_positive(self):
+        """A zero/negative budget would fail every in-flight video immediately."""
+        from app.tasks.pipeline_helpers import get_step_timeouts
+
+        assert all(seconds > 0 for seconds in get_step_timeouts().values())

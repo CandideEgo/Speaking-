@@ -32,7 +32,7 @@ from sqlalchemy import select
 
 from app.core.exam_levels import level_order
 from app.models.subtitle import Subtitle
-from app.models.video import Video
+from app.models.video import Video, VideoStatus
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,6 +57,14 @@ _CEFR_ABOVE = "C2"
 
 # A ratio over fewer occurrences than this is noise, not a measurement.
 _MIN_OCCURRENCES = 30
+
+# Statuses the offline difficulty jobs (scripts/backfill_*.py) may touch. Before
+# these states the subtitle set is still being written, so a level computed from
+# it can come from partial data — and because a non-NULL level blocks every
+# later recompute (see ``compute_video_difficulty``), a wrong value would stick.
+# Cleanup and refill must share this set: a value nulled by cleanup is only
+# guaranteed a refill if both jobs look at the same videos.
+DIFFICULTY_BACKFILL_STATUSES = (VideoStatus.ready, VideoStatus.ready_subtitles)
 
 
 def _ratio_to_cefr(ratio: float) -> str:

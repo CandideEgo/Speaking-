@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     pipeline_step_timeout_translating: int = 1800  # 30 min (LLM batch + retries)
     pipeline_step_timeout_annotating: int = 300  # 5 min (pure ECDICT local)
     pipeline_step_timeout_prewarm_notes: int = 1800  # 30 min (LLM batch)
+    pipeline_step_timeout_classifying: int = 600  # 10 min (one LLM call, 60s hard timeout)
     pipeline_step_timeout_downloading: int = 3600  # 60 min (yt-dlp download)
     pipeline_step_timeout_transcoding: int = 1800  # 30 min (ffmpeg)
     pipeline_step_timeout_default: int = 3600  # fallback for unmapped steps

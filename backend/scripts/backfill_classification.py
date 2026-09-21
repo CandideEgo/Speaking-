@@ -9,7 +9,9 @@ Two jobs in one pass:
 2. Dirty-difficulty cleanup — difficulty_level values outside the A1–C2
    whitelist (e.g. the legacy "CR" rows) are nulled, then refilled in the
    fallback order used by finalize_video: LLM first, subtitle word-level
-   computation as the fallback.
+   computation as the fallback. Both halves run over the same status set
+   (DIFFICULTY_BACKFILL_STATUSES); dirty values on videos still processing are
+   reported and left for a later run.
 
 Usage:
     cd backend
@@ -31,17 +33,28 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import select
 
 from app.core.database import async_session
-from app.models.video import Video, VideoStatus
-from app.services.difficulty_service import compute_video_difficulty
+from app.models.video import Video
+from app.services.difficulty_service import DIFFICULTY_BACKFILL_STATUSES, compute_video_difficulty
 from app.services.video_classification import classify_video, classify_video_metadata
 
 VALID_CEFR = {"A1", "A2", "B1", "B2", "C1", "C2"}
 
 
-async def clean_dirty_difficulty(dry_run: bool) -> int:
-    """Null out difficulty_level values outside the A1–C2 whitelist."""
+async def clean_dirty_difficulty(dry_run: bool) -> tuple[int, int]:
+    """Null out difficulty_level values outside the A1–C2 whitelist.
+
+    Returns ``(cleaned, deferred)``: ``deferred`` counts dirty values on videos
+    still being processed, which are reported and left untouched rather than
+    cleared — clearing them would leave the video without a level until a later
+    run, while the invalid value is not shown anywhere until the video is ready.
+    """
     async with async_session() as db:
-        result = await db.execute(select(Video).where(Video.difficulty_level.isnot(None)))
+        result = await db.execute(
+            select(Video).where(
+                Video.difficulty_level.isnot(None),
+                Video.status.in_(DIFFICULTY_BACKFILL_STATUSES),
+            )
+        )
         dirty = [v for v in result.scalars().all() if v.difficulty_level not in VALID_CEFR]
         for v in dirty:
             print(f"[clean] {v.id} ({v.title[:40]}): invalid difficulty {v.difficulty_level!r} → NULL")
@@ -49,7 +62,17 @@ async def clean_dirty_difficulty(dry_run: bool) -> int:
                 v.difficulty_level = None
         if dirty and not dry_run:
             await db.commit()
-    return len(dirty)
+
+        deferred_result = await db.execute(
+            select(Video).where(
+                Video.difficulty_level.isnot(None),
+                Video.status.notin_(DIFFICULTY_BACKFILL_STATUSES),
+            )
+        )
+        deferred = [v for v in deferred_result.scalars().all() if v.difficulty_level not in VALID_CEFR]
+        for v in deferred:
+            print(f"[defer] {v.id} ({v.title[:40]}): invalid difficulty {v.difficulty_level!r} (status={v.status})")
+    return len(dirty), len(deferred)
 
 
 async def classify_one(video_id: str, dry_run: bool) -> str:
@@ -95,7 +118,7 @@ async def fill_missing_difficulty(dry_run: bool) -> int:
     async with async_session() as db:
         result = await db.execute(
             select(Video.id).where(
-                Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+                Video.status.in_(DIFFICULTY_BACKFILL_STATUSES),
                 Video.difficulty_level.is_(None),
             )
         )
@@ -114,6 +137,20 @@ async def fill_missing_difficulty(dry_run: bool) -> int:
     return filled
 
 
+async def _invalidate_browse_cache() -> None:
+    """Drop cached browse responses after an out-of-band write.
+
+    topic_tags / difficulty_level both feed cached browse responses; writing
+    them from a script leaves the cache stale until its TTL expires. Shared by
+    the batch path and ``--video-id`` so a single-video run cannot silently
+    skip invalidation.
+    """
+    from app.services.video_cache import invalidate_browse_cache
+
+    await invalidate_browse_cache()
+    print("[cache] browse feed / featured / rankings invalidated")
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video-id", help="classify a single video")
@@ -122,15 +159,17 @@ async def main() -> int:
     args = parser.parse_args()
 
     if args.video_id:
-        await classify_one(args.video_id, args.dry_run)
+        outcome = await classify_one(args.video_id, args.dry_run)
+        if outcome == "done" and not args.dry_run:
+            await _invalidate_browse_cache()
         return 0
 
-    cleaned = await clean_dirty_difficulty(args.dry_run)
-    print(f"[run] cleaned {cleaned} dirty difficulty values")
+    cleaned, deferred = await clean_dirty_difficulty(args.dry_run)
+    print(f"[run] cleaned {cleaned} dirty difficulty values, deferred {deferred} on non-ready videos")
 
     async with async_session() as db:
         query = select(Video.id).where(
-            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
+            Video.status.in_(DIFFICULTY_BACKFILL_STATUSES),
             Video.topic_tags.is_(None),
         )
         if args.limit:
@@ -160,10 +199,7 @@ async def main() -> int:
     # topic_tags and difficulty_level both feed cached browse responses; writing
     # them out-of-band leaves the cache stale until its TTL expires.
     if not args.dry_run and (done or cleaned or filled):
-        from app.services.video_cache import invalidate_browse_cache
-
-        await invalidate_browse_cache()
-        print("[cache] browse feed / featured / rankings invalidated")
+        await _invalidate_browse_cache()
     return 0
 
 

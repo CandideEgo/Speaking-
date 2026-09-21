@@ -36,6 +36,27 @@ STEP_PROGRESS = {
     "done": 100,
 }
 
+
+# Watchdog budget per step (seconds), keyed by the same names as STEP_PROGRESS.
+# Kept beside the progress map so "what steps exist" and "what each step is
+# allowed to take" cannot drift apart; tests/test_pipeline_watchdog.py fails if
+# a step gains a progress entry without a budget here. Steps missing from the
+# map fall back to settings.pipeline_step_timeout_default.
+def get_step_timeouts() -> dict[str, int]:
+    """Per-step watchdog budget in seconds, keyed by ``Video.processing_step``."""
+    settings = get_settings()
+    return {
+        "extracting": settings.pipeline_step_timeout_extracting,
+        "transcribing": settings.video_transcribe_timeout,  # GPU gap is long
+        "translating": settings.pipeline_step_timeout_translating,
+        "annotating": settings.pipeline_step_timeout_annotating,
+        "prewarm_notes": settings.pipeline_step_timeout_prewarm_notes,
+        "classifying": settings.pipeline_step_timeout_classifying,
+        "downloading": settings.pipeline_step_timeout_downloading,
+        "transcoding": settings.pipeline_step_timeout_transcoding,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Redis key TTLs
 # ---------------------------------------------------------------------------
@@ -170,8 +191,8 @@ def touch_step_started_at(video) -> None:
     """Stamp ``video.step_started_at = now``.
 
     Called at each pipeline step boundary (extracting/transcribing/translating/
-    annotating/prewarm_notes/downloading/transcoding) so the watchdog can detect
-    a single stuck step rather than measuring the whole pipeline from
+    annotating/prewarm_notes/classifying/downloading/transcoding) so the watchdog
+    can detect a single stuck step rather than measuring the whole pipeline from
     ``processing_started_at``. Only mutates the in-memory object; the caller
     commits it alongside its other step-state writes.
     """

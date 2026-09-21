@@ -158,11 +158,11 @@ class Video(Base):
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # When the *current* processing step started. Refreshed at each step boundary
-    # (extracting/transcribing/translating/annotating/prewarm_notes/downloading/
-    # transcoding) so the watchdog can detect a single stuck step rather than
-    # measuring the whole pipeline from processing_started_at (which would force
-    # an over-wide timeout and detect failures slowly). Cleared on ready/error.
-    # See watchdog_stale_pipeline.
+    # (extracting/transcribing/translating/annotating/prewarm_notes/classifying/
+    # downloading/transcoding) so the watchdog can detect a single stuck step
+    # rather than measuring the whole pipeline from processing_started_at (which
+    # would force an over-wide timeout and detect failures slowly). Cleared on
+    # ready/error. See watchdog_stale_pipeline.
     step_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Translation quality flag set by finalize_video after the translation

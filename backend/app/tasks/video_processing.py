@@ -873,7 +873,7 @@ async def _run_watchdog_pipeline() -> None:
     from app.core.database import async_session
     from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
     from app.models.video import Video, VideoStatus
-    from app.tasks.pipeline_helpers import is_lock_held
+    from app.tasks.pipeline_helpers import get_step_timeouts, is_lock_held
 
     # Admin kill switch (settings row; absent row -> enabled):
     # a disabled watchdog lets a stuck video sit while ops investigate
@@ -889,17 +889,9 @@ async def _run_watchdog_pipeline() -> None:
     settings = get_settings()
     now = datetime.now(UTC)
 
-    # Per-step timeout lookup (seconds). transcribing reuses the existing
-    # video_transcribe_timeout (GPU gap is long); others use pipeline_step_*.
-    step_timeouts = {
-        "extracting": settings.pipeline_step_timeout_extracting,
-        "transcribing": settings.video_transcribe_timeout,
-        "translating": settings.pipeline_step_timeout_translating,
-        "annotating": settings.pipeline_step_timeout_annotating,
-        "prewarm_notes": settings.pipeline_step_timeout_prewarm_notes,
-        "downloading": settings.pipeline_step_timeout_downloading,
-        "transcoding": settings.pipeline_step_timeout_transcoding,
-    }
+    # Per-step timeout lookup (seconds) — see pipeline_helpers.get_step_timeouts,
+    # which is also the "every step has a budget" invariant's test seam.
+    step_timeouts = get_step_timeouts()
     default_timeout = settings.pipeline_step_timeout_default
     transcribe_timeout = settings.video_transcribe_timeout
 

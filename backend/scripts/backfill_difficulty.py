@@ -31,22 +31,33 @@ from sqlalchemy import select
 
 from app.core.database import async_session
 from app.models.subtitle import Subtitle
-from app.models.video import Video, VideoStatus
-from app.services.difficulty_service import beyond_basic_ratio, compute_difficulty_from_word_levels
+from app.models.video import Video
+from app.services.difficulty_service import (
+    DIFFICULTY_BACKFILL_STATUSES,
+    beyond_basic_ratio,
+    compute_difficulty_from_word_levels,
+)
 
 
-async def compute_one(video_id: str, dry_run: bool, recompute: bool = False) -> str | None:
-    """Compute difficulty for one video. Returns the CEFR level or None."""
+async def compute_one(video_id: str, dry_run: bool, recompute: bool = False) -> tuple[str | None, bool]:
+    """Compute difficulty for one video.
+
+    Returns ``(level, written)``: ``level`` is the CEFR level or None when there
+    was not enough word data, ``written`` says whether the row was updated — so
+    the caller can decide on cache invalidation without re-deriving it from
+    ``level`` (a video skipped because it already had a level returns that level
+    but wrote nothing).
+    """
     async with async_session() as db:
         video = await db.scalar(select(Video).where(Video.id == video_id))
         if not video:
             print(f"[error] video {video_id} not found", file=sys.stderr)
-            return None
+            return None, False
 
         previous = video.difficulty_level
         if previous and not recompute:
             print(f"[skip] {video_id} ({video.title[:40]}): already has level={previous}")
-            return previous
+            return previous, False
 
         result = await db.execute(select(Subtitle.word_levels).where(Subtitle.video_id == video_id))
         word_levels_list = [row[0] for row in result.all()]
@@ -55,17 +66,30 @@ async def compute_one(video_id: str, dry_run: bool, recompute: bool = False) -> 
         cefr = compute_difficulty_from_word_levels(word_levels_list)
         if cefr is None:
             print(f"[skip] {video_id} ({video.title[:40]}): insufficient word data")
-            return None
+            return None, False
 
         was = f" (was {previous})" if previous else ""
         detail = f"{cefr}  超纲率={ratio:.3f}{was}"
         if dry_run:
             print(f"[dry-run] {video_id} ({video.title[:40]}): would set → {detail}")
-        else:
-            video.difficulty_level = cefr
-            await db.commit()
-            print(f"[done] {video_id} ({video.title[:40]}): → {detail}")
-        return cefr
+            return cefr, False
+        video.difficulty_level = cefr
+        await db.commit()
+        print(f"[done] {video_id} ({video.title[:40]}): → {detail}")
+        return cefr, True
+
+
+async def _invalidate_browse_cache() -> None:
+    """Drop cached browse responses after an out-of-band write.
+
+    difficulty_level feeds cached browse responses; writing it from a script
+    leaves the cache stale until its TTL expires. Shared by the batch path and
+    ``--video-id`` so a single-video run cannot silently skip invalidation.
+    """
+    from app.services.video_cache import invalidate_browse_cache
+
+    await invalidate_browse_cache()
+    print("[cache] browse feed / featured / rankings invalidated")
 
 
 async def main() -> int:
@@ -80,10 +104,12 @@ async def main() -> int:
     args = parser.parse_args()
 
     if args.video_id:
-        await compute_one(args.video_id, args.dry_run, args.recompute)
+        _level, written = await compute_one(args.video_id, args.dry_run, args.recompute)
+        if written:
+            await _invalidate_browse_cache()
         return 0
 
-    conditions = [Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles])]
+    conditions = [Video.status.in_(DIFFICULTY_BACKFILL_STATUSES)]
     if not args.recompute:
         conditions.append(Video.difficulty_level.is_(None))
 
@@ -95,8 +121,10 @@ async def main() -> int:
     print(f"[run] {len(videos)} videos with {scope}")
     computed = 0
     skipped = 0
+    wrote = False
     for vid, _title in videos:
-        level = await compute_one(vid, args.dry_run, args.recompute)
+        level, written = await compute_one(vid, args.dry_run, args.recompute)
+        wrote = wrote or written
         if level:
             computed += 1
         else:
@@ -106,11 +134,8 @@ async def main() -> int:
 
     # difficulty_level feeds cached browse responses; writing it out-of-band
     # leaves the cache stale until its TTL expires.
-    if not args.dry_run and computed:
-        from app.services.video_cache import invalidate_browse_cache
-
-        await invalidate_browse_cache()
-        print("[cache] browse feed / featured / rankings invalidated")
+    if wrote:
+        await _invalidate_browse_cache()
     return 0
 
 
