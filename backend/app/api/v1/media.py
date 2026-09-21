@@ -408,8 +408,13 @@ async def serve_media(file_path: str, request: Request):
         # ({video_id}.mp4 / _raw / _480p / _720p / _1080p). Uploads staged as
         # {uuid}.mp4 match too — they belong to no video row yet, so the
         # lookup fails and they 404, which also removes the source_url leak.
+        # The gate is scoped to ROOT-level files only: pipeline output always
+        # lands at the media root, while user content (avatars/{uuid}.jpg,
+        # shadowing/…) lives in subdirectories — matching the stem alone
+        # would 404 every avatar (users.py::upload_avatar stores bare-uuid
+        # filenames under avatars/).
         m = _VIDEO_FILE_RE.match(full.stem)
-        if m is not None:
+        if m is not None and full.parent == base:
             vid = m.group("vid")
             viewer_id = _viewer_id_from_request(request)
             if not await _video_media_allowed(vid, viewer_id):

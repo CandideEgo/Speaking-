@@ -31,6 +31,18 @@ repos:
         pass_filenames: false
         files: ^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|\.agent/|wiki/|docs/|scripts/check-knowledge/|\.claude/skills/)
 
+      # The advisory half: has code changed under a module some wiki/ document
+      # describes? Always runs and always prints, because pre-commit hides the output
+      # of a hook that passes and a reminder nobody sees is not a reminder. It fails
+      # only on a hole in knowledge-stamps.json, never on the reminder itself.
+      - id: knowledge-stale
+        name: knowledge staleness reminder
+        entry: python scripts/check-knowledge/check_knowledge.py stale
+        language: system
+        always_run: true
+        verbose: true
+        pass_filenames: false
+
   # General checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

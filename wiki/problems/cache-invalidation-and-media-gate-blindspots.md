@@ -6,7 +6,7 @@ confidence: verified
 related_code: [core-cache, api-media, video-service, tests-conftest]
 related: [docs/adr/0020-storage-modes-and-takedown.md]
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # 缓存失效与媒体门控的两个隐形失效模式
@@ -41,6 +41,13 @@ if m is not None:
 **只有文件名以视频 UUID 开头时**才会进入门控分支。冒烟脚本写了 `free-check_720p.mp4` 这种人类可读名，正则不匹配 → 整段 `if` 被跳过 → 直接流式返回文件（只受扩展名白名单约束）。管线产出的文件都是 `{video_id}_720p.mp4`，所以生产路径侥幸安全；但任何新增的命名方案（例如代理播放、外部源缓存、人工放进去的素材）会**静默地处于无门控状态**。
 
 **Solution**: 冒烟脚本改用真实 `{video_id}_720p.mp4` 命名。
+
+**2026-09-22 后续（又一次踩中 + 形态收敛）**：头像上传（`POST /users/me/avatar`）存为
+`avatars/{uuid4}.jpg`——子目录 + 裸 UUID 文件名，stem 命中 `_VIDEO_FILE_RE` 后被视频发布态
+门控当作管线文件，Video 查无此行 → 上传 200 但图片永久 404（前端回退首字母头像）。
+现有测试只断言上传响应、从不 GET 头像 URL，所以直到用户反馈才暴露。修复：门控增加
+「仅 media 根目录文件」条件（管线产物恒在根目录，用户内容恒在子目录），子目录文件不再
+过门控。教训不变：**测试上传类接口必须连 GET 路径一起验**，否则"半条链路绿"会漏掉这类 bug。
 
 **Future Prevention**:
 - **安全门控不应建立在"文件名恰好符合某个正则"的隐含契约上**。此处更稳的形态是白名单之外一律拒绝（默认拒绝），或让门控覆盖"任何指向 `media/` 下视频文件的路径"。

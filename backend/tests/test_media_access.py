@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -86,6 +87,37 @@ async def test_public_media_has_nosniff(client, media_dir):
     resp = await client.get("/media/public.mp4")
     assert resp.status_code == 200
     assert resp.headers.get("x-content-type-options") == "nosniff"
+
+
+# ---------------------------------------------------------------------------
+# User content in subdirectories (avatars/) uses bare-uuid filenames and must
+# NOT hit the video publish-state gate, which is scoped to pipeline-produced
+# files at the media ROOT. Regression: avatars 404'd because the gate regex
+# matched the uuid stem and found no Video row.
+# ---------------------------------------------------------------------------
+
+
+async def test_nested_uuid_named_image_not_treated_as_video(client, media_dir):
+    """avatars/{uuid}.png must be served, not gated (was 404 before the fix)."""
+    avatar = media_dir / "avatars" / f"{uuid4()}.png"
+    avatar.parent.mkdir(parents=True)
+    avatar.write_bytes(b"fake png")
+    resp = await client.get(f"/media/avatars/{avatar.name}")
+    assert resp.status_code == 200
+    assert resp.content == b"fake png"
+
+
+async def test_nested_video_uuid_still_not_gated(client, media_dir, db_session):
+    """Even a subdirectory file whose stem equals a real video id is user
+    content: the publish-state gate only applies to ROOT-level pipeline
+    files, so this must be served without any Video lookup."""
+    video = await _make_video(db_session, is_official=False, review_status="draft", user_id="owner-1")
+    avatar = media_dir / "avatars" / f"{video.id}.png"
+    avatar.parent.mkdir(parents=True)
+    avatar.write_bytes(b"fake png")
+    resp = await client.get(f"/media/avatars/{avatar.name}")
+    assert resp.status_code == 200
+    assert resp.content == b"fake png"
 
 
 # ---------------------------------------------------------------------------
