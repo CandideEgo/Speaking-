@@ -40,9 +40,11 @@ function LoginForm() {
     return <FullPageSpinner />;
   }
 
-  // Don't show login form if already authenticated
+  // Authenticated but the soft navigation away hasn't landed yet — keep a
+  // spinner on screen. Returning null blanks the page for the whole RSC
+  // flight + first-visit chunk download (reported as "login white screen").
   if (isAuthenticated) {
-    return null;
+    return <FullPageSpinner />;
   }
 
   async function handleSubmit(e: React.FormEvent) {
