@@ -6,7 +6,7 @@ confidence: verified
 related_code: [video-pipeline, celery-tasks]
 related: [.agent/context.md, docs/adr/0004-ugc-pipeline-admin-triggered.md]
 created: 2026-07-21
-updated: 2026-09-21
+updated: 2026-09-22
 ---
 
 # Background
@@ -84,5 +84,5 @@ async def _do_work(arg):
 # Future Notes
 
 - GPU worker callback failure: watchdog detects stale tasks and re-enqueues
-- New processing steps must update both `_is_step_done()` and Redis sets
+- New processing steps must update `is_step_done()` (Redis set) and `STEP_PROGRESS`, and add a watchdog budget to `pipeline_helpers.get_step_timeouts()` — the progress map and the budget map are keyed by the same step names, and `tests/test_pipeline_watchdog.py` fails a step that has no budget instead of letting it inherit the 1 h default
 - AI translation and word note prewarming are the most time-consuming parts of finalize — batch size must balance speed and API rate limits

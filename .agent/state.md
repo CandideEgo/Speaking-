@@ -8,7 +8,7 @@
 
 Date: 2026-09-22
 
-- **已提交待部署**（09-22）：iOS Safari 播放态/字幕同步修复（`isPlaying` 单一事实源 + seek 健壮化）+ 点词分级渲染（`/gloss/static` + `/gloss/enrich`，旧 `/gloss` 转休眠）；含头像 404 门控与登录白屏修复
+- **已提交待部署**（09-22）：iOS Safari 播放态/字幕同步修复（`isPlaying` 单一事实源 + seek 健壮化）+ 点词分级渲染（`/gloss/static` + `/gloss/enrich`，旧 `/gloss` 转休眠）；含头像 404 门控与登录白屏修复；另含看门狗 `classifying` 超时、回填脚本单视频缓存失效、脏 difficulty 清洗范围三处修复
 - **生产已更新**（09-21 19:42 镜像 `d2cc67d47073`/`cab8d974e4e1`：iOS playsinline + 分级颜色目标优先 + LLM 视频分类），部署源为未提交工作区；部署后必须 `nginx -s reload`（RUNBOOK §1.1 步骤 4.5）。存量 49 支视频 `topic_tags` 已回填（回填前备份 `/root/backups/videos_before_classify_20260921194521.sql.gz`）
 - **DEC-043 难度校准待部署**：`difficulty_service` 改用「习得级别 + 超纲率」（原 max-order p75 使 49 支全为 C2）；部署后需 `backfill_difficulty.py --recompute`（先 `--dry-run`）把存量 C2 换成实算值
 
@@ -48,7 +48,6 @@ authoritative reasoning for each is the cited decision entry.
 ## Known Issues
 
 - **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步（09-21 播放态轮询修复未在真机确认）
-- **分类/难度回填的三处边缘**（09-22 复查，未修）：`classifying` 未进 `pipeline_helpers.step_timeouts`（回落 3600s 默认）且 `models/video.py` 步骤枚举注释未含它；`backfill_*.py --video-id` 提前 return，跳过 `invalidate_browse_cache()`（CHANGELOG 的「写库后失效」在单视频路径不成立）；`clean_dirty_difficulty` 对所有状态置 NULL，重填只覆盖 `ready/ready_subtitles`，非 ready 视频清空后不回填。
 - **本地 dev SMS 发送 502**：`requirements.txt` 已补 Dypnsapi SDK，待 `.venv` / 云端镜像重装后复测；CI / 无凭据环境回退 dev-fake 码 `1234`，E2E 依赖此路径
 - **E2E coverage 不完整**：CI e2e 已 seed 核心旅程（不再整体跳过），但播放 / 词汇复习 / 考试等关键流程仍缺 e2e
 - **ICP compliance**：等个体营业执照才能全量部署（payment 因此保持禁用）
