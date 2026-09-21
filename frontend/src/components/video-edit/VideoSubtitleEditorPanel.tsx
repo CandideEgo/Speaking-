@@ -191,6 +191,8 @@ export function VideoSubtitleEditorPanel({
                 ref={videoRef}
                 src={mediaUrl(url, { token: adminToken })}
                 controls
+                playsInline
+                webkit-playsinline="true"
                 className="h-full w-full object-contain"
                 onTimeUpdate={(e) => {
                   const idx = findSubtitleIndex(video.subtitles, e.currentTarget.currentTime);

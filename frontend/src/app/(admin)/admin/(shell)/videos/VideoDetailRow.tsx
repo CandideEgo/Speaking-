@@ -133,6 +133,8 @@ export function VideoDetailRow({
                   token: adminToken,
                 })}
                 controls
+                playsInline
+                webkit-playsinline="true"
                 className="h-full w-full object-contain"
               />
             ) : ytId ? (

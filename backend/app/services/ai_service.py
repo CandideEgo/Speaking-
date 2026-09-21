@@ -189,6 +189,23 @@ class AIService:
             text = "\n".join(lines)
         return text.strip()
 
+    async def chat_json(self, system: str, user: str, temperature: float = 0.3) -> dict:
+        """One-shot structured chat call: JSON mode + fence stripping + parse.
+
+        Returns the decoded object (a dict). Raises ``AIServiceError`` on
+        transport failure or when the response is not a JSON object — the
+        caller decides whether to fall back or propagate. Used by video
+        content classification (``services/video_classification.py``).
+        """
+        result = await self._chat(system, user, temperature=temperature, response_format={"type": "json_object"})
+        try:
+            parsed = json.loads(self._extract_json(result))
+        except json.JSONDecodeError as e:
+            raise AIServiceError("AI 返回 JSON 格式无效") from e
+        if not isinstance(parsed, dict):
+            raise AIServiceError("AI 返回的 JSON 非对象")
+        return parsed
+
     async def _cache_get(self, key: str) -> str | None:
         try:
             from app.core.redis import get_redis

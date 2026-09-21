@@ -6,7 +6,8 @@ the display rule used by both backend (annotation filtering, gloss API) and
 the mirrored frontend constants in ``frontend/src/lib/examLevels.ts``.
 
 Display rule: a word is shown when its highest level order >= the user's
-target level order; the highlight color is taken from that highest level.
+target level order. Color rule: the user's target level takes priority when
+the word belongs to it; otherwise the color falls back to the highest level.
 """
 
 from __future__ import annotations
@@ -54,6 +55,15 @@ def should_display(word_levels: list[str], target_level: str) -> bool:
     return top is not None and level_order(top) >= level_order(target_level)
 
 
-def display_level(word_levels: list[str]) -> str | None:
-    """The level key whose color should be used to highlight the word."""
+def display_level(word_levels: list[str], target_level: str | None = None) -> str | None:
+    """The level key whose color should be used to highlight the word.
+
+    Target-priority rule: when ``target_level`` is provided and the word
+    belongs to it, that level wins (e.g. target cet4 + word in
+    [cet4, ielts] → cet4 blue instead of ielts red). Otherwise falls back
+    to the word's highest level. Mirrors frontend ``displayLevel`` in
+    ``frontend/src/lib/examLevels.ts``.
+    """
+    if target_level and target_level in word_levels:
+        return target_level
     return max_level(word_levels)

@@ -3,8 +3,11 @@
  * Mirror of backend/app/core/exam_levels.py — keep in sync.
  *
  * Display rule: a word is highlighted when its highest level order >= the
- * user's target level order; the highlight color is taken from that highest
- * level. Class strings are static literals so Tailwind's JIT picks them up.
+ * user's target level order. Color rule: the user's target level takes
+ * priority when the word belongs to it (e.g. target 四级 + word in
+ * [四级, 雅思] renders 四级 blue); otherwise the color falls back to the
+ * word's highest level. Class strings are static literals so Tailwind's
+ * JIT picks them up.
  */
 
 export interface ExamLevelMeta {
@@ -54,7 +57,21 @@ export function shouldDisplay(wordLevels: string[], targetLevel: string | null):
   return top !== null && levelOrder(top) >= levelOrder(targetLevel);
 }
 
-export function displayLevel(wordLevels: string[]): ExamLevelMeta | null {
+/**
+ * The level whose color should highlight the word.
+ *
+ * Target-priority rule: when `targetLevel` is provided and the word belongs
+ * to it, that level's color wins (selected 四级 + word in [四级, 雅思] → 四级
+ * blue, not 雅思 red). Otherwise falls back to the word's highest level.
+ * Callers without a target context (editors, tooltips) get the fallback.
+ */
+export function displayLevel(
+  wordLevels: string[],
+  targetLevel?: string | null
+): ExamLevelMeta | null {
+  if (targetLevel && wordLevels.includes(targetLevel)) {
+    return LEVEL_BY_KEY[targetLevel] ?? null;
+  }
   const top = maxLevel(wordLevels);
   return top ? (LEVEL_BY_KEY[top] ?? null) : null;
 }
@@ -87,8 +104,8 @@ const DOT_COLOR_CLASSES: Record<string, string> = {
 };
 
 /** Tailwind classes for a highlighted word given its exam levels. */
-export function wordHighlightClass(levels: string[]): string {
-  const meta = displayLevel(levels);
+export function wordHighlightClass(levels: string[], targetLevel?: string | null): string {
+  const meta = displayLevel(levels, targetLevel);
   return meta ? (WORD_COLOR_CLASSES[meta.color] ?? "") : "";
 }
 

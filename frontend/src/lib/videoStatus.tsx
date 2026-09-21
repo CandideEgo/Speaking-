@@ -26,6 +26,7 @@ export const STEP_LABELS: Record<string, string> = {
   translating: "字幕翻译…",
   annotating: "标注考试词汇…",
   prewarm_notes: "预热词注释…",
+  classifying: "智能分类…",
   downloading: "下载视频…",
   transcoding: "视频转码…",
 };
@@ -39,6 +40,7 @@ export const STEP_LABELS_SHORT: Record<string, string> = {
   translating: "字幕翻译",
   annotating: "标注考级",
   prewarm_notes: "预热笔记",
+  classifying: "智能分类",
   downloading: "下载视频",
   transcoding: "转码",
 };

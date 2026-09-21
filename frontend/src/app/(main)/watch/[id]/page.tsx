@@ -500,7 +500,9 @@ export default function WatchPage() {
     if (!wordLevels || !selectedExamLevel) return "";
     const levels = wordLevels[token];
     if (!levels || !shouldDisplay(levels, selectedExamLevel)) return "";
-    return wordHighlightClass(levels);
+    // 目标分级优先取色：词属于所选分级时用该分级颜色（如选四级 → 蓝色），
+    // 否则回退词自身的最高分级颜色。见 lib/examLevels.ts displayLevel。
+    return wordHighlightClass(levels, selectedExamLevel);
   }
 
   function isSelectedWord(word: string): boolean {
@@ -764,6 +766,11 @@ export default function WatchPage() {
                 <>
                   <video
                     ref={videoRef}
+                    // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
+                    // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
+                    playsInline
+                    webkit-playsinline="true"
+                    x5-playsinline="true"
                     src={mediaUrl(bestVideoUrl(video)!, {
                       // /media 需要可识别的观看者，<video> 无法带 Authorization
                       // 头，统一用 ?token= 携带。

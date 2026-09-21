@@ -14,8 +14,6 @@ const LEVEL_COLORS: Record<string, string> = {
   C2: "bg-red-soft text-error",
 };
 
-const FALLBACK_COLOR = "bg-surface-card text-muted";
-
 export interface DifficultyBadgeProps {
   /** CEFR level string (A1–C2). Renders nothing when null/empty. */
   level: string | null | undefined;
@@ -32,9 +30,10 @@ export interface DifficultyBadgeProps {
  * watch page, and admin views.
  */
 export function DifficultyBadge({ level, size = "sm", className, style }: DifficultyBadgeProps) {
-  if (!level) return null;
+  // 白名单清洗：历史脏值（如 "CR"）不渲染，避免卡片透出无意义徽章。
+  if (!level || !LEVEL_COLORS[level]) return null;
 
-  const color = LEVEL_COLORS[level] || FALLBACK_COLOR;
+  const color = LEVEL_COLORS[level];
   // CEFR 附考试体系对照（与引导/筛选/高亮统一语言），hover 可见。
   const hint = cefrExamHint(level);
 

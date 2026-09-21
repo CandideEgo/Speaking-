@@ -670,6 +670,29 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 else:
                     logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
+                # --- Step: classifying (LLM topic tags + difficulty) ---
+                current_step = "classifying"
+                # Generate canonical topic_tags (browse category filter + card
+                # chip) from title/description/subtitles via LLM; also fills
+                # difficulty_level when NULL (the post-ready subtitle-derived
+                # compute remains the fallback). Mirrors the prewarm_notes
+                # best-effort contract: a failure must not block publishing —
+                # scripts/backfill_classification.py can retry later.
+                if not await is_step_done(video_id, "classifying"):
+                    try:
+                        from app.services.video_classification import classify_video_metadata
+
+                        await classify_video_metadata(db, video_id)
+                    except Exception as exc:
+                        logger.warning("Video %s: classifying skipped (%s)", video_id, exc)
+                    video.processing_step = "classifying"
+                    touch_step_started_at(video)
+                    video.processing_progress = 74
+                    await db.commit()
+                    await update_progress(video_id, "classifying")
+                else:
+                    logger.info("Video %s: skipping classifying (already done)", video_id)
+
                 # --- Step: downloading ---
                 current_step = "downloading"
                 video_path = None

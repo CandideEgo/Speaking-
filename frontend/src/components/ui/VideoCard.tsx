@@ -9,6 +9,7 @@ import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { cn, formatCount } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
+import { topicLabel } from "@/lib/topicCategories";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
 export interface VideoCardData {
@@ -67,7 +68,9 @@ export function VideoCard({
   className,
 }: VideoCardProps) {
   const router = useRouter();
-  const category = video.topic_tags?.split(",")[0]?.trim() || "综合";
+  // topic_tags 存 canonical id（LLM 分类产出），展示时映射为中文标签；
+  // 空/历史自由文本走 topicLabel 的兜底。
+  const category = topicLabel(video.topic_tags?.split(",")[0]);
   const videoId = String(video.id || video.video_id || "");
 
   // 频道名跳作者页：外层卡片是 <Link>，不能嵌套 <a>，用受控 span 拦截冒泡。

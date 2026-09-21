@@ -30,6 +30,7 @@ STEP_PROGRESS = {
     "translating": 70,
     "annotating": 72,
     "prewarm_notes": 74,
+    "classifying": 74,
     "downloading": 75,
     "transcoding": 90,
     "done": 100,

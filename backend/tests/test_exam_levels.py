@@ -38,6 +38,17 @@ def test_display_level_returns_highest_key():
     assert display_level([]) is None
 
 
+def test_display_level_target_priority():
+    # 选四级时，同时属于 [四级, 六级, 考研, 雅思] 的词应取四级（蓝色），
+    # 而不是回退到最高级雅思（红色）。
+    assert display_level(["cet4", "cet6", "ky", "ielts"], "cet4") == "cet4"
+    # 词不含目标分级时回退最高级
+    assert display_level(["cet6", "ielts"], "cet4") == "ielts"
+    # 无目标时维持旧的最高级语义
+    assert display_level(["cet4", "ielts"], None) == "ielts"
+    assert display_level(["cet4", "ielts"]) == "ielts"
+
+
 def test_should_display_uses_target_as_lower_bound():
     # target = cet4 -> show cet4 and above
     assert should_display(["cet4"], "cet4") is True
