@@ -39,6 +39,18 @@ export function canPlay(v: VideoWithSubtitles): boolean {
   return !!bestVideoUrl(v) || !!youtubeId(v);
 }
 
+/**
+ * iOS 设备检测（iPhone/iPad/iPod）。iPadOS 13+ 的 Safari UA 伪装成 Mac，
+ * 需用 maxTouchPoints 兜底。用于 iOS 专属的播放器兼容路径（如 seek 防御）。
+ */
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 declare global {
   interface Window {
     YT?: { Player?: YTPlayerClass };
@@ -89,6 +101,8 @@ interface UseVideoPlayerReturn {
   ytContainerRef: React.RefObject<HTMLDivElement>;
   /** Whether the current video plays via YouTube IFrame (no local file). */
   isYtMode: boolean;
+  /** 是否正在播放（原生事件快速路径 + 播放时钟轮询校正的单一事实源）。 */
+  isPlaying: boolean;
   isDesktop: boolean;
   play: () => void;
   togglePlayPause: () => void;
@@ -139,6 +153,9 @@ export function useVideoPlayer({
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isYtMode, setIsYtMode] = useState(false);
+  /** 是否正在播放 —— 单一事实源：原生事件做快速路径，播放时钟轮询校正。
+   *  iOS Safari 会发伪 pause 事件、可能漏发 playing 事件，轮询保证最终一致。 */
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // ── D1 控制条状态 ──────────────────────────────────────────────
   const [rate, setRateState] = useState<number>(loadPersistedRate);
@@ -295,6 +312,7 @@ export function useVideoPlayer({
           onStateChange: (e: { data?: number }) => {
             // 1 = playing, 2 = paused, 0 = ended
             ytPlayingRef.current = e?.data === 1;
+            setIsPlaying(e?.data === 1);
             if (e?.data === 2) {
               // Surface the final position once when pausing (time ticks keep
               // running so subtitle highlight stays in sync during pause too).
@@ -358,6 +376,38 @@ export function useVideoPlayer({
     return () => clearInterval(interval);
   }, [isYtMode]);
 
+  // ---------------------------------------------------------------------------
+  // HTML5 playback clock: native events as the fast path + a 250ms poll as the
+  // authoritative source. iOS Safari 的媒体事件不可靠——timeupdate 可能停发、
+  // play() 后会出现伪 pause 事件——轮询保证字幕同步与播放态最终一致；
+  // desktop 上事件正常时轮询只是静默校正（同值 setState 不触发重渲染）。
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (playbackMode !== "ready" || isYtMode) return;
+    const el = videoRef.current;
+    if (!el) return;
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    // 初始同步：例如从保存进度恢复、或元素重建后的事件兜底。
+    setIsPlaying(!el.paused);
+
+    const interval = setInterval(() => {
+      const v = videoRef.current;
+      if (!v) return;
+      const t = v.currentTime;
+      if (Number.isFinite(t)) onTimeTickRef.current?.(t);
+      setIsPlaying(!v.paused);
+    }, 250);
+    return () => {
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+      clearInterval(interval);
+    };
+  }, [playbackMode, isYtMode]);
+
   // Clean up the IFrame player on unmount.
   useEffect(() => {
     return () => {
@@ -406,9 +456,39 @@ export function useVideoPlayer({
   }, []);
 
   const seekTo = useCallback((time: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      videoRef.current.play().catch(() => {});
+    const el = videoRef.current;
+    if (el) {
+      const applySeek = () => {
+        // iOS 防御：伪 pause 事件会让内部播放态与实际不符，直接赋值
+        // currentTime 可能被吞（表现为点击字幕不跳转）——先强制 pause
+        // 再 seek 再 play，确保跳转生效。desktop/Android 保持原路径。
+        if (isIOS()) el.pause();
+        el.currentTime = time;
+        el.play().catch(() => {});
+      };
+      if (el.readyState >= 1) {
+        // HAVE_METADATA 及以上才能接受 seek；元数据未就绪时直接赋值会被
+        // 静默忽略（iOS 尤甚）——等就绪后再跳。
+        applySeek();
+      } else {
+        const cleanup = () => {
+          el.removeEventListener("loadedmetadata", onReady);
+          el.removeEventListener("canplay", onReady);
+          el.removeEventListener("error", onError);
+        };
+        const onReady = () => {
+          cleanup();
+          applySeek();
+        };
+        const onError = () => {
+          // 元数据始终未就绪（加载失败）：清掉挂起监听，避免下次加载
+          // 成功后残留回调造成非预期跳转。
+          cleanup();
+        };
+        el.addEventListener("loadedmetadata", onReady);
+        el.addEventListener("canplay", onReady);
+        el.addEventListener("error", onError);
+      }
     } else if (ytReadyRef.current && ytPlayerRef.current?.seekTo) {
       ytPlayerRef.current.seekTo(time, true);
       ytPlayerRef.current.playVideo();
@@ -494,9 +574,20 @@ export function useVideoPlayer({
     if (!el) return;
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
-    } else {
-      el.requestFullscreen().catch(() => {});
+      return;
     }
+    // iOS 回退：iPhone Safari 不支持 Fullscreen API，部分 WebView 只对
+    // video 元素支持全屏——两种情况都落到 webkitEnterFullscreen。
+    const enterIosFullscreen = () => {
+      const v = videoRef.current as
+        (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      v?.webkitEnterFullscreen?.();
+    };
+    if (typeof el.requestFullscreen === "function") {
+      el.requestFullscreen().catch(enterIosFullscreen);
+      return;
+    }
+    enterIosFullscreen();
   }, []);
 
   // Keyboard shortcuts (skip when focus is on interactive elements).
@@ -623,6 +714,7 @@ export function useVideoPlayer({
     videoRef,
     ytContainerRef,
     isYtMode,
+    isPlaying,
     isDesktop,
     play,
     togglePlayPause,

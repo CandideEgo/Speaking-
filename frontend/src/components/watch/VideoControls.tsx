@@ -39,6 +39,8 @@ interface VideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   /** 视频总时长（秒），来自视频数据。 */
   duration: number | null;
+  /** 是否正在播放 —— hook 轮询校正后的单一事实源（iOS 媒体事件不可靠）。 */
+  isPlaying: boolean;
   rate: number;
   setRate: (rate: number) => void;
   muted: boolean;
@@ -59,6 +61,7 @@ interface VideoControlsProps {
 export function VideoControls({
   videoRef,
   duration,
+  isPlaying,
   rate,
   setRate,
   muted,
@@ -73,7 +76,6 @@ export function VideoControls({
   markers,
 }: VideoControlsProps) {
   const [currentTime, setCurrentTime] = useState(0);
-  const [paused, setPaused] = useState(true);
   const [volume, setVolumeUi] = useState(1);
   const [visible, setVisible] = useState(true);
   const [menu, setMenu] = useState<"rate" | "more" | null>(null);
@@ -81,25 +83,20 @@ export function VideoControls({
 
   const total = duration ?? videoRef.current?.duration ?? 0;
 
-  // 从 <video> 元素同步播放状态（与页面自身的 timeupdate 监听并存不冲突）。
+  // 进度条/时间显示：timeupdate 快速路径 + 250ms 轮询兜底
+  // （iOS Safari 的 timeupdate 可能停发；轮询保证进度条不冻结）。
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     const onTime = () => setCurrentTime(el.currentTime);
-    const onPlay = () => setPaused(false);
-    const onPause = () => setPaused(true);
-    const onVolume = () => {
-      setVolumeUi(el.volume);
-    };
     el.addEventListener("timeupdate", onTime);
-    el.addEventListener("play", onPlay);
-    el.addEventListener("pause", onPause);
-    el.addEventListener("volumechange", onVolume);
+    const interval = setInterval(() => {
+      const v = videoRef.current;
+      if (v && Number.isFinite(v.currentTime)) setCurrentTime(v.currentTime);
+    }, 250);
     return () => {
       el.removeEventListener("timeupdate", onTime);
-      el.removeEventListener("play", onPlay);
-      el.removeEventListener("pause", onPause);
-      el.removeEventListener("volumechange", onVolume);
+      clearInterval(interval);
     };
   }, [videoRef]);
 
@@ -116,7 +113,7 @@ export function VideoControls({
   }, [videoRef]);
 
   useEffect(() => {
-    if (paused || menu) {
+    if (!isPlaying || menu) {
       setVisible(true);
       return;
     }
@@ -124,11 +121,11 @@ export function VideoControls({
     return () => {
       if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     };
-  }, [paused, menu, scheduleHide]);
+  }, [isPlaying, menu, scheduleHide]);
 
   function handleActivity() {
     setVisible(true);
-    if (!paused) scheduleHide();
+    if (isPlaying) scheduleHide();
   }
 
   function togglePlayPause() {
@@ -227,10 +224,10 @@ export function VideoControls({
           <button
             type="button"
             onClick={togglePlayPause}
-            aria-label={paused ? "播放（空格）" : "暂停（空格）"}
+            aria-label={isPlaying ? "暂停（空格）" : "播放（空格）"}
             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
           >
-            {paused ? <Play size={18} fill="currentColor" /> : <Pause size={18} />}
+            {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
           </button>
 
           {/* 时间 */}

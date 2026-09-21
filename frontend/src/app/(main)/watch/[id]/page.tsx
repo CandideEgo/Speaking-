@@ -149,6 +149,7 @@ export default function WatchPage() {
     videoRef,
     ytContainerRef,
     isYtMode,
+    isPlaying,
     play,
     seekTo,
     retry,
@@ -809,6 +810,7 @@ export default function WatchPage() {
                   {!isPip && (
                     <VideoControls
                       videoRef={videoRef}
+                      isPlaying={isPlaying}
                       duration={video.duration}
                       rate={rate}
                       setRate={setRate}
