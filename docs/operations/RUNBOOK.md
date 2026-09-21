@@ -87,8 +87,14 @@ docker compose -f docker-compose.prod.yml run --rm --no-deps \
 
 # 4.4 起服务（db / redis 不动；镜像 ID 变化会触发四个应用容器重建）
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+# 4.5 让 nginx 重新解析 upstream：nginx 只在启动时解析一次 `backend` / `frontend`
+#     的 IP 并永久缓存，容器重建后它仍指着旧 IP，表现为**全站 502**（2026-09-21 实际发生）
+docker exec speaking-nginx-1 nginx -s reload
 ```
 
+- **4.5 不是可选项**：`--remove-orphans` 只重建镜像变化的容器，nginx 不在其中，所以它的
+  解析结果一定是陈旧的；`nginx -s reload` 秒级生效，不中断现有连接。
 - **不要 `docker compose down`**：nginx 的 upstream 写着 `backend:8000`，backend 不存在时 nginx 会
   以 `[emerg] host not found in upstream` 崩溃循环，还会连带把 db / redis 停掉。
 - 迁移只有 `backend` 一个执行者（`celery` / `celery-beat` 设了 `RUN_MIGRATIONS=0`，且要等 backend
@@ -883,6 +889,7 @@ curl -s -m 5 -k -I "https://seeword.top/media/<video_id>_720p.mp4"
 | `Sign in to confirm you're not a bot` | YouTube cookies 失效 | 重新从 Edge 导 cookies.txt 覆盖 `youtube_cookies_new.txt` |
 | 视频能查但 mp4 返回 403 | D0 unlock gate | 正常行为（未登录用户不能看 mp4，登录可解锁） |
 | 视频能查但 nginx 返回 404 | 旧 404 缓存 | `docker exec speaking-nginx-1 nginx -s reload` |
+| **部署后全站 502**（含 `/health`、`/login`） | nginx 启动时解析的 upstream IP 已失效（backend / frontend 容器被重建换了 IP），错误日志是 `connect() failed (111: Connection refused) ... upstream: "http://172.19.0.x:8000"` | `docker exec speaking-nginx-1 nginx -s reload`；部署流程已含此步（§1.1 步骤 4.5） |
 | `transcribe_video_gpu` 卡住不返回 | 本地无 GPU | 起云 GPU worker（参考 [GPU-WORKER-SETUP.md](GPU-WORKER-SETUP.md)） |
 
 ### 6.9 前置依赖：POT provider + 代理中继（必读）
