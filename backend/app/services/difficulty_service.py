@@ -1,16 +1,23 @@
 """Video difficulty auto-computation from subtitle word-level annotations.
 
-Computes a CEFR difficulty level (A1–C2) for a video based on the exam-level
-distribution of words in its subtitles (``Subtitle.word_levels``). The result
-is written to ``Video.difficulty_level`` — only when the field is currently
-null (manual admin overrides are never clobbered).
+Computes a CEFR difficulty level (A1–C2) for a video from the exam-level
+distribution of the words in its subtitles (``Subtitle.word_levels``). The
+result is written to ``Video.difficulty_level`` — only when the field is
+currently null (manual admin overrides are never clobbered).
 
 Algorithm:
-1. Collect all word-level annotations from the video's subtitles.
-2. For each annotated word, take its highest exam level order.
-3. Compute the 75th-percentile order (represents the "challenging" tier of
-   vocabulary a learner will encounter).
-4. Map the percentile to a CEFR band.
+1. Walk every word occurrence in the video's subtitles. A word that appears in
+   N sentences counts N times, so the measure tracks the running text a learner
+   actually reads rather than type diversity.
+2. For each occurrence take the *lowest* exam level order listing the word —
+   its acquisition level. A word in both CET4 and IELTS is met at CET4, so the
+   lowest listing is the one that matters; taking the highest (the pre-DEC-043
+   behaviour) classified every word that merely appears in the IELTS list as
+   C1/C2 and pinned the whole corpus to C2.
+3. Compute 超纲率: the share of occurrences whose acquisition level is above
+   中考 (order > 1), i.e. outside the ~1600-word junior-high core. This is the
+   vocabulary a learner must acquire beyond school basics.
+4. Map that share to a CEFR band.
 
 Called best-effort at the tail of ``finalize_video`` and by the
 ``backfill_difficulty.py`` script for existing videos.
@@ -32,36 +39,60 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-# Exam order → CEFR mapping thresholds (75th-percentile order).
-# order 1 = zhongkao, 2 = gaoKao, 3 = cet4, 4 = cet6, 5 = ky, 6 = ielts/toefl, 7 = gre
-_ORDER_TO_CEFR: list[tuple[float, str]] = [
-    (1.5, "A1"),
-    (2.5, "A2"),
-    (3.5, "B1"),
-    (4.5, "B2"),
-    (5.5, "C1"),
+# 中考 order — words listed at or below it count as school basics, not 超纲.
+_BASIC_ORDER = level_order("zhongkao")
+
+# 超纲率 → CEFR. Bands were calibrated against the LLM CEFR estimates for the
+# 49-video production corpus (2026-09-21): mean absolute band error 0.25, 75%
+# exact, 100% within one band. Each cut point sits in a gap in that data, so
+# the bands are not knife-edge.
+_BEYOND_RATIO_TO_CEFR: list[tuple[float, str]] = [
+    (0.17, "A1"),
+    (0.26, "A2"),
+    (0.30, "B1"),
+    (0.47, "B2"),
+    (0.55, "C1"),
 ]
 _CEFR_ABOVE = "C2"
 
+# A ratio over fewer occurrences than this is noise, not a measurement.
+_MIN_OCCURRENCES = 30
 
-def _order_to_cefr(order: float) -> str:
-    """Map a numeric exam-level order to a CEFR level string."""
-    for threshold, cefr in _ORDER_TO_CEFR:
-        if order <= threshold:
+
+def _ratio_to_cefr(ratio: float) -> str:
+    """Map 超纲率 to a CEFR band."""
+    for threshold, cefr in _BEYOND_RATIO_TO_CEFR:
+        if ratio < threshold:
             return cefr
     return _CEFR_ABOVE
 
 
-def _percentile(sorted_values: list[int], pct: float) -> float:
-    """Compute the pct-th percentile from a sorted list of ints."""
-    if not sorted_values:
-        return 0.0
-    n = len(sorted_values)
-    idx = (pct / 100.0) * (n - 1)
-    lo = int(idx)
-    hi = min(lo + 1, n - 1)
-    frac = idx - lo
-    return sorted_values[lo] * (1 - frac) + sorted_values[hi] * frac
+def beyond_basic_ratio(subtitle_word_levels: list[dict | None]) -> float | None:
+    """超纲率: share of annotated word occurrences above the 中考 vocabulary.
+
+    ``None`` when there are too few occurrences to measure. Exposed separately
+    from the band mapping so calibration work can read the raw statistic.
+    """
+    total = 0
+    beyond = 0
+    for wl in subtitle_word_levels:
+        if not wl:
+            continue
+        for _surface, levels in wl.items():
+            if not levels:
+                continue
+            orders = [level_order(lv) for lv in levels]
+            acquisition = min((o for o in orders if o > 0), default=0)
+            if acquisition == 0:
+                # Not in any exam list — no acquisition level to compare.
+                continue
+            total += 1
+            if acquisition > _BASIC_ORDER:
+                beyond += 1
+
+    if total < _MIN_OCCURRENCES:
+        return None
+    return beyond / total
 
 
 def compute_difficulty_from_word_levels(
@@ -72,24 +103,8 @@ def compute_difficulty_from_word_levels(
     Each dict maps lowercase surface token → list of exam level keys.
     Returns None when there's insufficient data to compute.
     """
-    orders: list[int] = []
-    for wl in subtitle_word_levels:
-        if not wl:
-            continue
-        for _surface, levels in wl.items():
-            if not levels:
-                continue
-            max_ord = max(level_order(lv) for lv in levels)
-            if max_ord > 0:
-                orders.append(max_ord)
-
-    if len(orders) < 3:
-        # Too few annotated words to make a meaningful judgment.
-        return None
-
-    orders.sort()
-    p75 = _percentile(orders, 75)
-    return _order_to_cefr(p75)
+    ratio = beyond_basic_ratio(subtitle_word_levels)
+    return None if ratio is None else _ratio_to_cefr(ratio)
 
 
 async def compute_video_difficulty(db: AsyncSession, video_id: str) -> str | None:
