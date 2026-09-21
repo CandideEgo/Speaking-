@@ -156,3 +156,78 @@ async def test_gloss_corpus_fields_null_when_empty(client, auth_headers, monkeyp
     assert data["example_sentence"] is None
     assert data["is_high_freq"] is False
     assert data["levels"] == []
+
+
+@pytest.mark.asyncio
+async def test_gloss_enrich_returns_corpus_and_note(client, auth_headers, monkeypatch, ecdict_lookup):
+    """分级渲染第二级：enrich 返回真题例句 + 高频徽标 + AI 笔记（DB 查询）。"""
+    from app.services import exam_corpus, word_notes
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as db:
+        await exam_corpus.ingest_sentences(
+            db,
+            [
+                {
+                    "level": "cet6",
+                    "year": 2018,
+                    "sentence_en": "We accumulate data.",
+                    "sentence_zh": "我们积累数据。",
+                    "source": "2018六级",
+                },
+                {"level": "cet6", "year": 2019, "sentence_en": "They accumulate evidence.", "source": "2019六级"},
+                {"level": "cet6", "year": 2020, "sentence_en": "Accumulate resources.", "source": "2020六级"},
+            ],
+        )
+        await word_notes.upsert_notes(
+            db,
+            [
+                {
+                    "word": "accumulate",
+                    "level": "cet6",
+                    "context_source": "global",
+                    "contextual_note": "语境：逐步积累",
+                    "pitfalls": "别拼错",
+                    "knowledge": "accumulate + 宾语",
+                }
+            ],
+        )
+
+    resp = await client.get(
+        "/api/v1/words/gloss/enrich",
+        params={"word": "accumulate", "lemma": "accumulate", "context_sentence": "We accumulate data."},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    # 真题 example surfaced (newest year first)
+    assert data["example_sentence"] is not None
+    assert "accumulate" in data["example_sentence"].lower()
+    assert data["example_source"] is not None
+    # high freq (3 occurrences >= threshold 3)
+    assert data["is_high_freq"] is True
+    # preheated AI note
+    assert data["contextual_note"] == "语境：逐步积累"
+    assert data["pitfalls"] == "别拼错"
+    assert data["knowledge"] == "accumulate + 宾语"
+
+
+@pytest.mark.asyncio
+async def test_gloss_enrich_empty_when_no_data(client, auth_headers, monkeypatch):
+    """第二级无数据时返回空字段（非致命，不影响第一级已展示的基础释义）。"""
+    from app.services import ecdict
+
+    monkeypatch.setattr(ecdict, "lookup", lambda token: None)
+
+    resp = await client.get(
+        "/api/v1/words/gloss/enrich",
+        params={"word": "whatever", "lemma": "whatever"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["example_sentence"] is None
+    assert data["is_high_freq"] is False
+    assert data["contextual_note"] is None
+    assert data["pitfalls"] is None
+    assert data["knowledge"] is None

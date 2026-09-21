@@ -321,6 +321,40 @@ async def test_get_best_note_falls_back_to_surface_key_for_inflected_forms(db_se
     assert best_lemma["contextual_note"] == "lemma video note"
 
 
+@pytest.mark.asyncio
+async def test_get_best_note_priority_video_surface_beats_global_lemma(db_session):
+    """Merged single-query lookup must preserve cross-layer priority: any
+    video-layer hit (lemma or surface) beats any global-layer hit, even when
+    the two live under different keys (video:surface vs global:lemma)."""
+    from app.services import word_notes
+
+    vid = "vid-prio-test"
+    await word_notes.upsert_notes(
+        db_session,
+        [
+            {
+                "word": "billion",
+                "level": "cet4",
+                "context_source": "global",
+                "contextual_note": "global lemma note",
+                "pitfalls": "",
+                "knowledge": "",
+            },
+            {
+                "word": "billions",
+                "level": "cet4",
+                "context_source": f"video:{vid}",
+                "contextual_note": "video surface note",
+                "pitfalls": "",
+                "knowledge": "",
+            },
+        ],
+    )
+    best = await word_notes.get_best_note(db_session, "billion", video_id=vid, surface="billions")
+    assert best["contextual_note"] == "video surface note"
+    assert best["source"] == f"video:{vid}"
+
+
 # --- gloss endpoint: DB notes only (no live AI fallback) ---
 
 

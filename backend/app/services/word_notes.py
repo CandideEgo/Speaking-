@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
@@ -59,17 +59,32 @@ async def get_best_note(
     fallback before giving up — otherwise inflected forms would never hit
     their video-level notes.
 
+    Priority order: video:lemma → video:surface → global:lemma → global:surface.
+    All four candidate (word, source) pairs are fetched in a single round trip
+    (``or_`` of equality predicates) and the highest-priority hit is returned —
+    previously this did up to four sequential SELECTs.
+
     Returns a plain dict {contextual_note, pitfalls, knowledge, source} ready
     for the gloss endpoint response, or None when neither exists.
     """
     keys = [word] if not surface or surface == word else [word, surface]
+    candidates: list[tuple[str, str]] = []
     if video_id:
         for key in keys:
-            n = await get_note(db, key, _video_source(video_id))
-            if n:
-                return n.to_dict()
+            candidates.append((key, _video_source(video_id)))
     for key in keys:
-        n = await get_note(db, key, GLOBAL_SOURCE)
+        candidates.append((key, GLOBAL_SOURCE))
+    if not candidates:
+        return None
+
+    conds = [(WordAINote.word == key) & (WordAINote.context_source == source) for key, source in candidates]
+    stmt = select(WordAINote).where(or_(*conds)).execution_options(populate_existing=True)
+    rows = list((await db.execute(stmt)).scalars().all())
+    if not rows:
+        return None
+    by_key = {(r.word, r.context_source): r for r in rows}
+    for key, source in candidates:
+        n = by_key.get((key, source))
         if n:
             return n.to_dict()
     return None
