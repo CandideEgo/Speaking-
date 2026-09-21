@@ -8,7 +8,7 @@
 
 Date: 2026-09-22
 
-- **已修待部署**（09-22，未提交）：头像上传 404（media 门控误伤子目录 uuid 文件名，已收敛为仅根目录 + 回归测试）+ 首次登录白屏（登录/注册页 authenticated 后 `return null` → `FullPageSpinner`，新增 `app/global-error.tsx`）
+- **已提交待部署**（09-22）：iOS Safari 播放态/字幕同步修复（`isPlaying` 单一事实源 + seek 健壮化）+ 点词分级渲染（`/gloss/static` + `/gloss/enrich`，旧 `/gloss` 转休眠）；含头像 404 门控与登录白屏修复
 - **生产已更新**（09-21 19:42 镜像 `d2cc67d47073`/`cab8d974e4e1`：iOS playsinline + 分级颜色目标优先 + LLM 视频分类），部署源为未提交工作区；部署后必须 `nginx -s reload`（RUNBOOK §1.1 步骤 4.5）。存量 49 支视频 `topic_tags` 已回填（回填前备份 `/root/backups/videos_before_classify_20260921194521.sql.gz`）
 - **DEC-043 难度校准待部署**：`difficulty_service` 改用「习得级别 + 超纲率」（原 max-order p75 使 49 支全为 C2）；部署后需 `backfill_difficulty.py --recompute`（先 `--dry-run`）把存量 C2 换成实算值
 
@@ -17,23 +17,17 @@ Date: 2026-09-22
 Newest first, one line each. Prune the tail into `CHANGELOG.md` when this list gets long — the
 authoritative reasoning for each is the cited decision entry.
 
+- 榜单页改版：TopPodium 领奖台 + RankingRow 重写（DEC-045，2026-09-21）
+- iOS 播放态单一事实源 + 点词分级渲染（两级 gloss 端点）（DEC-044，2026-09-21，**已提交待部署**）
 - 视频难度校准：习得级别 + 超纲率（DEC-043，2026-09-21，**待部署 + 待重算存量**）
 - LLM 视频自动分类与分级 + 分级颜色目标优先 + iOS playsinline 修复（DEC-042，2026-09-21，**已部署 + 存量已回填**）
 - 首页排行块并入筛选栏排序（DEC-041，2026-09-20）
-- 知识层归档机制 + `stale` 提醒检查（DEC-040，2026-09-20）
+- 知识层归档机制 + `stale` 提醒检查（DEC-040，2026-09-20；09-22 第二轮归档 DEC-029..036）
 - 内测上线四件套：排行 / 词汇学习闭环 / 免费开放 / 存储三态（DEC-037，2026-09-19）
 - 生产部署链路加固（DEC-039，2026-09-20）
 - 知识层重构 Phase 0/1（2026-09-19）
 - 免费化影响评估报告（`docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`，2026-09-18）
-- YouTube anti-bot：POT provider + 代理中继（DEC-030，2026-09-09）
-- 批量驱动与 worker 必须服务化托管（NSSM）（DEC-031，2026-09-09）
-- 上线验证判据确立：feed 排名不算、mp4 404 才算（DEC-032，2026-09-09）
-- 翻译引擎统一为火山引擎 ARK（DEC-029，2026-09-08）
-- 频道升级为全量作者页 Auto-Channel（DEC-035，2026-08-30）
-- 产品设计规划-2026-08 Phase 0-3 完成 + §10 四项拍板（DEC-034，2026-08-30）
-- D0b 产品瘦身：下线 AI 助手 / 评论 / UGC / 学习计划（DEC-025，2026-08-28）
-- D0 会员模型：登录墙 + Free 解锁制（DEC-024，2026-08-28）
-- 内测前加固 Phase 0-3：GPU 凭据隔离、发布双路径统一、转写/翻译质量安全网（DEC-011/012）
+- 翻译引擎统一 ARK / YouTube anti-bot / NSSM 托管 / 上线验证判据（DEC-029/030/031/032，2026-09-08/09）——尾部已剪入 `CHANGELOG.md`
 
 ## Current Focus
 
@@ -53,8 +47,8 @@ authoritative reasoning for each is the cited decision entry.
 
 ## Known Issues
 
-- **待部署**：09-22 两个用户反馈修复（头像 404 门控误伤 + 登录白屏 spinner/global-error）在工作区未提交，下次部署一并带上
-- **DEC-042/043 待办**：iPhone 真机验证（内联播放 / 滚动 PiP / 字幕同步）
+- **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步（09-21 播放态轮询修复未在真机确认）
+- **分类/难度回填的三处边缘**（09-22 复查，未修）：`classifying` 未进 `pipeline_helpers.step_timeouts`（回落 3600s 默认）且 `models/video.py` 步骤枚举注释未含它；`backfill_*.py --video-id` 提前 return，跳过 `invalidate_browse_cache()`（CHANGELOG 的「写库后失效」在单视频路径不成立）；`clean_dirty_difficulty` 对所有状态置 NULL，重填只覆盖 `ready/ready_subtitles`，非 ready 视频清空后不回填。
 - **本地 dev SMS 发送 502**：`requirements.txt` 已补 Dypnsapi SDK，待 `.venv` / 云端镜像重装后复测；CI / 无凭据环境回退 dev-fake 码 `1234`，E2E 依赖此路径
 - **E2E coverage 不完整**：CI e2e 已 seed 核心旅程（不再整体跳过），但播放 / 词汇复习 / 考试等关键流程仍缺 e2e
 - **ICP compliance**：等个体营业执照才能全量部署（payment 因此保持禁用）

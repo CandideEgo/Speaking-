@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- **点词分级渲染：`/gloss/static` + `/gloss/enrich` 两级端点（09-21）**：词卡基础内容（词头/音标/词形/ECDICT 释义）由只读内存的 `static` 端点秒出，真题例句 + 高频徽标 + AI 笔记由 `enrich` 后补填充（`lemma` 沿用第一级返回值，不重复归一）；前端 `useWordLookup` 顺序两次请求 + 竞态守卫（快速连点丢弃过期响应），`mergeEnrich` 只合并第二级拥有的字段，避免 enrich 空值污染已展示的静态字段；enrich 失败静默（基础释义已渲染）。旧 `/gloss` 端点保留但前端已无调用方，属休眠端点。
+- **榜单页改版：领奖台 + 行重写（09-21，DEC-045）**：`/rankings` 前三名走新 `TopPodium`（`#1` 横贯大卡、`#2/#3` 半行并列，`No.N` 眉标 + 巨型背景名次水印），第 4 名起用重写的 `RankingRow`（大号名次数字、`VideoThumbnail` 带时长与 hover 播放、微标签 + 相对榜首的比例条）；指标文案收敛为 `RANKING_METRIC_LABELS`（`Record<RankingScope, string>`）单一来源；页头改「Trending · 榜单」眉标 + 28px 标题。
 - **LLM 视频自动分类与分级（09-21，DEC-042）**：新增 `services/video_classification.py`（canonical 8 类 topic 白名单，`api.v1.browse` 的 `CATEGORIES` 与其同源）；`AIService.chat_json()` 强制 JSON 输出；`finalize_video` 在 prewarm 与下载之间插入幂等的 `classifying` 步骤（best-effort，失败不阻塞上线）；`scripts/backfill_classification.py` 支持 `--dry-run/--limit/--video-id` 回填存量（顺带清洗 A1–C2 之外的脏 difficulty）；前端 `lib/topicCategories.ts` 统一 id→中文标签，feed tab 与卡片共用。生产存量 49 支已回填。
 - **首页筛选栏改版 + feed 排序（09-20，DEC-041）**：移除首页独立排行区块；分类改为可展开下拉按钮；新增排序开关（推荐/热播/最新）直接排序视频网格，下拉底部保留「完整榜单」入口；`GET /browse/feed` 新增 `sort=latest|hot`（hot = 站内总播放降序，与周榜去重口径不同源）。
 - **视频候选池 Catalog 后端 MVP（08-08，DEC-036）**：抓取发现与逐条策展解耦。
@@ -21,8 +23,10 @@
   - 修复：watch 页快捷键双重监听与字幕导航 seek 失效、管理端引导刷新竞态、重录跟读录音丢失、requirements.txt 缺 Dypnsapi SDK（send-code 502 根因）。
   - 文档：ADR-0013（Shadowing 录音持久化）、SECURITY.md 重写、context/system-map/state 更正。
 - **提醒调度（08-29，DEC-026）** / **周报不可变快照（08-29，DEC-027）** / **跟读体验增强（08-30，DEC-028）** / **两天 26 提交深度审查 + 5 项修复（08-30，DEC-021）** / **D12 可访问性浅层落地（08-30，DEC-033）**——从 `.agent/state.md` Recently Completed 尾部剪入（state.md 体积管控， reasoning 见对应决策条目）。
+- **翻译引擎统一 ARK（09-08，DEC-029）** / **YouTube anti-bot（09-09，DEC-030）** / **NSSM 服务化托管（09-09，DEC-031）** / **上线验证判据（09-09，DEC-032）** / **频道升级 Auto-Channel（08-30，DEC-035）** / **产品设计规划-2026-08 Phase 0-3 + §10 四项拍板（08-30，DEC-034）** / **D0b 产品瘦身（08-28，DEC-025）** / **D0 会员模型（08-28，DEC-024）** / **内测前加固 Phase 0-3（DEC-011/012）**——同上，第二轮从 `state.md` 尾部剪入；DEC-029..036 的正文同轮归档到 `.agent/archive/decisions-2026-09.md`（推理见对应条目与索引）。
 
 ### Changed
+- `word_notes.get_best_note` 把视频层/全局 × lemma/surface 四个候选合并为单次 `or_` 查询，按 video:lemma → video:surface → global:lemma → global:surface 取最优（此前最多 4 次串行 SELECT；考试词 DB 往返 6→3、非考试词 4→1）。
 - 前端 `mediaUrl()` 支持 `withToken`（草稿媒体预览携带 JWT）。
 - 后端 `get_engine()` 池参数仅 Postgres 生效（SQLite 兼容）。
 - `scoring_tasks` 惰性导入 async_session（与其他任务模块一致，测试可达）。
@@ -30,6 +34,7 @@
 ### Fixed
 - **头像上传后图片 404（09-22）**：`serve_media` 的视频发布态门控只看文件名 stem，头像存为 `avatars/{uuid4}.jpg` 被当作管线视频文件、Video 查无行 → 永久 404（前端回退首字母头像）。门控收敛为仅 media 根目录文件生效（管线产物恒在根目录，用户内容恒在子目录），新增回归测试锁定子目录裸 UUID 图片必返回 200。此前测试只验上传响应不验 GET 路径，故未被发现。
 - **首次登录点击登录后白屏（09-22）**：登录/注册页在 `isAuthenticated` 变 true 的同一轮渲染 `return null`，而 `router.replace(next)` 软导航（RSC flight + 首访 chunk 下载）尚未落地 → 页面全白，弱机/加载失败时需手动刷新。已登录分支改为 `FullPageSpinner`；新增 `app/global-error.tsx`（自带 html/body + 硬刷新按钮）兜底根布局级错误。
+- **iOS Safari 播放态与字幕同步（09-21）**：`useVideoPlayer` 新增 `isPlaying` 单一事实源——原生 `play`/`pause` 事件作快速路径、250ms 播放时钟轮询作校正（同时喂 `onTimeTick`），iOS 发伪 pause / 停发 timeupdate 不再让字幕卡死、播放按钮图标停在错误状态；`VideoControls` 改为受控组件（删掉自己的 `paused` 状态与 `play`/`pause`/`volumechange` 监听，改用 `isPlaying` prop），进度条同样补轮询兜底。`seekTo` iOS 健壮化：元数据未就绪（`readyState < HAVE_METADATA`）时先等 `loadedmetadata`/`canplay` 再跳，加载失败清理挂起监听，跳转前强制 `pause` 规避伪 pause 吞掉赋值。`toggleFullscreen` 无 Fullscreen API 时回退 `webkitEnterFullscreen`。
 - **视频难度评级全部为 C2（09-21，DEC-043）**：`difficulty_service` 原取每个词的最高考试级别再算 p75，而雅思/托福 order=6 且词表极大，实测 p75 恒为 6、阈值表上限 5.5→C1，导致 49 支视频全落 C2（p75 与 LLM 标签的 Spearman 仅 +0.076）。改为「习得级别」（取词的最低考试级别）+「超纲率」（超出中考词表的词出现占比），阈值用 49 条 LLM CEFR 标签做最优单调分割标定（MAE 0.245 档、75% 精确、100% 落在一档内）；最小样本量 3→30；`backfill_difficulty.py` 新增 `--recompute` 支持校准后重算；两个回填脚本（difficulty/classification）写库后调用 `invalidate_browse_cache()`——此前它们绕过缓存失效，改完数据仍会看到最长 5 分钟的旧值。新分布 A1 1 / A2 6 / B1 8 / B2 30 / C1 4。
 - **iPhone 播放页强制全屏、看不到字幕（09-21，DEC-042）**：观看页 `<video>` 补 `playsinline` / `webkit-playsinline` / `x5-playsinline`；`useVideoPlayer.toggleFullscreen` 在 `requestFullscreen` 缺失或被拒时回退 `webkitEnterFullscreen()`。管理端两处预览 video 同步补 `playsInline`。
 - **分级颜色误判（09-21，DEC-042）**：`examLevels.displayLevel/wordHighlightClass` 增加 `targetLevel` 参数——词属于所选分级时用该分级颜色，否则回退最高级；后端 `core/exam_levels.display_level` 同步镜像。此前选「四级」时含四级+雅思的词一律渲染雅思红。

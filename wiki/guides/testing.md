@@ -56,6 +56,7 @@ Pre-commit hooks (`.pre-commit-config.yaml`):
 | ruff, ruff-format | `backend/` |
 | prettier | `frontend/` |
 | knowledge-check | `.agent/`, `wiki/`, `docs/` and the agent entry points |
+| knowledge-stale | code changed under a module some `wiki/` page describes. Advisory: prints a reminder to run `/knowledge-verify` and then refresh the stamp; it fails only on a hole in `scripts/check-knowledge/knowledge-stamps.json` |
 | trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, detect-private-key | all files |
 
 There is **no** `no-commit-to-branch` hook; earlier versions of this page claimed one.
@@ -63,6 +64,7 @@ There is **no** `no-commit-to-branch` hook; earlier versions of this page claime
 ```bash
 pre-commit run --all-files              # all hooks
 pre-commit run knowledge-check --all-files   # just the knowledge layer
+pre-commit run knowledge-stale --all-files   # just the staleness reminder
 ```
 
 Backend: ruff config in `backend/pyproject.toml` (includes `TID251` banning direct `openai` imports,

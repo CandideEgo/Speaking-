@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, ai-service, transcription]
 related: [wiki/architecture/video-pipeline.md, wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-08-04
+updated: 2026-09-21
 ---
 
 # Background
@@ -28,7 +28,9 @@ Keep route files thin. Business logic in service layer.
 
 | Service | Responsibility |
 |---------|---------------|
-| `ai_service.py` | Central AI wrapper (AsyncOpenAI). Singleton `get_ai_service()`. Redis caching for enrichment/gloss. Speaking-scoring methods removed (ADR-0002). |
+| `ai_service.py` | Central AI wrapper (AsyncOpenAI). Singleton `get_ai_service()`. Redis caching for enrichment/gloss. Public `chat_json()` for one-shot structured LLM calls. Speaking-scoring methods removed (ADR-0002). |
+| `video_classification.py` | LLM video classification (DEC-042): canonical topic taxonomy (browse filter + LLM whitelist single source), topic_tags overwrite / difficulty fill-on-NULL, pipeline `classifying` step + backfill script. |
+| `difficulty_service.py` | Subtitle-derived CEFR difficulty (DEC-043): per-word acquisition level = the *lowest* exam list containing it, 超纲率 = share of word occurrences above 中考, mapped to A1–C1/C2 bands; needs ≥30 occurrences. Writes `difficulty_level` only when NULL — the fallback behind `video_classification.py`'s LLM estimate. |
 | `video_service.py` | Video submit (dedup by URL), detail with Redis caching, search (PostgreSQL FTS + ILIKE fallback). |
 | `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, quiz. |
 | `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [video-pipeline, celery-tasks]
 related: [.agent/context.md, docs/adr/0004-ugc-pipeline-admin-triggered.md]
 created: 2026-07-21
-updated: 2026-08-04
+updated: 2026-09-21
 ---
 
 # Background
@@ -29,8 +29,10 @@ finalize_video (tail, cloud worker, triggered by callback)
   → translate subtitles (AI batch)
   → annotate exam words (ECDICT, local)
   → prewarm AI word notes (batch LLM)
+  → classify topic tags + difficulty (LLM, best-effort — failure never blocks; backfill script retries)
   → download video + transcode (ffmpeg 480p/720p/1080p)
   → mark ready
+  → post-ready best-effort tail: difficulty (subtitle-derived fallback, fill-on-NULL) + speech metrics
 ```
 
 # Queue Topology
