@@ -4,11 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
+import { TOPIC_CATEGORY_LABELS } from "@/lib/topicCategories";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
 import type { Paginated, Video } from "@/types";
 
 type Platform = "browse" | "home";
+
+/** Feed ordering. "recommended" is the personalized home mix and only applies
+ *  to the unfiltered home view; "hot"/"latest" map to /browse/feed?sort=… and
+ *  compose with category/level filters. */
+export type FeedSort = "recommended" | "hot" | "latest";
 
 interface UsePlatformFeedOptions {
   platform: Platform;
@@ -21,27 +27,14 @@ interface CategoryResponse {
 }
 
 // Fallback categories if API fails. Home labels the "all" tab as 推荐.
+// Labels come from lib/topicCategories (single source shared with VideoCard);
+// ids must stay in sync with the backend taxonomy
+// (services/video_classification.TOPIC_CATEGORIES).
+const TOPIC_TABS = Object.entries(TOPIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label }));
+
 const FALLBACK_CATEGORIES: Record<Platform, Category[]> = {
-  browse: [
-    { id: "all", label: "全部" },
-    { id: "ted", label: "TED 演讲" },
-    { id: "interview", label: "名人访谈" },
-    { id: "news", label: "新闻" },
-    { id: "vlog", label: "生活 Vlog" },
-    { id: "educational", label: "教育学习" },
-    { id: "movie", label: "电影片段" },
-    { id: "tech", label: "科技" },
-  ],
-  home: [
-    { id: "all", label: "推荐" },
-    { id: "ted", label: "TED 演讲" },
-    { id: "interview", label: "名人访谈" },
-    { id: "news", label: "新闻" },
-    { id: "vlog", label: "生活 Vlog" },
-    { id: "educational", label: "教育学习" },
-    { id: "movie", label: "电影片段" },
-    { id: "tech", label: "科技" },
-  ],
+  browse: [{ id: "all", label: "全部" }, ...TOPIC_TABS],
+  home: [{ id: "all", label: "推荐" }, ...TOPIC_TABS],
 };
 
 /** Map a home-recommendation Video (from /recommendations/home) to VideoItem
@@ -79,6 +72,7 @@ export function usePlatformFeed({
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES[platform] || []);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [activeLevel, setActiveLevel] = useState(initialLevel);
+  const [sort, setSort] = useState<FeedSort>(platform === "home" ? "recommended" : "latest");
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const {
@@ -93,10 +87,13 @@ export function usePlatformFeed({
   } = usePaginatedList<VideoItem>({
     fetcher: async (pg) => {
       // Home default view (推荐 + 全部级别): personalized 40/30/20/10 mix.
-      // Any filter active on home: fall back to browse/feed (supports category+level).
+      // Any filter active on home: fall back to browse/feed (supports category+level+sort).
       // Browse: always /browse/feed.
       const isHomeDefault =
-        platform === "home" && activeCategory === "all" && activeLevel === "all";
+        platform === "home" &&
+        sort === "recommended" &&
+        activeCategory === "all" &&
+        activeLevel === "all";
 
       if (isHomeDefault) {
         const data = await api<Paginated<Video>>(
@@ -117,10 +114,12 @@ export function usePlatformFeed({
         page_size: String(PAGE_SIZE),
       });
       if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
+      // "latest" is the backend default — omit it so browse URLs/cache keys stay unchanged.
+      if (sort === "hot") params.set("sort", "hot");
       return api<Paginated<VideoItem>>(`/api/v1/browse/feed?${params.toString()}`);
     },
     mode: "append",
-    filters: [activeCategory, activeLevel, platform],
+    filters: [activeCategory, activeLevel, platform, sort],
   });
 
   // Fetch categories on mount - only once. Home reuses the browse categories
@@ -180,6 +179,8 @@ export function usePlatformFeed({
     setActiveCategory,
     activeLevel,
     setActiveLevel,
+    sort,
+    setSort,
     videos,
     loading,
     hasMore,

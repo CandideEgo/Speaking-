@@ -1,5 +1,7 @@
 """Browse channel — browse local video library by category and difficulty."""
 
+from typing import Literal
+
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -11,22 +13,16 @@ from app.core.limiter import rate_limit
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.video import CARD_DESCRIPTION_LIMIT
+from app.services.video_classification import TOPIC_CATEGORIES
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/browse", tags=["browse"])
 
-CATEGORIES: list[dict] = [
-    {"id": "all", "label": "All"},
-    {"id": "ted", "label": "TED Talks"},
-    {"id": "interview", "label": "Interviews"},
-    {"id": "news", "label": "News"},
-    {"id": "vlog", "label": "Vlogs"},
-    {"id": "educational", "label": "Educational"},
-    {"id": "movie", "label": "Movie Clips"},
-    {"id": "tech", "label": "Tech"},
-    {"id": "speech", "label": "Speeches"},
-]
+# Canonical taxonomy lives in services/video_classification (the LLM
+# whitelist is derived from the same list — they must not drift).
+# Shallow copy so endpoint consumers can't mutate the service-level source.
+CATEGORIES: list[dict] = [dict(c) for c in TOPIC_CATEGORIES]
 
 
 @router.get("/categories")
@@ -36,18 +32,23 @@ async def list_categories(request: Request):
     return {"categories": CATEGORIES}
 
 
-@cached(ttl=300, key="browse:feed:{category}:{level_key}:{page}:{page_size}")
+@cached(ttl=300, key="browse:feed:{category}:{level_key}:{sort}:{page}:{page_size}")
 async def _browse_feed_query(
     *,
     db: AsyncSession,
     category: str,
     level: str | None,
     level_key: str,
+    sort: str,
     page: int,
     page_size: int,
 ) -> dict:
     """DB query for browse feed, cached by @cached."""
     # Base query: official, published, ready videos
+    # sort="latest": newest first (default). sort="hot": most-viewed first
+    # (all-time in-app view_count; the weekly leaderboards under
+    # /videos/rankings use behavior-event dedup instead).
+    order_by = [Video.view_count.desc(), Video.created_at.desc()] if sort == "hot" else [Video.created_at.desc()]
     stmt = (
         select(Video)
         .where(
@@ -55,7 +56,7 @@ async def _browse_feed_query(
             Video.is_published == True,
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
         )
-        .order_by(Video.created_at.desc())
+        .order_by(*order_by)
     )
 
     # Filter by category (topic_tags stores comma-separated values)
@@ -96,15 +97,21 @@ async def browse_feed(
     db: AsyncSession = Depends(get_db),
     category: str = Query("all"),
     level: str | None = Query(None, max_length=2),
+    sort: Literal["latest", "hot"] = Query("latest"),
     page: int = Query(1, ge=1, le=100),
     page_size: int = Query(20, ge=4, le=50),
 ):
-    """Paginated content feed — browse local video library by category and difficulty."""
+    """Paginated content feed — browse local video library by category and difficulty.
+
+    ``sort`` re-orders the whole feed (composes with category/level filters):
+    ``latest`` = publish-recency (default), ``hot`` = all-time in-app views.
+    """
     return await _browse_feed_query(
         db=db,
         category=category,
         level=level,
         level_key=level or "all",
+        sort=sort,
         page=page,
         page_size=page_size,
     )

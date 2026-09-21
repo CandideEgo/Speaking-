@@ -352,6 +352,28 @@ async def test_browse_feed_items_carry_channel_name_and_slug(client, db_session)
     assert item["channel_slug"] == "ted"
 
 
+async def test_browse_feed_sort_hot_orders_by_view_count(client, db_session):
+    cold = await _make_video(db_session)
+    cold.view_count = 1
+    warm = await _make_video(db_session)
+    warm.view_count = 10
+    hot = await _make_video(db_session)
+    hot.view_count = 99
+    db_session.add_all([cold, warm, hot])
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/browse/feed", params={"sort": "hot"})
+    assert resp.status_code == 200
+    ids = [v["id"] for v in resp.json()["items"]]
+    pos = {vid: ids.index(vid) for vid in (cold.id, warm.id, hot.id)}
+    assert pos[hot.id] < pos[warm.id] < pos[cold.id]
+
+
+async def test_browse_feed_rejects_unknown_sort(client, db_session):
+    resp = await client.get("/api/v1/browse/feed", params={"sort": "bogus"})
+    assert resp.status_code == 422
+
+
 async def test_home_feed_items_carry_channel_slug(client, db_session):
     channel = await _make_channel(db_session, name="TED", slug="ted", upstream_channel_id="UC12345")
     video = await _make_video(db_session, channel_id="UC12345", channel_ref=channel.id)

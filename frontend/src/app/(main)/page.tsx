@@ -6,24 +6,13 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
-import { RankingBlock } from "@/components/home/RankingBlock";
+import { HomeFilterBar } from "@/components/home/HomeFilterBar";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
-import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { getMilestoneLabel } from "@/components/profile/MilestoneBadge";
-
-const DIFFICULTY_LEVELS = [
-  { id: "all", label: "全部" },
-  { id: "A1", label: "A1" },
-  { id: "A2", label: "A2" },
-  { id: "B1", label: "B1" },
-  { id: "B2", label: "B2" },
-  { id: "C1", label: "C1" },
-  { id: "C2", label: "C2" },
-];
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -43,6 +32,8 @@ export default function HomePage() {
     setActiveCategory,
     activeLevel,
     setActiveLevel,
+    sort,
+    setSort,
     videos,
     loading,
     total,
@@ -108,48 +99,17 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── 排行 ── */}
-        <div className="mb-6">
-          <RankingBlock />
-        </div>
-
-        {/* ── 分类筛选栏（filter-bar，复用 browse 模式） ── */}
-        <div className="filter-bar">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            {/* Category pills */}
-            <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
-              <TabPills
-                tabs={categories.map((cat) => ({ key: cat.id, label: cat.label }))}
-                activeKey={activeCategory}
-                onChange={setActiveCategory}
-                variant="ghost"
-                activeStyle="dark"
-                size="sm"
-              />
-            </div>
-            {/* Separator */}
-            <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
-            {/* Difficulty pills */}
-            <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
-              <TabPills
-                tabs={DIFFICULTY_LEVELS.map((lv) => ({ key: lv.id, label: lv.label }))}
-                activeKey={activeLevel}
-                onChange={setActiveLevel}
-                variant="ghost"
-                activeStyle="brand"
-                size="sm"
-              />
-            </div>
-            {/* 结果计数 */}
-            <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-              {total > 0 && (
-                <span className="text-xs text-muted hidden sm:block font-medium">
-                  {total} 个视频
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* ── 筛选栏：分类（展开）+ 排序（推荐/热播/最新）+ 难度 ── */}
+        <HomeFilterBar
+          categories={categories}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          sort={sort}
+          onSortChange={setSort}
+          activeLevel={activeLevel}
+          onLevelChange={setActiveLevel}
+          total={total}
+        />
 
         {/* ── 视频网格 ── */}
         {error && <ErrorState title={error} onRetry={retry} className="py-8" />}
@@ -184,6 +144,7 @@ export default function HomePage() {
                 onClick={() => {
                   setActiveCategory("all");
                   setActiveLevel("all");
+                  setSort("recommended");
                 }}
               >
                 清除筛选
