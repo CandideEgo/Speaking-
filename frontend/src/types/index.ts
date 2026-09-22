@@ -358,6 +358,8 @@ export interface AdminUser {
   name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  /** 默认头像跟随性别（与后端 AdminUserResponse 对齐；null = 按 id 哈希兜底）。 */
+  gender: "male" | "female" | null;
   level: string | null;
   plan: string;
   plan_expires_at: string | null;

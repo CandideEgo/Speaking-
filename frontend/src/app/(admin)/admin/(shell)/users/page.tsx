@@ -32,6 +32,7 @@ import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
+import { Avatar } from "@/components/ui/Avatar";
 import type { AdminStats, AdminUser } from "@/types";
 import { getAdminStats, listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
 
@@ -372,9 +373,14 @@ function UserRow({
               size={14}
               className={cn("text-muted-soft transition-transform", !isExpanded && "-rotate-90")}
             />
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-600">
-              {(u.name || u.phone || "U").slice(0, 1).toUpperCase()}
-            </span>
+            <Avatar
+              src={u.avatar_url}
+              name={u}
+              seed={u.id}
+              gender={u.gender}
+              size="md"
+              alt={u.name || u.phone || "用户头像"}
+            />
             <div className="min-w-0">
               <p className="font-medium text-ink truncate max-w-[140px]">{u.name || "未命名"}</p>
               <p className="text-xs text-muted truncate max-w-[140px]">{u.phone || "-"}</p>

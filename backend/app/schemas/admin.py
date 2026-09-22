@@ -98,6 +98,9 @@ class AdminUserResponse(BaseModel):
     name: str | None = None
     bio: str | None = None
     avatar_url: str | None = None
+    # Drives the gender-based default illustration in the admin user table
+    # (same rule as user-side avatars; NULL = provisional hash-based default).
+    gender: Literal["male", "female"] | None = None
     level: str | None = None
     plan: str
     plan_expires_at: str | None = None

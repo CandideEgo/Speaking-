@@ -404,6 +404,7 @@ async def list_admin_users(
                 "name": user.name,
                 "bio": user.bio,
                 "avatar_url": user.avatar_url,
+                "gender": user.gender,
                 "level": user.level,
                 "plan": user.plan.value if user.plan else "free",
                 "plan_expires_at": _dt_iso(user.plan_expires_at),
