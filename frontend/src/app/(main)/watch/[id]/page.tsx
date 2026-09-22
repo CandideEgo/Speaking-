@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
+import { ChannelEntry } from "@/components/watch/ChannelEntry";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
@@ -544,10 +545,10 @@ export default function WatchPage() {
           <p className="mt-2 text-sm text-muted leading-relaxed">
             视频媒体已释放存储空间，不再提供播放。
             <br />
-            你的学习记录（词汇本与视频集合）仍然保留，可以继续学习。
+            你的学习记录（词库与视频集合）仍然保留，可以继续学习。
           </p>
           <div className="flex gap-3 justify-center mt-6">
-            <Button onClick={() => router.push("/vocabulary")}>去词汇本</Button>
+            <Button onClick={() => router.push("/vocabulary")}>去单词训练</Button>
             <Button variant="outline" onClick={() => router.push("/browse")}>
               浏览其他视频
             </Button>
@@ -585,7 +586,7 @@ export default function WatchPage() {
             onClick={() => router.push("/browse")}
             className="mt-4 text-sm text-brand-500 hover:underline"
           >
-            返回浏览
+            返回频道
           </button>
         }
         fullPage
@@ -608,7 +609,7 @@ export default function WatchPage() {
             onClick={() => router.push("/browse")}
           >
             <ArrowLeft size={14} />
-            返回浏览
+            返回频道
           </button>
           <div className="h-4 w-px bg-hairline shrink-0" />
           <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
@@ -658,8 +659,8 @@ export default function WatchPage() {
             <button
               className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
               onClick={() => router.push("/vocabulary")}
-              aria-label="词汇本"
-              title="词汇本"
+              aria-label="单词训练"
+              title="单词训练"
             >
               <BookOpen size={18} />
             </button>
@@ -901,6 +902,15 @@ export default function WatchPage() {
               <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
             )}
           </div>
+
+          {/* 频道入口卡：播放页显形入口（meta 细行另有频道名文字链），仅已挂频道渲染 */}
+          {video.channel_slug && video.channel_name && (
+            <ChannelEntry
+              slug={video.channel_slug}
+              name={video.channel_name}
+              coverUrl={video.channel_cover_url}
+            />
+          )}
 
           {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
           {currentSubtitle && (

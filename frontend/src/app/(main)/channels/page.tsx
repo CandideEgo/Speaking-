@@ -57,7 +57,7 @@ export default function ChannelsPage() {
   return (
     <PageTransition>
       <main className="container-page py-6 sm:py-10">
-        <PageHeader crumb="发现" title="视频频道" />
+        <PageHeader crumb="频道" title="视频频道" />
 
         {error && <ErrorState title={error} onRetry={() => load(1, false)} className="py-8" />}
 

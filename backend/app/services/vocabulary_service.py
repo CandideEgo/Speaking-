@@ -101,3 +101,68 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
         "mastered_count": level_counts.get(MASTERY_MASTERED, 0),
         "due_count": due_count,
     }
+
+
+async def build_daily_session(
+    db: AsyncSession,
+    user_id: str,
+    new_count: int = 15,
+    review_count: int = 20,
+) -> dict:
+    """Compose the 今日训练 queue: new words (never reviewed) + due words.
+
+    New words are ``mastery_level == new`` ordered oldest-first so words the
+    user saved earliest get learned first; due words are ordered by
+    ``next_review_at`` (most overdue first). Mastered words never appear in
+    the review queue (tri-state semantics, same as get_stats).
+    """
+    now = datetime.now(UTC)
+
+    new_stmt = (
+        select(Vocabulary)
+        .where(Vocabulary.user_id == user_id, Vocabulary.mastery_level == MASTERY_NEW)
+        .order_by(Vocabulary.created_at.asc())
+        .limit(new_count)
+    )
+    new_words = (await db.execute(new_stmt)).scalars().all()
+
+    review_stmt = (
+        select(Vocabulary)
+        .where(
+            Vocabulary.user_id == user_id,
+            (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
+            Vocabulary.mastery_level != MASTERY_MASTERED,
+            Vocabulary.mastery_level != MASTERY_NEW,
+        )
+        .order_by(Vocabulary.next_review_at.asc().nulls_first())
+        .limit(review_count)
+    )
+    review_words = (await db.execute(review_stmt)).scalars().all()
+
+    new_total = (
+        await db.execute(
+            select(func.count(Vocabulary.id)).where(
+                Vocabulary.user_id == user_id,
+                Vocabulary.mastery_level == MASTERY_NEW,
+            )
+        )
+    ).scalar() or 0
+    # Due total mirrors the review queue: new words are the *learn* queue, not
+    # review (differs from stats.due_count, which folds new words into the
+    # badge number).
+    due_total = (
+        await db.execute(
+            select(func.count(Vocabulary.id)).where(
+                Vocabulary.user_id == user_id,
+                (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
+                Vocabulary.mastery_level != MASTERY_MASTERED,
+                Vocabulary.mastery_level != MASTERY_NEW,
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "new_words": new_words,
+        "review_words": review_words,
+        "totals": {"new_total": new_total, "due_total": due_total},
+    }

@@ -88,7 +88,7 @@ export default function PracticePage() {
           </span>
           <h1 className="text-2xl font-extrabold tracking-tight mt-3 mb-2">真题实战 + 单词训练</h1>
           <p className="text-sm text-muted leading-relaxed max-w-[60ch]">
-            四六级历年真题已上线，交卷自动判分；错题本沉淀薄弱点，词汇本单词训练正常开放。
+            四六级历年真题已上线，交卷自动判分；错题本沉淀薄弱点，单词训练正常开放。
           </p>
           <div className="flex gap-6 mt-4 flex-wrap">
             <span className="inline-flex items-center gap-2 text-[13px] text-muted">
@@ -285,15 +285,15 @@ export default function PracticePage() {
           ))}
         </div>
 
-        {/* 词汇本入口 */}
+        {/* 单词训练入口 */}
         <div className="mt-8 flex items-center justify-between gap-4 bg-canvas border border-hairline rounded-xl p-5">
           <div className="flex items-center gap-3.5 min-w-0">
             <span className="w-10 h-10 rounded-lg bg-ink text-canvas flex items-center justify-center flex-shrink-0">
               <BookOpen size={18} />
             </span>
             <div className="min-w-0">
-              <div className="text-sm font-bold text-ink">词汇本单词训练</div>
-              <div className="text-xs text-muted mt-0.5">SM-2 间隔复习 · 多题型训练，正常开放</div>
+              <div className="text-sm font-bold text-ink">单词训练</div>
+              <div className="text-xs text-muted mt-0.5">新词闪卡 + SM-2 间隔复习，每日推送</div>
             </div>
           </div>
           <Link

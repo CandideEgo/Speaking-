@@ -76,6 +76,9 @@ class VideoResponse(BaseModel):
     # attached. Serializers that want the link populate it explicitly; the
     # default None keeps legacy payloads (and cached detail JSON) valid.
     channel_slug: str | None = None
+    # Channel cover for the watch-page channel entry card (播放页频道入口);
+    # null when the video has no attached channel or the channel has no cover.
+    channel_cover_url: str | None = None
     upload_date: str | None = None
     ext_view_count: int | None = None
     ext_like_count: int | None = None

@@ -250,14 +250,17 @@ async def get_video_detail(
             for s in (video.subtitles or [])
         ]
 
-    # Author page link (ADR-0014 rev.): channel slug for the watch page.
+    # Author page link (ADR-0014 rev.): channel slug + cover for the watch page.
     channel_slug = None
+    channel_cover_url = None
     if video.channel_ref:
         from app.models.channel import Channel
 
-        channel_slug = (
-            await db.execute(select(Channel.slug).where(Channel.id == video.channel_ref))
-        ).scalar_one_or_none()
+        row = (
+            await db.execute(select(Channel.slug, Channel.cover_url).where(Channel.id == video.channel_ref))
+        ).one_or_none()
+        if row:
+            channel_slug, channel_cover_url = row
 
     detail = VideoDetailResponse(
         id=video.id,
@@ -294,6 +297,7 @@ async def get_video_detail(
         created_at=video.created_at.isoformat(),
         channel_name=video.channel_name,
         channel_slug=channel_slug,
+        channel_cover_url=channel_cover_url,
         subtitles=subtitle_responses,
         access=access,
     )

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { useDailySession } from "@/hooks/useDailySession";
 import {
   BookOpen,
   Trash2,
@@ -14,7 +15,6 @@ import {
   CheckCircle2,
   Flame,
   Search,
-  GraduationCap,
   ChevronLeft,
   ChevronRight,
   Layers,
@@ -30,6 +30,7 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
+import { DailyHero } from "@/components/vocabulary/DailyHero";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
 import { relativeTime } from "@/lib/utils";
@@ -100,7 +101,7 @@ function VocabSetsPanel({
             href="/browse"
             className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
           >
-            去发现视频 →
+            去频道看看 →
           </Link>
         }
       />
@@ -148,10 +149,13 @@ function VocabSetsPanel({
 
 export default function VocabularyPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-  // 顶部视图切换：视频集合（默认）| 全部单词。MobileTabBar 对 /vocabulary
-  // 前缀高亮，集合相关页面全部挂在 /vocabulary/sets 之下。
-  const [topTab, setTopTab] = useState<"sets" | "words">("sets");
+  // 顶部视图：今日（默认，百词斩式训练入口）| 词库（集合 + 单词管理）。
+  // MobileTabBar 对 /vocabulary 前缀高亮，集合相关页面全部挂在 /vocabulary/sets 之下。
+  const [topTab, setTopTab] = useState<"today" | "library">("today");
+  // 词库内二级视图：视频集合 | 全部单词
+  const [libraryTab, setLibraryTab] = useState<"sets" | "words">("sets");
   const setsView = useVocabSets(isAuthenticated && !isLoading);
+  const daily = useDailySession(isAuthenticated && !isLoading);
   const [stats, setStats] = useState({
     total: 0,
     due: 0,
@@ -174,8 +178,7 @@ export default function VocabularyPage() {
   // 服务端筛选 + 分页：掌握度/待复习/搜索全部下推到后端，
   // 分页器 total 与筛选口径一致（此前 page_size=100 硬编码，
   // 超过 100 词的用户看不到剩余词）。
-  // 复习入口收敛为唯一的「单词训练」（/vocabulary/drill）：
-  // 本页只承担浏览/管理，不再内嵌快速复习模态与卡片评分按钮。
+  // 本区只承担浏览/管理；训练入口收敛为「今日」视图的 Hero CTA → /vocabulary/drill。
   const list = usePaginatedList<VocabularyWord>({
     fetcher: (page) => {
       const params = new URLSearchParams({
@@ -260,18 +263,16 @@ export default function VocabularyPage() {
   return (
     <PageTransition>
       <main className="container-page py-6 sm:py-12">
-        {/* Page head: title + desc + 视图切换（视频集合 | 全部单词） */}
+        {/* Page head: title + desc + 视图切换（今日 | 词库） */}
         <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
           <div>
-            <h1 className="text-[26px] font-extrabold tracking-tight text-ink">词汇本</h1>
-            <p className="text-[13px] text-muted mt-1">
-              你在视频中收藏与练习过的词汇，按掌握度安排复习
-            </p>
+            <h1 className="text-[26px] font-extrabold tracking-tight text-ink">单词训练</h1>
+            <p className="text-[13px] text-muted mt-1">每天一小步，把视频里遇到的单词变成自己的</p>
           </div>
           <TabPills
             tabs={[
-              { key: "sets", label: "视频集合" },
-              { key: "words", label: "全部单词" },
+              { key: "today", label: "今日" },
+              { key: "library", label: "词库" },
             ]}
             activeKey={topTab}
             onChange={setTopTab}
@@ -281,28 +282,16 @@ export default function VocabularyPage() {
           />
         </div>
 
-        {topTab === "sets" ? (
-          <VocabSetsPanel
-            loading={setsView.loading}
-            error={setsView.error}
-            sets={setsView.sets}
-            onRetry={setsView.refresh}
-          />
-        ) : (
+        {topTab === "today" ? (
           <>
-            {/* 单词训练 CTA — 唯一的复习入口（全部单词视图内） */}
-            {stats.due > 0 && (
-              <div className="flex justify-end mb-5">
-                <Link
-                  href="/vocabulary/drill"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
-                >
-                  <GraduationCap size={16} />
-                  单词训练
-                  <span className="bg-white/20 px-2 py-0.5 rounded-pill text-xs">{stats.due}</span>
-                </Link>
-              </div>
-            )}
+            {/* 训练 Hero：词库掌握环 + 今日队列计数 + 开始今日训练 CTA */}
+            <DailyHero
+              newTotal={daily.session?.totals.new_total ?? 0}
+              dueTotal={daily.session?.totals.due_total ?? 0}
+              total={stats.total}
+              mastered={stats.mastered}
+              loading={daily.loading}
+            />
 
             {/* Stat cards (due 卡高亮) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
@@ -331,180 +320,225 @@ export default function VocabularyPage() {
               />
             </div>
 
-            {/* Filter bar: 掌握度筛选 + 全部/待复习 + 搜索（均为服务端筛选） */}
-            <div className="filter-bar mb-5">
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
-                <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
-                  <TabPills
-                    tabs={[
-                      { key: "all", label: "全部" },
-                      { key: "new", label: "新词" },
-                      { key: "learning", label: "学习中" },
-                      { key: "mastered", label: "已掌握" },
-                    ]}
-                    activeKey={masteryFilter}
-                    onChange={setMasteryFilter}
-                    variant="ghost"
-                    activeStyle="dark"
-                    size="sm"
-                  />
-                </div>
-                <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
-                <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
-                  <TabPills
-                    tabs={[
-                      { key: "all", label: "不限" },
-                      { key: "due", label: "待复习" },
-                    ]}
-                    activeKey={dueOnly ? "due" : "all"}
-                    onChange={(key) => setDueOnly(key === "due")}
-                    variant="ghost"
-                    activeStyle="brand"
-                    size="sm"
-                  />
-                </div>
-                {/* Search */}
-                <div className="relative w-full md:w-56 md:ml-auto">
-                  <Search
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
-                  />
-                  <input
-                    type="text"
-                    placeholder="搜索单词…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
-                  text-sm text-ink placeholder:text-muted-soft
-                  focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
-                  transition-colors duration-150"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Error state */}
-            {list.error && <ErrorState title={list.error} onRetry={list.reload} className="py-8" />}
-
-            {/* Word grid */}
-            {showEmpty ? (
+            {/* 全新用户空态：一个词都没有时引导去频道看视频收集生词 */}
+            {!daily.loading && stats.total === 0 && !daily.error && (
               <EmptyState
                 icon={BookOpen}
-                title={
-                  debouncedQuery
-                    ? `未找到匹配“${debouncedQuery}”的单词`
-                    : dueOnly
-                      ? "今天的词都复习完了！"
-                      : "还没有生词"
-                }
-                description={
-                  debouncedQuery
-                    ? "试试其他关键词，或清空筛选条件"
-                    : dueOnly
-                      ? "保持节奏，明天继续"
-                      : "看视频时点击字幕里的单词，就能加入词汇本"
-                }
+                title="还没有生词"
+                description="去频道看视频，点击字幕里的单词就能加入词库"
                 action={
-                  debouncedQuery ? null : dueOnly ? (
-                    <Link
-                      href="/browse"
-                      className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
-                    >
-                      去看视频 →
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/browse"
-                      className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
-                    >
-                      去发现视频 →
-                    </Link>
-                  )
+                  <Link
+                    href="/browse"
+                    className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                  >
+                    去频道看看 →
+                  </Link>
                 }
               />
+            )}
+          </>
+        ) : (
+          <>
+            {/* 词库二级切换：视频集合 | 全部单词 */}
+            <div className="flex justify-end mb-5">
+              <TabPills
+                tabs={[
+                  { key: "sets", label: "视频集合" },
+                  { key: "words", label: "全部单词" },
+                ]}
+                activeKey={libraryTab}
+                onChange={setLibraryTab}
+                variant="ghost"
+                activeStyle="dark"
+                size="sm"
+              />
+            </div>
+
+            {libraryTab === "sets" ? (
+              <VocabSetsPanel
+                loading={setsView.loading}
+                error={setsView.error}
+                sets={setsView.sets}
+                onRetry={setsView.refresh}
+              />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {list.items.map((w) => {
-                  const mb = masteryBadge(w.mastery_level);
-                  return (
-                    <Card key={w.id} variant="outline" padding={5} className="flex flex-col gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-lg font-bold tracking-tight flex items-center gap-2">
-                            {w.word}
-                            <button
-                              onClick={() => speak(w.word, { rate: 1 })}
-                              className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-brand-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
-                              aria-label={`播放 ${w.word}`}
-                            >
-                              <Volume2 size={13} />
-                            </button>
+              <>
+                {/* Filter bar: 掌握度筛选 + 全部/待复习 + 搜索（均为服务端筛选） */}
+                <div className="filter-bar mb-5">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
+                      <TabPills
+                        tabs={[
+                          { key: "all", label: "全部" },
+                          { key: "new", label: "新词" },
+                          { key: "learning", label: "学习中" },
+                          { key: "mastered", label: "已掌握" },
+                        ]}
+                        activeKey={masteryFilter}
+                        onChange={setMasteryFilter}
+                        variant="ghost"
+                        activeStyle="dark"
+                        size="sm"
+                      />
+                    </div>
+                    <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
+                    <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
+                      <TabPills
+                        tabs={[
+                          { key: "all", label: "不限" },
+                          { key: "due", label: "待复习" },
+                        ]}
+                        activeKey={dueOnly ? "due" : "all"}
+                        onChange={(key) => setDueOnly(key === "due")}
+                        variant="ghost"
+                        activeStyle="brand"
+                        size="sm"
+                      />
+                    </div>
+                    {/* Search */}
+                    <div className="relative w-full md:w-56 md:ml-auto">
+                      <Search
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
+                      />
+                      <input
+                        type="text"
+                        placeholder="搜索单词…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
+                      text-sm text-ink placeholder:text-muted-soft
+                      focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                      transition-colors duration-150"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Error state */}
+                {list.error && (
+                  <ErrorState title={list.error} onRetry={list.reload} className="py-8" />
+                )}
+
+                {/* Word grid */}
+                {showEmpty ? (
+                  <EmptyState
+                    icon={BookOpen}
+                    title={
+                      debouncedQuery
+                        ? `未找到匹配“${debouncedQuery}”的单词`
+                        : dueOnly
+                          ? "今天的词都复习完了！"
+                          : "还没有生词"
+                    }
+                    description={
+                      debouncedQuery
+                        ? "试试其他关键词，或清空筛选条件"
+                        : dueOnly
+                          ? "保持节奏，明天继续"
+                          : "看视频时点击字幕里的单词，就能加入词库"
+                    }
+                    action={
+                      debouncedQuery ? null : (
+                        <Link
+                          href="/browse"
+                          className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                        >
+                          去频道看看 →
+                        </Link>
+                      )
+                    }
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {list.items.map((w) => {
+                      const mb = masteryBadge(w.mastery_level);
+                      return (
+                        <Card
+                          key={w.id}
+                          variant="outline"
+                          padding={5}
+                          className="flex flex-col gap-3"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-lg font-bold tracking-tight flex items-center gap-2">
+                                {w.word}
+                                <button
+                                  onClick={() => speak(w.word, { rate: 1 })}
+                                  className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-brand-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
+                                  aria-label={`播放 ${w.word}`}
+                                >
+                                  <Volume2 size={13} />
+                                </button>
+                              </div>
+                              {w.part_of_speech && (
+                                <p className="text-xs text-muted-soft italic mt-[3px]">
+                                  {w.part_of_speech}
+                                </p>
+                              )}
+                              <p className="text-[13px] text-body leading-relaxed mt-1.5">
+                                {w.translation ||
+                                  w.definition ||
+                                  (w.context_sentence ? `"${w.context_sentence}"` : "—")}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                              <Badge tone={mb.tone}>{mb.text}</Badge>
+                              <button
+                                onClick={() => handleDeleteWithUndo(w)}
+                                className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"
+                                aria-label={`删除 ${w.word}`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
-                          {w.part_of_speech && (
-                            <p className="text-xs text-muted-soft italic mt-[3px]">
-                              {w.part_of_speech}
-                            </p>
-                          )}
-                          <p className="text-[13px] text-body leading-relaxed mt-1.5">
-                            {w.translation ||
-                              w.definition ||
-                              (w.context_sentence ? `"${w.context_sentence}"` : "—")}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                          <Badge tone={mb.tone}>{mb.text}</Badge>
-                          <button
-                            onClick={() => handleDeleteWithUndo(w)}
-                            className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"
-                            aria-label={`删除 ${w.word}`}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
 
-            {/* 翻页中指示 */}
-            {list.loading && list.items.length > 0 && (
-              <div className="mt-6 flex justify-center">
-                <InlineSpinner />
-              </div>
-            )}
-            {list.loading && list.items.length === 0 && !list.error && (
-              <div className="mt-10 flex justify-center">
-                <InlineSpinner />
-              </div>
-            )}
+                {/* 翻页中指示 */}
+                {list.loading && list.items.length > 0 && (
+                  <div className="mt-6 flex justify-center">
+                    <InlineSpinner />
+                  </div>
+                )}
+                {list.loading && list.items.length === 0 && !list.error && (
+                  <div className="mt-10 flex justify-center">
+                    <InlineSpinner />
+                  </div>
+                )}
 
-            {/* Pager — 服务端分页，筛选口径与 total 一致 */}
-            {!list.error && !showEmpty && totalPages > 1 && (
-              <div className="mt-8 flex items-center justify-center gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => list.setPage((p) => Math.max(1, p - 1))}
-                  disabled={list.page <= 1 || list.loading}
-                >
-                  <ChevronLeft size={14} />
-                  上一页
-                </Button>
-                <span className="text-[13px] text-muted tabular-nums">
-                  第 {list.page} / {totalPages} 页 · 共 {list.total} 词
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => list.setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={list.page >= totalPages || list.loading}
-                >
-                  下一页
-                  <ChevronRight size={14} />
-                </Button>
-              </div>
+                {/* Pager — 服务端分页，筛选口径与 total 一致 */}
+                {!list.error && !showEmpty && totalPages > 1 && (
+                  <div className="mt-8 flex items-center justify-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => list.setPage((p) => Math.max(1, p - 1))}
+                      disabled={list.page <= 1 || list.loading}
+                    >
+                      <ChevronLeft size={14} />
+                      上一页
+                    </Button>
+                    <span className="text-[13px] text-muted tabular-nums">
+                      第 {list.page} / {totalPages} 页 · 共 {list.total} 词
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => list.setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={list.page >= totalPages || list.loading}
+                    >
+                      下一页
+                      <ChevronRight size={14} />
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

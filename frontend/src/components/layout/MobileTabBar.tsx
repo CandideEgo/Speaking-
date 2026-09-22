@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
 import type { LucideIcon } from "lucide-react";
-import { Sparkles, Compass, GraduationCap, BookOpen, User } from "lucide-react";
+import { Sparkles, Radio, GraduationCap, BookOpen, User } from "lucide-react";
 
 interface TabItem {
   label: string;
@@ -15,13 +15,13 @@ interface TabItem {
   showBadge?: boolean;
 }
 
-/** Mobile bottom tab bar - 5 direct links (B方案: 首页/浏览/练习/词汇/我的).
+/** Mobile bottom tab bar - 5 direct links (首页/频道/练习/单词训练/我的).
  * 退出登录已迁入 TopBar 头像菜单，故「我的」为直链 /profile。 */
 const TABS: TabItem[] = [
   { label: "首页", href: "/", icon: Sparkles },
-  { label: "浏览", href: "/browse", icon: Compass },
+  { label: "频道", href: "/browse", icon: Radio },
   { label: "练习", href: "/practice", icon: GraduationCap },
-  { label: "词汇", href: "/vocabulary", icon: BookOpen, showBadge: true },
+  { label: "单词训练", href: "/vocabulary", icon: BookOpen, showBadge: true },
   { label: "我的", href: "/profile", icon: User },
 ];
 
@@ -33,10 +33,12 @@ export function MobileTabBar() {
 
   // 作答流程为全屏考试模式：ExamRunner 自带底部交卷栏，
   // 两个 fixed bottom 底栏叠加会遮挡末尾选项。
+  // 单词训练 drill 同为全屏沉浸流程，一并隐藏。
   const isExamFlow =
     pathname.startsWith("/practice/daily") ||
     pathname.startsWith("/practice/exams/redo") ||
-    /^\/practice\/exams\/[^/]+$/.test(pathname);
+    /^\/practice\/exams\/[^/]+$/.test(pathname) ||
+    pathname.startsWith("/vocabulary/drill");
 
   useEffect(() => {
     setMounted(true);

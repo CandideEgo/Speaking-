@@ -323,7 +323,7 @@ export function WordTooltipInline({
           发音
         </Button>
         <Button size="sm" fullWidth icon={Bookmark} onClick={onSave}>
-          加入词汇本
+          加入词库
         </Button>
       </div>
     </div>

@@ -71,8 +71,8 @@ export function useCoachMark(opts: {
     },
     {
       target: "[data-coach='word-card']",
-      title: "加入词汇本",
-      body: "在词卡里点「加入词汇本」，以后系统会自动提醒你复习",
+      title: "加入词库",
+      body: "在词卡里点「加入词库」，以后系统会自动提醒你复习",
       placement: "right",
     },
     {

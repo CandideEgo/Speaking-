@@ -57,6 +57,28 @@ async def vocabulary_stats(
     return await vocabulary_service.get_stats(db, current_user.id)
 
 
+@router.get("/daily-session")
+@rate_limit("30/minute")
+async def get_daily_session(
+    request: Request,
+    new_count: int = Query(15, ge=1, le=50),
+    review_count: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """今日训练队列：新词（从未复习）+ 到期复习词，附总量统计。
+
+    Powers the Baicizhan-style /vocabulary home + /vocabulary/drill two-phase
+    flow (learn flashcards, then due review quiz).
+    """
+    session = await vocabulary_service.build_daily_session(db, current_user.id, new_count, review_count)
+    return {
+        "new_words": [VocabularyResponse.model_validate(w) for w in session["new_words"]],
+        "review_words": [VocabularyResponse.model_validate(w) for w in session["review_words"]],
+        "totals": session["totals"],
+    }
+
+
 @router.get("/practice")
 @rate_limit("10/minute")
 async def get_vocabulary_practice(

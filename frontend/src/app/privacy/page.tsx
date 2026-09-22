@@ -39,7 +39,7 @@ export default function PrivacyPage() {
         <p>在您使用本站时，我们可能收集以下信息：</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>账号信息：手机号、昵称、加密后的密码；</li>
-          <li>学习数据：观看记录、词汇本、练习记录、学习偏好；</li>
+          <li>学习数据：观看记录、单词训练与词库、练习记录、学习偏好；</li>
           <li>设备与日志：访问时间、浏览器类型等用于运行维护的基础信息。</li>
         </ul>
       </section>

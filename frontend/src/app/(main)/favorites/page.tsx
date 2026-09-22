@@ -119,7 +119,7 @@ export default function FavoritesPage() {
                 href="/browse"
                 className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
               >
-                去发现视频 →
+                去频道看看 →
               </Link>
             }
           />

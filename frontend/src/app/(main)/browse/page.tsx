@@ -41,7 +41,7 @@ export default function BrowsePage() {
     <PageTransition>
       <main className="container-page py-6 sm:py-10">
         {/* Page header */}
-        <PageHeader crumb="发现" title="浏览视频" />
+        <PageHeader crumb="频道" title="浏览视频" />
 
         {/* Curated channels (ADR-0014) — hidden when none exist */}
         <ChannelStrip />

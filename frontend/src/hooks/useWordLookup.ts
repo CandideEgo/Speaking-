@@ -118,7 +118,7 @@ export function useWordLookup({
       if (ctx?.text_en) params.set("context_sentence", ctx.text_en);
       if (videoId) params.set("video_id", videoId);
       await api(`/api/v1/vocabulary?${params.toString()}`, { method: "POST" });
-      toast.success(`"${selectedWord}" 已保存到词汇本`);
+      toast.success(`"${selectedWord}" 已保存到词库`);
     } catch {
       toast.error("保存失败");
     }

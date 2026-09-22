@@ -53,7 +53,7 @@ export function CompactStatsBar() {
         </span>
         <span
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink whitespace-nowrap"
-          title="词汇本总词数"
+          title="词库总词数"
         >
           <BookOpen size={15} className="text-muted" />
           {vocabStats ? `${vocabStats.total} 个词` : "–"}
