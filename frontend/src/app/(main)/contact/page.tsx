@@ -117,9 +117,7 @@ export default function ContactPage() {
               <p className="text-xs text-muted mt-1 leading-relaxed">
                 有任何问题或建议，欢迎通过下方反馈表单留言，或直接联系开发者邮箱：
               </p>
-              <p className="text-sm font-mono text-ink mt-2 select-all">
-                developer@seeword.example
-              </p>
+              <p className="text-sm font-mono text-ink mt-2 select-all">1841666301@qq.com</p>
             </div>
           </div>
         </Card>
