@@ -50,11 +50,15 @@
     },
     "frontend-app": {
       "verified": "2026-09-22",
-      "digest": "sha256:67cdb9bfcf3b1ec7a4150c5a44b1a26b5b58be38917523972684829b8f9980c3"
+      "digest": "sha256:0343ba02a4bda6d155e9d8121521188bbcfb8856aa22ee3527291c1adfb599e2"
+    },
+    "frontend-components": {
+      "verified": "2026-09-22",
+      "digest": "sha256:c7a0aae85f7d5e36ee8043eba759e21eb3867675addfed2b16324d8e763e4e23"
     },
     "frontend-lib": {
-      "verified": "2026-09-21",
-      "digest": "sha256:12c8df29e1a8c66e7c68be25df263552c8f04edc20b72ab64af3e66b850833f8"
+      "verified": "2026-09-22",
+      "digest": "sha256:2266347a4166d4af18adee23e089d2be815934a8acbf32a75eedd778fd5984a6"
     },
     "frontend-package": {
       "verified": "2026-09-20",

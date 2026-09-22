@@ -9,6 +9,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Modal } from "@/components/common/Modal";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { AVATAR_GENDERS, type AvatarGender } from "@/lib/avatar";
+import { cn } from "@/lib/utils";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import type { User } from "@/types";
 
@@ -29,6 +31,9 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   // Avatar upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  // The user's gender decides the built-in default face (see DEC-047).
+  const [savingGender, setSavingGender] = useState(false);
 
   // Change phone (modal)
   const [showChangePhone, setShowChangePhone] = useState(false);
@@ -51,6 +56,22 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
       toast.error("保存失败");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGenderChange(next: AvatarGender) {
+    if (user.gender === next || savingGender) return;
+    setSavingGender(true);
+    try {
+      const updated = await api<User>("/api/v1/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ gender: next }),
+      });
+      onUpdate(updated);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "性别保存失败"));
+    } finally {
+      setSavingGender(false);
     }
   }
 
@@ -104,6 +125,14 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
     }
   }
 
+  // 说明如实：默认头像跟着性别走，上传的头像优先；没填性别时展示的那张是临时指派的。
+  let genderHint = "你还没填性别，当前展示的那张是系统临时指派的；填上就会换成对应的。";
+  if (user.avatar_url) {
+    genderHint = "上传的头像优先；未上传时展示对应性别的默认插画。";
+  } else if (user.gender) {
+    genderHint = "当前展示的就是这个性别的默认插画；上传自己的图则以你的图为准。";
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       {/* Avatar */}
@@ -114,6 +143,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             src={user.avatar_url}
             name={user}
             seed={user.id}
+            gender={user.gender}
             size="xl"
             className="w-20 h-20 text-2xl border border-hairline"
           />
@@ -137,6 +167,32 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             </Button>
             <p className="mt-1.5 text-xs text-muted">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
           </div>
+        </div>
+
+        {/* 默认头像跟随用户的性别。此前按用户 id 哈希指派男女，约一半用户被永久
+            分配异性插画且无纠正途径——改为在资料里填性别，插画跟着变（DEC-047）。 */}
+        <div className="mt-4 pt-4 border-t border-hairline">
+          <span className="block text-sm font-semibold text-ink mb-2">性别</span>
+          <div className="flex gap-2" role="group" aria-label="性别">
+            {AVATAR_GENDERS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={user.gender === p}
+                disabled={savingGender}
+                onClick={() => handleGenderChange(p)}
+                className={cn(
+                  "rounded-pill border px-3.5 py-1.5 text-sm transition-colors disabled:opacity-60",
+                  user.gender === p
+                    ? "border-brand-500 bg-brand-50 text-brand-600 font-semibold"
+                    : "border-hairline text-body hover:border-brand-300"
+                )}
+              >
+                {p === "male" ? "男生" : "女生"}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">{genderHint}</p>
         </div>
       </div>
 

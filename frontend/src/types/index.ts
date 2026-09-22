@@ -4,6 +4,8 @@ export interface User {
   name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  /** The user's gender; null = not filled in (the client then falls back to a seed hash). */
+  gender: "male" | "female" | null;
   level: string | null;
   plan: "free" | "pro";
   plan_expires_at: string | null;
@@ -54,6 +56,8 @@ export interface Video {
   description: string | null;
   /** 作者页 slug（ADR-0014 修订）：视频已挂频道时非空，卡片/播放页链接到 /channels/{slug}。 */
   channel_slug?: string | null;
+  /** 频道封面（播放页频道入口卡用）；未挂频道或无封面时为 null。 */
+  channel_cover_url?: string | null;
   upload_date: string | null;
   ext_view_count: number | null;
   ext_like_count: number | null;
@@ -240,6 +244,8 @@ export interface VocabularyWord {
   difficulty_level: string | null;
   context_sentence: string | null;
   video_id: string | null;
+  /** 来源字幕（D3b）：存在时闪卡/词卡可「回看原句」深链回播放页。 */
+  subtitle_id: string | null;
   next_review_at: string | null;
   created_at: string;
 }

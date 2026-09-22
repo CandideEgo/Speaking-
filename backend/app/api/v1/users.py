@@ -54,6 +54,8 @@ async def update_me(
         current_user.level = data.level
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
+    if data.gender is not None:
+        current_user.gender = data.gender
     if data.bio is not None:
         current_user.bio = data.bio
     if data.timezone is not None:

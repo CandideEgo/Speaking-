@@ -50,6 +50,11 @@ class User(Base):
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     native_language: Mapped[str] = mapped_column(String(10), default="zh")
     avatar_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    # The user's own gender: "male" | "female", NULL = not filled in. It decides
+    # which built-in default illustration is shown when there is no upload; while
+    # it is NULL the client falls back to a seed-derived provisional face. See
+    # DEC-047.
+    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -65,6 +65,9 @@ class UserUpdate(BaseModel):
     name: str | None = None
     level: str | None = None
     avatar_url: str | None = Field(default=None, max_length=2000)
+    # The user's gender — decides which built-in default illustration is shown
+    # when there is no upload. Not a separate "which illustration" choice.
+    gender: Literal["male", "female"] | None = None
     bio: str | None = Field(default=None, max_length=300)
     timezone: str | None = Field(default=None, max_length=50)
 
@@ -85,6 +88,7 @@ class UserResponse(BaseModel):
     plan_expires_at: datetime | None = None
     role: str | None = None
     avatar_url: str | None = None
+    gender: str | None = None
     bio: str | None = None
     timezone: str | None = None
     last_active_at: datetime | None = None

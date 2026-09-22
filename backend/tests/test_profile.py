@@ -48,6 +48,51 @@ class TestAvatarUpload:
         assert resp.status_code == 401
 
 
+class TestGender:
+    """Gender drives the built-in default avatar; the id hash only covers "not filled in"."""
+
+    async def test_starts_unset(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["gender"] is None
+
+    async def test_set_and_persist(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "female"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["gender"] == "female"
+
+        again = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert again.json()["gender"] == "female"
+
+    async def test_change_gender(self, client: AsyncClient, auth_headers: dict):
+        await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "female"})
+        resp = await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "male"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["gender"] == "male"
+
+    async def test_rejects_unknown_value(self, client: AsyncClient, auth_headers: dict):
+        resp = await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "other"})
+        assert resp.status_code == 422
+
+    async def test_patching_other_fields_keeps_gender(self, client: AsyncClient, auth_headers: dict):
+        """The update handler skips None fields, so a name-only PATCH must not wipe it."""
+        await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "female"})
+        resp = await client.patch("/api/v1/users/me", headers=auth_headers, json={"name": "小明"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["gender"] == "female"
+
+    async def test_gender_outlives_an_upload(self, client: AsyncClient, auth_headers: dict):
+        """Uploading must not discard it — it is what remains once the photo is gone."""
+        await client.patch("/api/v1/users/me", headers=auth_headers, json={"gender": "male"})
+        resp = await client.post(
+            "/api/v1/users/me/avatar",
+            headers=auth_headers,
+            files={"file": ("avatar.png", _AVATAR_PNG, "image/png")},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["gender"] == "male"
+
+
 class TestChangePhone:
     async def test_change_phone_success(self, client: AsyncClient):
         """A user changes their phone number via SMS verification."""

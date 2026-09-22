@@ -173,8 +173,9 @@ export default function ProfilePage() {
             src={user.avatar_url}
             name={user}
             seed={user.id}
+            gender={user.gender}
             size="xl"
-            className="w-16 h-16 flex-shrink-0"
+            alt={user.name ?? "头像"}
           />
           <div className="flex-1 min-w-0">
             <div className="text-lg font-bold text-ink flex items-center gap-2 flex-wrap">

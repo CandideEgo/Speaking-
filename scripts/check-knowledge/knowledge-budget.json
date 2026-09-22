@@ -8,7 +8,8 @@
     "reduction": "72%",
     "_decisions_archive": "2026-09-20: .agent/decisions.md sat at exactly 100% of its ceiling, so the next decision would have forced --budget-refresh — how a ceiling stops meaning anything. DEC-001..DEC-020 moved verbatim to .agent/archive/decisions-2026-07.md; the file fell to 38275 B and its limit was *lowered* to 44032 B, giving roughly two decisions of headroom before the next archive round. Mechanism: scripts/check-knowledge/README.md.",
     "_index_headroom": "2026-09-20: decisions-index.md was also at exactly 100% of its ceiling (4841 B = 39 rows + the conventions above them), so the *next* decision could not add a row. Unlike decisions.md it has no release valve — the `index` check requires one row per entry, in order — so its ceiling was deliberately raised to 6400 B: about fourteen rows of room, and the conventions were shortened to stop hard-coding an ID range that grows. A raise, not a refresh: every other file keeps its headroom.",
-    "_decisions_archive_2026_09": "2026-09-22: the 44032 B round was spent — decisions.md was back at 42305 B (96%) after DEC-040..043, and the 09-21/09-22 fixes had no decision entries yet. DEC-029..DEC-036 moved verbatim to .agent/archive/decisions-2026-09.md; the file fell to 29516 B and its limit was lowered to 36864 B (file + ~3 KB of entries added the same day + ~2 decisions of room). Same mechanism as the 07/08 rounds: scripts/check-knowledge/README.md."
+    "_decisions_archive_2026_09": "2026-09-22: the 44032 B round was spent — decisions.md was back at 42305 B (96%) after DEC-040..043, and the 09-21/09-22 fixes had no decision entries yet. DEC-029..DEC-036 moved verbatim to .agent/archive/decisions-2026-09.md; the file fell to 29516 B and its limit was lowered to 36864 B (file + ~3 KB of entries added the same day + ~2 decisions of room). Same mechanism as the 07/08 rounds: scripts/check-knowledge/README.md.",
+    "_decisions_archive_2026_09b": "2026-09-22: the 36864 B round was spent too — decisions.md had grown back to 38703 B after DEC-041..DEC-047, so DEC-047 (default avatar: the male/female artwork is the user's own choice, not a hash of the user id) would have needed --budget-refresh to land. DEC-037..DEC-041 moved verbatim into the same .agent/archive/decisions-2026-09.md (its preamble now names both batches, DEC-029..DEC-041); the file fell to 25206 B and its limit was lowered to 32768 B — roughly three more decisions of room. Mechanism unchanged: scripts/check-knowledge/README.md."
   },
   "_targets": {
     "_comment": "Where these should land as content is trimmed further. Not enforced.",
@@ -47,7 +48,7 @@
       "limit": 5322
     },
     ".agent/decisions.md": {
-      "limit": 36864
+      "limit": 32768
     }
   },
   "globs": [
