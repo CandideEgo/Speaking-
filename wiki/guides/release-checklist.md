@@ -6,14 +6,15 @@ confidence: verified
 related_code: [pre-commit, ci-workflows, pytest-suite, frontend-package]
 related: [wiki/guides/testing.md, docs/operations/RUNBOOK.md]
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Why this checklist exists
 
-**A green local tree does not imply a green CI.** Four separate mechanisms have already caused that
-here — a formatter version skew, an `alembic` import path, a mirror without an audit endpoint, and
-formatting regressions that rode in on feature commits. Each is listed below with its symptom.
+**A green local tree does not imply a green CI.** Five separate mechanisms have already caused that
+here — a formatter version skew, an `alembic` import path, a mirror without an audit endpoint,
+formatting regressions that rode in on feature commits, and a UI rename that left an e2e assertion
+behind. Each is listed below with its symptom.
 
 # 1. Run the four gates locally
 
@@ -29,6 +30,21 @@ cd frontend && npm run format:check && npx tsc --noEmit && npm run test:unit && 
 pre-commit run knowledge-check --all-files
 ```
 
+## The e2e suite is outside those four gates
+
+CI's third job boots the whole stack and runs Playwright; nothing above touches it, so a UI rename
+that leaves a locator behind is invisible locally. Run it when the change touches navigation,
+labels, or routing:
+
+```bash
+cd frontend && npx playwright test --project=chromium
+```
+
+It needs the dev stack (backend on :8000, db, redis) and installed browsers — `playwright.config.ts`
+starts the servers itself when `CI` is unset. Locally the dev rate limiter can 429 the registration
+helper in `e2e/helpers.ts`, so a local run is a smoke, not a verdict: read *which* tests failed
+before concluding anything.
+
 # 2. Known traps
 
 | Trap | Symptom | Fix |
@@ -39,6 +55,7 @@ pre-commit run knowledge-check --all-files
 | `npm audit` locally | `[NOT_IMPLEMENTED] /-/npm/v1/security/*` | the local npm registry is a mirror without an audit endpoint. Audit against the public one: `npm audit --omit=dev --registry=https://registry.npmjs.org`. CI uses the public registry |
 | `npm ci` / `npm install` | peer dependency error on `eslint` | always pass `--legacy-peer-deps` (the project's `eslint@10` outruns `eslint-plugin-react-hooks@5`) |
 | `mypy` baseline has rotted | CI's `Type check` fails on `file:code` pairs nobody remembers adding | see below |
+| e2e locator left behind by a UI rename | local gates all green, CI's `e2e` job red on a `getByRole` / text locator that matches nothing | e2e specs assert on user-visible labels. When a nav item, tab or button is renamed, `grep -rn '<旧文案>' frontend/e2e/` before pushing. 2026-09-22: MobileTabBar 的「浏览」改成「频道」（DEC-046）漏改 `e2e/mobile.spec.ts`，master 上 e2e 红（83 passed / 1 failed） |
 
 Watch the exit codes, not the tail of the output — piping into `tail` or `grep` replaces `$?` with
 the pipe's status. Check `cmd > log 2>&1; echo $?`.
