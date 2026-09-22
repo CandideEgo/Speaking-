@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
-import { ChannelEntry } from "@/components/watch/ChannelEntry";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
@@ -902,15 +901,6 @@ export default function WatchPage() {
               <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
             )}
           </div>
-
-          {/* 频道入口卡：播放页显形入口（meta 细行另有频道名文字链），仅已挂频道渲染 */}
-          {video.channel_slug && video.channel_name && (
-            <ChannelEntry
-              slug={video.channel_slug}
-              name={video.channel_name}
-              coverUrl={video.channel_cover_url}
-            />
-          )}
 
           {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
           {currentSubtitle && (
