@@ -53,7 +53,7 @@ class User(Base):
     # The user's own gender: "male" | "female", NULL = not filled in. It decides
     # which built-in default illustration is shown when there is no upload; while
     # it is NULL the client falls back to a seed-derived provisional face. See
-    # DEC-047.
+    # DEC-048.
     gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)

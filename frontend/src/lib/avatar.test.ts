@@ -50,9 +50,14 @@ describe("defaultAvatarUrl", () => {
     }
   });
 
-  it("is stable for a user whose gender is unset", () => {
-    expect(defaultAvatarUrl("bob")).toBe(defaultAvatarUrl("bob"));
-    expect(defaultAvatarUrl(null)).toBe(defaultAvatarUrl(null));
+  it("pins the provisional face per seed — the mapping must not drift", () => {
+    expect(defaultAvatarUrl("alice")).toBe(DEFAULT_AVATAR_URL.male);
+    expect(defaultAvatarUrl("bob")).toBe(DEFAULT_AVATAR_URL.female);
+    // An empty seed is the one input where this differs from the pre-gender
+    // implementation (that one hashed "" to male). No caller passes an empty
+    // seed — every account has an id — so it is pinned, not relied on.
+    expect(defaultAvatarUrl(null)).toBe(DEFAULT_AVATAR_URL.female);
+    expect(defaultAvatarUrl("")).toBe(DEFAULT_AVATAR_URL.female);
   });
 
   it("spreads seeds with no gender over both faces", () => {

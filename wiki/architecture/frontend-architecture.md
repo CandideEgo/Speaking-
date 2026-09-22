@@ -33,7 +33,7 @@ frontend/src/
 # Dark Mode
 
 - `globals.css` semantic tokens + `.dark` variable block
-- Semantic tokens are the default: one `.dark` block flips the `var()` values, so components need no per-theme class. `dark:` variants are the documented escape hatch for functional multi-colour chips (42 occurrences across 9 components), plus one `.dark .b-hero` override in `globals.css`
+- Semantic tokens are the default: one `.dark` block flips the `var()` values, so components need no per-theme class. `dark:` variants are the documented escape hatch for what tokens cannot express: functional multi-colour chips (the bulk of the occurrences), one `.dark .b-hero` override in `globals.css`, and `Avatar`'s `dark:invert` on the default illustrations — line art on a flat cream ground, which no token can recolour
 - `layout.tsx` inline script before first paint prevents FOUC
 - `bg-ink` is theme-aware (`--ink` flips to near-white in dark mode) — it must be paired with
   `text-canvas`, never `text-white`, as `Button` / `TabPills` / `HomeFilterBar` do

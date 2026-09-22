@@ -54,11 +54,11 @@
     },
     "frontend-components": {
       "verified": "2026-09-22",
-      "digest": "sha256:c7a0aae85f7d5e36ee8043eba759e21eb3867675addfed2b16324d8e763e4e23"
+      "digest": "sha256:a96e9c8fbeb849318a78074f84087117be3b1f9a810b2da6cc353f2dc2655fce"
     },
     "frontend-lib": {
       "verified": "2026-09-22",
-      "digest": "sha256:2266347a4166d4af18adee23e089d2be815934a8acbf32a75eedd778fd5984a6"
+      "digest": "sha256:abf1907f19319e874c498d29c2988d7dd7645a86eaef75eab415966b33644395"
     },
     "frontend-package": {
       "verified": "2026-09-20",

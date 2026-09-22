@@ -32,7 +32,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  // The user's gender decides the built-in default face (see DEC-047).
+  // The user's gender decides the built-in default face (see DEC-048).
   const [savingGender, setSavingGender] = useState(false);
 
   // Change phone (modal)
@@ -145,6 +145,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             seed={user.id}
             gender={user.gender}
             size="xl"
+            alt={user.name ?? "头像"}
             className="w-20 h-20 text-2xl border border-hairline"
           />
           <div>
@@ -170,7 +171,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </div>
 
         {/* 默认头像跟随用户的性别。此前按用户 id 哈希指派男女，约一半用户被永久
-            分配异性插画且无纠正途径——改为在资料里填性别，插画跟着变（DEC-047）。 */}
+            分配异性插画且无纠正途径——改为在资料里填性别，插画跟着变（DEC-048）。 */}
         <div className="mt-4 pt-4 border-t border-hairline">
           <span className="block text-sm font-semibold text-ink mb-2">性别</span>
           <div className="flex gap-2" role="group" aria-label="性别">
