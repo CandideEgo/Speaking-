@@ -253,6 +253,23 @@ export default function VocabularyPage() {
     });
   }
 
+  /** 一键标记已掌握：词库卡片上的快速处理（无需进入复习打分）。 */
+  async function handleMarkMastered(word: VocabularyWord) {
+    try {
+      await api(`/api/v1/vocabulary/${word.id}/mastered`, { method: "POST" });
+      // 当前筛选不再包含该词时直接从列表移除；否则就地翻转徽标
+      list.setItems((prev) =>
+        masteryFilter !== "all" && masteryFilter !== "mastered"
+          ? prev.filter((w) => w.id !== word.id)
+          : prev.map((w) => (w.id === word.id ? { ...w, mastery_level: "mastered" } : w))
+      );
+      loadStats();
+      toast.success(`已把「${word.word}」标记为已掌握`);
+    } catch {
+      toast.error("标记失败，请重试");
+    }
+  }
+
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
   }
@@ -485,6 +502,16 @@ export default function VocabularyPage() {
                             </div>
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                               <Badge tone={mb.tone}>{mb.text}</Badge>
+                              {w.mastery_level !== "mastered" && (
+                                <button
+                                  onClick={() => handleMarkMastered(w)}
+                                  className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-emerald-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
+                                  title="标记为已掌握"
+                                  aria-label={`标记 ${w.word} 为已掌握`}
+                                >
+                                  <CheckCircle2 size={13} />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleDeleteWithUndo(w)}
                                 className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"

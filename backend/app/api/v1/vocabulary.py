@@ -323,6 +323,52 @@ async def review_word(
     }
 
 
+@router.post("/{word_id}/mastered")
+@rate_limit("20/minute")
+async def mark_word_mastered(
+    request: Request,
+    word_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """One-click 已掌握 from the word bank.
+
+    Mastered words exit the review loop (tri-state semantics): the level is
+    set directly (no SM-2 grading) and ``next_review_at`` is cleared so due
+    queues never resurface the word.
+    """
+    result = await db.execute(
+        select(Vocabulary).where(
+            Vocabulary.id == word_id,
+            Vocabulary.user_id == current_user.id,
+        )
+    )
+    vocab = result.scalar_one_or_none()
+    if not vocab:
+        raise HTTPException(status_code=404, detail="Word not found")
+
+    already_mastered = vocab.mastery_level == "mastered"
+    vocab.mastery_level = "mastered"
+    vocab.next_review_at = None
+    vocab.last_reviewed_at = datetime.now(UTC)
+    await db.commit()
+
+    # Emit learning event (ADR-0012 learning plan integration), non-blocking
+    if not already_mastered:
+        try:
+            from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
+
+            await emit_event(db, current_user.id, EVENT_LEARNED_WORDS, 1)
+        except Exception:
+            pass  # Non-blocking
+
+    return {
+        "id": vocab.id,
+        "word": vocab.word,
+        "mastery_level": vocab.mastery_level,
+    }
+
+
 @router.delete("/{word_id}")
 @rate_limit("20/minute")
 async def remove_word(
