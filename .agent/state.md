@@ -8,8 +8,9 @@
 
 Date: 2026-09-22
 
+- **待部署**（09-22 晚，工作区未提交）：词库卡片一键已掌握（新端点 `POST /vocabulary/{id}/mastered`）+ 播放页去掉 `ChannelEntry` 频道入口卡（字幕卡恢复紧贴播放器）+ 反馈页开发者邮箱换真实邮箱 + 后台用户管理渲染 `<Avatar>`（响应补 `gender`）。反馈核查：生产 `feedbacks` 表为空、无 `/api/v1/feedback` 请求记录——PO 测试反馈未到达生产；管线经 `test_feedback.py` 验证正常，落点是后台「反馈公告」（无邮件链路）
 - **生产已更新**（09-22 17:48，镜像 `1db6f136def5`/`57daf3c52dc9`，迁移 `j5k6l7m8n9o0` 加 `users.gender`）：发现→频道 + 词汇本→单词训练改版（DEC-046：`daily-session` 端点、`/vocabulary` 今日/词库两段视图、drill 两段式百词斩流程、播放页 `ChannelEntry` 频道入口卡）+ 默认头像跟随性别（DEC-048）+ iOS 播放态/点词分级（DEC-044）+ 难度校准（DEC-043）。部署源为 `master` HEAD（本地积压的 8 个提交已全部推送后构建）；切换后已 `nginx -s reload`，核验全绿。DEC-043 存量已为新算值（`--dry-run` 逐条 was==would，未改写；09-21 那次重算的备份见 `/root/backups/videos_before_recompute_20260921205759.sql.gz`），**不需要再跑 `backfill_difficulty.py`**
-- **生产已更新**（09-21 19:42 镜像 `d2cc67d47073`/`cab8d974e4e1`：iOS playsinline + 分级颜色目标优先 + LLM 视频分类），部署源为未提交工作区；部署后必须 `nginx -s reload`（RUNBOOK §1.1 步骤 4.5）。存量 49 支视频 `topic_tags` 已回填（回填前备份 `/root/backups/videos_before_classify_20260921194521.sql.gz`）
+- **生产已更新**（09-21 19:42 镜像 `d2cc67d47073`/`cab8d974e4e1`）：iOS playsinline + 分级颜色目标优先 + LLM 视频分类（存量 49 支视频 `topic_tags` 已回填）；部署源为未提交工作区
 
 ## Recently Completed
 
