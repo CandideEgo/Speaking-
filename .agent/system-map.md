@@ -98,7 +98,7 @@ video_processing (finalize auto_publish) 与 admin approve_review
 ## Data Flow — Critical Paths
 
 1. **Video pipeline**: admin seed / catalog promote → dedup → Head(extract+stage+enqueue) → GPU(WhisperX→HTTP callback) → Tail(translate+annotate+prewarm_notes+download+transcode) → ready
-2. **Vocabulary loop**: watch video → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → vocabulary book or vocab set → quick sieve → SM-2 review
+2. **Vocabulary loop**: watch → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → 词库 or vocab set → 今日训练 / 快速过筛
 3. **Redemption**: input code → row lock (`with_for_update`) → plan=pro + extend 30 days → atomic
 
 ## External Boundaries

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, ai-service, transcription]
 related: [wiki/architecture/video-pipeline.md, wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-21
+updated: 2026-09-22
 ---
 
 # Background
@@ -32,7 +32,7 @@ Keep route files thin. Business logic in service layer.
 | `video_classification.py` | LLM video classification (DEC-042): canonical topic taxonomy (browse filter + LLM whitelist single source), topic_tags overwrite / difficulty fill-on-NULL, pipeline `classifying` step + backfill script. |
 | `difficulty_service.py` | Subtitle-derived CEFR difficulty (DEC-043): per-word acquisition level = the *lowest* exam list containing it, 超纲率 = share of word occurrences above 中考, mapped to A1–C1/C2 bands; needs ≥30 occurrences. Writes `difficulty_level` only when NULL — the fallback behind `video_classification.py`'s LLM estimate. |
 | `video_service.py` | Video submit (dedup by URL), detail with Redis caching, search (PostgreSQL FTS + ILIKE fallback). |
-| `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, quiz. |
+| `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, stats, 今日训练队列 (`build_daily_session`: new=从未复习 / due=到期非 mastered，两队列 + totals；`totals.due_total` 不含 new 词，与 stats 徽标的 `due_count` 口径故意不同). |
 | `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |
 | `exam_service.py` | Exam system: daily_check / video_exam / wrong_redo sessions, server-side grading (`exam_sessions`/`exam_answers`), derived wrong book, practice hub stats. Answers never leave the server in exam mode; grading reuses `submit_practice_results` for SM-2 + LearningEvents. |
 | `transcription/` | Dedicated sub-service: WhisperX/faster-whisper, chunked transcription, forced alignment, punctuation restoration, audio extraction, segment formatting. |
