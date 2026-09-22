@@ -23,6 +23,12 @@
 SRV=root@47.122.109.52     # 部署对象 = DNS 解析到的那台，先 `dig +short seeword.top` 确认（见 §6.6）；密码在密码库
 ```
 
+> ⚠️ **`~/.ssh/config` 里的 `seeword` 别名不是生产**：它指向 `47.122.127.105`（旧机，容器前缀
+> `seeword-*`）。2026-09-22 在旧机上查 `feedbacks`，得出「生产反馈为空」的错误结论。
+> 生产 = `47.122.109.52` / `/opt/speaking` / 容器 `speaking-*`，**root 密码认证**
+> （`ssh -o BatchMode=yes` 会 `Permission denied`，用 paramiko 带密码连）。
+> 另注意容器前缀是 `speaking-`，但 `psql` 的 `-U`/`-d` 都是 **`seeword`**（见 §2.1）。
+
 #### 步骤 1 — 本地构建 amd64 镜像
 
 ```bash
@@ -53,6 +59,8 @@ MSYS_NO_PATHCONV=1 ssh $SRV 'sha256sum /root/images.tgz'   # 与步骤 1 的 sha
 ```
 
 MSYS/Git Bash 下凡命令里出现远程绝对路径，都要加 `MSYS_NO_PATHCONV=1`，否则路径会被本地转换。
+这包括把远程路径当**脚本参数**传：`python upload.py images.tgz /root/images.tgz` 里的
+`/root/images.tgz` 会被改写成 `C:/Program Files/Git/root/images.tgz`，远端直接报 `No such file`。
 
 #### 步骤 3 — 同步配置（仅当 compose / nginx / promtail / data 有改动）
 
@@ -213,7 +221,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 | Celery | `celery -A app.tasks.celery_app inspect ping` | pong |
 
 > ⚠️ 生产 Redis 带 `--requirepass`，所有 `redis-cli` 命令必须带 `-a "$REDIS_PASSWORD" --no-auth-warning`；
-> PostgreSQL 用户/库名由 `.env` 的 `DB_USER`/`DB_NAME` 决定（开发环境为 `seeword`），下文所有
+> PostgreSQL 用户/库名由 `.env` 的 `DB_USER`/`DB_NAME` 决定 —— **生产上两者都是 `seeword`**
+> （与容器前缀 `speaking-` 不一致，别被误导）。下文所有
 > `psql/pg_dump -U speaking -d speaking` 请按实际值替换。
 
 ### 2.2 Sentry 告警配置
