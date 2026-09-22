@@ -59,8 +59,17 @@ describe("useProfileStore", () => {
     expect(useProfileStore.getState().me).toEqual({ url: null, gender: "female" });
   });
 
-  it("publishes whatever the profile page just PATCHed", () => {
+  it("a write retires a read still in flight, so a late GET cannot undo the PATCH", async () => {
+    const d = deferred<{ gender: null }>();
+    mockedApi.mockReturnValue(d.promise);
+    const pending = useProfileStore.getState().fetchMe();
+
+    // The profile page's PATCH lands first…
     useProfileStore.getState().setMe({ url: null, gender: "male" });
+    // …and the older GET, arriving after it, must not clobber the newer value.
+    d.resolve({ gender: null });
+    await pending;
+
     expect(useProfileStore.getState().me).toEqual({ url: null, gender: "male" });
   });
 

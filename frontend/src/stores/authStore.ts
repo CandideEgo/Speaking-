@@ -19,6 +19,7 @@ import {
   syncAuthCookie,
   type BaseAuthUser,
 } from "@/lib/authHelpers";
+import { useProfileStore } from "@/stores/profileStore";
 
 /** JWT payload shape we care about (role 不在 JWT 里，见 authHelpers.BaseAuthUser) */
 export type AuthUser = BaseAuthUser;
@@ -103,6 +104,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
     }
     const user = decodeJwt(token) as AuthUser | null;
+    // A different subject is a different user: drop the cached profile so the next reader
+    // fetches theirs rather than showing the previous one's face. `login()` is also the
+    // token-refresh path, where the subject is unchanged and the cache must survive.
+    // Imported statically, unlike the resets in logout(): this one has to land before the
+    // re-render that triggers the next fetch.
+    if (user?.sub !== get().user?.sub) {
+      useProfileStore.getState().reset();
+    }
     set({
       token,
       refreshToken: refreshToken ?? null,

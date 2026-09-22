@@ -61,12 +61,12 @@
       "digest": "sha256:abf1907f19319e874c498d29c2988d7dd7645a86eaef75eab415966b33644395"
     },
     "frontend-package": {
-      "verified": "2026-09-20",
-      "digest": "sha256:e011744c1fb81d40fe48d02e8272d1bc7116de2e5582d6fd1272590ab318a7a7"
+      "verified": "2026-09-22",
+      "digest": "sha256:171ae6a14fe395efac273b3ae1d08a27985dfe1e560fcfe6088cc9daa20e8b2c"
     },
     "frontend-stores": {
       "verified": "2026-09-22",
-      "digest": "sha256:75d076fe724a486060e07b72de6208770b630d0b1888e891c5893cd990a97959"
+      "digest": "sha256:ccd6ed047baf9d2aa7252eee40ae7077b20286ad24ff0c52c57a538cf47ae173"
     },
     "models-behavior": {
       "verified": "2026-09-20",

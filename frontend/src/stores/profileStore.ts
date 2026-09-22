@@ -34,10 +34,14 @@ interface ProfileActions {
 //
 // `me` is all-or-nothing on purpose: url and gender travel together so the face can
 // never be half-resolved (url settled, gender still provisional).
+//
+// The cache belongs to one signed-in user: `authStore.login()` drops it when the JWT
+// subject changes and `logout()` resets it, so the "already answered" guard in `fetchMe`
+// cannot hand someone the previous user's face.
 
 /** In-flight request, shared so N consumers mounting together still cause one fetch. */
 let inflight: Promise<void> | null = null;
-/** Bumped by reset() so a response landing after logout cannot repopulate the cache. */
+/** Bumped by reset()/setMe() so a response that a newer write has superseded is dropped. */
 let generation = 0;
 
 export const useProfileStore = create<ProfileState & ProfileActions>((set, get) => ({
@@ -68,6 +72,10 @@ export const useProfileStore = create<ProfileState & ProfileActions>((set, get) 
   },
 
   setMe(me) {
+    // A write beats a read that started earlier: retiring the in-flight request keeps a
+    // stale `/users/me` response from landing on top of fresher data.
+    generation += 1;
+    inflight = null;
     set({ me });
   },
 

@@ -76,7 +76,7 @@
 | `core/*` | Config, database, redis, security, errors, cache, limiter, logging |
 | `frontend/src/app/(main)/*` | User-facing pages: home / browse / watch / vocabulary / history / exams |
 | `frontend/src/app/(admin)/*` | Admin panel: videos / users / stats / invites / orders / channels |
-| `frontend/src/stores/*` | 6 Zustand stores: auth, adminAuth, feed, watch, vocabulary, plan (plan is profile-only now) |
+| `frontend/src/stores/*` | 6 Zustand stores: auth, adminAuth, profile, watch, vocabulary, plan (plan is profile-only now) |
 | `frontend/src/lib/api.ts` | API client with JWT auto-refresh |
 
 ## Dependencies — Non-obvious

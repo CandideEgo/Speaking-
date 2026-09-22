@@ -85,9 +85,7 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
       await exitPip.click();
       await page.waitForTimeout(500);
     }
-    const centerPlay = page
-      .getByRole("button", { name: /^(播放|Play|暂停|Pause)$/ })
-      .first();
+    const centerPlay = page.getByRole("button", { name: /^(播放|Play|暂停|Pause)$/ }).first();
     if (await centerPlay.isVisible({ timeout: 2000 }).catch(() => false)) {
       await centerPlay.click({ force: true });
     } else {

@@ -39,7 +39,8 @@ test("改性别后顶栏头像立即跟随，无需刷新", async ({ page, reque
     "true"
   );
 
-  // And it survives a reload — the gender is persisted, not just held in memory.
+  // The gender is persisted, not just held in memory. This half passes against the old
+  // implementation too (a fresh load refetches), so it guards persistence, not the fix.
   await page.reload();
   await expect(topAvatar()).toHaveAttribute("src", expected);
 });

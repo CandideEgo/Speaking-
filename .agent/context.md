@@ -91,5 +91,5 @@ DEC-024), superseded by free access during 内测期 — see `state.md`.
 |------|------|
 | **learning_score** | 视频 0-100 质量分，7 因子加权，因子与权重见 scoring 配置。`scoring_tasks` 每小时 Top200 + 每日全量 |
 | **行为采集** | `behavior_events` 表 + `behavior_service`（P0 已解除） |
-| **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}`，前端 `feedStore` 承接；深度个性化待推进 |
+| **推荐流** | `/recommendations/home`（40/30/20/10 策略）+ `/recommendations/category/{tag}`，前端 `usePlatformFeed` 承接；深度个性化待推进 |
 | **外部元数据 / 语音指标** | Video 的 `yt_video_id` / `channel_*` / `upload_date` / `ext_view_count` / `ext_like_count` / `external_meta` + `wpm` / `vocabulary_density`。采集于 extracting 步骤（`external_meta.py`），WPM 在 finalize 尾部 compute-on-null。`viral` + `freshness` 两因子入 `learning_score`，无外部数据时为 0（本地视频不互相对扣）。**`ext_*` 是 YouTube 侧计数，与站内 `view_count` / `like_count` 严格分离** |
