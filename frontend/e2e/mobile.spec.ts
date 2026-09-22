@@ -77,7 +77,7 @@ test.describe("Mobile - Navigation (authenticated)", () => {
   test("mobile tab bar navigates to browse", async ({ page }) => {
     // The bottom MobileTabBar is always visible on mobile (no GSAP drawer),
     // so it is the reliable mobile navigation surface.
-    const browseTab = page.getByRole("link", { name: "浏览", exact: true });
+    const browseTab = page.getByRole("link", { name: "频道", exact: true });
     await expect(browseTab).toBeVisible({ timeout: 5000 });
     await browseTab.click();
     await page.waitForURL(/\/browse/, { timeout: 10000 });
