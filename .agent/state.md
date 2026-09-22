@@ -18,6 +18,7 @@ Date: 2026-09-22
 Newest first, one line each. Prune the tail into `CHANGELOG.md` when this list gets long — the
 authoritative reasoning for each is the cited decision entry.
 
+- 默认头像跟随用户性别 + `/users/me` 状态收敛为 `profileStore`（DEC-048，2026-09-22，**已提交待部署**）
 - 发现→频道 + 词汇本→单词训练改版（DEC-046，2026-09-22，**已提交待部署**）
 - 榜单页改版：TopPodium 领奖台 + RankingRow 重写（DEC-045，2026-09-21）
 - iOS 播放态单一事实源 + 点词分级渲染（两级 gloss 端点）（DEC-044，2026-09-21，**已提交待部署**）
@@ -29,7 +30,6 @@ authoritative reasoning for each is the cited decision entry.
 - 生产部署链路加固（DEC-039，2026-09-20）
 - 知识层重构 Phase 0/1（2026-09-19）
 - 免费化影响评估报告（`docs/progress/FREE-TIER-ASSESSMENT-2026-09.md`，2026-09-18）
-- 翻译引擎统一 ARK / YouTube anti-bot / NSSM 托管 / 上线验证判据（DEC-029/030/031/032，2026-09-08/09）——尾部已剪入 `CHANGELOG.md`
 
 ## Current Focus
 

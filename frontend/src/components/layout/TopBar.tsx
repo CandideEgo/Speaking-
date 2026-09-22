@@ -14,7 +14,7 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
-import type { AvatarGender } from "@/lib/avatar";
+import { useProfileStore } from "@/stores/profileStore";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import { Search, Bell, Sun, Moon, User, LogOut, HelpCircle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -114,14 +114,13 @@ export function TopBar() {
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const avatarWrapRef = useRef<HTMLDivElement>(null);
 
-  // Avatar - authStore.user is the decoded JWT (no avatar_url), so fetch the profile
-  // to render the user's avatar image. `undefined` = not answered yet, `null` url =
-  // answered "no upload"; Avatar shows a skeleton for the former so a user with a photo
-  // never sees a default face flash first. url and gender travel together so the face
-  // can never be half-resolved (url settled, gender still provisional).
-  const [avatar, setAvatar] = useState<
-    { url: string | null; gender: AvatarGender | null } | undefined
-  >(undefined);
+  // Avatar - authStore.user is the decoded JWT (no avatar_url / gender), so the profile
+  // comes from the shared store: the profile page publishes what it PATCHes, so setting
+  // a gender there updates this face without a reload. `undefined` = not answered yet,
+  // `null` url = answered "no upload"; Avatar shows a skeleton for the former so a user
+  // with a photo never sees a default face flash first.
+  const me = useProfileStore((s) => s.me);
+  const fetchMe = useProfileStore((s) => s.fetchMe);
 
   const userName = user?.name || "学习者";
 
@@ -223,26 +222,10 @@ export function TopBar() {
 
   useVisibilityAwareInterval(fetchUnreadCount, 30000, Boolean(user));
 
-  // Fetch the user's avatar URL + gender (neither is on the decoded JWT).
+  // Fetch the shared profile (avatar_url + gender — neither is on the decoded JWT).
   useEffect(() => {
-    if (!user) {
-      setAvatar(undefined);
-      return;
-    }
-    let cancelled = false;
-    api<{ avatar_url?: string | null; gender?: AvatarGender | null }>("/api/v1/users/me")
-      .then((u) => {
-        if (cancelled) return;
-        setAvatar({ url: u.avatar_url ?? null, gender: u.gender ?? null });
-      })
-      .catch(() => {
-        /* silently fail — resolve to "no upload" so the skeleton cannot stick */
-        if (!cancelled) setAvatar({ url: null, gender: null });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+    if (user) void fetchMe();
+  }, [user, fetchMe]);
 
   // Cmd+K / Ctrl+K to focus search; Ctrl/Cmd+1~5 to jump nav (migrated from Sidebar)
   useEffect(() => {
@@ -410,13 +393,7 @@ export function TopBar() {
             aria-label="账号菜单"
             className="rounded-full transition-transform duration-150 hover:scale-105"
           >
-            <Avatar
-              src={avatar?.url}
-              name={user}
-              seed={user?.sub}
-              gender={avatar?.gender}
-              size="md"
-            />
+            <Avatar src={me?.url} name={user} seed={user?.sub} gender={me?.gender} size="md" />
           </button>
           {showAvatarMenu && (
             <AvatarMenu userName={userName} onClose={() => setShowAvatarMenu(false)} />

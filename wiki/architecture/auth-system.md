@@ -41,7 +41,7 @@ Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expi
 |-------|---------------|
 | `authStore.ts` | JWT auth with auto-refresh on expiry. Mutex on refresh to prevent duplicate calls. |
 | `adminAuthStore.ts` | Separate admin auth. |
-| `feedStore.ts` | Home feed recommendation (ADR-0011). Caches feed, tracks seen videos for de-prioritization. `seenIds` persists to localStorage. |
+| `profileStore.ts` | The `/users/me` fields the JWT omits (`avatar_url`, `gender`). One cache shared by TopBar (reader) and the profile page (writer) — fetched once per session, de-duplicated, reset on logout. |
 | `watchStore.ts` | Video player UI state (subtitle mode, panel collapse/width, exam level for word highlighting). |
 | `vocabularyStore.ts` | Word list, stats, quiz sessions, SM-2 review actions. |
 | `planStore.ts` | Daily learning plan state (ADR-0012). Today's plan, progress, plan items. |
@@ -51,4 +51,4 @@ Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expi
 - New permission checks should use existing dependencies, not hand-written logic in routes
 - Pro check must examine both `plan` and `plan_expires_at`
 - Beat task proactively downgrades expired users to free
-- Previous documentation referenced `communityStore` and `createAuthStore` factory — both no longer exist. `communityStore` was replaced by `feedStore` (ADR-0011). `createAuthStore` factory was planned but not implemented.
+- Previous documentation referenced `communityStore`, `feedStore` and a `createAuthStore` factory — none exist now. Feed state lives in the `usePlatformFeed` hook (per page), not in a store; the shared auth-store factory was never built.

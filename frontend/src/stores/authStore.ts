@@ -156,6 +156,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       import("@/stores/watchStore").then((m) => m.useWatchStore.getState().reset()),
       import("@/stores/vocabularyStore").then((m) => m.useVocabularyStore.getState().reset()),
       import("@/stores/planStore").then((m) => m.usePlanStore.getState().reset()),
+      import("@/stores/profileStore").then((m) => m.useProfileStore.getState().reset()),
     ]);
 
     // Wait for blacklist + store resets, then navigate.

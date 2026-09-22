@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import {
   type EventDistributionItem,
 } from "@/components/profile/EventDistributionChart";
 import { useMilestoneCelebration } from "@/hooks/useMilestoneCelebration";
+import { useProfileStore } from "@/stores/profileStore";
 
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
@@ -108,6 +109,18 @@ export default function ProfilePage() {
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Every path that lands a `/users/me` payload — the initial load below, plus the
+  // PATCH / upload / phone-change handlers wired through `onUpdate` — publishes it to
+  // the shared store, so the top bar's avatar follows along instead of going stale.
+  const setMe = useProfileStore((s) => s.setMe);
+  const applyUser = useCallback(
+    (next: User) => {
+      setUser(next);
+      setMe({ url: next.avatar_url, gender: next.gender });
+    },
+    [setMe]
+  );
+
   // Fetch user + preferences once auth is initialized
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
@@ -126,7 +139,7 @@ export default function ProfilePage() {
           api<LearningProfile>("/api/v1/plan/profile"),
         ]);
         if (cancelled) return;
-        if (u.status === "fulfilled") setUser(u.value);
+        if (u.status === "fulfilled") applyUser(u.value);
         else router.push("/login");
         if (p.status === "fulfilled") setPreferences(p.value);
         if (m.status === "fulfilled") setMilestones(m.value);
@@ -145,7 +158,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, applyUser]);
 
   if (isLoading || loading) {
     return (
@@ -231,7 +244,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Tab content */}
-        {activeTab === "profile" && <ProfileTab user={user} onUpdate={setUser} />}
+        {activeTab === "profile" && <ProfileTab user={user} onUpdate={applyUser} />}
         {activeTab === "progress" && (
           <div className="max-w-2xl space-y-6">
             {/* D9：周报入口（有报告才显示，不足一周不出现） */}

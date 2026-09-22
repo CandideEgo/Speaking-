@@ -50,11 +50,11 @@
     },
     "frontend-app": {
       "verified": "2026-09-22",
-      "digest": "sha256:0343ba02a4bda6d155e9d8121521188bbcfb8856aa22ee3527291c1adfb599e2"
+      "digest": "sha256:2c9ec02371c55394b7333a9aa4618c03697d77b73e9260ec8c6814515e7d7a6a"
     },
     "frontend-components": {
       "verified": "2026-09-22",
-      "digest": "sha256:a96e9c8fbeb849318a78074f84087117be3b1f9a810b2da6cc353f2dc2655fce"
+      "digest": "sha256:63c62d677d4aab9df0e53e65d92d04c6d97834f0224ae7c4d009b648832b7509"
     },
     "frontend-lib": {
       "verified": "2026-09-22",
@@ -65,8 +65,8 @@
       "digest": "sha256:e011744c1fb81d40fe48d02e8272d1bc7116de2e5582d6fd1272590ab318a7a7"
     },
     "frontend-stores": {
-      "verified": "2026-09-20",
-      "digest": "sha256:5ecd3b40efa5a09a0918180b4540043c955d4de204643b075341ee9ce85e5a3e"
+      "verified": "2026-09-22",
+      "digest": "sha256:75d076fe724a486060e07b72de6208770b630d0b1888e891c5893cd990a97959"
     },
     "models-behavior": {
       "verified": "2026-09-20",

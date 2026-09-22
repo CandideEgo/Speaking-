@@ -30,10 +30,10 @@ const SIZE: Record<AvatarSize, string> = {
  * rather than a decision made for them; the profile page lets them set their gender at any
  * time.
  *
- * `src === undefined` means the caller has not resolved the user's avatar yet — TopBar
- * fetches `avatar_url` because the JWT does not carry it. That renders the loading
- * skeleton rather than a face, which for a user with an upload would be someone else's.
- * `src === null` means "known to have none" and gets the default illustration.
+ * `src === undefined` means the caller has not resolved the user's avatar yet — the JWT
+ * does not carry `avatar_url`, so TopBar reads it from `profileStore`. That renders the
+ * loading skeleton rather than a face, which for a user with an upload would be someone
+ * else's. `src === null` means "known to have none" and gets the default illustration.
  *
  * Load failures are tracked against the URL that failed rather than as a sticky flag, so a
  * later good `src` (a fresh upload replacing a 404) renders without needing a remount.
