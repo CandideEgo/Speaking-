@@ -17,14 +17,30 @@ const SIZE: Record<AvatarSize, string> = {
 };
 
 /**
- * Avatar primitive — consolidates the `avatar_url ? <img> : <initial+gradient>`
+ * Avatar primitive — consolidates the `avatar_url ? <img> : <default-illustration>`
  * pattern duplicated across TopBar / ProfileTab. Renders the user's avatar image via `next/image`
- * (src routed through `mediaUrl`); falls back to a deterministic gradient +
- * first initial on missing src or load error. Color seed is usually the user
- * id; falls back to name/email so the same user always gets the same color.
+ * (user uploads routed through `mediaUrl`; defaults served straight from /public); falls back
+ * to a deterministic gradient + first initial only if even the default illustration fails to
+ * load. Color seed is usually the user id; falls back to name/email so the same user always
+ * gets the same color.
+ *
+ * New users without an upload get a line-drawn male/female default avatar chosen
+ * deterministically from their stable id, so the same user always sees the same face.
  *
  * Watch-page aligned: `rounded-full` + `text-on-primary` over the gradient.
  */
+
+/** Static default illustrations in /public — no mediaUrl() prefix needed. */
+const DEFAULT_AVATAR_MALE = "/default-avatar-male.png";
+const DEFAULT_AVATAR_FEMALE = "/default-avatar-female.png";
+
+function pickDefaultAvatar(seed?: string | null): string {
+  const s = seed ?? "";
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return (h & 1) === 0 ? DEFAULT_AVATAR_MALE : DEFAULT_AVATAR_FEMALE;
+}
+
 export function Avatar({
   src,
   name,
@@ -43,12 +59,18 @@ export function Avatar({
   alt?: string;
 }) {
   const [errored, setErrored] = useState(false);
+  const [defaultErrored, setDefaultErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const showImage = !!src && !errored;
 
   const initial = userInitial(name);
   const colorSeed = seed ?? (typeof name === "string" ? name : (name?.name ?? name?.phone ?? null));
   const color = avatarColor(colorSeed);
+
+  // User uploads live behind the API (/media/...) and need mediaUrl(); the
+  // default illustration is a static /public asset and must be used as-is.
+  const hasUserAvatar = !!src && !errored;
+  const showImage = hasUserAvatar || !defaultErrored;
+  const resolvedSrc = hasUserAvatar ? mediaUrl(src) : pickDefaultAvatar(colorSeed);
 
   return (
     <span
@@ -65,11 +87,14 @@ export function Avatar({
             <span className="absolute inset-0 animate-pulse bg-surface-card" aria-hidden />
           )}
           <NextImage
-            src={mediaUrl(src)}
+            src={resolvedSrc}
             alt={alt ?? initial}
             fill
             sizes="40px"
-            onError={() => setErrored(true)}
+            onError={() => {
+              if (hasUserAvatar) setErrored(true);
+              else setDefaultErrored(true);
+            }}
             onLoad={() => setLoaded(true)}
             className={cn(
               "object-cover transition-opacity duration-200",

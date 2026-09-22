@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
 import { User as UserIcon, Settings, TrendingUp } from "lucide-react";
@@ -168,17 +169,13 @@ export default function ProfilePage() {
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
         <div className="flex items-center gap-4 bg-canvas border border-hairline rounded-xl p-5 mb-7">
-          {user.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.name ?? "头像"}
-              className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-              {(user.name ?? "学").slice(0, 1)}
-            </div>
-          )}
+          <Avatar
+            src={user.avatar_url}
+            name={user}
+            seed={user.id}
+            size="xl"
+            className="w-16 h-16 flex-shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <div className="text-lg font-bold text-ink flex items-center gap-2 flex-wrap">
               {user.name || "学习者"}
