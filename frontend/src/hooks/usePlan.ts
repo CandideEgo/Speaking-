@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePlanStore } from "@/stores/planStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -13,11 +13,19 @@ export function usePlan() {
   const profile = usePlanStore((s) => s.profile);
   const profileLoading = usePlanStore((s) => s.profileLoading);
   const fetchProfile = usePlanStore((s) => s.fetchProfile);
+  const attempted = useRef(false);
 
   useEffect(() => {
-    if (isAuthenticated && !profile && !profileLoading) {
-      fetchProfile();
+    // A failed fetch leaves `profile` null and flips `profileLoading` back to false,
+    // and both are dependencies of this effect — without the attempted guard the
+    // false -> true -> false transition re-runs it and re-fetches forever.
+    if (!isAuthenticated) {
+      attempted.current = false;
+      return;
     }
+    if (attempted.current || profile || profileLoading) return;
+    attempted.current = true;
+    fetchProfile();
   }, [isAuthenticated, profile, profileLoading, fetchProfile]);
 
   return {

@@ -59,3 +59,6 @@
 | DEC-046 | 2026-09-22 | 发现→频道 + 词汇本→单词训练（百词斩式两段训练流） | — | active |
 | DEC-047 | 2026-09-22 | 默认头像的男女由用户自选，而不是按 id 指派 | — | superseded by DEC-048（插画选择机制；三处缺陷修复仍有效） |
 | DEC-048 | 2026-09-22 | 默认头像改为跟随用户的性别（修订 DEC-047 的插画选择机制） | — | active |
+| DEC-049 | 2026-09-25 | Catalog promote 改为幂等复用：行锁 + 记录链接 + URL 级回收 | — | active |
+| DEC-050 | 2026-09-25 | 行为事件的镜像副作用统一以 LearningRecord 为前提；未知 video_id 置 NULL | — | active |
+| DEC-051 | 2026-09-25 | 未知 ENV 值 fail-closed，保留 development 作为默认 | — | active |

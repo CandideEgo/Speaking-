@@ -62,7 +62,10 @@ class ChangePhoneRequest(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    name: str | None = None
+    # Capped at the column width (``String(100)``), matching
+    # ``SmsRegisterRequest.name`` — the two entry points must agree, or the
+    # update path hands PostgreSQL a value it will reject.
+    name: str | None = Field(default=None, max_length=100)
     level: str | None = None
     avatar_url: str | None = Field(default=None, max_length=2000)
     # The user's gender — decides which built-in default illustration is shown

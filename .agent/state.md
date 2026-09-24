@@ -8,45 +8,35 @@
 
 Date: 2026-09-25
 
-- **已部署**（09-25 01:05，前端镜像 `116e892dc069`，回滚 `050de8864a37`）：401 不再被当成会话过期——错密码显示「手机号或密码错误」、不再硬刷新两次（生产 Playwright 复验：提交期间主框架导航 0 次，两端均通）；10 位手机号仍被本地拦下
-- **已部署**（09-23 00:15，镜像 `f2c48fdcf1f3`/`7f9d9dffee31`，迁移仍 `j5k6l7m8n9o0`）：词库卡片一键已掌握（`POST /vocabulary/{id}/mastered`）+ 播放页去掉 `ChannelEntry` 入口卡（字幕卡紧贴播放器）+ 反馈页开发者邮箱换真实邮箱 + 后台用户管理渲染 `<Avatar>`（响应补 `gender`）。反馈闭环已跑通：`feedbacks` 1 条 `open`（09-22 19:23），`GET /admin/feedback` 正常返回。上一版「生产 feedbacks 为空」查的是旧机 `seeword-*`，结论作废
-- **生产已更新**（09-22 17:48，镜像 `1db6f136def5`/`57daf3c52dc9`，迁移 `j5k6l7m8n9o0` 加 `users.gender`）：发现→频道 + 词汇本→单词训练改版（DEC-046：`daily-session` 端点、`/vocabulary` 今日/词库两段视图、drill 两段式百词斩流程、播放页 `ChannelEntry` 频道入口卡）+ 默认头像跟随性别（DEC-048）+ iOS 播放态/点词分级（DEC-044）+ 难度校准（DEC-043）。部署源为 `master` HEAD（本地积压的 8 个提交已全部推送后构建）；切换后已 `nginx -s reload`，核验全绿。DEC-043 存量已为新算值（`--dry-run` 逐条 was==would，未改写；09-21 那次重算的备份见 `/root/backups/videos_before_recompute_20260921205759.sql.gz`），**不需要再跑 `backfill_difficulty.py`**
-
-## Recently Completed
-
-Newest first, one line each. Prune the tail into `CHANGELOG.md` when this list gets long — the
-authoritative reasoning for each is the cited decision entry.
-
-- 默认头像跟随用户性别 + `/users/me` 状态收敛为 `profileStore`（DEC-048，2026-09-22）
-- 发现→频道 + 词汇本→单词训练改版（DEC-046，2026-09-22）
-- 榜单页改版：TopPodium 领奖台 + RankingRow 重写（DEC-045，2026-09-21）
-- iOS 播放态单一事实源 + 点词分级渲染（两级 gloss 端点）（DEC-044，2026-09-21）
-- 视频难度校准：习得级别 + 超纲率（DEC-043，2026-09-21；存量已重算）
-- LLM 视频自动分类与分级 + 分级颜色目标优先 + iOS playsinline 修复（DEC-042，2026-09-21，**已部署 + 存量已回填**）
-- 首页排行块并入筛选栏排序（DEC-041，2026-09-20）
-- 知识层归档机制 + `stale` 提醒检查（DEC-040，2026-09-20；09-22 第二轮归档 DEC-029..036）
-- 内测上线四件套：排行 / 词汇学习闭环 / 免费开放 / 存储三态（DEC-037，2026-09-19）
+- **AI 全仓审计两轮修复完成（09-25，工作区未提交）**：open-code-review 扫了 203/379 个源文件（覆盖率 53%）。第一轮修 6 critical + 4 high（DEC-049/050/051）；第二轮修 H11（`cache_set_json` 的 `json.dumps` 移入 try，fail-open 契约补齐）、H19（`position_seconds` 拒负值与非有限值）、H21（`UserUpdate.name` 补 `max_length=100`）、H6/H7（WS 广播遍历快照 + `disconnect` 幂等）。修 H19 时浮出**新的 H24**：422 envelope 回显裸 `NaN` 时自身崩成 500，已加 `json_safe_non_finite`。全量 892 passed / 0 skipped；ruff、mypy 基线 53=53、前端 56 单测全绿
+- **已部署**：09-25 01:05 前端 `116e892dc069`（回滚 `050de8864a37`）401 不再被当成会话过期；09-23 `f2c48fdcf1f3`/`7f9d9dffee31` 词库一键已掌握 + 播放页去 `ChannelEntry`；09-22 `1db6f136def5` `users.gender`（DEC-046/048）。DEC-043 存量已是新算值，**不需再跑 `backfill_difficulty.py`**
 
 ## Current Focus
 
-- **知识层**（2026-09-19 起）：Phase 0-3 主体已落地（易变性分层、六项检查 + `stale` 提醒、归档机制、skill 入库），余项见 Next Steps 1
-- **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用，未见硬编码
-- **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿（运营物料）、内测反馈收集渠道
+- **审计修复待提交**：改动跨 `api/v1/*`、`core/{cache,config,errors,redis}.py`、`main.py`、`schemas/*`、`services/*`、`core/uploads.py`（新）+ 10 个测试模块；前端另有用户侧的 401 修复混在同一工作区，**提交时必须拆分**
+- **知识层**（2026-09-19 起）：Phase 0-3 主体已落地；本轮新增模块 `error-envelope` 与文档 `wiki/problems/error-path-blindspots.md`。`stale` 里 `env-config`、`frontend-*`、`pytest-suite` 的文档本次未读、未刷印章，仍待 `/knowledge-verify`
+- **`.agent/decisions.md` 已到 99.8%（32709/32768 B）**：下一条决策写入前必须先做归档轮（最早批次条目移入 `.agent/archive/decisions-2026-09.md` 并下调 limit），否则检查失败。本轮五项修复**未立决策条目**，取舍记在 `wiki/problems/error-path-blindspots.md`
+- **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用
+- **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿、内测反馈收集渠道
 
 ## Next Steps
 
-1. 知识层 Phase 3/4 剩余：把 `invariants.md` 里 10 条 review-only 与 1 处 known gap（INV-013）逐条变成机械检查（ruff banned-api / 架构测试 / skill 入库 / `stale` 提醒均已完成）
-2. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页（浏览/筛选/一键处理上线）；部署 seeword.top（迁移 + 导入 772 条 + 端到端验证一条 promote）；重抓脚本从 `.lr-scrape/` 收进 `backend/scripts/`；promote 前评估 embed vs download 的版权路径
-3. 视频存储收尾：确认稳定后删源站文件 + Docker cache prune（释放 ~17.5GB）
-4. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
-5. Recommendation 深度个性化 P2（ADR-0011）
-6. ICP 解封后项：payment、前端单测、e2e 覆盖
+1. 提交审计修复批次（跨 5 个模块；`/knowledge-maintain` 已完成，`gitnexus_detect_changes()` 因本会话无该 MCP 工具**未跑**）；要更高覆盖率用报告附录 B 续跑剩余 176 个文件
+2. 报告里剩余的「夸大/条件性」项需先决策：H12（`payment_verify_signature` 默认 False）、H17 的 payload 无上限、H1 的 refresh 不查封禁；C6 复习竞态需运行时实证
+3. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页；部署迁移 + 导入 772 条 + 端到端验证一条 promote；重抓脚本收进 `backend/scripts/`
+4. 视频存储收尾：稳定后删源站文件 + Docker cache prune（~17.5GB）
+5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
+6. Recommendation 深度个性化 P2（ADR-0011）
+7. ICP 解封后项：payment、前端单测、e2e 覆盖
+8. 词汇训练 + 播放页返回（09-25 记录，未开工）：方案见 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`
 
 ## Known Issues
 
-- **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步（09-21 播放态轮询修复未在真机确认）
-- **本地 dev SMS 发送 502**：`requirements.txt` 已补 Dypnsapi SDK，待 `.venv` / 云端镜像重装后复测；CI / 无凭据环境回退 dev-fake 码 `1234`，E2E 依赖此路径
-- **E2E coverage 不完整**：CI e2e 已 seed 核心旅程（不再整体跳过），但播放 / 词汇复习 / 考试等关键流程仍缺 e2e
-- **ICP compliance**：等个体营业执照才能全量部署（payment 因此保持禁用）
-- 遗留 2 个 Low（已评估可接受）：token 镜像 cookie 缺 `Secure`（生产 HTTPS 补）、`stats_heatmap` 用服务器本地日期
-- **"本地绿"不等于绿**：09-20 前积压的提交曾整批未过 CI（现已双绿）；提交前按 `wiki/guides/release-checklist.md` 过四道本地门
+- **线上 `ENV` 无法从仓库自证**（DEC-051 残留）：`env` 默认仍是 `development`，漏配即 dev 形态运行（dev 支付签名旁路 + mock 支付路由 + 无 HSTS/CSP）
+- **catalog 并发 promote 的窄窗**（DEC-049 残留）：两个不同条目共享同一 `source_url` 并发 promote 仍各播一次（属 schema 决策）
+- **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，但已落库的值、不经 Pydantic 的裸 dict 响应、无 schema 的 JSONB payload 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
+- **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步
+- **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
+- **E2E coverage 不完整**：播放 / 词汇复习 / 考试等关键流程缺 e2e
+- **ICP compliance**：等个体营业执照才能全量部署（payment 保持禁用）
+- **"本地绿"不等于绿**：提交前按 `wiki/guides/release-checklist.md` 过四道本地门

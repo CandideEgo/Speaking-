@@ -148,6 +148,16 @@ async def admin_update_channel(
     if channel is None:
         raise HTTPException(status_code=404, detail="频道不存在")
     await db.commit()
+    # Videos keep their channel_ref, but feed/detail caches embed this channel's
+    # name+slug in the author-page link -> drop them so the rename shows up.
+    affected_ids = list((await db.execute(select(Video.id).where(Video.channel_ref == channel_id))).scalars())
+    if affected_ids:
+        try:
+            await channel_service.invalidate_channel_caches(affected_ids)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning("channel update cache invalidation failed", exc_info=True)
     return {"id": channel.id, "slug": channel.slug, "name": channel.name}
 
 
@@ -160,10 +170,21 @@ async def admin_delete_channel(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a channel; member videos keep living with channel_ref=NULL."""
+    # channel_ref is SET NULL when the delete is flushed, so the affected ids must
+    # be collected *before* it — afterwards the query matches nothing and the
+    # per-video detail caches (they embed the author-page link) would stay stale.
+    affected_ids = list((await db.execute(select(Video.id).where(Video.channel_ref == channel_id))).scalars())
     deleted = await channel_service.delete_channel(db, channel_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="频道不存在")
     await db.commit()
+    if affected_ids:
+        try:
+            await channel_service.invalidate_channel_caches(affected_ids)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning("channel delete cache invalidation failed", exc_info=True)
     return None
 
 

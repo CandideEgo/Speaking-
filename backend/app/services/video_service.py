@@ -464,6 +464,8 @@ async def update_video(
         raise ValueError("只能发布 status=ready 的视频")
 
     publish_changed = payload.is_published is not None and payload.is_published != video.is_published
+    # "" clears the assignment, so both sides normalize through `or None`.
+    channel_changed = payload.channel_ref is not None and (payload.channel_ref or None) != video.channel_ref
 
     for field in (
         "title",
@@ -505,10 +507,12 @@ async def update_video(
     except Exception:
         pass
 
-    # Publish/unpublish changes which videos surface on the homepage/browse feed
-    # — invalidate those caches too. (Subtitle edits don't need this; browse only
-    # caches video metadata.)
-    if publish_changed:
+    # Publish/unpublish changes which videos surface on the homepage/browse feed,
+    # and a channel_ref change rewrites the author link (`channel_slug`) embedded
+    # in every cached browse card — invalidate those caches too. (Subtitle edits
+    # don't need this; browse only caches video metadata.) The detail cache above
+    # is dropped separately because it is keyed per video.
+    if publish_changed or channel_changed:
         from app.services.video_cache import invalidate_browse_cache
 
         await invalidate_browse_cache()

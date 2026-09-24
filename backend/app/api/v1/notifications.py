@@ -44,14 +44,28 @@ class ConnectionManager:
         self._connections[user_id].append(websocket)
 
     def disconnect(self, user_id: str, websocket: WebSocket):
-        if user_id in self._connections:
-            self._connections[user_id].remove(websocket)
-            if not self._connections[user_id]:
-                del self._connections[user_id]
+        """Drop a socket from a user's list, tolerating a repeat call.
+
+        Two callers race to clean up the same socket — ``send_to_user``'s
+        cleanup pass and the socket's own ``WebSocketDisconnect`` handler — so
+        the second call must be a no-op instead of raising.
+        """
+        connections = self._connections.get(user_id)
+        if not connections:
+            return
+        if websocket in connections:
+            connections.remove(websocket)
+        if not connections:
+            self._connections.pop(user_id, None)
 
     async def send_to_user(self, user_id: str, message: dict):
         """Send a JSON message to all of a user's active connections."""
-        connections = self._connections.get(user_id, [])
+        # Snapshot the list: it is mutated by other tasks (a socket's own
+        # endpoint cleaning up) while this loop is suspended on ``send_json``,
+        # and a removal mid-iteration makes the iterator step over the socket
+        # that shifted into the vacated slot — a live connection misses the
+        # message with no error anywhere.
+        connections = list(self._connections.get(user_id, []))
         disconnected = []
         unexpected_errors = []
         for ws in connections:

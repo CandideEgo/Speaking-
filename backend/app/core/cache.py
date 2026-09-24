@@ -85,8 +85,19 @@ async def cache_get_json(key: str) -> dict | list | None:
 
 
 async def cache_set_json(key: str, value: dict | list, ttl: int = 300) -> None:
-    """Serialize and store a JSON value with a TTL."""
-    await cache_set(key, json.dumps(value, ensure_ascii=False), ttl=ttl)
+    """Serialize and store a JSON value with a TTL.
+
+    Serialization is the one step in this module that can fail on the *value*
+    rather than on Redis, and the contract here is fail-open: a query result
+    that happens to contain something JSON has no type for loses its cache
+    entry, it does not fail the request that produced it.
+    """
+    try:
+        payload = json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        logger.warning("cache_set_json_error", key=key, exc_info=True)
+        return
+    await cache_set(key, payload, ttl=ttl)
 
 
 # ---------------------------------------------------------------------------

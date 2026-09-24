@@ -28,6 +28,7 @@ from app.core.config import get_settings
 from app.core.database import get_async_session_maker
 from app.core.limiter import rate_limit
 from app.core.security import decode_token
+from app.core.uploads import read_upload_bounded
 from app.models.user import User
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -219,10 +220,14 @@ async def upload_shadowing_audio(
     }
     ext = ext_map.get(content_type, ".webm")
 
-    # Read and validate size
-    data = await file.read()
-    if len(data) > _SHADOWING_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="Audio file too large (max 5MB)")
+    # Size is enforced while reading, so an oversized blob never lands in memory.
+    data = await read_upload_bounded(
+        request,
+        file,
+        _SHADOWING_MAX_BYTES,
+        status_code=413,
+        detail="Audio file too large (max 5MB)",
+    )
     if len(data) == 0:
         raise HTTPException(status_code=400, detail="Empty audio file")
 
@@ -272,7 +277,9 @@ _VIDEO_FILE_RE = re.compile(
     r"(?:_raw|_480p|_720p|_1080p)?$"
 )
 
-# Short-TTL cache of access decisions: {video_id: (expires_at, allowed)}.
+# Short-TTL cache of the viewer-independent access decision:
+# {video_id: (expires_at, publicly_viewable)}. Only "is this video public" may
+# live behind a video_id key — see ``_video_media_allowed``.
 _VIDEO_ACCESS_CACHE: dict[str, tuple[float, bool]] = {}
 _VIDEO_ACCESS_CACHE_TTL = 60.0
 # Upper bound on cache entries: the TTL check on read only evicts entries that
@@ -281,8 +288,8 @@ _VIDEO_ACCESS_CACHE_TTL = 60.0
 _VIDEO_ACCESS_CACHE_MAX = 1024
 
 
-def _cache_access_decision(video_id: str, allowed: bool) -> None:
-    """Store an access decision, bounding the cache size.
+def _cache_access_decision(video_id: str, public: bool) -> None:
+    """Store a viewer-independent access decision, bounding the cache size.
 
     Evicts expired entries first, then the oldest live entries (dicts preserve
     insertion order) until the cap is satisfied.
@@ -294,7 +301,7 @@ def _cache_access_decision(video_id: str, allowed: bool) -> None:
                 _VIDEO_ACCESS_CACHE.pop(key, None)
         while len(_VIDEO_ACCESS_CACHE) >= _VIDEO_ACCESS_CACHE_MAX:
             _VIDEO_ACCESS_CACHE.pop(next(iter(_VIDEO_ACCESS_CACHE)), None)
-    _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, allowed)
+    _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, public)
 
 
 def _viewer_id_from_request(request: Request) -> str | None:
@@ -316,33 +323,41 @@ def _viewer_id_from_request(request: Request) -> str | None:
 async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
     """Publish-state gate for a pipeline-produced video media file.
 
+    缓存只存与 viewer 无关的「公共判定」（official / published / snapshot，
+    offline 一律视为不公共）；owner/admin 旁路每次请求实时判定。把带 viewer
+    维度的结论按 video_id 缓存，会让 owner/admin 预览草稿时写入的允许值在
+    TTL 内泄漏给任意其他 viewer，反向也会把 owner 误锁成 404。
+
     已下线（``storage_mode='offline'``）的视频一律不再提供媒体流：媒体文件
     此时已删除，且即使残留也不该被播放（需求 §5.3）。管理员仍可预览以复核。
     """
     now = time.monotonic()
     cached = _VIDEO_ACCESS_CACHE.get(video_id)
-    if cached is not None and cached[0] > now:
+    # 匿名 viewer 没有旁路，缓存里的公共判定就是全部答案（正负都算，与既有的
+    # 负向缓存行为一致）；带身份的 viewer 还要算 owner/admin 旁路，必须实时判定。
+    if cached is not None and cached[0] > now and (cached[1] or viewer_id is None):
         return cached[1]
 
     from app.models.video import Video
     from app.services.video_access import check_video_access_by_owner, is_admin
 
-    allowed = False
     async with get_async_session_maker()() as db:
         video = await db.get(Video, video_id)
-        if video is not None:
-            if video.storage_mode == "offline":
-                viewer = await db.get(User, viewer_id) if viewer_id is not None else None
-                allowed = is_admin(viewer)
-            else:
-                allowed = check_video_access_by_owner(video, viewer_id)
-                if not allowed and viewer_id is not None:
-                    # Admin preview bypass — the rule lives in video_access.is_admin
-                    # (role read from the DB-backed User row, not the JWT).
-                    viewer = await db.get(User, viewer_id)
-                    allowed = is_admin(viewer)
-    _cache_access_decision(video_id, allowed)
-    return allowed
+        # offline 是内容状态而非 viewer 属性（ADR-0020：门控不依赖文件系统），
+        # 所以它参与被缓存的那一半判定。
+        public = video is not None and video.storage_mode != "offline" and check_video_access_by_owner(video, None)
+        _cache_access_decision(video_id, public)
+        if public:
+            return True
+        if video is None or viewer_id is None:
+            return False
+
+        viewer = await db.get(User, viewer_id)
+        if video.storage_mode == "offline":
+            return is_admin(viewer)
+        # Admin preview bypass — the rule lives in video_access.is_admin
+        # (role read from the DB-backed User row, not the JWT).
+        return check_video_access_by_owner(video, viewer_id) or is_admin(viewer)
 
 
 # ---------------------------------------------------------------------------
@@ -399,9 +414,17 @@ async def serve_media(file_path: str, request: Request):
     # subject matches the owner id in the path. The token travels as a query
     # param (?token=) because <audio src> cannot attach Authorization headers.
     # 404 (not 401) so non-owners cannot probe which recordings exist.
-    if file_path.startswith("shadowing/"):
-        parts = file_path.split("/")
-        if len(parts) < 2 or not _shadowing_token_ok(parts[1], request):
+    #
+    # Segments come from the resolved ``full`` (``full.is_file()`` above proves
+    # it sits inside ``base``), never from the raw ``file_path``: any ``..``
+    # segment that survives upstream normalization decouples the request path
+    # from the file served, so `/media/x/../shadowing/{other}/rec.webm` skipped
+    # this branch entirely (no gate at all) and
+    # `/media/shadowing/{own}/../../{vid}.mp4` entered it, skipping the
+    # publish-state gate below. The gate must follow the bytes that ship.
+    rel = full.relative_to(base).parts
+    if rel[0] == "shadowing":
+        if len(rel) < 2 or not _shadowing_token_ok(rel[1], request):
             raise HTTPException(status_code=404)
     else:
         # Publish-state gate for pipeline-produced video files
@@ -414,7 +437,7 @@ async def serve_media(file_path: str, request: Request):
         # would 404 every avatar (users.py::upload_avatar stores bare-uuid
         # filenames under avatars/).
         m = _VIDEO_FILE_RE.match(full.stem)
-        if m is not None and full.parent == base:
+        if m is not None and len(rel) == 1:
             vid = m.group("vid")
             viewer_id = _viewer_id_from_request(request)
             if not await _video_media_allowed(vid, viewer_id):

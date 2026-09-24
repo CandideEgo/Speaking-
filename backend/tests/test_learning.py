@@ -132,6 +132,64 @@ class TestSaveAndGetProgress:
         assert resp.json()["position_seconds"] is None
 
 
+class TestSaveProgressRejectsImpossiblePositions:
+    """``position_seconds`` is written straight to a ``Float`` column and fed
+    into ``progress_percentage``, so an impossible value does not just look
+    wrong — it becomes a poison number in the database, and the response that
+    carries it back out can itself fail to serialize."""
+
+    async def test_negative_position_is_rejected(self, client: AsyncClient, auth_headers: dict):
+        video_id = await _seed_video()
+        resp = await client.patch(
+            "/api/v1/learning/progress",
+            headers=auth_headers,
+            json={"video_id": video_id, "position_seconds": -30.0},
+        )
+        assert resp.status_code == 422
+
+    async def test_nan_position_is_rejected(self, client: AsyncClient, auth_headers: dict):
+        video_id = await _seed_video()
+        # Sent as a raw body: ``float("nan")`` is not valid JSON, but the JSON
+        # parser accepts the bare token, which is exactly how it would arrive.
+        resp = await client.patch(
+            "/api/v1/learning/progress",
+            headers={**auth_headers, "Content-Type": "application/json"},
+            content=f'{{"video_id": "{video_id}", "position_seconds": NaN}}',
+        )
+        assert resp.status_code == 422
+
+    async def test_infinite_position_is_rejected(self, client: AsyncClient, auth_headers: dict):
+        video_id = await _seed_video()
+        resp = await client.patch(
+            "/api/v1/learning/progress",
+            headers={**auth_headers, "Content-Type": "application/json"},
+            content=f'{{"video_id": "{video_id}", "position_seconds": Infinity}}',
+        )
+        assert resp.status_code == 422
+
+    async def test_rejected_position_leaves_no_record(self, client: AsyncClient, auth_headers: dict):
+        """A rejected request must not have written anything on the way to 422."""
+        video_id = await _seed_video()
+        await client.patch(
+            "/api/v1/learning/progress",
+            headers=auth_headers,
+            json={"video_id": video_id, "position_seconds": -1.0},
+        )
+        resp = await client.get(f"/api/v1/learning/progress/{video_id}", headers=auth_headers)
+        assert resp.json()["position_seconds"] is None
+
+    async def test_zero_position_is_still_accepted(self, client: AsyncClient, auth_headers: dict):
+        """The lower bound must be inclusive — resuming from the very start is real."""
+        video_id = await _seed_video()
+        resp = await client.patch(
+            "/api/v1/learning/progress",
+            headers=auth_headers,
+            json={"video_id": video_id, "position_seconds": 0.0},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["position_seconds"] == 0.0
+
+
 class TestGetLearningRecord:
     async def test_get_existing_record(self, client: AsyncClient, auth_headers: dict):
         me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()

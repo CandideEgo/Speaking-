@@ -11,7 +11,7 @@ only stages candidates and hands them to the battle-tested pipeline.
 import math
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
@@ -287,8 +287,18 @@ async def list_items(
     return paginated(out, page=page, page_size=page_size, total=total)
 
 
-async def get_item(db: AsyncSession, item_id: str) -> CatalogItem:
-    item = await db.get(CatalogItem, item_id)
+async def get_item(db: AsyncSession, item_id: str, *, for_update: bool = False) -> CatalogItem:
+    """Load a catalog item, optionally taking a row lock.
+
+    ``for_update`` is for callers that must not race on a check-then-act
+    (``promote_item``); ``Session.get()`` cannot express ``FOR UPDATE``, so the
+    locked branch goes through an explicit statement.
+    """
+    if for_update:
+        stmt = select(CatalogItem).where(CatalogItem.id == item_id).with_for_update()
+        item = (await db.execute(stmt)).scalar_one_or_none()
+    else:
+        item = await db.get(CatalogItem, item_id)
     if item is None:
         raise ValueError("Catalog item not found")
     return item
@@ -316,6 +326,57 @@ async def summary(db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 
+async def _find_reusable_video(db: AsyncSession, item: CatalogItem) -> Video | None:
+    """Return the healthy official video to reuse for ``item``, or None to seed.
+
+    Two lookups, in order:
+
+    1. The video the item already recorded (``promoted_video_id``) — the normal
+       re-promote path. An ``error`` video is not reusable: retrying a failed
+       video is the point of re-promoting, so it must fall through to a seed.
+    2. Any official, non-``error`` video for ``item.source_url``. This is what
+       catches a **concurrent first** promote: the seed path's own
+       ``commit_refresh(db, video)`` commits *inside* ``promote_item``, so the
+       item row lock is released at the same instant the new video becomes
+       visible to other transactions. A second request therefore either blocked
+       until that commit or arrives after it — in both cases the video is
+       visible here, whereas ``promoted_video_id`` is still NULL. Without this
+       lookup that request dispatches a second GPU run for the same URL.
+
+    The preference order for (2) is deterministic and mirrors what a fresh
+    ``seed_video`` call would have returned: a ``ready`` / ``ready_subtitles``
+    video first (exactly ``seed_video``'s own de-dup predicate), then any
+    non-``error`` in-flight state (``processing`` / ``pending_processing``).
+    Ties break on ``created_at`` then ``id`` so repeated promotes pick the same
+    row. ``error`` is excluded outright.
+
+    Deliberate behaviour change: a URL-scoped match is reused *without* running
+    ``seed_video``'s ``validate_video_url``. The URL was validated when its
+    video was first seeded, and re-validating here would fail a promote for a
+    URL that is already mid-pipeline.
+    """
+    if item.promoted_video_id:
+        recorded = await db.get(Video, item.promoted_video_id)
+        if recorded is not None and recorded.status != VideoStatus.error:
+            return recorded
+
+    ready_first = case(
+        (Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]), 0),
+        else_=1,
+    )
+    stmt = (
+        select(Video)
+        .where(
+            Video.source_url == item.source_url,
+            Video.is_official.is_(True),
+            Video.status != VideoStatus.error,
+        )
+        .order_by(ready_first, Video.created_at, Video.id)
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def promote_item(
     db: AsyncSession,
     item_id: str,
@@ -328,10 +389,34 @@ async def promote_item(
     translate -> annotate -> yt-dlp download + transcode -> ready; auto-publish
     when requested). The catalog row records the link + promoted_at; the promoted
     video's live status is reflected via ``effective_status`` on reads.
+
+    Re-entrant: an item that already has a healthy promoted video — recorded on
+    the item, or merely present for its URL — returns that video without seeding
+    again. The item row is locked so concurrent promotes cannot both pass the
+    guard; the URL-scoped lookup in :func:`_find_reusable_video` covers the
+    window the lock cannot (see there).
     """
-    item = await get_item(db, item_id)
+    item = await get_item(db, item_id, for_update=True)
     if item.status == CatalogStatus.published.value:
         raise ValueError("Catalog item is already published")
+
+    existing = await _find_reusable_video(db, item)
+    if existing is not None:
+        now = datetime.now(UTC)
+        if item.promoted_video_id != existing.id:
+            # Adopted by URL rather than by the item's own record: write the
+            # link the seed path would have written.
+            item.promoted_video_id = existing.id
+            if item.promoted_at is None:
+                item.promoted_at = now
+        if existing.is_published:
+            item.status = CatalogStatus.published.value
+            if item.published_at is None:
+                item.published_at = now
+        else:
+            item.status = CatalogStatus.processing.value
+        await commit_refresh(db, item)
+        return _to_response(item, existing)
 
     from app.services.video_seed_service import seed_video
 

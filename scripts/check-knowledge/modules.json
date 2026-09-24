@@ -45,6 +45,10 @@
       "description": "Cache layer and Redis-fail-open behaviour",
       "globs": ["backend/app/core/cache.py", "backend/app/core/redis.py"]
     },
+    "error-envelope": {
+      "description": "Unified error envelope: error codes, the JSONResponse handlers, and what they echo back",
+      "globs": ["backend/app/core/errors.py", "backend/app/main.py"]
+    },
     "env-config": {
       "description": "Settings object sourced from environment",
       "globs": ["backend/app/core/config.py"]

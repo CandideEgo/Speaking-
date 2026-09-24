@@ -39,8 +39,11 @@ class WatchMeta(BaseModel):
     note: str
 
 
-async def _get_owned_video_or_404(db: AsyncSession, video_id: str) -> Video:
-    video = (await db.execute(select(Video).where(Video.id == video_id))).scalar_one_or_none()
+async def _get_owned_video_or_404(db: AsyncSession, video_id: str, *, for_update: bool = False) -> Video:
+    stmt = select(Video).where(Video.id == video_id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    video = (await db.execute(stmt)).scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     return video
@@ -183,8 +186,17 @@ async def upsert_note(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update the user's note for a video (upsert)."""
-    await _get_owned_video_or_404(db, video_id)
+    """Create or update the user's note for a video (upsert).
+
+    Race-safe: locks the video row first (mirroring ``add_favorite``), which
+    serializes concurrent upserts for the same video. Without it two parallel
+    PUTs both see "no note" and the second INSERT trips
+    ``uq_user_note_user_video``, failing the request with an uncaught
+    ``IntegrityError`` (500) instead of saving the note.
+    """
+    # Lock the video row FIRST — the note row cannot serve as the mutex here,
+    # because on the insert path it does not exist yet.
+    await _get_owned_video_or_404(db, video_id, for_update=True)
     note = (
         await db.execute(
             select(UserNote).where(
@@ -210,13 +222,30 @@ async def delete_note(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete the user's note for a video (idempotent)."""
+    """Delete the user's note for a video (idempotent).
+
+    Race-safe: locks the video row first — the same mutex ``upsert_note``
+    takes — then reads the note with ``with_for_update``. Together they close
+    both ways a concurrent note writer used to break this endpoint: two
+    parallel DELETEs both load the note, so the slower one deletes a row that
+    is already gone; a parallel PUT is otherwise free to UPDATE the note
+    between our read and our delete, and either loses that write silently or
+    fails its own UPDATE with ``StaleDataError`` (500).
+
+    No video-existence check: an unknown video is not an error for an
+    idempotent delete, and it has no row to lock and no note to remove.
+    """
+    # Take the video row lock first so a concurrent PUT (which holds it for the
+    # whole of ``upsert_note``) cannot interleave with this read-then-delete.
+    await db.execute(select(Video).where(Video.id == video_id).with_for_update())
     note = (
         await db.execute(
-            select(UserNote).where(
+            select(UserNote)
+            .where(
                 UserNote.user_id == current_user.id,
                 UserNote.video_id == video_id,
             )
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if note:

@@ -4,6 +4,8 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from sqlalchemy import select
+
 from app.models.catalog import CatalogItem, CatalogStatus
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.services import catalog_service
@@ -32,12 +34,12 @@ async def _make_item(db, **kw) -> CatalogItem:
     return item
 
 
-async def _make_video(db, *, ready=True, published=False) -> Video:
+async def _make_video(db, *, ready=True, published=False, status=None, source_url=None) -> Video:
     video = Video(
         title="Promoted Video",
-        source_url="https://www.youtube.com/watch?v=promoted",
+        source_url=source_url or "https://www.youtube.com/watch?v=promoted",
         video_source=VideoSource.imported,
-        status=VideoStatus.ready if ready else VideoStatus.processing,
+        status=status or (VideoStatus.ready if ready else VideoStatus.processing),
         review_status=VideoReviewStatus.published.value if published else VideoReviewStatus.draft.value,
         is_official=True,
         is_published=published,
@@ -256,3 +258,131 @@ async def test_effective_status_reflects_promoted_video(client, admin_headers, d
     assert data["effective_status"] == "published"
     assert data["promoted_video_published"] is True
     assert data["promoted_video_status"] == "ready"
+
+
+# ---------------------------------------------------------------------------
+# API: promote re-entry (must not duplicate the Video row / the GPU run)
+# ---------------------------------------------------------------------------
+
+
+async def test_repromote_reuses_existing_processing_video(client, admin_headers, db_session):
+    """Re-promoting a mid-pipeline item reuses its video instead of re-seeding."""
+    url = "https://www.youtube.com/watch?v=dup-while-processing"
+    video = await _make_video(db_session, ready=False, source_url=url)
+    item = await _make_item(db_session, status="processing", source_url=url, promoted_video_id=video.id)
+
+    with patch(
+        "app.services.video_seed_service.seed_video",
+        new=AsyncMock(side_effect=AssertionError("re-promote must not re-seed")),
+    ) as mock_seed:
+        r = await client.post(f"/api/v1/admin/catalog/{item.id}/promote", json={}, headers=admin_headers)
+
+    assert r.status_code == 200, r.text
+    mock_seed.assert_not_awaited()
+    data = r.json()
+    assert data["promoted_video_id"] == video.id
+    assert data["status"] == "processing"
+
+    videos = (await db_session.execute(select(Video).where(Video.source_url == url))).scalars().all()
+    assert len(videos) == 1
+
+    # Stored status read back through a fresh request session.
+    stored = await client.get(f"/api/v1/admin/catalog/{item.id}", headers=admin_headers)
+    assert stored.json()["status"] == CatalogStatus.processing.value
+
+
+async def test_repromote_existing_published_video_keeps_bookkeeping(client, admin_headers, db_session):
+    """Reuse branch still records the published status + published_at."""
+    url = "https://www.youtube.com/watch?v=dup-published"
+    video = await _make_video(db_session, ready=True, published=True, source_url=url)
+    item = await _make_item(db_session, status="processing", source_url=url, promoted_video_id=video.id)
+
+    with patch(
+        "app.services.video_seed_service.seed_video",
+        new=AsyncMock(side_effect=AssertionError("re-promote must not re-seed")),
+    ) as mock_seed:
+        r = await client.post(f"/api/v1/admin/catalog/{item.id}/promote", json={}, headers=admin_headers)
+
+    assert r.status_code == 200, r.text
+    mock_seed.assert_not_awaited()
+    data = r.json()
+    assert data["status"] == "published"
+    assert data["published_at"] is not None
+    assert data["promoted_video_id"] == video.id
+
+    videos = (await db_session.execute(select(Video).where(Video.source_url == url))).scalars().all()
+    assert len(videos) == 1
+
+    stored = await client.get(f"/api/v1/admin/catalog/{item.id}", headers=admin_headers)
+    assert stored.json()["status"] == CatalogStatus.published.value
+
+
+async def test_repromote_ready_unpublished_video_stays_processing(client, admin_headers, db_session):
+    """A ready-but-unpublished video is reused and leaves the item in processing."""
+    url = "https://www.youtube.com/watch?v=dup-ready-unpublished"
+    video = await _make_video(db_session, ready=True, published=False, source_url=url)
+    item = await _make_item(db_session, status="processing", source_url=url, promoted_video_id=video.id)
+
+    with patch(
+        "app.services.video_seed_service.seed_video",
+        new=AsyncMock(side_effect=AssertionError("re-promote must not re-seed")),
+    ) as mock_seed:
+        r = await client.post(f"/api/v1/admin/catalog/{item.id}/promote", json={}, headers=admin_headers)
+
+    assert r.status_code == 200, r.text
+    mock_seed.assert_not_awaited()
+    data = r.json()
+    assert data["status"] == "processing"
+    assert data["published_at"] is None
+    assert data["promoted_video_id"] == video.id
+
+    videos = (await db_session.execute(select(Video).where(Video.source_url == url))).scalars().all()
+    assert len(videos) == 1
+
+
+async def test_repromote_errored_video_reseeds(client, admin_headers, db_session):
+    """An errored video is the legitimate retry path — it must re-seed."""
+    url = "https://www.youtube.com/watch?v=errored-then-retried"
+    errored = await _make_video(db_session, status=VideoStatus.error, source_url=url)
+    item = await _make_item(db_session, status="processing", source_url=url, promoted_video_id=errored.id)
+    new_video = await _make_video(db_session, ready=False, source_url="https://www.youtube.com/watch?v=promoted-new")
+    stub = SimpleNamespace(id=new_video.id, is_published=False)
+
+    with patch("app.services.video_seed_service.seed_video", new=AsyncMock(return_value=stub)) as mock_seed:
+        r = await client.post(f"/api/v1/admin/catalog/{item.id}/promote", json={}, headers=admin_headers)
+
+    assert r.status_code == 200, r.text
+    mock_seed.assert_awaited_once()
+    data = r.json()
+    assert data["promoted_video_id"] == new_video.id
+    assert data["status"] == "processing"
+
+
+async def test_promote_adopts_official_video_for_same_url(client, admin_headers, db_session):
+    """URL-scoped reuse: an in-flight official video for the URL is adopted.
+
+    The item records no ``promoted_video_id`` (it is a first promote, or its
+    recorded video errored) while an official ``Video(processing)`` already
+    exists for the same ``source_url`` — the state a concurrent first promote
+    leaves behind, since ``seed_video`` commits its video before
+    ``promote_item`` records the link. Re-seeding here would duplicate the row
+    and the GPU run.
+    """
+    url = "https://www.youtube.com/watch?v=in-flight-for-url"
+    video = await _make_video(db_session, ready=False, source_url=url)
+    item = await _make_item(db_session, status="new", source_url=url)
+
+    with patch(
+        "app.services.video_seed_service.seed_video",
+        new=AsyncMock(side_effect=AssertionError("must not re-seed")),
+    ) as mock_seed:
+        r = await client.post(f"/api/v1/admin/catalog/{item.id}/promote", json={}, headers=admin_headers)
+
+    assert r.status_code == 200, r.text
+    mock_seed.assert_not_awaited()
+    data = r.json()
+    assert data["promoted_video_id"] == video.id
+    assert data["status"] == "processing"
+
+    videos = (await db_session.execute(select(Video).where(Video.source_url == url))).scalars().all()
+    assert len(videos) == 1

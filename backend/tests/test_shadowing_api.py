@@ -497,3 +497,38 @@ class TestUploadShadowingAudio:
             files={"file": ("empty.webm", b"", "audio/webm")},
         )
         assert resp.status_code == 400
+
+    async def test_upload_rejects_oversized_audio_before_reading_it(
+        self, client: AsyncClient, auth_headers: dict, tmp_path, monkeypatch
+    ):
+        """H10 regression (second call site): the 5 MB cap used to be checked
+        only after ``await file.read()``. The declared Content-Length must now
+        refuse the upload before any of it is read, and nothing is persisted."""
+        from unittest.mock import patch
+
+        from starlette.datastructures import UploadFile as StarletteUploadFile
+
+        from app.core.config import get_settings
+
+        reads: list[int] = []
+        real_read = StarletteUploadFile.read
+
+        async def recording_read(self, size: int = -1):
+            reads.append(size)
+            return await real_read(self, size)
+
+        monkeypatch.setattr(StarletteUploadFile, "read", recording_read)
+
+        oversized = b"\x1aE\xdf\xa3" + b"\x00" * (5 * 1024 * 1024 + 64 * 1024)
+        settings = get_settings()
+        with patch.object(settings, "local_media_path", str(tmp_path)):
+            resp = await client.post(
+                "/media/shadowing-audio",
+                headers=auth_headers,
+                files={"file": ("big.webm", oversized, "audio/webm")},
+            )
+
+        assert resp.status_code == 413, resp.text
+        assert resp.json()["message"] == "Audio file too large (max 5MB)"
+        assert reads == []
+        assert list(tmp_path.rglob("*")) == []

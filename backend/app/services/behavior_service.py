@@ -58,6 +58,29 @@ async def ingest_batch(db: AsyncSession, events: list[dict], user_id: str | None
     return len(events)
 
 
+async def drop_unknown_video_ids(db: AsyncSession, events: list[dict]) -> list[dict]:
+    """Blank out video_ids that have no row in `videos`.
+
+    behavior_events.video_id is a FK to videos.id, so an id for a video deleted
+    between page load and the analytics flush aborts the INSERT with an
+    IntegrityError. These are analytics events: the whole batch would be lost
+    and the client has no way to learn the video is gone, so the id is dropped
+    (video_id NULL) and the event is kept — see BehaviorEvent.video_id, which
+    is nullable for exactly this reason.
+
+    Resolves the whole batch in one query; per-event lookups would cost N
+    round-trips on every flush.
+    """
+    ids = {ev.get("video_id") for ev in events if ev.get("video_id")}
+    if not ids:
+        return events
+    known = set((await db.execute(select(Video.id).where(Video.id.in_(ids)))).scalars().all())
+    unknown = ids - known
+    if not unknown:
+        return events
+    return [ev if ev.get("video_id") not in unknown else {**ev, "video_id": None} for ev in events]
+
+
 async def _mirror_to_learning_record(
     db: AsyncSession,
     user_id: str,
@@ -97,14 +120,19 @@ async def _mirror_to_learning_record(
         if record:
             record.completed = True
             record.progress_percentage = 100.0
-        # view_count increments per play-completion (not per unique user) —
-        # matches the ADR's "播放完成次数" semantics.
-        await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
+            # view_count increments per play-completion (not per unique user) —
+            # matches the ADR's "播放完成次数" semantics. Inside `if record:` on
+            # purpose: without the open-video marker any client could POST a bare
+            # `complete` event and inflate the counter.
+            await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
 
-        # Emit learning event (ADR-0012 learning plan integration)
-        try:
-            from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
+            # Emit learning event (ADR-0012 learning plan integration). Gated on
+            # `record` like the counter above: a bare `complete` event from a user
+            # who never opened the video must not manufacture a completed_video
+            # event (and the daily counters / streak / milestone awards it drives).
+            try:
+                from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
 
-            await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
-        except Exception:
-            pass  # Non-blocking — event emission must not disrupt behavior ingestion
+                await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
+            except Exception:
+                pass  # Non-blocking — event emission must not disrupt behavior ingestion

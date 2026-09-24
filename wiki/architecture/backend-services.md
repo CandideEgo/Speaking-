@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, ai-service, transcription]
 related: [wiki/architecture/video-pipeline.md, wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-22
+updated: 2026-09-25
 ---
 
 # Background
@@ -36,8 +36,9 @@ Keep route files thin. Business logic in service layer.
 | `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |
 | `exam_service.py` | Exam system: daily_check / video_exam / wrong_redo sessions, server-side grading (`exam_sessions`/`exam_answers`), derived wrong book, practice hub stats. Answers never leave the server in exam mode; grading reuses `submit_practice_results` for SM-2 + LearningEvents. |
 | `transcription/` | Dedicated sub-service: WhisperX/faster-whisper, chunked transcription, forced alignment, punctuation restoration, audio extraction, segment formatting. |
-| `learning_plan_service.py` + `learning_event_service.py` + `profile_service.py` | ADR-0012 learning plan: rule engine (到期复习→继续观看→新视频→练习→词汇), event emission (completed_video/learned_words/practiced_items/reviewed_words/shadowed_sentences), profile aggregation (streak/mastery/daily counters). |
-| `ai_plan_service.py` | AI-powered daily plan generation (Pro, LLM JSON schema, Celery task). |
+| `learning_event_service.py` + `profile_service.py` | ADR-0012 学习闭环的剩余部分（规则引擎 `learning_plan_service.py` 已随 DEC-025 下线并删除）：event emission (completed_video/learned_words/practiced_items/reviewed_words/shadowed_sentences), profile aggregation (streak/mastery/daily counters)。**副作用门槛**：这些事件由行为事件驱动，只有「真的打开过该视频」（存在 `LearningRecord`）才会发出，见 DEC-050。 |
+| `catalog_service.py` | 候选池策展（ADR-0017）：浏览/筛选/`mark_item`，`promote_item` 把候选交给既有 official 视频管线。**promote 是幂等复用的**：已有在途/ready 的 official `Video` 时直接复用而不重播流水线，见 DEC-049（含残留窗口）。 |
+| `behavior_service.py` | 行为事件入库（ADR-0011）+ 把 `watch_time`/`complete` 镜像到 `LearningRecord`/`Video.view_count`。镜像副作用一律以 `LearningRecord` 存在为前提，未知 `video_id` 置 NULL 而非拒绝整批（DEC-050）。 |
 | `recommendation_service.py` + `scoring_service.py` | ADR-0011: 7-factor learning_score + bonus, recommendation feed (home 40/30/20/10 + category). |
 | `notification_service.py` | DB write + WebSocket push (best-effort) + actor-aware dedup (`ix_notifications_dedup`). |
 | `milestone_service.py` | Learning milestone tracking (incl. first_shadowing). |

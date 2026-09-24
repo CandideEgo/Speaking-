@@ -196,6 +196,80 @@ class TestWebSocketPushErrorHandling:
         )
 
 
+class TestConnectionManagerListMutation:
+    """The connection list is mutated by *other* tasks while a push is in
+    flight: a socket's own endpoint runs its ``WebSocketDisconnect`` cleanup
+    concurrently with the broadcaster's.  Both directions of that interleaving
+    used to misbehave."""
+
+    async def test_a_concurrent_cleanup_does_not_skip_a_live_socket(self):
+        """Iterating the live list means a concurrent removal shifts the tail
+        left, and the iterator then steps *over* the socket that moved into the
+        vacated slot — a live connection silently misses the message."""
+        from app.api.v1.notifications import ws_manager
+
+        sent: list[str] = []
+
+        class MockWS:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            async def send_json(self, data):
+                sent.append(self.name)
+                if self.name == "a":
+                    # "a"'s endpoint hits WebSocketDisconnect and cleans up
+                    # mid-broadcast — exactly the reachable interleaving.
+                    ws_manager.disconnect("mutate-user", self)
+
+        ws_a, ws_b, ws_c = MockWS("a"), MockWS("b"), MockWS("c")
+        ws_manager._connections["mutate-user"] = [ws_a, ws_b, ws_c]
+        try:
+            await ws_manager.send_to_user("mutate-user", {"type": "test"})
+            assert sent == ["a", "b", "c"]
+        finally:
+            ws_manager._connections.pop("mutate-user", None)
+
+    async def test_cleanup_running_twice_is_a_no_op(self):
+        """``send_to_user``'s cleanup and the socket's own endpoint cleanup both
+        run for the same socket; the second one must not raise."""
+        from app.api.v1.notifications import ws_manager
+
+        class MockWS:
+            async def send_json(self, data):
+                raise WebSocketDisconnect()
+
+        class HealthyMockWS:
+            async def send_json(self, data):
+                return None
+
+        ws_dying, ws_alive = MockWS(), HealthyMockWS()
+        ws_manager._connections["twice-user"] = [ws_dying, ws_alive]
+        try:
+            # Broadcaster cleans up the dying socket; the entry survives for ws_alive.
+            await ws_manager.send_to_user("twice-user", {"type": "test"})
+            assert ws_manager._connections["twice-user"] == [ws_alive]
+
+            # The dying socket's own endpoint now runs its cleanup → must be a no-op.
+            ws_manager.disconnect("twice-user", ws_dying)
+            assert ws_manager._connections["twice-user"] == [ws_alive]
+
+            # And a third time, for good measure.
+            ws_manager.disconnect("twice-user", ws_dying)
+            assert ws_manager._connections["twice-user"] == [ws_alive]
+        finally:
+            ws_manager._connections.pop("twice-user", None)
+
+    async def test_cleanup_is_a_no_op_for_an_unknown_user(self):
+        from app.api.v1.notifications import ws_manager
+
+        class MockWS:
+            async def send_json(self, data):
+                return None
+
+        ws_manager.disconnect("never-connected-user", MockWS())  # must not raise
+        assert "never-connected-user" not in ws_manager._connections
+
+
 class TestNotificationDedup:
     """Tests for actor-aware notification deduplication."""
 

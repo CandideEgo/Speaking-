@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
@@ -132,9 +132,23 @@ function DailyTraining() {
     });
   }, [phase, quiz, quizSubmitted, fetchStats]);
 
-  // 到期词在加载完成后的池子为空（竞态：到期队列刚被清空）→ 直接总结
+  // 到期词在加载完成后的池子为空（竞态：到期队列刚被清空）→ 直接总结。
+  // 不能只凭 quiz.loading / quiz.items.length 判空：在 phase 刚翻到 review 的那次
+  // commit 里，useSession 的 refetch 还没跑（它的 setLoading(true) 要等本次 commit 的
+  // effect 全部执行完才生效），这两个值都还是上一阶段的陈值，会被误判成空池并跳
+  // summary —— 整个复习测验被跳过。先确认的确观察到了一次加载，再判空。
+  const reviewLoadSeen = useRef(false);
+
   useEffect(() => {
-    if (phase !== "review" || quiz.loading || quiz.error) return;
+    if (phase !== "review") {
+      reviewLoadSeen.current = false;
+      return;
+    }
+    if (quiz.loading) {
+      reviewLoadSeen.current = true;
+      return;
+    }
+    if (!reviewLoadSeen.current || quiz.error) return;
     if (quiz.items.length === 0) {
       fetchStats();
       setPhase("summary");

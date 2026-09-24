@@ -62,6 +62,35 @@ async def test_shadowing_other_user_dir_404_even_with_owner_token(client, media_
     assert resp.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# Path-gate coupling: the gate must branch on the same path that is served
+# (`full`), not on the raw request path. `..` segments in the latter decouple
+# the two — the resolved file lands in a private dir while the raw prefix looks
+# harmless.
+#
+# The dots are percent-encoded on purpose: httpx normalizes a literal `..` away
+# before sending, so `%2e%2e` is the only way to hand the ASGI app the raw
+# segment a non-normalizing client/proxy would. Resource-wise `x/` need not
+# exist — resolution never touches it.
+# ---------------------------------------------------------------------------
+
+
+async def test_shadowing_dotdot_prefix_does_not_skip_token_gate(client, media_dir):
+    """`/media/x/../shadowing/{owner}/rec.webm` must still demand the token."""
+    resp = await client.get("/media/x/%2e%2e/shadowing/userA/rec.webm")
+    assert resp.status_code == 404
+
+
+async def test_shadowing_dotdot_cannot_reach_other_user_with_own_token(client, media_dir):
+    """A caller's own token must not unlock a sibling's recording via `..`."""
+    other = media_dir / "shadowing" / "userB"
+    other.mkdir(parents=True)
+    (other / "rec.webm").write_bytes(b"userB private audio")
+    token = create_token("userA")
+    resp = await client.get(f"/media/shadowing/userA/%2e%2e/userB/rec.webm?token={token}")
+    assert resp.status_code == 404
+
+
 async def test_public_media_no_token_ok(client, media_dir):
     resp = await client.get("/media/public.mp4")
     assert resp.status_code == 200
@@ -377,3 +406,49 @@ async def test_staged_upload_file_not_servable(client, video_media_dir):
     source_url leak surface)."""
     resp = await client.get("/media/12345678-1234-1234-1234-123456789012.mp4")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# The access-decision cache must never carry a viewer-dependent verdict: the
+# owner/admin preview bypass is evaluated per request, so one viewer's outcome
+# can neither publish a draft to others nor lock its owner out.
+# ---------------------------------------------------------------------------
+
+
+async def test_draft_media_not_leaked_after_owner_preview(client, video_media_dir):
+    """The owner's allowed preview must not cache a green light for everyone
+    else (the draft URL is derivable from the video id)."""
+    v = video_media_dir["ugc_draft"]
+    owner = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('owner-1')}")
+    assert owner.status_code == 200
+
+    other = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('someone-else')}")
+    assert other.status_code == 404
+    anonymous = await client.get(f"/media/{v.id}_720p.mp4")
+    assert anonymous.status_code == 404
+
+
+async def test_owner_preview_not_blocked_by_anonymous_denial(client, video_media_dir):
+    """Reverse direction: an anonymous 404 must not cache a denial that 404s
+    the owner for the rest of the TTL."""
+    v = video_media_dir["ugc_draft"]
+    anonymous = await client.get(f"/media/{v.id}_720p.mp4")
+    assert anonymous.status_code == 404
+
+    owner = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('owner-1')}")
+    assert owner.status_code == 200
+    assert owner.content == b"draft video"
+
+
+async def test_shadowing_dotdot_cannot_bypass_publish_gate(client, video_media_dir):
+    """`/media/shadowing/{own}/../../{vid}.mp4` resolves to a root pipeline file:
+    it must hit the publish-state gate, not the shadowing branch (whose token
+    check the caller trivially satisfies with their own token)."""
+    v = video_media_dir["ugc_draft"]
+    token = create_token("attacker")
+    bypass = await client.get(f"/media/shadowing/attacker/%2e%2e/%2e%2e/{v.id}_720p.mp4?token={token}")
+    assert bypass.status_code == 404
+    # Same verdict as the equivalent direct request — the gate follows the
+    # resolved file, so the two URL spellings cannot disagree.
+    direct = await client.get(f"/media/{v.id}_720p.mp4?token={token}")
+    assert direct.status_code == 404

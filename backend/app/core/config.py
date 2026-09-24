@@ -2,6 +2,18 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The environments the app knows how to behave under. A value outside this set
+# is a misconfiguration, never a third mode: it used to match neither the
+# development defaults nor the production guards in ``model_post_init``, so the
+# app booted with an empty ``jwt_secret`` — JWTs signed with an empty key — and
+# silently skipped every guard. ``.env.example`` documents the same three values.
+# ``prod`` is folded into ``production`` because payment_provider already treats
+# it as production; case/whitespace variants are normalized so an accepted
+# spelling cannot miss the downstream ``settings.env == "production"`` checks
+# (HSTS/CSP, JSON logs, mock-payment router, rate limits).
+_ENV_ALIASES = {"prod": "production"}
+_ENV_VALUES = ("development", "testing", "production")
+
 
 class Settings(BaseSettings):
     app_name: str = "SeeWord"
@@ -280,19 +292,42 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     def model_post_init(self, __context) -> None:
-        """Apply development defaults only when env is development."""
-        if self.env == "development":
+        """Apply development defaults, then guard every non-development env.
+
+        ``env`` selects between local defaults and hardening, so an unknown
+        value must not land in a branch with neither: fail closed instead.
+        """
+        env = self.env.strip().lower()
+        env = _ENV_ALIASES.get(env, env)
+        if env not in _ENV_VALUES:
+            raise RuntimeError(
+                f"ENV={self.env!r} is not a recognized environment ({', '.join(_ENV_VALUES)}). "
+                "Refusing to start: an unrecognized value gets neither the development "
+                "defaults nor the production guards."
+            )
+        # Store the normalized value so every downstream ``settings.env``
+        # comparison (logging, HSTS/CSP, CORS, limiter) sees the same string.
+        object.__setattr__(self, "env", env)
+
+        if env == "development":
             if not self.database_url:
                 object.__setattr__(
                     self, "database_url", "postgresql+asyncpg://seeword:seeword_dev@localhost:5432/seeword"
                 )
             if not self.jwt_secret:
                 object.__setattr__(self, "jwt_secret", "dev_secret_change_in_production")
-        if self.env == "production":
-            if not self.jwt_secret:
-                raise RuntimeError("JWT_SECRET must be set in production")
-            if not self.database_url:
-                raise RuntimeError("DATABASE_URL must be set in production")
+            return
+
+        # Every other env has no localhost fallback, so an empty secret must
+        # fail here rather than reach JWT signing. Checked outside the
+        # "production" branch so `ENV=testing` cannot become a way around it.
+        if not self.jwt_secret:
+            raise RuntimeError(f"JWT_SECRET must be set when ENV={env!r} (development is the only env with a fallback)")
+        if not self.database_url:
+            raise RuntimeError(
+                f"DATABASE_URL must be set when ENV={env!r} (development is the only env with a fallback)"
+            )
+        if env == "production":
             if not self.openai_api_key:
                 raise RuntimeError("OPENAI_API_KEY must be set in production")
             if not self.redis_url:

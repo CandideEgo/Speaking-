@@ -120,6 +120,21 @@ class _FakeRedis:
         self._store: dict[str, str] = {}
         self._expires: dict[str, float] = {}
 
+    def __await__(self):
+        """Awaiting the client resolves to the client itself, mirroring
+        redis-py 5.0.0's ``Redis.__await__`` (``self.initialize()``). Production
+        call sites write ``redis = await get_redis()``; without this the
+        ``await`` raises TypeError *inside* their fail-open ``try/except``, so
+        detail-cache invalidation silently no-ops in tests — the same blindspot
+        as the missing ``scan_iter`` below. See
+        ``wiki/problems/cache-invalidation-and-media-gate-blindspots.md``.
+        """
+
+        async def _self() -> "_FakeRedis":
+            return self
+
+        return _self().__await__()
+
     def _purge(self, key: str) -> None:
         exp = self._expires.get(key)
         if exp is not None and exp <= time.monotonic():

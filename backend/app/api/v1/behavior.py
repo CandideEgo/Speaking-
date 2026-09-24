@@ -17,7 +17,7 @@ from app.schemas.behavior import (
     BehaviorEventRequest,
     BehaviorIngestResponse,
 )
-from app.services.behavior_service import ingest_batch, ingest_event
+from app.services.behavior_service import drop_unknown_video_ids, ingest_batch, ingest_event
 
 router = APIRouter(prefix="/behavior", tags=["behavior"])
 
@@ -31,7 +31,8 @@ async def post_event(
     db: AsyncSession = Depends(get_db),
 ):
     """Ingest a single behavior event."""
-    await ingest_event(db, body.model_dump(), current_user.id if current_user else None)
+    events = await drop_unknown_video_ids(db, [body.model_dump()])
+    await ingest_event(db, events[0], current_user.id if current_user else None)
     await db.commit()
     return BehaviorIngestResponse(ingested=1)
 
@@ -45,9 +46,10 @@ async def post_batch(
     db: AsyncSession = Depends(get_db),
 ):
     """Ingest a batch of behavior events (frontend analytics flush)."""
+    events = await drop_unknown_video_ids(db, [e.model_dump() for e in body.events])
     count = await ingest_batch(
         db,
-        [e.model_dump() for e in body.events],
+        events,
         current_user.id if current_user else None,
     )
     return BehaviorIngestResponse(ingested=count)

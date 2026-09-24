@@ -39,7 +39,7 @@ from app.api.v1 import (
     words,
 )
 from app.core.config import get_settings
-from app.core.errors import AppError, ErrorCode, format_validation_errors
+from app.core.errors import AppError, ErrorCode, format_validation_errors, json_safe_non_finite
 from app.core.limiter import limiter
 from app.core.logging import configure_logging, get_logger
 from app.services.ai_service import AIServiceError
@@ -110,7 +110,9 @@ async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONR
 
 async def _validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Pydantic 422 校验错误 -> envelope {code: VALIDATION_ERROR, message, detail}."""
-    errors = jsonable_encoder(exc.errors())
+    # 回显的 input 可能是非有限浮点数（body 里的裸 NaN/Infinity），直接放进响应会
+    # 让 json.dumps(allow_nan=False) 抛错，把 422 变成 500。
+    errors = json_safe_non_finite(jsonable_encoder(exc.errors()))
     return JSONResponse(
         status_code=422,
         content={

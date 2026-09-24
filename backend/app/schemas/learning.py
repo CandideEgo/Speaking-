@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from app.schemas.common import VideoBrief
 
@@ -27,9 +27,15 @@ class LearningRecordResponse(BaseModel):
 
 
 class SaveProgressRequest(BaseModel):
-    """Request body for saving video watch progress."""
+    """Request body for saving video watch progress.
 
-    position_seconds: float
+    ``position_seconds`` is not merely echoed back: it is stored, and it is
+    divided by the video duration to derive ``progress_percentage``, which the
+    retention scoring reads. A negative or non-finite value therefore does not
+    just look wrong in the record — it propagates into a derived number.
+    """
+
+    position_seconds: float = Field(ge=0, allow_inf_nan=False)
     video_id: str
 
 

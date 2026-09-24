@@ -2,6 +2,7 @@
 
 from app.models.channel import Channel
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
+from app.services import channel_service
 from app.services.channel_service import auto_attach_channel, list_public_channels
 
 
@@ -409,3 +410,114 @@ async def test_admin_list_channels_marks_is_auto(client, admin_headers, db_sessi
     by_slug = {c["slug"]: c for c in resp.json()["items"]}
     assert by_slug["curated"]["is_auto"] is False
     assert by_slug["author"]["is_auto"] is True
+
+
+# ---------------------------------------------------------------------------
+# Cache invalidation: feed cards and video detail embed the author-page link
+# (`channel_slug`/`channel_name`), so a channel rename or delete must drop them
+# — otherwise the stale link survives the TTL (browse 5min, rankings snapshot up
+# to 48h) and points at a renamed or 404'd author page. See
+# wiki/problems/cache-invalidation-and-media-gate-blindspots.md (fail-open
+# invalidation silently no-ops when the test double lacks the Redis command).
+# ---------------------------------------------------------------------------
+
+
+async def _warm_author_link_caches(client, headers, video, expected_slug: str) -> None:
+    """Read the two caches that carry the author-page link (browse feed card +
+    video detail). The detail cache is only written for a `can_watch` reader, so
+    a logged-in user's headers are required for it to be warmed."""
+    feed = await client.get("/api/v1/browse/feed")
+    item = next(i for i in feed.json()["items"] if i["id"] == video.id)
+    assert item["channel_slug"] == expected_slug
+
+    detail = await client.get(f"/api/v1/videos/{video.id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["channel_slug"] == expected_slug
+
+
+async def test_admin_update_channel_invalidates_author_link_caches(
+    client, admin_headers, auth_headers, db_session, fake_redis
+):
+    channel = await _make_channel(db_session, name="TED", slug="ted")
+    video = await _make_video(db_session, channel_ref=channel.id)
+    await _warm_author_link_caches(client, auth_headers, video, "ted")
+    assert f"video:detail:{video.id}" in fake_redis._store
+    assert any(k.startswith("browse:feed:") for k in fake_redis._store)
+
+    resp = await client.patch(
+        f"/api/v1/channels/admin/{channel.id}",
+        json={"name": "TED 精选", "slug": "ted-selected"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
+    # The rename must drop both caches the stale link is served from.
+    assert not any(k.startswith("browse:feed:") for k in fake_redis._store)
+    assert f"video:detail:{video.id}" not in fake_redis._store
+
+    feed = await client.get("/api/v1/browse/feed")
+    item = next(i for i in feed.json()["items"] if i["id"] == video.id)
+    assert item["channel_slug"] == "ted-selected"
+
+
+async def test_admin_delete_channel_invalidates_author_link_caches(
+    client, admin_headers, auth_headers, db_session, fake_redis, monkeypatch
+):
+    channel = await _make_channel(db_session, name="TED", slug="ted")
+    video = await _make_video(db_session, channel_ref=channel.id)
+    await _warm_author_link_caches(client, auth_headers, video, "ted")
+    assert f"video:detail:{video.id}" in fake_redis._store
+
+    # Postgres nulls videos.channel_ref as part of the DELETE (FK SET NULL); the
+    # in-memory SQLite suite does not enforce that FK, so reproduce it here. With
+    # the nulling in place, collecting the affected ids *after* the delete finds
+    # nothing and the member video's detail cache keeps the dead link.
+    from sqlalchemy import update
+
+    real_delete = channel_service.delete_channel
+
+    async def _delete_with_fk_set_null(db, channel_id):
+        await db.execute(update(Video).where(Video.channel_ref == channel_id).values(channel_ref=None))
+        return await real_delete(db, channel_id)
+
+    monkeypatch.setattr(channel_service, "delete_channel", _delete_with_fk_set_null)
+
+    resp = await client.delete(f"/api/v1/channels/admin/{channel.id}", headers=admin_headers)
+    assert resp.status_code == 204
+
+    assert not any(k.startswith("browse:feed:") for k in fake_redis._store)
+    assert f"video:detail:{video.id}" not in fake_redis._store
+
+    feed = await client.get("/api/v1/browse/feed")
+    item = next(i for i in feed.json()["items"] if i["id"] == video.id)
+    assert item["channel_slug"] is None
+
+
+async def test_admin_video_patch_channel_ref_invalidates_browse_cache_only_on_change(client, admin_headers, db_session):
+    """Changing ``channel_ref`` rewrites the author link embedded in the cached
+    feed cards, so it must drop the browse caches — while an unrelated edit or a
+    no-op re-send must not (invalidation is a full-scan delete)."""
+    from unittest.mock import AsyncMock, patch
+
+    channel = await _make_channel(db_session, slug="new-author")
+    video = await _make_video(db_session)
+
+    with patch("app.services.video_cache.invalidate_browse_cache", new=AsyncMock()) as invalidate:
+
+        async def _patch(body: dict) -> None:
+            resp = await client.patch(f"/api/v1/videos/admin/{video.id}", json=body, headers=admin_headers)
+            assert resp.status_code == 200
+
+        # Unrelated field: the cached cards are unchanged, so leave them alone.
+        await _patch({"title": "Renamed"})
+        # Clearing an already-empty channel_ref normalizes to None -> no change.
+        await _patch({"channel_ref": ""})
+        invalidate.assert_not_awaited()
+
+        # A real assignment changes the cached author link -> invalidate exactly once.
+        await _patch({"channel_ref": channel.id})
+        invalidate.assert_awaited_once()
+
+        # Re-sending the same value is a no-op (idempotent PATCH).
+        await _patch({"channel_ref": channel.id})
+        assert invalidate.await_count == 1

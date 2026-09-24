@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import type { Milestone } from "@/types";
 
 const SEEN_KEY = "seeword_seen_milestones";
 
@@ -19,15 +20,13 @@ export function useMilestoneCelebration() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await api<{ milestones?: { key: string; achieved: boolean }[] }>(
-          "/api/v1/plan/milestones"
-        );
-        if (cancelled || !data?.milestones) return;
+        const data = await api<Milestone[]>("/api/v1/plan/milestones");
+        if (cancelled || !Array.isArray(data)) return;
         const seenRaw = window.localStorage.getItem(SEEN_KEY);
         const seen = new Set<string>(seenRaw ? (JSON.parse(seenRaw) as string[]) : []);
-        const newlyAchieved = data.milestones
-          .filter((m) => m.achieved && !seen.has(m.key))
-          .map((m) => m.key);
+        const newlyAchieved = data
+          .filter((m) => m.achieved_at && !seen.has(m.milestone_type))
+          .map((m) => m.milestone_type);
         if (newlyAchieved.length) {
           setQueue(newlyAchieved);
         }

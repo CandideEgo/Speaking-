@@ -32,7 +32,9 @@ def get_redis() -> aioredis.Redis:
             decode_responses=True,
             max_connections=20,
         )
-        logger.info("redis_client_created", url=settings.redis_url)
+        # The URL may embed a password (redis://:secret@host:6379/0), so log only
+        # the credential-free tail; the full value must never reach app logs.
+        logger.info("redis_client_created", host=settings.redis_url.rsplit("@", 1)[-1])
     return _redis
 
 

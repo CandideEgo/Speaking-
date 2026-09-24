@@ -11,6 +11,7 @@
 前端 ApiClientError.code / .message 落地可用（之前 code 永远 null、message 从 detail 解析）。
 """
 
+import math
 from typing import Any
 
 
@@ -77,3 +78,26 @@ def format_validation_errors(errors: list[dict]) -> str:
         msg = str(err.get("msg", "")).replace("Value error, ", "")
         parts.append(f"{field}: {msg}")
     return "; ".join(parts)
+
+
+def json_safe_non_finite(value: Any) -> Any:
+    """递归把非有限浮点数换成它的文本形式, 其余原样返回。
+
+    响应统一由 Starlette 的 ``json.dumps(..., allow_nan=False)`` 渲染, 所以
+    payload 里只要有一个 ``nan``/``inf``, **整个响应**都序列化不出来。而 422
+    envelope 会把「客户端传进来的那个值」原样回显在 ``detail[].input`` 里 ——
+    ``NaN`` 又是可以走正常 body 路径进来的（stdlib 的 JSON parser 接受裸
+    ``NaN``/``Infinity`` token）, 于是「请求格式错」被答成 500, 且没有任何可用
+    信息。换成文本形式而不是丢掉, 是因为 ``nan``/``inf``/``-inf`` 三者的区别
+    对定位问题有用, 而它们本来就没有对应的 JSON number。
+
+    只处理 envelope 回显客户端输入的这一侧; 业务数据里出现非有限浮点是另一个
+    问题（写入侧应各自用 ``allow_inf_nan=False`` 拦住）。
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)  # 'nan' / 'inf' / '-inf'
+    if isinstance(value, dict):
+        return {key: json_safe_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe_non_finite(item) for item in value]
+    return value
