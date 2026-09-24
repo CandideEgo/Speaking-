@@ -45,8 +45,8 @@
       "digest": "sha256:2d14165a158fba8df688a743b0e7d20bb7a727b52e56b31b61bf3a539f08725f"
     },
     "frontend-api-client": {
-      "verified": "2026-09-20",
-      "digest": "sha256:26437ada9cbaecf1f44f993c5aa40ae9125bd8588ad640b123ae2f7d77744dc8"
+      "verified": "2026-09-25",
+      "digest": "sha256:9b92bfea649a0a14a033cf5d4685f257454cf8671d43d8ef935d399bdddc7c9d"
     },
     "frontend-app": {
       "verified": "2026-09-24",
