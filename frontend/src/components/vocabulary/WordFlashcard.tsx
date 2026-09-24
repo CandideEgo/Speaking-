@@ -80,7 +80,7 @@ export function WordFlashcard({
 
         {/* 详解区：点「不认识」后展开 */}
         {revealed && (
-          <div className="mt-6 pt-5 border-t border-hairline text-left animate-fade-in">
+          <div className="mt-6 pt-5 border-t border-hairline text-left animate-fade-slide-in">
             {word.part_of_speech && (
               <p className="text-xs text-muted-soft italic">{word.part_of_speech}</p>
             )}

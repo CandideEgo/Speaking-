@@ -28,7 +28,7 @@ function QuestionCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3">
+    <div className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3 animate-fade-in">
       <div className="font-semibold text-ink">{prompt}</div>
       {hint && <div className="text-xs text-muted">{hint}</div>}
       {children}
@@ -38,7 +38,9 @@ function QuestionCard({
         </div>
       )}
       {graded && (
-        <div className={`text-sm font-medium ${graded.correct ? "text-success" : "text-error"}`}>
+        <div
+          className={`text-sm font-medium animate-fade-in ${graded.correct ? "text-success" : "text-error"}`}
+        >
           {graded.correct
             ? "✓ 正确"
             : `✗ 正确答案：${graded.correctAnswer ?? graded.explanation ?? ""}`}
@@ -74,8 +76,8 @@ function OptionList({
             key={i}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm
               ${locked ? "cursor-default" : "hover:border-ink/30"}
-              ${isCorrect ? "border-success/50 bg-success-soft text-success" : ""}
-              ${isWrong ? "border-error/50 bg-red-soft text-error" : ""}
+              ${isCorrect ? "border-success/50 bg-success-soft text-success animate-check-pop" : ""}
+              ${isWrong ? "border-error/50 bg-red-soft text-error animate-shake" : ""}
               ${!isCorrect && !isWrong ? "border-hairline bg-canvas" : ""}`}
             onClick={(e) => {
               e.preventDefault();
@@ -132,7 +134,7 @@ function CompletionSummary({
 }) {
   return (
     <div className="rounded-xl border border-hairline bg-surface-soft p-5 text-center space-y-3">
-      <Trophy className="mx-auto text-warning" size={32} />
+      <Trophy className="mx-auto text-warning animate-check-pop" size={32} />
       <div className="text-lg font-semibold text-ink">练习完成！</div>
       <div className="text-sm text-muted">
         {correct} / {total} 正确
@@ -563,8 +565,15 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
 
   if (session.loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted py-4">
-        <Loader2 size={14} className="animate-spin" /> 加载练习中…
+      <div
+        className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3 animate-fade-in"
+        role="status"
+        aria-label="加载练习中"
+      >
+        <div className="skeleton-shimmer h-4 w-1/2 rounded-sm bg-surface-card" />
+        <div className="skeleton-shimmer h-9 rounded-lg bg-surface-card" />
+        <div className="skeleton-shimmer h-9 rounded-lg bg-surface-card" />
+        <div className="skeleton-shimmer h-9 w-2/3 rounded-lg bg-surface-card" />
       </div>
     );
   }
@@ -587,7 +596,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
   // Completion screen — show once every item has been graded.
   if (session.allGraded) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         <div className="flex items-center gap-1.5 flex-wrap">
           {session.items.map((_, i) => {
             const g = session.graded[i];
@@ -672,7 +681,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
 
       {/* Wrong answer → manual "next" (correct answers auto-advance) */}
       {currentGraded && !currentGraded.correct && !isLast && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between animate-fade-in">
           {/* D3b: 回看原句 — only when the item was scoped to a video
               (drill/?video_id=) so the source subtitle/start_time are present. */}
           {(() => {

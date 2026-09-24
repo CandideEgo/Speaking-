@@ -196,7 +196,7 @@ function DailyTraining() {
     return (
       <main className="min-h-full bg-surface-soft">
         <DrillHeader label="学新词" answered={learnIndex} total={newWords.length} />
-        <div className="max-w-[880px] mx-auto px-4 py-10 pb-24">
+        <div className="max-w-[880px] mx-auto px-4 py-10 pb-24 animate-fade-in">
           <WordFlashcard
             key={currentWord.id}
             word={currentWord}
@@ -213,7 +213,7 @@ function DailyTraining() {
     return (
       <main className="min-h-full bg-surface-soft">
         <DrillHeader label="复习测验" answered={quiz.answeredCount} total={quiz.items.length} />
-        <div className="max-w-[880px] mx-auto px-4 py-8 pb-24">
+        <div className="max-w-[880px] mx-auto px-4 py-8 pb-24 animate-fade-in">
           <UnifiedPracticePanel session={quiz} levelLabel="今日复习" />
         </div>
       </main>

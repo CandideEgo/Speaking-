@@ -459,6 +459,17 @@
     animation: complete-flash 0.5s ease-out forwards;
   }
 
+  /* Entrance for content mounted by a user action (flashcard reveal,
+     drill completion) — slightly longer travel than the plain fade. */
+  .animate-fade-slide-in {
+    animation: fadeSlideIn 0.3s ease-out;
+  }
+
+  /* Wrong-answer judgment: brief horizontal shake (keyframes below). */
+  .animate-shake {
+    animation: shake 0.25s ease-in-out;
+  }
+
   /* 统一的卡片/可点击元素 hover 抬升语言（与 VideoCard 一致） */
   .hover-lift {
     @apply transition-all duration-150
@@ -530,6 +541,20 @@
   100% {
     background-color: rgb(var(--success) / 0.06);
     border-color: rgb(var(--success) / 0.2);
+  }
+}
+
+/* Drill wrong-answer judgment: brief horizontal shake */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
   }
 }
 
