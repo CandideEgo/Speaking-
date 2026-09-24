@@ -5,18 +5,18 @@ interface FullPageSpinnerProps {
   size?: "sm" | "md" | "lg";
 }
 
-const sizeMap = { sm: 6, md: 8, lg: 10 } as const;
+const sizeMap = { sm: "h-6 w-6", md: "h-8 w-8", lg: "h-10 w-10" } as const;
 
 /**
  * Centered spinner that fills the viewport.
  * Use for auth guards, initial page loads, and route transitions.
  */
 export function FullPageSpinner({ size = "md" }: FullPageSpinnerProps) {
-  const s = sizeMap[size];
+  const sizeClass = sizeMap[size];
   return (
     <div className="flex h-screen items-center justify-center bg-canvas">
       <div
-        className={`${s} ${s} animate-spin rounded-full border-2 border-brand-500 border-t-transparent`}
+        className={`${sizeClass} animate-spin rounded-full border-2 border-brand-500 border-t-transparent`}
       />
     </div>
   );
