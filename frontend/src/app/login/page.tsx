@@ -50,6 +50,10 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setError("请输入正确的手机号");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{ token: string; refresh_token: string }>("/api/v1/auth/phone-login", {

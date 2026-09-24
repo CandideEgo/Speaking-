@@ -27,6 +27,10 @@ export default function AdminLoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setError("请输入正确的手机号");
+      return;
+    }
     setLoading(true);
     try {
       const data = await adminApi<LoginResponse>("/api/v1/auth/phone-login", {
