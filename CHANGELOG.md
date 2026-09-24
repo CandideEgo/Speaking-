@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+
 - **默认头像：线描男女插画，跟随用户性别（09-22，DEC-048）**：新增 `frontend/public/default-avatar-male.webp` / `default-avatar-female.webp`（160×160 无损 WebP，源图存 `seeword-beta-assets/avatar-*-source.jpg`）；新增 `users.gender`（`male`/`female`，可空）由用户在个人资料页「性别」处填写，`PATCH /users/me` 校验取值，默认插画随性别切换——不给单独的「选哪张插画」选择器，那只是一张默认图。未填时按用户 id 哈希给一张确定性的临时插画（对存量账号行为不变），上传的 `avatar_url` 始终优先，且上传不会清掉已填的性别。`lib/avatar.ts` 抽出 `hashSeed` 供 `avatarColor` 与 `defaultAvatarUrl` 共用；`src === undefined`（TopBar 的 `/users/me` 在途）渲染骨架而非插图，避免有头像的用户先闪一张别人的脸；账户页手写 fallback 统一换成 `Avatar`。
 - **单词训练两段流 + 播放页频道入口（09-22，DEC-046）**：导航「发现/浏览」改「频道」、「词汇本」改「单词训练」。新增 `GET /api/v1/vocabulary/daily-session`（今日队列：new=从未复习按入库升序、due=到期非 mastered 按到期升序，附 totals；`due_total` 不含 new 词，与徽标 `due_count` 口径不同）；`/vocabulary` 改「今日（训练 Hero：词库掌握环 + 待学/待复习 + CTA）/ 词库（集合+全部单词）」两段视图；`/vocabulary/drill` 改阶段机 learn→review→summary——`WordFlashcard` 新词闪卡（自动发音、认识=quality 4/不认识=2 直写 SM-2、键盘 1/2）、复习段复用 `UnifiedPracticePanel(due_only)` allGraded 自动提交、`TrainSummary`（Confetti ≥80% + 薄弱词）；`?video_id=` 深链保持纯测验。视频详情响应补 `channel_cover_url`，播放页播放器下方新增 `ChannelEntry` 频道入口卡（未挂频道不渲染）。
 - **点词分级渲染：`/gloss/static` + `/gloss/enrich` 两级端点（09-21）**：词卡基础内容（词头/音标/词形/ECDICT 释义）由只读内存的 `static` 端点秒出，真题例句 + 高频徽标 + AI 笔记由 `enrich` 后补填充（`lemma` 沿用第一级返回值，不重复归一）；前端 `useWordLookup` 顺序两次请求 + 竞态守卫（快速连点丢弃过期响应），`mergeEnrich` 只合并第二级拥有的字段，避免 enrich 空值污染已展示的静态字段；enrich 失败静默（基础释义已渲染）。旧 `/gloss` 端点保留但前端已无调用方，属休眠端点。
@@ -29,6 +30,7 @@
 - **生产部署链路加固（09-20，DEC-039）** / **免费化影响评估报告（09-18）** / **知识层重构 Phase 0/1（09-19）**——同上，从 `.agent/state.md` Recently Completed 尾部剪入（state.md 体积管控）。
 
 ### Changed
+
 - **单词训练（drill）交互打磨（09-24）**：选项行补判定反馈（答对 `animate-check-pop`、答错 `animate-shake`）；题目卡与答错后的「下一题」栏、完成态（奖杯 pop + 结果区）淡入；闪卡详解区改 `fade-slide-in`；阶段切换（学新词→复习测验）淡入；练习加载态由一行「加载练习中…」换成题目卡骨架屏（复用 `skeleton-shimmer`）。`globals.css` 新增 `.animate-fade-slide-in` / `.animate-shake` 两个工具类，自动受全局 `prefers-reduced-motion` 覆盖。判分本就是本地同步（`gradePracticeItem`）、闪卡的 SM-2 上报本就是 fire-and-forget，所以这轮补的是反馈密度，不是网络延迟。
 - `word_notes.get_best_note` 把视频层/全局 × lemma/surface 四个候选合并为单次 `or_` 查询，按 video:lemma → video:surface → global:lemma → global:surface 取最优（此前最多 4 次串行 SELECT；考试词 DB 往返 6→3、非考试词 4→1）。
 - 前端 `mediaUrl()` 支持 `withToken`（草稿媒体预览携带 JWT）。
@@ -36,6 +38,7 @@
 - `scoring_tasks` 惰性导入 async_session（与其他任务模块一致，测试可达）。
 
 ### Fixed
+
 - **登录/注册后白屏（第二次修复，09-24）**：09-22 的修复（e49c3f9，登录成功分支渲染 spinner + global-error）已上生产但无效——根因在 `Spinner.tsx`：`FullPageSpinner` 尺寸写成裸数字（`` `${s} ${s} ` `` 得到 class `8 8`），转圈元素塌缩成约 4.7px 残点，整屏只剩浅色 `bg-canvas`，用户看到的就是白屏；弱网或部署后旧 chunk 使软导航迟迟不落地时只能手动刷新。改为 `h-6 w-6` / `h-8 w-8` / `h-10 w-10` 尺寸 class（InlineSpinner 一直正常）。生产 chunk 已核实含旧写法；新增 e2e 回归 `e2e/login-white-screen.spec.ts`（挂起登录后的 RSC 导航请求，断言过渡窗口内 spinner 有效尺寸 ≥24px、随后首页落地、全程无 pageerror）。
 - **改性别后顶栏头像不跟随（09-22，DEC-048）**：`TopBar` 与资料页各自 `GET /users/me` 并各存一份 `avatar_url`/`gender`（JWT 载荷不含这两个字段），于是资料页改完性别，顶栏要刷新才同步。新增 `stores/profileStore` 作唯一来源——资料页是写者（初次加载、PATCH 昵称/性别、上传头像、换绑手机四处落点统一经 `applyUser` 写入），顶栏只读，登出时 reset；一次会话只发一次请求、并发去重，失败仍落「无上传」以免骨架永久脉冲。
 - **默认头像引入的三处缺陷（09-22）**：①`Avatar` 的失败标记是布尔量且从不随 `src` 变化重置——用户头像 404 后 `errored` 永久为真，此后 `ProfileTab` 上传成功、`avatar_url` 已更新仍渲染默认头像，上传看起来失败。改为按「失败的 URL」记账（`failedUpload` / `failedDefault` / `loadedSrc`），新 `src` 天然脱离失败集合，无需 remount 或重置 effect。②默认插图底色是近白奶油色（实测 `rgb(254,249,230)`，95% 像素亮于 200），落在 `.dark` 的 `#0a0a0a` 画布上是个刺眼白盘，违反 INV-017；仅对默认插图加 `dark:invert`（线描图反转即浅线深底，恰好合于暗色），用户上传图不动。③两个 `default-avatar-*.png` 实为 1024×1024 JPEG（带豆包 AIGC 元数据，扩展名与 Content-Type 都错），而 `next/image` 走自定义 loader 不做任何优化，TopBar 每个页面都要下发约 210KB；重编码为 160×160 无损 WebP（约 21KB / 20KB）。顺带补回账户页头像的 `alt`（换成 `Avatar` 时漏传，可访问名称退化成一个首字母——`Alt` 为 `user.name ?? "头像"`），并把 `dark:invert` 记入 `wiki/architecture/frontend-architecture.md` 的 `dark:` 逃生舱清单。
@@ -54,6 +57,7 @@
 ## [0.1.1] - 2026-08-03
 
 ### Added
+
 - **Stage 1 播放页速效**：字幕区独立滚动、词卡默认停泊位避让字幕栏（展开=左下/收起=右下）、字幕面板收起时视频区 max-width 约束居中、侧栏收起/展开 toggle（修复 localStorage 残留 collapsed 卡死）。
 - **Stage 2 播放页核心**：根容器 `h-full snap-y snap-mandatory`，屏1=视频+字幕面板、屏2=练习区，下滚翻页 + 阻尼吸附。
 - **Stage 3 画布编辑器后端**：`POST /admin/{vid}/subtitles/reorder`、`POST /admin/{vid}/subtitles`（新建空行）、`DELETE /admin/{vid}/subtitles/{sid}`，复用 `_validate_timing` 不重叠校验。
@@ -61,12 +65,15 @@
 - **Stage 4 反馈公告系统**：Feedback 模型 + API（用户提交/admin 列表/回复/状态）、公告广播（Notification type=announcement，遍历全体用户）、`/contact` 页（联系方式 + 公告区 + 反馈表单 + 我的反馈）、admin `/admin/feedback` 页（发送公告 + 反馈管理 + 回复）。
 
 ### Changed
+
 - 字幕编辑器加内联两步删除（首次点击武装"确认删除"，3s 超时复位）。
 - `WordTooltipInline` 加 `data-testid="word-tooltip"` 做稳健测试选择器。
 
 ### Fixed
+
 - F1：主应用桌面 sidebar 无收起/展开按钮，localStorage 残留 `sidebar-collapsed=true` 时卡死"无法打开"。
 - Stage 1 e2e：词卡选择器 `.fixed.z-50` 与移动端遮罩歧义，改用 `data-testid`；过滤 analytics keepalive 预检 405 网络噪音。
 
 ### Diagnosed
+
 - Stage 5 ASR/标注质量：用户报的 good->best / more->mores / out->outing / I->abiding 在当前代码已全部正确处理（`ecdict-exchange-lemma-bug` 已修），无需改代码。详见 `wiki/problems/asr-annotation-quality-diagnosis.md`。
