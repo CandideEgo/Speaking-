@@ -26,8 +26,10 @@
   - 文档：ADR-0013（Shadowing 录音持久化）、SECURITY.md 重写、context/system-map/state 更正。
 - **提醒调度（08-29，DEC-026）** / **周报不可变快照（08-29，DEC-027）** / **跟读体验增强（08-30，DEC-028）** / **两天 26 提交深度审查 + 5 项修复（08-30，DEC-021）** / **D12 可访问性浅层落地（08-30，DEC-033）**——从 `.agent/state.md` Recently Completed 尾部剪入（state.md 体积管控， reasoning 见对应决策条目）。
 - **翻译引擎统一 ARK（09-08，DEC-029）** / **YouTube anti-bot（09-09，DEC-030）** / **NSSM 服务化托管（09-09，DEC-031）** / **上线验证判据（09-09，DEC-032）** / **频道升级 Auto-Channel（08-30，DEC-035）** / **产品设计规划-2026-08 Phase 0-3 + §10 四项拍板（08-30，DEC-034）** / **D0b 产品瘦身（08-28，DEC-025）** / **D0 会员模型（08-28，DEC-024）** / **内测前加固 Phase 0-3（DEC-011/012）**——同上，第二轮从 `state.md` 尾部剪入；DEC-029..036 的正文同轮归档到 `.agent/archive/decisions-2026-09.md`（推理见对应条目与索引）。
+- **生产部署链路加固（09-20，DEC-039）** / **免费化影响评估报告（09-18）** / **知识层重构 Phase 0/1（09-19）**——同上，从 `.agent/state.md` Recently Completed 尾部剪入（state.md 体积管控）。
 
 ### Changed
+- **单词训练（drill）交互打磨（09-24）**：选项行补判定反馈（答对 `animate-check-pop`、答错 `animate-shake`）；题目卡与答错后的「下一题」栏、完成态（奖杯 pop + 结果区）淡入；闪卡详解区改 `fade-slide-in`；阶段切换（学新词→复习测验）淡入；练习加载态由一行「加载练习中…」换成题目卡骨架屏（复用 `skeleton-shimmer`）。`globals.css` 新增 `.animate-fade-slide-in` / `.animate-shake` 两个工具类，自动受全局 `prefers-reduced-motion` 覆盖。判分本就是本地同步（`gradePracticeItem`）、闪卡的 SM-2 上报本就是 fire-and-forget，所以这轮补的是反馈密度，不是网络延迟。
 - `word_notes.get_best_note` 把视频层/全局 × lemma/surface 四个候选合并为单次 `or_` 查询，按 video:lemma → video:surface → global:lemma → global:surface 取最优（此前最多 4 次串行 SELECT；考试词 DB 往返 6→3、非考试词 4→1）。
 - 前端 `mediaUrl()` 支持 `withToken`（草稿媒体预览携带 JWT）。
 - 后端 `get_engine()` 池参数仅 Postgres 生效（SQLite 兼容）。
