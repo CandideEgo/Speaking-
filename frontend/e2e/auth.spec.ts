@@ -53,14 +53,32 @@ test.describe("Login", () => {
     await expect(page.getByRole("button", { name: "退出登录" })).toBeVisible({ timeout: 10000 });
   });
 
-  test("wrong credentials do not grant access", async ({ page }) => {
+  test("wrong credentials show the server's message without reloading the page", async ({
+    page,
+  }) => {
     await page.goto("/login");
+    // Survives a React re-render, dies on a document reload.
+    await page.evaluate(() => {
+      (window as unknown as { __loginMarker?: string }).__loginMarker = "kept";
+    });
+    const mainFrameNavigations: string[] = [];
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) mainFrameNavigations.push(frame.url());
+    });
+
     await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
     await page.locator('input[type="password"]').fill("WrongPass123");
     await page.locator('button[type="submit"]').click();
-    // The api client's global 401 handler rejects bad credentials and clears
-    // the session. Allow time for the failing request + redirect to settle.
-    await page.waitForTimeout(3000);
+
+    // The backend's 401 message must reach the user. This used to log out and
+    // hard-redirect to /login twice, wiping the message before it could render.
+    await expect(page.locator("p.text-error")).toHaveText("手机号或密码错误", { timeout: 10000 });
+    expect(mainFrameNavigations).toEqual([]);
+    const marker = await page.evaluate(
+      () => (window as unknown as { __loginMarker?: string }).__loginMarker ?? null
+    );
+    expect(marker).toBe("kept");
+
     const token = await page.evaluate(() => localStorage.getItem("seeword_token"));
     expect(token).toBeNull();
     expect(page.url()).toContain("/login");

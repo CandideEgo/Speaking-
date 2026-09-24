@@ -6,12 +6,11 @@
 
 ## Last Updated
 
-Date: 2026-09-24
+Date: 2026-09-25
 
-- **未推送未部署**（09-24）：drill 交互打磨已提交（纯前端，详见 CHANGELOG），`master` 领先 `origin/master` 1 个提交
+- **生产缺少登录修复**（09-25）：前端镜像仍 `050de8864a37`（09-24 上：手机号本地校验 + Spinner 白屏修复）；「401 不再当会话过期」已推 `origin/master` 未重建镜像——线上输错密码仍无提示
 - **已部署**（09-23 00:15，镜像 `f2c48fdcf1f3`/`7f9d9dffee31`，迁移仍 `j5k6l7m8n9o0`）：词库卡片一键已掌握（`POST /vocabulary/{id}/mastered`）+ 播放页去掉 `ChannelEntry` 入口卡（字幕卡紧贴播放器）+ 反馈页开发者邮箱换真实邮箱 + 后台用户管理渲染 `<Avatar>`（响应补 `gender`）。反馈闭环已跑通：`feedbacks` 1 条 `open`（09-22 19:23），`GET /admin/feedback` 正常返回。上一版「生产 feedbacks 为空」查的是旧机 `seeword-*`，结论作废
 - **生产已更新**（09-22 17:48，镜像 `1db6f136def5`/`57daf3c52dc9`，迁移 `j5k6l7m8n9o0` 加 `users.gender`）：发现→频道 + 词汇本→单词训练改版（DEC-046：`daily-session` 端点、`/vocabulary` 今日/词库两段视图、drill 两段式百词斩流程、播放页 `ChannelEntry` 频道入口卡）+ 默认头像跟随性别（DEC-048）+ iOS 播放态/点词分级（DEC-044）+ 难度校准（DEC-043）。部署源为 `master` HEAD（本地积压的 8 个提交已全部推送后构建）；切换后已 `nginx -s reload`，核验全绿。DEC-043 存量已为新算值（`--dry-run` 逐条 was==would，未改写；09-21 那次重算的备份见 `/root/backups/videos_before_recompute_20260921205759.sql.gz`），**不需要再跑 `backfill_difficulty.py`**
-- **生产已更新**（09-21 19:42 镜像 `d2cc67d47073`/`cab8d974e4e1`）：iOS playsinline + 分级颜色目标优先 + LLM 视频分类（存量 49 支视频 `topic_tags` 已回填）；部署源为未提交工作区
 
 ## Recently Completed
 

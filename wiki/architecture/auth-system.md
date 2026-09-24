@@ -27,11 +27,13 @@ SeeWord uses JWT authentication with dual sessions for user and admin.
 
 User app and admin console use separate localStorage token keys (`seeword_token` vs `seeword_admin_*`). Both use the same backend JWT/role system but independent sessions. Logging out of one doesn't affect the other.
 
-authStore and adminAuthStore have similar patterns (auto-refresh, mutex) but are separate implementations — no shared factory currently.
+authStore and adminAuthStore have similar patterns (auto-refresh, mutex) but are separate implementations; the request loop they share lives in `lib/createApiClient.ts`, which each store reaches through an auth adapter.
 
-# Frontend API Client (`lib/api.ts`)
+# Frontend API Client (`lib/createApiClient.ts`, re-exported by `lib/api.ts` / `lib/adminApi.ts`)
 
-Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expiry check with auto-refresh, 401 handling (refresh → retry → logout), `ApiError` class with status + server error code, `mediaUrl()` helper for `/media/` paths.
+Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expiry check with auto-refresh, 401 handling (only for requests that actually carried a token — see `sentWithAuth`), `ApiError` class with status + server error code, `mediaUrl()` helper for `/media/` paths.
+
+The 401 branch only refreshes when the request carried an `Authorization` header. Without one, the 401 is the server rejecting the request itself (e.g. a wrong password on `/login`) and is thrown to the caller to display — refreshing there would instead log out and hard-redirect, wiping the server's message before it rendered.
 
 # Frontend State (Zustand)
 

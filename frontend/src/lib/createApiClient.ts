@@ -200,6 +200,10 @@ export function createApiClient(options: CreateApiClientOptions) {
       }
       if (token) headers.set("Authorization", `Bearer ${token}`);
     }
+    // Did the first attempt go out with credentials? A 401 on a request that
+    // carried none is the server rejecting the request itself (failed login,
+    // missing permission), not an expired session — see the 401 branch below.
+    const sentWithAuth = headers.has("Authorization");
 
     let lastError: InstanceType<typeof ErrorClass> | null = null;
 
@@ -228,10 +232,13 @@ export function createApiClient(options: CreateApiClientOptions) {
         throw lastError;
       }
 
-      // 401 → refresh token and retry (only once per request, and only if
+      // 401 → refresh token and retry. Only when the request actually carried
+      // credentials (an unauthenticated 401 is a rejection of the request, e.g.
+      // a failed login, and refreshing would log the user out instead of letting
+      // the caller show the server's message), only once per request, and only if
       // we haven't already refreshed in the pre-request check — with rotating
-      // refresh tokens, a second refresh would fail and cause unexpected logout)
-      if (res.status === 401 && attempt === 0 && !alreadyRefreshed) {
+      // refresh tokens, a second refresh would fail and cause unexpected logout.
+      if (res.status === 401 && attempt === 0 && !alreadyRefreshed && sentWithAuth) {
         const refreshed = await auth.refreshToken();
         if (refreshed) {
           const newToken = auth.getToken();
