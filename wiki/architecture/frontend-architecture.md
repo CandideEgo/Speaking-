@@ -26,7 +26,7 @@ frontend/src/
 ├── hooks/        # Custom hooks (useVideoPlayer, useWordLookup, usePlatformFeed, ...)
 ├── lib/          # Utilities (api.ts, createApiClient.ts, authHelpers.ts, siteConfig.ts, chart-theme.ts, topicCategories.ts)
 ├── stores/       # Zustand stores
-├── types/        # TypeScript interfaces (index.ts + platform.ts, ~615 lines)
+├── types/        # TypeScript interfaces (index.ts + platform.ts, ~670 lines)
 └── proxy.ts      # Next 16 proxy: login wall + admin-session split
 ```
 
@@ -89,4 +89,4 @@ A new entry surface must pass its own marker, or the return button silently degr
 - Tailwind v4 is CSS-first — do NOT create `tailwind.config.js`
 - `lib/topicCategories.ts` is the single source for topic id → 中文标签; the home filter bar (`HomeFilterBar`, via its own `CategoryDropdown`/`SortDropdown` — `TabPills` survives only for the difficulty pills) and card chips (`VideoCard`) both read it, and its ids must stay in sync with the backend taxonomy `services/video_classification.TOPIC_CATEGORIES`. `VideoCard` displays only the first (primary) tag of the comma-separated `topic_tags`. `topicLabel` normalises case and whitespace before lookup (`"TED"` → 「TED 演讲」), returns 「综合」 only for an **empty** value, and passes an unknown or legacy free-text tag through unchanged (admin-entered tags stay readable).
 - authStore and adminAuthStore are separate implementations — no shared factory (`createAuthStore` was planned but not implemented). They do share `lib/authHelpers.ts` (token-key migration, cookie sync, `deriveAuthenticated`).
-- Images must NOT be pasted into agent conversations (see wiki/problems/image-handling.md)
+- 图片可直接 `Read` 或粘贴进会话（2026-09-25 起模型支持图片，旧的 `/image-vision` 绕行已移除）；仅历史会话残留 image block 时才需恢复，步骤见 `wiki/guides/agent-image-handling.md`

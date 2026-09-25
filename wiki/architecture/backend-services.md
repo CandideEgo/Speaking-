@@ -31,8 +31,9 @@ Keep route files thin. Business logic in service layer.
 | `ai_service.py` | Central AI wrapper (AsyncOpenAI). Singleton `get_ai_service()`. Redis caching for enrichment/gloss. Public `chat_json()` for one-shot structured LLM calls. Speaking-scoring methods removed (ADR-0002). |
 | `video_classification.py` | LLM video classification (DEC-042): canonical topic taxonomy (browse filter + LLM whitelist single source), topic_tags overwrite / difficulty fill-on-NULL, pipeline `classifying` step + backfill script. |
 | `difficulty_service.py` | Subtitle-derived CEFR difficulty (DEC-043): per-word acquisition level = the *lowest* exam list containing it, 超纲率 = share of word occurrences above 中考, mapped to A1–C1/C2 bands; needs ≥30 occurrences. Writes `difficulty_level` only when NULL — the fallback behind `video_classification.py`'s LLM estimate. |
-| `video_service.py` | Video submit (dedup by URL), detail with Redis caching, search (PostgreSQL FTS + ILIKE fallback). |
+| `video_service.py` | 视频列表/详情（详情走 Redis 缓存）、UGC 管理与三态下线；**提交与按 URL 去重在 `video_seed_service.py`，FTS + ILIKE 检索在 `search_service.py`**。 |
 | `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, stats, 今日训练队列 (`build_daily_session`: new=从未复习 / due=到期非 mastered，两队列 + totals；`totals.due_total` 不含 new 词，与 stats 徽标的 `due_count` 口径故意不同). |
+| `study_session_service.py` | 训练轮次落库 + 每日配额（DEC-053）：`StudySession`/`StudySessionItem` 一轮一词一行、重复作答只 UPDATE；配额快照进轮次（改配额不重写历史）；`kind=extra` 加练计今日累计不计目标；`finish_session` 同事务清扫 30 天前的轮次明细。 |
 | `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |
 | `exam_service.py` | Exam system: daily_check / video_exam / wrong_redo sessions, server-side grading (`exam_sessions`/`exam_answers`), derived wrong book, practice hub stats. Answers never leave the server in exam mode; grading reuses `submit_practice_results` for SM-2 + LearningEvents. |
 | `transcription/` | Dedicated sub-service: WhisperX/faster-whisper, chunked transcription, forced alignment, punctuation restoration, audio extraction, segment formatting. |
@@ -50,7 +51,7 @@ Keep route files thin. Business logic in service layer.
 - **Fail-open Redis**: Cache, token blacklist, and rate limiting all degrade gracefully when Redis is unavailable (rate limiter falls back to in-memory buckets; see `core/limiter.py`). The app never crashes due to a Redis outage.
 - **Lazy initialization**: DB engine, Redis client, AI service, and Whisper model are all created lazily on first use, so processes that don't need them (e.g., GPU worker without DB) can import the modules without side effects.
 - **Singleton patterns**: `get_settings()` (lru_cache), `get_redis()` (module global), `get_ai_service()` (thread-safe double-checked locking), `get_whisper_model()`.
-- **Translation engine**: Pluggable — `qwen` (default) / `hy_mt2` / `agnes` / `glm` / `custom`, with optional fallback engine run concurrently (first valid wins). Agnes is retired for translation (missed/low-quality output) but still backs non-translation LLM calls in `ai_service`. Config in `Settings.translation_engine` / `translation_fallback_engine` / `translation_concurrent`.
+- **Translation engine**: Pluggable registry (`custom` / `qwen` / `hy_mt2` / `agnes` / `glm`) with an optional fallback run concurrently (first valid wins). **The effective primary is `custom` = 火山 ARK `ark-code-latest`** (DEC-029/ADR-0018): qwen/hy_mt2/glm lost their keys and survive only as a switch-back path, while `agnes` (proxying `OPENAI_*`) is the remaining non-ARK engine that `ai_service` still reuses for non-translation calls. Config in `Settings.translation_engine` / `translation_fallback_engine` / `translation_concurrent`.
 
 # Future Notes
 

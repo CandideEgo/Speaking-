@@ -111,7 +111,7 @@ ENV=production
     │  Backend   │    │ Frontend  │    │   Celery    │
     │  Gunicorn  │    │ Next.js   │    │   Worker    │
     │  :8000     │    │ :3000     │    │             │
-    │ (4 workers)│    │(standalone)│    │             │
+    │ (2 workers)│    │(standalone)│    │             │
     └─────┬─────┘    └───────────┘    └──────┬──────┘
           │                                  │
     ┌─────▼─────┐                     ┌──────▼──────┐
@@ -138,7 +138,7 @@ ENV=production
 | ✅ 日志轮转 | 所有服务 `json-file` driver, max-size 10m, max-file 3 |
 | ✅ Whisper 模型缓存 | 多阶段 Dockerfile 构建时预下载 base 模型 + WhisperX alignment 模型 |
 | ✅ Flower 监控 | Celery 任务监控 (mher/flower:2.0, port 5555) |
-| ✅ Gunicorn | 4 workers + UvicornWorker |
+| ✅ Gunicorn | 2 workers + UvicornWorker (`docker-compose.prod.yml` 的 `-w 2`) |
 | ✅ Frontend standalone | 多阶段 Dockerfile.prod, non-root user, standalone output |
 | ✅ Redis 密码认证 | `--requirepass ${REDIS_PASSWORD}` |
 

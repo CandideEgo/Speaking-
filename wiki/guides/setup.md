@@ -6,7 +6,7 @@ confidence: verified
 related_code: [docker-compose, env-config]
 related: [wiki/guides/testing.md]
 created: 2026-07-21
-updated: 2026-07-21
+updated: 2026-09-25
 ---
 
 # Local Development
@@ -39,7 +39,7 @@ Required: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OPENAI_API_KEY`
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Production: gunicorn (4 workers) + nginx (SSL/reverse proxy) + standalone Next.js. Secrets via shell env or `.env`.
+Production: gunicorn (2 workers, `docker-compose.prod.yml` 的 `-w 2`) + nginx (SSL/reverse proxy) + standalone Next.js. Secrets via shell env or `.env`.
 
 ## Video Seeding
 
