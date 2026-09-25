@@ -25,6 +25,24 @@ function isFeedSort(value: string | null): value is FeedSort {
   return value !== null && (SORT_VALUES as readonly string[]).includes(value);
 }
 
+/** How each order is spelled on the wire. The key set is derived from `FeedSort`,
+ *  so a new value there is a compile error until it is mapped here — a hand-written
+ *  `if` would instead compile and silently drop the `?sort=` the URL carries.
+ *  "latest" is the backend's own default and "recommended" is client-only (the
+ *  unfiltered home view), so neither is sent — browse URLs and cache keys for the
+ *  pre-existing values stay exactly as they were. */
+const BROWSE_SORT_PARAM: Record<Exclude<FeedSort, "recommended" | "latest">, string> = {
+  hot: "hot",
+  favorite: "favorite",
+  weekly_favorite: "weekly_favorite",
+};
+
+/** The `sort` to send to /browse/feed, or null to omit the parameter. */
+function browseSortParam(sort: FeedSort): string | null {
+  if (sort === "recommended" || sort === "latest") return null;
+  return BROWSE_SORT_PARAM[sort];
+}
+
 /** 各平台默认排序：首页个性化推荐，频道页最新（也是后端默认）。 */
 const DEFAULT_SORT: Record<Platform, FeedSort> = { home: "recommended", browse: "latest" };
 
@@ -171,13 +189,8 @@ export function usePlatformFeed({
         page_size: String(PAGE_SIZE),
       });
       if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
-      // Backend sorts: latest (default) | hot | favorite | weekly_favorite.
-      // "latest" is the backend default and "recommended" is client-only (the
-      // unfiltered home view) — omit both so browse URLs/cache keys stay unchanged.
-      // A whitelist rather than `sort !== "latest"`: sending "recommended" would 422.
-      if (sort === "hot" || sort === "favorite" || sort === "weekly_favorite") {
-        params.set("sort", sort);
-      }
+      const browseSort = browseSortParam(sort);
+      if (browseSort) params.set("sort", browseSort);
       return api<Paginated<VideoItem>>(`/api/v1/browse/feed?${params.toString()}`);
     },
     mode: "append",

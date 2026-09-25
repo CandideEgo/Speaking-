@@ -28,13 +28,19 @@ const DIFFICULTY_LEVELS = [
   { id: "C2", label: "C2" },
 ];
 
-const SORT_OPTIONS: { key: FeedSort; label: string; hint: string; icon: LucideIcon }[] = [
-  { key: "recommended", label: "推荐", hint: "根据你的学习情况个性化挑选", icon: Sparkles },
-  { key: "hot", label: "热播", hint: "按播放量排序", icon: Flame },
-  { key: "favorite", label: "收藏最多", hint: "按收藏总数排序", icon: Bookmark },
-  { key: "weekly_favorite", label: "本周收藏", hint: "按本周新增收藏排序", icon: CalendarHeart },
-  { key: "latest", label: "最新", hint: "按发布时间排序", icon: Clock3 },
-];
+/** 排序项的展示元数据。用 `Record<FeedSort, …>` 而不是数组：漏掉一个 `FeedSort` 值
+ *  是编译错误，否则下拉会拿 `SORT_OPTIONS[0]` 兜底、把「推荐」的文案贴在另一个排序上。 */
+const SORT_OPTIONS: Record<FeedSort, { label: string; hint: string; icon: LucideIcon }> = {
+  recommended: { label: "推荐", hint: "根据你的学习情况个性化挑选", icon: Sparkles },
+  hot: { label: "热播", hint: "按播放量排序", icon: Flame },
+  favorite: { label: "收藏最多", hint: "按收藏总数排序", icon: Bookmark },
+  weekly_favorite: { label: "本周收藏", hint: "按本周新增收藏排序", icon: CalendarHeart },
+  latest: { label: "最新", hint: "按发布时间排序", icon: Clock3 },
+};
+
+/** 下拉里的排列顺序（计数型排序贴着热播，时间轴落末位）。漏一个值只是那个选项
+ *  不出现在下拉里，不会标错文案——所以要靠这张有序表，而不是对象键顺序。 */
+const SORT_ORDER: FeedSort[] = ["recommended", "hot", "favorite", "weekly_favorite", "latest"];
 
 const CHIP_BUTTON =
   "inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 cursor-pointer";
@@ -137,7 +143,7 @@ function CategoryDropdown({
 
 /** 排序：原「排行」块的下榜单开关，改为对整个视频网格排序。 */
 function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: FeedSort) => void }) {
-  const current = SORT_OPTIONS.find((o) => o.key === sort) ?? SORT_OPTIONS[0];
+  const current = SORT_OPTIONS[sort];
   return (
     <DropdownButton
       label={current.label}
@@ -147,39 +153,42 @@ function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: Fee
       panelClassName="w-[15.5rem]"
       panel={(close) => (
         <div>
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => {
-                onChange(opt.key);
-                close();
-              }}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors cursor-pointer",
-                opt.key === sort ? "bg-brand-50 text-brand-600" : "text-ink hover:bg-surface-soft"
-              )}
-            >
-              <opt.icon size={15} className="flex-shrink-0" />
-              <span className="flex-1">
-                <span
-                  className={cn(
-                    "block text-[13px] font-semibold",
-                    opt.key === sort && "text-brand-600"
-                  )}
-                >
-                  {opt.label}
+          {SORT_ORDER.map((key) => {
+            const opt = SORT_OPTIONS[key];
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  onChange(key);
+                  close();
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors cursor-pointer",
+                  key === sort ? "bg-brand-50 text-brand-600" : "text-ink hover:bg-surface-soft"
+                )}
+              >
+                <opt.icon size={15} className="flex-shrink-0" />
+                <span className="flex-1">
+                  <span
+                    className={cn(
+                      "block text-[13px] font-semibold",
+                      key === sort && "text-brand-600"
+                    )}
+                  >
+                    {opt.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "block text-xs",
+                      key === sort ? "text-brand-600/70" : "text-muted"
+                    )}
+                  >
+                    {opt.hint}
+                  </span>
                 </span>
-                <span
-                  className={cn(
-                    "block text-xs",
-                    opt.key === sort ? "text-brand-600/70" : "text-muted"
-                  )}
-                >
-                  {opt.hint}
-                </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
           <div className="my-1.5 h-px bg-hairline" />
           <Link
             href="/rankings"

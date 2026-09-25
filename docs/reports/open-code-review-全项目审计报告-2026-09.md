@@ -701,3 +701,66 @@ H21 的 PostgreSQL 前提**单独实测确认**（SQLite 不校验 `varchar` 长
 ### D.7 提交
 
 本轮与上一轮的改动**仍未提交**，全部在工作区。注意工作区里混着一批**与审计无关的用户侧前端改动**（登录/注册页的 `RedirectStuckState` 重定向卡死恢复、`useRequireAuth.ts`、`e2e/login-redirect-loop.spec.ts`，以及 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`）——这批**已从审计提交中拆出**。
+
+---
+
+## 附录 E：S2f 变更的 diff review 与修复（2026-09-25 追加，效力高于第 5.2 节对首页排序的描述）
+
+第四轮与前几轮的做法不同：**不再全仓扫描，而是对 S2f 那一个提交做单提交 diff review**（`ocr review --commit`），范围小、结论可逐条核实。本附录记下命令与结果，供下次同类轮次照抄。
+
+### E.1 命令与结果
+
+```bash
+ocr review --audience agent --concurrency 1 --commit 1ef0790ba52b8790d7f79bff239d086ca07a03e3 \
+  --background "<业务背景：S2f 是前端接通后端已有的 sort=favorite|weekly_favorite；约束是 URL 为筛选唯一真相、既有四值的 URL 与缓存键不得变>" \
+  --output logs/ocr-review-s2f.txt
+```
+
+- **3 个文件**（`frontend/src/hooks/usePlatformFeed.ts`、`frontend/src/components/home/HomeFilterBar.tsx`、`frontend/e2e/home-sort.spec.ts`）、**2 条评论**、~1.52M tokens（input 1.49M / output 35K、cache read 1.42M）、2m57s、**exit 0**、session `ca18fcc5-d5e2-4237-8cc9-a4e2d245a4f0`。
+- 严重性分布：**0 critical / 0 high**，1 medium + 1 low，两条都落在 maintainability 的同一类问题（类型与手写列表漂移）。
+- 参数取舍：`--concurrency 1` 是本次要求（单线程）；`--audience agent` 抑制进度 UI；`--output` 写文件后整份读，避免管道截断丢掉前面的评论。
+
+### E.2 两条发现的核实
+
+| # | 严重性 | 发现 | 是否成立 | 为什么成立 |
+|---|---|---|---|---|
+| 1 | medium | 请求侧白名单（`if (sort === "hot" \|\| …)`）是第三份手写列表：往 `SORT_VALUES` 加值会编译通过并被静默丢弃 | **成立** | `FeedSort` 从数组派生只保证「类型 ⊇ 白名单」，不保证「白名单 ⊇ 类型」。新 e2e 只钉住它认识的两个值 |
+| 2 | low | `SORT_OPTIONS` 是数组，不强制每个 `FeedSort` 都有条目；漏项时 `?? SORT_OPTIONS[0]` 会把非默认排序**标成「推荐」** | **成立** | `SortDropdown` 的兜底分支把文案与真实排序解耦，且没有任何测试能发现 |
+
+两条都不是幻觉：第 1 条的失败模式与 S2b 当初警告的完全同构，第 2 条读代码即可确认。
+
+### E.3 修法（与建议有一处偏离）
+
+| # | 建议 | 实际做法 | 偏离理由 |
+|---|---|---|---|
+| 1 | `Record<Exclude<FeedSort, "recommended" \| "latest">, string>` + 取用处 `as keyof typeof` cast | 同样的 `BROWSE_SORT_PARAM`，但取用经一个小函数 `browseSortParam(sort): string \| null` | 函数里 `if (sort === "recommended" \|\| sort === "latest") return null;` 之后 TS 会把 `sort` 收窄到 `Exclude<…>`，**索引 Record 不再需要 cast**；语义（哪两个值不发）也写在了一处 |
+| 2 | `Record<FeedSort, {label; hint; icon}>` + 有序 key 数组 | 照做，新增 `SORT_ORDER` | 无 |
+
+`SORT_ORDER` 本身仍是手写列表，但漏项的后果与非对称：只会让新选项**不出现在下拉里**，不会标错文案；`SORT_OPTIONS[sort]` 也去掉了原来的兜底分支（`FeedSort` 里每个值都必有条目）。
+
+### E.4 验证（全部实跑）
+
+**① 编译期守卫确有牙齿（RED，临时探针）** —— 把 `"views"` 加进 `SORT_VALUES` 后 `npx tsc --noEmit` **exit 2**，两条错误正是两张表：
+
+```
+src/components/home/HomeFilterBar.tsx(33,7): error TS2741: Property 'views' is missing … type 'Record<"recommended" | "hot" | "latest" | "favorite" | "weekly_favorite" | "views", …>'.
+src/hooks/usePlatformFeed.ts(34,7): error TS2741: Property 'views' is missing … type 'Record<"hot" | "favorite" | "weekly_favorite" | "views", string>'.
+```
+
+探针已还原，`npx tsc --noEmit` 回 **exit 0**（GREEN）。
+
+**② 四道本地门**：`npm run format:check` exit 0；`npx tsc --noEmit` exit 0；`npm run test:unit` exit 0（10 files / 78 tests）；`npm run lint` exit 0（0 errors / 10 warnings，均既有文件）；`npm run build` exit 0。
+
+**③ e2e（`--workers=1` 单线程，后端 `ENV=testing`）**：`npx playwright test --project=chromium --workers=1 e2e/home-sort.spec.ts e2e/watch-return.spec.ts` → **2 passed / exit 0**。上一轮并行跑时 watch-return 报的 `409 该手机号已注册` 是 `uniquePhone()` 撞号，**单线程即消失**（这条已记进交接票「遗留」）。
+
+**④ 请求侧实证**（后端访问日志）：`…page_size=20&sort=favorite`、`…sort=weekly_favorite`、`…sort=hot` 均出现且 200 —— 重构后的 `browseSortParam` 没有改变实际发出的参数。
+
+### E.5 知识层
+
+- `frontend-components` 代码变更 → `stale` 复报一次，核对 `wiki/architecture/frontend-architecture.md` 的 Navigation 一节（它讲 URL 是筛选唯一真相、`from=` 与 `replace`，**不枚举 sort 取值**，两轮改动后仍成立）后刷新印章。
+- `scripts/check-knowledge/check_knowledge.py` 七项全 ok。**未写 wiki 正文**：sort 取值与两张映射表都由代码直述。
+- 未新增 DEC 条目：接口契约仍由 DEC-052 裁决，本轮只是把同一契约的实现做成「漏项即编译错误」，没有改变任何取舍。
+
+### E.6 提交
+
+本轮改动（`usePlatformFeed.ts` / `HomeFilterBar.tsx` / `knowledge-stamps.json` / 本附录）与 S2f 主提交分开提交，提交信息只讲本轮 review 的两条修复。
