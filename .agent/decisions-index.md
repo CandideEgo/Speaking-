@@ -62,3 +62,4 @@
 | DEC-049 | 2026-09-25 | Catalog promote 改为幂等复用：行锁 + 记录链接 + URL 级回收 | — | active |
 | DEC-050 | 2026-09-25 | 行为事件的镜像副作用统一以 LearningRecord 为前提；未知 video_id 置 NULL | — | active |
 | DEC-051 | 2026-09-25 | 未知 ENV 值 fail-closed，保留 development 作为默认 | — | active |
+| DEC-052 | 2026-09-25 | 首页 feed 加「收藏最多 / 本周收藏」排序（修订 DEC-041 的「刻意不同源」条款） | — | active |

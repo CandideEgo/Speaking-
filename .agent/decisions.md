@@ -347,3 +347,19 @@ DEC-048 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 
 **Trade-offs**:
 - 线上若**完全不设** `ENV` 仍以 development 运行（含 dev 支付签名旁路与 mock 支付路由）；缓解只能靠部署侧显式注入（`docker-compose.prod.yml`、`deploy*.sh`、CI 均已写），进程环境无法从仓库自证。
+
+## 2026-09-25 — 首页 feed 加「收藏最多 / 本周收藏」排序（修订 DEC-041 的「刻意不同源」条款）
+
+**Problem**: 首页排序只有 `latest`/`hot`，产品方要求把排行榜已有的「本周收藏」也搬进首页排序（设计文档 §2.2）。但 DEC-041 定 `hot` 时明确写过「feed 排序与周榜去重口径刻意不同源，周榜仍是 `/videos/rankings` 唯一职责」——`weekly_favorite` 一旦进 feed，后半句不再成立，需要重新裁决「周榜口径能否有第二个消费者」。
+
+**Options**: A) feed 直接复用排行榜快照（零后端改动，但快照只有固定 Top-20、不与分类/难度组合、无分页）；B) feed 的 `sort` 加值、周界调用 `ranking_service.current_week_start_utc()`，缓存仍走 `browse:feed:*`；C) 在 browse 里另写一套周界与聚合，保持与周榜彻底独立。
+
+**Decision**: B。`sort` 扩为 `latest|hot|favorite|weekly_favorite`；`favorite` 用去规范化列 `Video.favorite_count`（不 `COUNT(*)`）；`weekly_favorite` 用 `LEFT JOIN (SELECT video_id, COUNT(*) FROM user_favorites WHERE created_at >= 本周一 GROUP BY video_id)`，排序 `metric DESC NULLS LAST, created_at DESC, id DESC`。周界**只**经 `current_week_start_utc()` 取，不在 browse 重写。DEC-041 的其余部分（feed 加 `sort`、首页删 `RankingBlock`）不变；`hot` 仍是站内总播放、仍与 `weekly_views` 不同源。
+
+**Reason**: A 回答不了「这个分类里的本周收藏是什么」——feed 是带筛选的分页列表，需要能排序的 SQL；C 会让「本周」出现第二个定义，两个页面迟早漂移，而 DEC-038 已把周界收敛成一个函数。feed 用 `LEFT JOIN` 而非排行榜的 `INNER JOIN`：feed 是浏览列表，没有本周收藏的视频必须仍能翻到，排在尾部。
+
+**Trade-offs**:
+- 同一时点两个页面的 Top-20 可能不同：feed 缓存 TTL 300s，周榜快照由 beat 每日重算（最长滞后约 24h）。口径一致、快照不一致，是「复用口径不复用缓存」的既定取舍。
+- feed 缓存的 key 不含周次，跨周瞬间最多 5 分钟仍显示上周顺序（`@cached` key 结构本次不动）。
+- 两个新排序以 `Video.id` 收尾做唯一 tiebreak：收藏数大量并列（多数视频为 0），没有唯一末位键时 OFFSET 分页会重复/漏行。`latest`/`hot` 保留原排序，其并列不稳定性未修。
+- 不加 `user_favorites(created_at)` 索引（视频表小、全表排序可接受）；实测需要再加即为迁移。
