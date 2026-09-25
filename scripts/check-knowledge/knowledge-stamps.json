@@ -57,16 +57,16 @@
       "digest": "sha256:9b92bfea649a0a14a033cf5d4685f257454cf8671d43d8ef935d399bdddc7c9d"
     },
     "frontend-app": {
-      "verified": "2026-09-24",
-      "digest": "sha256:f56accc82e0155de0232aa49ecc4d9bbfc3133e33840048d786b9cd2c9e677fe"
+      "verified": "2026-09-25",
+      "digest": "sha256:52e32225addf4c6ace408a1ce7f555feb8a09842f9916e939f27e4daead6612d"
     },
     "frontend-components": {
-      "verified": "2026-09-24",
-      "digest": "sha256:cd57e3d7fe80c1b4f3a36f446a0ff497fc72530817cc97a59c802ddea76fa56e"
+      "verified": "2026-09-25",
+      "digest": "sha256:b46dd6e4fc4247fb7087c2da4faa92788720d09a941b76d1f089cec4c70d6ed3"
     },
     "frontend-lib": {
-      "verified": "2026-09-22",
-      "digest": "sha256:abf1907f19319e874c498d29c2988d7dd7645a86eaef75eab415966b33644395"
+      "verified": "2026-09-25",
+      "digest": "sha256:7dd86db480fdbbb4def4d3af51fc6ebac5280bd15c78bc5e998c0e6750c2110a"
     },
     "frontend-package": {
       "verified": "2026-09-22",

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [auth, frontend-stores, frontend-api-client]
 related: [wiki/architecture/backend-services.md]
 created: 2026-07-21
-updated: 2026-07-25
+updated: 2026-09-25
 ---
 
 # Background
@@ -34,6 +34,35 @@ authStore and adminAuthStore have similar patterns (auto-refresh, mutex) but are
 Custom `api<T>(path, options)` with: auto JWT attachment, pre-request token expiry check with auto-refresh, 401 handling (only for requests that actually carried a token — see `sentWithAuth`), `ApiError` class with status + server error code, `mediaUrl()` helper for `/media/` paths.
 
 The 401 branch only refreshes when the request carried an `Authorization` header. Without one, the 401 is the server rejecting the request itself (e.g. a wrong password on `/login`) and is thrown to the caller to display — refreshing there would instead log out and hard-redirect, wiping the server's message before it rendered.
+
+# Login Wall and the Cookie Mirror (`proxy.ts` + `lib/authHelpers.ts`)
+
+`proxy.ts` (Next 16's middleware; renamed from `middleware.ts`) gates every route at the network
+edge. It reads cookies only — no JWT decode, no DB — so its predicate is exactly *"the
+`seeword_token` cookie exists and is non-empty"*. `PUBLIC_PATHS` early-returns; everything else 302s
+to `/login?next=<path>`. An **empty** value bounces, because the check is `if (!token)`.
+
+localStorage stays the source of truth for the app; the cookie is a **presence-only mirror**, written
+by `syncAuthCookie(name, token)` and read back by `hasAuthCookieMirror(name)`. Both sides require a
+non-empty value, so they agree with the middleware by construction.
+
+Two things to know before touching either side:
+
+- **The mirror self-heals.** `authStore.initialize()` re-mirrors from the valid token on *every* page
+  load (`stores/authStore.ts:266`), so a cookie cleared on its own comes back. The only way it stays
+  missing is that the browser **refused the write** (privacy mode, blocked storage). That is what
+  makes a synchronous read a sound oracle rather than a guess.
+- **Do not judge "stuck" by elapsed time.** `useRedirectIfAuthenticated` reads the cookie
+  synchronously and skips the redirect entirely when it is missing, instead of firing a navigation
+  already known to bounce. A timer-based version was tried and reverted: it cannot tell a blocked
+  cookie from a merely slow RSC navigation, and `e2e/login-white-screen.spec.ts` asserts the spinner
+  must persist across a slow one. The hook reads in an effect, not during render — `initialize()`
+  calls `set(...)` *before* `syncAuthCookie(...)`, so a render-time read would depend on React's
+  batching order.
+
+Regression coverage: `e2e/login-redirect-loop.spec.ts` covers both directions (missing mirror →
+recovery card and zero doomed navigations; present mirror + held navigation → spinner persists, no
+card), and `src/lib/authHelpers.test.ts` pins the parse rules including the empty-value case.
 
 # Frontend State (Zustand)
 

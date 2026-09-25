@@ -8,12 +8,12 @@
 
 Date: 2026-09-25
 
-- **AI 全仓审计两轮修复完成（09-25，工作区未提交）**：open-code-review 扫了 203/379 个源文件（覆盖率 53%）。第一轮修 6 critical + 4 high（DEC-049/050/051）；第二轮修 H11（`cache_set_json` 的 `json.dumps` 移入 try，fail-open 契约补齐）、H19（`position_seconds` 拒负值与非有限值）、H21（`UserUpdate.name` 补 `max_length=100`）、H6/H7（WS 广播遍历快照 + `disconnect` 幂等）。修 H19 时浮出**新的 H24**：422 envelope 回显裸 `NaN` 时自身崩成 500，已加 `json_safe_non_finite`。全量 892 passed / 0 skipped；ruff、mypy 基线 53=53、前端 56 单测全绿
+- **AI 全仓审计两轮修复完成（09-25，已提交）**：open-code-review 扫了 203/379 个源文件（覆盖率 53%）。第一轮修 6 critical + 4 high（DEC-049/050/051）；第二轮修 H11（`cache_set_json` 的 `json.dumps` 移入 try，fail-open 契约补齐）、H19（`position_seconds` 拒负值与非有限值）、H21（`UserUpdate.name` 补 `max_length=100`）、H6/H7（WS 广播遍历快照 + `disconnect` 幂等）。修 H19 时浮出**新的 H24**：422 envelope 回显裸 `NaN` 时自身崩成 500，已加 `json_safe_non_finite`。全量 892 passed / 0 skipped；ruff、mypy 基线 53=53、前端 56 单测全绿
 - **已部署**：09-25 01:05 前端 `116e892dc069`（回滚 `050de8864a37`）401 不再被当成会话过期；09-23 `f2c48fdcf1f3`/`7f9d9dffee31` 词库一键已掌握 + 播放页去 `ChannelEntry`；09-22 `1db6f136def5` `users.gender`（DEC-046/048）。DEC-043 存量已是新算值，**不需再跑 `backfill_difficulty.py`**
 
 ## Current Focus
 
-- **审计修复待提交**：改动跨 `api/v1/*`、`core/{cache,config,errors,redis}.py`、`main.py`、`schemas/*`、`services/*`、`core/uploads.py`（新）+ 10 个测试模块；前端另有用户侧的 401 修复混在同一工作区，**提交时必须拆分**。本轮五项修复未立决策条目，取舍记在 `wiki/problems/error-path-blindspots.md`
+- **登录墙收尾项**（09-25 起）：`/contact` 不在 `proxy.ts` 的 `PUBLIC_PATHS`，未登录用户从登录页点「联系我们」（`login/page.tsx:144`）会被弹回；`frontend/src/hooks/**` 不匹配 `modules.json` 任何 glob，`useRequireAuth.ts` 无印章覆盖
 - **知识层**（2026-09-19 起）：Phase 0-3 主体已落地；本轮新增模块 `error-envelope` 与文档 `wiki/problems/error-path-blindspots.md`。`stale` 里 `env-config`、`frontend-*`、`pytest-suite` 的文档本次未读、未刷印章，仍待 `/knowledge-verify`
 - **知识层归档轮已完成（09-25）**：DEC-042..048 正文逐字移入 `.agent/archive/decisions-2026-09.md`，`decisions.md` 32709 → 14159 B、limit 下调 24576 B（S1/S3/S5 的决策条目已有位置）；`decisions-index.md` 6169/6400 同样顶格且无归档出路，limit 一并提到 7168 B
 - **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用
