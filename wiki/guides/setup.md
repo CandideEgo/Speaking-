@@ -31,7 +31,10 @@ App services run natively — no Docker build on code change.
 
 `.env` at backend root has API keys (gitignored). Copy `.env.example` for local setup.
 
-Required: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OPENAI_API_KEY`
+Key variables: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OPENAI_API_KEY`. Only `ENV=development`
+has fallbacks for any of them (DEC-051); outside dev `JWT_SECRET` and `DATABASE_URL` become
+mandatory, and `production` additionally requires `OPENAI_API_KEY`, `REDIS_URL` and
+`TRANSCRIPTION_CALLBACK_SECRET` (`core/config.py:318-336`).
 
 ## Production Deploy
 
