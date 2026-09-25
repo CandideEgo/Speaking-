@@ -23,7 +23,7 @@
   - **设计系统深化**（P2）：删除死代码 `components/player/`（3）+ `components/dashboard/`（5）+ `SubtitleOverlay`/`WordTooltip`；歼灭 landing 6 组件 `!important`（迁移到 `.display-2xl/xl/lg` 组件类）；`page-title` 死类清除。
   - **视觉质感打磨**（P3）：`globals.css` 加 reduced-motion 守卫 + `.hover-lift` 工具类；Button 加 `active:scale-[0.98]` 按压态；新建 `ScrollReveal`（gsap ScrollTrigger，reduce-motion 守卫，SSR 安全）应用到 landing 5 区段。
   - **验证与文档**（P4）：`npm run check`（0 错误）+ `npm run build`（32/32 页面）全绿；`DESIGN-TOKENS.md` 补暗色映射表、`AGENTS.md` 栈修正为 Next 16 / React 19 / Tailwind 4。
-  - 待办：Playwright 截图矩阵（13 路由 × 亮/暗 × 桌面/移动）需交互式执行 + image-vision 审阅。
+  - 待办：Playwright 截图矩阵（13 路由 × 亮/暗 × 桌面/移动）需交互式执行 + 读图审阅。
 
 ## Recent Changes (2026-06-29)
 

@@ -5,7 +5,7 @@ Manage the Speaking app services (start, stop, restart) on Windows.
 ## Trigger
 - `/dev` or `/speaking-dev` — start all services
 - `/dev-stop` — stop all services
-- `/dev-restart` — restart all services (stop + clean cache + start)
+- "重启服务" / "restart services" — restart all services (stop + clean cache + start)
 
 ## Context
 This is a full-stack English speaking practice app with 4 runtime services:
@@ -131,7 +131,7 @@ This is a full-stack English speaking practice app with 4 runtime services:
    docker compose -f docker-compose.dev.yml down
    ```
 
-### Restart (`/dev-restart`)
+### Restart
 
 1. Run stop procedure
 2. Wait 2 seconds for ports to free

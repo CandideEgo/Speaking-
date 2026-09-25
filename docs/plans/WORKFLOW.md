@@ -14,7 +14,7 @@
 |------|---------|------|------|
 | **快速提交** | < 20 行，非关键路径（typo、config、docs） | 直接 commit master | 5 min |
 | **标准开发** | 20-200 行，或涉及新 API/组件 | 分支 → 自检 → squash merge | 1-4 h |
-| **对抗开发** | > 200 行，或涉及 auth/payment/跨模块 | `/adversarial-dev` 双 agent 审查 | 半天+ |
+| **对抗开发** | > 200 行，或涉及 auth/payment/跨模块 | `/code-review` 双轴审查（Standards + Spec） | 半天+ |
 
 ### 决策树
 
@@ -25,7 +25,7 @@
 ├─ 20-200 行, 或新 API/组件 → 标准开发
 │   └─ 分支 → 开发 → 自检清单 → squash merge → push
 └─ > 200 行, 或 auth/payment/跨模块 → 对抗开发
-    └─ /adversarial-dev → Builder 实现 → Gatekeeper 5 门审查 → 提交
+    └─ 实现 → /code-review 双轴审查 → 提交
 ```
 
 ### 标准开发流程
@@ -45,7 +45,7 @@
 
 ### 对抗开发流程
 
-触发条件见第 6 节。完整流程见 `.claude/skills/adversarial-dev/SKILL.md`。
+触发条件见第 6 节。审查环节使用 `/code-review`（Standards + Spec 双轴）。
 
 ---
 
@@ -225,10 +225,10 @@ curl https://api.your-domain.com/health
 | "重命名 X" | `gitnexus_rename` | 理解调用图，比 find-replace 安全 |
 | "调试 X 失败" | `/gitnexus-debugging` | 追踪执行流找根因 |
 | "重构 X" | `/gitnexus-refactoring` | 影响感知重构 |
-| "审查我的改动" | `/simplify-gitnexus` | 4 维度清理 + 风险评估 |
-| "开发关键功能" | `/adversarial-dev` | 双 agent Builder/Gatekeeper 审查 |
+| "审查我的改动" | `/code-review` | Standards + Spec 双轴审查 |
+| "开发关键功能" | `/code-review` | 审查关键改动 |
 | "验证改动生效" | `/verify` | 运行应用观察行为 |
-| "重启前端" | `/dev-restart` | 清缓存 + 重启 |
+| "重启前端" | `/speaking-dev` | 清缓存 + 重启 |
 
 ### GitNexus-first 规则
 
@@ -238,7 +238,7 @@ curl https://api.your-domain.com/health
 
 ### 对抗开发触发条件
 
-**必须使用** `/adversarial-dev`：
+**必须使用** `/code-review`：
 - 修改 `backend/app/core/security.py`（auth）
 - 修改 `backend/app/api/v1/payments.py`（payment）
 - 修改 `backend/app/api/dependencies.py`（auth middleware）
@@ -345,7 +345,7 @@ git config --global core.autocrlf input
 开发模式:
   < 20 行, 非关键 → 直接提交 master
   20-200 行       → feat/ 分支 + 自检清单
-  > 200 行 或 auth/payment → /adversarial-dev
+  > 200 行 或 auth/payment → /code-review
 
 提交前必做:
   1. gitnexus_impact → 检查影响范围
@@ -366,8 +366,8 @@ git config --global core.autocrlf input
   alembic downgrade -1 (如需)
 
 AI 工具:
-  /adversarial-dev    关键功能
-  /simplify-gitnexus  代码审查
+  /code-review        代码审查（双轴）
+  /speaking-dev       服务启停/重启
   gitnexus_impact     修改前检查
   gitnexus_detect     提交前验证
 ═══════════════════════════════════════

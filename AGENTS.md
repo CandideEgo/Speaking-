@@ -154,14 +154,16 @@ This project is indexed by GitNexus as **Speaking-** (14275 symbols, 25130 relat
 
 | Task | Read this skill file |
 |------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Understand architecture / "How does X work?" | `~/.claude/skills/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `~/.claude/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `~/.claude/skills/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `~/.claude/skills/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `~/.claude/skills/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `~/.claude/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+> **Re-index note:** GitNexus skills are global. Use `npx gitnexus analyze --skip-skills`; bare `analyze` reinstalls repo-local duplicates.
 
 ## Agent skills
 
