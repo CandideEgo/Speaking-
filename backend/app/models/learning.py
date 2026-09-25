@@ -111,6 +111,12 @@ class Vocabulary(Base):
     first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     correct_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # S3 (DEC-053): cumulative wrong answers and when the last one happened.
+    # S6's review-interval algorithm reads these instead of SM-2's ease_factor
+    # (a word answered wrong often must come back sooner, not later).
+    wrong_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_wrong_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     user = relationship("User", back_populates="vocabulary")

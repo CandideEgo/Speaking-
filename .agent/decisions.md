@@ -363,3 +363,21 @@ DEC-048 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 - feed 缓存的 key 不含周次，跨周瞬间最多 5 分钟仍显示上周顺序（`@cached` key 结构本次不动）。
 - 两个新排序以 `Video.id` 收尾做唯一 tiebreak：收藏数大量并列（多数视频为 0），没有唯一末位键时 OFFSET 分页会重复/漏行。`latest`/`hot` 保留原排序，其并列不稳定性未修。
 - 不加 `user_favorites(created_at)` 索引（视频表小、全表排序可接受）；实测需要再加即为迁移。
+
+## 2026-09-25 — 训练轮次落库 + 每日配额 + 加练（`study_sessions` / `study_session_items`）
+
+**Problem**: 词汇训练进度只活在 React state（`drill/page.tsx` 的 `learnIndex/learned`，「再来一组」是 `window.location.reload()`），刷新或跳去视频再回来就从零开始；每日学习量硬编码在路由里（15 新 + 20 复习），用户不能调；`user_learning_profiles.today_words_learned` 列存在但词汇流程从不写事件，所以「今日已学」永远是 0。同时 S5（选择题化）需要「每词在本轮的连对计数」、S6（错误次数驱动的复习间隔）需要「累计答错次数」，这两个事实必须落库才有 SQL 可用。
+
+**Options**: A) 进度留在客户端（localStorage / 内存），零后端改动；B) 新增两张表 `study_sessions` + `study_session_items`（每词一行），`Vocabulary` 加 `wrong_count`/`last_wrong_at`，`UserLearningProfile` 加 `daily_new_target`/`daily_review_target`；C) 只加一张 `study_sessions`，把词列表塞进 JSON 列。
+
+**Decision**: B。配额是**全局一个设置**（不是每视频一份），范围 5~100，默认新词 10 / 复习 20，落 `UserLearningProfile`；轮次 `kind ∈ {daily, extra}`、`status ∈ {active, finished, abandoned}`，`local_date` 用用户本地日（复用学习事件那套本地日判定）；加练 = 结束当前轮后新建 `kind=extra` 轮，取词只看 `mastery_level = new` 并排除近 1 天轮次已排过的词。
+
+**Reason**: A 回答不了本片的验收——换页回来要续上、`today_words_learned` 要真的长——而且 S6 需要能按 `wrong_count` 排序的 SQL。C 把「每词一行」压成 JSON 后，连对计数与 `wrong_in_round` 无法用 UPDATE 表达，也无法按词查询（S6 的复习优先级要 `ORDER BY wrong_count DESC`）。两张表让「反复作答是 UPDATE 而非追加」成为主键级事实（`uq_study_session_item`），存储上限是词数 × 轮数而不是作答次数。
+
+**Trade-offs**:
+- 配额在轮次创建时快照（`target_count` 落库）：改配额只影响**之后**开的轮次，不会中途改变正在做的这一轮的大小。
+- 只续**今日**的未完成轮；昨天的 active 轮在下一次开轮时被标记 `abandoned`。今日训练是一天的剂量，续昨天的队会让今天的配额凭空消失。
+- 保留期 30 天，在 `finish_session` 的同一事务里删该用户更早的轮次明细（先显式删 items 再删 sessions——测试跑在 SQLite 上，FK 级联不生效）。**不引入定时任务**：为一张只在用户学习时才增长的表加周期任务，活动件比问题本身多。
+- 作答仍是「一次请求写 1~2 行 UPDATE」（原本每次点「认识/不认识」也各写一次库），不是新的写入模式。
+- `POST /{word_id}/review` 的 SM-2 quality 由 4 统一为 5（答错仍 2），且该端点现在**没有仓内调用方**（drill 改走轮次作答），保留为兼容入口。
+- 「近 1 天轮次已排过的词」这层排除只是兜底（主机制是答过的词会离开 `mastery_level = new` 池），用于作答请求失败时该词不被重复排进加练轮，顺带跨过午夜边界。

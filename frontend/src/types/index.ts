@@ -250,6 +250,50 @@ export interface VocabularyWord {
   created_at: string;
 }
 
+/* ── Study rounds + daily quota (DEC-053) ── */
+
+/** Lifecycle of a word inside one round. */
+export type StudyItemStatus = "pending" | "learning" | "graduated";
+
+/** One word inside one round; repeated answers UPDATE this row. */
+export interface StudySessionItem {
+  id: string;
+  vocabulary_id: string;
+  sort_order: number;
+  /** 连续答对计数：答对 +1、答错清零，达到 2 即毕业（设计 §5.1）。 */
+  correct_streak: number;
+  wrong_in_round: boolean;
+  status: StudyItemStatus;
+  /** null 表示该词已被删除，前端应跳过该项。 */
+  word: VocabularyWord | null;
+}
+
+export interface StudySession {
+  id: string;
+  /** daily = 当日配额那一轮；extra = 加练轮（计入今日累计，不计入今日目标）。 */
+  kind: "daily" | "extra";
+  local_date: string;
+  target_count: number;
+  done_count: number;
+  correct_count: number;
+  status: "active" | "finished" | "abandoned";
+  items: StudySessionItem[];
+}
+
+/** 今日累计：含加练的已学词数 + 已开始的轮数。 */
+export interface TodayTrainingSummary {
+  words_learned: number;
+  rounds: number;
+}
+
+/** GET/PUT /api/v1/vocabulary/preferences — 全局每日配额（非每视频）。 */
+export interface VocabularyPreferences {
+  daily_new_target: number;
+  daily_review_target: number;
+  quota_min: number;
+  quota_max: number;
+}
+
 /* ── Vocab sets (视频词汇集合 + 快速过筛) ── */
 
 /** Sieve/learn lifecycle of a word inside a vocab set. */
@@ -573,6 +617,8 @@ export interface LearningProfile {
   strengths: string[] | null;
   weaknesses: string[] | null;
   milestones?: Milestone[];
+  /** 今日累计已学词数（含加练）——DEC-053 起由词汇训练事件驱动。 */
+  today_words_learned?: number;
 }
 
 // ---------------------------------------------------------------------------

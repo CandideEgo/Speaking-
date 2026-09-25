@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -85,3 +85,93 @@ class VocabularyStatsResponse(BaseModel):
     reviewing_count: int
     mastered_count: int
     due_count: int
+
+
+# ---------------------------------------------------------------------------
+# Daily quota (DEC-053)
+# ---------------------------------------------------------------------------
+
+
+class VocabularyPreferencesResponse(BaseModel):
+    """The user's daily training quota, global per user (not per video)."""
+
+    daily_new_target: int
+    daily_review_target: int
+    quota_min: int
+    quota_max: int
+
+
+class VocabularyPreferencesUpdate(BaseModel):
+    """Partial update; ``None`` leaves a field untouched.
+
+    Bounds live here rather than in the service so a bad request is a 422 with
+    a field path, not a silently clamped value.
+    """
+
+    daily_new_target: int | None = Field(default=None, ge=5, le=100)
+    daily_review_target: int | None = Field(default=None, ge=5, le=100)
+
+
+class TodayTrainingSummary(BaseModel):
+    """今日累计：含加练的已学词数 + 已开始的轮数（今日 tab 的「第 K 轮」）。"""
+
+    words_learned: int
+    rounds: int
+
+
+# ---------------------------------------------------------------------------
+# Study rounds (DEC-053)
+# ---------------------------------------------------------------------------
+
+
+class StudySessionItemResponse(BaseModel):
+    id: str
+    vocabulary_id: str
+    sort_order: int
+    correct_streak: int
+    wrong_in_round: bool
+    status: Literal["pending", "learning", "graduated"]
+    # None when the vocabulary row is gone; the client drops such items.
+    word: VocabularyResponse | None = None
+
+
+class StudySessionResponse(BaseModel):
+    id: str
+    kind: Literal["daily", "extra"]
+    local_date: date
+    target_count: int
+    done_count: int
+    correct_count: int
+    status: Literal["active", "finished", "abandoned"]
+    items: list[StudySessionItemResponse]
+
+
+class StudySessionEnvelope(BaseModel):
+    """Round payload for the 取/建 endpoints.
+
+    ``session`` is None when there is nothing left to learn — a normal state
+    (the client falls through to the review phase), not an error.
+    """
+
+    session: StudySessionResponse | None = None
+    today: TodayTrainingSummary
+
+
+class StudySessionStartRequest(BaseModel):
+    kind: Literal["daily", "extra"] = "daily"
+
+
+class StudySessionAnswerRequest(BaseModel):
+    vocabulary_id: str
+    correct: bool
+
+
+class StudySessionAnswerResponse(BaseModel):
+    item: StudySessionItemResponse
+    session_id: str
+    done_count: int
+    correct_count: int
+    target_count: int
+    session_status: Literal["active", "finished", "abandoned"]
+    graduated: bool
+    today: TodayTrainingSummary

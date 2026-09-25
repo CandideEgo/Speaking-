@@ -17,6 +17,7 @@ from app.models.order import Order
 from app.models.preferences import UserPreferences
 from app.models.redeem import RedeemCode
 from app.models.shadowing import ShadowingAttempt
+from app.models.study_session import StudySession, StudySessionItem
 from app.models.subtitle import Subtitle
 from app.models.subtitle_change_proposal import SubtitleChangeProposal
 from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate

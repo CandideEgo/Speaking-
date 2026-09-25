@@ -75,6 +75,15 @@ class UserLearningProfile(Base):
     strengths: Mapped[list | None] = mapped_column(JSON, nullable=True)
     weaknesses: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
+    # Daily training quota (DEC-053). Global per user — one setting, not one per
+    # video — because the round is a day-sized dose, and a per-video quota would
+    # make "today's 10 new words" ambiguous. ``daily_new_target`` is the new-word
+    # quota (default 10); review words are taken separately and capped by
+    # ``daily_review_target``. Bounds (5..100) are enforced in the API layer,
+    # same convention as ``users.gender`` — no DB-level constraint.
+    daily_new_target: Mapped[int] = mapped_column(Integer, default=10)
+    daily_review_target: Mapped[int] = mapped_column(Integer, default=20)
+
     # Daily goal tracking (current day snapshot, incrementally updated)
     today_words_learned: Mapped[int] = mapped_column(Integer, default=0)
     today_minutes_spent: Mapped[int] = mapped_column(Integer, default=0)

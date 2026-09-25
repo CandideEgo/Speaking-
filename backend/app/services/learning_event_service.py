@@ -151,6 +151,16 @@ async def _get_user_local_date(db: AsyncSession, user_id: str) -> date:
     return datetime.now(UTC).date()
 
 
+async def get_user_local_date(db: AsyncSession, user_id: str) -> date:
+    """Public form of the local-date helper.
+
+    Study rounds need the *same* day boundary as the daily counters they feed
+    (DEC-053): if a round rolled over on UTC while ``today_words_learned``
+    rolled over on the user's timezone, the 今日 tab would disagree with itself.
+    """
+    return await _get_user_local_date(db, user_id)
+
+
 async def _update_daily_progress(
     db: AsyncSession,
     profile: UserLearningProfile,

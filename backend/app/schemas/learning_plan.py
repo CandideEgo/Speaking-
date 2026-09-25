@@ -71,6 +71,10 @@ class LearningProfileResponse(BaseModel):
     strengths: list[str] | None = None
     weaknesses: list[str] | None = None
     milestones: list["MilestoneResponse"] | None = None
+    # 今日累计已学词数（含加练）。The vocabulary drill increments it through
+    # LearningEvent since DEC-053; before that it only moved on practice-quiz
+    # submission, so the number sat at 0 for a user who only drilled.
+    today_words_learned: int = 0
 
 
 # ---------------------------------------------------------------------------

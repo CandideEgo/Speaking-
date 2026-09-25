@@ -17,12 +17,17 @@ export function DailyHero({
   total,
   mastered,
   loading,
+  newTarget = 10,
+  reviewTarget = 20,
 }: {
   newTotal: number;
   dueTotal: number;
   total: number;
   mastered: number;
   loading: boolean;
+  /** 每日配额（DEC-053）：只影响这行说明文案，配额本身在下方设置里改。 */
+  newTarget?: number;
+  reviewTarget?: number;
 }) {
   const allDone = newTotal === 0 && dueTotal === 0;
 
@@ -62,7 +67,7 @@ export function DailyHero({
                   <span className="mx-1.5 text-muted-soft">·</span>
                   待复习 <span className="font-bold text-ink">{dueTotal}</span>
                   <span className="block sm:inline text-muted-soft mt-0.5 sm:mt-0 sm:ml-2 text-xs">
-                    每次约 15 新词 + 20 复习，按 SM-2 间隔推送
+                    每日 {newTarget} 新词 + {reviewTarget} 复习，按 SM-2 间隔推送
                   </span>
                 </>
               )}

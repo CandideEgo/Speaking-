@@ -31,7 +31,7 @@ from app.schemas.learning_plan import (
     MasteryTrendResponse,
     MilestoneResponse,
 )
-from app.services import milestone_service, profile_service
+from app.services import milestone_service, profile_service, study_session_service
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 
@@ -83,6 +83,10 @@ async def get_learning_profile(
     """Get the user's learning profile with milestones."""
     profile = await profile_service.get_or_create_profile(db, current_user.id)
     milestones = await milestone_service.get_user_milestones(db, current_user.id)
+    # today_words_learned comes from the same source the 今日 tab reads, so the
+    # two can never disagree (the counter is per-user-local-date, and a stale
+    # profile row means zero rather than yesterday's number).
+    today = await study_session_service.get_today_summary(db, current_user.id)
     return LearningProfileResponse(
         estimated_level=profile.estimated_level,
         current_streak=profile.current_streak,
@@ -92,6 +96,7 @@ async def get_learning_profile(
         strengths=profile.strengths,
         weaknesses=profile.weaknesses,
         milestones=[MilestoneResponse(**m) for m in milestones],
+        today_words_learned=today["words_learned"],
     )
 
 
@@ -104,7 +109,11 @@ async def refresh_learning_profile(
 ):
     """Force-refresh the learning profile from raw data."""
     profile_dict = await profile_service.refresh_profile(db, current_user.id)
-    return LearningProfileResponse(**profile_dict)
+    # refresh_profile recomputes the aggregates; the daily counter is not one of
+    # them (it is incremented by events), so it is filled in here to keep this
+    # response identical in shape to GET /plan/profile.
+    today = await study_session_service.get_today_summary(db, current_user.id)
+    return LearningProfileResponse(**profile_dict, today_words_learned=today["words_learned"])
 
 
 @router.get("/mastery-trend", response_model=MasteryTrendResponse)

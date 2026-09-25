@@ -14,6 +14,8 @@ export interface WeakWord {
 /**
  * 今日训练总结（/vocabulary/drill 末阶段）：新词已学数 + 复习正确率 +
  * 薄弱词列表；正确率 ≥80% 撒花。quizTotal=0 表示今天没有到期复习词。
+ *
+ * 「再加练一轮」再取一轮配额的新词（kind=extra）：计入今日累计，不计入今日目标。
  */
 export function TrainSummary({
   learnedCount,
@@ -21,12 +23,14 @@ export function TrainSummary({
   quizCorrect,
   weakWords,
   onRestart,
+  restartLoading = false,
 }: {
   learnedCount: number;
   quizTotal: number;
   quizCorrect: number;
   weakWords: WeakWord[];
   onRestart: () => void;
+  restartLoading?: boolean;
 }) {
   const accuracy = quizTotal > 0 ? Math.round((quizCorrect / quizTotal) * 100) : null;
   const celebrate = accuracy != null ? accuracy >= 80 : learnedCount > 0;
@@ -102,9 +106,10 @@ export function TrainSummary({
             size="lg"
             className="flex-1"
             onClick={onRestart}
+            disabled={restartLoading}
             icon={RotateCcw}
           >
-            再来一组
+            {restartLoading ? "开启中…" : "再加练一轮"}
           </Button>
           <Button
             size="lg"

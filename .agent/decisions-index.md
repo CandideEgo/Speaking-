@@ -63,3 +63,4 @@
 | DEC-050 | 2026-09-25 | 行为事件的镜像副作用统一以 LearningRecord 为前提；未知 video_id 置 NULL | — | active |
 | DEC-051 | 2026-09-25 | 未知 ENV 值 fail-closed，保留 development 作为默认 | — | active |
 | DEC-052 | 2026-09-25 | 首页 feed 加「收藏最多 / 本周收藏」排序（修订 DEC-041 的「刻意不同源」条款） | — | active |
+| DEC-053 | 2026-09-25 | 训练轮次落库 + 每日配额 + 加练（`study_sessions` / `study_session_items`） | — | active |

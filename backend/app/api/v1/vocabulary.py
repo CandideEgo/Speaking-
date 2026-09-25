@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
@@ -12,12 +12,20 @@ from app.models.learning import Vocabulary
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.vocabulary import (
+    StudySessionAnswerRequest,
+    StudySessionAnswerResponse,
+    StudySessionEnvelope,
+    StudySessionItemResponse,
+    StudySessionResponse,
+    StudySessionStartRequest,
+    TodayTrainingSummary,
     VocabularyEnrichResponse,
+    VocabularyPreferencesResponse,
+    VocabularyPreferencesUpdate,
     VocabularyResponse,
     VocabularyStatsResponse,
 )
-from app.services import practice_service, vocabulary_service
-from app.services.sr_service import calculate_next_review
+from app.services import practice_service, study_session_service, vocabulary_service
 
 router = APIRouter(prefix="/vocabulary", tags=["vocabulary"])
 
@@ -42,6 +50,49 @@ class VocabPracticeSubmitResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Serialisation helpers for study rounds
+# ---------------------------------------------------------------------------
+
+
+def _session_response(
+    session,
+    rows,
+) -> StudySessionResponse:
+    """Build a round payload from its ORM row plus (item, word) pairs.
+
+    Items whose vocabulary row is gone are dropped rather than rendered blank;
+    they still count toward ``target_count`` (the quota snapshot), which is
+    why ``done_count``/``target_count`` can legitimately disagree.
+    """
+    items = [
+        StudySessionItemResponse(
+            id=item.id,
+            vocabulary_id=item.vocabulary_id,
+            sort_order=item.sort_order,
+            correct_streak=item.correct_streak,
+            wrong_in_round=item.wrong_in_round,
+            status=item.status,
+            word=VocabularyResponse.model_validate(word),
+        )
+        for item, word in rows
+    ]
+    return StudySessionResponse(
+        id=session.id,
+        kind=session.kind,
+        local_date=session.local_date,
+        target_count=session.target_count,
+        done_count=session.done_count,
+        correct_count=session.correct_count,
+        status=session.status,
+        items=items,
+    )
+
+
+async def _today_summary(db: AsyncSession, user_id: str) -> TodayTrainingSummary:
+    return TodayTrainingSummary(**await study_session_service.get_today_summary(db, user_id))
+
+
+# ---------------------------------------------------------------------------
 # Static-path routes (must come before /{word_id} to avoid path collision)
 # ---------------------------------------------------------------------------
 
@@ -61,8 +112,8 @@ async def vocabulary_stats(
 @rate_limit("30/minute")
 async def get_daily_session(
     request: Request,
-    new_count: int = Query(15, ge=1, le=50),
-    review_count: int = Query(20, ge=1, le=100),
+    new_count: int | None = Query(None, ge=1, le=100, description="Override the user's daily new-word quota"),
+    review_count: int | None = Query(None, ge=1, le=100, description="Override the user's daily review quota"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -70,13 +121,189 @@ async def get_daily_session(
 
     Powers the Baicizhan-style /vocabulary home + /vocabulary/drill two-phase
     flow (learn flashcards, then due review quiz).
+
+    Queue sizes come from the user's daily quota (DEC-053) unless the caller
+    overrides them explicitly. The response also carries ``preferences`` and
+    ``today`` so the 今日 tab renders the quota picker and 今日已学 without a
+    second round trip.
     """
-    session = await vocabulary_service.build_daily_session(db, current_user.id, new_count, review_count)
+    prefs = await study_session_service.get_preferences(db, current_user.id)
+    session = await vocabulary_service.build_daily_session(
+        db,
+        current_user.id,
+        new_count if new_count is not None else prefs["daily_new_target"],
+        review_count if review_count is not None else prefs["daily_review_target"],
+    )
     return {
         "new_words": [VocabularyResponse.model_validate(w) for w in session["new_words"]],
         "review_words": [VocabularyResponse.model_validate(w) for w in session["review_words"]],
         "totals": session["totals"],
+        "preferences": VocabularyPreferencesResponse(
+            **prefs,
+            quota_min=study_session_service.QUOTA_MIN,
+            quota_max=study_session_service.QUOTA_MAX,
+        ),
+        "today": await _today_summary(db, current_user.id),
     }
+
+
+@router.get("/preferences", response_model=VocabularyPreferencesResponse)
+@rate_limit("30/minute")
+async def get_vocabulary_preferences(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """每日训练配额（全局一个设置，不是每个视频一个）。"""
+    prefs = await study_session_service.get_preferences(db, current_user.id)
+    return VocabularyPreferencesResponse(
+        **prefs,
+        quota_min=study_session_service.QUOTA_MIN,
+        quota_max=study_session_service.QUOTA_MAX,
+    )
+
+
+@router.put("/preferences", response_model=VocabularyPreferencesResponse)
+@rate_limit("20/minute")
+async def update_vocabulary_preferences(
+    request: Request,
+    body: VocabularyPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set the daily quota (5~100). Omitted fields are left untouched.
+
+    Only affects rounds started *after* the change: a round snapshots the
+    quota it was created with, so raising the number mid-round does not
+    silently resize a round the user is already working through.
+    """
+    prefs = await study_session_service.set_preferences(
+        db,
+        current_user.id,
+        daily_new_target=body.daily_new_target,
+        daily_review_target=body.daily_review_target,
+    )
+    return VocabularyPreferencesResponse(
+        **prefs,
+        quota_min=study_session_service.QUOTA_MIN,
+        quota_max=study_session_service.QUOTA_MAX,
+    )
+
+
+@router.get("/sessions/current", response_model=StudySessionEnvelope)
+@rate_limit("60/minute")
+async def get_current_study_session(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """今日未完成的一轮训练，没有则 ``session`` 为 null。
+
+    Read-only on purpose: the drill opens a round explicitly via POST so a
+    page load never writes.
+    """
+    session = await study_session_service.get_active_session(db, current_user.id)
+    rows = await study_session_service.session_rows(db, session.id) if session else []
+    return StudySessionEnvelope(
+        session=_session_response(session, rows) if session else None,
+        today=await _today_summary(db, current_user.id),
+    )
+
+
+@router.post("/sessions", response_model=StudySessionEnvelope)
+@rate_limit("20/minute")
+async def start_study_session(
+    request: Request,
+    body: StudySessionStartRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """取或建当前轮：有未完成的一轮就续上，否则按配额开新的一轮。
+
+    ``kind=extra`` 是加练：同配额、再取 ``mastery_level = new`` 的词，计入今日
+    累计但不计入今日目标。调用方必须先结束当前轮，否则拿到的是当前轮本身
+    （幂等，防止重复挂载开出两轮）。
+    """
+    result = await study_session_service.start_session(db, current_user.id, body.kind)
+    return StudySessionEnvelope(
+        session=_session_response(result["session"], result["items"]) if result["session"] else None,
+        today=await _today_summary(db, current_user.id),
+    )
+
+
+@router.post("/sessions/{session_id}/answer", response_model=StudySessionAnswerResponse)
+@rate_limit("120/minute")
+async def answer_study_session(
+    request: Request,
+    session_id: str,
+    body: StudySessionAnswerRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """一轮里的一次作答：更新该词在本轮的连对计数 + 该词的 SM-2 状态。
+
+    一次作答只写 1~2 行 UPDATE（词在本轮的行 + 词自身的行），并发出一次
+    ``learned_words`` 学习事件（首次作答该词时），让今日累计真的长起来。
+    """
+    try:
+        result = await study_session_service.submit_answer(
+            db,
+            current_user.id,
+            session_id,
+            body.vocabulary_id,
+            body.correct,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+    item, word = (result["item"], None)
+    rows = await study_session_service.session_rows(db, session_id)
+    for row_item, row_word in rows:
+        if row_item.id == item.id:
+            word = row_word
+            break
+
+    return StudySessionAnswerResponse(
+        item=StudySessionItemResponse(
+            id=item.id,
+            vocabulary_id=item.vocabulary_id,
+            sort_order=item.sort_order,
+            correct_streak=item.correct_streak,
+            wrong_in_round=item.wrong_in_round,
+            status=item.status,
+            word=VocabularyResponse.model_validate(word) if word else None,
+        ),
+        session_id=result["session"].id,
+        done_count=result["session"].done_count,
+        correct_count=result["session"].correct_count,
+        target_count=result["session"].target_count,
+        session_status=result["session"].status,
+        graduated=result["graduated"],
+        today=await _today_summary(db, current_user.id),
+    )
+
+
+@router.post("/sessions/{session_id}/finish", response_model=StudySessionEnvelope)
+@rate_limit("20/minute")
+async def finish_study_session(
+    request: Request,
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """结束一轮（总结页到达时调用）。顺带清理该用户 30 天前的轮次明细。"""
+    try:
+        session = await study_session_service.finish_session(db, current_user.id, session_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    rows = await study_session_service.session_rows(db, session.id)
+    return StudySessionEnvelope(
+        session=_session_response(session, rows),
+        today=await _today_summary(db, current_user.id),
+    )
 
 
 @router.get("/practice")
@@ -277,39 +504,15 @@ async def review_word(
     if not vocab:
         raise HTTPException(status_code=404, detail="Word not found")
 
-    current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
-    interval_days = vocab.interval_days if vocab.review_count > 0 else 0
-
-    next_interval, new_ef, new_review_count = calculate_next_review(
-        quality, vocab.review_count, current_ef, interval_days
-    )
-
-    now = datetime.now(UTC)
-    vocab.review_count = new_review_count
-    vocab.last_reviewed_at = now
-    vocab.next_review_at = now + timedelta(days=next_interval)
-    vocab.ease_factor = new_ef
-    vocab.interval_days = next_interval
-
-    if new_review_count == 0:
-        vocab.mastery_level = "new"
-    elif new_review_count <= 2:
-        vocab.mastery_level = "learning"
-    elif new_review_count <= 5:
-        vocab.mastery_level = "reviewing"
-    else:
-        vocab.mastery_level = "mastered"
+    next_interval, next_review_at = vocabulary_service.apply_review(vocab, quality)
 
     await db.commit()
 
-    # Emit learning event (ADR-0012 learning plan integration)
+    # Emit learning event (ADR-0012 learning plan integration), non-blocking
     try:
         from app.services.learning_event_service import EVENT_REVIEWED_WORDS, emit_event
 
         await emit_event(db, current_user.id, EVENT_REVIEWED_WORDS, 1)
-        # Update correct_count
-        if quality >= 3:
-            vocab.correct_count = (vocab.correct_count or 0) + 1
         await db.commit()
     except Exception:
         pass  # Non-blocking
@@ -317,7 +520,7 @@ async def review_word(
     return {
         "id": vocab.id,
         "word": vocab.word,
-        "next_review_at": vocab.next_review_at.isoformat(),
+        "next_review_at": next_review_at.isoformat(),
         "interval_days": next_interval,
         "review_count": vocab.review_count,
     }

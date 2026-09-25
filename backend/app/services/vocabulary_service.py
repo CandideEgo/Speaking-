@@ -5,7 +5,7 @@ and practice_service.submit_practice_results.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import commit_refresh
 from app.models.learning import Vocabulary
 from app.services.ai_service import get_ai_service
+from app.services.sr_service import calculate_next_review
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ MASTERY_LEARNING = "learning"
 MASTERY_REVIEWING = "reviewing"
 MASTERY_MASTERED = "mastered"
 
+# SM-2 quality assigned to a binary (right/wrong) answer. Kept here so the
+# drill's session answers and the legacy review endpoint grade identically.
+QUALITY_CORRECT = 5
+QUALITY_WRONG = 2
+
 
 def _mastery_from_review_count(review_count: int) -> str:
     """Determine mastery level from review count."""
@@ -38,6 +44,47 @@ def _mastery_from_review_count(review_count: int) -> str:
         return MASTERY_REVIEWING
     else:
         return MASTERY_MASTERED
+
+
+def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -> tuple[int, datetime]:
+    """Apply one SM-2 review to ``vocab`` in place.
+
+    Returns ``(interval_days, next_review_at)`` — the next review time is handed
+    back rather than re-read off the model so callers get a non-optional value
+    (the column is nullable for words that were never scheduled).
+
+    The single place that mutates a word's review state, so the drill's
+    persisted round and ``POST /vocabulary/{id}/review`` can never drift apart.
+    Mutates only — the caller owns the commit.
+
+    ``wrong_count`` / ``last_wrong_at`` (DEC-053) are the input S6's interval
+    algorithm reads; S3 already records them so no answer is lost when the
+    algorithm is swapped.
+    """
+    now = now or datetime.now(UTC)
+    current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
+    interval_days = vocab.interval_days if vocab.review_count > 0 else 0
+
+    next_interval, new_ef, new_review_count = calculate_next_review(
+        quality, vocab.review_count, current_ef, interval_days
+    )
+
+    next_review_at = now + timedelta(days=next_interval)
+
+    vocab.review_count = new_review_count
+    vocab.last_reviewed_at = now
+    vocab.next_review_at = next_review_at
+    vocab.ease_factor = new_ef
+    vocab.interval_days = next_interval
+    vocab.mastery_level = _mastery_from_review_count(new_review_count)
+
+    if quality >= 3:
+        vocab.correct_count = (vocab.correct_count or 0) + 1
+    else:
+        vocab.wrong_count = (vocab.wrong_count or 0) + 1
+        vocab.last_wrong_at = now
+
+    return next_interval, next_review_at
 
 
 async def enrich_word(db: AsyncSession, vocabulary_id: str, user_id: str) -> Vocabulary | None:
@@ -106,8 +153,8 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
 async def build_daily_session(
     db: AsyncSession,
     user_id: str,
-    new_count: int = 15,
-    review_count: int = 20,
+    new_count: int,
+    review_count: int,
 ) -> dict:
     """Compose the 今日训练 queue: new words (never reviewed) + due words.
 
@@ -115,6 +162,10 @@ async def build_daily_session(
     user saved earliest get learned first; due words are ordered by
     ``next_review_at`` (most overdue first). Mastered words never appear in
     the review queue (tri-state semantics, same as get_stats).
+
+    Both counts are required: the caller resolves them from the user's daily
+    quota (``UserLearningProfile.daily_new_target`` / ``daily_review_target``,
+    DEC-053) and only overrides them when an explicit request asks for it.
     """
     now = datetime.now(UTC)
 

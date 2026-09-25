@@ -33,8 +33,14 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { DailyHero } from "@/components/vocabulary/DailyHero";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
-import { relativeTime } from "@/lib/utils";
-import type { Paginated, VocabularyWord, VocabSet } from "@/types";
+import { cn, relativeTime } from "@/lib/utils";
+import type {
+  Paginated,
+  TodayTrainingSummary,
+  VocabularyPreferences,
+  VocabularyWord,
+  VocabSet,
+} from "@/types";
 
 interface VocabStatsResponse {
   total: number;
@@ -46,6 +52,134 @@ interface VocabStatsResponse {
 }
 
 const PAGE_SIZE = 24;
+
+/** 每日新词配额预设（DEC-053）：全局一个设置，不是每个视频一份。 */
+const QUOTA_PRESETS = [10, 20, 30, 50];
+
+/**
+ * 今日视图的配额条：左「今日已学 N 词（含加练）· 第 K 轮」，右 10/20/30/50/自定义。
+ * 配额改动只影响之后开的轮次——已经在做的这一轮按开始时的快照走完。
+ */
+function DailyQuotaPanel({
+  preferences,
+  today,
+  onSaved,
+}: {
+  preferences: VocabularyPreferences | null;
+  today: TodayTrainingSummary;
+  onSaved: (next: VocabularyPreferences) => void;
+}) {
+  const [custom, setCustom] = useState(false);
+  const [customValue, setCustomValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const current = preferences?.daily_new_target ?? 10;
+  const min = preferences?.quota_min ?? 5;
+  const max = preferences?.quota_max ?? 100;
+
+  async function save(value: number) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const next = await api<VocabularyPreferences>("/api/v1/vocabulary/preferences", {
+        method: "PUT",
+        body: JSON.stringify({ daily_new_target: value }),
+      });
+      onSaved(next);
+      setCustom(false);
+      toast.success(`每日新词配额已设为 ${next.daily_new_target}`);
+    } catch {
+      toast.error("配额保存失败，请重试");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const pillClass = (active: boolean) =>
+    cn(
+      "px-3 py-1.5 rounded-sm text-xs font-semibold border transition-colors disabled:opacity-50",
+      active
+        ? "bg-ink text-canvas border-ink"
+        : "bg-canvas text-ink border-hairline hover:border-ink"
+    );
+
+  return (
+    <Card variant="outline" padding={4} className="mb-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[13px] text-muted">
+          今日已学 <span className="font-bold text-ink">{today.words_learned}</span> 词（含加练）
+          {today.rounds > 0 && (
+            <>
+              <span className="mx-1.5 text-muted-soft">·</span>第{" "}
+              <span className="font-bold text-ink">{today.rounds}</span> 轮
+            </>
+          )}
+        </p>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-muted mr-0.5">每日新词</span>
+          {QUOTA_PRESETS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={saving}
+              onClick={() => save(value)}
+              aria-pressed={value === current}
+              className={pillClass(value === current)}
+            >
+              {value}
+            </button>
+          ))}
+          {custom ? (
+            <span className="inline-flex items-center gap-1.5">
+              <input
+                type="number"
+                min={min}
+                max={max}
+                value={customValue}
+                onChange={(e) => setCustomValue(e.target.value)}
+                aria-label="自定义每日新词配额"
+                className="w-20 h-8 px-2.5 rounded-sm bg-surface-card border border-transparent text-xs text-ink
+                  focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                  transition-colors duration-150"
+              />
+              <Button
+                size="sm"
+                variant="dark"
+                disabled={saving}
+                onClick={() => {
+                  const value = Math.round(Number(customValue));
+                  if (!Number.isFinite(value) || value < min || value > max) {
+                    toast.error(`请输入 ${min}~${max} 之间的数字`);
+                    return;
+                  }
+                  save(value);
+                }}
+              >
+                确定
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setCustom(false)}>
+                取消
+              </Button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                setCustomValue(String(current));
+                setCustom(true);
+              }}
+              className={pillClass(!QUOTA_PRESETS.includes(current))}
+            >
+              自定义
+            </button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function masteryBadge(level: string | null | undefined): {
   tone: BadgeTone;
@@ -156,6 +290,13 @@ export default function VocabularyPage() {
   const [libraryTab, setLibraryTab] = useState<"sets" | "words">("sets");
   const setsView = useVocabSets(isAuthenticated && !isLoading);
   const daily = useDailySession(isAuthenticated && !isLoading);
+  // 配额保存后就地生效，不必重拉整个今日队列（重拉会让 Hero 闪一下加载态）
+  const [quota, setQuota] = useState<VocabularyPreferences | null>(null);
+  const preferences = quota ?? daily.session?.preferences ?? null;
+  const todaySummary: TodayTrainingSummary = daily.session?.today ?? {
+    words_learned: 0,
+    rounds: 0,
+  };
   const [stats, setStats] = useState({
     total: 0,
     due: 0,
@@ -308,7 +449,12 @@ export default function VocabularyPage() {
               total={stats.total}
               mastered={stats.mastered}
               loading={daily.loading}
+              newTarget={preferences?.daily_new_target}
+              reviewTarget={preferences?.daily_review_target}
             />
+
+            {/* 每日配额 + 今日进度（DEC-053） */}
+            <DailyQuotaPanel preferences={preferences} today={todaySummary} onSaved={setQuota} />
 
             {/* Stat cards (due 卡高亮) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">

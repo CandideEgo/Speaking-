@@ -161,3 +161,28 @@ class TestDailySession:
         assert word["ipa"] == "/ˌser.ənˈdɪp.ə.ti/"
         assert word["example_sentences"] == ["Finding that café was pure serendipity."]
         assert word["context_sentence"] == "It was pure serendipity."
+
+
+class TestDailyQuota:
+    """The queue's default size comes from the user's quota (DEC-053)."""
+
+    async def test_default_quota_is_ten_new_words(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        await _seed_words(user_id, [(f"w{i}", "new", None) for i in range(25)])
+
+        data = (await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)).json()
+        assert len(data["new_words"]) == 10
+        assert data["totals"]["new_total"] == 25
+        assert data["preferences"] == {
+            "daily_new_target": 10,
+            "daily_review_target": 20,
+            "quota_min": 5,
+            "quota_max": 100,
+        }
+
+    async def test_response_carries_today_counters(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        await _seed_words(user_id, [("alpha", "new", None)])
+
+        data = (await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)).json()
+        assert data["today"] == {"words_learned": 0, "rounds": 0}
