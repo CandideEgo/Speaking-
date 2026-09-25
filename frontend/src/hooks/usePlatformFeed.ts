@@ -12,14 +12,17 @@ import type { Paginated, Video } from "@/types";
 type Platform = "browse" | "home";
 
 /** Feed ordering. "recommended" is the personalized home mix and only applies
- *  to the unfiltered home view; "hot"/"latest" map to /browse/feed?sort=… and
- *  compose with category/level filters. */
-export type FeedSort = "recommended" | "hot" | "latest";
+ *  to the unfiltered home view; every other value maps to /browse/feed?sort=…
+ *  and composes with category/level filters. */
+const SORT_VALUES = ["recommended", "hot", "latest", "favorite", "weekly_favorite"] as const;
 
-const SORT_VALUES: readonly string[] = ["recommended", "hot", "latest"];
+/** The array is the single source of truth: a value cannot be part of this type
+ *  and yet be missing from `SORT_VALUES` — `isFeedSort` would then quietly drop
+ *  the `?sort=` a link carries and fall back to the default order. */
+export type FeedSort = (typeof SORT_VALUES)[number];
 
 function isFeedSort(value: string | null): value is FeedSort {
-  return value !== null && SORT_VALUES.includes(value);
+  return value !== null && (SORT_VALUES as readonly string[]).includes(value);
 }
 
 /** 各平台默认排序：首页个性化推荐，频道页最新（也是后端默认）。 */
@@ -168,8 +171,13 @@ export function usePlatformFeed({
         page_size: String(PAGE_SIZE),
       });
       if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
-      // "latest" is the backend default — omit it so browse URLs/cache keys stay unchanged.
-      if (sort === "hot") params.set("sort", "hot");
+      // Backend sorts: latest (default) | hot | favorite | weekly_favorite.
+      // "latest" is the backend default and "recommended" is client-only (the
+      // unfiltered home view) — omit both so browse URLs/cache keys stay unchanged.
+      // A whitelist rather than `sort !== "latest"`: sending "recommended" would 422.
+      if (sort === "hot" || sort === "favorite" || sort === "weekly_favorite") {
+        params.set("sort", sort);
+      }
       return api<Paginated<VideoItem>>(`/api/v1/browse/feed?${params.toString()}`);
     },
     mode: "append",

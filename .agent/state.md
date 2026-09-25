@@ -8,7 +8,7 @@
 
 Date: 2026-09-25
 
-- **S2b / S3 已落地（09-25，已提交）**：S2b 首页 feed 加「收藏最多 / 本周收藏」排序（DEC-052）；S3 训练轮次落库 + 每日配额 + 加练（DEC-053，`study_sessions`/`study_session_items` + 迁移 `k6l7m8n9o0p1`）。全量后端 **917 passed / 12 skipped / exit 0**。**门禁陷阱已定位并修文档**：裸 `pytest`/`mypy` 走 PATH 落到系统 Python（starlette 0.37.2 / mypy 2.1.0），生出 5 条幻影 `test_profile` 失败与 mypy 基线错配；`.venv` 下分别是 19 passed 与 53=53。命令已钉住解释器，见 `wiki/guides/testing.md`
+- **S2b / S2f / S3 已落地（09-25，已提交）**：S2b 首页 feed 加「收藏最多 / 本周收藏」排序（DEC-052）+ S2f 前端排序项接通（`FeedSort` 从 `SORT_VALUES` 派生，请求白名单才发 `sort`，e2e 断言请求真带）；S3 训练轮次落库 + 每日配额 + 加练（DEC-053，`study_sessions`/`study_session_items` + 迁移 `k6l7m8n9o0p1`）。全量后端 **917 passed / 12 skipped / exit 0**。**门禁陷阱已定位并修文档**：裸 `pytest`/`mypy` 走 PATH 落到系统 Python（starlette 0.37.2 / mypy 2.1.0），生出 5 条幻影 `test_profile` 失败与 mypy 基线错配；`.venv` 下分别是 19 passed 与 53=53。命令已钉住解释器，见 `wiki/guides/testing.md`
 
 - **AI 全仓审计两轮修复完成（09-25，已提交）**：open-code-review 扫了 203/379 个源文件（覆盖率 53%）。第一轮修 6 critical + 4 high（DEC-049/050/051）；第二轮修 H11（`cache_set_json` 的 `json.dumps` 移入 try，fail-open 契约补齐）、H19（`position_seconds` 拒负值与非有限值）、H21（`UserUpdate.name` 补 `max_length=100`）、H6/H7（WS 广播遍历快照 + `disconnect` 幂等）。修 H19 时浮出**新的 H24**：422 envelope 回显裸 `NaN` 时自身崩成 500，已加 `json_safe_non_finite`。全量 892 passed / 0 skipped；ruff、mypy 基线 53=53、前端 56 单测全绿
 - **已部署**：09-25 01:05 前端 `116e892dc069`（回滚 `050de8864a37`）401 不再被当成会话过期；09-23 `f2c48fdcf1f3`/`7f9d9dffee31` 词库一键已掌握 + 播放页去 `ChannelEntry`；09-22 `1db6f136def5` `users.gender`（DEC-046/048）。DEC-043 存量已是新算值，**不需再跑 `backfill_difficulty.py`**
@@ -16,7 +16,7 @@ Date: 2026-09-25
 ## Current Focus
 
 - **登录墙收尾项**（09-25 起）：`/contact` 不在 `proxy.ts` 的 `PUBLIC_PATHS`，未登录用户从登录页点「联系我们」（`login/page.tsx:144`）会被弹回；`frontend/src/hooks/**` 不匹配 `modules.json` 任何 glob，`useRequireAuth.ts` 无印章覆盖
-- **知识层**（2026-09-19 起）：Phase 0-3 主体已落地。`stale` 现有 6 个模块待 `/knowledge-verify` + 刷印章：`api-v1`、`backend-services`、`env-config`、`frontend-app`、`frontend-components`、`pytest-suite`
+- **知识层**（2026-09-19 起）：Phase 0-3 主体已落地；`stale` 是提醒不是门，09-25 已过一轮 `/knowledge-verify`
 - **知识层归档轮已完成（09-25）**：见 `knowledge-budget.json` 的 `_history`
 - **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用
 - **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿、内测反馈收集渠道
@@ -30,7 +30,7 @@ Date: 2026-09-25
 5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
 6. Recommendation 深度个性化 P2（ADR-0011）
 7. ICP 解封后项：payment、前端单测、e2e 覆盖
-8. **词汇训练 + 播放页返回（09-25 定稿；S1/S2b/S3 已落地）**：设计与执行方案见 `docs/plans/词汇训练与播放页返回-*.md`（八片 S1-S8 + 门禁 + 同文件串行约束）。待开票 S2f/S4/S5/S6/S8；S5 依赖 S3 的 `correct_streak`、S6 依赖 `wrong_count`、S8 与 S3 同文件须排其后。**DEC 条目仍欠 S5 与 S6**
+8. **词汇训练 + 播放页返回（09-25 定稿；S1/S2b/S2f/S3 已落地）**：设计与执行方案见 `docs/plans/词汇训练与播放页返回-*.md`（八片 S1-S8 + 门禁 + 同文件串行约束）。待开票 S4/S5/S6/S8；S5 依赖 S3 的 `correct_streak`、S6 依赖 `wrong_count`、S8 与 S3 同文件须排其后。**DEC 条目仍欠 S5 与 S6**
 
 ## Known Issues
 

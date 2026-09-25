@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  Bookmark,
+  CalendarHeart,
   ChevronDown,
   Clock3,
   Flame,
@@ -29,6 +31,8 @@ const DIFFICULTY_LEVELS = [
 const SORT_OPTIONS: { key: FeedSort; label: string; hint: string; icon: LucideIcon }[] = [
   { key: "recommended", label: "推荐", hint: "根据你的学习情况个性化挑选", icon: Sparkles },
   { key: "hot", label: "热播", hint: "按播放量排序", icon: Flame },
+  { key: "favorite", label: "收藏最多", hint: "按收藏总数排序", icon: Bookmark },
+  { key: "weekly_favorite", label: "本周收藏", hint: "按本周新增收藏排序", icon: CalendarHeart },
   { key: "latest", label: "最新", hint: "按发布时间排序", icon: Clock3 },
 ];
 
@@ -191,7 +195,7 @@ function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: Fee
   );
 }
 
-/** 首页筛选栏：分类（可展开）+ 排序（推荐/热播/最新）+ 难度。 */
+/** 首页筛选栏：分类（可展开）+ 排序（推荐/热播/收藏最多/本周收藏/最新）+ 难度。 */
 export function HomeFilterBar({
   categories,
   activeCategory,
