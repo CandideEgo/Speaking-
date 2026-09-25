@@ -13,9 +13,9 @@ Date: 2026-09-25
 
 ## Current Focus
 
-- **审计修复待提交**：改动跨 `api/v1/*`、`core/{cache,config,errors,redis}.py`、`main.py`、`schemas/*`、`services/*`、`core/uploads.py`（新）+ 10 个测试模块；前端另有用户侧的 401 修复混在同一工作区，**提交时必须拆分**
+- **审计修复待提交**：改动跨 `api/v1/*`、`core/{cache,config,errors,redis}.py`、`main.py`、`schemas/*`、`services/*`、`core/uploads.py`（新）+ 10 个测试模块；前端另有用户侧的 401 修复混在同一工作区，**提交时必须拆分**。本轮五项修复未立决策条目，取舍记在 `wiki/problems/error-path-blindspots.md`
 - **知识层**（2026-09-19 起）：Phase 0-3 主体已落地；本轮新增模块 `error-envelope` 与文档 `wiki/problems/error-path-blindspots.md`。`stale` 里 `env-config`、`frontend-*`、`pytest-suite` 的文档本次未读、未刷印章，仍待 `/knowledge-verify`
-- **`.agent/decisions.md` 已到 99.8%（32709/32768 B）**：下一条决策写入前必须先做归档轮（最早批次条目移入 `.agent/archive/decisions-2026-09.md` 并下调 limit），否则检查失败。本轮五项修复**未立决策条目**，取舍记在 `wiki/problems/error-path-blindspots.md`
+- **知识层归档轮已完成（09-25）**：DEC-042..048 正文逐字移入 `.agent/archive/decisions-2026-09.md`，`decisions.md` 32709 → 14159 B、limit 下调 24576 B（S1/S3/S5 的决策条目已有位置）；`decisions-index.md` 6169/6400 同样顶格且无归档出路，limit 一并提到 7168 B
 - **多 Agent 协议已落地**（`owners.md` + `handoffs/`）；部署密钥均为 env / `.env` 引用
 - **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿、内测反馈收集渠道
 
@@ -28,7 +28,7 @@ Date: 2026-09-25
 5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
 6. Recommendation 深度个性化 P2（ADR-0011）
 7. ICP 解封后项：payment、前端单测、e2e 覆盖
-8. **词汇训练 + 播放页返回（09-25 定稿；S1 已落地待提交，其余待派发）**：设计 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`，执行方案 `docs/plans/词汇训练与播放页返回-执行方案-2026-09.md`（八片 S1-S8 + 门禁 + 同文件串行约束）；已开票 `.agent/handoffs/2026-09-25-s1-return-nav.md`、`-s2b-home-sort.md`、`-s3-study-sessions.md`，其余分片待前置落地后开票
+8. **词汇训练 + 播放页返回（09-25 定稿；S1 已落地并端到端验证，S2b/S3 票已就绪待派发）**：设计 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`，执行方案 `docs/plans/词汇训练与播放页返回-执行方案-2026-09.md`（八片 S1-S8 + 门禁 + 同文件串行约束）；已开票 `.agent/handoffs/2026-09-25-s1-return-nav.md`、`-s2b-home-sort.md`、`-s3-study-sessions.md`，其余分片待前置落地后开票
 
 ## Known Issues
 
@@ -37,6 +37,6 @@ Date: 2026-09-25
 - **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，但已落库的值、不经 Pydantic 的裸 dict 响应、无 schema 的 JSONB payload 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
 - **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
-- **E2E coverage 不完整**：播放 / 词汇复习 / 考试等关键流程缺 e2e
+- **E2E coverage 不完整**：播放 / 词汇复习 / 考试等关键流程缺 e2e；`mobile-d1-d10.spec.ts` 的「控件自动隐藏」断言需要**真能播**的本地视频（合成 seed 只写占位 URL），CI 里会 skip
 - **ICP compliance**：等个体营业执照才能全量部署（payment 保持禁用）
 - **"本地绿"不等于绿**：提交前按 `wiki/guides/release-checklist.md` 过四道本地门

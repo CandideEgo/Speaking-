@@ -1,7 +1,7 @@
 # Handoff: S1 — 播放页来源感知返回 + 无损返回 + 频道入口提亮
 
 - Owner: `frontend-main`
-- Status: done（工作区已改完、门禁已过；**端到端未验证**，见「遗留」）
+- Status: done（工作区已改完、门禁已过，**端到端已验证**：2026-09-25 在 docker Postgres/Redis + `ENV=testing` 的后端上 seed 后，`e2e/watch-return.spec.ts` 对着真实栈 passed）
 - Planner acceptance: 六个来源（首页/频道/搜索/收藏/词库集合/真题）各进一次播放页，返回按钮的**文案与目标**均正确；首页筛选与滚动位置返回后保留；未挂频道的视频不出现「返回频道」；按返回后按浏览器后退不出现回到播放页的回退环。
 
 ## 任务
@@ -65,8 +65,9 @@ e2e
 
 ## 遗留
 
-- **端到端未验证（最重要）**：本机没有 PostgreSQL / Redis（无 docker daemon、5432/6379 无监听），`playwright.config.ts` 起得来的 backend 一碰 DB 就 `ConnectionRefusedError`，`e2e/helpers.ts` 的注册直接 500。因此 `frontend/e2e/watch-return.spec.ts` **从未对着真实后端跑过**；票里 Planner acceptance 的四条目前只有单元测试与静态门禁作背书。跑通需要：起 Postgres + Redis（`docker compose up`）后 `cd frontend && PYTHONUTF8=1 npx playwright test --project=chromium`。
-  - 已做过的替代验证（**证据等级较弱，不等于验收**）：对着临时 stub API（真实 Chromium + 真实 `next dev`）跑通了 `watch-return.spec.ts` 与同批 watch/video 三个 spec（8 passed / 4 skipped / 0 failed）。stub 已删除，未留在仓库里。
+- **端到端已验证（2026-09-25，本条已关闭）**：起 docker Postgres/Redis 后，`e2e/watch-return.spec.ts` 对着真实栈 passed（客户端导航 → 「返回首页」→ 回到带 `sort=hot` 的首页 → `goBack()` 不落回 `/watch/`）。走通这一步要两个前提，都已处理：
+  - 本地后端必须 `ENV=testing`：dev 形态下限流是开的，而 ~95 个 spec 各自注册一个用户，`e2e/helpers.ts` 会成片吃 `429 RATE_LIMITED`（且并行下时间戳手机号会撞成 `409`），看起来像大面积回归。已写进 `wiki/guides/release-checklist.md` 的 trap 表。
+  - `backend/scripts/seed_e2e.py` 建的视频**从未置 `is_published=True`**，而 feed/browse 过滤 `is_published`：所以自 2026-08-14 起 watch 类 e2e 在 CI 里一直是**静默 skip**（`watch.spec.ts` 亦然）。已修，并顺带处理它暴露出来的 `e2e/mobile-d1-d10.spec.ts`——该 spec 断言写死 iPhone X 几何却被 chromium（1280 宽）收集，且需要真能播的本地视频（合成 seed 只有占位 URL），现在视口自钉 + 无媒体时跳过。
 - `from=drill` 目前只落 `/vocabulary/drill`，**轮次续不上**——drill 的进度还在 React state 里。要等 S3/S5 落库；那之前从训练页点「去看原视频 / 回看原句」再返回会丢掉本轮进度。
 - 浏览器**后退**（不是点返回按钮）回到列表页时，滚动位置不恢复：`useScrollRestore` 的恢复挂在 `ready` 的 false→true 跳变上，走 Next 路由缓存复用组件实例时 `ready` 一直是 true。点返回按钮（本片的验收路径）已验证可用。
 - 搜索页的 URL 不同步 `q`（本片刻意不动它的写入逻辑）。后果：从 `/search` 直接输入关键词搜索、再进播放页，返回目标带 `?q=…`，滚动记忆的 key 与来时不一致，位置不恢复（筛选与结果本身正常）。
