@@ -22,7 +22,7 @@ test.describe("Watch Page - Error States", () => {
     // a "加载视频失败" error state. Either is acceptable - no white screen.
     const meaningful = page
       .locator(".animate-spin")
-      .or(page.locator("text=/加载视频失败|处理失败|未知错误|返回浏览/i"));
+      .or(page.locator("text=/加载视频失败|处理失败|未知错误/i"));
     await expect(meaningful.first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator("body")).toBeVisible();
   });

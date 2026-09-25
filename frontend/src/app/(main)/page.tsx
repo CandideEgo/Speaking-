@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Trophy, X, Compass } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlatformFeed } from "@/hooks/usePlatformFeed";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
 import { HomeFilterBar } from "@/components/home/HomeFilterBar";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -24,23 +27,6 @@ export default function HomePage() {
 
   // Learning profile (for milestone banner).
   const { profile } = usePlan();
-
-  // Video feed (B方案: 首页视频流 = filter-bar + 网格 + 无限滚动)
-  const {
-    categories,
-    activeCategory,
-    setActiveCategory,
-    activeLevel,
-    setActiveLevel,
-    sort,
-    setSort,
-    videos,
-    loading,
-    total,
-    error,
-    retry,
-    loaderRef,
-  } = usePlatformFeed({ platform: "home" });
 
   const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
 
@@ -99,67 +85,120 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── 筛选栏：分类（展开）+ 排序（推荐/热播/最新）+ 难度 ── */}
-        <HomeFilterBar
-          categories={categories}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
-          sort={sort}
-          onSortChange={setSort}
-          activeLevel={activeLevel}
-          onLevelChange={setActiveLevel}
-          total={total}
-        />
-
-        {/* ── 视频网格 ── */}
-        {error && <ErrorState title={error} onRetry={retry} className="py-8" />}
-
-        {!error && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {videos.map((video) => (
-              <VideoCard key={video.id || video.video_id} video={video} />
-            ))}
-          </div>
-        )}
-
-        {/* Loading skeleton */}
-        {loading && videos.length === 0 && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <VideoCardSkeleton key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && videos.length === 0 && !error && (
-          <EmptyState
-            icon={Compass}
-            title="该分类下暂无视频"
-            description="请尝试其他筛选条件"
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setActiveCategory("all");
-                  setActiveLevel("all");
-                  setSort("recommended");
-                }}
-              >
-                清除筛选
-              </Button>
-            }
-          />
-        )}
-
-        {/* Infinite scroll trigger */}
-        <div ref={loaderRef} className="flex justify-center mt-10">
-          {loading && videos.length > 0 && (
-            <div className="w-5 h-5 border-2 border-muted-soft border-t-brand-500 rounded-full animate-spin" />
-          )}
-        </div>
+        {/* ── 筛选栏 + 视频网格（筛选由 URL 派生 → useSearchParams 需要 Suspense 边界） ── */}
+        <Suspense
+          fallback={
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <VideoCardSkeleton key={i} />
+              ))}
+            </div>
+          }
+        >
+          <HomeFeed />
+        </Suspense>
       </main>
     </PageTransition>
+  );
+}
+
+/** 首页视频流：筛选栏 + 网格 + 无限滚动。筛选以 URL 为单一真相。 */
+function HomeFeed() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const {
+    categories,
+    activeCategory,
+    setActiveCategory,
+    activeLevel,
+    setActiveLevel,
+    sort,
+    setSort,
+    videos,
+    loading,
+    total,
+    error,
+    retry,
+    loaderRef,
+  } = usePlatformFeed({ platform: "home" });
+
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), videos.length > 0);
+
+  return (
+    <>
+      {/* ── 筛选栏：分类（展开）+ 排序（推荐/热播/最新）+ 难度 ── */}
+      <HomeFilterBar
+        categories={categories}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+        sort={sort}
+        onSortChange={setSort}
+        activeLevel={activeLevel}
+        onLevelChange={setActiveLevel}
+        total={total}
+      />
+
+      {/* ── 视频网格 ── */}
+      {error && <ErrorState title={error} onRetry={retry} className="py-8" />}
+
+      {!error && (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {videos.map((video) => (
+            <VideoCard
+              key={video.id || video.video_id}
+              video={video}
+              // 透传原始 URL 值（含 null），返回 URL 才能与离开时逐字节一致，
+              // 滚动记忆的 key 也才对得上。
+              entry={{
+                from: "home",
+                extra: {
+                  category: searchParams.get("category"),
+                  level: searchParams.get("level"),
+                  sort: searchParams.get("sort"),
+                },
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && videos.length === 0 && (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <VideoCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && videos.length === 0 && !error && (
+        <EmptyState
+          icon={Compass}
+          title="该分类下暂无视频"
+          description="请尝试其他筛选条件"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setActiveCategory("all");
+                setActiveLevel("all");
+                setSort("recommended");
+              }}
+            >
+              清除筛选
+            </Button>
+          }
+        />
+      )}
+
+      {/* Infinite scroll trigger */}
+      <div ref={loaderRef} className="flex justify-center mt-10">
+        {loading && videos.length > 0 && (
+          <div className="w-5 h-5 border-2 border-muted-soft border-t-brand-500 rounded-full animate-spin" />
+        )}
+      </div>
+    </>
   );
 }

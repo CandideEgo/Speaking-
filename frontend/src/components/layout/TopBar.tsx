@@ -14,6 +14,7 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
+import { watchHref } from "@/lib/watchEntry";
 import { useProfileStore } from "@/stores/profileStore";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
 import { Search, Bell, Sun, Moon, User, LogOut, HelpCircle, Bookmark } from "lucide-react";
@@ -257,7 +258,7 @@ export function TopBar() {
       e.preventDefault();
       const firstResult = searchResults[0];
       setShowDropdown(false);
-      router.push(`/watch/${firstResult.id}`);
+      router.push(watchHref(firstResult.id, { from: "search", extra: { q: searchQuery } }));
     }
   }
 

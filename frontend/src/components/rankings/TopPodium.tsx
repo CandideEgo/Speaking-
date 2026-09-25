@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
+import { watchHref } from "@/lib/watchEntry";
 import type { RankingRowMode } from "@/components/rankings/RankingRow";
 import type { RankedVideo } from "@/types";
 
@@ -71,7 +72,7 @@ interface PodiumCardProps {
 function PodiumCard({ video, rank, mode, metricLabel, featured = false }: PodiumCardProps) {
   return (
     <Link
-      href={`/watch/${video.id}`}
+      href={watchHref(video.id, { from: "rankings" })}
       className={cn(
         "group relative flex overflow-hidden rounded-xl border bg-surface-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
         featured

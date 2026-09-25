@@ -6,7 +6,7 @@ confidence: verified
 related_code: [frontend-app, frontend-stores, frontend-lib]
 related: [wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-24
+updated: 2026-09-25
 ---
 
 # Background
@@ -63,6 +63,26 @@ duplicate was the bug), and polls `currentTime` for the progress bar for the sam
 iOS compatibility stays inside the hook, not in components: `seekTo` waits for
 `loadedmetadata`/`canplay` before assigning `currentTime` — a seek before metadata is silently
 dropped — and forces `pause` first; `toggleFullscreen` falls back to `webkitEnterFullscreen`.
+
+# Navigation, URL State and Scrolling
+
+The app shell (`MainLayoutInner`) locks `<html>` and scrolls its inner `<main>` instead, so on every
+authenticated page `window.scrollY` / `window.scrollTo` are **no-ops** — and Next's built-in scroll
+restoration, which targets `window`, is inert along with them. Any scroll memory must address that
+`<main>` (`SCROLL_CONTAINER_ID` in `lib/scrollMemory.ts`); `useScrollRestore` is the only entry point
+and it is opt-in per list page, not global.
+
+The home and browse feeds keep `category / level / sort` in the URL as the single source of truth
+(`usePlatformFeed` derives them from `useSearchParams`, the setters `router.replace`). Two
+consequences: changing a filter is now a soft navigation, so anything that has to survive one must
+live in the URL too; and since a page calling `useSearchParams` needs a `<Suspense>` boundary or
+`next build` fails, home/browse wrap **only** the feed section — the greeting and stat strip stay
+prerendered.
+
+Every link into `/watch/{id}` carries a `?from=` source marker (`lib/watchEntry.ts`; an enum, never a
+free-form return URL). The watch page resolves it to a target + label and returns with
+`router.replace`, never `push` — `push` builds the loop 首页 → 播放页 → 首页 → 浏览器后退 → 播放页.
+A new entry surface must pass its own marker, or the return button silently degrades to `history.back()`.
 
 # Future Notes
 

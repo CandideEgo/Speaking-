@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Volume2, Check, X, ArrowRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useSpeech } from "@/hooks/useSpeech";
+import { watchHref } from "@/lib/watchEntry";
 import type { VocabularyWord } from "@/types";
 
 /**
@@ -98,7 +99,7 @@ export function WordFlashcard({
             )}
             {word.video_id && (
               <Link
-                href={`/watch/${word.video_id}`}
+                href={watchHref(word.video_id, { from: "drill" })}
                 className="inline-flex items-center gap-1 mt-3 text-xs text-brand-500 hover:underline"
               >
                 <ExternalLink size={12} />

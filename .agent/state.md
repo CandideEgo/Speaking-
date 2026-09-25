@@ -28,7 +28,7 @@ Date: 2026-09-25
 5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
 6. Recommendation 深度个性化 P2（ADR-0011）
 7. ICP 解封后项：payment、前端单测、e2e 覆盖
-8. 词汇训练 + 播放页返回（09-25 记录，未开工）：方案见 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`
+8. **词汇训练 + 播放页返回（09-25 定稿；S1 已落地待提交，其余待派发）**：设计 `docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`，执行方案 `docs/plans/词汇训练与播放页返回-执行方案-2026-09.md`（八片 S1-S8 + 门禁 + 同文件串行约束）；已开票 `.agent/handoffs/2026-09-25-s1-return-nav.md`、`-s2b-home-sort.md`、`-s3-study-sessions.md`，其余分片待前置落地后开票
 
 ## Known Issues
 

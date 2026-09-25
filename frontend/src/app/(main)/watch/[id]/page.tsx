@@ -21,6 +21,7 @@ import { api, mediaUrl } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
+import { resolveWatchReturn } from "@/lib/watchEntry";
 import type { VideoWithSubtitles, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ import {
   X,
   AlertCircle,
   Check,
+  ChevronRight,
   Layers,
   Repeat,
 } from "lucide-react";
@@ -66,6 +68,30 @@ const SUBTITLE_FONT_ZH: Record<SubtitleFontSize, string> = {
   medium: "14px",
   large: "16px",
 };
+
+/**
+ * 返回出口：带上 `?from=` 标记就回来源页，回到那个页面的 URL 状态；
+ * 没有标记（旧链接、外部直达）才退化为浏览器后退。
+ * 一律用 `replace`：`push` 会造出「首页 → 播放页 → 首页 → 后退 → 播放页」的历史环。
+ */
+function useWatchReturn(): { label: string; go: () => void } {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  return useMemo(() => {
+    const target = resolveWatchReturn(searchParams);
+    if (target) {
+      return { label: target.label, go: () => router.replace(target.href) };
+    }
+    return {
+      label: "返回",
+      go: () => {
+        if (window.history.length > 1) router.back();
+        else router.replace("/");
+      },
+    };
+  }, [router, searchParams]);
+}
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -100,6 +126,7 @@ export default function WatchPage() {
   // D13: deep link from /favorites with ?note=1 opens the note drawer
   // immediately so the user lands on their saved note.
   const searchParams = useSearchParams();
+  const back = useWatchReturn();
   useEffect(() => {
     if (searchParams.get("note") === "1") setNoteOpen(true);
   }, [searchParams]);
@@ -548,8 +575,8 @@ export default function WatchPage() {
           </p>
           <div className="flex gap-3 justify-center mt-6">
             <Button onClick={() => router.push("/vocabulary")}>去单词训练</Button>
-            <Button variant="outline" onClick={() => router.push("/browse")}>
-              浏览其他视频
+            <Button variant="outline" onClick={back.go}>
+              {back.label}
             </Button>
           </div>
         </div>
@@ -581,11 +608,8 @@ export default function WatchPage() {
         title="处理失败"
         message={video.error_message || "未知错误"}
         action={
-          <button
-            onClick={() => router.push("/browse")}
-            className="mt-4 text-sm text-brand-500 hover:underline"
-          >
-            返回频道
+          <button onClick={back.go} className="mt-4 text-sm text-brand-500 hover:underline">
+            {back.label}
           </button>
         }
         fullPage
@@ -605,10 +629,10 @@ export default function WatchPage() {
         <div className="flex items-center gap-3">
           <button
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
-            onClick={() => router.push("/browse")}
+            onClick={back.go}
           >
             <ArrowLeft size={14} />
-            返回频道
+            {back.label}
           </button>
           <div className="h-4 w-px bg-hairline shrink-0" />
           <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
@@ -685,9 +709,10 @@ export default function WatchPage() {
             video.channel_slug ? (
               <Link
                 href={`/channels/${video.channel_slug}`}
-                className="font-semibold text-ink hover:text-brand-500 transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-hairline px-2.5 py-0.5 font-semibold text-ink hover:border-brand-500/40 hover:text-brand-500 transition-colors"
               >
                 {video.channel_name}
+                <ChevronRight size={12} />
               </Link>
             ) : (
               <span className="font-semibold text-ink">{video.channel_name}</span>

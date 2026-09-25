@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { ArrowLeft, BadgeCheck, Radio } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
@@ -13,6 +13,8 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { formatViews } from "@/lib/format";
 import { avatarColor, userInitial } from "@/lib/avatar";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
 import type { ChannelSummary } from "@/components/channels/ChannelStrip";
 
 interface ChannelDetailResponse {
@@ -31,6 +33,8 @@ const PAGE_SIZE = 20;
 export default function ChannelDetailPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [channel, setChannel] = useState<ChannelSummary | null>(null);
   const [videos, setVideos] = useState<VideoCardData[]>([]);
@@ -73,6 +77,8 @@ export default function ChannelDetailPage() {
   }, [slug, load]);
 
   const hasMore = videos.length < total;
+
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), videos.length > 0);
 
   return (
     <PageTransition>
@@ -165,7 +171,11 @@ export default function ChannelDetailPage() {
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {videos.map((video) => (
-                  <VideoCard key={video.id || video.video_id} video={video} />
+                  <VideoCard
+                    key={video.id || video.video_id}
+                    video={video}
+                    entry={{ from: "channel", extra: { slug } }}
+                  />
                 ))}
               </div>
             )}

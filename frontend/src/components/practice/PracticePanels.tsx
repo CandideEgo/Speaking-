@@ -9,6 +9,7 @@ import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import { watchHref } from "@/lib/watchEntry";
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -689,7 +690,10 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
             if (it?.video_id && it.subtitle_id && it.start_time != null) {
               return (
                 <Link
-                  href={`/watch/${it.video_id}?t=${Math.floor(it.start_time)}&word=${encodeURIComponent(it.word)}`}
+                  href={watchHref(it.video_id, {
+                    from: "drill",
+                    extra: { t: Math.floor(it.start_time), word: it.word },
+                  })}
                   className="text-xs text-brand-500 hover:underline"
                 >
                   回看原句 →

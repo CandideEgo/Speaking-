@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { TOPIC_CATEGORY_LABELS } from "@/lib/topicCategories";
@@ -15,6 +15,15 @@ type Platform = "browse" | "home";
  *  to the unfiltered home view; "hot"/"latest" map to /browse/feed?sort=… and
  *  compose with category/level filters. */
 export type FeedSort = "recommended" | "hot" | "latest";
+
+const SORT_VALUES: readonly string[] = ["recommended", "hot", "latest"];
+
+function isFeedSort(value: string | null): value is FeedSort {
+  return value !== null && SORT_VALUES.includes(value);
+}
+
+/** 各平台默认排序：首页个性化推荐，频道页最新（也是后端默认）。 */
+const DEFAULT_SORT: Record<Platform, FeedSort> = { home: "recommended", browse: "latest" };
 
 interface UsePlatformFeedOptions {
   platform: Platform;
@@ -68,12 +77,57 @@ export function usePlatformFeed({
   initialLevel = "all",
 }: UsePlatformFeedOptions) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES[platform] || []);
-  const [activeCategory, setActiveCategory] = useState(initialCategory);
-  const [activeLevel, setActiveLevel] = useState(initialLevel);
-  const [sort, setSort] = useState<FeedSort>(platform === "home" ? "recommended" : "latest");
   const [addingId, setAddingId] = useState<string | null>(null);
+
+  // 筛选的唯一真相是 URL（读取即派生，不做 state↔URL 双向同步 —— 那会竞态）：
+  // 返回时 URL 上带着来时的筛选，列表、滚动位置、返回按钮三者才对得上。
+  const defaultSort = DEFAULT_SORT[platform];
+  const sortParam = searchParams.get("sort");
+  const activeCategory = searchParams.get("category") ?? initialCategory;
+  const activeLevel = searchParams.get("level") ?? initialLevel;
+  const sort: FeedSort = isFeedSort(sortParam) ? sortParam : defaultSort;
+
+  const query = searchParams.toString();
+  // 已请求写入的 query。首页「清除筛选」会连续调用三个 setter，而 replace 落地的
+  // searchParams 要等下一次 render 才更新 —— 没有这个 ref，三次调用会各自基于同一个
+  // 旧 URL 计算，互相覆盖成「只清掉最后一个」。
+  const pendingQueryRef = useRef(query);
+  useEffect(() => {
+    pendingQueryRef.current = query;
+  }, [query]);
+
+  /** 写回 URL；非默认值的才写，未筛选时 URL 保持干净。 */
+  const updateFilters = useCallback(
+    (patch: { category?: string; level?: string; sort?: FeedSort }) => {
+      const next = new URLSearchParams(pendingQueryRef.current);
+      const apply = (key: string, value: string | undefined, fallback: string) => {
+        if (value === undefined) return;
+        if (value === fallback) next.delete(key);
+        else next.set(key, value);
+      };
+      apply("category", patch.category, "all");
+      apply("level", patch.level, "all");
+      apply("sort", patch.sort, defaultSort);
+      const nextQuery = next.toString();
+      pendingQueryRef.current = nextQuery;
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+    },
+    [defaultSort, pathname, router]
+  );
+
+  const setActiveCategory = useCallback(
+    (value: string) => updateFilters({ category: value }),
+    [updateFilters]
+  );
+  const setActiveLevel = useCallback(
+    (value: string) => updateFilters({ level: value }),
+    [updateFilters]
+  );
+  const setSort = useCallback((value: FeedSort) => updateFilters({ sort: value }), [updateFilters]);
 
   const {
     items: videos,

@@ -56,6 +56,7 @@ before concluding anything.
 | `npm ci` / `npm install` | peer dependency error on `eslint` | always pass `--legacy-peer-deps` (the project's `eslint@10` outruns `eslint-plugin-react-hooks@5`) |
 | `mypy` baseline has rotted | CI's `Type check` fails on `file:code` pairs nobody remembers adding | see below |
 | e2e locator left behind by a UI rename | local gates all green, CI's `e2e` job red on a `getByRole` / text locator that matches nothing | e2e specs assert on user-visible labels. When a nav item, tab or button is renamed, `grep -rn '<旧文案>' frontend/e2e/` before pushing. 2026-09-22: MobileTabBar 的「浏览」改成「频道」（DEC-046）漏改 `e2e/mobile.spec.ts`，master 上 e2e 红（83 passed / 1 failed） |
+| local `npx playwright test` cannot boot the backend (Windows) | webServer log shows `UnicodeDecodeError: 'gbk' codec can't decode byte 0xac` while `limiter.py` builds `Config(env_file=...)`, then `Error: Process from config.webServer was not able to start` | Playwright spawns `uvicorn` as a **child process**, so the `PYTHONUTF8=1` written on the pytest line above does not reach it. Export it for the run: `PYTHONUTF8=1 npx playwright test --project=chromium` |
 
 Watch the exit codes, not the tail of the output — piping into `tail` or `grep` replaces `$?` with
 the pipe's status. Check `cmd > log 2>&1; echo $?`.

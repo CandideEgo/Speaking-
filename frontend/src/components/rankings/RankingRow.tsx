@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
+import { watchHref } from "@/lib/watchEntry";
 import type { RankingScope } from "@/hooks/useRankings";
 import type { RankedVideo } from "@/types";
 
@@ -57,7 +58,7 @@ export function RankingRow({
 
   return (
     <Link
-      href={`/watch/${video.id}`}
+      href={watchHref(video.id, { from: "rankings" })}
       className="group flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-surface-soft sm:gap-4"
     >
       <span

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
+import { watchHref } from "@/lib/watchEntry";
 import type { VocabSetScope, VocabSetWordStatus } from "@/types";
 
 /** 集合内单词的过筛状态 → Badge（pending=未学 / unknown=学习中 / known+learned=已掌握）。 */
@@ -87,7 +88,7 @@ export default function VocabSetDetailPage() {
             </p>
           </div>
           <Link
-            href={`/watch/${detail.video_id}`}
+            href={watchHref(detail.video_id, { from: "set", extra: { set: id } })}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-canvas text-ink border border-hairline text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-all flex-shrink-0"
           >
             <Play size={14} />

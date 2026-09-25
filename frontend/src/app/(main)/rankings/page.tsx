@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { PageTransition } from "@/components/common/PageTransition";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import {
@@ -12,6 +13,8 @@ import { TopPodium } from "@/components/rankings/TopPodium";
 import { TabPills } from "@/components/ui/TabPills";
 import { useRankings, type RankingScope } from "@/hooks/useRankings";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
 
 const TABS: { key: RankingScope; label: string }[] = [
   { key: "latest", label: "最新" },
@@ -26,6 +29,10 @@ export default function RankingsPage() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const [scope, setScope] = useState<RankingScope>("latest");
   const { items, loading } = useRankings(scope);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
 
   if (authLoading || !isAuthenticated) return <FullPageSpinner />;
 

@@ -10,6 +10,7 @@ import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { cn, formatCount } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 import { topicLabel } from "@/lib/topicCategories";
+import { watchHref, type WatchEntry } from "@/lib/watchEntry";
 
 /** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
 export interface VideoCardData {
@@ -47,6 +48,8 @@ export interface VideoCardProps {
   footer?: ReactNode;
   /** Additional className for the outer link. */
   className?: string;
+  /** 来源标记：播放页据此回到本页（连同 URL 状态）。不传则 href 不带参数。 */
+  entry?: WatchEntry;
 }
 
 function clickSource(): string {
@@ -66,6 +69,7 @@ export function VideoCard({
   durationLabel,
   footer,
   className,
+  entry,
 }: VideoCardProps) {
   const router = useRouter();
   // topic_tags 存 canonical id（LLM 分类产出），展示时映射为中文标签；
@@ -85,7 +89,7 @@ export function VideoCard({
 
   return (
     <Link
-      href={`/watch/${video.id || video.video_id}`}
+      href={watchHref(videoId, entry)}
       onClick={() => trackClick(videoId, clickSource())}
       className={cn(
         "bg-canvas border border-hairline rounded-xl overflow-hidden cursor-pointer",

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, FileSearch, Subtitles } from "lucide-react";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { watchHref } from "@/lib/watchEntry";
 
 export interface SearchResultItem {
   id: string;
@@ -55,11 +56,12 @@ export function SearchDropdown({
 
   function handleClick(videoId: string, startTime?: number) {
     onSelect(videoId);
-    if (startTime !== undefined) {
-      router.push(`/watch/${videoId}?t=${Math.floor(startTime)}`);
-    } else {
-      router.push(`/watch/${videoId}`);
-    }
+    router.push(
+      watchHref(videoId, {
+        from: "search",
+        extra: { q: query, t: startTime === undefined ? undefined : Math.floor(startTime) },
+      })
+    );
   }
 
   // Empty query — nothing to show

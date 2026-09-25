@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -10,6 +11,9 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { usePlan } from "@/hooks/usePlan";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
+import { watchHref } from "@/lib/watchEntry";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
 import { relativeTime, formatTimeSpent, groupByDate } from "@/lib/date";
@@ -28,6 +32,8 @@ export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
   const { profile } = usePlan();
   const [filter, setFilter] = useState<FilterKey>("all");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const {
     items: records,
@@ -46,6 +52,8 @@ export default function HistoryPage() {
     filters: [filter],
     enabled: isAuthenticated && !isLoading,
   });
+
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), records.length > 0);
 
   // Summary stats（原型 12 stat-grid：本周学习时长/已学视频/学完视频/连续天数）
   const stats = useMemo(() => {
@@ -165,7 +173,7 @@ function RecordCard({ record }: { record: LearningRecord }) {
 
   return (
     <Link
-      href={`/watch/${record.video_id}`}
+      href={watchHref(record.video_id, { from: "history" })}
       className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-surface-soft transition-colors"
     >
       {/* Thumbnail */}

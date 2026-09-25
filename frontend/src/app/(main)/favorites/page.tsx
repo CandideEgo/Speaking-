@@ -2,11 +2,15 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Bookmark, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
+import { watchHref } from "@/lib/watchEntry";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -43,6 +47,8 @@ interface FavoriteVideoItem {
 export default function FavoritesPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const fetcher = useCallback(
     (page: number) =>
@@ -57,6 +63,8 @@ export default function FavoritesPage() {
       enabled: isAuthenticated && !isLoading,
     }
   );
+
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
 
   async function handleUnfavorite(videoId: string, title: string) {
     setRemovingIds((prev) => new Set(prev).add(videoId));
@@ -143,10 +151,11 @@ export default function FavoritesPage() {
                       favorite_count: v.favorite_count,
                       description: v.description,
                     }}
+                    entry={{ from: "favorites" }}
                     footer={
                       v.has_note && v.note_excerpt ? (
                         <Link
-                          href={`/watch/${v.id}?note=1`}
+                          href={watchHref(v.id, { from: "favorites", extra: { note: 1 } })}
                           onClick={(e) => e.stopPropagation()}
                           className="block text-[11px] text-muted hover:text-ink transition-colors line-clamp-2 mt-1 px-1"
                         >

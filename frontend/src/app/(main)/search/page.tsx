@@ -2,8 +2,11 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { watchHref } from "@/lib/watchEntry";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { scrollKey } from "@/lib/scrollMemory";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Button } from "@/components/ui/Button";
@@ -86,6 +89,7 @@ function formatTime(seconds: number): string {
 export default function SearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const initialQ = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(initialQ);
   const [videoResults, setVideoResults] = useState<SearchResultItem[]>([]);
@@ -100,6 +104,11 @@ export default function SearchPage() {
   const [activeIdx, setActiveIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useScrollRestore(
+    scrollKey(pathname, searchParams.toString()),
+    videoResults.length > 0 || subtitleResults.length > 0
+  );
 
   // Auto-focus + load history + hot terms on mount
   useEffect(() => {
@@ -246,17 +255,18 @@ export default function SearchPage() {
       if (query.trim()) {
         submitSearch(query);
       } else if (videoResults.length > 0) {
-        router.push(`/watch/${videoResults[0].id}`);
+        router.push(watchHref(videoResults[0].id, { from: "search", extra: { q: query } }));
       }
     }
   }
 
   function handleVideoClick(videoId: string, startTime?: number) {
-    if (startTime !== undefined) {
-      router.push(`/watch/${videoId}?t=${Math.floor(startTime)}`);
-    } else {
-      router.push(`/watch/${videoId}`);
-    }
+    router.push(
+      watchHref(videoId, {
+        from: "search",
+        extra: { q: query, t: startTime === undefined ? undefined : Math.floor(startTime) },
+      })
+    );
   }
 
   function removeHistoryItem(term: string) {

@@ -7,6 +7,7 @@ import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
+import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 
 export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -73,7 +74,12 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <TopBar />
-      <main className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0">{children}</main>
+      <main
+        id={SCROLL_CONTAINER_ID}
+        className="flex-1 overflow-y-auto custom-scrollbar pb-16 md:pb-0"
+      >
+        {children}
+      </main>
       <MobileTabBar />
     </div>
   );
