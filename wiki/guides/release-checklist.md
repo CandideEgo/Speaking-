@@ -6,22 +6,20 @@ confidence: verified
 related_code: [pre-commit, ci-workflows, pytest-suite, frontend-package]
 related: [wiki/guides/testing.md, docs/operations/RUNBOOK.md]
 created: 2026-09-19
-updated: 2026-09-22
+updated: 2026-09-25
 ---
 
 # Why this checklist exists
 
 **A green local tree does not imply a green CI.** Five separate mechanisms have already caused that
-here — a formatter version skew, an `alembic` import path, a mirror without an audit endpoint,
-formatting regressions that rode in on feature commits, and a UI rename that left an e2e assertion
-behind. Each is listed below with its symptom.
+here; each is listed below with its symptom.
 
 # 1. Run the four gates locally
 
 ```bash
-# Backend (PYTHONUTF8=1 is required on Windows — see wiki/guides/testing.md)
-cd backend && PYTHONUTF8=1 pytest tests/ -v
-cd backend && ruff check app/ tests/ && ruff format --check app/ tests/ && mypy app/ --ignore-missing-imports
+# Backend (PYTHONUTF8=1 on Windows; name the venv interpreter — wiki/guides/testing.md)
+cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests/ -v
+cd backend && ruff check app/ tests/ && ruff format --check app/ tests/ && ./.venv/Scripts/python.exe -m mypy app/ --ignore-missing-imports
 
 # Frontend (--legacy-peer-deps is required: eslint 10 vs eslint-plugin-react-hooks)
 cd frontend && npm run format:check && npx tsc --noEmit && npm run test:unit && npm run lint && npm run build
@@ -74,7 +72,7 @@ Regenerate with the **same mypy version CI installs**, and point it at the proje
 it sees the installed packages:
 
 ```bash
-cd backend && mypy app/ --ignore-missing-imports --python-executable .venv/Scripts/python.exe
+cd backend && ./.venv/Scripts/python.exe -m mypy app/ --ignore-missing-imports
 ```
 
 Then reduce each `file:line: ... [code]` line to `file:code`, normalise backslashes to forward

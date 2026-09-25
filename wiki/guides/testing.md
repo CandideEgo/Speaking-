@@ -6,21 +6,29 @@ confidence: verified
 related_code: [pytest-suite, pre-commit, ci-workflows]
 related: [wiki/guides/setup.md]
 created: 2026-07-21
-updated: 2026-09-19
+updated: 2026-09-25
 ---
 
 # Backend Tests
 
+**Name the venv interpreter — do not rely on bare `pytest`.** Bare `pytest`/`python` resolves
+through PATH, and on this machine PATH reaches a stale system Python (starlette 0.37.2, mypy
+2.1.0) instead of the pinned set (`requirements.txt`: starlette 1.6.0; `.venv`: mypy 2.3.1).
+The failure mode is convincing and wrong: `status.HTTP_413_CONTENT_TOO_LARGE` missing from the
+old starlette turns `tests/test_profile.py` into 5 avatar-upload failures, and the old mypy
+reports a `file:code` set that no longer matches `.mypy-baseline`. Both vanish under `.venv`.
+
 ```bash
-cd backend && pytest tests/ -v
-cd backend && pytest tests/test_ai_cache.py -v          # single test file
-cd backend && pytest tests/test_ai_cache.py::test_fn -v  # single test
+cd backend && ./.venv/Scripts/python.exe -m pytest tests/ -v      # Windows
+cd backend && ./.venv/bin/python -m pytest tests/ -v              # Linux/macOS
+cd backend && ./.venv/Scripts/python.exe -m pytest tests/test_ai_cache.py -v          # single file
+cd backend && ./.venv/Scripts/python.exe -m pytest tests/test_ai_cache.py::test_fn -v # single test
 ```
 
 **On Windows, prefix with `PYTHONUTF8=1`:**
 
 ```bash
-cd backend && PYTHONUTF8=1 pytest tests/ -v
+cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests/ -v
 ```
 
 Without it, collection fails with `UnicodeDecodeError: 'gbk' codec can't decode ...` — `slowapi`'s
