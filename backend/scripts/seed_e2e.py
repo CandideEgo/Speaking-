@@ -171,6 +171,7 @@ async def seed_video(db) -> None:
     existing = await db.scalar(
         select(Video).where(
             Video.is_official.is_(True),
+            Video.is_published.is_(True),
             Video.status == VideoStatus.ready,
         )
     )
@@ -185,6 +186,7 @@ async def seed_video(db) -> None:
         status=VideoStatus.ready,
         review_status=VideoReviewStatus.published.value,
         is_official=True,
+        is_published=True,
         is_featured=True,
         show_on_homepage=True,
         duration=16.0,

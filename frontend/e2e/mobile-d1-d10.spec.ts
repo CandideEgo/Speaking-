@@ -1,7 +1,12 @@
 /**
  * Mobile 真机验收 (D1 + D10) — iPhone X viewport (375x812)。
  * 覆盖规划 §4-D1 移动端验收项 + D10 窄屏呈现。
- * 运行：npx playwright test e2e/mobile-d1-d10.spec.ts --project=mobile-iphone
+ * 运行：npx playwright test e2e/mobile-d1-d10.spec.ts
+ *
+ * 视口由本文件自己 `test.use` 钉住，所以不再依赖 `--project=mobile-iphone`
+ * （那个项目的 `testMatch` 匹配不到 `mobile-d1-d10.spec.ts`，之前这个命令
+ * 收集到 0 个测试，而 chromium 会以 1280 宽收集它、撞上这里写死的 375 断言）。
+ * 另外需要本地库里有**真的能播**的视频：CI 的 seed 是占位 URL，会跳过。
  */
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
@@ -32,6 +37,10 @@ async function assertNoHorizontalOverflow(page: Page, label: string): Promise<vo
   }
 }
 
+// 这组断言写的是 iPhone X 的几何（375 + 2），所以视口必须由文件自己钉住：
+// 桌面项目（chromium）默认 1280 宽，之前靠空库 skip 掩盖了这处不匹配。
+test.use({ viewport: { width: 375, height: 812 } });
+
 test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
   test("watch page: no overflow, controls auto-hide, sentence button reachable", async ({
     page,
@@ -47,6 +56,23 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
     await page.goto(`/watch/${videoId}`);
     await page.waitForLoadState("networkidle", { timeout: 20000 });
     await page.waitForTimeout(1500);
+
+    // 有视频行不等于有可播媒体：CI 的 scripts/seed_e2e.py 只写占位
+    // `/media/<id>.mp4`（404），播放永远不开始，控件也就永不自动隐藏。
+    // 这套断言需要真正能播的本地视频，所以在没有可播媒体时跳过，
+    // 而不是在 4 秒后的 opacity 断言上失败。
+    const playable = await page
+      .waitForFunction(
+        () => {
+          const v = document.querySelector("video");
+          return !!v && v.readyState >= 2;
+        },
+        null,
+        { timeout: 5000 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!playable, "no playable media in local DB (the CI seed writes a placeholder URL)");
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-loaded.png` });
     await assertNoHorizontalOverflow(page, "loaded");
