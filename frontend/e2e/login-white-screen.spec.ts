@@ -13,11 +13,18 @@ import { TEST_PASSWORD } from "./helpers";
  *
  * 做法：用路由拦截把登录后的 RSC 导航请求"挂起"，确定性复现"导航不落地"窗口，
  * 断言该窗口内 spinner 可见（非零尺寸）；随后放行导航，断言首页正常渲染。
+ *
+ * 与 e2e/login-redirect-loop.spec.ts 的分工：那个 spec 覆盖「慢导航不得被误判为
+ * 滞留」（无需账号，CI 常跑）；本 spec 独有的回归点是 **spinner 尺寸塌缩**
+ * （裸数字 `8 8` 而非 `h-8 w-8` → 转圈 0×0 不可见），需要真实账号故休眠。
  */
 const PHONE = process.env.WS_TEST_PHONE ?? "";
 
 test.describe("login transition (white screen regression)", () => {
-  test.skip(!PHONE, "requires WS_TEST_PHONE env var");
+  test.skip(
+    !PHONE,
+    "requires WS_TEST_PHONE env var（休眠中；慢导航意图见 login-redirect-loop.spec.ts）"
+  );
 
   test("spinner stays visible while post-login navigation is in flight", async ({ page }) => {
     test.setTimeout(120_000);

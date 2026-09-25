@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
-import { RedirectStuckState } from "@/components/auth/RedirectStuckState";
+import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
 import { cn } from "@/lib/utils";
 
 /** Password strength tiers keyed to a 0-4 score. */
@@ -69,14 +69,8 @@ function RegisterForm() {
     return <FullPageSpinner />;
   }
 
-  // Authenticated but the soft navigation away hasn't landed yet — keep a
-  // spinner on screen. Returning null blanks the page for the whole RSC
-  // flight + first-visit chunk download (reported as "login white screen").
-  // If the redirect keeps bouncing back (middleware can't see the cookie
-  // mirror), the watchdog flips redirectStuck and we show recovery actions
-  // instead of spinning forever.
   if (isAuthenticated) {
-    return redirectStuck ? <RedirectStuckState next={next} /> : <FullPageSpinner />;
+    return <AuthenticatedRedirect redirectStuck={redirectStuck} next={next} />;
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AUTH_COOKIE_NAME, hasAuthCookieMirror } from "@/lib/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 
 interface UseRequireAuthOptions {
@@ -56,45 +57,55 @@ export function useRequireAuth(options: UseRequireAuthOptions = {}): UseRequireA
   return { isAuthenticated, isLoading };
 }
 
+export interface UseRedirectIfAuthenticatedReturn {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  /**
+   * true 表示：本地已登录，但登录墙看不到镜像 cookie，跳过去必被弹回。
+   * 调用方应渲染恢复 UI 而非 spinner。
+   */
+  redirectStuck: boolean;
+}
+
 /**
  * useRedirectIfAuthenticated — reverse guard for login/register/landing pages.
  *
  * Redirects authenticated users away to the app home. (Was /dashboard; the
  * dashboard is being removed per ADR-0003, so the app entry is now `/`.)
  *
- * Also exposes `redirectStuck`: true when the user is authenticated locally
- * but the soft redirect never lands (component still mounted after ~3s). That
- * happens when the middleware cookie mirror is missing — the browser blocked
- * the cookie write or the cookie was cleared while the localStorage token
- * survived — so the target route 302s straight back to /login and the page
- * would otherwise spin forever.
+ * `redirectStuck` 的判定是**同步读镜像 cookie**，不是计时：
+ * `proxy.ts`（D0 登录墙）的门控谓词只有「cookie 存在且非空」一条 —— 不解码
+ * JWT、不查库 —— 所以客户端读 `document.cookie` 就能复算出 middleware 的
+ * 判决，无需先发一次注定被弹回的跳转、再等它失败。缺失时直接不跳，让调用方
+ * 渲染恢复卡（`RedirectStuckState`）。
+ *
+ * 为什么缺失必然是「浏览器拒绝了写入」而不是「cookie 过期」：
+ * `authStore.initialize()`（`stores/authStore.ts:266`）每次页面加载都会用有效
+ * token 重新镜像，cookie 被单独清除的情况会自愈。故持续缺失 ⟺ 写不进去。
+ *
+ * 注意本 hook 只在 effect 里读 cookie，不在 render 期读：`initialize()` 是先
+ * `set(...)` 再 `syncAuthCookie(...)`，render 期读会依赖 React 的批处理时机。
  */
-export function useRedirectIfAuthenticated(
-  redirectTo = "/"
-): UseRequireAuthReturn & { redirectStuck: boolean } {
+export function useRedirectIfAuthenticated(redirectTo = "/"): UseRedirectIfAuthenticatedReturn {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const router = useRouter();
   const [redirectStuck, setRedirectStuck] = useState(false);
 
   useEffect(() => {
-    if (isLoading || redirectStuck) return;
-    if (isAuthenticated) {
-      router.replace(redirectTo);
-    }
-  }, [isAuthenticated, isLoading, redirectTo, router, redirectStuck]);
-
-  // Watchdog: if we're still here after the redirect should have landed, the
-  // navigation is bouncing back. Flip redirectStuck so the page can offer
-  // recovery actions instead of looping the spinner.
-  useEffect(() => {
-    if (!isAuthenticated || isLoading) {
+    if (isLoading) return;
+    if (!isAuthenticated) {
       setRedirectStuck(false);
       return;
     }
-    const timer = setTimeout(() => setRedirectStuck(true), 3000);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, isLoading]);
+    // 跳过去也会被登录墙弹回，所以不跳 —— 零次无谓导航。
+    if (!hasAuthCookieMirror(AUTH_COOKIE_NAME)) {
+      setRedirectStuck(true);
+      return;
+    }
+    setRedirectStuck(false);
+    router.replace(redirectTo);
+  }, [isAuthenticated, isLoading, redirectTo, router]);
 
   return { isAuthenticated, isLoading, redirectStuck };
 }
