@@ -30,7 +30,7 @@ Date: 2026-09-25
 5. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard）
 6. Recommendation 深度个性化 P2（ADR-0011）
 7. ICP 解封后项：payment、前端单测、e2e 覆盖
-8. **词汇训练 + 播放页返回（09-25 定稿；S1/S2b/S3 已落地）**：设计与执行方案见 `docs/plans/词汇训练与播放页返回-*.md`（八片 S1-S8 + 门禁 + 同文件串行约束）。待开票 S2f/S4/S5/S6/S8；S5 依赖 S3 的 `correct_streak`、S6 依赖 `wrong_count`、S8 与 S3 同文件须排其后。**S1 的 DEC 条目仍欠**
+8. **词汇训练 + 播放页返回（09-25 定稿；S1/S2b/S3 已落地）**：设计与执行方案见 `docs/plans/词汇训练与播放页返回-*.md`（八片 S1-S8 + 门禁 + 同文件串行约束）。待开票 S2f/S4/S5/S6/S8；S5 依赖 S3 的 `correct_streak`、S6 依赖 `wrong_count`、S8 与 S3 同文件须排其后。**DEC 条目仍欠 S5 与 S6**
 
 ## Known Issues
 
