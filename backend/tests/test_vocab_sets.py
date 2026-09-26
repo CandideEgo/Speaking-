@@ -217,6 +217,50 @@ class TestCollectSet:
         detail6 = (await client.get(f"/api/v1/vocab-sets/{resp6.json()['id']}", headers=auth_headers)).json()
         assert [w["word"] for w in detail6["words"]] == ["banana", "cherry"]
 
+    async def test_collect_writes_subtitle_id_and_detail_exposes_start_time(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        """词→句链路 (S7a): new vocab rows carry the first-appearance subtitle,
+        and the set detail exposes subtitle_id + start_time for the deep link."""
+        video_id = await _seed_video(
+            [
+                {"apple": ["cet4"]},
+                {"cherry": ["cet4"]},
+                {"apple": ["cet4"]},  # repeat — first appearance wins
+            ]
+        )
+
+        resp = await _collect(client, auth_headers, video_id, "cet4")
+        assert resp.status_code == 200
+        detail = (await client.get(f"/api/v1/vocab-sets/{resp.json()['id']}", headers=auth_headers)).json()
+
+        by_word = {w["word"]: w for w in detail["words"]}
+        # apple first appears in subtitle #0 (start 0.0), cherry in #1 (start 5.0);
+        # the repeat in subtitle #2 must not move apple's source sentence.
+        assert by_word["apple"]["subtitle_id"] is not None
+        assert by_word["apple"]["start_time"] == 0.0
+        assert by_word["cherry"]["subtitle_id"] is not None
+        assert by_word["cherry"]["start_time"] == 5.0
+        assert by_word["apple"]["subtitle_id"] != by_word["cherry"]["subtitle_id"]
+
+    async def test_detail_words_without_subtitle_render_null_start_time(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        """Legacy words (or deleted subtitles) keep working: NULL subtitle_id →
+        NULL start_time, the deep link is simply hidden by the frontend."""
+        video_id = await _seed_video([{"apple": ["cet4"]}])
+        resp = await _collect(client, auth_headers, video_id, "cet4")
+        set_id = resp.json()["id"]
+
+        async with TestSessionLocal() as db:
+            row = (await db.execute(select(Vocabulary).where(Vocabulary.word == "apple"))).scalar_one()
+            row.subtitle_id = None
+            await db.commit()
+
+        detail = (await client.get(f"/api/v1/vocab-sets/{set_id}", headers=auth_headers)).json()
+        assert detail["words"][0]["subtitle_id"] is None
+        assert detail["words"][0]["start_time"] is None
+
     async def test_collect_falls_back_to_cet4_without_preference(
         self, client: AsyncClient, auth_headers: dict, ecdict_only
     ):

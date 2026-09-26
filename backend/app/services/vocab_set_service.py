@@ -70,13 +70,15 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-async def _load_tokens(db: AsyncSession, video_id: str, level: str) -> list[str]:
-    """Ordered, deduped lowercase tokens from the video's subtitles whose
+async def _load_tokens(db: AsyncSession, video_id: str, level: str) -> list[tuple[str, str]]:
+    """Ordered, deduped ``(token, subtitle_id)`` from the video's subtitles whose
     ``word_levels`` include ``level``.
 
     Subtitles are walked in ``sentence_index`` order (their canonical
     presentation order) and each token enters the set at its first
-    appearance — mirroring the watch-page annotation filter.
+    appearance — mirroring the watch-page annotation filter. The subtitle id
+    is the token's originating sentence, written into ``Vocabulary.subtitle_id``
+    so 词→句 deep links (S7) can seek back to it.
     """
     subtitles = (
         (
@@ -88,7 +90,7 @@ async def _load_tokens(db: AsyncSession, video_id: str, level: str) -> list[str]
         .all()
     )
 
-    tokens: list[str] = []
+    tokens: list[tuple[str, str]] = []
     seen: set[str] = set()
     for sub in subtitles:
         word_levels = sub.word_levels or {}
@@ -101,7 +103,7 @@ async def _load_tokens(db: AsyncSession, video_id: str, level: str) -> list[str]
             member = (isinstance(levels, list) and level in levels) or (isinstance(levels, str) and levels == level)
             if member:
                 seen.add(token)
-                tokens.append(token)
+                tokens.append((token, sub.id))
     return tokens
 
 
@@ -143,13 +145,17 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
         logger.exception("Failed to emit learned_words event for set %s", vocab_set.id)
 
 
-async def _find_or_create_vocab(db: AsyncSession, user_id: str, token: str, video_id: str) -> Vocabulary:
+async def _find_or_create_vocab(
+    db: AsyncSession, user_id: str, token: str, video_id: str, subtitle_id: str | None = None
+) -> Vocabulary:
     """Find (or create + ECDICT-enrich) the user's Vocabulary row for a token.
 
     New rows are filled from ``ecdict.lookup`` — definition / translation /
-    part_of_speech / ipa — with ``first_seen_at`` stamped on creation.
-    ``mastery_level`` stays at its default "new"; lookups returning nothing
-    still create the row (the sieve only needs the word itself).
+    part_of_speech / ipa — with ``first_seen_at`` stamped on creation, plus the
+    originating ``subtitle_id`` (词→句 deep link, S7). ``mastery_level`` stays at
+    its default "new"; lookups returning nothing still create the row (the
+    sieve only needs the word itself). Existing rows are returned untouched:
+    一词多视频不做多来源 (设计文档 §7.4), the first source sentence wins.
     """
     vocab = (
         await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == token))
@@ -161,6 +167,7 @@ async def _find_or_create_vocab(db: AsyncSession, user_id: str, token: str, vide
         user_id=user_id,
         word=token,
         video_id=video_id,
+        subtitle_id=subtitle_id,
         first_seen_at=_now(),
     )
     entry = ecdict.lookup(token)
@@ -235,8 +242,8 @@ async def collect_set(db: AsyncSession, user: User, video_id: str, exam_level: s
     next_position = max((row[1] for row in existing_rows), default=0)
 
     added = 0
-    for token in await _load_tokens(db, video_id, level):
-        vocab = await _find_or_create_vocab(db, user.id, token, video_id)
+    for token, subtitle_id in await _load_tokens(db, video_id, level):
+        vocab = await _find_or_create_vocab(db, user.id, token, video_id, subtitle_id)
         if vocab.id in member_vocab_ids:
             continue
         next_position += 1
@@ -354,8 +361,10 @@ async def get_set_detail(db: AsyncSession, user: User, set_id: str, scope: str =
         return None
 
     stmt = (
-        select(VocabSetWord, Vocabulary)
+        select(VocabSetWord, Vocabulary, Subtitle)
         .join(Vocabulary, VocabSetWord.vocabulary_id == Vocabulary.id)
+        # 词→句 deep link (S7): the word's source sentence, when known.
+        .join(Subtitle, Vocabulary.subtitle_id == Subtitle.id, isouter=True)
         .where(VocabSetWord.set_id == vocab_set.id)
         .order_by(VocabSetWord.position.asc())
     )
@@ -376,8 +385,10 @@ async def get_set_detail(db: AsyncSession, user: User, set_id: str, scope: str =
             "definition": v.definition,
             "mastery_level": v.mastery_level,
             "context_sentence": v.context_sentence,
+            "subtitle_id": v.subtitle_id,
+            "start_time": sub.start_time if sub is not None else None,
         }
-        for sw, v in rows
+        for sw, v, sub in rows
     ]
 
     total, mastered_count, _pending, _unknown = await _progress_counts(db, vocab_set.id)
