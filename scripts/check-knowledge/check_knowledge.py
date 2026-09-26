@@ -664,6 +664,39 @@ def run_checks(selected: list[str]) -> list[Violation]:
     return violations
 
 
+def budget_report() -> None:
+    """Print usage against every ceiling, worst first. The DEC-054 traffic-light monitor."""
+    budget = load_json(BUDGET_FILE)
+    files = budget.get("files", {})
+    rows: list[tuple[str, int, int]] = []
+
+    for where, spec in files.items():
+        path = REPO_ROOT / where
+        if path.is_file():
+            rows.append((where, path.stat().st_size, ceiling(spec)))
+
+    for spec in budget.get("globs", []):
+        for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
+            where = Path(hit).as_posix()
+            path = REPO_ROOT / where
+            if path.is_file() and where not in files:
+                rows.append((where, path.stat().st_size, spec["limit"]))
+
+    for name, spec in budget.get("tiers", {}).items():
+        total = sum(
+            (REPO_ROOT / where).stat().st_size
+            for where in spec["files"]
+            if (REPO_ROOT / where).is_file()
+        )
+        rows.append((f"tier:{name}", total, tier_ceiling(spec, files)))
+
+    rows.sort(key=lambda row: row[1] / row[2], reverse=True)
+    for where, size, allowed in rows:
+        share = size / allowed
+        zone = "RED" if share > 0.95 else "YELLOW" if share > 0.85 else "green"
+        print(f"{zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  {where}")
+
+
 def refresh_budget() -> None:
     """Raise every ceiling to the current size. Deliberate growth only.
 
@@ -703,6 +736,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="run only these checks (default: all)")
     parser.add_argument("--baseline-update", action="store_true",
                         help="accept the current violations as the baseline")
+    parser.add_argument("--budget-report", action="store_true",
+                        help="print usage against every ceiling, worst first (no checks run)")
     parser.add_argument("--budget-refresh", action="store_true",
                         help="raise every size ceiling to the current size")
     parser.add_argument("--stamp-refresh", action="store_true",
@@ -717,6 +752,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+    if args.budget_report:
+        budget_report()
+        return 0
     if args.module and not args.stamp_refresh:
         parser.error("--module is only meaningful together with --stamp-refresh")
     if args.budget_refresh:

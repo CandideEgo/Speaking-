@@ -6,7 +6,7 @@ confidence: verified
 related_code: [frontend-app, frontend-components, frontend-stores, frontend-lib]
 related: [wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-25
+updated: 2026-09-27
 ---
 
 # Background
@@ -83,6 +83,8 @@ Every link into `/watch/{id}` carries a `?from=` source marker (`lib/watchEntry.
 free-form return URL). The watch page resolves it to a target + label and returns with
 `router.replace`, never `push` — `push` builds the loop 首页 → 播放页 → 首页 → 浏览器后退 → 播放页.
 A new entry surface must pass its own marker, or the return button silently degrades to `history.back()`.
+The same builder emits deep links for locating a sentence on arrival: `?sub=`/`?word=` (fallback `?t=`)
+— the word→sentence chain, documented in `exam-vocabulary.md` (S7).
 
 # Future Notes
 

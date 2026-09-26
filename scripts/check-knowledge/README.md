@@ -79,6 +79,56 @@ reader pays. The alternative, used for the first time on 2026-09-20:
 Archived bodies are frozen — `.agent/archive/` is exempt from every check, and markdown links
 inside them were written for their pre-move location in `.agent/`.
 
+## Write density and the growth ladder (DEC-054)
+
+The layer pays rent every session — `tier:session_total` loads into context before any task is
+known — so what may be written, and at what detail, is policy, not taste.
+
+### What gets recorded, per file
+
+| File | Only records | Shape |
+|---|---|---|
+| `.agent/state.md` | in-flight work, next steps, live breakage | 1–2 lines; finished items leave (history is CHANGELOG's) |
+| `.agent/decisions.md` | problem → options → decision → reason | ≤ ~1.5 KB; longer reasoning becomes a `docs/adr/` file |
+| `invariants.md` / `system-map.md` / `context.md` | rules / connections / vocabulary | one line or entry each; details belong in `wiki/` |
+| `wiki/architecture/` | what the code cannot say: why, boundaries, traps | one page per subsystem, ≤ 8 KB (glob) |
+| `wiki/problems/` | *recurring* failure modes (symptom → cause → fix → prevention) | one-off bugs live in commit messages |
+
+Never written anywhere in the layer: pasted code, process narrative, a fact another file already
+owns (link, don't copy). The write-time gate stays the three questions in `AGENTS.md`.
+
+**Detail level = minimum complete information**: where it lives (`related_code`, path), why it is
+that way, and when it starts to be suspect (`updated`, `confidence`). Self-test before writing:
+if a future reader lacked this sentence, what decision would they get wrong? None — don't write it.
+
+### How much headroom, and what happens at the ceiling
+
+- **Evergreen files** (everything in `tier:session_total`, plus `.agent/README.md`): ceiling =
+  size + ~10%, one ordinary maintain round of growth. These files are edited, not appended — at
+  the ceiling, shrink or move; do not refresh.
+- **Append-only files** (`decisions.md`, `decisions-index.md`): ceiling = size + 2–3 entries; at
+  the ceiling run the archive round above. `--budget-refresh` is not for them. The index is the
+  one file with no archive valve — its ceiling may be raised deliberately (it has been, twice).
+- **`wiki/**` pages**: 8 KB per page; a full page splits, it does not grow.
+
+Traffic lights (see them with `--budget-report`):
+
+| Zone | Usage | Action |
+|---|---|---|
+| green | < 85% | write normally |
+| yellow | 85–95% | audit density before each write; trim the file during maintain |
+| red | > 95% | the ladder below, in order |
+
+Red-zone ladder, in order: ① shrink or move — stable content goes to a colder layer (state →
+`docs/progress/` or CHANGELOG, long wiki page → two pages, decision bodies → archive); ② the
+archive round; ③ `--budget-refresh`, only when the growth is a new subject area or other
+structural content, with the reason in the commit message. Phrasing-level growth never earns a
+refresh.
+
+**Nothing is ever deleted** — shrinking is moving. Decision bodies freeze in `.agent/archive/`,
+finished state items are already mirrored by CHANGELOG, dead wiki pages get `status: deprecated`
+instead of `rm`. The defence against information loss is colder layers, not larger ceilings.
+
 ## modules.json
 
 The canonical vocabulary for the `related_code` field. Every module needs at least one glob that

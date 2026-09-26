@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, ai-service, transcription]
 related: [wiki/architecture/video-pipeline.md, wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-25
+updated: 2026-09-27
 ---
 
 # Background
@@ -33,6 +33,7 @@ Keep route files thin. Business logic in service layer.
 | `difficulty_service.py` | Subtitle-derived CEFR difficulty (DEC-043): per-word acquisition level = the *lowest* exam list containing it, 超纲率 = share of word occurrences above 中考, mapped to A1–C1/C2 bands; needs ≥30 occurrences. Writes `difficulty_level` only when NULL — the fallback behind `video_classification.py`'s LLM estimate. |
 | `video_service.py` | 视频列表/详情（详情走 Redis 缓存）、UGC 管理与三态下线；**提交与按 URL 去重在 `video_seed_service.py`，FTS + ILIKE 检索在 `search_service.py`**。 |
 | `vocabulary_service.py` | SM-2 spaced repetition, AI enrichment, stats, 今日训练队列 (`build_daily_session`: new=从未复习 / due=到期非 mastered，两队列 + totals；`totals.due_total` 不含 new 词，与 stats 徽标的 `due_count` 口径故意不同). |
+| `vocab_set_service.py` | 词汇集（收集/筛词/集合详情）；S7 起加词写 `subtitle_id`、详情透出首现句时间——词→句链路见 `exam-vocabulary.md`。 |
 | `study_session_service.py` | 训练轮次落库 + 每日配额（DEC-053）：`StudySession`/`StudySessionItem` 一轮一词一行、重复作答只 UPDATE；配额快照进轮次（改配额不重写历史）；`kind=extra` 加练计今日累计不计目标；`finish_session` 同事务清扫 30 天前的轮次明细。 |
 | `practice_service.py` | Adaptive drill generation (video/vocabulary scoped, mastery-based item types) + batch SM-2 submit. |
 | `exam_service.py` | Exam system: daily_check / video_exam / wrong_redo sessions, server-side grading (`exam_sessions`/`exam_answers`), derived wrong book, practice hub stats. Answers never leave the server in exam mode; grading reuses `submit_practice_results` for SM-2 + LearningEvents. |

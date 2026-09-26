@@ -381,3 +381,16 @@ DEC-048 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 - 作答仍是「一次请求写 1~2 行 UPDATE」（原本每次点「认识/不认识」也各写一次库），不是新的写入模式。
 - `POST /{word_id}/review` 的 SM-2 quality 由 4 统一为 5（答错仍 2），且该端点现在**没有仓内调用方**（drill 改走轮次作答），保留为兼容入口。
 - 「近 1 天轮次已排过的词」这层排除只是兜底（主机制是答过的词会离开 `mastery_level = new` 池），用于作答请求失败时该词不被重复排进加练轮，顺带跨过午夜边界。
+
+## 2026-09-27 — 知识层写入密度与余量阶梯（DEC-040 的运行细则）
+
+**Problem**: 必读层全部逼近上限（invariants 100%、system-map 99.8%、context 99.7%、state 98.4%，tier `before_code_change` 仅剩 12B），而「记什么、记多细、到顶怎么办」此前全靠临场判断——要么停写（写入时就丢信息），要么反射式 `--budget-refresh`（DEC-040 警告过：上限因此失效）。
+
+**Decision**: 标准落 `scripts/check-knowledge/README.md`（§ Write density and the growth ladder），三条硬规则：
+1. **密度**：准入仍是 AGENTS.md 三问；各文件只收自己一类事实（state 只记在途、decisions 一条 ≤1.5KB、wiki/problems 只收复发性陷阱）；详细程度 = 最小完整信息（定位 + 为什么 + 何时可疑）。
+2. **余量**：常青文件 ceiling = 大小 + 10%，到顶只收不放；追加型（decisions/index）= 大小 + 2~3 条，到顶走归档轮；wiki 单页 8KB 到顶拆页；tier `session_total` 只降不升。
+3. **阶梯**：绿 <85% 正常写；黄 85–95% 写前自审 + maintain 时修剪；红 >95% 按序 收缩/迁移 → 归档轮 → `--budget-refresh`（仅新主题域等结构性增长，理由写进提交信息）。收缩一律是移动不是删除（archive/ 冻结、CHANGELOG 承接、wiki 过期标 deprecated）——防丢信息靠冷层，不靠扩容。
+
+**Reason**: 阶梯把「临界要不要扩」从判断题变成程序题：扩容合法当且仅当前两步被证明不可行。余量按文件生命周期定（编辑型文件余量小、追加型靠归档阀），比统一百分比更贴合实际增长方式。
+
+**Tooling**: `check_knowledge.py --budget-report` 打印全部 ceiling 用量与分区，是黄红区的监测入口；每轮 `/knowledge-maintain` 跑一次。
