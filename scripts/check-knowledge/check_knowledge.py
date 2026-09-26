@@ -665,22 +665,35 @@ def run_checks(selected: list[str]) -> list[Violation]:
 
 
 def budget_report() -> None:
-    """Print usage against every ceiling, worst first. The DEC-054 traffic-light monitor."""
+    """Print usage against every ceiling, worst first. The DEC-054 traffic-light monitor.
+
+    `[SB]` marks must-read membership: S = tier:session_start, B = tier:before_code_change
+    (their union, session_total, is the hot layer DEC-055 prices per byte per session).
+    """
     budget = load_json(BUDGET_FILE)
     files = budget.get("files", {})
-    rows: list[tuple[str, int, int]] = []
+    rows: list[tuple[str, int, int, str]] = []
+
+    tier_marks: dict[str, str] = {}
+    for name, spec in budget.get("tiers", {}).items():
+        if name == "session_total":
+            continue  # the union of the other two — its mark would collide and add nothing
+        mark = name[0].upper()
+        for where in spec["files"]:
+            if mark not in tier_marks.setdefault(where, ""):
+                tier_marks[where] += mark
 
     for where, spec in files.items():
         path = REPO_ROOT / where
         if path.is_file():
-            rows.append((where, path.stat().st_size, ceiling(spec)))
+            rows.append((where, path.stat().st_size, ceiling(spec), tier_marks.get(where, "")))
 
     for spec in budget.get("globs", []):
         for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
             where = Path(hit).as_posix()
             path = REPO_ROOT / where
             if path.is_file() and where not in files:
-                rows.append((where, path.stat().st_size, spec["limit"]))
+                rows.append((where, path.stat().st_size, spec["limit"], tier_marks.get(where, "")))
 
     for name, spec in budget.get("tiers", {}).items():
         total = sum(
@@ -688,13 +701,13 @@ def budget_report() -> None:
             for where in spec["files"]
             if (REPO_ROOT / where).is_file()
         )
-        rows.append((f"tier:{name}", total, tier_ceiling(spec, files)))
+        rows.append((f"tier:{name}", total, tier_ceiling(spec, files), ""))
 
     rows.sort(key=lambda row: row[1] / row[2], reverse=True)
-    for where, size, allowed in rows:
+    for where, size, allowed, marks in rows:
         share = size / allowed
         zone = "RED" if share > 0.95 else "YELLOW" if share > 0.85 else "green"
-        print(f"{zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  {where}")
+        print(f"{zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  {where}{f' [{marks}]' if marks else ''}")
 
 
 def refresh_budget() -> None:

@@ -11,7 +11,8 @@
     "_decisions_archive_2026_09": "2026-09-22: the 44032 B round was spent — decisions.md was back at 42305 B (96%) after DEC-040..043, and the 09-21/09-22 fixes had no decision entries yet. DEC-029..DEC-036 moved verbatim to .agent/archive/decisions-2026-09.md; the file fell to 29516 B and its limit was lowered to 36864 B (file + ~3 KB of entries added the same day + ~2 decisions of room). Same mechanism as the 07/08 rounds: scripts/check-knowledge/README.md.",
     "_decisions_archive_2026_09b": "2026-09-22: the 36864 B round was spent too — decisions.md had grown back to 38703 B after DEC-041..DEC-047, so DEC-047 (default avatar: the male/female artwork is the user's own choice, not a hash of the user id) would have needed --budget-refresh to land. DEC-037..DEC-041 moved verbatim into the same .agent/archive/decisions-2026-09.md (its preamble now names both batches, DEC-029..DEC-041); the file fell to 25206 B and its limit was lowered to 32768 B — roughly three more decisions of room. Mechanism unchanged: scripts/check-knowledge/README.md.",
     "_decisions_archive_2026_09c": "2026-09-25: the 32768 B round was spent as well — decisions.md sat at 32709 B (99.8%) with DEC-042..DEC-051 still carrying their full text, so the decision entries the S1/S3/S5/S6 rounds owe could not land without --budget-refresh. DEC-042..DEC-048 moved verbatim into the same .agent/archive/decisions-2026-09.md (its preamble now names three batches, DEC-029..DEC-048); the file fell to 14159 B and its limit was lowered to 24576 B. The ~10 KB of room is sized for the four entries the execution plan still owes (S1 watch-return, S3 study sessions, S5 media gate, plus one merged). Mechanism unchanged: scripts/check-knowledge/README.md.",
-    "_index_headroom_2026_09b": "2026-09-25: decisions-index.md was back at 6169 B of its 6400 B ceiling — three rows short of the same wall the 2026-09-20 round hit, and the pending DEC rows would have crossed it. Unlike decisions.md the index has no release valve: the `index` check wants one row per entry, in order. Ceiling raised to 7168 B (~9 rows of room). A raise, not a refresh: no other file's headroom moved, and decisions.md went *down* in the same round."
+    "_index_headroom_2026_09b": "2026-09-25: decisions-index.md was back at 6169 B of its 6400 B ceiling — three rows short of the same wall the 2026-09-20 round hit, and the pending DEC rows would have crossed it. Unlike decisions.md the index has no release valve: the `index` check wants one row per entry, in order. Ceiling raised to 7168 B (~9 rows of room). A raise, not a refresh: no other file's headroom moved, and decisions.md went *down* in the same round.",
+    "_decisions_archive_2026_09d": "2026-09-27: first ratchet round under DEC-054/055 — DEC-054/055 pushed decisions.md to 23358 B (95%, red). DEC-049..053 moved verbatim to .agent/archive/decisions-2026-09.md (fourth batch); the file fell to 13903 B and its limit was lowered 24576→18432 B (~2-3 entries of room). Mechanism: scripts/check-knowledge/README.md."
   },
   "_targets": {
     "_comment": "Where these should land as content is trimmed further. Not enforced.",
@@ -50,7 +51,7 @@
       "limit": 5322
     },
     ".agent/decisions.md": {
-      "limit": 24576
+      "limit": 18432
     }
   },
   "globs": [

@@ -308,79 +308,28 @@ DEC-048 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 
 ## 2026-09-25 — Catalog promote 改为幂等复用：行锁 + 记录链接 + URL 级回收
 
-**Problem**: `promote_item` 只看 `published`。对已在流水线中的候选再点一次 promote，`seed_video` 的去重只认 `ready`/`ready_subtitles` → 第二条 official `Video` + 第二次 `process_video`（重复内容 + 白烧一次 GPU）。守卫的读与写之间也无锁，并发请求都会通过。
+DEC-049 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
-**Options**: A) 连 `processing` 一起拒绝（AI 审查的原始建议）；B) 行锁 + 复用记录的 `promoted_video_id`；C) B，且判据扩展为「该 `source_url` 下任何非 error 的 official Video」。
-
-**Decision**: C。复用顺序：记录链接（非 error）→ 该 URL 的 `ready`/`ready_subtitles` → 该 URL 其他非 error 在途状态 → 才 `seed_video`；被 URL 回收时补写 `promoted_video_id`/`promoted_at`。
-
-**Reason**: A 会封死唯一恢复路径——`CatalogStatus.error` 从不落库（读时派生），拒绝 `processing` 等于让卡住的候选永远无法重新 promote。B 不够：`seed_video` 内部的 `commit_refresh` 会在临界区内提交并**提前释放条目行锁**，之后到达的请求读到 `promoted_video_id IS NULL` 仍会再播一次；而 video 行的提交与锁释放同属一个事务、原子可见，故改为读「已提交的 `videos` 表」即关闭窗口。
-
-**Trade-offs**:
-- `mark_item` 仍是无锁读，PATCH 落在在途窗口里可能被覆盖（丢策展状态，不产生重复视频）。
-- URL 级回收跳过 `validate_video_url`（首次 seed 已校验），也不改既有 video 的 `auto_publish`。
 
 ## 2026-09-25 — 行为事件的镜像副作用统一以 LearningRecord 为前提；未知 video_id 置 NULL
 
-**Problem**: `complete` 的 `view_count + 1` 与 `completed_video` 学习事件发出都在 `if record:` 之外 → 登录用户 POST 一个 `complete` 就能给任意视频刷播放完成数并制造学习事件（进而驱动 profile 计数、连续天数、里程碑）。同时客户端 `video_id` 无校验，而 `behavior_events.video_id` 带 FK：悬空 id 在 flush 时抛 `IntegrityError` → 500，整批事件一起丢。
+DEC-050 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
-**Options**: A) 校验存在性，未知即 4xx；B) 校验后置 NULL，事件照记，端点保持 200。
-
-**Decision**: B（一次批量一次 `IN` 查询），镜像副作用（`record.completed`、`progress_percentage`、`view_count`、学习事件发出）全部收进 `if record:`。
-
-**Reason**: 行为事件是分析数据；视频下架后前端仍会 flush，若因一个悬空 id 返 4xx，客户端无法修复，丢的是同批全部无关事件。`LearningRecord` 恰是「用户首次打开该视频」时创建的，`if record:` 就是「真的看过」的现成判据，也让该分支自洽。
-
-**Trade-offs**:
-- 「发 `complete` 但从未打开视频」从此只记原始事件、无副作用；真实播放不受影响（打开即建 record）。
-- `video_id` 指向「存在但已下架」的视频仍按存在处理，与 FK 的 `ondelete SET NULL` 一致。
-- 重复 POST `complete` 仍重复计数——ADR 的「播放完成次数（非去重人数）」语义，靠 120/min 限流兜住。
 
 ## 2026-09-25 — 未知 ENV 值 fail-closed，保留 development 作为默认
 
-**Problem**: `env` 只认字面 `"development"`/`"production"`，其他值（`staging`/`prod`/`test`）**同时**跳过 development 默认与生产守卫 → `jwt_secret`/`database_url` 保持空值、能用空 key 签 JWT；而默认值恰是 `"development"`，线上漏配一个变量即静默降级。
+DEC-051 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
-**Options**: A) 白名单 + 未知值 `RuntimeError`，保留 `development` 默认；B) A 再进一步：不设 `ENV` 直接拒绝启动。
-
-**Decision**: A。白名单 `("development","testing","production")`，`prod` 折叠为 `production`，大小写/空白归一化后写回 `settings.env`，未知值 fail-closed；`jwt_secret`/`database_url` 守卫移出可被跳过的 `"production"` 分支。
-
-**Reason**: 零配置启动是既有契约，而「未设置即拒绝」会把环境变量缺失从生产问题扩大成开发阻塞。**「未设置」与「设成未知值」是两件事**：前者是有意默认，后者是明确错误配置，必须 fail-closed。归一化是为了不让下游 `settings.env == "production"` 的一串判断（HSTS/CSP、JSON 日志、mock 支付路由、限流）被拼写差异绕过。
-
-**Trade-offs**:
-- 线上若**完全不设** `ENV` 仍以 development 运行（含 dev 支付签名旁路与 mock 支付路由）；缓解只能靠部署侧显式注入（`docker-compose.prod.yml`、`deploy*.sh`、CI 均已写），进程环境无法从仓库自证。
 
 ## 2026-09-25 — 首页 feed 加「收藏最多 / 本周收藏」排序（修订 DEC-041 的「刻意不同源」条款）
 
-**Problem**: 首页排序只有 `latest`/`hot`，产品方要求把排行榜已有的「本周收藏」也搬进首页排序（设计文档 §2.2）。但 DEC-041 定 `hot` 时明确写过「feed 排序与周榜去重口径刻意不同源，周榜仍是 `/videos/rankings` 唯一职责」——`weekly_favorite` 一旦进 feed，后半句不再成立，需要重新裁决「周榜口径能否有第二个消费者」。
+DEC-052 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
-**Options**: A) feed 直接复用排行榜快照（零后端改动，但快照只有固定 Top-20、不与分类/难度组合、无分页）；B) feed 的 `sort` 加值、周界调用 `ranking_service.current_week_start_utc()`，缓存仍走 `browse:feed:*`；C) 在 browse 里另写一套周界与聚合，保持与周榜彻底独立。
-
-**Decision**: B。`sort` 扩为 `latest|hot|favorite|weekly_favorite`；`favorite` 用去规范化列 `Video.favorite_count`（不 `COUNT(*)`）；`weekly_favorite` 用 `LEFT JOIN (SELECT video_id, COUNT(*) FROM user_favorites WHERE created_at >= 本周一 GROUP BY video_id)`，排序 `metric DESC NULLS LAST, created_at DESC, id DESC`。周界**只**经 `current_week_start_utc()` 取，不在 browse 重写。DEC-041 的其余部分（feed 加 `sort`、首页删 `RankingBlock`）不变；`hot` 仍是站内总播放、仍与 `weekly_views` 不同源。
-
-**Reason**: A 回答不了「这个分类里的本周收藏是什么」——feed 是带筛选的分页列表，需要能排序的 SQL；C 会让「本周」出现第二个定义，两个页面迟早漂移，而 DEC-038 已把周界收敛成一个函数。feed 用 `LEFT JOIN` 而非排行榜的 `INNER JOIN`：feed 是浏览列表，没有本周收藏的视频必须仍能翻到，排在尾部。
-
-**Trade-offs**:
-- 同一时点两个页面的 Top-20 可能不同：feed 缓存 TTL 300s，周榜快照由 beat 每日重算（最长滞后约 24h）。口径一致、快照不一致，是「复用口径不复用缓存」的既定取舍。
-- feed 缓存的 key 不含周次，跨周瞬间最多 5 分钟仍显示上周顺序（`@cached` key 结构本次不动）。
-- 两个新排序以 `Video.id` 收尾做唯一 tiebreak：收藏数大量并列（多数视频为 0），没有唯一末位键时 OFFSET 分页会重复/漏行。`latest`/`hot` 保留原排序，其并列不稳定性未修。
-- 不加 `user_favorites(created_at)` 索引（视频表小、全表排序可接受）；实测需要再加即为迁移。
 
 ## 2026-09-25 — 训练轮次落库 + 每日配额 + 加练（`study_sessions` / `study_session_items`）
 
-**Problem**: 词汇训练进度只活在 React state（`drill/page.tsx` 的 `learnIndex/learned`，「再来一组」是 `window.location.reload()`），刷新或跳去视频再回来就从零开始；每日学习量硬编码在路由里（15 新 + 20 复习），用户不能调；`user_learning_profiles.today_words_learned` 列存在但词汇流程从不写事件，所以「今日已学」永远是 0。同时 S5（选择题化）需要「每词在本轮的连对计数」、S6（错误次数驱动的复习间隔）需要「累计答错次数」，这两个事实必须落库才有 SQL 可用。
+DEC-053 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
-**Options**: A) 进度留在客户端（localStorage / 内存），零后端改动；B) 新增两张表 `study_sessions` + `study_session_items`（每词一行），`Vocabulary` 加 `wrong_count`/`last_wrong_at`，`UserLearningProfile` 加 `daily_new_target`/`daily_review_target`；C) 只加一张 `study_sessions`，把词列表塞进 JSON 列。
-
-**Decision**: B。配额是**全局一个设置**（不是每视频一份），范围 5~100，默认新词 10 / 复习 20，落 `UserLearningProfile`；轮次 `kind ∈ {daily, extra}`、`status ∈ {active, finished, abandoned}`，`local_date` 用用户本地日（复用学习事件那套本地日判定）；加练 = 结束当前轮后新建 `kind=extra` 轮，取词只看 `mastery_level = new` 并排除近 1 天轮次已排过的词。
-
-**Reason**: A 回答不了本片的验收——换页回来要续上、`today_words_learned` 要真的长——而且 S6 需要能按 `wrong_count` 排序的 SQL。C 把「每词一行」压成 JSON 后，连对计数与 `wrong_in_round` 无法用 UPDATE 表达，也无法按词查询（S6 的复习优先级要 `ORDER BY wrong_count DESC`）。两张表让「反复作答是 UPDATE 而非追加」成为主键级事实（`uq_study_session_item`），存储上限是词数 × 轮数而不是作答次数。
-
-**Trade-offs**:
-- 配额在轮次创建时快照（`target_count` 落库）：改配额只影响**之后**开的轮次，不会中途改变正在做的这一轮的大小。
-- 只续**今日**的未完成轮；昨天的 active 轮在下一次开轮时被标记 `abandoned`。今日训练是一天的剂量，续昨天的队会让今天的配额凭空消失。
-- 保留期 30 天，在 `finish_session` 的同一事务里删该用户更早的轮次明细（先显式删 items 再删 sessions——测试跑在 SQLite 上，FK 级联不生效）。**不引入定时任务**：为一张只在用户学习时才增长的表加周期任务，活动件比问题本身多。
-- 作答仍是「一次请求写 1~2 行 UPDATE」（原本每次点「认识/不认识」也各写一次库），不是新的写入模式。
-- `POST /{word_id}/review` 的 SM-2 quality 由 4 统一为 5（答错仍 2），且该端点现在**没有仓内调用方**（drill 改走轮次作答），保留为兼容入口。
-- 「近 1 天轮次已排过的词」这层排除只是兜底（主机制是答过的词会离开 `mastery_level = new` 池），用于作答请求失败时该词不被重复排进加练轮，顺带跨过午夜边界。
 
 ## 2026-09-27 — 知识层写入密度与余量阶梯（DEC-040 的运行细则）
 
@@ -394,3 +343,11 @@ DEC-048 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 **Reason**: 阶梯把「临界要不要扩」从判断题变成程序题：扩容合法当且仅当前两步被证明不可行。余量按文件生命周期定（编辑型文件余量小、追加型靠归档阀），比统一百分比更贴合实际增长方式。
 
 **Tooling**: `check_knowledge.py --budget-report` 打印全部 ceiling 用量与分区，是黄红区的监测入口；每轮 `/knowledge-maintain` 跑一次。
+
+## 2026-09-27 — 知识层双层定价与正向循环（细化 DEC-054）
+
+**Problem**: DEC-054 定了密度与阶梯，但四点仍模糊：详略没有统一判据；必读与沉淀只是隐含在 tier 里没有明说；收缩时质量会不会掉没有底线；系统如何持续变好（而不只是停止增长）没有机制。
+
+**Decision**: ① **双层定价**：必读热层 = `tier:session_total` 五文件，每字节每会话付费；其余皆沉淀层，按需读取。**详略由读取频率决定**——同一事实热层只留压缩形 + 指针，展开形写 wiki/；热层一条事实超过两行就是「去 wiki 写展开形」的信号，而不是把热文件写长。② **正向循环**：每轮 maintain/verify 按 观察（`--budget-report` + stale）→ 修复（阶梯 + verify 级修订）→ 棘轮（收缩成功后手动下调该文件 limit 并记 `_history`）→ 目标（`_targets`，红区计数→0、session_total→32768B）运转；只升不降的 ceiling 说明循环没在转。③ **质量底线恒定**：收缩是 verify 级编辑——离开热层的事实必须先落冷层，警告与陷阱随事实一起走，留下的必须仍是「为什么」而非「是什么」。④ `--budget-report` 标注 `[S]`/`[B]` 热层归属，双层在监控输出里可见。
+
+**Reason**: 读取频率是同时解释「为什么要预算」和「为什么要详略」的唯一变量，用它统一定价消除两套标准并存；棘轮把「不断优化」变成可观察的量（limit 单调下降、红区收敛），循环靠机制不靠自觉。

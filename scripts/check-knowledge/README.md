@@ -84,6 +84,26 @@ inside them were written for their pre-move location in `.agent/`.
 The layer pays rent every session — `tier:session_total` loads into context before any task is
 known — so what may be written, and at what detail, is policy, not taste.
 
+### The two strata: must-read vs settled (DEC-055)
+
+Every fact lives in one of two strata, and the stratum prices it:
+
+| Stratum | Files | Loaded | Cost |
+|---|---|---|---|
+| **Must-read (热层)** | the five `tier:session_total` files: `AGENTS.md`, `CLAUDE.md`, `state.md`, `invariants.md`, `system-map.md` | every session, before the task is known | per byte, every session |
+| **Settled (冷层)** | `wiki/`, `docs/adr/`, `docs/progress/`, `decisions.md` bodies, `archive/`, CHANGELOG | on demand, for the one task that needs it | only when actually read |
+
+**详略由读取频率决定** — the same fact earns different detail per stratum: the hot file keeps the
+compressed form (one line + a pointer); the expansion (full reasoning, code-level detail) goes to
+the settled file. A hot-file fact needing more than a couple of lines is the signal to write the
+expansion in `wiki/` and leave the pointer — never to grow the hot file. The pricing explains the
+ceiling spread: `state.md` pays for ~5 KB every session, an ADR is loaded never and consulted
+deliberately, so 24 KB is fine there.
+
+Everything below (density rules, headroom, ladder) applies with that asymmetry built in: hot
+files get the strictest budgets and the tersest prose, settled files may run long but must still
+earn their length with "why", not "what".
+
 ### What gets recorded, per file
 
 | File | Only records | Shape |
@@ -128,6 +148,24 @@ refresh.
 **Nothing is ever deleted** — shrinking is moving. Decision bodies freeze in `.agent/archive/`,
 finished state items are already mirrored by CHANGELOG, dead wiki pages get `status: deprecated`
 instead of `rm`. The defence against information loss is colder layers, not larger ceilings.
+
+**Quality does not drop when size does.** A shrink is a verify-grade edit, not a mechanical cut:
+every fact that leaves a hot file must land in a colder one first, caveats and traps travel with
+their fact, and what remains must still say why, not just what. Cutting is not the goal;
+correct-sized true things are.
+
+### The loop (DEC-055)
+
+The layer is meant to get measurably better every round, not merely to stop growing. Each
+`/knowledge-maintain` (after cross-module changes) and `/knowledge-verify` (14-day cadence) runs:
+
+1. **Observe** — `--budget-report` names the red files; `stale` notices name the drift.
+2. **Fix** — red files through the ladder; stale docs verified or corrected (quality bar above).
+3. **Ratchet** — after any successful shrink, lower that file's `limit` by hand and record why in
+   `_history`. Lowered limits are the loop's visible output: a ceiling that only ever rises means
+   the loop is not running.
+4. **Target** — the `_targets` block in `knowledge-budget.json` holds the non-enforced goal sizes;
+   the trend to watch is red-zone count → 0 and `tier:session_total` → its target (32768 B).
 
 ## modules.json
 
