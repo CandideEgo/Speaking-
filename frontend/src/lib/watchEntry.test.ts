@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWatchEntryQuery, resolveWatchReturn, watchHref } from "@/lib/watchEntry";
+import {
+  buildWatchEntryQuery,
+  resolveWatchReturn,
+  sentenceFocusParams,
+  watchHref,
+  watchSentenceHref,
+} from "@/lib/watchEntry";
 
 /** Build the URLSearchParams the watch page would see from a query suffix. */
 function params(query: string): URLSearchParams {
@@ -42,6 +48,39 @@ describe("watchHref", () => {
 
   it("appends the entry query", () => {
     expect(watchHref("abc", { from: "rankings" })).toBe("/watch/abc?from=rankings");
+  });
+});
+
+describe("sentenceFocusParams / watchSentenceHref (S7b)", () => {
+  it("emits sub, t and word", () => {
+    expect(sentenceFocusParams({ subtitleId: "s1", startTime: 12.7, word: "cat" })).toEqual({
+      sub: "s1",
+      t: "12",
+      word: "cat",
+    });
+  });
+
+  it("drops missing fields individually", () => {
+    expect(sentenceFocusParams({ subtitleId: "s1" })).toEqual({ sub: "s1" });
+    expect(sentenceFocusParams({ startTime: 5 })).toEqual({ t: "5" });
+    expect(sentenceFocusParams({ word: "cat" })).toEqual({ word: "cat" });
+    expect(sentenceFocusParams({})).toEqual({});
+  });
+
+  it("rejects non-finite and negative start times", () => {
+    expect(sentenceFocusParams({ startTime: Number.NaN })).toEqual({});
+    expect(sentenceFocusParams({ startTime: -3 })).toEqual({});
+    expect(sentenceFocusParams({ startTime: null })).toEqual({});
+  });
+
+  it("merges focus params onto the origin entry", () => {
+    expect(
+      watchSentenceHref(
+        "abc",
+        { from: "set", extra: { set: "s9" } },
+        { subtitleId: "sub-1", startTime: 30.2, word: "apple" }
+      )
+    ).toBe("/watch/abc?from=set&set=s9&sub=sub-1&t=30&word=apple");
   });
 });
 

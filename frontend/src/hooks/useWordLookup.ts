@@ -116,6 +116,8 @@ export function useWordLookup({
     try {
       const params = new URLSearchParams({ word: selectedWord });
       if (ctx?.text_en) params.set("context_sentence", ctx.text_en);
+      // 词→句链路 (S7b)：加词时带上来源句，词库才能「回到对应句子」。
+      if (ctx?.id) params.set("subtitle_id", ctx.id);
       if (videoId) params.set("video_id", videoId);
       await api(`/api/v1/vocabulary?${params.toString()}`, { method: "POST" });
       toast.success(`"${selectedWord}" 已保存到词库`);

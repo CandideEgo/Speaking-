@@ -337,6 +337,9 @@ export interface VocabSetWord {
   definition: string | null;
   mastery_level: MasteryLevel | null;
   context_sentence: string | null;
+  /** Source sentence for 「回到对应句子」 (S7). Null → deep link hidden. */
+  subtitle_id?: string | null;
+  start_time?: number | null;
 }
 
 export type VocabSetScope = "all" | "unmastered" | "learning";

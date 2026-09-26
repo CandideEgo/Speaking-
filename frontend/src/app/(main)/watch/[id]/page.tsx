@@ -267,20 +267,6 @@ export default function WatchPage() {
     return sub ? { start: sub.start_time, end: sub.end_time } : null;
   }, [video, currentSubtitleIndex]);
 
-  // D3b: seek to ?t=<seconds> once the video is ready. Triggered when
-  // the user drills an answer wrong and clicks "回看原句" → /watch/{id}?t=...
-  useEffect(() => {
-    if (playbackMode !== "ready" || !video || !videoRef.current) return;
-    const t = searchParams.get("t");
-    if (!t) return;
-    const seconds = parseFloat(t);
-    if (!Number.isNaN(seconds) && seconds >= 0) {
-      videoRef.current.currentTime = seconds;
-    }
-    // videoRef is a stable ref; intentionally not in deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackMode, video, searchParams]);
-
   // D2: first-time coach mark tour. Only shows when the watch page is
   // fully ready (subtitles loaded, video URL known) so the spotlight
   // rects aren't zero. The hook writes seeword_coach_done on finish/skip.
@@ -336,6 +322,41 @@ export default function WatchPage() {
       getSubtitles: () => video?.subtitles,
       videoId: id,
     });
+
+  // D3b/S7b: deep-link focus — ?sub=<subtitle id> lands on one sentence
+  // (「回到对应句子」/「回看原句」), ?word= highlights that word too, legacy ?t=
+  // stays as a pure seek. `sub` wins over `t`: the sentence id is stable,
+  // seconds drift with re-transcription. Runs once the player is ready and
+  // re-applies only when the params themselves change.
+  const deepLinkAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (playbackMode !== "ready" || !video || !videoRef.current) return;
+    const sub = searchParams.get("sub");
+    const word = searchParams.get("word");
+    const t = searchParams.get("t");
+    if (!sub && !word && !t) return;
+    const signature = `${sub ?? ""}|${word ?? ""}|${t ?? ""}`;
+    if (deepLinkAppliedRef.current === signature) return;
+    deepLinkAppliedRef.current = signature;
+
+    const subs = video.subtitles ?? [];
+    let seconds: number | null = null;
+    if (sub) {
+      const idx = subs.findIndex((s) => s.id === sub);
+      if (idx !== -1) {
+        setCurrentSubtitleIndex(idx); // 句高亮 + 字幕列表自动居中联动
+        seconds = subs[idx].start_time;
+      }
+    }
+    if (seconds === null && t) {
+      const parsed = parseFloat(t);
+      if (!Number.isNaN(parsed) && parsed >= 0) seconds = parsed;
+    }
+    if (seconds !== null) videoRef.current.currentTime = seconds;
+    if (word) handleWordClick(word); // 词高亮（字幕列表 selectedWord 联动）+ 词卡
+    // videoRef is a stable ref; intentionally not in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackMode, video, searchParams]);
 
   const subtitleMode = useWatchStore((s) => s.subtitleMode);
   const panelCollapsed = useWatchStore((s) => s.panelCollapsed);

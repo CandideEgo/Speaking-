@@ -83,6 +83,42 @@ export function watchHref(videoId: string, entry?: WatchEntry): string {
   return entry ? `${base}${buildWatchEntryQuery(entry)}` : base;
 }
 
+/**
+ * Sentence-focus params (S7b, 设计文档 §6.1 甲方案): land the watch page on one
+ * subtitle, highlighted, with the word highlighted too. `sub` beats `t` when
+ * both would be present — a sentence id is stable, seconds drift with
+ * re-transcription. Every 「回到对应句子」/「去原视频」 link (集合详情页、训练页)
+ * is built through here so the contract lives in one place.
+ */
+export interface SentenceFocus {
+  subtitleId?: string | null;
+  startTime?: number | null;
+  word?: string | null;
+}
+
+export function sentenceFocusParams(focus: SentenceFocus): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (focus.subtitleId) params.sub = focus.subtitleId;
+  if (
+    typeof focus.startTime === "number" &&
+    Number.isFinite(focus.startTime) &&
+    focus.startTime >= 0
+  ) {
+    params.t = String(Math.floor(focus.startTime));
+  }
+  if (focus.word) params.word = focus.word;
+  return params;
+}
+
+/** Watch-page href for a specific sentence + word, on top of `entry`'s params. */
+export function watchSentenceHref(
+  videoId: string,
+  entry: WatchEntry,
+  focus: SentenceFocus
+): string {
+  return watchHref(videoId, { ...entry, extra: { ...entry.extra, ...sentenceFocusParams(focus) } });
+}
+
 function isWatchSource(value: string | null): value is WatchSource {
   return value !== null && Object.prototype.hasOwnProperty.call(SOURCE_LABELS, value);
 }

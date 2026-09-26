@@ -6,7 +6,7 @@ confidence: verified
 related_code: [exam-levels, ecdict-service]
 related: [wiki/architecture/video-pipeline.md]
 created: 2026-07-21
-updated: 2026-09-22
+updated: 2026-09-27
 ---
 
 # Background
@@ -57,6 +57,24 @@ four sequential SELECTs. Priority is unchanged: video-specific beats global, lem
 
 `GET /words/gloss` (one request, everything at once) still exists and is still covered by tests,
 but nothing in the app calls it any more — a dormant endpoint. Extend the two tiers, not it.
+
+# Word-to-Sentence Deep Link (S7)
+
+Every vocabulary row can carry one source sentence (`Vocabulary.subtitle_id`), because「回到对应句子」
+needs a stable seek target and a `(video_id, context_sentence)` text match does not — subtitles get
+re-transcribed and sentences get edited, so only the row id survives those.
+
+Two constraints that are invisible in any single file:
+
+- **First source wins.** `_find_or_create_vocab` writes `subtitle_id` only on row creation; an
+  existing row is returned untouched. 一词多视频不做多来源 (设计文档 §7.4) — otherwise re-collecting
+  a set for a second video would silently move the word's source sentence. Existing rows are
+  backfilled separately (`scripts/backfill_vocabulary_subtitle.py`), and unmatched rows stay NULL,
+  which the frontend renders as "no deep-link entry" rather than a broken link.
+- **`?sub=` beats `?t=`.** Watch-page deep links carry both (`watchSentenceHref` in
+  `lib/watchEntry.ts`); the player prefers the subtitle id and falls back to seconds only when the
+  id is gone. All sentence-level entries (集合详情页、训练页) build URLs through that one function —
+  a second URL-shape convention would drift apart exactly when the seek contract changes.
 
 # Config
 

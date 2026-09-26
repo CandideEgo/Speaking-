@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
-import { watchHref } from "@/lib/watchEntry";
+import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import type { VocabSetScope, VocabSetWordStatus } from "@/types";
 
 /** 集合内单词的过筛状态 → Badge（pending=未学 / unknown=学习中 / known+learned=已掌握）。 */
@@ -140,6 +140,19 @@ export default function VocabSetDetailPage() {
                     <p className="text-[13px] text-body mt-0.5 line-clamp-1">
                       {w.translation || w.definition || "—"}
                     </p>
+                    {/* 词→句 deep link (S7b)：只有知道来源句才显示；跳走无损（无瞬时进度）。 */}
+                    {w.subtitle_id && (
+                      <Link
+                        href={watchSentenceHref(
+                          detail.video_id,
+                          { from: "set", extra: { set: id } },
+                          { subtitleId: w.subtitle_id, startTime: w.start_time, word: w.word }
+                        )}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-brand-500 hover:underline"
+                      >
+                        回到对应句子 →
+                      </Link>
+                    )}
                   </div>
                   <Badge tone={sb.tone} className="flex-shrink-0">
                     {sb.text}
