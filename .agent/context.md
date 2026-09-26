@@ -20,9 +20,8 @@ DEC-024), superseded by free access during 内测期 — see `state.md`.
 
 ## Important Flows
 
-1. **Video processing**: admin seed / catalog promote → dedup → Head/GPU/Tail → checkpoint resume → ready (includes the `prewarm_notes` step)
-2. **Vocabulary learning**: watch → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → 词库 or vocab set → 今日训练 / 快速过筛. The 内测期 main path is 加入学习 → 视频集合 → 快速过筛 → 闭环
-3. **Redemption**: code → row lock → plan=pro + extend 30 days → atomic. Retired for 内测期 (`/redeem` redirects; endpoints and tables dormant — see the 会员与兑换 table)
+1-3 (video processing / vocabulary learning / redemption) live in `system-map.md` → Data Flow —
+Critical Paths; one fact, one home.
 4. **Profile aggregation**: learning actions → LearningEvent → streak / milestones / mastery (`/plan/profile`, `/plan/milestones`, `/plan/mastery-trend`). The daily-plan endpoints answer 410
 
 ## Domain Terms

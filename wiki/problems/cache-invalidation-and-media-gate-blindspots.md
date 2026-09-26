@@ -6,12 +6,12 @@ confidence: verified
 related_code: [core-cache, api-media, video-service, tests-conftest]
 related: [docs/adr/0020-storage-modes-and-takedown.md]
 created: 2026-09-19
-updated: 2026-09-25
+updated: 2026-09-27
 ---
 
 # 缓存失效与媒体门控的三个隐形失效模式
 
-两个都在实现「内容下架」时暴露：表面测试全绿，实际保护是空的。
+三个失效模式都在「内容下架」/内容运营改动时暴露：表面测试全绿，实际保护是空的。
 
 ## 1. fail-open 的缓存失效会静默失效 —— 测试里尤其危险
 
@@ -26,7 +26,7 @@ updated: 2026-09-25
 - 凡是"写操作后依赖缓存失效才正确"的断言，都要确认失效路径在测试里真的被走到了（可在断言前额外读一次 DB 或直接断言缓存 key 已消失）。
 - 反向教训：如果只信 fail-open 的日志，问题会一直藏在 WARNING 级别里。
 
-**2026-09-25 后续（同一形态换了个入口：替身不是 awaitable）**：`_FakeRedis` 缺 `__await__`。生产代码写 `await get_redis()`（`get_redis()` 返回的客户端本身是被 await 的对象），而假替身不是可 await 对象 → `video_cache.invalidate_video_detail_cache` 里的 `await` 抛 `TypeError` → 被其 `except Exception: pass` 吞掉 → **测试环境里逐视频 detail 缓存永远不失效**（同一文件第一节的 `scan_iter` 缺失是同一个病）。修法：给 `_FakeRedis` 补 `__await__`（返回 self）。教训升级为：**测试替身与真实对象是「协议级」契约——不只方法名要对，魔术方法（`__await__`/`__aiter__`）也要对；否则所有 fail-open 包裹点都会静默变成 no-op**。
+**2026-09-25 后续（同一形态换了个入口：替身不是 awaitable）**：`_FakeRedis` 缺 `__await__`。生产代码 `await get_redis()`（返回的客户端本身是被 await 的对象），假替身不可 await → `video_cache.invalidate_video_detail_cache` 里的 `await` 抛 `TypeError` → 被其 `except Exception: pass` 吞掉 → **测试环境里逐视频 detail 缓存永远不失效**（与第一节 `scan_iter` 缺失同病）。修法：给 `_FakeRedis` 补 `__await__`（返回 self）。教训升级：**测试替身与真实对象是「协议级」契约——不只方法名，魔术方法（`__await__`/`__aiter__`）也要对；否则所有 fail-open 包裹点都会静默变成 no-op**。
 
 ## 2. `/media` 的发布态/成员门控靠「文件名正则」，命名不符即整段跳过
 
@@ -51,7 +51,7 @@ if m is not None:
 「仅 media 根目录文件」条件（管线产物恒在根目录，用户内容恒在子目录），子目录文件不再
 过门控。教训不变：**测试上传类接口必须连 GET 路径一起验**，否则"半条链路绿"会漏掉这类 bug。
 
-**2026-09-25 后续（朝「默认拒绝」走了一步）**：门控与所服务的文件曾经**不同源**——判定按**未规范化**的 `file_path`（源自 URL）分支，而实际返回的文件来自 resolved `full`，于是 `..` 段能让两者分叉：`/media/shadowing/{自己的 id}/../{别人的 id}/rec.webm` 通过 `_shadowing_token_ok(parts[1])`（`parts[1]` 是调用者自己的 id）却解析到别人的私有录音；`/media/x/../shadowing/{other}/rec.webm` 因不以 `shadowing/` 开头而**整段跳过** token 分支；`/media/shadowing/{own}/../../{vid}.mp4` 解析到根级文件从而绕过发布态门。修法：判定改为从**已校验的 resolved 路径**派生分段（`full.relative_to(base).parts`），并用 `len(rel) == 1` 表达「仅根目录」。教训：**门控必须与被服务的对象同源**——判定读一个字符串、服务读另一个字符串时，两者之间任何规范化差异都是绕过。
+**2026-09-25 后续（朝「默认拒绝」走了一步）**：门控与所服务的文件曾经**不同源**——判定按**未规范化**的 `file_path`（源自 URL）分支，而实际返回的文件来自 resolved `full`，`..` 段能让两者分叉：token 按 `parts[1]`（调用者自己的 id）通过却解析到别人的私有录音；不以 `shadowing/` 开头则**整段跳过** token 分支；解析到根级文件则绕过发布态门。修法：判定改为从**已校验的 resolved 路径**派生分段（`full.relative_to(base).parts`），并用 `len(rel) == 1` 表达「仅根目录」。教训：**门控必须与被服务的对象同源**——判定读一个字符串、服务读另一个字符串时，两者之间任何规范化差异都是绕过。
 
 **Future Prevention**:
 - **安全门控不应建立在"文件名恰好符合某个正则"的隐含契约上**。此处更稳的形态是白名单之外一律拒绝（默认拒绝），或让门控覆盖"任何指向 `media/` 下视频文件的路径"。

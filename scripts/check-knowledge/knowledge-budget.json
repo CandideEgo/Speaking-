@@ -12,7 +12,8 @@
     "_decisions_archive_2026_09b": "2026-09-22: the 36864 B round was spent too — decisions.md had grown back to 38703 B after DEC-041..DEC-047, so DEC-047 (default avatar: the male/female artwork is the user's own choice, not a hash of the user id) would have needed --budget-refresh to land. DEC-037..DEC-041 moved verbatim into the same .agent/archive/decisions-2026-09.md (its preamble now names both batches, DEC-029..DEC-041); the file fell to 25206 B and its limit was lowered to 32768 B — roughly three more decisions of room. Mechanism unchanged: scripts/check-knowledge/README.md.",
     "_decisions_archive_2026_09c": "2026-09-25: the 32768 B round was spent as well — decisions.md sat at 32709 B (99.8%) with DEC-042..DEC-051 still carrying their full text, so the decision entries the S1/S3/S5/S6 rounds owe could not land without --budget-refresh. DEC-042..DEC-048 moved verbatim into the same .agent/archive/decisions-2026-09.md (its preamble now names three batches, DEC-029..DEC-048); the file fell to 14159 B and its limit was lowered to 24576 B. The ~10 KB of room is sized for the four entries the execution plan still owes (S1 watch-return, S3 study sessions, S5 media gate, plus one merged). Mechanism unchanged: scripts/check-knowledge/README.md.",
     "_index_headroom_2026_09b": "2026-09-25: decisions-index.md was back at 6169 B of its 6400 B ceiling — three rows short of the same wall the 2026-09-20 round hit, and the pending DEC rows would have crossed it. Unlike decisions.md the index has no release valve: the `index` check wants one row per entry, in order. Ceiling raised to 7168 B (~9 rows of room). A raise, not a refresh: no other file's headroom moved, and decisions.md went *down* in the same round.",
-    "_decisions_archive_2026_09d": "2026-09-27: first ratchet round under DEC-054/055 — DEC-054/055 pushed decisions.md to 23358 B (95%, red). DEC-049..053 moved verbatim to .agent/archive/decisions-2026-09.md (fourth batch); the file fell to 13903 B and its limit was lowered 24576→18432 B (~2-3 entries of room). Mechanism: scripts/check-knowledge/README.md."
+    "_decisions_archive_2026_09d": "2026-09-27: first ratchet round under DEC-054/055 — DEC-054/055 pushed decisions.md to 23358 B (95%, red). DEC-049..053 moved verbatim to .agent/archive/decisions-2026-09.md (fourth batch); the file fell to 13903 B and its limit was lowered 24576→18432 B (~2-3 entries of room). Mechanism: scripts/check-knowledge/README.md.",
+    "_verify_shrink_2026_09_27": "2026-09-27: /knowledge-verify round after the ratchet — hot-layer reds shrunk in place (state.md: completed-work bullets moved out, history already in CHANGELOG/decisions-index; invariants.md: removed-features table compressed to a list, reasoning stays in the cited ADR/DEC; system-map.md: ASCII diagram compressed, gained the 内测期 main-path + /redeem-retired facts from context.md; context.md: Important Flows 1-3 deduped to a pointer at system-map Critical Paths; README.md: read-order and enforcement enumeration compressed). Cold reds: release-checklist.md and cache-invalidation-*.md trimmed below 95% without splitting (release-checklist also lost a stale 'five mechanisms' count and a low-value list item). Limits lowered to size+10%: state 5322→4096, invariants 6667→6800, system-map 7869→6730, context 9051→9400; tiers session_start 17157→16128, before_code_change 14536→13568, session_total 31693→29696. README.md kept at 3530 (size+10% would exceed it; never raise by accident). Glob wiki 8192 already tighter than size+10% for the two wiki pages — untouched."
   },
   "_targets": {
     "_comment": "Where these should land as content is trimmed further. Not enforced.",
@@ -36,19 +37,19 @@
       "limit": 3530
     },
     ".agent/context.md": {
-      "limit": 9051
+      "limit": 9400
     },
     ".agent/system-map.md": {
-      "limit": 7869
+      "limit": 6730
     },
     ".agent/invariants.md": {
-      "limit": 6667
+      "limit": 6800
     },
     ".agent/decisions-index.md": {
       "limit": 7168
     },
     ".agent/state.md": {
-      "limit": 5322
+      "limit": 4096
     },
     ".agent/decisions.md": {
       "limit": 18432
@@ -73,7 +74,7 @@
         "CLAUDE.md",
         ".agent/state.md"
       ],
-      "limit": 17157
+      "limit": 16128
     },
     "before_code_change": {
       "_comment": "Added before touching code. Replaces the old 'read four files' mandate.",
@@ -81,7 +82,7 @@
         ".agent/invariants.md",
         ".agent/system-map.md"
       ],
-      "limit": 14536
+      "limit": 13568
     },
     "session_total": {
       "_comment": "Union of the two tiers above. This is the real cost of a coding session.",
@@ -92,7 +93,7 @@
         ".agent/invariants.md",
         ".agent/system-map.md"
       ],
-      "limit": 31693
+      "limit": 29696
     }
   }
 }

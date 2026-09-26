@@ -20,10 +20,8 @@ Sibling layers: `wiki/` (long-form — `architecture/`, `problems/`, `guides/`),
 
 ## Read order
 
-1. `AGENTS.md` — every session.
-2. `invariants.md` + `system-map.md` — before changing code.
-3. `decisions-index.md`, then the one entry you need — never read `decisions.md` end to end.
-4. The `wiki/` document for the subsystem you touch.
+1. `AGENTS.md` → 2. `invariants.md` + `system-map.md` → 3. `decisions-index.md` (never read
+`decisions.md` end to end) → 4. the `wiki/` document for the subsystem you touch.
 
 ## Which file owns which fact
 
@@ -50,13 +48,13 @@ If a fact fits two rows, the more specific one owns it; the other links.
 - **Every `wiki/` document declares `related_code`** via module IDs from
   `scripts/check-knowledge/modules.json`; a module matching no file fails — code deletion surfacing
   as drift.
-- **Size ceilings are ceilings, not targets.** Per-file density rules and the
-  shrink → archive → refresh ladder: `scripts/check-knowledge/README.md`; usage via `--budget-report`.
+- **Size ceilings are ceilings, not targets.** Density rules and the shrink → archive → refresh
+  ladder: `scripts/check-knowledge/README.md`.
 - **`.agent/archive/` is exempt from the checks.** Frozen records are correct as written, not held
   to today's links; a file at its ceiling archives its oldest era here and leaves stubs behind.
 
 ## Enforcement
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and the `Knowledge` CI workflow —
-broken links, missing ADRs, invalid frontmatter, unknown modules, misplaced git hashes, index/entry
-drift, budget growth. Whether prose still matches reality is the `/knowledge-verify` skill's job.
+the checks it runs live in `scripts/check-knowledge/README.md`. Whether prose still matches reality
+is the `/knowledge-verify` skill's job.

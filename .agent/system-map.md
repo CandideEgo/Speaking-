@@ -7,44 +7,10 @@
 ## System Overview
 
 ```
-                    User
-                      │
-                      ▼
-              ┌───────────────┐
-              │   Next.js 16  │  Frontend
-              │   App Router   │
-              └───────┬───────┘
-                      │ api.ts (JWT auto-refresh)
-                      ▼
-              ┌───────────────┐
-              │   FastAPI      │  Backend API
-              │   async        │
-              └───┬───────┬───┘
-                  │       │
-          ┌───────▼──┐  ┌─▼──────────┐
-          │ Services  │  │ Dependencies│
-          │ ai/video/ │  │ auth/plan/  │
-          │ vocab     │  │ access      │
-          └───────┬──┘  └─────────────┘
-                  │
-          ┌───────▼──────────────────────┐
-          │        Celery Workers        │
-          │  ┌─────────┐  ┌───────────┐ │
-          │  │  Head   │  │   Tail    │ │
-          │  │(process)│  │(finalize) │ │
-          │  └────┬────┘  └───────────┘ │
-          └───────┼─────────────────────┘
-                  │ enqueue
-          ┌───────▼──────────────────────┐
-          │     GPU Worker               │
-          │     WhisperX (no DB/OSS)     │
-          │     → HTTP callback          │
-          └──────────────────────────────┘
-                  │
-          ┌───────▼──┐  ┌──────────────┐
-          │PostgreSQL │  │    Redis     │
-          │  Models   │  │ cache/queue  │
-          └──────────┘  └──────────────┘
+User → Next.js 16 (App Router) ── api.ts (JWT auto-refresh)
+     → FastAPI (async) ── Services (ai/video/vocab) + Dependencies (auth/plan/access)
+     → Celery: Head (process) → GPU worker (WhisperX, no DB/OSS → HTTP callback)
+               → Tail (finalize)   PostgreSQL (models) + Redis (cache/queue, fail-open)
 ```
 
 ## Module Overview
@@ -98,8 +64,8 @@ video_processing (finalize auto_publish) 与 admin approve_review
 ## Data Flow — Critical Paths
 
 1. **Video pipeline**: admin seed / catalog promote → dedup → Head(extract+stage+enqueue) → GPU(WhisperX→HTTP callback) → Tail(translate+annotate+prewarm_notes+download+transcode) → ready
-2. **Vocabulary loop**: watch → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → 词库 or vocab set → 今日训练 / 快速过筛
-3. **Redemption**: input code → row lock (`with_for_update`) → plan=pro + extend 30 days → atomic
+2. **Vocabulary loop**: watch → click word → gloss lookup (ECDICT + past-paper sentences + pre-generated AI notes, no live LLM) → 词库 or vocab set → 今日训练 / 快速过筛. 内测期 main path: 加入学习 → 视频集合 → 快速过筛 → 闭环
+3. **Redemption**: input code → row lock (`with_for_update`) → plan=pro + extend 30 days → atomic. Retired for 内测期 (`/redeem` redirects; endpoints and tables dormant)
 
 ## External Boundaries
 

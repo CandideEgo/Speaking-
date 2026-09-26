@@ -32,19 +32,15 @@
 
 ## Removed features — do not reintroduce
 
-Each was removed for a reason. The reasoning lives in the cited entry; the file-level detail lives
-in the ADR or in `.agent/archive/`. INV-003's test covers the route-level part of this list.
+Each was removed for a reason; the reasoning lives in the cited ADR / `decisions.md` entry.
+INV-003's test covers the route-level part of this list.
 
-| Feature | Removed by | Why it stays gone |
-|---------|-----------|-------------------|
-| AI speaking scoring (`speaking_service.py`, `rubrics.py`, `speaking_alignment.py`) | ADR-0002 | API cost high, accuracy unstable |
-| Speaking dashboard metrics (streak / goals / stats) | ADR-0003 | dashboard was rebuilt without them |
-| Community UGC (posts, likes, comments, follows, reports) | ADR-0012 | maintenance burden with no path to the core learning loop |
-| User-facing UGC video, submit-URL, fork / propose-back | DEC-025 | copyright exposure and moderation load |
-| AI learning plan and daily learning plan | DEC-025 | orthogonal to 看→点词→复习→练习 |
-| AI assistant and video comments | DEC-025 | same |
-| Live AI word-card definitions | DEC-025 | per-request LLM cost on the hottest path (see INV-007) |
-| Pro paywall UI (`/upgrade`, `/pricing`, `/redeem`, `/checkout`) | DEC-037 | 内测期 free — no Pro concept in the frontend |
+- AI speaking scoring (`speaking_service.py`, `rubrics.py`, `speaking_alignment.py`) — ADR-0002
+- Speaking dashboard metrics (streak / goals / stats) — ADR-0003
+- Community UGC (posts, likes, comments, follows, reports) — ADR-0012
+- User-facing UGC video, submit-URL, fork / propose-back · AI learning plan · AI assistant and
+  video comments · Live AI word-card definitions (per-request LLM cost, see INV-007) — DEC-025
+- Pro paywall UI (`/upgrade`, `/pricing`, `/redeem`, `/checkout`) — DEC-037
 
 Dormant-but-present, do not extend: `ai_service.py`'s 5 dead methods, the `GET /vocabulary/{id}/enrich`
 endpoint with no frontend entry point, `learning_plan.py`'s 410 endpoints, the `RedeemCode` / `plan`

@@ -6,13 +6,12 @@ confidence: verified
 related_code: [pre-commit, ci-workflows, pytest-suite, frontend-package]
 related: [wiki/guides/testing.md, docs/operations/RUNBOOK.md]
 created: 2026-09-19
-updated: 2026-09-25
+updated: 2026-09-27
 ---
 
 # Why this checklist exists
 
-**A green local tree does not imply a green CI.** Five separate mechanisms have already caused that
-here; each is listed below with its symptom.
+**A green local tree does not imply a green CI** — every trap below has caused that here.
 
 # 1. Run the four gates locally
 
@@ -39,8 +38,8 @@ cd frontend && npx playwright test --project=chromium
 ```
 
 It needs the dev stack (backend on :8000, db, redis) and installed browsers — `playwright.config.ts`
-starts the servers itself when `CI` is unset. Start that backend with `ENV=testing`: CI's `e2e` job
-sets it, and it is what makes a local run a *verdict* rather than a smoke — see the rate-limit trap
+starts the servers itself when `CI` is unset. Start that backend with `ENV=testing` (CI's `e2e` job
+sets it too; it is what makes a local run a *verdict* rather than a smoke) — see the rate-limit trap
 below for the exact command.
 
 # 2. Known traps
@@ -53,7 +52,7 @@ below for the exact command.
 | `npm audit` locally | `[NOT_IMPLEMENTED] /-/npm/v1/security/*` | the local npm registry is a mirror without an audit endpoint. Audit against the public one: `npm audit --omit=dev --registry=https://registry.npmjs.org`. CI uses the public registry |
 | `npm ci` / `npm install` | peer dependency error on `eslint` | always pass `--legacy-peer-deps` (the project's `eslint@10` outruns `eslint-plugin-react-hooks@5`) |
 | `mypy` baseline has rotted | CI's `Type check` fails on `file:code` pairs nobody remembers adding | see below |
-| e2e locator left behind by a UI rename | local gates all green, CI's `e2e` job red on a `getByRole` / text locator that matches nothing | e2e specs assert on user-visible labels. When a nav item, tab or button is renamed, `grep -rn '<旧文案>' frontend/e2e/` before pushing. 2026-09-22: MobileTabBar 的「浏览」改成「频道」（DEC-046）漏改 `e2e/mobile.spec.ts`，master 上 e2e 红（83 passed / 1 failed） |
+| e2e locator left behind by a UI rename | local gates all green, CI's `e2e` job red on a `getByRole` / text locator that matches nothing | e2e specs assert on user-visible labels. When a nav item, tab or button is renamed, `grep -rn '<旧文案>' frontend/e2e/` before pushing — 2026-09-22 的「浏览」→「频道」（DEC-046）就漏改了 `e2e/mobile.spec.ts`，master e2e 红 |
 | local `npx playwright test` cannot boot the backend (Windows) | webServer log shows `UnicodeDecodeError: 'gbk' codec can't decode byte 0xac` while `limiter.py` builds `Config(env_file=...)`, then `Error: Process from config.webServer was not able to start` | Playwright spawns `uvicorn` as a **child process**, so the `PYTHONUTF8=1` written on the pytest line above does not reach it. Export it for the run: `PYTHONUTF8=1 npx playwright test --project=chromium` |
 | local full `npx playwright test` run | a dozen-plus specs fail with `API registration failed: 429 {"code":"RATE_LIMITED"}` (or `409 该手机号已注册`), scattered across unrelated files | ~95 specs each register their own user via `e2e/helpers.ts` while the dev limiter caps `register` at `5/minute` (`api/v1/auth.py`). CI sets `ENV: testing`, where `core/limiter.py` makes `rate_limit` a noop and slowapi switches to `memory://`. Start the backend the same way: `cd backend && ENV=testing JWT_SECRET=test-secret-local-e2e DATABASE_URL='postgresql+asyncpg://seeword:seeword_dev@localhost:5432/seeword' PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000`. Non-development envs have no fallback for those two (DEC-051), so pass them explicitly — the dev fallback URL they mirror is at `app/core/config.py:313` |
 | card clicks stop navigating (client-side routing silently dead) | specs that `click()` a link fail on the following `toHaveURL` while the page looks fine: the DOM is there, the `href` is right, Next still prefetches (`?…&_rsc=…` requests appear), no `console` error and no `pageerror`; the URL simply never changes. `el.click()` from JS does not navigate either | observed once on 2026-09-25, after a second `npm run dev` had been started against an already-running dev server (it printed `Another next dev server is already running` and exited). Restarting `next dev` cleanly fixed it: the same spec went 3 failed → 3 passed. Mechanism unconfirmed, so treat it as "a client-nav spec that fails consistently and inexplicably → restart the dev server before debugging the app" |
@@ -64,9 +63,8 @@ the pipe's status. Check `cmd > log 2>&1; echo $?`.
 ## Re-curating the mypy baseline
 
 `backend/.mypy-baseline` is a **curated** list, not a generated one, so it rots silently. The gate
-only compares against it, and it sat unmaintained from 2026-07-24 to 2026-09-19 — long enough to
-accumulate 21 unreviewed `file:code` pairs — while the `Format check` failure upstream meant the
-step never actually ran.
+only compares against it; left unmaintained it once accumulated 21 unreviewed `file:code` pairs
+while an upstream `Format check` failure meant the step never even ran.
 
 Regenerate with the **same mypy version CI installs**, and point it at the project's interpreter so
 it sees the installed packages:
@@ -100,7 +98,5 @@ commit caused it. Before the first push after a gap:
 
 1. `git log origin/master..master --oneline | wc -l` — know the size of the unverified set.
 2. Run all four gates from §1 on the **final** tree, not on individual commits.
-3. Expect the e2e job to be the long pole (it boots Postgres, Redis, the backend and the frontend).
-4. If CI fails, reproduce locally with the same command CI uses — not a near-equivalent one. The
-   `alembic` case above was exactly this: the local skill ran `python -m alembic`, CI ran `alembic`,
-   and only the latter was broken.
+3. If CI fails, reproduce locally with the exact command CI uses — not a near-equivalent one (the
+   `alembic` case above was exactly this: `python -m alembic` locally, `alembic` in CI).
