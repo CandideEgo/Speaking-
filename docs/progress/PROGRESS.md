@@ -219,7 +219,7 @@
 | N-06 | 密码加密 | ✅ | `hash_password` / `verify_password` 使用 bcrypt |
 | N-07 | 免费用户次数限制 | ✅ | 每日 3 次 |
 | N-08 | 兑换码防重放 | ✅ | `is_used` 标记 + `used_by` + `used_at` |
-| N-09 | API 鉴权 | ✅ | 用户只能访问自己的视频（除官方视频外）+ `require_video_access` |
+| N-09 | API 鉴权 | ✅ | 用户只能访问自己的视频（除官方视频外）+ `check_video_access`（原 `require_video_access` 依赖已移除） |
 | N-10 | 响应式设计 | ✅ | Tailwind 响应式断点 + 移动端字幕面板适配 |
 | N-11 | 字幕逐句高亮 | ✅ | `currentSubtitleIndex` 跟随播放时间 |
 | N-12 | 错误信息展示 | ✅ | 处理失败时显示 `error_message` + ApiError 结构化错误 |
@@ -305,7 +305,7 @@
 
 | 项 | 说明 | 状态 |
 |---|---|---|
-| 视频访问控制 | `require_video_access` + `check_video_access` 依赖 | ✅ |
+| 视频访问控制 | `check_video_access` + `check_video_access_by_owner` + `should_use_snapshot`（`services/video_access.py` 领域函数；原 `api/dependencies.py` 的 `require_video_access` 已移除） | ✅ |
 | Service 层提取 | video_service, vocabulary_service, speaking_service, comment_service | ✅ |
 | Plan 校验 | `PLAN_DEFINITIONS` 注册表 + create_order 验证 | ✅ |
 | mock_payment 隔离 | 独立模块，仅 dev/testing 环境注册 | ✅ |
