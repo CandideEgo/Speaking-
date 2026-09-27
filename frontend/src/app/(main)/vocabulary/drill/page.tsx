@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
@@ -9,20 +9,40 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useDailySession } from "@/hooks/useDailySession";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useVocabularyPractice } from "@/hooks/usePractice";
+import { api } from "@/lib/api";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
-import { WordFlashcard } from "@/components/vocabulary/WordFlashcard";
+import { WordQuizCard } from "@/components/vocabulary/WordFlashcard";
 import { TrainSummary, type WeakWord } from "@/components/vocabulary/TrainSummary";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
+import {
+  applyAnswer,
+  buildDrillScheduler,
+  currentEntry,
+  dropCurrent,
+  poolFromState,
+  type DrillSchedulerState,
+} from "@/lib/drillRound";
+import {
+  buildDrillQuestion,
+  conciseTranslation,
+  DRILL_KIND_LABEL,
+  questionKindForAppearance,
+  type DrillQuestion,
+} from "@/lib/drillQuestions";
+import type { VocabularyWord } from "@/types";
 
 /**
  * 全屏单词训练。
- * - 默认：百词斩式两段式「今日训练」——新词闪卡（学）→ 到期复习测验（练）→ 总结。
- * - ?video_id=：EndScreen「复习本视频生词」深链，保持纯测验行为（跳过闪卡阶段）。
+ * - 默认：一条全程选择题循环（S5）——本轮新词按出现间隔反复出题、连对两次
+ *   毕业，到期复习词追加在队尾各问一次；没有「闪卡学新词 → 复习测验」的
+ *   两阶段划分，也没有自评双按钮。调度规则在 `lib/drillRound.ts`（纯函数）。
+ * - ?video_id=：EndScreen「复习本视频生词」深链，保持纯测验行为（不进本轮循环）。
  *
- * 进度不再只活在 React state：一轮训练由后端 `study_sessions` 承载（DEC-053），
- * 进入时先查未完成的一轮续上，作答逐条落库。
+ * 新词的作答与毕业由后端 `study_sessions` 承载（DEC-053）：每题作答逐条落库，
+ * 进入时先查未完成的一轮续上。复习词走 practice/submit 批量提交端点，
+ * 复习线词由后端按错误次数分档落库（DEC-057）。
  */
 export default function VocabDrillPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
@@ -98,139 +118,101 @@ function VideoScopedDrill({ videoId }: { videoId: string }) {
   );
 }
 
-type Phase = "learn" | "review" | "summary";
-
-/** 一次复习测验的成绩快照——进入总结后 quiz 状态会被下一轮覆盖。 */
-interface QuizResult {
-  total: number;
-  correct: number;
-  weak: WeakWord[];
-}
+type Phase = "drill" | "summary";
 
 /**
- * 今日训练主流程：闪卡学新词 → 到期词测验 → 总结。
+ * 今日训练主流程：一条全程选择题循环。
  *
- * 一轮的进度落在后端（`study_sessions`，DEC-053）：进入时先取「今日未完成的
- * 一轮」续上——闪卡从第一个 pending 项接着走、已学数取该轮已作答数，因此中途
- * 刷新或跳去视频再回来都不会从头开始。每张闪卡的作答写回该轮。
- * 「再加练一轮」= 结束当前轮 + 再开一轮 `kind=extra`（同样配额的新词，计入今日
- * 累计但不计入今日目标）。
+ * 队列 = 本轮未毕业的新词（每答一题写回 `study_sessions`：连对计数、毕业）
+ * + 到期复习词（`daily-session` 的 review_words，各问一次，走批量提交端点）。
+ * 调度（出现间隔、毕业、续轮推导）与题型轮换都在 `lib/` 的纯函数里，
+ * 本组件只负责落库与推进。中途刷新：新词进度从落库状态续上，已答过的复习词
+ * 因后端更新 `next_review_at` 自然退出到期队列。
+ * 「再加练一轮」= 结束当前轮 + 再开一轮 `kind=extra`（计入今日累计，不计入
+ * 今日目标）。
  */
 function DailyTraining() {
   const daily = useDailySession(true);
   const round = useStudySession(true);
   const [phase, setPhase] = useState<Phase | null>(null);
-  const [learnIndex, setLearnIndex] = useState(0);
-  const [learned, setLearned] = useState(0);
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+  const [sched, setSched] = useState<DrillSchedulerState | null>(null);
+  const [pool, setPool] = useState<VocabularyWord[]>([]);
+  const [question, setQuestion] = useState<DrillQuestion | null>(null);
+  const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
+  const [progress, setProgress] = useState({ learned: 0, asked: 0, correct: 0, done: 0 });
+  const [weak, setWeak] = useState<WeakWord[]>([]);
   const [extraLoading, setExtraLoading] = useState(false);
   const fetchStats = useVocabularyStore((s) => s.fetchStats);
 
   const loading = round.loading || daily.loading;
   const error = round.error ?? daily.error;
-  const hasDue = (daily.session?.totals.due_total ?? 0) > 0;
-  const reviewCount = daily.session?.preferences?.daily_review_target ?? 20;
 
-  // 本轮要学的新词；word=null 表示词已被删除，直接跳过（索引与 items 对齐）
-  const words = useMemo(
-    () => (round.round?.items ?? []).flatMap((i) => (i.word ? [i.word] : [])),
-    [round.round]
-  );
-  const pendingIndex = useMemo(
-    () => (round.round?.items ?? []).findIndex((i) => i.word !== null && i.status === "pending"),
-    [round.round]
-  );
-  const answeredCount = useMemo(
-    () =>
-      (round.round?.items ?? []).filter((i) => i.word !== null && i.status !== "pending").length,
-    [round.round]
-  );
-
-  // 轮次加载完成后决定起始阶段：有未作答的词 → 续上闪卡；否则有到期词 → 复习；否则总结。
+  // 轮次与到期词就绪后一次性建队（加练开新轮时 sched 已被置空，走同一入口）。
   useEffect(() => {
-    if (loading || error || phase) return;
-    if (pendingIndex >= 0) {
-      setPhase("learn");
-      setLearnIndex(pendingIndex);
-      setLearned(answeredCount);
-    } else if (hasDue) {
-      setPhase("review");
-      setLearnIndex(0);
-      setLearned(answeredCount);
-    } else {
-      setPhase("summary");
-      setLearnIndex(0);
-      setLearned(answeredCount);
-    }
-  }, [loading, error, phase, pendingIndex, hasDue, answeredCount]);
+    if (loading || error || phase || sched) return;
+    const state = buildDrillScheduler(round.round?.items ?? [], daily.session?.reviewWords ?? []);
+    setSched(state);
+    setPool(poolFromState(state));
+    setPhase(state.entries.length > 0 ? "drill" : "summary");
+  }, [loading, error, phase, sched, round.round, daily.session]);
 
-  // 测验阶段：allGraded 后一次性提交成绩并进入总结
-  const quiz = useVocabularyPractice({
-    count: reviewCount,
-    dueOnly: true,
-    enabled: phase === "review",
-  });
-
+  // 队首出题：按出现次序定题型，从词池造选项。构造失败（词池太小）则跳过该词。
+  // 只在「记一次作答」时改 sched——反馈展示期间队列不动，「下一个」点了才推进。
   useEffect(() => {
-    if (phase !== "review" || !quiz.allGraded || quizSubmitted) return;
-    setQuizSubmitted(true);
-    setQuizResult({
-      total: quiz.items.length,
-      correct: quiz.correctCount,
-      weak: quiz.items
-        .map((item, i) => ({ item, g: quiz.graded[i] }))
-        .filter(({ g }) => g && !g.correct)
-        .map(({ item }) => ({ word: item.word, translation: item.answer ?? null })),
-    });
-    quiz.submitResults().finally(() => {
+    if (phase !== "drill" || !sched) return;
+    const entry = currentEntry(sched);
+    if (!entry) {
       fetchStats();
       setPhase("summary");
-    });
-  }, [phase, quiz, quizSubmitted, fetchStats]);
-
-  // 到期词在加载完成后的池子为空（竞态：到期队列刚被清空）→ 直接总结。
-  // 不能只凭 quiz.loading / quiz.items.length 判空：在 phase 刚翻到 review 的那次
-  // commit 里，useSession 的 refetch 还没跑（它的 setLoading(true) 要等本次 commit 的
-  // effect 全部执行完才生效），这两个值都还是上一阶段的陈值，会被误判成空池并跳
-  // summary —— 整个复习测验被跳过。先确认的确观察到了一次加载，再判空。
-  const reviewLoadSeen = useRef(false);
-
-  useEffect(() => {
-    if (phase !== "review") {
-      reviewLoadSeen.current = false;
       return;
     }
-    if (quiz.loading) {
-      reviewLoadSeen.current = true;
-      return;
-    }
-    if (!reviewLoadSeen.current || quiz.error) return;
-    if (quiz.items.length === 0) {
-      fetchStats();
-      setPhase("summary");
-    }
-  }, [phase, quiz.loading, quiz.error, quiz.items.length, fetchStats]);
-
-  const currentWord = words[learnIndex] ?? null;
-
-  /** 闪卡作答：写回本轮（同时更新该词的 SM-2 状态与今日累计），推进队列。 */
-  function handleGrade(known: boolean) {
-    if (!currentWord) return;
-    round
-      .answer(currentWord.id, known)
-      .catch(() => toast.error(`「${currentWord.word}」学习记录同步失败`));
-
-    const next = learnIndex + 1;
-    setLearned((n) => n + 1);
-    if (next < words.length) {
-      setLearnIndex(next);
-    } else if (hasDue) {
-      setPhase("review");
+    const built = buildDrillQuestion(entry.word, pool, questionKindForAppearance(entry.appearance));
+    if (built) {
+      setQuestion(built);
     } else {
-      fetchStats();
-      setPhase("summary");
+      setSched(dropCurrent(sched));
     }
+  }, [phase, sched, pool, fetchStats]);
+
+  /** 记一次作答：本地调度不动（等「下一个」），落库异步跟随。 */
+  function handleAnswer(correct: boolean) {
+    const entry = sched ? currentEntry(sched) : null;
+    if (!entry) return;
+    setLastCorrect(correct);
+    setProgress((p) => ({
+      learned: p.learned + (entry.source === "round" && !entry.answered ? 1 : 0),
+      asked: p.asked + 1,
+      correct: p.correct + (correct ? 1 : 0),
+      done: p.done,
+    }));
+    if (!correct) {
+      const translation = conciseTranslation(entry.word) || entry.word.definition || null;
+      setWeak((ws) =>
+        ws.some((w) => w.word === entry.word.word)
+          ? ws
+          : [...ws, { word: entry.word.word, translation }]
+      );
+    }
+    if (entry.source === "round") {
+      round
+        .answer(entry.vocabularyId, correct)
+        .catch(() => toast.error(`「${entry.word.word}」学习记录同步失败`));
+    } else {
+      // 到期复习词：与复习同一写入口（practice/submit，复习线词按 DEC-057 分档）。
+      api("/api/v1/vocabulary/practice/submit", {
+        method: "POST",
+        body: JSON.stringify({ results: [{ word: entry.word.word, correct }] }),
+      }).catch(() => toast.error(`「${entry.word.word}」学习记录同步失败`));
+    }
+  }
+
+  /** 「下一个」：出队 + 按间隔重插（调度规则在 lib/drillRound.ts）。 */
+  function handleNext() {
+    if (!sched || lastCorrect === null) return;
+    const outcome = applyAnswer(sched, lastCorrect);
+    setProgress((p) => ({ ...p, done: p.done + (outcome.done ? 1 : 0) }));
+    setSched(outcome.state);
+    setLastCorrect(null);
   }
 
   /** 再加练一轮：结束当前轮 → 再取一轮配额的新词（kind=extra）。 */
@@ -244,11 +226,15 @@ function DailyTraining() {
         toast.info("暂时没有更多新词了，明天再来");
         return;
       }
-      setQuizSubmitted(false);
-      setQuizResult(null);
-      setLearnIndex(0);
-      setLearned(0);
-      setPhase(null); // 交给上面的 effect 按新一轮重新定阶段
+      // 重新取到期词：本轮答过的复习词已不再到期，不能带进加练轮。
+      await daily.refresh();
+      setProgress({ learned: 0, asked: 0, correct: 0, done: 0 });
+      setWeak([]);
+      setLastCorrect(null);
+      setQuestion(null);
+      setPool([]);
+      setSched(null);
+      setPhase(null); // 交给上面的 effect 按新一轮重新建队
       fetchStats();
     } catch {
       toast.error("加练开启失败，请稍后再试");
@@ -278,48 +264,43 @@ function DailyTraining() {
     );
   }
 
-  if (phase === "learn" && currentWord) {
+  if (phase === "drill") {
     return (
       <main className="min-h-full bg-surface-soft">
-        <DrillHeader label="学新词" answered={learnIndex} total={words.length} />
-        <div className="max-w-[880px] mx-auto px-4 py-10 pb-24 animate-fade-in">
-          <WordFlashcard
-            key={currentWord.id}
-            word={currentWord}
-            index={learnIndex}
-            total={words.length}
-            onGrade={handleGrade}
-          />
-        </div>
-      </main>
-    );
-  }
-
-  if (phase === "review") {
-    return (
-      <main className="min-h-full bg-surface-soft">
-        <DrillHeader label="复习测验" answered={quiz.answeredCount} total={quiz.items.length} />
+        <DrillHeader
+          label={question ? DRILL_KIND_LABEL[question.kind] : "今日训练"}
+          answered={progress.done}
+          total={Math.max(pool.length, progress.done, 1)}
+        />
         <div className="max-w-[880px] mx-auto px-4 py-8 pb-24 animate-fade-in">
-          <UnifiedPracticePanel session={quiz} levelLabel="今日复习" />
+          {question ? (
+            <WordQuizCard
+              key={`${question.vocabularyId}-${question.kind}-${question.answer}`}
+              question={question}
+              onAnswer={handleAnswer}
+              onNext={handleNext}
+            />
+          ) : (
+            <FullPageSpinner />
+          )}
         </div>
       </main>
     );
   }
 
-  const quizTotal = quizResult?.total ?? 0;
   return (
     <main className="min-h-full bg-surface-soft">
       <DrillHeader
         label="今日训练"
-        answered={learned + (quizSubmitted ? quizTotal : 0)}
-        total={learned + quizTotal}
+        answered={progress.done}
+        total={Math.max(pool.length, progress.done, 1)}
       />
       <div className="max-w-[880px] mx-auto px-4 py-10 pb-24">
         <TrainSummary
-          learnedCount={learned}
-          quizTotal={quizTotal}
-          quizCorrect={quizResult?.correct ?? 0}
-          weakWords={quizResult?.weak ?? []}
+          learnedCount={progress.learned}
+          quizTotal={progress.asked}
+          quizCorrect={progress.correct}
+          weakWords={weak}
           onRestart={handleExtraRound}
           restartLoading={extraLoading}
         />

@@ -12,8 +12,10 @@ export interface WeakWord {
 }
 
 /**
- * 今日训练总结（/vocabulary/drill 末阶段）：新词已学数 + 复习正确率 +
- * 薄弱词列表；正确率 ≥80% 撒花。quizTotal=0 表示今天没有到期复习词。
+ * 今日训练总结（/vocabulary/drill 末阶段）：新词已学数 + 作答正确率 +
+ * 薄弱词列表；正确率 ≥80% 撒花。quizTotal=0 表示这一程一题都没答
+ * （如续上时已全部毕业）。S5 起训练是一条全程选择题循环，正确率按全部
+ * 作答统计，不再区分「学」与「复习测验」两段。
  *
  * 「再加练一轮」再取一轮配额的新词（kind=extra）：计入今日累计，不计入今日目标。
  */
@@ -54,7 +56,7 @@ export function TrainSummary({
             <h2 className="text-xl font-extrabold text-ink mt-4">今日训练完成</h2>
             {accuracy != null && (
               <p className="text-[15px] text-muted mt-2">
-                复习正确率{" "}
+                作答正确率{" "}
                 <span
                   className={cn(
                     "font-extrabold text-2xl",
@@ -76,7 +78,7 @@ export function TrainSummary({
                   <Target size={16} className="text-brand-500" />
                   {quizTotal > 0 ? `${quizCorrect}/${quizTotal}` : "—"}
                 </div>
-                <div className="text-[11px] text-muted mt-0.5">复习测验</div>
+                <div className="text-[11px] text-muted mt-0.5">作答正确</div>
               </div>
             </div>
 
