@@ -6,8 +6,9 @@ Skips downloading/transcoding (YouTube embed playback).
 
 import asyncio
 import sys
+from pathlib import Path
 
-sys.path.insert(0, ".")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 
