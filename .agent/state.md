@@ -19,7 +19,7 @@ Last Updated: 2026-09-27
 4. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
 5. Recommendation 深度个性化 P2（ADR-0011）
 6. ICP 解封后项：payment、前端单测、e2e 覆盖
-7. **词汇训练线收尾（S1–S8 已全部落地，DEC-053/056/057）**：T1 S7a 回填脚本下次部署跑（先 dry-run，见 archive/handoffs/2026-09-27-s7a）；T2 chromium e2e 补跑（Docker 恢复后）；可选追票：续轮出现次序精确化（`wrong_in_round` 改计数）、每日循环打通 ECDICT 干扰项兜底（practice 路由加透传，API 契约变更）、「全部单词」页的词行级 unmark；边界外 SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7` + 三处注释）
+7. **词汇训练线收尾（S1–S8 已落地，DEC-053/056/057）**：T1 回填脚本下次部署跑（先 dry-run，见 archive/handoffs/2026-09-27-s7a）；T2 e2e 已补跑通过（09-27：88 过 / 9 skip 均为「无可播视频」预期类；顺手修 helpers 手机号并行撞号）；可选追票：续轮次序精确化（`wrong_in_round` 改计数）、每日循环 ECDICT 干扰项兜底（需 API 透传）、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
 
 ## Known Issues
 

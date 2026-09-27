@@ -17,12 +17,23 @@ export const TEST_PASSWORD = "TestPass123";
 
 let phoneCounter = 0;
 
+// Playwright workers are separate processes, so a module-level counter alone
+// does not give cross-worker uniqueness, and a Date.now()-derived tail does
+// not either: workers burst in the same millisecond, and a dev DB keeps old
+// users across runs (409 该手机号已注册 kills the spec). Give each worker
+// process its own random 7-digit identity (salt + base) and rely on the
+// counter for intra-worker uniqueness — no clock dependence at all. Two of
+// ~12 workers sharing an identity is ~10⁻⁵; CI (1 worker, fresh DB) never
+// rolls the dice in the first place.
+const workerSalt = 3 + Math.floor(Math.random() * 7); // second digit, 3-9
+const workerBase = Math.floor(Math.random() * 10 ** 7);
+
 /** Generate a unique valid Chinese mobile number (matches /^1[3-9]\d{9}$/). */
 export function uniquePhone(): string {
   phoneCounter += 1;
-  const ts = Date.now().toString().slice(-6);
+  const base = workerBase.toString().padStart(7, "0");
   const c = phoneCounter.toString().padStart(2, "0");
-  return `139${ts}${c}`; // 139 + 6 + 2 = 11 digits
+  return `1${workerSalt}${base}${c}`; // 1 + salt + base(7) + counter(2) = 11 digits
 }
 
 /**
