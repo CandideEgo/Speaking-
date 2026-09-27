@@ -10,7 +10,7 @@
     },
     "api-v1": {
       "verified": "2026-09-27",
-      "digest": "sha256:9ea7137abb30ff12fe177859db2bba48fe8ee9856f617e6a3990565eb9040129"
+      "digest": "sha256:b1ab6b36d82f17be716302a67633982e7f69fbf84360ad513853d28f6b15b895"
     },
     "auth": {
       "verified": "2026-09-27",
@@ -42,7 +42,7 @@
     },
     "env-config": {
       "verified": "2026-09-27",
-      "digest": "sha256:50a15e537d1b866725292fc71568b6d151ae35e6b9c837e2abe47111aeb88d2a"
+      "digest": "sha256:798489bbee6df31b1437077d954b9c5093eb39cac7dd0ffc93ade28916f0881a"
     },
     "error-envelope": {
       "verified": "2026-09-27",
@@ -90,7 +90,7 @@
     },
     "pytest-suite": {
       "verified": "2026-09-27",
-      "digest": "sha256:43ad87f1a2487f4e0f60c02988bcd907f7f3153410b00b14225c1cff43a41675"
+      "digest": "sha256:a2bede7f703352bc1c5dbd377a03e9ce16ec6179d9b828b07dfd577c8f37330c"
     },
     "sms-service": {
       "verified": "2026-09-27",
