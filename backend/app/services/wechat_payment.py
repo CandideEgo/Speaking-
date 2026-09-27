@@ -31,7 +31,7 @@ class WechatPaymentProvider(PaymentProvider):
             "WechatPaymentProvider.create_order() with the wechatpay-v3 package."
         )
 
-    async def verify_callback(self, request) -> tuple[bool, str | None]:
+    async def verify_callback(self, request) -> tuple[bool, str | None, int | None]:
         """Verify WeChat Pay v3 callback signature."""
         signature = request.headers.get("Wechatpay-Signature", "")
         timestamp = request.headers.get("Wechatpay-Timestamp", "")
@@ -41,14 +41,18 @@ class WechatPaymentProvider(PaymentProvider):
         body = await request.json()
 
         if not _verify_wechat_signature(body_bytes, signature, timestamp, nonce):
-            return False, None
+            return False, None, None
 
         order_number = body.get("out_trade_no")
         trade_state = body.get("trade_state", "")
         if trade_state != "SUCCESS":
-            return False, None
+            return False, None, None
 
-        return True, order_number
+        amount = body.get("amount")
+        total = amount.get("total") if isinstance(amount, dict) else None
+        paid_amount = total if isinstance(total, int) else None
+
+        return True, order_number, paid_amount
 
     async def query_order(self, order_number: str) -> OrderStatus | None:
         """Query WeChat Pay for order status.  Not yet implemented."""

@@ -16,6 +16,16 @@ def enable_payments(monkeypatch):
     monkeypatch.setattr(get_settings(), "payments_enabled", True)
 
 
+@pytest.fixture
+def bypass_signature(monkeypatch):
+    """Disable gateway signature verification so callback bodies can be driven end to end."""
+    from app.services import alipay_payment, wechat_payment
+
+    for module in (alipay_payment, wechat_payment):
+        monkeypatch.setattr(module.settings, "env", "development")
+        monkeypatch.setattr(module.settings, "payment_verify_signature", False)
+
+
 class TestCreateOrder:
     async def test_create_order_requires_auth(self, client: AsyncClient):
         resp = await client.post("/api/v1/payments/create-order")
@@ -42,6 +52,8 @@ class TestCreateOrder:
         assert "order_id" in data
         assert data["amount"] == 3900
         assert data["currency"] == "CNY"
+        # 站内 mock 支付只能由 POST /payments/mock-pay 触发，没有浏览器跳转地址。
+        assert data["payment_url"] == ""
 
     async def test_create_order_pro_user_blocked(self, client: AsyncClient, admin_headers: dict, enable_payments):
         # Admin is already Pro
@@ -74,7 +86,7 @@ class TestMockPay:
         order_id = order.json()["order_id"]
 
         # Mock pay
-        resp = await client.get(
+        resp = await client.post(
             "/api/v1/payments/mock-pay",
             headers=auth_headers,
             params={"order_id": order_id},
@@ -87,12 +99,116 @@ class TestMockPay:
         assert me.json()["plan"] == "pro"
 
     async def test_mock_pay_invalid_order(self, client: AsyncClient, auth_headers: dict):
-        resp = await client.get(
+        resp = await client.post(
             "/api/v1/payments/mock-pay",
             headers=auth_headers,
             params={"order_id": "spk_nonexistent"},
         )
         assert resp.status_code == 404
+
+
+class TestCallbackAmount:
+    """Callbacks must not grant Pro for an amount other than the order's."""
+
+    async def test_alipay_callback_rejects_amount_mismatch(
+        self, client: AsyncClient, auth_headers: dict, enable_payments, bypass_signature
+    ):
+        order = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        order_id = order.json()["order_id"]
+
+        resp = await client.post(
+            "/api/v1/payments/callback/alipay",
+            data={"out_trade_no": order_id, "trade_status": "TRADE_SUCCESS", "total_amount": "0.01"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "error"
+
+        me = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert me.json()["plan"] == "free"
+
+    async def test_alipay_callback_accepts_matching_amount(
+        self, client: AsyncClient, auth_headers: dict, enable_payments, bypass_signature
+    ):
+        order = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        order_id = order.json()["order_id"]
+
+        resp = await client.post(
+            "/api/v1/payments/callback/alipay",
+            data={"out_trade_no": order_id, "trade_status": "TRADE_SUCCESS", "total_amount": "39.00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+        me = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert me.json()["plan"] == "pro"
+
+    async def test_wechat_callback_rejects_amount_mismatch(
+        self, client: AsyncClient, auth_headers: dict, enable_payments, bypass_signature
+    ):
+        order = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        order_id = order.json()["order_id"]
+
+        resp = await client.post(
+            "/api/v1/payments/callback/wechat",
+            json={"out_trade_no": order_id, "trade_state": "SUCCESS", "amount": {"total": 1}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["code"] == "FAIL"
+
+        me = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert me.json()["plan"] == "free"
+
+    async def test_wechat_callback_rejects_missing_amount(
+        self, client: AsyncClient, auth_headers: dict, enable_payments, bypass_signature
+    ):
+        order = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        order_id = order.json()["order_id"]
+
+        resp = await client.post(
+            "/api/v1/payments/callback/wechat",
+            json={"out_trade_no": order_id, "trade_state": "SUCCESS"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["code"] == "FAIL"
+
+        me = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert me.json()["plan"] == "free"
+
+    async def test_wechat_callback_accepts_matching_amount(
+        self, client: AsyncClient, auth_headers: dict, enable_payments, bypass_signature
+    ):
+        order = await client.post(
+            "/api/v1/payments/create-order",
+            headers=auth_headers,
+            params={"plan": "pro_monthly"},
+        )
+        order_id = order.json()["order_id"]
+
+        resp = await client.post(
+            "/api/v1/payments/callback/wechat",
+            json={"out_trade_no": order_id, "trade_state": "SUCCESS", "amount": {"total": 3900}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["code"] == "SUCCESS"
+
+        me = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert me.json()["plan"] == "pro"
 
 
 class TestPaymentStatus:

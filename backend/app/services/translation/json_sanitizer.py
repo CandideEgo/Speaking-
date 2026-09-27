@@ -84,8 +84,9 @@ def _normalise_quotes(text: str) -> str:
     # e.g. "...text"，"next..." → "...text","next..."
     text = re.sub(r'"，"', '","', text)
     # Also handle the case where CJK brackets were turned into quotes,
-    # leaving adjacent "" without comma.
-    text = text.replace('""', '","')
+    # leaving adjacent "" without comma. A "" in element position is a
+    # legitimate empty string, so only join quotes that follow text.
+    text = re.sub(r'(?<![,\[:\s])""', '","', text)
     return text
 
 

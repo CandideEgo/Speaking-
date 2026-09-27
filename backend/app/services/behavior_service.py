@@ -11,6 +11,7 @@ Not a recommendation engine — just the data channel. Ranking/scoring live in
 scoring_service / recommendation_service (P1/P2).
 """
 
+import math
 from datetime import UTC, datetime
 
 from sqlalchemy import select, update
@@ -95,8 +96,11 @@ async def _mirror_to_learning_record(
     path racing the unique constraint).
     """
     if event_type == EVENT_WATCH_TIME:
-        delta = float(payload.get("delta_s", 0) or 0)
-        if delta <= 0:
+        try:
+            delta = float(payload.get("delta_s", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if not math.isfinite(delta) or delta <= 0:
             return
         result = await db.execute(
             select(LearningRecord).where(

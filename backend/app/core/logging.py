@@ -73,7 +73,7 @@ def mask_phone(phone: str | None) -> str:
     """
     if not phone:
         return "***"
-    if len(phone) >= 7:
+    if len(phone) > 7:
         return f"{phone[:3]}****{phone[-4:]}"
     return "***"
 

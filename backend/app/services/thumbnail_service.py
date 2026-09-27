@@ -92,7 +92,13 @@ async def extract_frame_thumbnail(video_path: Path, dest: Path) -> bool:
             stderr=asyncio.subprocess.DEVNULL,
         )
         await asyncio.wait_for(proc.wait(), timeout=30)
-    except (OSError, TimeoutError) as e:
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        logger.warning("Frame extraction timed out for %s", video_path.name)
+        tmp.unlink(missing_ok=True)
+        return False
+    except OSError as e:
         logger.warning("Frame extraction unavailable for %s: %s", video_path.name, str(e)[:120])
         return False
     if proc.returncode != 0 or not tmp.exists() or tmp.stat().st_size == 0:

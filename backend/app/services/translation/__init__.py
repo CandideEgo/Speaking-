@@ -259,7 +259,7 @@ class TranslationService:
                         got=len(parsed),
                     )
                     normalized = self._normalize_translations(parsed)
-                    padded = normalized + [None] * (len(parsed) - len(texts))
+                    padded = normalized + [None] * (len(texts) - len(parsed))
                     return padded
 
                 # Not a list at all — don't retry, this is a structural issue

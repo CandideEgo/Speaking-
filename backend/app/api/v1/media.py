@@ -483,8 +483,16 @@ async def serve_media(file_path: str, request: Request):
         if unit.strip().lower() != "bytes" or "," in spec:
             raise ValueError
         start_s, _, end_s = spec.strip().partition("-")
-        start = int(start_s) if start_s else 0
-        end = int(end_s) if end_s else total - 1
+        if not start_s:
+            # Suffix range "bytes=-N": the final N bytes (RFC 7233 §2.1).
+            suffix_len = int(end_s) if end_s else 0
+            if suffix_len <= 0:
+                raise ValueError
+            start = max(total - suffix_len, 0)
+            end = total - 1
+        else:
+            start = int(start_s)
+            end = int(end_s) if end_s else total - 1
     except ValueError:
         raise HTTPException(status_code=416, detail="Unsupported Range") from None
 

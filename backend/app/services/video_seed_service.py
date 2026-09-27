@@ -212,6 +212,7 @@ async def _copy_subtitles(db: AsyncSession, *, source_video_id: str, target_vide
                 grammar_note=s.grammar_note,
                 difficulty_words=s.difficulty_words,
                 word_levels=s.word_levels,
+                words=s.words,
             )
         )
         count += 1
@@ -263,10 +264,10 @@ async def _fork_video_from(
         forked_from=source.id,
     )
     db.add(user_video)
-    await commit_refresh(db, user_video)
+    await db.flush()
 
     await _copy_subtitles(db, source_video_id=source.id, target_video_id=user_video.id)
-    await db.commit()
+    await commit_refresh(db, user_video)
     return user_video
 
 

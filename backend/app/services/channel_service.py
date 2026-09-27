@@ -135,14 +135,22 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     videos = list((await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))).scalars())
 
-    # Cover fallback: newest public video's thumbnail (videos are newest-first).
-    cover_fallback = videos[0].thumbnail_url if videos else None
+    # Cover fallback + upstream channel stats (follower count, verified badge)
+    # come from the newest public video, resolved with its own query so the
+    # channel header does not change with the requested page.
+    newest = (
+        await db.execute(
+            select(Video.thumbnail_url, Video.external_meta)
+            .where(Video.channel_ref == channel.id, *_PUBLIC_VIDEO_FILTER)
+            .order_by(Video.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    cover_fallback = newest.thumbnail_url if newest else None
 
-    # Upstream channel stats (scraped with the newest video's external_meta):
-    # follower count + verified badge for the author-page header.
     upstream_stats: dict = {}
-    if videos:
-        upstream_stats = (videos[0].external_meta or {}).get("channel") or {}
+    if newest:
+        upstream_stats = (newest.external_meta or {}).get("channel") or {}
 
     channel_dict = _channel_public(channel, total, cover_fallback)
     channel_dict["follower_count"] = upstream_stats.get("follower_count")

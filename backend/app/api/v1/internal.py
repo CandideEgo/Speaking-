@@ -109,6 +109,14 @@ async def transcription_callback(
             detail="Callback lock unavailable; retry after Redis recovers",
         )
 
+    # The lock serialises callbacks, it does not re-validate state: a previous
+    # callback may have completed the tail between the status read above and
+    # here, so re-read the row under the lock before acting on it.
+    await db.refresh(video)
+    if video.status != VideoStatus.processing:
+        _release_callback_lock(payload.video_id)
+        return {"acknowledged": True}
+
     try:
         if payload.status == "error":
             video.status = VideoStatus.error

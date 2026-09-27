@@ -617,7 +617,10 @@ async def submit_practice_results(
         vocab.next_review_at = now + timedelta(days=next_interval)
         vocab.ease_factor = new_ef
         vocab.interval_days = next_interval
-        vocab.mastery_level = _mastery_from_review_count(new_review_count)
+        # Mastered words left the review loop (tri-state); a later practice
+        # answer must not re-derive (and demote) their level.
+        if vocab.mastery_level != "mastered":
+            vocab.mastery_level = _mastery_from_review_count(new_review_count)
         updated += 1
 
     await db.commit()

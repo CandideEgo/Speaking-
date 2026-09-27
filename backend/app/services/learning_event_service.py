@@ -74,47 +74,52 @@ async def emit_event(
         return
 
     try:
-        # Determine user's local date for daily aggregation
-        today = await _get_user_local_date(db, user_id)
+        # Savepoint: a mid-way failure must roll back this event's writes (row,
+        # counters, streak, snapshot) without poisoning the caller's session —
+        # the caller commits right after and would otherwise persist a partial
+        # update or raise PendingRollbackError.
+        async with db.begin_nested():
+            # Determine user's local date for daily aggregation
+            today = await _get_user_local_date(db, user_id)
 
-        # Insert event row
-        event = LearningEvent(
-            user_id=user_id,
-            event_type=event_type,
-            event_value=event_value,
-            video_id=video_id,
-            plan_id=plan_id,
-            event_metadata=metadata,
-            event_date=today,
-        )
-        db.add(event)
+            # Insert event row
+            event = LearningEvent(
+                user_id=user_id,
+                event_type=event_type,
+                event_value=event_value,
+                video_id=video_id,
+                plan_id=plan_id,
+                event_metadata=metadata,
+                event_date=today,
+            )
+            db.add(event)
 
-        # Update profile counters
-        profile = await _get_or_create_profile(db, user_id)
-        await _update_daily_progress(db, profile, event_type, event_value, today)
-        await _update_streak(db, profile, today)
+            # Update profile counters
+            profile = await _get_or_create_profile(db, user_id)
+            await _update_daily_progress(db, profile, event_type, event_value, today)
+            await _update_streak(db, profile, today)
 
-        # Check daily goal (only for learning events, not meta-events)
-        if event_type not in {EVENT_COMPLETED_PLAN, EVENT_MET_DAILY_GOAL}:
-            goal_met = await _check_daily_goal(db, profile)
-            if goal_met and not profile.today_goal_met:
-                profile.today_goal_met = True
-                # Emit meta-event (recursive but guarded by today_goal_met flag)
-                meta_event = LearningEvent(
-                    user_id=user_id,
-                    event_type=EVENT_MET_DAILY_GOAL,
-                    event_value=1,
-                    event_date=today,
-                )
-                db.add(meta_event)
+            # Check daily goal (only for learning events, not meta-events)
+            if event_type not in {EVENT_COMPLETED_PLAN, EVENT_MET_DAILY_GOAL}:
+                goal_met = await _check_daily_goal(db, profile)
+                if goal_met and not profile.today_goal_met:
+                    profile.today_goal_met = True
+                    # Emit meta-event (recursive but guarded by today_goal_met flag)
+                    meta_event = LearningEvent(
+                        user_id=user_id,
+                        event_type=EVENT_MET_DAILY_GOAL,
+                        event_value=1,
+                        event_date=today,
+                    )
+                    db.add(meta_event)
 
-        # Sprint 4: Write daily mastery snapshot (once per day)
-        from app.services.milestone_service import check_and_award, ensure_today_snapshot
+            # Sprint 4: Write daily mastery snapshot (once per day)
+            from app.services.milestone_service import check_and_award, ensure_today_snapshot
 
-        await ensure_today_snapshot(db, user_id, today, profile.mastery_by_level)
+            await ensure_today_snapshot(db, user_id, today, profile.mastery_by_level)
 
-        # Sprint 4: Check and award milestones
-        await check_and_award(db, user_id)
+            # Sprint 4: Check and award milestones
+            await check_and_award(db, user_id)
 
     except Exception:
         logger.exception("Failed to emit learning event: %s for user %s", event_type, user_id)

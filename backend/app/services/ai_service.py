@@ -41,6 +41,11 @@ class AIService:
         # time) working in keyless environments such as tests/CI. Any actual
         # call then fails loudly via _chat instead of silently returning fake
         # zero scores.
+        # Lazy cache of secondary-engine clients (qwen/hy_mt2/custom) used by
+        # generate_word_notes_bulk for dual-API concurrent prewarm. Maps engine
+        # name -> (AsyncOpenAI, model). "agnes" is NOT cached here; it reuses
+        # self.client/self.model.
+        self._engine_clients: dict[str, tuple[AsyncOpenAI, str]] = {}
         if not settings.openai_api_key:
             self.client = None
             self.model = settings.openai_model
@@ -50,11 +55,6 @@ class AIService:
             client_kwargs["base_url"] = settings.openai_base_url
         self.client = AsyncOpenAI(**client_kwargs)
         self.model = settings.openai_model
-        # Lazy cache of secondary-engine clients (qwen/hy_mt2/custom) used by
-        # generate_word_notes_bulk for dual-API concurrent prewarm. Maps engine
-        # name -> (AsyncOpenAI, model). "agnes" is NOT cached here; it reuses
-        # self.client/self.model.
-        self._engine_clients: dict[str, tuple[AsyncOpenAI, str]] = {}
 
     def _get_engine_client(self, name: str) -> tuple[AsyncOpenAI, str]:
         """Return ``(client, model)`` for an engine, creating it lazily.

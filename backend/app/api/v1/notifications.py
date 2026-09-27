@@ -37,8 +37,8 @@ class ConnectionManager:
         # user_id -> list of WebSocket connections (a user may have multiple tabs)
         self._connections: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
+    async def connect(self, user_id: str, websocket: WebSocket, subprotocol: str | None = None):
+        await websocket.accept(subprotocol=subprotocol)
         if user_id not in self._connections:
             self._connections[user_id] = []
         self._connections[user_id].append(websocket)
@@ -100,19 +100,44 @@ ws_manager = ConnectionManager()
 
 # ── WebSocket endpoint ────────────────────────────────────────────────
 
+# The browser sends the JWT as a WebSocket subprotocol — `["bearer", <token>]`
+# — instead of a query parameter, because query strings end up in proxy and
+# uvicorn access logs. RFC 6455 requires the server to echo one of the
+# client's requested subprotocols, so the handshake echoes the generic
+# ``bearer`` marker and never the token itself.
+BEARER_SUBPROTOCOL = "bearer"
+
+# The frontend mirrors its access token into this cookie (see frontend
+# src/lib/authHelpers.ts, AUTH_COOKIE_NAME) as a fallback for proxies that
+# drop the Sec-WebSocket-Protocol header.
+AUTH_COOKIE_NAME = "seeword_token"
+
+
+def _requested_subprotocols(websocket: WebSocket) -> list[str]:
+    header = websocket.headers.get("sec-websocket-protocol", "")
+    return [part.strip() for part in header.split(",") if part.strip()]
+
+
+def _ws_token(websocket: WebSocket) -> str | None:
+    """Extract the access token from the handshake: subprotocol first, then cookie."""
+    protocols = _requested_subprotocols(websocket)
+    if BEARER_SUBPROTOCOL in protocols:
+        index = protocols.index(BEARER_SUBPROTOCOL)
+        if index + 1 < len(protocols):
+            return protocols[index + 1]
+    return websocket.cookies.get(AUTH_COOKIE_NAME)
+
 
 @router.websocket("/ws")
-async def notification_websocket(
-    websocket: WebSocket,
-    token: str = Query(...),
-):
+async def notification_websocket(websocket: WebSocket):
     """WebSocket endpoint for real-time notifications.
 
-    Accepts a JWT token as a query parameter for authentication.
-    Sends notification events as JSON messages when they are created.
+    Authenticates on the JWT carried in the ``bearer`` subprotocol (or the
+    auth cookie) and then pushes notification events as JSON messages.
     """
-    # Authenticate via token query param
-    payload = decode_token(token)
+    protocols = _requested_subprotocols(websocket)
+    token = _ws_token(websocket)
+    payload = decode_token(token) if token else None
     if not payload:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -143,7 +168,11 @@ async def notification_websocket(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    await ws_manager.connect(user_id, websocket)
+    await ws_manager.connect(
+        user_id,
+        websocket,
+        subprotocol=BEARER_SUBPROTOCOL if BEARER_SUBPROTOCOL in protocols else None,
+    )
     try:
         # Send initial unread count
         # (We can't easily get a db session here in WebSocket,
@@ -155,6 +184,11 @@ async def notification_websocket(
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
+        pass
+    finally:
+        # Unconditional: an error other than a clean disconnect (a socket the
+        # push loop dropped, or cancellation on shutdown) must not leave the
+        # socket registered in _connections.
         ws_manager.disconnect(user_id, websocket)
 
 
@@ -165,17 +199,20 @@ async def notification_websocket(
 @rate_limit("30/minute")
 async def list_notifications(
     request: Request,
+    type_filter: str | None = Query(None, alias="type", description="Filter by notification type"),
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List current user's notifications, newest first."""
-    base_where = Notification.user_id == current_user.id
-    total = (await db.execute(select(func.count()).where(base_where))).scalar() or 0
+    """List current user's notifications, newest first, optionally by type."""
+    filters = [Notification.user_id == current_user.id]
+    if type_filter:
+        filters.append(Notification.type == type_filter)
+    total = (await db.execute(select(func.count()).where(*filters))).scalar() or 0
 
     result = await db.execute(
         select(Notification)
-        .where(base_where)
+        .where(*filters)
         .order_by(Notification.created_at.desc())
         .offset(pagination.offset)
         .limit(pagination.page_size)

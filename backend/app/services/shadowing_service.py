@@ -9,7 +9,7 @@ event value is the shadowed duration in seconds when known (>= 1), else 1.
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.learning_plan import UserLearningProfile
@@ -53,9 +53,13 @@ async def create_attempt(
         video_id=video_id,
     )
 
-    # Increment profile counter
-    profile = await learning_event_service._get_or_create_profile(db, user_id)
-    profile.total_shadowing_count = (profile.total_shadowing_count or 0) + 1
+    # Increment profile counter (created by emit_event above). Atomic update:
+    # a read-modify-write would lose one of two concurrent increments.
+    await db.execute(
+        update(UserLearningProfile)
+        .where(UserLearningProfile.user_id == user_id)
+        .values(total_shadowing_count=func.coalesce(UserLearningProfile.total_shadowing_count, 0) + 1)
+    )
 
     await db.commit()
     await db.refresh(attempt)

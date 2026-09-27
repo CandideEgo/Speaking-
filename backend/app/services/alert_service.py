@@ -5,12 +5,11 @@ JSON POST) so admins get notified even when they're not watching the dashboard.
 When ``alert_webhook_url`` is unset, alerts fall back to in-app ``notify_admins``
 (an in-app notification) so no alert is ever silently dropped.
 
-Used by:
-  - Health degradation: when /health reports a component down, the beat task
-    calls ``send_alert`` (see health_check_beat).
-  - Pipeline quality gates: transcription/translation failure already calls
-    ``notify_admins``; the webhook is an additional channel for the most
-    severe cases.
+Callers:
+  - No production caller is wired yet — ``send_alert`` is currently exercised
+    only by tests/test_alert_service.py. Health degradation and pipeline
+    quality gates (transcription/translation failures) still call
+    ``notify_admins`` directly.
 """
 
 import base64
@@ -61,10 +60,10 @@ async def send_alert(title: str, message: str, *, severity: str = "warning") -> 
     """Send an alert to the external webhook. Returns True if posted (or fell
     back to in-app), False on hard failure.
 
-    The payload is a generic JSON ``{text, title, severity, timestamp}`` shaped
-    to also satisfy DingTalk's ``{msgtype: text, text: {content}}`` format so a
-    single webhook works for both DingTalk and generic consumers. When
-    ``alert_webhook_secret`` is set, DingTalk-style signing is appended.
+    The request body is DingTalk's text shape ``{"msgtype": "text", "text":
+    {"content": "[SEVERITY] title\nmessage\ntimestamp"}}``; severity and
+    timestamp travel inside the ``content`` string, not as top-level fields.
+    When ``alert_webhook_secret`` is set, DingTalk-style signing is appended.
     """
     settings = get_settings()
     ts = datetime.now(UTC).isoformat()
@@ -93,6 +92,15 @@ async def send_alert(title: str, message: str, *, severity: str = "warning") -> 
             resp = await client.post(url, json=payload)
         if resp.status_code >= 400:
             logger.warning("alert webhook non-2xx", status=resp.status_code, body=resp.text[:200])
+            return False
+        # DingTalk-style webhooks answer HTTP 200 with a non-zero `errcode` when
+        # they rejected the message, so the status code alone is not proof.
+        try:
+            errcode = resp.json().get("errcode")
+        except Exception:
+            errcode = None
+        if errcode:
+            logger.warning("alert webhook rejected", errcode=errcode, body=resp.text[:200])
             return False
         return True
     except Exception:

@@ -7,8 +7,9 @@ For forks that HAVE edited it (a ``scope="fork"`` SubtitleRevision exists), we
 write a MergeableUpdate row instead — the fork's owner is prompted in the
 creator center and decides whether to pull the update.
 
-Unique on (fork_video_id, fork_subtitle_id): one pending marker per line.
-Cleared when the owner applies the update (or the subtitle/video is deleted).
+Unique on (fork_video_id, fork_subtitle_id): one pending marker per fork
+subtitle. Cleared when the owner applies the update (or the subtitle/video is
+deleted).
 """
 
 import uuid

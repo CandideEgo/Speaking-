@@ -30,7 +30,7 @@ class Channel(Base):
     cover_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     # Upstream (YouTube/Bilibili) channel id; registering it lets ingest and
     # the backfill script attach matching videos automatically.
-    upstream_channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    upstream_channel_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True, unique=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # ADR-0014 rev. 2026-08-30 (full author pages): True when auto-created at

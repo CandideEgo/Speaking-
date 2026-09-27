@@ -24,7 +24,7 @@ router = APIRouter(prefix="/payments", tags=["payments-mock"])
 settings = get_settings()
 
 
-@router.get("/mock-pay")
+@router.post("/mock-pay")
 @rate_limit("5/minute")
 async def mock_payment(
     request: Request,

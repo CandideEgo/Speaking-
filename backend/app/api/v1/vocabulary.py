@@ -570,6 +570,7 @@ async def mark_word_mastered(
             from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
 
             await emit_event(db, current_user.id, EVENT_LEARNED_WORDS, 1)
+            await db.commit()
         except Exception:
             pass  # Non-blocking
 

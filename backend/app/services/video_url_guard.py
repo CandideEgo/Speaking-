@@ -48,9 +48,9 @@ def _is_blocked_ip(ip_str: str) -> bool:
     return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
 
 
-def _resolve_ips(host: str) -> set[str]:
+async def _resolve_ips(host: str) -> set[str]:
     try:
-        infos = socket.getaddrinfo(host, None)
+        infos = await asyncio.get_running_loop().run_in_executor(None, socket.getaddrinfo, host, None)
     except OSError:
         return set()
     return {info[4][0] for info in infos}
@@ -70,7 +70,7 @@ async def validate_video_url(url: str, *, rebinding_delay: float = 1.0) -> None:
     if not _host_allowed(host):
         raise AppError(400, ErrorCode.VALIDATION_ERROR, "仅支持 YouTube / Bilibili 视频链接")
 
-    ips1 = _resolve_ips(host)
+    ips1 = await _resolve_ips(host)
     if not ips1:
         raise AppError(400, ErrorCode.VALIDATION_ERROR, "视频域名解析失败")
     if any(_is_blocked_ip(ip) for ip in ips1):
@@ -79,6 +79,6 @@ async def validate_video_url(url: str, *, rebinding_delay: float = 1.0) -> None:
     # DNS rebinding 防护：延时后二次解析，IP 集不一致说明解析被换过，拒绝。
     if rebinding_delay > 0:
         await asyncio.sleep(rebinding_delay)
-    ips2 = _resolve_ips(host)
+    ips2 = await _resolve_ips(host)
     if not ips2 or ips1 != ips2:
         raise AppError(400, ErrorCode.VALIDATION_ERROR, "视频域名解析不稳定，请稍后重试")

@@ -8,7 +8,7 @@ that don't belong in the public API contract.
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -53,8 +53,10 @@ class AdminSettingsUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _dt(v: object) -> str:
+def _dt(v: object) -> str | None:
     """Serialize datetime to ISO string."""
+    if v is None:
+        return None
     if isinstance(v, datetime):
         return v.isoformat()
     return str(v)
@@ -117,8 +119,9 @@ class AdminUserResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("created_at", "plan_expires_at", "last_active_at", mode="before")
     @classmethod
-    def serialize_dt(cls, v: object) -> str:
+    def serialize_dt(cls, v: object) -> str | None:
         return _dt(v)
 
     # field_validators run before model_validation, so we use mode="before"
@@ -137,6 +140,11 @@ class AdminOrderResponse(BaseModel):
     created_at: str
 
     model_config = {"from_attributes": True}
+
+    @field_validator("paid_at", "created_at", mode="before")
+    @classmethod
+    def serialize_dt(cls, v: object) -> str | None:
+        return _dt(v)
 
 
 class AdminSettingsResponse(BaseModel):
@@ -158,6 +166,11 @@ class AdminSettingsResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("updated_at", mode="before")
+    @classmethod
+    def serialize_dt(cls, v: object) -> str | None:
+        return _dt(v)
+
 
 class AdminAccountResponse(BaseModel):
     """One admin account row for the settings page admin list."""
@@ -166,6 +179,11 @@ class AdminAccountResponse(BaseModel):
     name: str | None = None
     phone: str | None = None
     last_active_at: str | None = None
+
+    @field_validator("last_active_at", mode="before")
+    @classmethod
+    def serialize_dt(cls, v: object) -> str | None:
+        return _dt(v)
 
 
 class RedemptionRecordResponse(BaseModel):
@@ -185,3 +203,8 @@ class RedemptionRecordResponse(BaseModel):
     revoked_reason: str | None = None
     used_at: str | None = None
     created_at: str
+
+    @field_validator("used_at", "created_at", mode="before")
+    @classmethod
+    def serialize_dt(cls, v: object) -> str | None:
+        return _dt(v)

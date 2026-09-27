@@ -334,7 +334,10 @@ class Settings(BaseSettings):
         if env == "production":
             if not self.openai_api_key:
                 raise RuntimeError("OPENAI_API_KEY must be set in production")
-            if not self.redis_url:
+            # ``redis_url`` carries a working localhost default (Celery broker,
+            # rate-limit storage, cache client), so a forgotten REDIS_URL reaches
+            # here as a non-empty string; require it to have been provided.
+            if not self.redis_url or "redis_url" not in self.model_fields_set:
                 raise RuntimeError("REDIS_URL must be set in production")
             if not self.transcription_callback_secret:
                 raise RuntimeError("TRANSCRIPTION_CALLBACK_SECRET must be set in production")

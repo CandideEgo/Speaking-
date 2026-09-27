@@ -199,7 +199,7 @@ async def update_subtitles_batch(
             raise ValueError(f"Subtitle {item.id} does not belong to this video")
 
     scope = await _determine_edit_scope(db, video_id)
-    updated: list[SubtitleResponse] = []
+    pending: list[tuple] = []
     for item in payload.updates:
         sub = subtitles_by_id[item.id]
         before_snap = _snapshot(sub)
@@ -208,10 +208,20 @@ async def update_subtitles_batch(
             value = getattr(item, field)
             if value is not None:
                 setattr(sub, field, value)
-        await _validate_timing(db, video_id, sub)
         if text_en_changed and not item.preserve_word_levels:
             levels = annotate_text(sub.text_en)
             sub.word_levels = levels or None
+        pending.append((sub, before_snap))
+
+    # Apply the whole batch before validating: validating inside the loop would
+    # check each edit against neighbors that later items have not updated yet,
+    # so acceptance depended on payload order.
+    await db.flush()
+    for sub, _ in pending:
+        await _validate_timing(db, video_id, sub)
+
+    updated: list[SubtitleResponse] = []
+    for sub, before_snap in pending:
         after_snap = _snapshot(sub)
         await _write_revision(db, sub, before_snap, after_snap, edited_by=edited_by, scope=scope)
         updated.append(SubtitleResponse.model_validate(sub))

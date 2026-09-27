@@ -145,6 +145,7 @@ async def get_preferences(
             if pref_row.auto_play_next_subtitle is not None
             else True,
             subtitle_mode_default=pref_row.subtitle_mode_default or "bilingual",
+            subtitle_font_size=pref_row.subtitle_font_size or "medium",
             preferred_difficulty=pref_row.preferred_difficulty,
             target_exam=pref_row.target_exam,
         )
@@ -190,6 +191,7 @@ async def update_preferences(
         reminder_timezone=pref.reminder_timezone,
         auto_play_next_subtitle=pref.auto_play_next_subtitle if pref.auto_play_next_subtitle is not None else True,
         subtitle_mode_default=pref.subtitle_mode_default or "bilingual",
+        subtitle_font_size=pref.subtitle_font_size or "medium",
         preferred_difficulty=pref.preferred_difficulty,
         target_exam=pref.target_exam,
     )

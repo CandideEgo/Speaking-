@@ -36,6 +36,7 @@ class TestEnvValueGuard:
             env="Production",
             jwt_secret="s",
             database_url="postgresql+asyncpg://u:p@localhost/db",
+            redis_url="redis://localhost:6379/0",
             openai_api_key="k",
             transcription_callback_secret="c",
         )
@@ -47,6 +48,7 @@ class TestEnvValueGuard:
             env="prod",
             jwt_secret="s",
             database_url="postgresql+asyncpg://u:p@localhost/db",
+            redis_url="redis://localhost:6379/0",
             openai_api_key="k",
             transcription_callback_secret="c",
         )
@@ -68,7 +70,19 @@ class TestSecretGuards:
                 env="production",
                 jwt_secret="s",
                 database_url="postgresql+asyncpg://u:p@localhost/db",
+                redis_url="redis://localhost:6379/0",
                 openai_api_key="k",
+            )
+
+    def test_production_rejects_defaulted_redis_url(self):
+        """``REDIS_URL`` has a working localhost default, so production must set it explicitly."""
+        with pytest.raises(RuntimeError, match="REDIS_URL"):
+            _settings(
+                env="production",
+                jwt_secret="s",
+                database_url="postgresql+asyncpg://u:p@localhost/db",
+                openai_api_key="k",
+                transcription_callback_secret="c",
             )
 
     def test_testing_rejects_empty_jwt_secret(self):

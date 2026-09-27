@@ -190,19 +190,9 @@ async def get_video_detail(
     is_offline = video.storage_mode == "offline"
     playable = can_watch and not is_offline
 
-    # 内测免费期：登录用户即放行（见 unlock_service.get_video_access_info）。
-    # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
-    # 是 locked 形状（空字幕/空 URL），绝不能缓存后回给登录用户，因此只有
-    # can_watch 的响应才读写缓存。
-    cache_key = f"video:detail:{video_id}"
-    cacheable = can_watch
-    if cacheable:
-        cached = await cache_get(cache_key)
-        if cached:
-            return VideoDetailResponse.model_validate_json(cached)
-
     # Create LearningRecord on first view for authenticated viewers — only
-    # once they can actually watch (locked panel views don't count).
+    # once they can actually watch (locked panel views don't count). Runs
+    # before the cache lookup: a cached payload must not skip view-history.
     if current_user and can_watch:
         lr_result = await db.execute(
             select(LearningRecord)
@@ -221,6 +211,17 @@ async def get_video_detail(
                 await db.rollback()
                 if "uq_learning_record_user_video" not in str(exc):
                     raise
+
+    # 内测免费期：登录用户即放行（见 unlock_service.get_video_access_info）。
+    # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
+    # 是 locked 形状（空字幕/空 URL），绝不能缓存后回给登录用户，因此只有
+    # can_watch 的响应才读写缓存。
+    cache_key = f"video:detail:{video_id}"
+    cacheable = can_watch
+    if cacheable:
+        cached = await cache_get(cache_key)
+        if cached:
+            return VideoDetailResponse.model_validate_json(cached)
 
     # Decide which subtitles the viewer sees. The owner always sees their live
     # (draft) subtitles. A non-owner viewing a UGC video under re-review
@@ -330,12 +331,15 @@ async def get_video_status(
     if not skip_access_check and not check_video_access(video, current_user):
         return None
     subtitle_count = await count_subtitles(db, video_id)
+    # error_message can name internal pipeline paths/failures — owner (or the
+    # admin status path) only, same rule as get_video_detail.
+    can_see_error = skip_access_check or is_video_owner(video, current_user)
     return VideoStatusResponse(
         status=video.status.value,
         video_url_720p=video.video_url_720p,
         processing_step=video.processing_step,
         processing_progress=video.processing_progress,
-        error_message=video.error_message,
+        error_message=video.error_message if can_see_error else None,
         subtitle_count=subtitle_count,
     )
 
@@ -361,9 +365,9 @@ async def list_all_videos(
 
     Unlike the public list, this returns videos in any status (including
     ``processing``/``error``). Keyword search uses ILIKE on title/topic_tags so
-    it works on SQLite (tests) and Postgres alike — we deliberately avoid the
-    Postgres-only ``search_vector`` column here. ``review_status`` filters the
-    UGC review queue (e.g. ``pending_review``).
+    it works on SQLite (tests) and Postgres alike — the public search path's
+    PostgreSQL ``tsvector`` expression is not used here. ``review_status``
+    filters the UGC review queue (e.g. ``pending_review``).
     """
     stmt = select(Video)
     if status:

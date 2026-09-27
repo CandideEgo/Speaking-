@@ -1,6 +1,6 @@
 """Tests for the notifications API (/api/v1/notifications)."""
 
-from fastapi import WebSocketDisconnect
+from fastapi import WebSocketDisconnect, status
 from httpx import AsyncClient
 
 from app.models.notification import Notification
@@ -35,6 +35,29 @@ class TestListNotifications:
         # newest first — "Second" has the later timestamp
         assert items[0]["title"] == "Second"
         assert items[1]["title"] == "First"
+
+    async def test_filters_by_type(self, client: AsyncClient, auth_headers: dict):
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        async with TestSessionLocal() as db:
+            db.add(Notification(user_id=me["id"], type="video_ready", title="Video"))
+            db.add(Notification(user_id=me["id"], type="pro_expiring", title="Pro"))
+            db.add(Notification(user_id=me["id"], type="achievement_unlocked", title="Badge"))
+            await db.commit()
+
+        resp = await client.get("/api/v1/notifications?type=video_ready", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert [i["title"] for i in body["items"]] == ["Video"]
+        assert body["total"] == 1
+
+        # No filter — every type comes back
+        unfiltered = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
+        assert unfiltered["total"] == 3
+
+        # A type nobody used yet is an empty list, not an error
+        empty = (await client.get("/api/v1/notifications?type=streak_warning", headers=auth_headers)).json()
+        assert empty["items"] == []
+        assert empty["total"] == 0
 
 
 class TestUnreadCount:
@@ -443,3 +466,109 @@ class TestNotificationDedup:
 
             data = json.loads(n.data)
             assert data["actor_id"] == "actor-xyz"
+
+
+class _FakeWebSocket:
+    """Minimal stand-in for the handshake surface the WS endpoint touches."""
+
+    def __init__(
+        self,
+        protocols: str | None = None,
+        cookie: str | None = None,
+        query_token: str | None = None,
+    ) -> None:
+        self.headers = {"sec-websocket-protocol": protocols} if protocols else {}
+        self.cookies = {"seeword_token": cookie} if cookie else {}
+        self.query_string = f"token={query_token}".encode() if query_token else b""
+        self.accepted = False
+        self.accepted_subprotocol: str | None = None
+        self.close_code: int | None = None
+        self.on_receive = None
+
+    async def accept(self, subprotocol: str | None = None) -> None:
+        self.accepted = True
+        self.accepted_subprotocol = subprotocol
+
+    async def close(self, code: int = 1000) -> None:
+        self.close_code = code
+
+    async def receive_text(self) -> str:
+        if self.on_receive:
+            self.on_receive()
+        raise WebSocketDisconnect()
+
+    async def send_text(self, data: str) -> None:
+        pass
+
+
+async def _handshake(ws: _FakeWebSocket, monkeypatch) -> None:
+    """Run the WS endpoint once, with its session factory routed to the test DB."""
+    import app.core.database as database_module
+    from app.api.v1.notifications import notification_websocket
+
+    monkeypatch.setattr(database_module, "get_session_maker", lambda: TestSessionLocal)
+    await notification_websocket(ws)
+
+
+class TestWebSocketHandshakeAuth:
+    """The JWT rides in a WebSocket subprotocol (``["bearer", <token>]``) instead
+    of the query string, which would land in proxy/uvicorn access logs."""
+
+    async def test_subprotocol_token_authenticates(self, client: AsyncClient, auth_headers: dict, monkeypatch):
+        from app.api.v1.notifications import ws_manager
+
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        token = auth_headers["Authorization"].removeprefix("Bearer ")
+        ws = _FakeWebSocket(protocols=f"bearer, {token}")
+        registered: list[bool] = []
+        ws.on_receive = lambda: registered.append(ws in ws_manager._connections.get(me["id"], []))
+        try:
+            await _handshake(ws, monkeypatch)
+
+            assert ws.accepted is True
+            # RFC 6455: the echoed subprotocol must be one the client requested —
+            # the generic marker, never the token itself.
+            assert ws.accepted_subprotocol == "bearer"
+            assert registered == [True]
+            assert me["id"] not in ws_manager._connections
+        finally:
+            ws_manager._connections.pop(me["id"], None)
+
+    async def test_missing_token_closes_with_policy_violation(self, monkeypatch):
+        ws = _FakeWebSocket()
+
+        await _handshake(ws, monkeypatch)
+
+        assert ws.accepted is False
+        assert ws.close_code == status.WS_1008_POLICY_VIOLATION
+
+    async def test_invalid_token_closes_with_policy_violation(self, monkeypatch):
+        ws = _FakeWebSocket(protocols="bearer, not-a-jwt")
+
+        await _handshake(ws, monkeypatch)
+
+        assert ws.accepted is False
+        assert ws.close_code == status.WS_1008_POLICY_VIOLATION
+
+    async def test_query_string_token_is_rejected(self, client: AsyncClient, auth_headers: dict, monkeypatch):
+        token = auth_headers["Authorization"].removeprefix("Bearer ")
+        ws = _FakeWebSocket(query_token=token)
+
+        await _handshake(ws, monkeypatch)
+
+        assert ws.accepted is False
+        assert ws.close_code == status.WS_1008_POLICY_VIOLATION
+
+    async def test_auth_cookie_is_accepted_as_fallback(self, client: AsyncClient, auth_headers: dict, monkeypatch):
+        from app.api.v1.notifications import ws_manager
+
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        token = auth_headers["Authorization"].removeprefix("Bearer ")
+        ws = _FakeWebSocket(cookie=token)
+        try:
+            await _handshake(ws, monkeypatch)
+
+            assert ws.accepted is True
+            assert ws.accepted_subprotocol is None
+        finally:
+            ws_manager._connections.pop(me["id"], None)

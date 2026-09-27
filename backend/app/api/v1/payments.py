@@ -171,7 +171,7 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     from app.services.alipay_payment import AlipayPaymentProvider
 
     provider = AlipayPaymentProvider()
-    is_valid, order_number = await provider.verify_callback(request)
+    is_valid, order_number, paid_amount = await provider.verify_callback(request)
 
     if not is_valid or not order_number:
         logger.warning("alipay callback: invalid signature or missing order number")
@@ -190,6 +190,15 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
         logger.warning("alipay callback: order not pending", order_number=order_number, status=order.status)
         return {"status": "error", "message": f"Order is {order.status.value}, cannot process"}
 
+    if paid_amount != order.amount:
+        logger.warning(
+            "alipay callback: amount mismatch",
+            order_number=order_number,
+            expected=order.amount,
+            paid=paid_amount,
+        )
+        return {"status": "error", "message": "Amount mismatch"}
+
     await _process_successful_payment(db, order)
     return {"status": "success", "message": "OK"}
 
@@ -204,7 +213,7 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     from app.services.wechat_payment import WechatPaymentProvider
 
     provider = WechatPaymentProvider()
-    is_valid, order_number = await provider.verify_callback(request)
+    is_valid, order_number, paid_amount = await provider.verify_callback(request)
 
     if not is_valid or not order_number:
         logger.warning("wechat callback: invalid signature or missing order number")
@@ -222,6 +231,15 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status != OrderStatus.pending:
         logger.warning("wechat callback: order not pending", order_number=order_number, status=order.status)
         return {"code": "FAIL", "message": f"Order is {order.status.value}, cannot process"}
+
+    if paid_amount != order.amount:
+        logger.warning(
+            "wechat callback: amount mismatch",
+            order_number=order_number,
+            expected=order.amount,
+            paid=paid_amount,
+        )
+        return {"code": "FAIL", "message": "Amount mismatch"}
 
     await _process_successful_payment(db, order)
     return {"code": "SUCCESS", "message": "OK"}

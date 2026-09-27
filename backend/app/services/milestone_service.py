@@ -43,7 +43,11 @@ async def check_and_award(db: AsyncSession, user_id: str) -> list[dict]:
     Does NOT commit — caller commits.
     """
     try:
-        return await _check_and_award_inner(db, user_id)
+        # Savepoint: a failed flush (e.g. IntegrityError from a check-then-act
+        # award) must not leave the caller's transaction invalid — the caller
+        # still has to commit its own work.
+        async with db.begin_nested():
+            return await _check_and_award_inner(db, user_id)
     except Exception:
         logger.warning("Milestone check failed for user %s", user_id, exc_info=True)
         return []

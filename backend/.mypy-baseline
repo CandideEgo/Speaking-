@@ -33,7 +33,6 @@ app/services/profile_service.py:assignment
 app/services/profile_service.py:operator
 app/services/recommendation_service.py:arg-type
 app/services/recommendation_service.py:return-value
-app/services/search_service.py:attr-defined
 app/services/shadowing_service.py:assignment
 app/services/sms_service.py:union-attr
 app/services/subtitle_metrics_service.py:arg-type

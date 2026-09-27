@@ -49,12 +49,16 @@ class PaymentProvider(ABC):
         """
 
     @abstractmethod
-    async def verify_callback(self, request: Request) -> tuple[bool, str | None]:
+    async def verify_callback(self, request: Request) -> tuple[bool, str | None, int | None]:
         """Verify the callback signature from the payment platform.
 
         Returns:
-            Tuple of (is_valid, order_number).  If verification fails,
-            return (False, None).
+            Tuple of (is_valid, order_number, paid_amount).  ``paid_amount``
+            is the amount actually paid, in fen (the smallest currency
+            unit), or None when the platform reports none.  If verification
+            fails, return (False, None, None).  Callers must compare
+            ``paid_amount`` against the order's amount before granting
+            anything.
         """
 
     @abstractmethod

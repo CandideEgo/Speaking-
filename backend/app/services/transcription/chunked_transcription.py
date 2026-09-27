@@ -43,6 +43,17 @@ def _format_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _extract_chunk(ffmpeg_cmd: list[str]) -> subprocess.CompletedProcess:
+    """Slice one audio chunk with ffmpeg (blocking — call via the executor)."""
+    return subprocess.run(
+        ffmpeg_cmd,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        creationflags=_NO_WINDOW,
+    )
+
+
 async def transcribe_in_chunks(
     total_duration: float,
     cache_key: str,
@@ -165,6 +176,8 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
 
     for chunk_num in range(1, total_chunks + 1):
         remaining = total_duration - offset
+        if remaining <= 0:
+            break
         current_chunk_duration = min(chunk_duration, remaining)
         chunk_path = str(chunk_dir / f"localchunk_{abs(hash(audio_path))}_{offset:.0f}.wav")
 
@@ -189,13 +202,7 @@ async def transcribe_local_chunks(audio_path: str, total_duration: float) -> lis
             *_FFMPEG_WAV_ARGS,
             chunk_path,
         ]
-        result = subprocess.run(
-            ffmpeg_cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            creationflags=_NO_WINDOW,
-        )
+        result = await loop.run_in_executor(None, _extract_chunk, ffmpeg_cmd)
         if result.returncode != 0:
             raise AudioExtractionError(
                 f"Local chunk extraction failed at offset {offset:.0f}s\nstderr: {result.stderr[:300]}"

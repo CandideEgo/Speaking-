@@ -7,6 +7,7 @@ Alipay integration, implement ``create_order()`` using the
 """
 
 import base64
+from decimal import Decimal
 
 import structlog
 from fastapi import Request
@@ -30,23 +31,31 @@ class AlipayPaymentProvider(PaymentProvider):
             "AlipayPaymentProvider.create_order() with the alipay-sdk-python package."
         )
 
-    async def verify_callback(self, request: Request) -> tuple[bool, str | None]:
+    async def verify_callback(self, request: Request) -> tuple[bool, str | None, int | None]:
         """Verify Alipay RSA2 callback signature."""
         body = await request.form()
         params = dict(body)
 
         if not _verify_alipay_signature(params):
-            return False, None
+            return False, None, None
 
         order_number = params.get("out_trade_no")
         trade_status = params.get("trade_status", "")
         if trade_status != "TRADE_SUCCESS":
-            return False, None
+            return False, None, None
 
-        return True, order_number
+        return True, order_number, _amount_fen(params.get("total_amount"))
 
     async def query_order(self, order_number: str) -> OrderStatus | None:
         """Query Alipay for order status.  Not yet implemented."""
+        return None
+
+
+def _amount_fen(total_amount: object) -> int | None:
+    """Convert Alipay's yuan amount (e.g. ``"39.00"``) to fen, or None when unparseable."""
+    try:
+        return int(Decimal(str(total_amount)) * 100)
+    except (ArithmeticError, TypeError, ValueError):
         return None
 
 

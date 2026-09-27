@@ -74,6 +74,35 @@ async def test_suggest_respects_limit(client, db_session):
     assert len(resp.json()["suggestions"]) == 3
 
 
+# ── search ──────────────────────────────────────────────────────────────
+
+
+async def test_search_returns_matching_ready_video(client, db_session):
+    await _make_video(db_session, title="How to Listen Better")
+    await _make_video(db_session, title="Unrelated Cooking Show")
+
+    resp = await client.get("/api/v1/videos/search", params={"q": "Listen"})
+    assert resp.status_code == 200
+    assert [v["title"] for v in resp.json()] == ["How to Listen Better"]
+
+
+async def test_search_excludes_unpublished_and_non_official(client, db_session):
+    await _make_video(db_session, title="Visible Talk")
+    await _make_video(db_session, title="Hidden Draft Talk", published=False)
+    await _make_video(db_session, title="Hidden User Talk", official=False)
+    await _make_video(db_session, title="Hidden Processing Talk", ready=False)
+
+    resp = await client.get("/api/v1/videos/search", params={"q": "Talk"})
+    assert resp.status_code == 200
+    assert [v["title"] for v in resp.json()] == ["Visible Talk"]
+
+
+async def test_search_empty_query_returns_empty(client):
+    resp = await client.get("/api/v1/videos/search", params={"q": ""})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 # ── hot searches ────────────────────────────────────────────────────────
 
 
