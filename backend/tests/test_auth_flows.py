@@ -60,6 +60,23 @@ class TestRefreshToken:
         resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": "not-a-jwt"})
         assert resp.status_code == 401
 
+    async def test_refresh_rejected_for_banned_user(self, client: AsyncClient, test_user_data: dict):
+        """封禁必须终止 token 链（审计 H1）：refresh 不能给被封用户铸新 token 对。"""
+        data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])
+        refresh_token = data["refresh_token"]
+        user_id = data["user"]["id"]
+
+        async with TestSessionLocal() as db:
+            from app.models.user import User as UserModel
+
+            db_user = await db.get(UserModel, user_id)
+            db_user.is_banned = True
+            await db.commit()
+
+        resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+        assert resp.status_code == 403
+        assert "封禁" in resp.json()["detail"]
+
     async def test_refresh_blacklists_old_refresh_token(self, client: AsyncClient, test_user_data: dict):
         """Rotating a refresh token must invalidate the old one."""
         data = await _sms_register(client, test_user_data["phone"], test_user_data["password"], test_user_data["name"])

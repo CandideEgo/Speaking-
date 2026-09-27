@@ -215,6 +215,11 @@ async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession
             detail="User not found",
         )
 
+    # 封禁必须终止 token 链：每个请求的 get_current_user 都会拒封禁用户，续签
+    # 出来的是废票，但放任 refresh 继续铸新对只会让客户端攥着一串死 token。
+    if user.is_banned:
+        raise HTTPException(status_code=403, detail="账户已被封禁")
+
     # Reject refresh tokens that have already been used (blacklisted). A
     # rotated refresh token is blacklisted at the end of this handler; without
     # this check, a stolen/old refresh token could mint access tokens forever.
