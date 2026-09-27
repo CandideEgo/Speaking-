@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -53,6 +53,13 @@ export default function VocabSetDetailPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, VocabSetWordStatus>>({});
   const [masteredDelta, setMasteredDelta] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // scope 切换 / reload 重拉成功后，服务端计数与词行状态已包含就地改动，
+  // 本地覆盖与 delta 必须清零，否则会重复增减（掌握数偏高/偏低）。
+  useEffect(() => {
+    setStatusOverrides({});
+    setMasteredDelta(0);
+  }, [detail]);
 
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
