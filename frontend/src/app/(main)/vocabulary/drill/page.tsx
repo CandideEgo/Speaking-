@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
@@ -120,6 +120,9 @@ function VideoScopedDrill({ videoId }: { videoId: string }) {
 
 type Phase = "drill" | "summary";
 
+/** 复习词结果攒批阈值：20 词的今日目标 ≤ 4 次 POST，远离 practice/submit 的 10/min 限流。 */
+const REVIEW_FLUSH_SIZE = 5;
+
 /**
  * 今日训练主流程：一条全程选择题循环。
  *
@@ -127,7 +130,8 @@ type Phase = "drill" | "summary";
  * + 到期复习词（`daily-session` 的 review_words，各问一次，走批量提交端点）。
  * 调度（出现间隔、毕业、续轮推导）与题型轮换都在 `lib/` 的纯函数里，
  * 本组件只负责落库与推进。中途刷新：新词进度从落库状态续上，已答过的复习词
- * 因后端更新 `next_review_at` 自然退出到期队列。
+ * 因后端更新 `next_review_at` 自然退出到期队列（复习词结果攒批提交，未 flush
+ * 的批次刷新后会重现，属已知小窗口）。
  * 「再加练一轮」= 结束当前轮 + 再开一轮 `kind=extra`（计入今日累计，不计入
  * 今日目标）。
  */
@@ -143,6 +147,33 @@ function DailyTraining() {
   const [weak, setWeak] = useState<WeakWord[]>([]);
   const [extraLoading, setExtraLoading] = useState(false);
   const fetchStats = useVocabularyStore((s) => s.fetchStats);
+
+  // 到期复习词结果缓冲（practice/submit 限流 10/min，逐题 POST 快速作答会 429
+  // 且失败不落库）。攒批到 REVIEW_FLUSH_SIZE 或阶段收尾时一次性批量提交。
+  const pendingReview = useRef<{ word: string; correct: boolean }[]>([]);
+  const flushingRef = useRef(false);
+  const flushPendingReview = useCallback(async () => {
+    if (flushingRef.current) return;
+    flushingRef.current = true;
+    try {
+      while (pendingReview.current.length > 0) {
+        const batch = pendingReview.current.splice(0);
+        try {
+          await api("/api/v1/vocabulary/practice/submit", {
+            method: "POST",
+            body: JSON.stringify({ results: batch }),
+          });
+        } catch {
+          toast.error(`学习记录同步失败（${batch.length} 词），本轮这些词不会计入复习进度`);
+          break;
+        }
+      }
+    } finally {
+      flushingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => () => void flushPendingReview(), [flushPendingReview]);
 
   const loading = round.loading || daily.loading;
   const error = round.error ?? daily.error;
@@ -162,6 +193,7 @@ function DailyTraining() {
     if (phase !== "drill" || !sched) return;
     const entry = currentEntry(sched);
     if (!entry) {
+      void flushPendingReview();
       fetchStats();
       setPhase("summary");
       return;
@@ -172,7 +204,7 @@ function DailyTraining() {
     } else {
       setSched(dropCurrent(sched));
     }
-  }, [phase, sched, pool, fetchStats]);
+  }, [phase, sched, pool, fetchStats, flushPendingReview]);
 
   /** 记一次作答：本地调度不动（等「下一个」），落库异步跟随。 */
   function handleAnswer(correct: boolean) {
@@ -199,10 +231,11 @@ function DailyTraining() {
         .catch(() => toast.error(`「${entry.word.word}」学习记录同步失败`));
     } else {
       // 到期复习词：与复习同一写入口（practice/submit，复习线词按 DEC-057 分档）。
-      api("/api/v1/vocabulary/practice/submit", {
-        method: "POST",
-        body: JSON.stringify({ results: [{ word: entry.word.word, correct }] }),
-      }).catch(() => toast.error(`「${entry.word.word}」学习记录同步失败`));
+      // 先进缓冲，攒够或收尾时批量提交——逐题 POST 会撞端点限流。
+      pendingReview.current.push({ word: entry.word.word, correct });
+      if (pendingReview.current.length >= REVIEW_FLUSH_SIZE) {
+        void flushPendingReview();
+      }
     }
   }
 
@@ -227,6 +260,8 @@ function DailyTraining() {
         return;
       }
       // 重新取到期词：本轮答过的复习词已不再到期，不能带进加练轮。
+      // 缓冲里的结果先落库，否则 refresh 会把已答过的词再拉回来。
+      await flushPendingReview();
       await daily.refresh();
       setProgress({ learned: 0, asked: 0, correct: 0, done: 0 });
       setWeak([]);
