@@ -249,6 +249,16 @@ def lookup(token: str) -> dict | None:
     return None
 
 
+def entries() -> list[dict]:
+    """All indexed exam-word entries (read-only snapshot of the in-memory index).
+
+    Used for enumeration over the exam vocabulary (e.g. distractor-pool
+    selection); empty when the ECDICT database is absent.
+    """
+    idx = get_index()
+    return list(idx.words.values()) if idx else []
+
+
 # Human labels for ECDICT exchange inflection codes (see _FORWARD_FORM_CODES).
 INFLECTION_LABELS: dict[str, str] = {
     "3": "第三人称单数",

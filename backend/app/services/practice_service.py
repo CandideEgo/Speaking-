@@ -16,6 +16,8 @@ video practice endpoints no longer exist. Only the vocabulary drill remains.
 
 import logging
 import random
+import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -57,20 +59,261 @@ def shuffle_options(options: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Distractor selection (S4, 设计文档 §8)
+# ---------------------------------------------------------------------------
+
+# Options are fixed at 4 (1 correct + DISTRACTOR_COUNT distractors). A question
+# with fewer than 2 usable distractors is emitted with options=None instead.
+DISTRACTOR_COUNT = 3
+
+# Priority-2 candidates (wordbook-wide) must sit 2~4 edits from the target
+# word — close enough to confuse (affect/effect), far enough not to be it (§8.2).
+EDIT_DISTANCE_MIN = 2
+EDIT_DISTANCE_MAX = 4
+
+# ECDICT pos codes and full-word POS spellings → canonical token. Both sides of
+# a comparison go through the same normalizer, so the exact choice is invisible.
+_POS_ALIASES = {
+    "noun": "n",
+    "verb": "v",
+    "adjective": "a",
+    "adj": "a",
+    "adverb": "ad",
+    "adv": "ad",
+    "preposition": "prep",
+    "prep": "prep",
+    "conjunction": "conj",
+    "conj": "conj",
+    "pronoun": "pron",
+    "pron": "pron",
+    "interjection": "int",
+    "interj": "int",
+    "numeral": "num",
+    "num": "num",
+}
+
+
+@dataclass
+class DistractorCandidate:
+    """One distractor source word, normalized for selection."""
+
+    word: str
+    translation: str  # concise (single-line) display translation
+    pos: frozenset[str] = frozenset()
+    levels: frozenset[str] = frozenset()
+    video_id: str | None = None
+    bnc: int = 0  # BNC frequency rank; lower = more common (0 = unknown)
+
+
+def _pos_tokens(pos: str | None) -> frozenset[str]:
+    """Parse ECDICT-style pos ("n:46/v:32") or full words ("noun/verb") into tokens."""
+    if not pos:
+        return frozenset()
+    tokens: set[str] = set()
+    for tok in re.split(r"[/\s,;，；、]+", pos):
+        tok = tok.strip().lower().rstrip(".")
+        if not tok:
+            continue
+        head = tok.split(":", 1)[0] if ":" in tok else tok
+        if head:
+            tokens.add(_POS_ALIASES.get(head, head))
+    return frozenset(tokens)
+
+
+def _concise_translation(translation: str | None) -> str:
+    """First line of a (possibly multi-line, multi-POS) translation string."""
+    if not translation:
+        return ""
+    lines = [ln.strip() for ln in translation.strip().splitlines() if ln.strip()]
+    return lines[0] if lines else ""
+
+
+def _translation_key(translation: str) -> str:
+    """Normalization for equality/containment checks between translations.
+
+    Compares the CJK content when present (options are Chinese meanings), so
+    POS markers and punctuation cannot mask duplicates; falls back to a stripped
+    lowercase form otherwise.
+    """
+    cjk = "".join(ch for ch in translation if "\u4e00" <= ch <= "\u9fff")
+    if cjk:
+        return cjk
+    return re.sub(r"[\W_]+", "", translation, flags=re.UNICODE).lower()
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if abs(len(a) - len(b)) > EDIT_DISTANCE_MAX:
+        return EDIT_DISTANCE_MAX + 1
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _matches_pos_level(
+    target_word: str,
+    target_pos: frozenset[str],
+    target_levels: frozenset[str],
+    cand: DistractorCandidate,
+) -> bool:
+    """§8.2 quality gate: same POS (or, when POS is unknown on both sides, the
+    same length bucket) and same exam level. Unknown data on exactly one side
+    stays lenient — the candidate remains eligible and relies on pool priority."""
+    if target_pos and cand.pos:
+        if not (target_pos & cand.pos):
+            return False
+    elif not target_pos and not cand.pos:
+        if abs(len(target_word) - len(cand.word)) > 2:
+            return False
+    if target_levels and cand.levels and not (target_levels & cand.levels):
+        return False
+    return True
+
+
+def select_distractors(
+    target_word: str,
+    correct_translation: str,
+    same_video: list[DistractorCandidate],
+    vocab_rest: list[DistractorCandidate],
+    ecdict_pool: list[DistractorCandidate] | None = None,
+    target_pos: frozenset[str] = frozenset(),
+    target_levels: frozenset[str] = frozenset(),
+) -> list[str]:
+    """Pick up to ``DISTRACTOR_COUNT`` distractor translations for one question.
+
+    Priority ladder (设计文档 §8.2):
+      1. same video + same level + same POS, from the user's wordbook;
+      2. wordbook-wide, same level + POS, edit distance 2~4;
+      3. ECDICT exam words, same level + POS, high-frequency (low BNC) first;
+      4. relaxation pass without POS/level/edit-distance constraints so the
+         question can still be built.
+
+    Hard constraints (§8.3): candidates equal to the target word are dropped,
+    translations are deduped, and anything equal to or overlapping the correct
+    translation (synonym/containment) is excluded. Returns at most 3 concise
+    translation strings; the caller combines them with the correct answer.
+    """
+    correct_key = _translation_key(correct_translation)
+    if not correct_key:
+        return []
+    seen: set[str] = {correct_key}
+    distractors: list[str] = []
+    target_lower = target_word.lower()
+
+    def take(pool: list[DistractorCandidate], *, check_pos_level: bool, check_edit: bool, sort_by_bnc: bool) -> None:
+        if len(distractors) >= DISTRACTOR_COUNT:
+            return
+        matches = [c for c in pool if c.translation and c.word.lower() != target_lower]
+        if check_edit:
+            matches = [
+                c
+                for c in matches
+                if EDIT_DISTANCE_MIN <= _levenshtein(c.word.lower(), target_lower) <= EDIT_DISTANCE_MAX
+            ]
+        if check_pos_level:
+            matches = [c for c in matches if _matches_pos_level(target_word, target_pos, target_levels, c)]
+        # Shuffle first so equal-priority candidates rotate between questions;
+        # the stable bnc sort then only orders across frequency tiers.
+        random.shuffle(matches)
+        if sort_by_bnc:
+            matches.sort(key=lambda c: c.bnc)
+        for cand in matches:
+            if len(distractors) >= DISTRACTOR_COUNT:
+                break
+            key = _translation_key(cand.translation)
+            if not key or key in seen:
+                continue
+            if correct_key in key or key in correct_key:
+                continue
+            seen.add(key)
+            distractors.append(cand.translation)
+
+    take(same_video, check_pos_level=True, check_edit=False, sort_by_bnc=False)
+    take(vocab_rest, check_pos_level=True, check_edit=True, sort_by_bnc=False)
+    take(ecdict_pool or [], check_pos_level=True, check_edit=False, sort_by_bnc=True)
+    take([*same_video, *vocab_rest, *(ecdict_pool or [])], check_pos_level=False, check_edit=False, sort_by_bnc=False)
+    return distractors
+
+
+async def _load_distractor_candidates(
+    db: AsyncSession, user_id: str, video_id: str | None
+) -> tuple[list[DistractorCandidate], list[DistractorCandidate]]:
+    """Build the wordbook-wide distractor pools: ``(same_video, rest)``.
+
+    Levels/POS prefer the ECDICT entry (authoritative exam tags); rows the
+    dictionary does not know fall back to the stored ``part_of_speech``.
+    """
+    rows = (
+        await db.execute(
+            select(Vocabulary.word, Vocabulary.translation, Vocabulary.part_of_speech, Vocabulary.video_id).where(
+                Vocabulary.user_id == user_id
+            )
+        )
+    ).all()
+    same_video: list[DistractorCandidate] = []
+    rest: list[DistractorCandidate] = []
+    for word, translation, pos, vid in rows:
+        entry = ecdict.lookup(word)
+        cand = DistractorCandidate(
+            word=word,
+            translation=_concise_translation(translation),
+            pos=_pos_tokens(entry.get("pos")) if entry else _pos_tokens(pos),
+            levels=frozenset(entry.get("levels") or []) if entry else frozenset(),
+            video_id=vid,
+            bnc=entry["bnc"] if entry and isinstance(entry.get("bnc"), int) else 0,
+        )
+        if not cand.translation:
+            continue
+        if video_id and vid == video_id:
+            same_video.append(cand)
+        else:
+            rest.append(cand)
+    return same_video, rest
+
+
+def _ecdict_candidates(target_levels: frozenset[str]) -> list[DistractorCandidate]:
+    """ECDICT fallback pool (priority 3): exam words only, level-filtered when
+    the drill's target words carry known levels. Empty when ECDICT is absent."""
+    pool: list[DistractorCandidate] = []
+    for entry in ecdict.entries():
+        levels = frozenset(entry["levels"])
+        if target_levels and levels and not (levels & target_levels):
+            continue
+        translation = _concise_translation(entry["translation"])
+        if not translation:
+            continue
+        pool.append(
+            DistractorCandidate(
+                word=entry["lemma"],
+                translation=translation,
+                pos=_pos_tokens(entry["pos"]),
+                levels=levels,
+                bnc=entry["bnc"] if isinstance(entry.get("bnc"), int) else 0,
+            )
+        )
+    return pool
+
+
+# ---------------------------------------------------------------------------
 # Item builders (one per category)
 # ---------------------------------------------------------------------------
 
 
-def _build_recognition_item(word: str, translation: str, phonetic: str, all_translations: list[str]) -> dict:
+def _build_recognition_item(word: str, translation: str, phonetic: str, distractors: list[str]) -> dict:
     """Build a recognition item (listen_choose_meaning or see_word_choose_meaning)."""
     item_type = random.choice(CATEGORY_TYPES["recognition"])
 
-    # Build 4-choice options with distractors
-    distractors = [t for t in all_translations if t and t != translation]
-    distractor_pool = list(dict.fromkeys(distractors))[:3]
+    # Options carry the concise (single-line) translation strings; the answer is
+    # the exact option string so client-side grading compares like with like.
+    concise = _concise_translation(translation)
     options = None
-    if translation and len(distractor_pool) >= 2:
-        options = [*distractor_pool, translation]
+    if concise and len(distractors) >= 2:
+        options = [*distractors, concise]
         shuffle_options(options)
 
     return {
@@ -79,7 +322,7 @@ def _build_recognition_item(word: str, translation: str, phonetic: str, all_tran
         "type": item_type,
         "translation": translation,
         "options": options,
-        "answer": translation,
+        "answer": concise or translation,
         "phonetic": phonetic,
     }
 
@@ -197,8 +440,14 @@ async def build_vocabulary_drill(
         unenriched = [w for w in words if not (w.definition and w.translation)]
         selected = (enriched + unenriched)[:count]
 
-    # Pool of translations for distractors
-    all_translations = [w.translation for w in selected if w.translation]
+    # Distractor pools (S4): priority 1/2 come from the user's wordbook
+    # (same-video first), priority 3 from ECDICT exam words. Built once per
+    # drill; per-word filtering happens in select_distractors.
+    same_video_pool, vocab_pool = await _load_distractor_candidates(db, user_id, video_id)
+    drill_target_levels = frozenset(
+        level for w in selected for level in ((ecdict.lookup(w.word) or {}).get("levels") or [])
+    )
+    ecdict_pool = _ecdict_candidates(drill_target_levels)
 
     # Phase 1 D3b: when video_id is set, batch-join Subtitle for the
     # start_time so items can deep-link "回看原句" back to the source cue.
@@ -218,7 +467,21 @@ async def build_vocabulary_drill(
         category = MASTERY_TO_CATEGORY.get(mastery, "recognition")
 
         if category == "recognition":
-            item = _build_recognition_item(word, translation, phonetic, all_translations)
+            entry = ecdict.lookup(word)
+            item = _build_recognition_item(
+                word,
+                translation,
+                phonetic,
+                select_distractors(
+                    target_word=word,
+                    correct_translation=translation,
+                    same_video=same_video_pool,
+                    vocab_rest=vocab_pool,
+                    ecdict_pool=ecdict_pool,
+                    target_pos=_pos_tokens(entry.get("pos")) if entry else _pos_tokens(w.part_of_speech),
+                    target_levels=frozenset(entry.get("levels") or []) if entry else frozenset(),
+                ),
+            )
         elif category == "production":
             item = _build_production_item(word, translation, phonetic)
         elif category == "context":
