@@ -123,7 +123,7 @@ Free (plan=free)
 | `get_optional_user` | `api/dependencies.py` | 可选登录（公开内容浏览） |
 | `get_admin_user` | `api/dependencies.py` | 必须为 admin 角色（读 DB 角色，不读 JWT） |
 | `require_pro_user` | `api/dependencies.py` | 必须为 Pro 用户 (含过期检查) |
-| `require_video_access` / `check_video_access` | `api/dependencies.py` / `services/video_access.py` | 视频访问控制（official/published 公开、owner 私有可见、re-review 看快照） |
+| `check_video_access` / `check_video_access_by_owner` / `should_use_snapshot` | `services/video_access.py` | 视频访问控制（official/published 公开、owner 私有可见、re-review 看快照）；纯领域函数，不是路由依赖 |
 
 ---
 

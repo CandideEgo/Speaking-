@@ -98,12 +98,12 @@ class Settings(BaseSettings):
     pipeline_step_timeout_default: int = 3600  # fallback for unmapped steps
 
     # Translation quality gate (阶段 2 of PIPELINE-QUALITY-IMPROVEMENTS-2026-07).
-    # When ``translation_quality_block_enabled`` is True, finalize_video raises
-    # (-> error + Celery retry) for coverage below ``_block_coverage``; between
-    # ``_block_coverage`` and ``_warn_coverage`` the video is marked
-    # ``quality_flag=quality_warning`` but still goes ready. Set
-    # ``block_enabled=False`` as a kill switch to revert to warn-only when a bad
-    # engine batch would otherwise pile up error videos.
+    # Coverage below ``translation_quality_block_coverage`` -> ``quality_blocked``
+    # + ``status=error``, and the pipeline stops WITHOUT a Celery retry (same
+    # engine on the same input reproduces the low coverage); admin re-translates,
+    # possibly with another engine, via admin retranslate. Between the block and
+    # warn thresholds -> ``quality_warning`` but still ready. Set
+    # ``translation_quality_block_enabled=False`` for warn-only (kill switch).
     translation_quality_block_enabled: bool = True
     translation_quality_block_coverage: float = 0.60  # < this -> blocked (error)
     translation_quality_warn_coverage: float = 0.80  # < this (>= block) -> warning
