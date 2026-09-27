@@ -10,7 +10,8 @@ AI-powered English vocabulary learning app (brand: **SeeWord**) for Chinese lear
 videos — admin-seeded or catalog-promoted — get bilingual subtitles via WhisperX, exam-level
 vocabulary annotation (CET4/6, gaokao) via ECDICT, and pre-generated AI word notes written to
 `word_ai_notes` during the pipeline. Learners click a word for an instant gloss, collect words into
-a vocabulary book or a per-video vocab set, review with SM-2 spaced repetition, practise real past
+a vocabulary book or a per-video vocab set, review on an error-count-tiered schedule (DEC-057,
+SM-2 columns kept for compatibility), practise real past
 papers (with a wrong-answer book), do shadowing (recording persisted, owner-only replay, no AI
 scoring), and accumulate a learning profile (streak / milestones / mastery by level).
 
@@ -51,10 +52,10 @@ Critical Paths; one fact, one home.
 
 | 术语 | 含义 |
 |------|------|
-| **SM-2 词汇复习** | 间隔重复算法，词汇模块核心。内测期「基本复习」保留；`mastered` 词退出复习队列（三态语义：已掌握 = 闭环终点），高级复习算法属 Pro 二期 |
+| **词汇复习调度** | DEC-057：错误次数分档直接算间隔（本轮错过→次日；干净词 3→7→16→35 天；易错词 2→5→12→25 天；`wrong_count≥3` 上限 7 天）；同日排序=昨天错过→`wrong_count` 降序→到期升序。SM-2 列留兼容、`ease_factor` 不参与；`calculate_next_review` 冻结，仅供新词/自动添加与考试判分。`mastered` 退出复习队列（已掌握=闭环终点） |
 | **词汇集合（VocabSet）** | 用户 × 视频 × 等级 的收词集合（`vocab_sets` + `vocab_set_words`）。集合只**引用**词库词行（`vocabulary_id` FK），掌握态仍归 `Vocabulary`——「集合 = 按视频聚合的视图」，可随时重建。`vocab_set_words.status` 是集合内流程态：`pending` / `known` / `unknown` / `learned` |
 | **快速过筛** | 两档自评「会 / 不会」（模糊归不会）。判「会」→ 词库 mastered；判「不会」→ 待学清单。按词粒度服务端保存进度，可随时退出续筛 |
-| **今日训练** | 百词斩式两段流（新词闪卡 → 到期测验 → 总结），队列来自 `GET /vocabulary/daily-session`。**口径陷阱**：`due_total` 不含 new 词，`stats.due_count`（徽标红点）含——两处「待复习」数字故意不同 |
+| **今日训练** | 全程选择题单循环（DEC-056，废弃认识/不认识）：题型按出现次序轮换（英→中→中→英→听音/重洗），连对 2 次毕业，答错隔 1 题、答对隔 5 题。队列来自 `GET /vocabulary/daily-session`。**口径陷阱**：`due_total` 不含 new 词，`stats.due_count`（徽标红点）含——两处「待复习」数字故意不同 |
 | **闭环终点** | 集合 `completed` = **无 pending 且无 unknown**（不是「过筛走完」）。待学清单词经 `POST /vocab-sets/{id}/words/{id}/learned` 标记后触发，发一条 `LearningEvent(learned_words, value=集合总数)` |
 | **考试词汇标注** | ECDICT 本地标注（CET4/6、gaokao 等），按用户 `target_exam_level` 过滤高亮 |
 | **ShadowingAttempt** | 活跃的跟读录音记录（`shadowing_attempts` 表，ADR-0013）：每条录音持久化到 `media/shadowing/{user_id}/`，owner-only JWT 鉴权回放；写 `LearningEvent(shadowed_sentences)` + 档案计数 |

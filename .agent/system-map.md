@@ -25,7 +25,7 @@ User → Next.js 16 (App Router) ── api.ts (JWT auto-refresh)
 | `services/transcription/*` | WhisperX transcription + wav2vec2 alignment + hallucination detection |
 | `services/translation/*` | Pluggable translation engine (currently `ark-code-latest`, ADR-0018) + exponential-backoff retry + quality gate |
 | `services/ai_service` | Central AI singleton — runtime callers are the video pipeline only (word-note prewarm) |
-| `services/vocabulary_service` + `sr_service` | SM-2 spaced repetition |
+| `services/vocabulary_service` + `sr_service` | 错误次数分档复习调度（DEC-057；SM-2 列保留兼容，`calculate_next_review` 冻结供新词/考试判分复用） |
 | `services/vocab_set_service` | Vocab sets + quick-sieve loop (ADR-0019): collection-scoped flow state over Vocabulary rows |
 | `services/ecdict` + `exam_corpus` + `word_notes` | The three gloss sources: local exam-level annotation (no AI) + past-paper sentences + pre-generated AI notes |
 | `services/unlock_service` | Free-tier access rules: login wall + unlock quotas (quota path retired for 内测期, endpoints answer allow/empty) |

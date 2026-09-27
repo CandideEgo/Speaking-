@@ -3,7 +3,7 @@ title: Frontend Architecture
 tags: [architecture, frontend, nextjs, react, tailwind]
 status: active
 confidence: verified
-related_code: [frontend-app, frontend-components, frontend-stores, frontend-lib]
+related_code: [frontend-app, frontend-components, frontend-stores, frontend-lib, frontend-hooks]
 related: [wiki/architecture/auth-system.md]
 created: 2026-07-21
 updated: 2026-09-27

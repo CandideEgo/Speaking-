@@ -10,7 +10,7 @@
     },
     "api-v1": {
       "verified": "2026-09-27",
-      "digest": "sha256:d3e05f6b3172311aea4620965d4d657cfbbb0c4a60c47ea1b0877b67c549b30c"
+      "digest": "sha256:9ea7137abb30ff12fe177859db2bba48fe8ee9856f617e6a3990565eb9040129"
     },
     "auth": {
       "verified": "2026-09-27",
@@ -18,7 +18,7 @@
     },
     "backend-services": {
       "verified": "2026-09-27",
-      "digest": "sha256:4b0231858c2ec424ca3b60d98703039dc0b6b740d155e499843d3ad1be0c8043"
+      "digest": "sha256:d8a6f1f8bc2212205e129bc265c73a6a974137e82c7ddc179f8af517ecd7baae"
     },
     "celery-tasks": {
       "verified": "2026-09-27",
@@ -58,15 +58,19 @@
     },
     "frontend-app": {
       "verified": "2026-09-27",
-      "digest": "sha256:69c11f9e945d2387001d89d87cd1d177998e53231327bf412ceb5f0629bfb48d"
+      "digest": "sha256:3c06576eba220dd634154feb30ff1d507cb49c9084dda268aa5855e07bd0c511"
     },
     "frontend-components": {
       "verified": "2026-09-27",
-      "digest": "sha256:5eddcaf45e0319ca6c506893ea05048bec7e74ac6d6f38b191f43cf576956cfa"
+      "digest": "sha256:757adb2f36b5fae4bbf81e399a88cfa8b81f832bd9d4e3376e97576d8df60d7f"
+    },
+    "frontend-hooks": {
+      "verified": "2026-09-27",
+      "digest": "sha256:5d4972e64d0e3065f066793823eae1fdb3f87714af2ba797076694515c11df7b"
     },
     "frontend-lib": {
       "verified": "2026-09-27",
-      "digest": "sha256:60c89fd546918ad3949b9e054cddbbfb1b6ee8bbd18eccbdc7c9b326232ffdab"
+      "digest": "sha256:e83a749cfca501c8e76e34478813a494dd863c5ab0ffd9b7d905e2aca67b2340"
     },
     "frontend-package": {
       "verified": "2026-09-27",
@@ -86,7 +90,7 @@
     },
     "pytest-suite": {
       "verified": "2026-09-27",
-      "digest": "sha256:cccb9f1dcdf8244526f245c2d0518938e0b466be3c8653e8937528a6d736fb88"
+      "digest": "sha256:43ad87f1a2487f4e0f60c02988bcd907f7f3153410b00b14225c1cff43a41675"
     },
     "sms-service": {
       "verified": "2026-09-27",

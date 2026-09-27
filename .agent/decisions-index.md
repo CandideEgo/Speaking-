@@ -1,11 +1,10 @@
 # Decision Index
 
-> Navigation for `decisions.md`. Read this first, then open the one entry you need.
->
-> IDs are assigned in **file order** — append order, not date order, and dates repeat. An ID is
-> issued once and never reassigned; a body moved to `archive/` keeps its heading here as a stub.
-> To add a decision: append the entry to `decisions.md`, add a row with the next free ID. The
-> `index` check fails if this table and `decisions.md` disagree on count, order, date or title.
+> Navigation for `decisions.md` — read this first, then open the one entry you need.
+> IDs are assigned in **file order** (append order, dates repeat), issued once and never
+> reassigned; a body moved to `archive/` keeps its heading here as a stub. To add a decision:
+> append the entry to `decisions.md`, add a row with the next free ID — the `index` check
+> fails if table and file disagree on count, order, date or title.
 >
 > `superseded`: still on the record, no longer describing the system — read the superseding entry.
 
@@ -66,3 +65,5 @@
 | DEC-053 | 2026-09-25 | 训练轮次落库 + 每日配额 + 加练（`study_sessions` / `study_session_items`） | — | active |
 | DEC-054 | 2026-09-27 | 知识层写入密度与余量阶梯（DEC-040 的运行细则） | — | active |
 | DEC-055 | 2026-09-27 | 知识层双层定价与正向循环（细化 DEC-054） | — | active |
+| DEC-056 | 2026-09-27 | 训练流程选择题化：废弃「认识/不认识」，连对两次毕业 + 题型轮换 | — | active |
+| DEC-057 | 2026-09-27 | 复习调度替换 SM-2：错误次数分档直接决定间隔 | — | active |

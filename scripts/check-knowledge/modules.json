@@ -93,6 +93,10 @@
       "description": "Zustand stores",
       "globs": ["frontend/src/stores/*.ts"]
     },
+    "frontend-hooks": {
+      "description": "Custom React hooks (auth guards, playback, speech, platform detection)",
+      "globs": ["frontend/src/hooks/*.ts"]
+    },
     "frontend-lib": {
       "description": "Frontend library helpers",
       "globs": ["frontend/src/lib/**"]
