@@ -1,19 +1,76 @@
-"""SM-2 Spaced Repetition Algorithm.
+"""Spaced repetition interval calculators.
 
-Reference: Piotr Woźniak's SuperMemo SM-2 algorithm.
-All parameters are explicitly passed and persisted by the caller.
+Two algorithms live side by side here:
 
-Args:
-    quality: 0-5 rating (0=complete blackout, 5=perfect)
-    review_count: number of previous reviews for this item
-    ease_factor: current ease factor (≥1.3), stored in Vocabulary.ease_factor
-    interval_days: current interval in days, stored in Vocabulary.interval_days
+1. ``calculate_review_interval`` (S6, DEC-057) — the product's review
+   scheduling. Error counts decide the next interval directly; see the band
+   table in ``docs/plans/词汇训练与播放页返回-设计方案-2026-09.md`` §5.4.
+   Consumed by ``vocabulary_service.apply_review``, the single writer of a
+   word's review state. ``ease_factor`` no longer participates in scheduling.
 
-Returns:
-    (next_interval_days, new_ease_factor, new_review_count)
+2. ``calculate_next_review`` — frozen SM-2. Kept verbatim only because the
+   legacy practice-submit path (``practice_service.submit_practice_results``)
+   still calls it; do not extend it or wire new paths to it.
 """
 
 MIN_EASE_FACTOR = 1.3
+
+# --- S6 (DEC-057): error-count banded intervals -----------------------------
+# 本轮内/复习时答错 → 次日。
+ROUND_INTERVAL_DAYS = 1
+# 全对且 wrong_count = 0 的间隔阶梯：3 → 7 → 16 → 35（35 天封顶）。
+CLEAN_LADDER = (3, 7, 16, 35)
+# 全对但 wrong_count ≥ 1 的间隔阶梯：2 → 5 → 12 → 25（比干净词短一档）。
+ERROR_LADDER = (2, 5, 12, 25)
+# wrong_count 达到该值后，间隔上限压到 WRONG_INTERVAL_CAP 天（老大难反复出现）。
+WRONG_COUNT_CAP = 3
+WRONG_INTERVAL_CAP = 7
+
+
+def _next_ladder_step(ladder: tuple[int, ...], current_interval_days: int) -> int:
+    """First rung strictly above the current interval; the top rung repeats."""
+    for step in ladder:
+        if step > current_interval_days:
+            return step
+    return ladder[-1]
+
+
+def calculate_review_interval(
+    *,
+    correct: bool,
+    wrong_count: int,
+    interval_days: int,
+    wrong_recent: bool,
+) -> int:
+    """Next review interval in days after one answer (S6, DEC-057).
+
+    Parameters
+    ----------
+    correct : bool
+        Whether the current answer was right (quality >= 3).
+    wrong_count : int
+        Cumulative wrong answers recorded *before* this answer.
+    interval_days : int
+        Interval currently stored on the word (0 for never-scheduled words).
+    wrong_recent : bool
+        Whether the word was answered wrong within the current learning
+        round — approximated by the caller as "a wrong answer happened
+        within the last 24h" (see ``vocabulary_service.WRONG_RECENT_WINDOW``).
+
+    Returns
+    -------
+    int
+        Interval in days until the next review.
+    """
+    # 答错（无论本轮内还是复习时）→ 回到次日；本轮内曾答错、其后答对的词也
+    # 必须次日重现（设计 §5.4 情形 1），wrong_recent 就是那个信号。
+    if not correct or wrong_recent:
+        return ROUND_INTERVAL_DAYS
+    if wrong_count >= WRONG_COUNT_CAP:
+        return min(_next_ladder_step(ERROR_LADDER, interval_days), WRONG_INTERVAL_CAP)
+    if wrong_count >= 1:
+        return _next_ladder_step(ERROR_LADDER, interval_days)
+    return _next_ladder_step(CLEAN_LADDER, interval_days)
 
 
 def calculate_next_review(
@@ -22,7 +79,11 @@ def calculate_next_review(
     ease_factor: float = 2.5,
     interval_days: int = 0,
 ) -> tuple[int, float, int]:
-    """Calculate the next review interval using SM-2.
+    """Calculate the next review interval using SM-2 (frozen legacy path).
+
+    Only ``practice_service.submit_practice_results`` still uses this. The
+    product's scheduling went through ``calculate_review_interval`` (DEC-057);
+    this function must not drift while that legacy caller exists.
 
     Parameters
     ----------

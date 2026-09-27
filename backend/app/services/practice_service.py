@@ -2,7 +2,9 @@
 
 Generates practice items from the user's personal vocabulary list, with
 adaptive difficulty based on SM-2 mastery level. All grading is client-side;
-this service only generates items and accepts batch SM-2 submissions.
+this service only generates items and accepts batch review submissions
+(review-line words via the DEC-057 banded algorithm, new/auto-added words
+via the frozen SM-2 update).
 
 Question types by mastery:
   new / unknown → recognition  (listen_choose_meaning, see_word_choose_meaning)
@@ -28,6 +30,7 @@ from app.models.learning import Vocabulary
 from app.models.subtitle import Subtitle
 from app.services import ecdict
 from app.services.sr_service import calculate_next_review
+from app.services.vocabulary_service import MASTERY_LEARNING, MASTERY_REVIEWING, apply_review
 
 logger = logging.getLogger(__name__)
 
@@ -515,7 +518,7 @@ async def build_vocabulary_drill(
 
 
 # ---------------------------------------------------------------------------
-# Core: submit practice results → SM-2 update
+# Core: submit practice results → review-state update
 # ---------------------------------------------------------------------------
 
 
@@ -525,12 +528,17 @@ async def submit_practice_results(
     results: list[dict],
     video_id: str | None = None,
 ) -> dict:
-    """Batch-submit practice results and update SM-2 for each word.
+    """Batch-submit practice results and update each word's review state.
 
     For each {word, correct}:
       1. Look up Vocabulary row. If not found, auto-add.
       2. quality = 5 if correct, 2 if wrong.
-      3. Update SM-2 via calculate_next_review.
+      3. Review-line words (``mastery_level`` learning/reviewing — the due
+         words the drill's merged loop submits here, S5) go through
+         ``vocabulary_service.apply_review``: error-count banded scheduling
+         plus ``wrong_count`` / ``last_wrong_at`` bookkeeping (DEC-057).
+      4. Everything else — auto-added and still-``new`` words from the
+         video-scoped drill — keeps the frozen SM-2 update below.
 
     Returns:
         {"updated": N, "auto_added": M}
@@ -538,6 +546,9 @@ async def submit_practice_results(
     now = datetime.now(UTC)
     updated = 0
     auto_added = 0
+    # apply_review already bumps correct_count for these; the learning-event
+    # sweep below must not count them a second time.
+    review_line_words: set[str] = set()
 
     for r in results:
         word = r["word"]
@@ -576,7 +587,15 @@ async def submit_practice_results(
             await db.flush()
             auto_added += 1
 
-        # Update SM-2
+        if vocab.mastery_level in (MASTERY_LEARNING, MASTERY_REVIEWING):
+            # 到期复习词：错误次数分档（DEC-057）。wrong_count / last_wrong_at
+            # 由 apply_review 统一落库；caller owns the commit（循环尾统一 commit）。
+            apply_review(vocab, quality, now=now)
+            review_line_words.add(word)
+            updated += 1
+            continue
+
+        # Update SM-2 (frozen legacy path: new / auto-added words outside study rounds)
         current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
 
         if vocab.review_count > 0:
@@ -611,9 +630,10 @@ async def submit_practice_results(
         await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id)
         if correct_count > 0:
             await emit_event(db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id)
-        # Update Vocabulary.correct_count for each correct answer
+        # Update Vocabulary.correct_count for each correct answer (review-line
+        # words were already counted inside apply_review)
         for r in results:
-            if r.get("correct"):
+            if r.get("correct") and r["word"] not in review_line_words:
                 v_result = await db.execute(
                     select(Vocabulary).where(
                         Vocabulary.user_id == user_id,

@@ -12,6 +12,8 @@ and the ECDICT fallback that lets a 2-word wordbook still produce full
 4-option questions.
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import select
 
@@ -211,3 +213,118 @@ async def test_drill_builds_full_options_with_ecdict_fallback(fake_redis, monkey
             if opt != item["answer"]:
                 key = practice_service._translation_key(opt)
                 assert correct_key not in key and key not in correct_key
+
+
+async def _submit_user(phone: str) -> str:
+    async with TestSessionLocal() as db:
+        user = User(
+            phone=phone,
+            hashed_password=hash_password("Vocabpass1!"),
+            name="Submit",
+            plan=PlanType.free,
+            role=RoleType.user,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user.id
+
+
+async def _row(user_id: str, word: str) -> Vocabulary:
+    async with TestSessionLocal() as db:
+        return (
+            await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == word))
+        ).scalar_one()
+
+
+class TestSubmitPracticeResults:
+    """到期复习词经 /practice/submit 提交（S5 合并循环的真实路径）走 DEC-057 分档；
+    自动添加 / 仍为 new 的词保持冻结的 SM-2 更新（S6 补票）。"""
+
+    async def _seed_review_word(self, user_id: str, word: str, **fields) -> None:
+        async with TestSessionLocal() as db:
+            db.add(Vocabulary(user_id=user_id, word=word, mastery_level="learning", **fields))
+            await db.commit()
+
+    @pytest.mark.asyncio
+    async def test_review_word_wrong_answer_records_error_fields(self, fake_redis):
+        uid = await _submit_user("13800138031")
+        await self._seed_review_word(uid, "reviewme", review_count=2, interval_days=7)
+
+        async with TestSessionLocal() as db:
+            result = await practice_service.submit_practice_results(db, uid, [{"word": "reviewme", "correct": False}])
+        assert result == {"updated": 1, "auto_added": 0}
+
+        row = await _row(uid, "reviewme")
+        assert row.wrong_count == 1
+        assert row.last_wrong_at is not None
+        assert row.interval_days == 1  # 复习时答错 → 回到次日
+
+    @pytest.mark.asyncio
+    async def test_review_word_correct_answer_climbs_error_ladder(self, fake_redis):
+        uid = await _submit_user("13800138032")
+        now = datetime.now(UTC)
+        await self._seed_review_word(
+            uid,
+            "ladderme",
+            review_count=2,
+            interval_days=1,
+            wrong_count=1,
+            last_wrong_at=now - timedelta(days=3),
+        )
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "ladderme", "correct": True}])
+
+        row = await _row(uid, "ladderme")
+        assert row.interval_days == 2  # 错误阶梯 1 → 2
+        assert row.wrong_count == 1  # 答对不增错误数
+        assert row.correct_count == 1  # 只计一次（apply_review 内已计，事件扫不重复）
+
+    @pytest.mark.asyncio
+    async def test_review_word_wrong_recently_stays_next_day_after_correct(self, fake_redis):
+        uid = await _submit_user("13800138033")
+        now = datetime.now(UTC)
+        await self._seed_review_word(
+            uid,
+            "recentwrong",
+            review_count=3,
+            interval_days=5,
+            wrong_count=2,
+            last_wrong_at=now - timedelta(hours=2),
+        )
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "recentwrong", "correct": True}])
+
+        row = await _row(uid, "recentwrong")
+        assert row.interval_days == 1  # 24h 内错过 → 次日重现
+
+    @pytest.mark.asyncio
+    async def test_new_word_submission_keeps_legacy_sm2_path(self, fake_redis):
+        uid = await _submit_user("13800138034")
+        async with TestSessionLocal() as db:
+            db.add(Vocabulary(user_id=uid, word="brandnew", mastery_level="new"))
+            await db.commit()
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "brandnew", "correct": True}])
+
+        row = await _row(uid, "brandnew")
+        assert row.interval_days == 1  # SM-2 首次答对 = 1 天（新算法会给 3 天）
+        assert row.ease_factor == pytest.approx(2.6)  # SM-2 仍在更新 ease_factor
+        assert row.wrong_count == 0
+        assert row.correct_count == 1
+
+    @pytest.mark.asyncio
+    async def test_auto_added_word_keeps_legacy_sm2_path(self, fake_redis):
+        uid = await _submit_user("13800138035")
+
+        async with TestSessionLocal() as db:
+            result = await practice_service.submit_practice_results(db, uid, [{"word": "autoword", "correct": True}])
+        assert result == {"updated": 1, "auto_added": 1}
+
+        row = await _row(uid, "autoword")
+        assert row.mastery_level == "learning"
+        assert row.interval_days == 1
+        assert row.ease_factor == pytest.approx(2.6)

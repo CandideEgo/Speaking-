@@ -493,7 +493,13 @@ async def review_word(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Record a review of a word with SM-2 spaced repetition."""
+    """Record a review of a word (error-count banded scheduling, DEC-057).
+
+    ``quality >= 3`` counts as correct; a wrong answer bumps ``wrong_count``,
+    stamps ``last_wrong_at`` and schedules 次日. Correct answers climb the
+    clean ladder (3→7→16→35) or the error ladder (2→5→12→25, capped at 7 days
+    once ``wrong_count >= 3``). ``ease_factor`` is no longer part of the math.
+    """
     result = await db.execute(
         select(Vocabulary).where(
             Vocabulary.id == word_id,
@@ -523,6 +529,8 @@ async def review_word(
         "next_review_at": next_review_at.isoformat(),
         "interval_days": next_interval,
         "review_count": vocab.review_count,
+        "wrong_count": vocab.wrong_count,
+        "last_wrong_at": vocab.last_wrong_at.isoformat() if vocab.last_wrong_at else None,
     }
 
 

@@ -186,3 +186,128 @@ class TestDailyQuota:
 
         data = (await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)).json()
         assert data["today"] == {"words_learned": 0, "rounds": 0}
+
+
+async def _seed_due_words(
+    user_id: str,
+    specs: list[tuple[str, datetime, int, datetime | None]],
+) -> None:
+    """Seed due review rows: (word, next_review_at, wrong_count, last_wrong_at)."""
+    async with TestSessionLocal() as db:
+        for word, next_review_at, wrong_count, last_wrong_at in specs:
+            db.add(
+                Vocabulary(
+                    user_id=user_id,
+                    word=word,
+                    mastery_level="learning",
+                    next_review_at=next_review_at,
+                    wrong_count=wrong_count,
+                    last_wrong_at=last_wrong_at,
+                )
+            )
+        await db.commit()
+
+
+class TestReviewPriority:
+    """复习队列排序（S6，DEC-057）：昨天错过的优先 → wrong_count 降序 → 到期时间升序。"""
+
+    async def test_yesterdays_wrong_words_lead_by_wrong_count(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        now = datetime.now(UTC)
+        # 测试用户没有 timezone 偏好 → 本地日 = UTC 日；正午 yesterday 恒在昨天的窗口内
+        yesterday_noon = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=12)
+        due = now - timedelta(days=5)
+        await _seed_due_words(
+            user_id,
+            [
+                ("never-wrong", due, 0, None),
+                ("wrong-once-yesterday", due, 1, yesterday_noon),
+                ("wrong-thrice-yesterday", due, 3, yesterday_noon),
+                ("wrong-long-ago", due, 1, now - timedelta(days=10)),
+            ],
+        )
+
+        resp = await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)
+        words = [w["word"] for w in resp.json()["review_words"]]
+        # 昨天错的排最前（错得多在前）；不是昨天错的按 wrong_count 降序、再按到期时间
+        assert words == [
+            "wrong-thrice-yesterday",
+            "wrong-once-yesterday",
+            "wrong-long-ago",
+            "never-wrong",
+        ]
+
+    async def test_yesterday_priority_applies_within_same_due_day(self, client: AsyncClient, auth_headers: dict):
+        """昨天错过但到期更晚的词，仍排在到期更早但没错的词之前。"""
+        user_id = await _get_user_id(client, auth_headers)
+        now = datetime.now(UTC)
+        yesterday_noon = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=12)
+        await _seed_due_words(
+            user_id,
+            [
+                ("due-earlier-clean", now - timedelta(days=5), 0, None),
+                ("due-later-wrong", now - timedelta(hours=1), 1, yesterday_noon),
+            ],
+        )
+
+        resp = await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)
+        words = [w["word"] for w in resp.json()["review_words"]]
+        assert words == ["due-later-wrong", "due-earlier-clean"]
+
+
+class TestReviewEndpoint:
+    """POST /{word_id}/review 补写 wrong_count / last_wrong_at（S6，DEC-057）。"""
+
+    async def _seed_word(self, user_id: str, **fields) -> str:
+        async with TestSessionLocal() as db:
+            vocab = Vocabulary(user_id=user_id, word=fields.pop("word"), **fields)
+            db.add(vocab)
+            await db.commit()
+            return vocab.id
+
+    async def test_wrong_review_records_error_fields(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        word_id = await self._seed_word(
+            user_id, word="reviewme", mastery_level="reviewing", interval_days=7, review_count=3
+        )
+
+        resp = await client.post(f"/api/v1/vocabulary/{word_id}/review?quality=2", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["interval_days"] == 1
+        assert data["wrong_count"] == 1
+        assert data["last_wrong_at"] is not None
+
+        async with TestSessionLocal() as db:
+            row = await db.get(Vocabulary, word_id)
+            assert row.wrong_count == 1
+            assert row.last_wrong_at is not None
+            assert row.interval_days == 1
+
+    async def test_correct_review_on_fresh_word_schedules_three_days(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        word_id = await self._seed_word(user_id, word="freshword", mastery_level="new")
+
+        resp = await client.post(f"/api/v1/vocabulary/{word_id}/review?quality=5", headers=auth_headers)
+        data = resp.json()
+        assert data["interval_days"] == 3
+        assert data["wrong_count"] == 0
+        assert data["last_wrong_at"] is None
+
+    async def test_correct_review_after_old_wrong_climbs_error_ladder(self, client: AsyncClient, auth_headers: dict):
+        user_id = await _get_user_id(client, auth_headers)
+        now = datetime.now(UTC)
+        word_id = await self._seed_word(
+            user_id,
+            word="ladderword",
+            mastery_level="learning",
+            wrong_count=1,
+            last_wrong_at=now - timedelta(days=3),
+            interval_days=1,
+            review_count=2,
+        )
+
+        resp = await client.post(f"/api/v1/vocabulary/{word_id}/review?quality=5", headers=auth_headers)
+        data = resp.json()
+        assert data["interval_days"] == 2
+        assert data["wrong_count"] == 1

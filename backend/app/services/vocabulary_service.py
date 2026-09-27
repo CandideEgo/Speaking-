@@ -5,15 +5,17 @@ and practice_service.submit_practice_results.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
 from app.models.learning import Vocabulary
+from app.models.preferences import UserPreferences
 from app.services.ai_service import get_ai_service
-from app.services.sr_service import calculate_next_review
+from app.services.sr_service import calculate_review_interval
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +30,18 @@ MASTERY_LEARNING = "learning"
 MASTERY_REVIEWING = "reviewing"
 MASTERY_MASTERED = "mastered"
 
-# SM-2 quality assigned to a binary (right/wrong) answer. Kept here so the
-# drill's session answers and the legacy review endpoint grade identically.
+# Binary-answer grading shared by the drill's session answers and the legacy
+# review endpoint: quality >= 3 counts as correct.
 QUALITY_CORRECT = 5
 QUALITY_WRONG = 2
+
+# "本轮内曾答错" without a dedicated column (DEC-057): a wrong answer inside
+# this window keeps the word on the 次日 schedule even when the *current*
+# answer is correct. Round answers land minutes apart, and a word answered
+# wrong in a round is due a day later, so in the normal flow only the current
+# round can produce a wrong inside 24h. A same-day re-review of a word that
+# was wrong earlier today gets the same treatment — "错的还热乎，明天再见".
+WRONG_RECENT_WINDOW = timedelta(hours=24)
 
 
 def _mastery_from_review_count(review_count: int) -> str:
@@ -46,8 +56,30 @@ def _mastery_from_review_count(review_count: int) -> str:
         return MASTERY_MASTERED
 
 
+async def _utc_window_of_local_yesterday(db: AsyncSession, user_id: str) -> tuple[datetime, datetime]:
+    """UTC bounds of *yesterday* on the user's local calendar.
+
+    Same timezone source as ``learning_event_service.get_user_local_date``
+    (``UserPreferences.reminder_timezone``, UTC fallback), so the queue's
+    "昨天错过的优先" shares the day boundary with rounds and daily counters.
+    """
+    tz_name = (
+        await db.execute(select(UserPreferences.reminder_timezone).where(UserPreferences.user_id == user_id))
+    ).scalar_one_or_none()
+    tz: tzinfo = UTC
+    if tz_name:
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = UTC
+    now_local = datetime.now(tz)
+    today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
+    return yesterday_start.astimezone(UTC), today_start.astimezone(UTC)
+
+
 def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -> tuple[int, datetime]:
-    """Apply one SM-2 review to ``vocab`` in place.
+    """Apply one answer to ``vocab`` in place (error-count bands, DEC-057).
 
     Returns ``(interval_days, next_review_at)`` — the next review time is handed
     back rather than re-read off the model so callers get a non-optional value
@@ -57,34 +89,49 @@ def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -
     persisted round and ``POST /vocabulary/{id}/review`` can never drift apart.
     Mutates only — the caller owns the commit.
 
-    ``wrong_count`` / ``last_wrong_at`` (DEC-053) are the input S6's interval
-    algorithm reads; S3 already records them so no answer is lost when the
-    algorithm is swapped.
+    Scheduling is ``sr_service.calculate_review_interval`` (DEC-057): a wrong
+    answer — or a correct answer following a wrong one inside the current
+    round — schedules 次日; otherwise the interval climbs the clean ladder
+    (3→7→16→35) for never-wrong words or the error ladder (2→5→12→25) for
+    words with ``wrong_count >= 1``, capped at 7 days once ``wrong_count >= 3``.
+    ``wrong_count`` / ``last_wrong_at`` are written here on a wrong answer;
+    ``ease_factor`` is left untouched (compat/display only). ``review_count``
+    only ever grows — a wrong review must land the word back in the *review*
+    queue tomorrow (mastery stays >= learning), not reset it to a new word.
     """
     now = now or datetime.now(UTC)
-    current_ef = vocab.ease_factor if vocab.ease_factor else 2.5
-    interval_days = vocab.interval_days if vocab.review_count > 0 else 0
+    correct = quality >= 3
+    wrong_count = vocab.wrong_count or 0
 
-    next_interval, new_ef, new_review_count = calculate_next_review(
-        quality, vocab.review_count, current_ef, interval_days
+    wrong_recent = False
+    if vocab.last_wrong_at is not None:
+        last_wrong = vocab.last_wrong_at
+        # SQLite round-trips datetimes naive; wall-clock math needs a zone.
+        if last_wrong.tzinfo is None:
+            last_wrong = last_wrong.replace(tzinfo=UTC)
+        wrong_recent = now - last_wrong < WRONG_RECENT_WINDOW
+
+    interval_days = calculate_review_interval(
+        correct=correct,
+        wrong_count=wrong_count,
+        interval_days=vocab.interval_days or 0,
+        wrong_recent=wrong_recent,
     )
+    next_review_at = now + timedelta(days=interval_days)
 
-    next_review_at = now + timedelta(days=next_interval)
-
-    vocab.review_count = new_review_count
+    vocab.review_count = (vocab.review_count or 0) + 1
     vocab.last_reviewed_at = now
     vocab.next_review_at = next_review_at
-    vocab.ease_factor = new_ef
-    vocab.interval_days = next_interval
-    vocab.mastery_level = _mastery_from_review_count(new_review_count)
+    vocab.interval_days = interval_days
+    vocab.mastery_level = _mastery_from_review_count(vocab.review_count)
 
-    if quality >= 3:
+    if correct:
         vocab.correct_count = (vocab.correct_count or 0) + 1
     else:
-        vocab.wrong_count = (vocab.wrong_count or 0) + 1
+        vocab.wrong_count = wrong_count + 1
         vocab.last_wrong_at = now
 
-    return next_interval, next_review_at
+    return interval_days, next_review_at
 
 
 async def enrich_word(db: AsyncSession, vocabulary_id: str, user_id: str) -> Vocabulary | None:
@@ -159,9 +206,11 @@ async def build_daily_session(
     """Compose the 今日训练 queue: new words (never reviewed) + due words.
 
     New words are ``mastery_level == new`` ordered oldest-first so words the
-    user saved earliest get learned first; due words are ordered by
-    ``next_review_at`` (most overdue first). Mastered words never appear in
-    the review queue (tri-state semantics, same as get_stats).
+    user saved earliest get learned first. Due words follow the S6 priority
+    (DEC-057): words whose last wrong answer was *yesterday* (user-local day)
+    come first — 昨天错得最多的词第一屏出现 — then ``wrong_count`` descending,
+    then ``next_review_at`` ascending. Mastered words never appear in the
+    review queue (tri-state semantics, same as get_stats).
 
     Both counts are required: the caller resolves them from the user's daily
     quota (``UserLearningProfile.daily_new_target`` / ``daily_review_target``,
@@ -177,6 +226,10 @@ async def build_daily_session(
     )
     new_words = (await db.execute(new_stmt)).scalars().all()
 
+    wrong_yesterday_start, wrong_yesterday_end = await _utc_window_of_local_yesterday(db, user_id)
+    wrong_yesterday = (Vocabulary.last_wrong_at >= wrong_yesterday_start) & (
+        Vocabulary.last_wrong_at < wrong_yesterday_end
+    )
     review_stmt = (
         select(Vocabulary)
         .where(
@@ -185,7 +238,11 @@ async def build_daily_session(
             Vocabulary.mastery_level != MASTERY_MASTERED,
             Vocabulary.mastery_level != MASTERY_NEW,
         )
-        .order_by(Vocabulary.next_review_at.asc().nulls_first())
+        .order_by(
+            case((wrong_yesterday, 0), else_=1).asc(),
+            Vocabulary.wrong_count.desc(),
+            Vocabulary.next_review_at.asc().nulls_first(),
+        )
         .limit(review_count)
     )
     review_words = (await db.execute(review_stmt)).scalars().all()
