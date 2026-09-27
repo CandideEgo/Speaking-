@@ -782,3 +782,137 @@ class TestMasteredExitsReviewQueues:
         assert resp.status_code == 200
         words = {i["word"] for i in resp.json()["items"]}
         assert words == {"due-learning", "due-new"}
+
+
+class TestUnmarkLearned:
+    """S8: 取消「已掌握」—— mark_learned / sieve「会」的逆操作。
+
+    口径（按 build_daily_session 反推）：词行回 learning 且次日到期 ——
+    new 队列只取 ``mastery == new``（回 new 会立刻进当日新词队列），
+    复习队列只取到期且 ``mastery ∉ {new, mastered}`` 的词。
+    """
+
+    async def _one_word_learned_set(self, client: AsyncClient, auth_headers: dict) -> tuple[str, str]:
+        video_id = await _seed_video([{"apple": ["cet4"]}])
+        set_id = (await _collect(client, auth_headers, video_id, "cet4")).json()["id"]
+        detail = (await client.get(f"/api/v1/vocab-sets/{set_id}", headers=auth_headers)).json()
+        word_id = detail["words"][0]["set_word_id"]
+        resp = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/learned", headers=auth_headers)
+        assert resp.status_code == 200
+        return set_id, word_id
+
+    async def test_unmark_learned_reverts_status_and_mastery(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        set_id, word_id = await self._one_word_learned_set(client, auth_headers)
+        user_id = await _get_user_id(client, auth_headers)
+
+        resp = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/unmark", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "unknown"
+        assert data["completed"] is False
+        assert data["mastered_count"] == 0
+        assert data["total"] == 1
+
+        async with TestSessionLocal() as db:
+            v = (
+                (await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == "apple")))
+                .scalars()
+                .one()
+            )
+        assert v.mastery_level == "learning"
+        assert v.interval_days == 1
+        next_review_at = v.next_review_at
+        if next_review_at is not None and next_review_at.tzinfo is None:
+            next_review_at = next_review_at.replace(tzinfo=UTC)
+        assert next_review_at is not None and next_review_at > datetime.now(UTC)
+
+        detail = (await client.get(f"/api/v1/vocab-sets/{set_id}", headers=auth_headers)).json()
+        assert detail["words"][0]["status"] == "unknown"
+        assert detail["mastered_count"] == 0
+
+    async def test_unmark_after_sieve_known_reopens_set_without_second_event(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        """闭环 → 取消 → 重学：learned_words 事件与今日累计不得重复计数。"""
+        video_id = await _seed_video([{"apple": ["cet4"]}])
+        set_id = (await _collect(client, auth_headers, video_id, "cet4")).json()["id"]
+        detail = (await client.get(f"/api/v1/vocab-sets/{set_id}", headers=auth_headers)).json()
+        word_id = detail["words"][0]["set_word_id"]
+        user_id = await _get_user_id(client, auth_headers)
+
+        judge = await client.post(
+            f"/api/v1/vocab-sets/{set_id}/words/{word_id}/sieve",
+            json={"known": True},
+            headers=auth_headers,
+        )
+        assert judge.json()["completed"] is True
+
+        unmark = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/unmark", headers=auth_headers)
+        assert unmark.json()["completed"] is False
+
+        relearn = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/learned", headers=auth_headers)
+        assert relearn.json()["completed"] is True
+
+        async with TestSessionLocal() as db:
+            events = (
+                (
+                    await db.execute(
+                        select(LearningEvent).where(
+                            LearningEvent.user_id == user_id,
+                            LearningEvent.event_type == "learned_words",
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            profile = (
+                (await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id)))
+                .scalars()
+                .one()
+            )
+        assert len(events) == 1
+        assert profile.today_words_learned == 1
+
+    async def test_unmarked_word_not_in_today_queues(self, client: AsyncClient, auth_headers: dict, ecdict_only):
+        set_id, word_id = await self._one_word_learned_set(client, auth_headers)
+
+        resp = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/unmark", headers=auth_headers)
+        assert resp.status_code == 200
+
+        daily = (await client.get("/api/v1/vocabulary/daily-session", headers=auth_headers)).json()
+        new_words = [w["word"] for w in daily["new_words"]]
+        review_words = [w["word"] for w in daily["review_words"]]
+        assert "apple" not in new_words
+        assert "apple" not in review_words
+
+    async def test_unmark_non_mastered_word_is_idempotent_noop(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        video_id = await _seed_video([{"apple": ["cet4"]}])
+        set_id = (await _collect(client, auth_headers, video_id, "cet4")).json()["id"]
+        detail = (await client.get(f"/api/v1/vocab-sets/{set_id}", headers=auth_headers)).json()
+        word_id = detail["words"][0]["set_word_id"]
+        user_id = await _get_user_id(client, auth_headers)
+
+        resp = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/unmark", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "pending"
+
+        async with TestSessionLocal() as db:
+            v = (
+                (await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == "apple")))
+                .scalars()
+                .one()
+            )
+        assert v.mastery_level == "new"
+        assert v.next_review_at is None
+
+    async def test_unmark_other_users_set_returns_404(self, client: AsyncClient, auth_headers: dict, ecdict_only):
+        set_id, word_id = await self._one_word_learned_set(client, auth_headers)
+        other_headers = await _other_auth_headers()
+
+        resp = await client.post(f"/api/v1/vocab-sets/{set_id}/words/{word_id}/unmark", headers=other_headers)
+        assert resp.status_code == 404

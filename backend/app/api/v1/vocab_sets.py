@@ -117,6 +117,28 @@ async def mark_sieve_word_learned(
     return result
 
 
+@router.post("/{set_id}/words/{set_word_id}/unmark")
+@rate_limit("30/minute")
+async def unmark_sieve_word_learned(
+    request: Request,
+    set_id: str,
+    set_word_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """取消「已掌握」（S8）—— mark_learned / 过筛「会」的逆操作。
+
+    集合词回到待学清单（unknown），词行退出 mastery（learning + 次日再进
+    复习队列，不进当日新词队列）。集合闭环事件每集合至多一次，取消后重新
+    学完不会重复计数。
+    """
+    result = await vocab_set_service.unmark_learned(db, current_user, set_id, set_word_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Set word not found")
+    await db.commit()
+    return result
+
+
 @router.post("/{set_id}/words/{set_word_id}/sieve")
 @rate_limit("10/minute")
 async def judge_sieve_word(

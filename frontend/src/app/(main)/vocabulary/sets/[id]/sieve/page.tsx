@@ -231,6 +231,10 @@ export default function VocabSievePage() {
               按 <kbd className="font-mono">1</kbd> 标记不会 · 按 <kbd className="font-mono">2</kbd>{" "}
               标记会
             </p>
+            {/* 告知 (S8)：判「会」= mastered，本就不进学习计划；把口径讲明（设计 §7.3）。 */}
+            <p className="text-center text-xs text-muted mt-4">
+              标为『会』的词不计入学习计划，不会再出现在训练队列里
+            </p>
           </>
         ) : (
           <ErrorState title="没有待过筛的单词" onRetry={reload} className="py-16" />

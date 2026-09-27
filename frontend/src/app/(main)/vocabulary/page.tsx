@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -285,9 +286,20 @@ export default function VocabularyPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
   // 顶部视图：今日（默认，百词斩式训练入口）| 词库（集合 + 单词管理）。
   // MobileTabBar 对 /vocabulary 前缀高亮，集合相关页面全部挂在 /vocabulary/sets 之下。
-  const [topTab, setTopTab] = useState<"today" | "library">("today");
+  // topTab/libraryTab 写进 URL query (S8, 设计 §7.2)：从集合详情返回/浏览器后退都能复现视图。
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const topTab = searchParams.get("tab") === "library" ? "library" : "today";
   // 词库内二级视图：视频集合 | 全部单词
-  const [libraryTab, setLibraryTab] = useState<"sets" | "words">("sets");
+  const libraryTab = searchParams.get("sub") === "words" ? "words" : "sets";
+
+  /** tab 切换落 URL（replace，不刷历史栈）；today 是默认态，不占 query。 */
+  function syncTabQuery(nextTop: "today" | "library", nextSub: "sets" | "words") {
+    router.replace(
+      nextTop === "library" ? `/vocabulary?tab=library&sub=${nextSub}` : "/vocabulary",
+      { scroll: false }
+    );
+  }
   const setsView = useVocabSets(isAuthenticated && !isLoading);
   const daily = useDailySession(isAuthenticated && !isLoading);
   // 配额保存后就地生效，不必重拉整个今日队列（重拉会让 Hero 闪一下加载态）
@@ -433,7 +445,7 @@ export default function VocabularyPage() {
               { key: "library", label: "词库" },
             ]}
             activeKey={topTab}
-            onChange={setTopTab}
+            onChange={(tab) => syncTabQuery(tab, libraryTab)}
             variant="ghost"
             activeStyle="dark"
             size="sm"
@@ -510,7 +522,7 @@ export default function VocabularyPage() {
                   { key: "words", label: "全部单词" },
                 ]}
                 activeKey={libraryTab}
-                onChange={setLibraryTab}
+                onChange={(sub) => syncTabQuery("library", sub)}
                 variant="ghost"
                 activeStyle="dark"
                 size="sm"

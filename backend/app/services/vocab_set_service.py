@@ -17,7 +17,7 @@ Services here never commit; the API handlers commit (see vocab_sets.py).
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exam_levels import EXAM_LEVELS
 from app.models.learning import Vocabulary
+from app.models.learning_plan import LearningEvent
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video
@@ -54,6 +55,10 @@ SCOPE_LEARNING = "learning"
 SCOPES = {SCOPE_ALL, SCOPE_UNMASTERED, SCOPE_LEARNING}
 
 _FALLBACK_LEVEL = "cet4"
+
+# Unmark scheduling (S8): a word leaving 已掌握 re-enters the loop on the
+# DEC-057 次日 schedule — the same first interval a round-wrong word gets.
+UNMARK_INTERVAL_DAYS = 1
 
 # ECDICT's pos field carries frequency codes ("v:2/n:98") and can exceed the
 # Vocabulary.part_of_speech column width — truncate defensively.
@@ -129,9 +134,31 @@ async def _progress_counts(db: AsyncSession, set_id: str) -> tuple[int, int, int
 
 
 async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSet, total: int) -> None:
-    """Emit the single learned_words event that closes a set (non-blocking)."""
+    """Emit the single learned_words event that closes a set (non-blocking).
+
+    Fired at most once per set: ``unmark_learned`` can reopen a closed set and
+    a later verdict/learned mark closes it again — but the event feeds
+    ``today_words_learned``, and the same set's words must not be counted
+    twice. Closures are matched by their ``set_id`` metadata, so no extra
+    schema is needed to remember "already closed".
+    """
     try:
         from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
+
+        prior = (
+            (
+                await db.execute(
+                    select(LearningEvent.event_metadata).where(
+                        LearningEvent.user_id == user_id,
+                        LearningEvent.event_type == EVENT_LEARNED_WORDS,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if any((meta or {}).get("set_id") == vocab_set.id for meta in prior):
+            return
 
         await emit_event(
             db,
@@ -559,6 +586,62 @@ async def mark_learned(db: AsyncSession, user: User, set_id: str, set_word_id: s
     if completed and not was_completed:
         await _emit_closure_event(db, user.id, vocab_set, total)
 
+    return {
+        "status": sw.status,
+        "completed": completed,
+        "mastered_count": mastered_count,
+        "total": total,
+    }
+
+
+async def unmark_learned(db: AsyncSession, user: User, set_id: str, set_word_id: str) -> dict | None:
+    """Cancel 已掌握 on one set word — the inverse of ``mark_learned`` / a 「会」
+    verdict (S8; 设计文档 §7.3 误点风险：过筛是快速连点，此前误点只能删词).
+
+    The set word returns to the 待学清单 (unknown, ``learned_at`` cleared) so
+    the badge flips back and the set may reopen. The vocabulary word leaves
+    mastery with ``mastery_level = learning`` and is re-scheduled 次日 — a
+    pairing derived from ``vocabulary_service.build_daily_session``: the
+    new-word queue takes ``mastery == new`` (restoring "new" would push the
+    word straight back into *today's* learn queue), and the review queue takes
+    due words with ``mastery ∉ {new, mastered}``, so learning + tomorrow is in
+    neither of today's queues and re-enters review the next day.
+
+    Emits nothing: only set closures emit learned_words, and the closure
+    event stays once-per-set (``_emit_closure_event`` dedups).
+
+    Unmarking a word that is not currently mastered (pending/unknown) is an
+    idempotent no-op that still returns the set's current counters. Returns
+    None when the set/word doesn't exist or isn't the user's.
+    """
+    vocab_set = await _get_owned_set(db, user, set_id)
+    if vocab_set is None:
+        return None
+    sw = (
+        await db.execute(
+            select(VocabSetWord).where(
+                VocabSetWord.id == set_word_id,
+                VocabSetWord.set_id == vocab_set.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if sw is None:
+        return None
+
+    if sw.status in (STATUS_KNOWN, STATUS_LEARNED):
+        now = _now()
+        sw.status = STATUS_UNKNOWN
+        sw.learned_at = None
+        vocab = await db.get(Vocabulary, sw.vocabulary_id)
+        if vocab is not None:
+            vocab.mastery_level = MASTERY_LEARNING
+            vocab.interval_days = UNMARK_INTERVAL_DAYS
+            vocab.next_review_at = now + timedelta(days=UNMARK_INTERVAL_DAYS)
+        vocab_set.last_activity_at = now
+        await db.flush()
+
+    total, mastered_count, pending_count, unknown_count = await _progress_counts(db, vocab_set.id)
+    completed = pending_count == 0 and unknown_count == 0
     return {
         "status": sw.status,
         "completed": completed,

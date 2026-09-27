@@ -67,7 +67,7 @@ export function DailyHero({
                   <span className="mx-1.5 text-muted-soft">·</span>
                   待复习 <span className="font-bold text-ink">{dueTotal}</span>
                   <span className="block sm:inline text-muted-soft mt-0.5 sm:mt-0 sm:ml-2 text-xs">
-                    每日 {newTarget} 新词 + {reviewTarget} 复习，按 SM-2 间隔推送
+                    每日 {newTarget} 新词 + {reviewTarget} 复习，按错误次数安排复习
                   </span>
                 </>
               )}
