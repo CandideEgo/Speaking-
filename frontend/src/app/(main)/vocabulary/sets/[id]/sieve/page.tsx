@@ -10,6 +10,7 @@ import { useVocabSieve } from "@/hooks/useVocabSieve";
 import { useVocabSetDetail } from "@/hooks/useVocabSetDetail";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
+import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 
 /**
  * 快速过筛（全屏沉浸，壳层对齐 /vocabulary/drill）：
@@ -27,11 +28,12 @@ export default function VocabSievePage() {
   // 待学清单阶段的词表（unknown），只在需要时拉取。
   const inSievePass = !!state?.set_word_id;
   const needsUnknownList = !!state && !state.completed && !inSievePass;
-  const { detail: unknownDetail, reload: reloadUnknownList } = useVocabSetDetail(
-    id,
-    "learning",
-    isAuthenticated && !isLoading && needsUnknownList
-  );
+  const {
+    detail: unknownDetail,
+    loading: unknownLoading,
+    error: unknownError,
+    reload: reloadUnknownList,
+  } = useVocabSetDetail(id, "learning", isAuthenticated && !isLoading && needsUnknownList);
   const unknownWords = unknownDetail?.words ?? null;
   // 两阶段：第一遍过筛（pending）→ 待学清单（unknown）→ 标记已掌握闭环。
   const inPendingList = !inSievePass && (state?.unknown_count ?? 0) > 0;
@@ -157,29 +159,39 @@ export default function VocabSievePage() {
                 第一遍过筛完成 · 还有 {state?.unknown_count ?? 0} 个词要学，学完即闭环
               </p>
             </div>
-            <div className="flex flex-col divide-y divide-hairline border border-hairline rounded-lg bg-canvas overflow-hidden">
-              {(unknownWords ?? []).map((w) => (
-                <div key={w.set_word_id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-[15px] font-bold text-ink">{w.word}</span>
-                      {w.ipa && <span className="text-xs text-muted font-mono">{w.ipa}</span>}
-                    </div>
-                    <p className="text-[13px] text-body mt-0.5 line-clamp-1">
-                      {w.translation || w.definition || "—"}
-                    </p>
-                  </div>
-                  <button
-                    data-testid="mark-learned"
-                    onClick={() => handleMarkLearned(w.set_word_id)}
-                    disabled={judging}
-                    className="flex-shrink-0 px-3.5 py-1.5 rounded-sm bg-success text-on-primary text-[13px] font-semibold hover:bg-success/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    我已学会
-                  </button>
-                </div>
-              ))}
-            </div>
+            {/* 待学清单：与集合详情同款词卡（两栏），动作统一走 VocabWordAction。
+                先报错、再加载中：detail 在出错时被置空，没有 detail 就没有清单可渲染 ——
+                否则「请求已失败/尚未返回」会渲染成一张空网格，与上方「还有 N 个词要学」矛盾。 */}
+            {unknownError && !unknownDetail ? (
+              <ErrorState title={unknownError} onRetry={reloadUnknownList} className="py-10" />
+            ) : unknownLoading || !unknownDetail ? (
+              <div className="flex justify-center py-16">
+                <InlineSpinner />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {(unknownWords ?? []).map((w) => (
+                  <VocabWordCard
+                    key={w.set_word_id}
+                    word={w.word}
+                    ipa={w.ipa}
+                    partOfSpeech={w.part_of_speech}
+                    meaning={w.translation || w.definition || "—"}
+                    actions={
+                      <VocabWordAction
+                        tone="success"
+                        testId="mark-learned"
+                        disabled={judging}
+                        ariaLabel={`把 ${w.word} 标记为已学会`}
+                        onClick={() => handleMarkLearned(w.set_word_id)}
+                      >
+                        我已学会
+                      </VocabWordAction>
+                    }
+                  />
+                ))}
+              </div>
+            )}
             <div className="mt-6 flex justify-center">
               <Link
                 href={`/vocabulary/sets/${id}`}
@@ -191,8 +203,8 @@ export default function VocabSievePage() {
           </>
         ) : state?.word ? (
           <>
-            {/* 当前单词卡 */}
-            <div className="bg-canvas border border-hairline rounded-xl shadow-soft px-6 py-12 text-center">
+            {/* 当前单词卡：与训练选择题卡同款（rounded-xl + shadow-lift） */}
+            <div className="bg-canvas border border-hairline rounded-xl shadow-lift px-6 py-10 text-center">
               <p className="text-4xl font-extrabold tracking-tight text-ink">{state.word.word}</p>
               {state.word.ipa && (
                 <p className="text-sm text-muted font-mono mt-2">{state.word.ipa}</p>
@@ -208,13 +220,15 @@ export default function VocabSievePage() {
               )}
             </div>
 
-            {/* 判定按钮 + 快捷键提示 */}
+            {/* 判定按钮：会/不会 是二选一的自评，没有对错之分，所以两边等重。
+                原来是「会」实心绿 +「不会」警告色软底，等于暗示「会」才是正确答案，
+                连点过筛时会被推着往「会」上点。 */}
             <div className="flex gap-3 mt-6">
               <button
                 data-testid="sieve-unknown"
                 onClick={() => handleJudge(false)}
                 disabled={judging}
-                className="flex-1 py-4 rounded-lg bg-warning-soft text-warning border border-warning/40 text-base font-bold hover:bg-warning/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3.5 rounded-md bg-canvas border border-hairline text-ink text-[15px] font-bold hover:border-warning hover:bg-warning-soft hover:text-warning transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 不会
               </button>
@@ -222,7 +236,7 @@ export default function VocabSievePage() {
                 data-testid="sieve-known"
                 onClick={() => handleJudge(true)}
                 disabled={judging}
-                className="flex-1 py-4 rounded-lg bg-success text-on-primary text-base font-bold hover:bg-success/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3.5 rounded-md bg-canvas border border-success/40 text-success text-[15px] font-bold hover:bg-success hover:text-on-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 会
               </button>

@@ -27,7 +27,6 @@ import {
 import {
   buildDrillQuestion,
   conciseTranslation,
-  DRILL_KIND_LABEL,
   questionKindForAppearance,
   type DrillQuestion,
 } from "@/lib/drillQuestions";
@@ -59,17 +58,29 @@ export default function VocabDrillPage() {
   return <DailyTraining />;
 }
 
-/** Drill header: 退出 + 阶段标签 + 进度条 + 计数。 */
+/**
+ * Drill header：退出 + 页面名 +（可选）题号 + 本轮进度 + 进度条。
+ *
+ * 进度按「本轮单词」而不是「题目」算：一个词要连对两次才毕业、答错还会重插，
+ * 一轮的题目总数一直在变，拿它当分母进度条只会乱跳。右侧计数器的口径由调用方
+ * 用 `progressLabel` 说明（每日训练是「本轮」，深链测验是「已答」）。
+ * 题型标签（认词/巩固/听音选词）属于题面，不占页头的槽位。
+ */
 function DrillHeader({
   label,
-  answered,
+  progressLabel,
+  done,
   total,
+  step,
 }: {
   label: string;
-  answered: number;
+  progressLabel: string;
+  done: number;
   total: number;
+  /** 当前第几题（1 起）；总结/加载态不传。 */
+  step?: number;
 }) {
-  const pct = total ? Math.round((answered / total) * 100) : 0;
+  const pct = total ? Math.round((done / total) * 100) : 0;
   return (
     <div className="sticky top-0 z-30 bg-canvas/92 backdrop-blur border-b border-hairline">
       <div className="max-w-[880px] mx-auto flex items-center gap-3.5 px-4 py-3">
@@ -80,18 +91,21 @@ function DrillHeader({
         >
           <X size={20} />
         </Link>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
-          <span className="w-2 h-2 rounded-full bg-brand-500" />
-          {label}
-        </span>
-        <div className="flex-1 h-1.5 rounded-full bg-surface-card overflow-hidden">
+        <span className="text-[13px] font-semibold text-ink flex-shrink-0">{label}</span>
+        {step != null && (
+          <span className="text-xs text-muted-soft flex-shrink-0 tabular-nums">第 {step} 题</span>
+        )}
+        <div className="flex-1 min-w-0 h-1.5 rounded-full bg-surface-card overflow-hidden">
           <div
             className="h-full bg-brand-500 rounded-full transition-all duration-300"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="text-xs text-muted font-mono flex-shrink-0">
-          {answered}/{total}
+        <span className="text-xs text-muted flex-shrink-0 tabular-nums">
+          <span className="text-muted-soft">{progressLabel}</span>{" "}
+          <span className="font-mono">
+            {done}/{total}
+          </span>
         </span>
       </div>
     </div>
@@ -110,7 +124,7 @@ function VideoScopedDrill({ videoId }: { videoId: string }) {
 
   return (
     <main className="min-h-full bg-surface-soft">
-      <DrillHeader label="本视频生词" answered={answered} total={total} />
+      <DrillHeader label="本视频生词" progressLabel="已答" done={answered} total={total} />
       <div className="max-w-[880px] mx-auto px-4 py-8 pb-24">
         <UnifiedPracticePanel session={session} levelLabel="单词训练" />
       </div>
@@ -282,7 +296,7 @@ function DailyTraining() {
   if (error) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <DrillHeader label="今日训练" answered={0} total={0} />
+        <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
         <div className="max-w-[880px] mx-auto px-4 py-16">
           <ErrorState title={error} onRetry={round.reload} />
         </div>
@@ -293,19 +307,27 @@ function DailyTraining() {
   if (loading || !phase) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <DrillHeader label="今日训练" answered={0} total={0} />
+        <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
         <FullPageSpinner />
       </main>
     );
   }
 
+  // 本轮单词总数：建队时的词池快照。一个词要连对两次才毕业、答错会重插，
+  // 所以这是分母（词），不是题数。
+  const roundTotal = Math.max(pool.length, progress.done, 1);
+  // 当前题号：已答数 + 1，反馈展示期间（`lastCorrect` 已填）停在这一题上。
+  const questionNo = progress.asked + (lastCorrect === null ? 1 : 0);
+
   if (phase === "drill") {
     return (
       <main className="min-h-full bg-surface-soft">
         <DrillHeader
-          label={question ? DRILL_KIND_LABEL[question.kind] : "今日训练"}
-          answered={progress.done}
-          total={Math.max(pool.length, progress.done, 1)}
+          label="今日训练"
+          progressLabel="本轮"
+          done={progress.done}
+          total={roundTotal}
+          step={questionNo}
         />
         <div className="max-w-[880px] mx-auto px-4 py-8 pb-24 animate-fade-in">
           {question ? (
@@ -325,11 +347,7 @@ function DailyTraining() {
 
   return (
     <main className="min-h-full bg-surface-soft">
-      <DrillHeader
-        label="今日训练"
-        answered={progress.done}
-        total={Math.max(pool.length, progress.done, 1)}
-      />
+      <DrillHeader label="今日训练" progressLabel="本轮" done={progress.done} total={roundTotal} />
       <div className="max-w-[880px] mx-auto px-4 py-10 pb-24">
         <TrainSummary
           learnedCount={progress.learned}

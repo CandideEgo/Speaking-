@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -10,8 +10,6 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useDailySession } from "@/hooks/useDailySession";
 import {
   BookOpen,
-  Trash2,
-  Volume2,
   Target,
   CheckCircle2,
   Flame,
@@ -23,7 +21,7 @@ import {
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Badge, type BadgeTone } from "@/components/common/Badge";
+import { type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -32,9 +30,10 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
 import { DailyHero } from "@/components/vocabulary/DailyHero";
+import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
-import { cn, relativeTime } from "@/lib/utils";
+import { relativeTime } from "@/lib/utils";
 import type {
   Paginated,
   TodayTrainingSummary,
@@ -54,141 +53,19 @@ interface VocabStatsResponse {
 
 const PAGE_SIZE = 24;
 
-/** 每日新词配额预设（DEC-053）：全局一个设置，不是每个视频一份。 */
-const QUOTA_PRESETS = [10, 20, 30, 50];
-
 /**
- * 今日视图的配额条：左「今日已学 N 词（含加练）· 第 K 轮」，右 10/20/30/50/自定义。
- * 配额改动只影响之后开的轮次——已经在做的这一轮按开始时的快照走完。
+ * 掌握度徽标。`new` 是「新词」而不是「待复习」：待复习另有到期口径
+ * （`due_count`，由复习调度按 `next_review_at` 算），两者混用会让刚
+ * 加进词库、一次都没复习过的词看起来已经欠着复习。
  */
-function DailyQuotaPanel({
-  preferences,
-  today,
-  onSaved,
-}: {
-  preferences: VocabularyPreferences | null;
-  today: TodayTrainingSummary;
-  onSaved: (next: VocabularyPreferences) => void;
-}) {
-  const [custom, setCustom] = useState(false);
-  const [customValue, setCustomValue] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const current = preferences?.daily_new_target ?? 10;
-  const min = preferences?.quota_min ?? 5;
-  const max = preferences?.quota_max ?? 100;
-
-  async function save(value: number) {
-    if (saving) return;
-    setSaving(true);
-    try {
-      const next = await api<VocabularyPreferences>("/api/v1/vocabulary/preferences", {
-        method: "PUT",
-        body: JSON.stringify({ daily_new_target: value }),
-      });
-      onSaved(next);
-      setCustom(false);
-      toast.success(`每日新词配额已设为 ${next.daily_new_target}`);
-    } catch {
-      toast.error("配额保存失败，请重试");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const pillClass = (active: boolean) =>
-    cn(
-      "px-3 py-1.5 rounded-sm text-xs font-semibold border transition-colors disabled:opacity-50",
-      active
-        ? "bg-ink text-canvas border-ink"
-        : "bg-canvas text-ink border-hairline hover:border-ink"
-    );
-
-  return (
-    <Card variant="outline" padding={4} className="mb-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-[13px] text-muted">
-          今日已学 <span className="font-bold text-ink">{today.words_learned}</span> 词（含加练）
-          {today.rounds > 0 && (
-            <>
-              <span className="mx-1.5 text-muted-soft">·</span>第{" "}
-              <span className="font-bold text-ink">{today.rounds}</span> 轮
-            </>
-          )}
-        </p>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs text-muted mr-0.5">每日新词</span>
-          {QUOTA_PRESETS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={saving}
-              onClick={() => save(value)}
-              aria-pressed={value === current}
-              className={pillClass(value === current)}
-            >
-              {value}
-            </button>
-          ))}
-          {custom ? (
-            <span className="inline-flex items-center gap-1.5">
-              <input
-                type="number"
-                min={min}
-                max={max}
-                value={customValue}
-                onChange={(e) => setCustomValue(e.target.value)}
-                aria-label="自定义每日新词配额"
-                className="w-20 h-8 px-2.5 rounded-sm bg-surface-card border border-transparent text-xs text-ink
-                  focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
-                  transition-colors duration-150"
-              />
-              <Button
-                size="sm"
-                variant="dark"
-                disabled={saving}
-                onClick={() => {
-                  const value = Math.round(Number(customValue));
-                  if (!Number.isFinite(value) || value < min || value > max) {
-                    toast.error(`请输入 ${min}~${max} 之间的数字`);
-                    return;
-                  }
-                  save(value);
-                }}
-              >
-                确定
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setCustom(false)}>
-                取消
-              </Button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => {
-                setCustomValue(String(current));
-                setCustom(true);
-              }}
-              className={pillClass(!QUOTA_PRESETS.includes(current))}
-            >
-              自定义
-            </button>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 function masteryBadge(level: string | null | undefined): {
   tone: BadgeTone;
   text: string;
 } {
   if (level === "mastered") return { tone: "green", text: "已掌握" };
+  if (level === "reviewing") return { tone: "brand", text: "复习中" };
   if (level === "learning") return { tone: "amber", text: "学习中" };
-  return { tone: "brand", text: "待复习" };
+  return { tone: "neutral", text: "新词" };
 }
 
 /** 视频集合 tab：缩略图 + 标题 + 进度环 + 最近学习，点击进集合详情。 */
@@ -317,7 +194,8 @@ export default function VocabularyPage() {
   });
   const [dueOnly, setDueOnly] = useState(false);
   const [masteryFilter, setMasteryFilter] = useState<string>("all");
-  const undoneRef = useRef(false);
+  // 统计是否到过一次（首启判断依赖它，见 loadStats）。
+  const [statsLoaded, setStatsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // 搜索防抖：避免每次击键都请求后端。
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -366,6 +244,9 @@ export default function VocabularyPage() {
       });
     } catch {
       // keep existing stats on error
+    } finally {
+      // 首启判断要等统计回来，否则会先闪一张「词库还是空的」再跳回正常 Hero。
+      setStatsLoaded(true);
     }
   }
 
@@ -380,8 +261,9 @@ export default function VocabularyPage() {
 
   /** Optimistic delete with undo toast (Material Design: prefer undo over confirm). */
   function handleDeleteWithUndo(word: VocabularyWord) {
+    // 每个 toast 一个独立的撤销标记：多个待定删除同时存在时互不影响。
+    let undone = false;
     // Remove from UI immediately
-    undoneRef.current = false;
     list.setItems((prev) => prev.filter((w) => w.id !== word.id));
     setStats((prev) => ({ ...prev, total: prev.total - 1 }));
 
@@ -392,14 +274,14 @@ export default function VocabularyPage() {
         label: "撤销",
         onClick: () => {
           // Undo: re-add the word to local state
-          undoneRef.current = true;
+          undone = true;
           list.setItems((prev) => [word, ...prev]);
           setStats((prev) => ({ ...prev, total: prev.total + 1 }));
         },
       },
       onDismiss: () => {
         // Only commit delete if undo was NOT clicked
-        if (!undoneRef.current) {
+        if (!undone) {
           handleDelete(word.id);
         }
       },
@@ -429,6 +311,8 @@ export default function VocabularyPage() {
 
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const showEmpty = !list.loading && !list.error && list.items.length === 0;
+  // 首启（一个词都没有）：Hero 换成收词引导，统计行不再摆一排 0。
+  const firstRun = statsLoaded && stats.total === 0;
 
   return (
     <PageTransition>
@@ -454,62 +338,45 @@ export default function VocabularyPage() {
 
         {topTab === "today" ? (
           <>
-            {/* 训练 Hero：词库掌握环 + 今日队列计数 + 开始今日训练 CTA */}
+            {/* 今日行动卡：掌握环 + 今日队列 + CTA + 今日已学/配额（同一张卡，见 DailyHero） */}
             <DailyHero
               newTotal={daily.session?.totals.new_total ?? 0}
               dueTotal={daily.session?.totals.due_total ?? 0}
               total={stats.total}
               mastered={stats.mastered}
-              loading={daily.loading}
-              newTarget={preferences?.daily_new_target}
-              reviewTarget={preferences?.daily_review_target}
+              loading={daily.loading || !statsLoaded}
+              today={todaySummary}
+              preferences={preferences}
+              onQuotaSaved={setQuota}
             />
 
-            {/* 每日配额 + 今日进度（DEC-053） */}
-            <DailyQuotaPanel preferences={preferences} today={todaySummary} onSaved={setQuota} />
-
-            {/* Stat cards (due 卡高亮) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-              <MetricCard icon={BookOpen} label="总计" value={stats.total} variant="label-top" />
-              <MetricCard
-                icon={Target}
-                label="待复习"
-                value={stats.due}
-                tone="brand"
-                variant="label-top"
-                className="ring-2 ring-brand-500/30 ring-offset-2 ring-offset-canvas"
-              />
-              <MetricCard
-                icon={CheckCircle2}
-                label="已掌握"
-                value={stats.mastered}
-                tone="success"
-                variant="label-top"
-              />
-              <MetricCard
-                icon={Flame}
-                label="学习中"
-                value={stats.learning}
-                tone="warning"
-                variant="label-top"
-              />
-            </div>
-
-            {/* 全新用户空态：一个词都没有时引导去频道看视频收集生词 */}
-            {!daily.loading && stats.total === 0 && !daily.error && (
-              <EmptyState
-                icon={BookOpen}
-                title="还没有生词"
-                description="去频道看视频，点击字幕里的单词就能加入词库"
-                action={
-                  <Link
-                    href="/browse"
-                    className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
-                  >
-                    去频道看看 →
-                  </Link>
-                }
-              />
+            {!firstRun && (
+              /* 词库统计：Hero 已经讲了「今天要做什么」，这行只交代词库总量，
+                 所以不给任何一张卡加外圈 ring，也不用 warning 色——「学习中」
+                 是进度不是警告。语义色只留「待复习」brand 与「已掌握」success。 */
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+                <MetricCard icon={BookOpen} label="总计" value={stats.total} variant="label-top" />
+                <MetricCard
+                  icon={Target}
+                  label="待复习"
+                  value={stats.due}
+                  tone="brand"
+                  variant="label-top"
+                />
+                <MetricCard
+                  icon={CheckCircle2}
+                  label="已掌握"
+                  value={stats.mastered}
+                  tone="success"
+                  variant="label-top"
+                />
+                <MetricCard
+                  icon={Flame}
+                  label="学习中"
+                  value={stats.learning}
+                  variant="label-top"
+                />
+              </div>
             )}
           </>
         ) : (
@@ -626,62 +493,41 @@ export default function VocabularyPage() {
                   />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {list.items.map((w) => {
-                      const mb = masteryBadge(w.mastery_level);
-                      return (
-                        <Card
-                          key={w.id}
-                          variant="outline"
-                          padding={5}
-                          className="flex flex-col gap-3"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-lg font-bold tracking-tight flex items-center gap-2">
-                                {w.word}
-                                <button
-                                  onClick={() => speak(w.word, { rate: 1 })}
-                                  className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-brand-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
-                                  aria-label={`播放 ${w.word}`}
-                                >
-                                  <Volume2 size={13} />
-                                </button>
-                              </div>
-                              {w.part_of_speech && (
-                                <p className="text-xs text-muted-soft italic mt-[3px]">
-                                  {w.part_of_speech}
-                                </p>
-                              )}
-                              <p className="text-[13px] text-body leading-relaxed mt-1.5">
-                                {w.translation ||
-                                  w.definition ||
-                                  (w.context_sentence ? `"${w.context_sentence}"` : "—")}
-                              </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                              <Badge tone={mb.tone}>{mb.text}</Badge>
-                              {w.mastery_level !== "mastered" && (
-                                <button
-                                  onClick={() => handleMarkMastered(w)}
-                                  className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-emerald-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
-                                  title="标记为已掌握"
-                                  aria-label={`标记 ${w.word} 为已掌握`}
-                                >
-                                  <CheckCircle2 size={13} />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteWithUndo(w)}
-                                className="w-6 h-6 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-error hover:text-on-primary transition-colors duration-100 cursor-pointer"
-                                aria-label={`删除 ${w.word}`}
+                    {list.items.map((w) => (
+                      <VocabWordCard
+                        key={w.id}
+                        word={w.word}
+                        ipa={w.ipa}
+                        partOfSpeech={w.part_of_speech}
+                        meaning={
+                          w.translation ||
+                          w.definition ||
+                          (w.context_sentence ? `"${w.context_sentence}"` : "—")
+                        }
+                        badge={masteryBadge(w.mastery_level)}
+                        onSpeak={() => speak(w.word, { rate: 1 })}
+                        actions={
+                          <>
+                            {w.mastery_level !== "mastered" && (
+                              <VocabWordAction
+                                tone="success"
+                                ariaLabel={`标记 ${w.word} 为已掌握`}
+                                onClick={() => handleMarkMastered(w)}
                               >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
+                                标为已掌握
+                              </VocabWordAction>
+                            )}
+                            <VocabWordAction
+                              tone="danger"
+                              ariaLabel={`删除 ${w.word}`}
+                              onClick={() => handleDeleteWithUndo(w)}
+                            >
+                              删除
+                            </VocabWordAction>
+                          </>
+                        }
+                      />
+                    ))}
                   </div>
                 )}
 

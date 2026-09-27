@@ -7,14 +7,15 @@ import { toast } from "sonner";
 import { ChevronLeft, ListFilter, Play } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVocabSetDetail } from "@/hooks/useVocabSetDetail";
+import { useSpeech } from "@/hooks/useSpeech";
 import { TabPills } from "@/components/ui/TabPills";
-import { Badge, type BadgeTone } from "@/components/common/Badge";
-import { Card } from "@/components/ui/Card";
+import { type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
+import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { api } from "@/lib/api";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import type { VocabSetScope, VocabSetWord, VocabSetWordStatus } from "@/types";
@@ -53,6 +54,7 @@ export default function VocabSetDetailPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, VocabSetWordStatus>>({});
   const [masteredDelta, setMasteredDelta] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { speak } = useSpeech();
 
   // scope 切换 / reload 重拉成功后，服务端计数与词行状态已包含就地改动，
   // 本地覆盖与 delta 必须清零，否则会重复增减（掌握数偏高/偏低）。
@@ -139,26 +141,46 @@ export default function VocabSetDetailPage() {
           </Link>
         </div>
 
-        {/* Header：缩略图 + 标题 + 进度 + 回看原视频 */}
-        <div className="flex items-center gap-3.5 flex-wrap mb-6">
+        {/* Header：缩略图 + 标题 + 掌握进度条 + 过筛主操作。
+            过筛原来只是页尾一个整行按钮：词一多就要先滚到底才看得见。主操作上页头，
+            页尾留一条同去向的描边入口给长列表收尾。 */}
+        <div className="flex items-center gap-4 flex-wrap mb-6">
           <div className="relative w-28 aspect-video rounded-lg overflow-hidden bg-surface-card flex-shrink-0">
             <Image src={detail.thumbnail_url} alt={detail.title} sizes="112px" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-[200px]">
             <h1 className="text-lg font-extrabold tracking-tight text-ink line-clamp-1">
               {detail.title}
             </h1>
-            <p className="text-[13px] text-muted mt-1 tabular-nums">
-              已掌握 {masteredCount}/{detail.total} · {pct}%
-            </p>
+            <div className="flex items-center gap-2.5 mt-2">
+              <div className="w-full max-w-[220px] h-1.5 rounded-full bg-surface-card overflow-hidden">
+                <div
+                  className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="text-[13px] text-muted tabular-nums flex-shrink-0">
+                已掌握 {masteredCount}/{detail.total} · {pct}%
+              </span>
+            </div>
           </div>
-          <Link
-            href={watchHref(detail.video_id, { from: "set", extra: { set: id } })}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-canvas text-ink border border-hairline text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-all flex-shrink-0"
-          >
-            <Play size={14} />
-            回看原视频
-          </Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href={watchHref(detail.video_id, { from: "set", extra: { set: id } })}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-canvas text-ink border border-hairline text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+            >
+              <Play size={14} />
+              回看原视频
+            </Link>
+            <Link
+              href={`/vocabulary/sets/${id}/sieve`}
+              data-testid="start-sieve"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-sm bg-brand-500 text-on-primary text-[13px] font-semibold shadow-brand hover:bg-brand-600 transition-all"
+            >
+              <ListFilter size={14} />
+              {ctaLabel}
+            </Link>
+          </div>
         </div>
 
         {/* scope 筛选 */}
@@ -194,78 +216,60 @@ export default function VocabSetDetailPage() {
               const sb = statusBadge(w.status);
               const isMastered = w.status === "known" || w.status === "learned";
               return (
-                <Card
+                <VocabWordCard
                   key={w.set_word_id}
-                  variant="outline"
-                  padding={4}
-                  className="flex flex-col gap-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-[15px] font-bold text-ink">{w.word}</span>
-                        {w.ipa && <span className="text-xs text-muted font-mono">{w.ipa}</span>}
-                        {w.part_of_speech && (
-                          <span className="text-xs text-muted-soft italic">{w.part_of_speech}</span>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-body mt-0.5 line-clamp-1">
-                        {w.translation || w.definition || "—"}
-                      </p>
-                    </div>
-                    <Badge tone={sb.tone} className="flex-shrink-0">
-                      {sb.text}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    {/* 词→句 deep link (S7b)：只有知道来源句才显示；跳走无损（无瞬时进度）。 */}
-                    {w.subtitle_id ? (
-                      <Link
-                        href={watchSentenceHref(
+                  word={w.word}
+                  ipa={w.ipa}
+                  partOfSpeech={w.part_of_speech}
+                  meaning={w.translation || w.definition || "—"}
+                  badge={sb}
+                  onSpeak={() => speak(w.word, { rate: 0.9 })}
+                  /* 词→句 deep link (S7b)：只有知道来源句才给链接；跳走无损（无瞬时进度）。 */
+                  sentenceHref={
+                    w.subtitle_id
+                      ? watchSentenceHref(
                           detail.video_id,
                           { from: "set", extra: { set: id } },
                           { subtitleId: w.subtitle_id, startTime: w.start_time, word: w.word }
-                        )}
-                        className="inline-flex items-center gap-1 text-xs text-brand-500 hover:underline"
-                      >
-                        回到对应句子 →
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    {isMastered ? (
-                      <button
-                        onClick={() => mutateSetWord(w, "unmark", "unknown", -1)}
+                        )
+                      : null
+                  }
+                  actions={
+                    isMastered ? (
+                      <VocabWordAction
                         disabled={busyId !== null}
-                        className="text-xs text-muted hover:text-ink hover:underline transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        ariaLabel={`取消 ${w.word} 的已掌握标记`}
+                        onClick={() => mutateSetWord(w, "unmark", "unknown", -1)}
                       >
                         取消标记
-                      </button>
+                      </VocabWordAction>
                     ) : (
-                      <button
-                        onClick={() => mutateSetWord(w, "learned", "learned", 1)}
+                      <VocabWordAction
+                        tone="success"
                         disabled={busyId !== null}
-                        className="text-xs font-semibold text-success hover:underline transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        ariaLabel={`标记 ${w.word} 为已掌握`}
+                        onClick={() => mutateSetWord(w, "learned", "learned", 1)}
                       >
                         标为已掌握
-                      </button>
-                    )}
-                  </div>
-                </Card>
+                      </VocabWordAction>
+                    )
+                  }
+                />
               );
             })}
           </div>
         )}
 
-        {/* Footer CTA → 快速过筛 */}
-        <Link
-          href={`/vocabulary/sets/${id}/sieve`}
-          data-testid="start-sieve"
-          className="mt-8 flex items-center justify-center gap-2 w-full px-6 py-3.5 rounded-sm bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
-        >
-          <ListFilter size={16} />
-          {ctaLabel}
-        </Link>
+        {/* 页尾同去向入口（描边）：长列表滑到底时不用再滚回页头。主操作在页头。 */}
+        {words.length > 0 && (
+          <Link
+            href={`/vocabulary/sets/${id}/sieve`}
+            className="mt-8 flex items-center justify-center gap-2 w-full px-6 py-3 rounded-sm bg-canvas text-ink border border-hairline text-sm font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+          >
+            <ListFilter size={16} />
+            {ctaLabel}
+          </Link>
+        )}
       </main>
     </PageTransition>
   );
