@@ -27,7 +27,9 @@ updated: 2026-09-28
 人再去看它跑到运行时会怎样。一次 `curl` 就能看见的 500，被一条本来就为降噪而存在的记录挡住了视线。
 
 **Solution**: 按 DEC-059 改为方言感知的内联 tsvector（PostgreSQL 内联构造，SQLite 退回 ILIKE），
-删除 `rebuild_video_search_vector()` 与那条不实的 docstring；基线条目本身不动（棘轮保留）。
+删除 `rebuild_video_search_vector()` 与那条不实的 docstring；基线里那条
+`app/services/search_service.py:attr-defined` 也一并删掉——错误消失后它只是条死条目（CI 的
+`comm` 只查新增，不查消失，留着不会被谁发现）。
 
 **Future Prevention**:
 - 基线只承诺「不再新增」。**碰 ORM 属性、列名、跨模块调用签名的 baselined 条目，一律先当作未验证
@@ -50,8 +52,8 @@ updated: 2026-09-28
 - **docstring 明说这是有意行为**：意图与实现一致时，报告只是把设计重新描述了一遍。
 
 **Solution**: 每条 critical/high 回到代码求证一次——能用 curl 或端点测试复现的按真实严重性定级，
-否则降级或驳回；结论与证据留在审计报告里（逐条核实证据、被证伪的论证、未验证清单）。128 项修复
-随之落地。
+否则降级或驳回；结论与证据留在审计报告里（逐条核实证据、被证伪的论证、未验证清单），附录 B 这一轮
+的产出与 128 项修复记在 `CHANGELOG.md`。
 
 **Future Prevention**（三条筛查问题，按序问，任一条命中即驳回或大幅降级）:
 1. **这条路径可达吗？**——有任何调用方或端点能走到被报的那行代码吗？

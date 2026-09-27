@@ -6,7 +6,7 @@ confidence: verified
 related_code: [pytest-suite]
 related: [wiki/guides/testing.md]
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 
 # 测试与服务端「今天」不同基准 → 只在 00:00–08:00（北京）失败的 flake

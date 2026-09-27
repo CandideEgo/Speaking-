@@ -6,7 +6,7 @@ confidence: verified
 related_code: [video-pipeline, translation, transcription]
 related: [.agent/context.md, .agent/decisions.md]
 created: 2026-07-23
-updated: 2026-07-25
+updated: 2026-09-28
 ---
 
 # Background
@@ -39,7 +39,7 @@ Runs 5 checks on GPU worker callback:
 
 ## 3. Translation Quality Gate
 
-**Location**: `app/services/translation/quality.py`, called from `finalize_video`
+**Location**: checks in `app/services/translation/quality.py`; the coverage decision is `_translation_quality_decision` in `app/tasks/video_processing.py::finalize_video`
 
 Checks after translation:
 - **Coverage**: ≥80% of subtitles must have translations
@@ -47,7 +47,14 @@ Checks after translation:
 - **Short translations**: ≤30% with <3 chars (catches truncation)
 - **Length outliers**: translation length within 30%-300% of source
 
-**Action**: WARN (log) but continue — transient issues may resolve on retry.
+**Action** (coverage only): below `translation_quality_block_coverage` (default 0.60, but the admin
+settings row's `quality_block_threshold` overrides it) the video gets `quality_flag=quality_blocked`,
+goes `error` and the pipeline stops — deliberately without a Celery retry, since the same engine on the
+same input reproduces the low coverage; an admin re-translates, optionally with another engine. Between
+the block threshold and `translation_quality_warn_coverage` (default 0.80) the flag is
+`quality_warning` and the video still goes ready. `translation_quality_block_enabled=False` reverts to
+warn-only. The other three checks never block. The report is persisted to `video_quality_reports`
+either way.
 
 ## 4. Word Levels Preservation
 
@@ -56,8 +63,9 @@ Checks after translation:
 Changed from "always recompute" to "compute only when null".
 
 ```python
-if s.word_levels is None:
-    s.word_levels = ecdict.annotate_text(s.text_en)
+if s.word_levels is not None:
+    continue  # manual override or prior compute
+s.word_levels = ecdict.annotate_text(s.text_en) or None
 ```
 
 This preserves:
@@ -66,15 +74,14 @@ This preserves:
 
 ## Why Not Fail-Fast for Translation?
 
-Translation issues are often transient (API rate limit, network hiccup). The per-item retry in `_translate_subtitles` may fill gaps. Failing the entire video for a single bad translation would be overkill.
+Most translation issues are transient (API rate limit, network hiccup): the per-item retry in `_translate_subtitles` fills gaps, and the mixed/short/length checks only warn. Coverage is the structural exception — an engine that returns almost nothing for a batch will do it again — so it blocks (see §3) instead of spending quota on a retry.
 
 Hallucination, on the other hand, is structural — the transcription model produced garbage. There's no "retry" at that point (the audio has already been processed). Failing fast is the only correct action.
 
 ## Testing
 
-11 new tests in `tests/test_quality_safety_net.py`:
-- 5 hallucination detection tests
-- 4 translation quality gate tests
-- 2 word_levels preservation tests
+15 tests in `tests/test_quality_safety_net.py`:
+- 5 hallucination detection, 4 translation quality gate
+- 2 word_levels preservation, 4 quality-report persistence
 
-All 433 tests pass.
+The coverage block/warn decision has its own file: `tests/test_translation_quality_block.py`.

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [frontend-app, frontend-components, frontend-stores, frontend-lib, frontend-hooks]
 related: [wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 
 # Background
@@ -44,9 +44,9 @@ frontend/src/
 - coral/cream/brand color scheme
 - New components must use semantic tokens (`bg-surface`/`text-primary`), never hardcoded color values
 - 动效一律走 CSS：`globals.css` 的 `animate-*` 工具类 + keyframes（`fade-in` / `fade-slide-in` /
-  `check-pop` / `complete-flash` / `shake`），不引入 JS 动效库——GSAP 曾挂在每个主页面，把整包拉进共享
-  chunk（见 `PageTransition` 注释），纯 CSS keyframes 效果相同、零 JS 成本。新动效先复用既有 keyframes，
-  判定时刻（答对/答错、完成）是首选落点
+  `check-pop` / `complete-flash` / `shake`），不引入新的 JS 动效库——GSAP 现在只剩 `ScrollReveal` 一处
+  按需 `import()`（它曾挂在每个主页面，把整包拉进共享 chunk，见 `PageTransition` 注释），纯 CSS
+  keyframes 效果相同、零 JS 成本。新动效先复用既有 keyframes，判定时刻（答对/答错、完成）是首选落点
 
 # Watch-Page Playback State
 

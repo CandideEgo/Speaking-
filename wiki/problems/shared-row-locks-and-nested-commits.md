@@ -6,7 +6,7 @@ confidence: verified
 related_code: [api-v1, backend-services, models-behavior, pytest-suite]
 related: [wiki/problems/cache-invalidation-and-media-gate-blindspots.md, .agent/decisions.md]
 created: 2026-09-25
-updated: 2026-09-25
+updated: 2026-09-28
 ---
 
 # 行锁的三个可复用陷阱

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [docker-compose, env-config]
 related: [wiki/guides/testing.md]
 created: 2026-07-21
-updated: 2026-09-25
+updated: 2026-09-28
 ---
 
 # Local Development
@@ -32,9 +32,10 @@ App services run natively — no Docker build on code change.
 `.env` at backend root has API keys (gitignored). Copy `.env.example` for local setup.
 
 Key variables: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OPENAI_API_KEY`. Only `ENV=development`
-has fallbacks for any of them (DEC-051); outside dev `JWT_SECRET` and `DATABASE_URL` become
-mandatory, and `production` additionally requires `OPENAI_API_KEY`, `REDIS_URL` and
-`TRANSCRIPTION_CALLBACK_SECRET` (`core/config.py:318-336`).
+falls back to defaults (DEC-051); outside dev `JWT_SECRET` and `DATABASE_URL` become mandatory, and
+`production` additionally requires `OPENAI_API_KEY`, `TRANSCRIPTION_CALLBACK_SECRET` and a
+`REDIS_URL` that was actually provided — its working localhost default does not satisfy the guard
+(`core/config.py:316-343`).
 
 ## Production Deploy
 
@@ -48,11 +49,14 @@ Production: gunicorn (2 workers, `docker-compose.prod.yml` 的 `-w 2`) + nginx (
 
 ```bash
 cd backend
-python scripts/seed_official_videos.py              # create all videos
-python scripts/seed_official_videos.py --dry-run     # preview only
-python scripts/seed_official_videos.py --category ted
-python scripts/seed_official_videos.py --force       # re-fetch metadata + subtitles
+python -m scripts.seed_official_videos              # create all videos
+python -m scripts.seed_official_videos --dry-run     # preview only
+python -m scripts.seed_official_videos --category ted
+python -m scripts.seed_official_videos --force       # re-fetch metadata + subtitles
 ```
+
+`-m`, not a bare path: the script puts only its own directory on `sys.path`, so
+`python scripts/seed_official_videos.py` dies with `ModuleNotFoundError: No module named 'app'`.
 
 Idempotent: skips by `source_url`. Incremental: add to `OFFICIAL_VIDEOS` list and re-run.
 

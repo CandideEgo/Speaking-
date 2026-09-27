@@ -6,7 +6,7 @@ confidence: verified
 related_code: [ecdict-service, transcription]
 related: [wiki/architecture/exam-vocabulary.md]
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-09-28
 ---
 
 # ASR / 标注质量诊断报告 (D3)
@@ -30,9 +30,9 @@ updated: 2026-08-03
 | `0` | lemma 反向指针（best 的 `0:good` 表示 best 派生自 good） | `best: 0:good` | `inflected["good"] -> "best"`，点 good 出 best 释义 |
 | `1` | 词形类型标记（best 的 `1:t` 标记最高级） | `best: 1:t` | `inflected["t"] -> "best"`，且常见 token "i" 被映射到 "abiding" |
 
-修复（见 memory `ecdict-exchange-lemma-bug` + commit 历史）：`_parse_exchange` 改为**白名单**只接受正向词形码（s/p/d/i/r/t/3/f/b/z），拒绝 0/1 及未知码。`best` 的 `0:good`/`1:t` 不再进索引。
+修复（历史见 `CHANGELOG.md`）：`_parse_exchange` 改为**白名单**只接受正向词形码（s/p/d/i/r/t/3/f/b/z），拒绝 0/1 及未知码。`best` 的 `0:good`/`1:t` 不再进索引。
 
-## 三、当前代码验证（2026-08-03）
+## 三、当前代码验证（2026-08-03 首次 · 2026-09-28 复核）
 
 逐条核对用户报的全部案例，`lookup()` 返回均正确：
 
@@ -55,7 +55,7 @@ DB 脏数据检查：全库扫描 `word_levels` 含 `"i"`/`"good"`/`"more"`/`"ou
 
 ## 四、为什么 more/good/out 点击无 ECDICT 释义
 
-这是**预期行为，非 bug**：`more`(bnc=74)、`good`(bnc=73)、`out`(bnc=62) 的 BNC 排名 ≤ `STOPWORD_BNC_RANK=100`，被当作超高频功能词过滤（避免字幕被 the/a/of 这类词刷屏高亮）。`lookup()` 返回 None → 字幕里不高亮（正确）。点击时 `gloss_word` 走 AI fallback（lemma 用 clean 兜底），仍有 AI 语境注释，只是无 ECDICT 静态释义。
+这是**预期行为，非 bug**：`more`(bnc=74)、`good`(bnc=73)、`out`(bnc=62) 的 BNC 排名 ≤ `STOPWORD_BNC_RANK=100`，被当作超高频功能词过滤（避免字幕被 the/a/of 这类词刷屏高亮）。`lookup()` 返回 None → 字幕里不高亮（正确）。点击时 `gloss_word` 仍返回词卡（`lemma` 用 clean 兜底），但只有 ECDICT 静态层与管线预热的 `word_ai_notes` 两层——**没有实时 AI fallback**（D0b 已砍）：这类词不在 ECDICT 索引里，真题例句有 `if entry` 门控，预热也只遍历 ECDICT 考试词，所以卡片除词面本身外拿不到内容。
 
 用户报"点 more 变 mores"是**旧版本**（code 0/1 未修前）的记忆——当时 `inflected["more"]` 会被 `mores` 的 `0:more` 反向指针错误设为 "more"->"mores"（更准确说是 `0` 码把 mores 的 lemma 指回 more，污染了 more 的查找）。现已修复。
 
@@ -63,4 +63,4 @@ DB 脏数据检查：全库扫描 `word_levels` 含 `"i"`/`"good"`/`"more"`/`"ou
 
 - **不改代码**：当前 `_parse_exchange` 白名单逻辑正确，用户报的所有案例已覆盖。
 - **不改数据**：无脏 `word_levels` 残留。
-- **可选后续**（非本轮）：若要 more/good/out 这类超高频词也能点击查 ECDICT 释义，可下调 `STOPWORD_BNC_RANK` 或为它们单独保留词条——但代价是字幕高亮密度上升，需权衡。当前 AI fallback 已保证点击有响应，暂不动。
+- **可选后续**（非本轮）：若要 more/good/out 这类超高频词也能点击查 ECDICT 释义，可下调 `STOPWORD_BNC_RANK` 或为它们单独保留词条——但代价是字幕高亮密度上升，需权衡。当前点击只得到空释义（无实时 AI 兜底），是否值得为它们补一层兜底属产品决定。

@@ -6,7 +6,7 @@ confidence: verified
 related_code: [core-cache, api-v1, error-envelope, pytest-suite]
 related: [wiki/problems/cache-invalidation-and-media-gate-blindspots.md, wiki/problems/shared-row-locks-and-nested-commits.md]
 created: 2026-09-25
-updated: 2026-09-25
+updated: 2026-09-28
 ---
 
 # 错误与清理路径的三个隐形失效模式
@@ -46,7 +46,7 @@ updated: 2026-09-25
 
 ## 3. 清理路径会跑两次，而它假设自己只跑一次
 
-**Problem**: 广播通知时，同一 socket 的清理被**两方**触发——`send_to_user` 的清理趟与端点自己的 `WebSocketDisconnect` 分支。`disconnect()` 用 `list.remove()`，第二次抛 `ValueError`，端点的最后一跳把它带出请求。
+**Problem**: 广播通知时，同一 socket 的清理被**两方**触发——`send_to_user` 的清理趟与端点的退出分支（现在是 `finally`）。`disconnect()` 用 `list.remove()`，第二次抛 `ValueError`，端点的最后一跳把它带出请求。
 
 同一段的另一方向：`send_to_user` 遍历的是**活列表**（`get()` 返回引用），循环体 `await send_json()` 是让出点。期间任何移除都让列表左移，迭代器**跳过**顶上来的 socket——**活着的连接静默收不到消息**，无处报错（`assert ['a','c'] == ['a','b','c']`）。
 
@@ -65,4 +65,4 @@ updated: 2026-09-25
 
 ## 已知残留（未修）
 
-非有限浮点一旦落库，**读路径仍会崩**：写入侧已用 `allow_inf_nan=False` 拦新值，但（a）修复前可能已落库；（b）不经 Pydantic 的响应（如 `GET /learning/progress` 直接返回裸 dict）会把 `nan` 原样交给 `json.dumps(allow_nan=False)`；（c）无 schema 的 JSONB payload（行为事件的 `event_payload`）可接受 `NaN`。彻底关闭需读侧统一清洗或解析层拒绝。
+非有限浮点一旦落库，**读路径仍会崩**：写入侧只有 `SaveProgressRequest.position_seconds` 带了 `allow_inf_nan=False`，但（a）修复前可能已落库；（b）不经 Pydantic 的响应（如 `GET /learning/progress/{video_id}` 直接返回裸 dict）会把 `nan` 原样交给 `json.dumps(allow_nan=False)`。反过来，无 schema 的 JSON payload（行为事件的 `event_payload`）**存不进去**：`NaN` 过得了 Pydantic 的字节数校验，写库时被 Postgres 的 `json` 列拒绝（`invalid input syntax for type json`，整批事件 500）。彻底关闭需读侧统一清洗或解析层拒绝。

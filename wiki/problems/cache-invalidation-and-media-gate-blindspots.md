@@ -6,7 +6,7 @@ confidence: verified
 related_code: [core-cache, api-media, video-service, tests-conftest]
 related: [docs/adr/0020-storage-modes-and-takedown.md]
 created: 2026-09-19
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 
 # 缓存失效与媒体门控的三个隐形失效模式

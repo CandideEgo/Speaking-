@@ -6,7 +6,7 @@ confidence: verified
 related_code: [backend-services, frontend-app, api-v1]
 related: [wiki/problems/review-fix-failure-modes.md, wiki/problems/shared-row-locks-and-nested-commits.md, .agent/decisions.md]
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 
 # 组合型静默失效的两个模式
@@ -29,7 +29,9 @@ updated: 2026-09-27
 
 **Solution**: 答错时把 mastery 封顶在 reviewing（`vocabulary_service.apply_review`），
 毕业只允许发生在答对路径；docstring 写明这条约束，边界（count=5 答错/答对）各钉一条
-行为测试。SM-2 冻结路径核实后无此问题（答错本来就重置回 new），只补行为测试不改动。
+行为测试。SM-2 冻结路径核实后无此问题，只补行为测试不改动：答错把 `review_count` 归零、
+非 mastered 词由此回落 new，而 `mastered` 词在 `practice_service.submit_practice_results`
+里被显式跳过 mastery 重算（终态，一次答错不降档）。
 
 **Future Prevention**:
 - 给「派生态由计数推导」的规则写代码时，先问：**每个可能的跃迁之后，实体在哪个集合里？**

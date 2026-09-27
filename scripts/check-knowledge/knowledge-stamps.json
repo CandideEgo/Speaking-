@@ -1,24 +1,24 @@
 {
   "watched": {
     "ai-service": {
-      "verified": "2026-09-27",
-      "digest": "sha256:d9cffaa0598f35edb7c9d2f20025c1a1c9cfda8e74ecc942d32ce31cf75e9270"
+      "verified": "2026-09-28",
+      "digest": "sha256:94ba378eb110535b874e9749173e9c2db2c4726450a2c2e82640750bee925d9b"
     },
     "api-media": {
-      "verified": "2026-09-27",
-      "digest": "sha256:7964417e03b77780022810c40e5779096b4cc833c92a405b02d4cbac80598011"
+      "verified": "2026-09-28",
+      "digest": "sha256:b16f760d87dea32f8b06013b9a561a4c388e606bd47b373660f15dcda19c5abf"
     },
     "api-v1": {
-      "verified": "2026-09-27",
-      "digest": "sha256:b1ab6b36d82f17be716302a67633982e7f69fbf84360ad513853d28f6b15b895"
+      "verified": "2026-09-28",
+      "digest": "sha256:a947f4891adf2d3f3b16251e0969b0499781d882e524b62dd9f84b47ec823e17"
     },
     "auth": {
       "verified": "2026-09-27",
       "digest": "sha256:e8db62d9f538666aeed18ffb0ca942d3d25f86508050a06860ff2dbf3ca89b6e"
     },
     "backend-services": {
-      "verified": "2026-09-27",
-      "digest": "sha256:b4e611def3a70597ada50cbdf61a339ab0148b0ce4eccfa262aaf9d0a5b136a6"
+      "verified": "2026-09-28",
+      "digest": "sha256:8dd2e8e3c3f7ce9b3ffe14471b0814dc6c423b5b9930e595f72330d3f30a140f"
     },
     "celery-tasks": {
       "verified": "2026-09-27",
@@ -41,44 +41,44 @@
       "digest": "sha256:a448b28e53926d7c6b89467a9bd5d3d830f8588f6886bb6e2600dcb5e1c0216d"
     },
     "env-config": {
-      "verified": "2026-09-27",
-      "digest": "sha256:798489bbee6df31b1437077d954b9c5093eb39cac7dd0ffc93ade28916f0881a"
+      "verified": "2026-09-28",
+      "digest": "sha256:ce70e48cbe4947ea552930e1642d3393b6b9f4759e1ba803fa7ec65581343664"
     },
     "error-envelope": {
-      "verified": "2026-09-27",
-      "digest": "sha256:af6e05efcf33ba417cc89bb4234f07f05816646a0e3f27ca0a09e28e9d3b6759"
+      "verified": "2026-09-28",
+      "digest": "sha256:27340a8a84037ef1f0f6361d814aec6e0632421502e39bb21a978efdcbf89495"
     },
     "exam-levels": {
       "verified": "2026-09-27",
       "digest": "sha256:2d14165a158fba8df688a743b0e7d20bb7a727b52e56b31b61bf3a539f08725f"
     },
     "frontend-api-client": {
-      "verified": "2026-09-27",
-      "digest": "sha256:9b92bfea649a0a14a033cf5d4685f257454cf8671d43d8ef935d399bdddc7c9d"
+      "verified": "2026-09-28",
+      "digest": "sha256:2c48594987aba032510bb35e59339d9d57c0b7376f30c3c6eb2969b25c8f5414"
     },
     "frontend-app": {
-      "verified": "2026-09-27",
-      "digest": "sha256:8cc398eb57b8bb31adae88c2374d64978935f0890d45318e785fa5e2e9171712"
+      "verified": "2026-09-28",
+      "digest": "sha256:e4e4a45b7c29333d08012e7926cf291896be02d4b220822c4d975010b71067dd"
     },
     "frontend-components": {
-      "verified": "2026-09-27",
-      "digest": "sha256:757adb2f36b5fae4bbf81e399a88cfa8b81f832bd9d4e3376e97576d8df60d7f"
+      "verified": "2026-09-28",
+      "digest": "sha256:07265b862365f0c63db7a2aff625d5f214fd7e05c50a3bd73c49dc8c24bcea07"
     },
     "frontend-hooks": {
-      "verified": "2026-09-27",
-      "digest": "sha256:5d4972e64d0e3065f066793823eae1fdb3f87714af2ba797076694515c11df7b"
+      "verified": "2026-09-28",
+      "digest": "sha256:9289292e4933e915d70b732ed5c5f4c0f11ab2f51423f275c2d2ce1e2a8aa137"
     },
     "frontend-lib": {
-      "verified": "2026-09-27",
-      "digest": "sha256:180ad1448ce810380fa78cd9b2d652134bf8cb563e1775b87650680eaf420a79"
+      "verified": "2026-09-28",
+      "digest": "sha256:b5fa788c758faef1950efea7fc645079af50eb7b190834d2befa259b0fac7b1f"
     },
     "frontend-package": {
       "verified": "2026-09-27",
       "digest": "sha256:171ae6a14fe395efac273b3ae1d08a27985dfe1e560fcfe6088cc9daa20e8b2c"
     },
     "frontend-stores": {
-      "verified": "2026-09-27",
-      "digest": "sha256:ccd6ed047baf9d2aa7252eee40ae7077b20286ad24ff0c52c57a538cf47ae173"
+      "verified": "2026-09-28",
+      "digest": "sha256:37cd3fcbbe40e706a2429e3d74b38df15443c8adb4994ed5beeed11955576451"
     },
     "models-behavior": {
       "verified": "2026-09-27",
@@ -89,8 +89,8 @@
       "digest": "sha256:d4065b113f485ffefb418552da9ab8735280e5ed93c8840a99294e5f65326e66"
     },
     "pytest-suite": {
-      "verified": "2026-09-27",
-      "digest": "sha256:0300d6a4f096790cc4afe4d1fd55ab5e8be05241f8c14455b44861f5ecea4c1c"
+      "verified": "2026-09-28",
+      "digest": "sha256:f939d95afdbf6cd32363dcff32a888ef4ad35926cfa71dd55968f98029ef3ba1"
     },
     "sms-service": {
       "verified": "2026-09-27",
@@ -101,20 +101,20 @@
       "digest": "sha256:70a16c495b1784c251712d86fedd99ae4582e97386fb1e3327872a2238f40933"
     },
     "transcription": {
-      "verified": "2026-09-27",
-      "digest": "sha256:b1b6ff3d618c54760320d9bd51a444788acd13ab2cb621e0fe0b580ed5f04216"
+      "verified": "2026-09-28",
+      "digest": "sha256:943fc4875446de31a62c99e7c3eefe36df54ff7492f7a4214b04597589e7d1ee"
     },
     "translation": {
-      "verified": "2026-09-27",
-      "digest": "sha256:9d40f35aa929f39d23f444c04de49f22b875f41d6f995e43becf6da6638e4307"
+      "verified": "2026-09-28",
+      "digest": "sha256:b954cf8376fda970557a94dce0e3dcd155c64542302e412da4a1273f516743b0"
     },
     "video-pipeline": {
       "verified": "2026-09-27",
       "digest": "sha256:201844e7a401a493439feeed4623271644c56734b93ecffcbfbd0273e456e6bc"
     },
     "video-service": {
-      "verified": "2026-09-27",
-      "digest": "sha256:f58c7d22ae61ef4e9a0aa5a34121959a3c38dc421c2e9e33158b747a1509c345"
+      "verified": "2026-09-28",
+      "digest": "sha256:7195d244a514fd89f444dd3ccd36c0074433e16c49a9ee83b0995704d55d038b"
     }
   },
   "_comment": "Per-module record of the last /knowledge-verify: `verified` is the date, `digest` the sha256 of the module's code as the documents describe it. Rewritten only by --stamp-refresh; a mismatch is a reminder, not a failure."

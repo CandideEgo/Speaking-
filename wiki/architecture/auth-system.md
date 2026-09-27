@@ -6,7 +6,7 @@ confidence: verified
 related_code: [auth, frontend-stores, frontend-api-client]
 related: [wiki/architecture/backend-services.md]
 created: 2026-07-21
-updated: 2026-09-25
+updated: 2026-09-28
 ---
 
 # Background
@@ -21,13 +21,16 @@ SeeWord uses JWT authentication with dual sessions for user and admin.
 | `get_optional_user` | Same but returns `None` instead of 401 (public pages with optional auth) |
 | `get_admin_user` | Stacks on `get_current_user`, checks `role == admin` |
 | `require_pro_user` | Checks plan type and expiry |
-| `check_video_access` / `require_video_access` | Official videos are public; user-submitted require ownership |
+
+Video access control is not a route dependency: `check_video_access` / `check_video_access_by_owner` /
+`should_use_snapshot` live in `services/video_access.py` as pure domain functions (the old
+`require_video_access` is gone).
 
 # Dual Auth Sessions (Frontend)
 
 User app and admin console use separate localStorage token keys (`seeword_token` vs `seeword_admin_*`). Both use the same backend JWT/role system but independent sessions. Logging out of one doesn't affect the other.
 
-authStore and adminAuthStore have similar patterns (auto-refresh, mutex) but are separate implementations; the request loop they share lives in `lib/createApiClient.ts`, which each store reaches through an auth adapter.
+authStore and adminAuthStore have similar patterns (auto-refresh, mutex) but are separate implementations; the request loop they share lives in `lib/createApiClient.ts`, and each store is wired to it through its own auth adapter (`userAuthAdapter` in `lib/api.ts`, `adminAuthAdapter` in `lib/adminApi.ts`).
 
 # Frontend API Client (`lib/createApiClient.ts`, re-exported by `lib/api.ts` / `lib/adminApi.ts`)
 
@@ -39,8 +42,9 @@ The 401 branch only refreshes when the request carried an `Authorization` header
 
 `proxy.ts` (Next 16's middleware; renamed from `middleware.ts`) gates every route at the network
 edge. It reads cookies only — no JWT decode, no DB — so its predicate is exactly *"the
-`seeword_token` cookie exists and is non-empty"*. `PUBLIC_PATHS` early-returns; everything else 302s
-to `/login?next=<path>`. An **empty** value bounces, because the check is `if (!token)`.
+`seeword_token` cookie exists and is non-empty"*. `PUBLIC_PATHS` early-returns; `/admin/*` checks its
+own `seeword_admin_token` cookie and 302s to `/admin/login`; everything else 302s to `/login?next=<path>`.
+An **empty** value bounces, because the check is `if (!token)`.
 
 localStorage stays the source of truth for the app; the cookie is a **presence-only mirror**, written
 by `syncAuthCookie(name, token)` and read back by `hasAuthCookieMirror(name)`. Both sides require a
@@ -74,12 +78,12 @@ card), and `src/lib/authHelpers.test.ts` pins the parse rules including the empt
 | `adminAuthStore.ts` | Separate admin auth. |
 | `profileStore.ts` | The `/users/me` fields the JWT omits (`avatar_url`, `gender`). One cache shared by TopBar (reader) and the profile page (writer) — fetched once per session, de-duplicated, reset on logout. |
 | `watchStore.ts` | Video player UI state (subtitle mode, panel collapse/width, exam level for word highlighting). |
-| `vocabularyStore.ts` | Word list, stats, quiz sessions, SM-2 review actions. |
-| `planStore.ts` | Daily learning plan state (ADR-0012). Today's plan, progress, plan items. |
+| `vocabularyStore.ts` | Vocabulary stats only (`/vocabulary/stats`): the due-count badge TopBar / MobileTabBar share. Word CRUD and review live in page state. |
+| `planStore.ts` | Learning-profile cache (ADR-0012): `/plan/profile` plus a forced `/plan/profile/refresh`, consumed through `usePlan`. |
 
 # Future Notes
 
 - New permission checks should use existing dependencies, not hand-written logic in routes
 - Pro check must examine both `plan` and `plan_expires_at`
-- Beat task proactively downgrades expired users to free
+- Pro is not enforced during the 内测 free period: `require_pro_user` has no callers, and the `downgrade-expired-pro` beat entry is commented out in `tasks/celery_app.py`. Both are kept for when charging starts.
 - Previous documentation referenced `communityStore`, `feedStore` and a `createAuthStore` factory — none exist now. Feed state lives in the `usePlatformFeed` hook (per page), not in a store; the shared auth-store factory was never built.

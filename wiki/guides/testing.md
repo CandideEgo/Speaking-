@@ -6,7 +6,7 @@ confidence: verified
 related_code: [pytest-suite, pre-commit, ci-workflows]
 related: [wiki/guides/setup.md]
 created: 2026-07-21
-updated: 2026-09-25
+updated: 2026-09-28
 ---
 
 # Backend Tests
@@ -40,7 +40,7 @@ affects local Windows runs.
 
 ```bash
 cd frontend && npx tsc --noEmit && npm run lint && npm run build
-cd frontend && npm run check   # typecheck + lint + format:check (used by pre-commit)
+cd frontend && npm run check   # typecheck + lint + format:check
 ```
 
 # CI
