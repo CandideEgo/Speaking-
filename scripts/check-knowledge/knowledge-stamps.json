@@ -18,7 +18,7 @@
     },
     "backend-services": {
       "verified": "2026-09-27",
-      "digest": "sha256:d8a6f1f8bc2212205e129bc265c73a6a974137e82c7ddc179f8af517ecd7baae"
+      "digest": "sha256:b4e611def3a70597ada50cbdf61a339ab0148b0ce4eccfa262aaf9d0a5b136a6"
     },
     "celery-tasks": {
       "verified": "2026-09-27",
@@ -58,7 +58,7 @@
     },
     "frontend-app": {
       "verified": "2026-09-27",
-      "digest": "sha256:3c06576eba220dd634154feb30ff1d507cb49c9084dda268aa5855e07bd0c511"
+      "digest": "sha256:8cc398eb57b8bb31adae88c2374d64978935f0890d45318e785fa5e2e9171712"
     },
     "frontend-components": {
       "verified": "2026-09-27",
@@ -70,7 +70,7 @@
     },
     "frontend-lib": {
       "verified": "2026-09-27",
-      "digest": "sha256:e83a749cfca501c8e76e34478813a494dd863c5ab0ffd9b7d905e2aca67b2340"
+      "digest": "sha256:180ad1448ce810380fa78cd9b2d652134bf8cb563e1775b87650680eaf420a79"
     },
     "frontend-package": {
       "verified": "2026-09-27",
@@ -90,7 +90,7 @@
     },
     "pytest-suite": {
       "verified": "2026-09-27",
-      "digest": "sha256:a2bede7f703352bc1c5dbd377a03e9ce16ec6179d9b828b07dfd577c8f37330c"
+      "digest": "sha256:0300d6a4f096790cc4afe4d1fd55ab5e8be05241f8c14455b44861f5ecea4c1c"
     },
     "sms-service": {
       "verified": "2026-09-27",
