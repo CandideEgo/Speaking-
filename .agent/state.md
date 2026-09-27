@@ -15,7 +15,7 @@ Last Updated: 2026-09-27
 
 1. **AI 审计收尾**（DEC-049/050/051，修复已提交）：报告附录 B 续跑剩余 176 文件；「夸大/条件性」项需先决策——H12（`payment_verify_signature` 默认 False）、H17 的 payload 无上限、H1 的 refresh 不查封禁；C6 复习竞态需运行时实证
 2. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页；部署迁移 + 导入 772 条 + 端到端验证一条 promote；重抓脚本收进 `backend/scripts/`
-3. 视频存储收尾：稳定后删源站文件 + Docker cache prune（~17.5GB）
+3. 视频存储收尾：Docker cache prune 可随时做；**删源站 `_raw` 母带被阻塞**——当前未配 OSS（09-27 确认），raw 是唯一副本，删除=不可逆丢失；需先配对象存储/离线备份，或明确放弃母带只留成品
 4. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
 5. Recommendation 深度个性化 P2（ADR-0011）
 6. ICP 解封后项：payment、前端单测、e2e 覆盖
