@@ -140,10 +140,14 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
     a later verdict/learned mark closes it again — but the event feeds
     ``today_words_learned``, and the same set's words must not be counted
     twice. Closures are matched by their ``set_id`` metadata, so no extra
-    schema is needed to remember "already closed".
+    schema is needed to remember "already closed". The set row is locked
+    ``FOR UPDATE`` first so two concurrent closes serialize: the second
+    transaction re-reads prior events after the first commits and skips.
     """
     try:
         from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
+
+        await db.execute(select(VocabSet.id).where(VocabSet.id == vocab_set.id).with_for_update())
 
         prior = (
             (
@@ -151,6 +155,8 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
                     select(LearningEvent.event_metadata).where(
                         LearningEvent.user_id == user_id,
                         LearningEvent.event_type == EVENT_LEARNED_WORDS,
+                        # 实践事件 metadata 为 NULL，排除在 SQL 端，避免随历史无界载入。
+                        LearningEvent.event_metadata.isnot(None),
                     )
                 )
             )
