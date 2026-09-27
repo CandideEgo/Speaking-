@@ -333,32 +333,15 @@ DEC-053 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 
 ## 2026-09-27 — 知识层写入密度与余量阶梯（DEC-040 的运行细则）
 
-**Problem**: 必读层全部逼近上限（invariants 100%、system-map 99.8%、context 99.7%、state 98.4%，tier `before_code_change` 仅剩 12B），而「记什么、记多细、到顶怎么办」此前全靠临场判断——要么停写（写入时就丢信息），要么反射式 `--budget-refresh`（DEC-040 警告过：上限因此失效）。
-
-**Decision**: 标准落 `scripts/check-knowledge/README.md`（§ Write density and the growth ladder），三条硬规则：
-1. **密度**：准入仍是 AGENTS.md 三问；各文件只收自己一类事实（state 只记在途、decisions 一条 ≤1.5KB、wiki/problems 只收复发性陷阱）；详细程度 = 最小完整信息（定位 + 为什么 + 何时可疑）。
-2. **余量**：常青文件 ceiling = 大小 + 10%，到顶只收不放；追加型（decisions/index）= 大小 + 2~3 条，到顶走归档轮；wiki 单页 8KB 到顶拆页；tier `session_total` 只降不升。
-3. **阶梯**：绿 <85% 正常写；黄 85–95% 写前自审 + maintain 时修剪；红 >95% 按序 收缩/迁移 → 归档轮 → `--budget-refresh`（仅新主题域等结构性增长，理由写进提交信息）。收缩一律是移动不是删除（archive/ 冻结、CHANGELOG 承接、wiki 过期标 deprecated）——防丢信息靠冷层，不靠扩容。
-
-**Reason**: 阶梯把「临界要不要扩」从判断题变成程序题：扩容合法当且仅当前两步被证明不可行。余量按文件生命周期定（编辑型文件余量小、追加型靠归档阀），比统一百分比更贴合实际增长方式。
-
-**Tooling**: `check_knowledge.py --budget-report` 打印全部 ceiling 用量与分区，是黄红区的监测入口；每轮 `/knowledge-maintain` 跑一次。
+DEC-054 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
 ## 2026-09-27 — 知识层双层定价与正向循环（细化 DEC-054）
 
-**Problem**: DEC-054 定了密度与阶梯，但四点仍模糊：详略没有统一判据；必读与沉淀只是隐含在 tier 里没有明说；收缩时质量会不会掉没有底线；系统如何持续变好（而不只是停止增长）没有机制。
-
-**Decision**: ① **双层定价**：必读热层 = `tier:session_total` 五文件，每字节每会话付费；其余皆沉淀层，按需读取。**详略由读取频率决定**——同一事实热层只留压缩形 + 指针，展开形写 wiki/；热层一条事实超过两行就是「去 wiki 写展开形」的信号，而不是把热文件写长。② **正向循环**：每轮 maintain/verify 按 观察（`--budget-report` + stale）→ 修复（阶梯 + verify 级修订）→ 棘轮（收缩成功后手动下调该文件 limit 并记 `_history`）→ 目标（`_targets`，红区计数→0、session_total→32768B）运转；只升不降的 ceiling 说明循环没在转。③ **质量底线恒定**：收缩是 verify 级编辑——离开热层的事实必须先落冷层，警告与陷阱随事实一起走，留下的必须仍是「为什么」而非「是什么」。④ `--budget-report` 标注 `[S]`/`[B]` 热层归属，双层在监控输出里可见。
-
-**Reason**: 读取频率是同时解释「为什么要预算」和「为什么要详略」的唯一变量，用它统一定价消除两套标准并存；棘轮把「不断优化」变成可观察的量（limit 单调下降、红区收敛），循环靠机制不靠自觉。
+DEC-055 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
 ## 2026-09-27 — 训练流程选择题化：废弃「认识/不认识」，连对两次毕业 + 题型轮换
 
-**Problem**: 「认识/不认识」自评无法客观验证真会还是假会，学新词时全凭用户自觉；同一词反复同题型出现时靠短时记忆就能答对，而五档熟练度爬升（-2 升到 2 要连答三四次）过程啰嗦，两个机制都不解释「凭什么算会」。
-
-**Decision**: ① 训练全程改为选择题：废弃 `WordFlashcard` 的认识/不认识双按钮，drill 页「闪卡学新词」与「复习测验」两阶段合并为一条全程选择题的循环。② 题型按出现次序轮换：第 1 次英→中（识义）、第 2 次中→英、第 3 次起听音选词 / 英→中（选项重洗），替代现行按 mastery 随机选题型；拼写填空不做。③ 熟练度状态收敛为单一「连续答对计数 c」：答对 +1、答错清零，c==2 毕业；出现间隔：答错隔 1 题、答对一次隔 5 题（不能紧接着再问——隔开才排除短时记忆）。④ 作答反馈固定为：标对错 → 展开完整释义（词性/音标/释义/例句）→ 有原句时显示原句 + 「去原视频」→ 底部「下一个」手动点击才推进。⑤ 调度逻辑抽成纯函数放 `frontend/src/lib/`（可单测）；新词首次出现带原句语境（S7a 链路的 `subtitle_id`）。
-
-**Reason**: 选对/选错是客观判据，把「会」的操作定义从自我报告换成可验证行为；「答对隔 5 题 + 连对 2 次毕业」的组合排除短时记忆假阳性；题型轮换迫使多通道提取而非位置记忆。层级档位与连对毕业二选一时取后者——毕业条件更简单且可解释，词库「标记已掌握」已覆盖浅层自判的场景。
+DEC-056 — body archived verbatim → [decisions-2026-09.md](archive/decisions-2026-09.md)
 
 ## 2026-09-27 — 复习调度替换 SM-2：错误次数分档直接决定间隔
 
@@ -375,3 +358,29 @@ DEC-053 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 **Decision**: `payment_verify_signature` 默认翻为 `True`。development 联调要跳过验签必须显式 `PAYMENT_VERIFY_SIGNATURE=false`（既有 warning 日志保留）；production 分支本就不读该 flag、一律强制验签。`.env.example` 补注释说明口径。
 
 **Reason**: 旁路是「多条件与」结构，把其中唯一一个可独立安全化的条件从默认 False 翻为默认 True，使剩余旁路前提（env=development 且显式 opt-out）必然是有人有意为之；配置安全的通用原则是「安全能力默认开，关闭必须留痕」。ICP 解封前 `payments_enabled=False` 使该变更对现状零影响，正是改默认值的无痛窗口。
+
+## 2026-09-28 — 搜索改用内联 tsvector，不建 `search_vector` 列
+
+**Problem**: `GET /api/v1/videos/search` 500——`services/search_service.py` 引用的 `Video.search_vector` 列从未存在：ORM 模型、Alembic 迁移、开发库三处都没有，模块 docstring 却声称它由 PostgreSQL 触发器维护。一条 `curl` 即可复现。
+
+**Options**: A) 补列 + 触发器 + 回填/维护任务；B) PostgreSQL 上按查询内联构造 tsvector，其他方言（SQLite 测试）退化为纯 ILIKE。
+
+**Decision**: B。同时删除 `rebuild_video_search_vector()` 与那条不实的 docstring。
+
+**Reason**: 物化路径要新造迁移、触发器与维护机具（本仓库从未有过），当前数据量下没有收益。**代价**：FTS 表达式没有 GIN 索引可用，只能顺序扫描。
+
+## 2026-09-28 — 通知 WebSocket 的 JWT 改走子协议，删除 `?token=`
+
+**Problem**: 通知 WebSocket 用 `?token=<JWT>` 传凭证，查询串会落进 uvicorn 与反向代理的访问日志——长期令牌因此被写进日志。
+
+**Decision**: 凭证改走 `Sec-WebSocket-Protocol: bearer, <JWT>`；服务端只回显通用的 `bearer` 标记（RFC 6455），token 缺失或无效时以策略违规码 1008 关闭；保留 auth cookie 回退，`?token=` 路径删除。
+
+**Reason**: 凭证不进 URL 就不会进日志，而浏览器的 WebSocket 构造函数不允许自定义请求头，子协议是握手期唯一能携带凭证的位置。**代价**：前后端必须同时上线，旧 `?token=` 调用方直接断连。
+
+## 2026-09-28 — 生产必须显式配置 `REDIS_URL`（fail-fast）
+
+**Problem**: `redis_url` 带有可用的 localhost 默认值，于是生产守卫 `if not self.redis_url` 永远不会成立——生产漏配 `REDIS_URL` 时会静默用本机 Redis 做限流存储与 Celery broker。
+
+**Decision**: 生产守卫改为同时要求该字段被显式提供（`"redis_url" not in self.model_fields_set` 即拒绝启动）；`docs/operations/PRODUCTION.md` 的生产环境模板本就把 `REDIS_URL` 列为必填。
+
+**Reason**: 有默认值的安全相关配置项，只有「是否被显式提供」能区分有意与遗漏。**代价**：漏配的生产环境改为拒绝启动（有意为之）。

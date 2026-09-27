@@ -1,13 +1,13 @@
 # Decisions Archive — 2026-09
 
-> **Frozen snapshot — archived 2026-09-25.** DEC-029 … DEC-053, moved verbatim out of
+> **Frozen snapshot — archived 2026-09-25.** DEC-029 … DEC-056, moved verbatim out of
 > `.agent/decisions.md` when it reached its size ceiling. Nothing was edited, reordered or
-> renumbered; `decisions-index.md` still lists all fifty-five. Not maintained, not checked — and the
-> markdown links below are written for their pre-move location in `.agent/`.
+> renumbered; `decisions-index.md` still lists every one of them. Not maintained, not checked — and
+> the markdown links below are written for their pre-move location in `.agent/`.
 >
-> Three batches: DEC-029 … DEC-036 (archived 2026-09-20, when the file first hit its ceiling), then
+> Five batches: DEC-029 … DEC-036 (archived 2026-09-20, when the file first hit its ceiling), then
 > DEC-037 … DEC-041 (archived 2026-09-22), then DEC-042 … DEC-048 (archived 2026-09-25), then DEC-049 … DEC-053 (archived 2026-09-27,
-> the oldest era still inline at that point).
+> the oldest era still inline at that point), then DEC-054 … DEC-056 (archived 2026-09-28, the oldest era still inline at that point).
 
 ## 2026-09-08 — 翻译引擎统一为火山引擎 ARK (ark-code-latest)
 
@@ -421,3 +421,32 @@
 - 作答仍是「一次请求写 1~2 行 UPDATE」（原本每次点「认识/不认识」也各写一次库），不是新的写入模式。
 - `POST /{word_id}/review` 的 SM-2 quality 由 4 统一为 5（答错仍 2），且该端点现在**没有仓内调用方**（drill 改走轮次作答），保留为兼容入口。
 - 「近 1 天轮次已排过的词」这层排除只是兜底（主机制是答过的词会离开 `mastery_level = new` 池），用于作答请求失败时该词不被重复排进加练轮，顺带跨过午夜边界。
+
+## 2026-09-27 — 知识层写入密度与余量阶梯（DEC-040 的运行细则）
+
+**Problem**: 必读层全部逼近上限（invariants 100%、system-map 99.8%、context 99.7%、state 98.4%，tier `before_code_change` 仅剩 12B），而「记什么、记多细、到顶怎么办」此前全靠临场判断——要么停写（写入时就丢信息），要么反射式 `--budget-refresh`（DEC-040 警告过：上限因此失效）。
+
+**Decision**: 标准落 `scripts/check-knowledge/README.md`（§ Write density and the growth ladder），三条硬规则：
+1. **密度**：准入仍是 AGENTS.md 三问；各文件只收自己一类事实（state 只记在途、decisions 一条 ≤1.5KB、wiki/problems 只收复发性陷阱）；详细程度 = 最小完整信息（定位 + 为什么 + 何时可疑）。
+2. **余量**：常青文件 ceiling = 大小 + 10%，到顶只收不放；追加型（decisions/index）= 大小 + 2~3 条，到顶走归档轮；wiki 单页 8KB 到顶拆页；tier `session_total` 只降不升。
+3. **阶梯**：绿 <85% 正常写；黄 85–95% 写前自审 + maintain 时修剪；红 >95% 按序 收缩/迁移 → 归档轮 → `--budget-refresh`（仅新主题域等结构性增长，理由写进提交信息）。收缩一律是移动不是删除（archive/ 冻结、CHANGELOG 承接、wiki 过期标 deprecated）——防丢信息靠冷层，不靠扩容。
+
+**Reason**: 阶梯把「临界要不要扩」从判断题变成程序题：扩容合法当且仅当前两步被证明不可行。余量按文件生命周期定（编辑型文件余量小、追加型靠归档阀），比统一百分比更贴合实际增长方式。
+
+**Tooling**: `check_knowledge.py --budget-report` 打印全部 ceiling 用量与分区，是黄红区的监测入口；每轮 `/knowledge-maintain` 跑一次。
+
+## 2026-09-27 — 知识层双层定价与正向循环（细化 DEC-054）
+
+**Problem**: DEC-054 定了密度与阶梯，但四点仍模糊：详略没有统一判据；必读与沉淀只是隐含在 tier 里没有明说；收缩时质量会不会掉没有底线；系统如何持续变好（而不只是停止增长）没有机制。
+
+**Decision**: ① **双层定价**：必读热层 = `tier:session_total` 五文件，每字节每会话付费；其余皆沉淀层，按需读取。**详略由读取频率决定**——同一事实热层只留压缩形 + 指针，展开形写 wiki/；热层一条事实超过两行就是「去 wiki 写展开形」的信号，而不是把热文件写长。② **正向循环**：每轮 maintain/verify 按 观察（`--budget-report` + stale）→ 修复（阶梯 + verify 级修订）→ 棘轮（收缩成功后手动下调该文件 limit 并记 `_history`）→ 目标（`_targets`，红区计数→0、session_total→32768B）运转；只升不降的 ceiling 说明循环没在转。③ **质量底线恒定**：收缩是 verify 级编辑——离开热层的事实必须先落冷层，警告与陷阱随事实一起走，留下的必须仍是「为什么」而非「是什么」。④ `--budget-report` 标注 `[S]`/`[B]` 热层归属，双层在监控输出里可见。
+
+**Reason**: 读取频率是同时解释「为什么要预算」和「为什么要详略」的唯一变量，用它统一定价消除两套标准并存；棘轮把「不断优化」变成可观察的量（limit 单调下降、红区收敛），循环靠机制不靠自觉。
+
+## 2026-09-27 — 训练流程选择题化：废弃「认识/不认识」，连对两次毕业 + 题型轮换
+
+**Problem**: 「认识/不认识」自评无法客观验证真会还是假会，学新词时全凭用户自觉；同一词反复同题型出现时靠短时记忆就能答对，而五档熟练度爬升（-2 升到 2 要连答三四次）过程啰嗦，两个机制都不解释「凭什么算会」。
+
+**Decision**: ① 训练全程改为选择题：废弃 `WordFlashcard` 的认识/不认识双按钮，drill 页「闪卡学新词」与「复习测验」两阶段合并为一条全程选择题的循环。② 题型按出现次序轮换：第 1 次英→中（识义）、第 2 次中→英、第 3 次起听音选词 / 英→中（选项重洗），替代现行按 mastery 随机选题型；拼写填空不做。③ 熟练度状态收敛为单一「连续答对计数 c」：答对 +1、答错清零，c==2 毕业；出现间隔：答错隔 1 题、答对一次隔 5 题（不能紧接着再问——隔开才排除短时记忆）。④ 作答反馈固定为：标对错 → 展开完整释义（词性/音标/释义/例句）→ 有原句时显示原句 + 「去原视频」→ 底部「下一个」手动点击才推进。⑤ 调度逻辑抽成纯函数放 `frontend/src/lib/`（可单测）；新词首次出现带原句语境（S7a 链路的 `subtitle_id`）。
+
+**Reason**: 选对/选错是客观判据，把「会」的操作定义从自我报告换成可验证行为；「答对隔 5 题 + 连对 2 次毕业」的组合排除短时记忆假阳性；题型轮换迫使多通道提取而非位置记忆。层级档位与连对毕业二选一时取后者——毕业条件更简单且可解释，词库「标记已掌握」已覆盖浅层自判的场景。

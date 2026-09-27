@@ -1,12 +1,9 @@
 # Decision Index
 
-> Navigation for `decisions.md` — read this first, then open the one entry you need.
-> IDs are assigned in **file order** (append order, dates repeat), issued once and never
-> reassigned; a body moved to `archive/` keeps its heading here as a stub. To add a decision:
-> append the entry to `decisions.md`, add a row with the next free ID — the `index` check
-> fails if table and file disagree on count, order, date or title.
->
-> `superseded`: still on the record, no longer describing the system — read the superseding entry.
+> IDs are issued in file order (append order; dates repeat), never reassigned; an archived body keeps
+> its heading as a stub here. To add one: append the entry to `decisions.md`, then a row with the next
+> free ID — the `index` check fails if the two disagree on count, order, date or title.
+> `superseded` = still on the record, no longer describing the system — read the newer entry.
 
 | ID | Date | Title | ADR | Status |
 |----|------|-------|-----|--------|
@@ -68,3 +65,6 @@
 | DEC-056 | 2026-09-27 | 训练流程选择题化：废弃「认识/不认识」，连对两次毕业 + 题型轮换 | — | active |
 | DEC-057 | 2026-09-27 | 复习调度替换 SM-2：错误次数分档直接决定间隔 | — | active |
 | DEC-058 | 2026-09-27 | 支付验签默认 fail-closed，dev 旁路须显式 opt-out（审计 H12） | — | active |
+| DEC-059 | 2026-09-28 | 搜索改用内联 tsvector，不建 `search_vector` 列 | — | active |
+| DEC-060 | 2026-09-28 | 通知 WebSocket 的 JWT 改走子协议，删除 `?token=` | — | active |
+| DEC-061 | 2026-09-28 | 生产必须显式配置 `REDIS_URL`（fail-fast） | — | active |
