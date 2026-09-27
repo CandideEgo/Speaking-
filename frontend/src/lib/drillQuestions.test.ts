@@ -173,4 +173,10 @@ describe("buildDrillQuestion", () => {
     const pool = [target, word(), word(), word()];
     expect(buildDrillQuestion(target, pool, "en2zh", zeroRand)).toBeNull();
   });
+
+  it("目标词无释义时 zh2en 同样返回 null（空题干不可作答）", () => {
+    const target = word({ translation: null });
+    const pool = [target, word(), word(), word()];
+    expect(buildDrillQuestion(target, pool, "zh2en", zeroRand)).toBeNull();
+  });
 });

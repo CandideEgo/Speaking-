@@ -139,7 +139,9 @@ export function buildDrillQuestion(
 ): DrillQuestion | null {
   const isTranslation = kind === "en2zh";
   const answer = isTranslation ? conciseTranslation(word) : word.word;
-  if (!answer.trim()) return null;
+  // zh2en 的题干是释义：释义为空的词（未富集）造不出可作答的题，与 en2zh 的
+  // answer 守卫对称跳过。
+  if (!answer.trim() || (kind === "zh2en" && !conciseTranslation(word).trim())) return null;
   const keyOf = isTranslation ? cjkKey : wordKey;
   const answerKey = keyOf(answer);
   if (!answerKey) return null;
