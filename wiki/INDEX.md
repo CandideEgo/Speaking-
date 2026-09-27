@@ -18,6 +18,7 @@
 - [缓存失效与媒体门控的两个隐形失效模式](problems/cache-invalidation-and-media-gate-blindspots.md) — fail-open 吞异常使失效静默失效 / 门控靠文件名正则，命名不符即整段跳过
 - [部署链路的三个失效模式](problems/deploy-failure-modes.md) — 三容器并发迁移撞唯一约束 / backend 缺席使 nginx 崩溃循环并连带停 db / 长命令被 SSH 读超时截断
 - [本地日期基准不一致的测试 flake](problems/local-date-basis-test-flake.md) — 测试用宿主机「昨天」、服务端回退 UTC「今天」，只在凌晨失败；get_user_local_date 回退基准的产品疑问待 DEC
+- [组合型静默失效的两个模式](problems/silent-composition-failures.md) — 状态跃迁把实体挤出所有可达队列（错词毕业即消失）/ 逐条写入超过端点限流预算（逐题 POST 撞 429 丢复习进度）
 
 ## Guides
 
