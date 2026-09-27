@@ -97,7 +97,10 @@ def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -
     ``wrong_count`` / ``last_wrong_at`` are written here on a wrong answer;
     ``ease_factor`` is left untouched (compat/display only). ``review_count``
     only ever grows — a wrong review must land the word back in the *review*
-    queue tomorrow (mastery stays >= learning), not reset it to a new word.
+    queue tomorrow (mastery stays >= learning), not reset it to a new word,
+    and must never graduate it (a wrong answer caps mastery at reviewing:
+    mastered words are excluded from every queue, so the just-scheduled
+    next-day review would never be reachable).
     """
     now = now or datetime.now(UTC)
     correct = quality >= 3
@@ -123,7 +126,12 @@ def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -
     vocab.last_reviewed_at = now
     vocab.next_review_at = next_review_at
     vocab.interval_days = interval_days
-    vocab.mastery_level = _mastery_from_review_count(vocab.review_count)
+    new_mastery = _mastery_from_review_count(vocab.review_count)
+    if not correct and new_mastery == MASTERY_MASTERED:
+        # 错词不得毕业：mastered 会被 build_daily_session 的复习队列排除，
+        # 上面刚排好的「次日」永远轮不到，词会从训练队列里无声消失。
+        new_mastery = MASTERY_REVIEWING
+    vocab.mastery_level = new_mastery
 
     if correct:
         vocab.correct_count = (vocab.correct_count or 0) + 1

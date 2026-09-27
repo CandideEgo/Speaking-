@@ -241,9 +241,9 @@ class TestSubmitPracticeResults:
     """到期复习词经 /practice/submit 提交（S5 合并循环的真实路径）走 DEC-057 分档；
     自动添加 / 仍为 new 的词保持冻结的 SM-2 更新（S6 补票）。"""
 
-    async def _seed_review_word(self, user_id: str, word: str, **fields) -> None:
+    async def _seed_review_word(self, user_id: str, word: str, mastery_level: str = "learning", **fields) -> None:
         async with TestSessionLocal() as db:
-            db.add(Vocabulary(user_id=user_id, word=word, mastery_level="learning", **fields))
+            db.add(Vocabulary(user_id=user_id, word=word, mastery_level=mastery_level, **fields))
             await db.commit()
 
     @pytest.mark.asyncio
@@ -259,6 +259,44 @@ class TestSubmitPracticeResults:
         assert row.wrong_count == 1
         assert row.last_wrong_at is not None
         assert row.interval_days == 1  # 复习时答错 → 回到次日
+
+    @pytest.mark.asyncio
+    async def test_review_word_wrong_answer_at_graduation_line_stays_reviewing(self, fake_redis):
+        uid = await _submit_user("13800138036")
+        await self._seed_review_word(uid, "wrongcap", review_count=5, mastery_level="reviewing", interval_days=7)
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "wrongcap", "correct": False}])
+
+        row = await _row(uid, "wrongcap")
+        assert row.review_count == 6
+        assert row.mastery_level == "reviewing"  # 错词不得毕业，次日复习仍可达
+
+    @pytest.mark.asyncio
+    async def test_review_word_correct_answer_at_graduation_line_masters(self, fake_redis):
+        uid = await _submit_user("13800138037")
+        await self._seed_review_word(uid, "gradme", review_count=5, mastery_level="reviewing", interval_days=7)
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "gradme", "correct": True}])
+
+        row = await _row(uid, "gradme")
+        assert row.mastery_level == "mastered"  # 答对仍按次数毕业
+
+    @pytest.mark.asyncio
+    async def test_new_word_wrong_answer_falls_back_to_new(self, fake_redis):
+        """SM-2 冻结路径答错重置 review_count → mastery 回落 new，不毕业也不消失。"""
+        uid = await _submit_user("13800138038")
+        async with TestSessionLocal() as db:
+            db.add(Vocabulary(user_id=uid, word="legacycap", mastery_level="new", review_count=5))
+            await db.commit()
+
+        async with TestSessionLocal() as db:
+            await practice_service.submit_practice_results(db, uid, [{"word": "legacycap", "correct": False}])
+
+        row = await _row(uid, "legacycap")
+        assert row.review_count == 0
+        assert row.mastery_level == "new"
 
     @pytest.mark.asyncio
     async def test_review_word_correct_answer_climbs_error_ladder(self, fake_redis):
