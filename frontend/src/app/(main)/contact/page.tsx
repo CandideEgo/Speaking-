@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useAuthStore } from "@/stores/authStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { Button } from "@/components/ui/Button";
@@ -47,7 +48,10 @@ const STATUS_LABEL: Record<string, { tone: string; text: string }> = {
 };
 
 export default function ContactPage() {
-  const { isAuthenticated, isLoading } = useRequireAuth();
+  // 公开页（proxy.ts PUBLIC_PATHS）：未登录也能看到开发者联系方式，不跳登录。
+  // 需要会话的部分（公告拉取、反馈表单）按 isAuthenticated 分段渲染。
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const [category, setCategory] = useState<string>("suggestion");
   const [content, setContent] = useState("");
   const [contact, setContact] = useState("");
@@ -122,77 +126,93 @@ export default function ContactPage() {
           </div>
         </Card>
 
-        {/* Announcements */}
-        <section className="mb-6">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
-            <Megaphone size={16} className="text-brand-500" />
-            公告
-          </h2>
-          {announcements.length === 0 ? (
-            <EmptyState icon={Megaphone} title="暂无公告" />
-          ) : (
-            <div className="space-y-2">
-              {announcements.map((a) => (
-                <Card key={a.id} padding={4} className={a.is_read ? "" : "border-brand-200"}>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <h3 className="text-sm font-semibold text-ink truncate">{a.title}</h3>
-                    <span className="text-[11px] text-muted-soft shrink-0">
-                      {relativeTime(a.created_at)}
-                    </span>
-                  </div>
-                  {a.message && (
-                    <p className="text-xs text-body leading-relaxed whitespace-pre-wrap">
-                      {a.message}
-                    </p>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
-        </section>
+        {/* Announcements（需登录拉取，未登录整段隐藏） */}
+        {isAuthenticated && (
+          <section className="mb-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
+              <Megaphone size={16} className="text-brand-500" />
+              公告
+            </h2>
+            {announcements.length === 0 ? (
+              <EmptyState icon={Megaphone} title="暂无公告" />
+            ) : (
+              <div className="space-y-2">
+                {announcements.map((a) => (
+                  <Card key={a.id} padding={4} className={a.is_read ? "" : "border-brand-200"}>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <h3 className="text-sm font-semibold text-ink truncate">{a.title}</h3>
+                      <span className="text-[11px] text-muted-soft shrink-0">
+                        {relativeTime(a.created_at)}
+                      </span>
+                    </div>
+                    {a.message && (
+                      <p className="text-xs text-body leading-relaxed whitespace-pre-wrap">
+                        {a.message}
+                      </p>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-        {/* Feedback form */}
+        {/* Feedback form（提交接口需要会话，未登录给登录入口） */}
         <section className="mb-6">
           <h2 className="text-sm font-semibold text-ink mb-3">提交反馈</h2>
-          <Card as="form" padding={5} className="space-y-3" onSubmit={handleSubmit}>
-            <div className="flex gap-2">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  onClick={() => setCategory(c.key)}
-                  className={
-                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer " +
-                    (category === c.key
-                      ? "bg-brand-500 text-white"
-                      : "bg-surface-soft text-muted hover:text-ink")
-                  }
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="说说你遇到的问题或建议（至少 5 个字）..."
-              rows={4}
-              maxLength={5000}
-              required
-            />
-            <Input
-              type="text"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="联系方式（可选，如 QQ 邮箱，方便我们回复你）"
-              maxLength={200}
-            />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={submitting} icon={submitting ? undefined : Send}>
-                {submitting ? "提交中..." : "提交反馈"}
-              </Button>
-            </div>
-          </Card>
+          {isAuthenticated ? (
+            <Card as="form" padding={5} className="space-y-3" onSubmit={handleSubmit}>
+              <div className="flex gap-2">
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCategory(c.key)}
+                    className={
+                      "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer " +
+                      (category === c.key
+                        ? "bg-brand-500 text-white"
+                        : "bg-surface-soft text-muted hover:text-ink")
+                    }
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="说说你遇到的问题或建议（至少 5 个字）..."
+                rows={4}
+                maxLength={5000}
+                required
+              />
+              <Input
+                type="text"
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                placeholder="联系方式（可选，如 QQ 邮箱，方便我们回复你）"
+                maxLength={200}
+              />
+              <div className="flex justify-end">
+                <Button type="submit" disabled={submitting} icon={submitting ? undefined : Send}>
+                  {submitting ? "提交中..." : "提交反馈"}
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Card padding={5} className="text-center">
+              <p className="text-xs text-muted leading-relaxed">
+                登录后可以直接提交反馈，我们会尽快查看并回复。
+              </p>
+              <Link
+                href="/login?next=/contact"
+                className="mt-3 inline-block text-sm font-semibold text-brand-600 hover:text-brand-500 transition-colors"
+              >
+                去登录
+              </Link>
+            </Card>
+          )}
         </section>
 
         {/* My feedback history */}
