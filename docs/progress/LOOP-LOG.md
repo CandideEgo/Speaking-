@@ -10,7 +10,7 @@
 - 开始前先 commit 基线；每轮结束 commit 一条，保证可回溯。
 - 验证门禁：`cd frontend && npx tsc --noEmit` + `pre-commit run prettier --files <files>` + `npm run build`（`npm run lint` / `next lint` 无配置会交互卡死，禁用）。
 - prettier 本地 npx 是 v3.8.4，pre-commit hook 是 **v4.0.0-alpha.8**，输出不一致 → 改完文件必须用 `pre-commit run prettier` 格式化再 add+commit。
-- 改动前用 GitNexus `impact` 评估爆炸半径，commit 前用 `detect_changes` 校验影响范围。
+- 改动前做调用方影响分析（grep 调用点评估爆炸半径），commit 前用 `git diff --stat` 核对改动范围。
 
 ## 迭代日志
 

@@ -61,7 +61,7 @@ e2e
 - 筛选进 URL 会外溢收益：首页筛选从此可分享、可收藏、可后退。
 - 频道 chip 箭头朝右；朝下会被理解为「下拉展开」。
 - **本片不新建 `.agent/decisions.md` 条目**：执行方案 `:29` 把 DEC 强制点限定为 ①空进度落库(S3) ②复习间隔(S6) ③选择题化(S5)，S1 不在其中；且 `.agent/decisions.md` 已到 99.8%，下一条写入前必须先做归档轮。本片的取舍记在本节与上面那节 wiki 里。
-- 开工前的 `gitnexus_impact` **未能执行**：本会话没有 GitNexus MCP 工具，仓库里也没有 `gitnexus` CLI。改为手工调用方分析，最高风险为 MEDIUM（`usePlatformFeed` 两个调用方：首页、浏览），无 HIGH/CRITICAL。
+- 开工前做了手工调用方分析，最高风险为 MEDIUM（`usePlatformFeed` 两个调用方：首页、浏览），无 HIGH/CRITICAL。
 
 ## 遗留
 

@@ -58,7 +58,7 @@ Check:
 - current implementation
 - existing architecture
 - `.agent/invariants.md` — the rules the change must not break
-- **cross-module impact** — run `gitnexus_impact({target: "symbolName", direction: "upstream"})` on affected symbols to assess blast radius
+- **cross-module impact** — trace the callers of affected symbols (grep the call sites) to assess blast radius
 
 Do not rely only on memory.
 

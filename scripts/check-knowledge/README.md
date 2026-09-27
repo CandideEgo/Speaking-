@@ -204,10 +204,10 @@ Tier ceilings cover a set of files read together, so a tier trips whenever any m
 its own `limit` plus the slack of its members, so `--budget-refresh` leaves a tier with exactly the
 headroom its files have, never zero.
 
-`slack` is headroom for content the repo does not author: the GitNexus block that
-`npx gitnexus analyze` rewrites in `AGENTS.md` and `CLAUDE.md` on every reindex. Without it, a
-reindex trips the budget for a change no one made by hand. It is per-file only — a tier cannot be
-granted slack its members do not have, or the tier would pass while every file in it was over.
+`slack` is headroom for content the repo does not author by hand: machine-rewritten blocks
+(entry-point injections in `AGENTS.md` / `CLAUDE.md`). Without it, a machine rewrite trips the
+budget for a change no one made by hand. It is per-file only — a tier cannot be granted slack
+its members do not have, or the tier would pass while every file in it was over.
 
 ## Exemptions
 

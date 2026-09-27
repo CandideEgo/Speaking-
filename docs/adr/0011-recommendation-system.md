@@ -294,7 +294,7 @@ videos 表新增字段:
 - **不要过早引入 Kafka**：P0-P3 用 Redis Stream + PostgreSQL 足够；到 P4 行为事件日均 > 100 万条再考虑 Kafka。当前规模上 Kafka 是过度工程。
 - **不要过早引入 embedding**：P1 用关键词 TopicMatch 已经能跑出 80% 效果，且计算成本几乎为 0。P4 上 embedding 主要是为了解决"用户兴趣语义漂移"问题，需要行为数据支撑，否则向量无意义。
 - **新增表合计 5 张**：`behavior_events`（P0）、`video_scores`（P1）、`channels`/`channel_subscriptions`/`video_chapters`（P3），外加 `video_embeddings`（P4，需 pgvector 扩展）。
-- **`finalize_video` 改动需做 GitNexus 影响分析**：它是视频流水线关键节点（被 `process_video` 调用、回调触发），编辑前必须 `gitnexus_impact({target: "finalize_video", direction: "upstream"})` 评估爆炸半径；提交前 `gitnexus_detect_changes()` 验证范围。
+- **`finalize_video` 改动需做调用方影响分析**：它是视频流水线关键节点（被 `process_video` 调用、回调触发），编辑前必须 grep 调用方评估爆炸半径；提交前用 `git diff --stat` 验证范围。
 - **与 ADR-0006 标准版/Fork 正交**：评分针对 `Video` 行，标准版与 fork 共享同一 score——fork 不重复算分，继承标准版 score 即可（fork 不重新跑 GPU，元数据相同）。
 - **与 ADR-0002 已冻结的口语评分无冲突**：本方案的 score 是"视频质量分"（用于排序推荐），不是"用户口语能力分"（已冻结）。命名上明确用 `learning_score` / `video_score`，避免与历史 `speaking_attempt_scores` 混淆。
 - **首页推荐流改造对运营的影响**：P2 上线后，`is_featured` / `show_on_homepage` 不再决定首页首位，但仍保留作为"运营保底"——当 score 数据不足（新视频 < 5 个 click）时回退到人工精选。

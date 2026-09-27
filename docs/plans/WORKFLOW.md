@@ -30,11 +30,11 @@
 
 ### 标准开发流程
 
-1. **影响分析** — `gitnexus_impact({target, direction: "upstream"})` 检查要修改的符号。HIGH/CRITICAL → 考虑改用对抗开发
+1. **影响分析** — grep 调用点评估爆炸半径，高风险先报告。HIGH/CRITICAL → 考虑改用对抗开发
 2. **创建分支** — `git checkout -b feat/short-description`
-3. **开发** — 遵循 CONTRIBUTING.md 规范。用 `gitnexus_query` 查找已有工具函数，避免重复
+3. **开发** — 遵循 CONTRIBUTING.md 规范。用 grep 查找已有工具函数，避免重复
 4. **自检清单**（合并前必做）：
-   - [ ] `gitnexus_detect_changes({scope: "all"})` — 无意外影响
+   - [ ] `git diff --stat` 核对改动范围 — 无意外影响
    - [ ] `cd backend && pytest tests/ -v` — 后端测试通过
    - [ ] `cd frontend && npm run check` — 前端检查通过
    - [ ] 无 CONTRIBUTING.md 第 6 节反模式
@@ -220,21 +220,18 @@ curl https://api.your-domain.com/health
 
 | 场景 | 工具 | 原因 |
 |------|------|------|
-| "X 怎么工作的？" | `gitnexus_query` + `gitnexus_context` | 找执行流，不只是文件匹配 |
-| "改 X 会影响什么？" | `gitnexus_impact({target, direction: "upstream"})` | 修改前看影响范围 |
-| "重命名 X" | `gitnexus_rename` | 理解调用图，比 find-replace 安全 |
-| "调试 X 失败" | `/gitnexus-debugging` | 追踪执行流找根因 |
-| "重构 X" | `/gitnexus-refactoring` | 影响感知重构 |
+| "X 怎么工作的？" | grep 调用点 + 手工追踪 | 顺调用点找执行流 |
+| "改 X 会影响什么？" | grep 调用方分析 | 修改前看影响范围 |
 | "审查我的改动" | `/code-review` | Standards + Spec 双轴审查 |
 | "开发关键功能" | `/code-review` | 审查关键改动 |
 | "验证改动生效" | `/verify` | 运行应用观察行为 |
 | "重启前端" | `/speaking-dev` | 清缓存 + 重启 |
 
-### GitNexus-first 规则
+### 影响分析规则
 
-1. 修改任何符号前，先运行 `gitnexus_impact` — 这是 CLAUDE.md 的强制规则
-2. 提交前运行 `gitnexus_detect_changes` — 确认只影响预期符号
-3. 探索不熟悉的代码，用 `gitnexus_query` 而不是 grep
+1. 修改任何符号前，先做调用方影响分析（grep 调用点评估爆炸半径，高风险先报告）
+2. 提交前用 `git diff --stat` 核对改动范围 — 确认只影响预期文件
+3. 探索不熟悉的代码，先 grep 调用点再读实现，建立执行流认知
 
 ### 对抗开发触发条件
 
@@ -348,7 +345,7 @@ git config --global core.autocrlf input
   > 200 行 或 auth/payment → /code-review
 
 提交前必做:
-  1. gitnexus_impact → 检查影响范围
+  1. 调用方影响分析（grep 调用点） → 检查影响范围
   2. pre-commit 自动运行 (ruff, prettier)
   3. pytest tests/ -v (后端)
   4. npm run check (前端)
@@ -368,7 +365,7 @@ git config --global core.autocrlf input
 AI 工具:
   /code-review        代码审查（双轴）
   /speaking-dev       服务启停/重启
-  gitnexus_impact     修改前检查
-  gitnexus_detect     提交前验证
+  调用方影响分析      修改前检查
+  git diff --stat     提交前验证
 ═══════════════════════════════════════
 ```

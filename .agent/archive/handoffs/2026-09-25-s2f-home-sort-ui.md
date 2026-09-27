@@ -60,10 +60,9 @@ S2b 已把 `favorite` / `weekly_favorite` 两个排序值落到 `GET /api/v1/bro
   `includes()` 白名单拉 jsdom 不值当；本片也没有值得抽进 `lib/` 的纯函数（类型已从数组派生）。回归防线放在 e2e。
 - **`/browse` 不加排序 UI**：本片范围是首页（执行方案 §3 的「首页排序项」）。`/browse?sort=favorite` 手写 URL
   现在也能用，只是没有入口。
-- **门禁 0 影响面（`npx gitnexus` CLI 本次可用）**：`usePlatformFeed` 与 `isFeedSort` 报 **HIGH**（direct 2、
+- **门禁 0 影响面分析结果**：`usePlatformFeed` 与 `isFeedSort` 报 **HIGH**（direct 2、
   影响 4 条流程 HomePage/HomeFeed/BrowsePage/BrowseFeed），`HomeFilterBar` / `SortDropdown` 为 LOW。HIGH 只来自
   「hook 被首页与浏览页共用」，本片是纯追加（不动签名/返回结构/既有四值行为），已按 AGENTS.md 要求报备。
-  索引比 HEAD 落后三个 docs-only commit（只动了 `.md` / `knowledge-stamps.json`），代码图仍有效。
 
 ## 遗留
 

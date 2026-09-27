@@ -449,7 +449,7 @@ ocr scan --path frontend/src --resume f7eba0d2-64f5-4034-a62d-deb515c47103 \
 3. **线上容器实际的运行时 `ENV` 值未知。** 仓库内所有入口都写 production/testing —— `deploy.sh:74`、`deploy-oneclick.sh:87`、`docker-compose.prod.yml:81/155/200`、`docs/operations/PRODUCTION.md:69`、CI 用 `ENV: testing`；`.env.example:13` 记录 `development / production / testing` 三值 —— 但线上进程环境无法从此处确认。结合 C3 的 `env` 默认值仍为 `development`，**「漏配 ENV」这个根因并未被我的修复关闭**：现在未知值会 fail-closed，但**完全不设**仍是 development。建议在 `docker-compose.prod.yml` 与部署脚本里显式 `ENV=production`，并考虑让非本地启动 fail-closed。
 4. **C2 的可利用性取决于上游代理是否规范化 `..`**（nginx 默认合并，直连 uvicorn 不会）。新增回归测试是直连 ASGI 的，**绕过了代理**。
 5. **未做真实 nginx 端到端验证**：H10 的 500m 上限只被引用，未在生产栈实跑。
-6. **未跑 `/knowledge-maintain`，也未跑 `gitnexus_detect_changes()`**（见第 14 节）。
+6. **未跑 `/knowledge-maintain`，也未做提交前的调用方影响分析**（见第 14 节）。
 7. **`logs/ocr-scan-*.json` 的 `summary.files_reviewed` 与实际完成数不一致**（前者是派发数）。本报告引用覆盖率时用的是会话计数器（selected/completed/failed/reused），不是 `files_reviewed`。
 8. 后端首轮 JSON 里有 2 条评论的 `severity`/`category` 为 `None`（数据小瑕疵，未追查）。
 9. 我本人没读 `wiki/architecture/frontend-architecture.md`、`.agent/invariants.md`、`.agent/system-map.md`（子代理按其 brief 读过）。
@@ -488,7 +488,7 @@ ocr scan --path frontend/src --resume f7eba0d2-64f5-4034-a62d-deb515c47103 \
 
 1. **`/knowledge-maintain`** —— 本次是跨模块变更（`api/media`、`core/config`、`api/favorites`、`api/channels`、`api/users` 五个模块的接口/行为 + 新增 `core/uploads.py`），按仓库根 `AGENTS.md` 的 MUST 规则，提交前必须执行。
 2. **顺带修文档漂移**：`wiki/architecture/backend-services.md:39` 仍在描述已被删除的 `learning_plan_service.py`。
-3. **`gitnexus_detect_changes()`** —— 确认改动只影响预期符号与执行流（`AGENTS.md` 的 GitNexus 规则要求提交前跑）。
+3. **提交前调用方影响分析** —— 确认改动只影响预期文件与执行流（用 grep 调用点与 `git diff --stat` 核对）。
 4. **本报告未提交任何 git 写操作。** 所有改动都在工作区，请你决定何时提交。
 5. 建议一并决定的遗留项，见第 11 节（4 项已核实未修）与第 12 节第 3 点（`ENV` 默认值）。
 
@@ -529,7 +529,7 @@ ocr scan --path frontend/src --resume f7eba0d2-64f5-4034-a62d-deb515c47103 \
 
 ## 附录 C：报告写就后的后续修复（2026-09-25 追加）
 
-**本附录的效力高于第 11、12、14 节的相应表述。** 第 11 节列出的「已核实但故意未修」4 项现已**全部修复**；第 12 节第 6 点与第 14 节第 1、2 点已履行完毕；第 14 节第 3 点（`gitnexus_detect_changes()`）仍**未执行**。修复过程中有两处发现**推翻了本报告此前的判断**（见 C.3），另有两处**偏离了本报告给出的修法建议**（见 C.2）。
+**本附录的效力高于第 11、12、14 节的相应表述。** 第 11 节列出的「已核实但故意未修」4 项现已**全部修复**；第 12 节第 6 点与第 14 节第 1、2 点已履行完毕；第 14 节第 3 点（提交前调用方影响分析）仍**未执行**。修复过程中有两处发现**推翻了本报告此前的判断**（见 C.3），另有两处**偏离了本报告给出的修法建议**（见 C.2）。
 
 ### C.1 修复清单（五项）
 
@@ -614,7 +614,7 @@ ocr scan --path frontend/src --resume f7eba0d2-64f5-4034-a62d-deb515c47103 \
 1. **DEC-049 的 schema 级窄窗**：两个**不同**的条目共享同一 `source_url` 并发 promote，仍会各播一次。要关掉需给 `videos(source_url, is_official)` 加部分唯一索引 + `IntegrityError → 复用`（迁移 + 模型同步），属 schema 决策，按 `AGENTS.md` 应先走 `/decision-support`。`mark_item` 也仍是无锁读。
 2. **DEC-051 的 ENV 残留**：现在未知值 fail-closed，但线上**完全不设** `ENV` 仍以 development 运行（含 dev 支付签名旁路与 mock 支付路由）。仓库内所有部署入口都已显式写 `production`/`testing`，但进程环境无法从仓库自证。
 3. **`recommend:home:*` / `recommend:category:*` 缓存**同样嵌了 `channel_slug`，本次未纳入失效，只有 60s TTL 兜底。
-4. **`gitnexus_detect_changes()` 未执行**：`AGENTS.md` 的 GitNexus 规则要求提交前跑；本次会话没有 gitnexus MCP 工具可用。
+4. **提交前调用方影响分析未执行**：本会话未做手工调用方分析，改动影响范围未经提交前核验。
 5. **前端 e2e 未跑**，C6 仍无运行时证据。
 
 ### C.7 提交状态
@@ -696,7 +696,7 @@ H21 的 PostgreSQL 前提**单独实测确认**（SQLite 不校验 `varchar` 长
 
 1. **非有限浮点的读路径未设防**（H24 的背面）。写入侧已用 `allow_inf_nan=False` 拦住新值，但以下三条路仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`：(a) 修复之前已经落库的值；(b) **不经 Pydantic** 的响应——`GET /api/v1/learning/progress` 直接返回裸 dict，`jsonable_encoder` 对它不做任何校验；(c) 无 schema 的 JSONB payload（行为事件的 `event_payload`）可以接受 `NaN`（`json.dumps` 默认 `allow_nan=True`）。彻底关闭需要在读侧统一清洗，或在解析层拒绝——后者是 D.2 里放弃的那个方案。
 2. **`decisions.md` 已到上限的 99.8%**，见 D.5。
-3. 第 12 节列出的 10 项未验证事项**本轮未变**：C6 仍只有逻辑复核（前端 e2e 未跑）、C2 的回归测试仍绕过代理、nginx 端到端未验证、第 5 节项目级总结未核实、`gitnexus_detect_changes()` 因本会话无该 MCP 工具**仍未执行**。
+3. 第 12 节列出的 10 项未验证事项**本轮未变**：C6 仍只有逻辑复核（前端 e2e 未跑）、C2 的回归测试仍绕过代理、nginx 端到端未验证、第 5 节项目级总结未核实、提交前调用方影响分析**仍未执行**。
 
 ### D.7 提交
 

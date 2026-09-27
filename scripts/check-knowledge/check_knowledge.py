@@ -335,9 +335,9 @@ def check_ownership(files: list[Path]) -> list[Violation]:
 def ceiling(spec: dict) -> int:
     """The size a file is actually held to: `limit` plus declared `slack`.
 
-    `slack` is headroom for content this repo does not author — currently the GitNexus
-    block that `npx gitnexus analyze` rewrites in AGENTS.md and CLAUDE.md on every
-    reindex. Without it, a reindex trips the budget for a change no one made by hand.
+    `slack` is headroom for content this repo does not author by hand — machine-rewritten
+    blocks (entry-point injections) or generated sections. Without it, a machine rewrite trips
+    the budget for a change no one made by hand.
     """
     return spec["limit"] + spec.get("slack", 0)
 

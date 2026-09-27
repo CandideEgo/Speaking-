@@ -68,6 +68,6 @@
 1. **勿整体重写播放页布局** — flex 高度链脆弱，用自然流 + aspect-video。见记忆 `watch-page-layout-broken-lesson`。
 2. **`npm run build` 污染 dev server 的 `.next`** — 验证前端只用 `tsc`，需 build 另开或事后清 `.next`。
 3. **改播放页前先 commit**。
-4. **GitNexus 安全门**：改函数/类前 `gitnexus_impact`，提交前 `gitnexus_detect_changes`。
+4. **影响分析安全门**：改函数/类前先做调用方影响分析（grep 调用点），提交前用 `git diff --stat` 核对改动范围。
 
 相关记忆：`speaking-eval-redo`（Phase3 重做）、`watch-page-layout-broken-lesson`、`optimization-roadmap`。

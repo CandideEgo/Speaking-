@@ -49,7 +49,7 @@
   - `ruff check app/ tests/` → **exit 0**。
   - `ruff format --check app/ tests/` → **exit 1**，唯一失败文件 `app/services/study_session_service.py` 是**另一执行 agent 的在途文件**；本片两个文件单跑 `ruff format --check` 为 exit 0。
   - `mypy app/ --ignore-missing-imports` → exit 1（78 条），与 `backend/.mypy-baseline` 逐对比较后**本片新增 0 条**；唯一新对 `app/api/v1/vocabulary.py:name-defined` 也是对方的在途文件。`app/api/v1/browse.py:attr-defined` 本就在基线里（`_video_to_dict` 的 `video_source.value`，未改）。
-- **`gitnexus_detect_changes()` 报 risk `high`，是共享工作树的聚合结果**：14 文件 / 76 符号 / 13 流程，绝大多数是另一 agent 的 vocab-learning 在途改动。本片只贡献 `browse.py` 的 12 个符号，**不涉及任何受影响流程**（13 条流程全在 VocabDrillPage / `_update_daily_progress` 侧）；`_browse_featured_query` 被标 `touched` 是行号位移的启发式误报，`git diff` 未改它。
+- **影响面分析报 risk `high`，是共享工作树的聚合结果**：14 文件 / 76 符号 / 13 流程，绝大多数是另一 agent 的 vocab-learning 在途改动。本片只贡献 `browse.py` 的 12 个符号，**不涉及任何受影响流程**（13 条流程全在 VocabDrillPage / `_update_daily_progress` 侧）；`_browse_featured_query` 被标 `touched` 是行号位移的启发式误报，`git diff` 未改它。
 - **未跑 `/knowledge-maintain`**：本片只改 1 个模块（`api/v1/browse.py`），未达 AGENTS.md 的「≥2 个 service/模块」门槛。`wiki/` 无页面记录 feed 的 sort 取值，无需刷新。
 
 ### DEC 条目（待 planner 合并）
