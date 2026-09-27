@@ -273,3 +273,42 @@ async def test_batch_drops_only_unknown_video_ids(client, auth_headers, db_sessi
         assert by_type["watch_time"].video_id == vid  # known id survives
         assert by_type["pause"].video_id is None
         assert by_type["complete"].video_id is None  # bogus id dropped
+
+
+async def test_batch_over_max_events_rejected(client, auth_headers):
+    """审计 H17：单批事件数必须封顶（前端 MAX_QUEUE=20，上限给 10 倍余量）。"""
+    from app.schemas.behavior import MAX_EVENTS_PER_BATCH
+
+    events = [{"event_type": "tap"} for _ in range(MAX_EVENTS_PER_BATCH + 1)]
+    resp = await client.post(
+        "/api/v1/behavior/events/batch",
+        headers=auth_headers,
+        json={"events": events},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_oversized_event_payload_rejected(client, auth_headers):
+    """审计 H17：event_payload 序列化后必须小于字节上限（JSONB 无 schema，堵住入口）。"""
+    from app.schemas.behavior import MAX_PAYLOAD_BYTES
+
+    big_payload = {"blob": "x" * (MAX_PAYLOAD_BYTES + 1)}
+    resp = await client.post(
+        "/api/v1/behavior/events",
+        headers=auth_headers,
+        json={"event_type": "tap", "event_payload": big_payload},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_payload_at_limit_accepted(client, auth_headers):
+    """边界：恰好在上限内的 payload 正常入库（上限不是一刀切拒绝大对象）。"""
+    from app.schemas.behavior import MAX_PAYLOAD_BYTES
+
+    payload = {"blob": "x" * (MAX_PAYLOAD_BYTES - 100)}  # 留出 JSON 结构开销
+    resp = await client.post(
+        "/api/v1/behavior/events",
+        headers=auth_headers,
+        json={"event_type": "tap", "event_payload": payload},
+    )
+    assert resp.status_code == 200, resp.text
