@@ -119,7 +119,8 @@ export interface RankedVideo {
   thumbnail_url: string | null;
   duration: number | null;
   difficulty_level: string | null;
-  topic_tags: string[] | null;
+  /** 与 Video.topic_tags 同源：后端 ranking_service 直接吐出逗号分隔的原始列。 */
+  topic_tags: string | null;
   is_official: boolean;
   video_source: string | null;
   channel_name: string | null;

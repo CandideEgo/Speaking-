@@ -22,6 +22,7 @@ export function formatDuration(sec: number | null): string {
 export function timeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return "";
   const diff = Math.max(0, now - then);
   const seconds = Math.floor(diff / 1000);
 

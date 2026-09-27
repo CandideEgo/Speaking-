@@ -31,7 +31,7 @@ const TABS: { key: string; label: string; value: string | null }[] = [
   { key: "video", label: "视频", value: "video_ready" },
   { key: "pro", label: "会员", value: "pro_expiring" },
   { key: "vocab", label: "词汇", value: "vocabulary_reminder" },
-  { key: "achievement", label: "成就", value: "achievement" },
+  { key: "achievement", label: "成就", value: "achievement_unlocked" },
 ];
 
 /**
@@ -56,15 +56,15 @@ export default function NotificationsPage() {
 
   const { items, loading, hasMore, loaderRef, reload } = usePaginatedList<Notification>({
     fetcher,
-    mode: "replace",
+    mode: "append",
+    filters: [type],
     enabled: isAuthenticated && !isLoading,
   });
 
-  async function markRead(id: string, relatedUrl: string | null) {
+  async function markRead(id: string) {
     try {
       await api(`/api/v1/notifications/${id}/read`, { method: "PATCH" });
       reload();
-      if (relatedUrl) window.location.href = relatedUrl;
     } catch {
       toast.error("操作失败");
     }
@@ -135,7 +135,7 @@ export default function NotificationsPage() {
                       {n.related_url && (
                         <Link
                           href={n.related_url}
-                          onClick={() => markRead(n.id, null)}
+                          onClick={() => markRead(n.id)}
                           className="text-[11px] text-brand-500 hover:underline"
                         >
                           查看详情 →
@@ -143,7 +143,7 @@ export default function NotificationsPage() {
                       )}
                       {!n.is_read && (
                         <button
-                          onClick={() => markRead(n.id, null)}
+                          onClick={() => markRead(n.id)}
                           className="text-[11px] text-muted hover:text-ink inline-flex items-center gap-1"
                         >
                           <Check size={11} />

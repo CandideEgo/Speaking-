@@ -102,6 +102,10 @@ export function syncAuthCookie(name: string, token: string | null, maxAgeDays = 
  */
 export function safeNext(raw: string | null, fallback = "/"): string {
   if (!raw) return fallback;
+  // 空白/控制字符必须先挡：浏览器解析 URL 前会剥掉 TAB/LF/CR，"/\t/evil.com"
+  // 能通过 startsWith("/") 与 startsWith("//") 的检查，却解析成协议相对的
+  // "//evil.com"（站外跳转）。
+  if (/\s/.test(raw)) return fallback;
   if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return fallback;
   return raw;
 }

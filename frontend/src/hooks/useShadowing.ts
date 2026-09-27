@@ -130,58 +130,55 @@ export function useShadowing(videoId: string | undefined): UseShadowingReturn {
 
   const resolveAudioUrl = useCallback((path: string) => mediaUrl(path), []);
 
-  const deleteAttempt = useCallback(async (id: string): Promise<boolean> => {
-    // Snapshot for rollback so the user sees their recording reappear if
-    // the server rejects (e.g. 404, 5xx, network down).
-    let snapshot: ShadowingAttempt | null = null;
-    setAttempts((prev) => {
-      snapshot = prev.find((a) => a.id === id) ?? null;
-      return prev.filter((a) => a.id !== id);
-    });
-    try {
-      await api<void>(`/api/v1/shadowing/attempts/${id}`, { method: "DELETE" });
-      return true;
-    } catch (err) {
-      // Roll back so the UI matches the server state.
-      if (snapshot) {
-        setAttempts((prev) => {
-          if (prev.some((a) => a.id === id)) return prev;
-          return [snapshot as ShadowingAttempt, ...prev];
-        });
+  const deleteAttempt = useCallback(
+    async (id: string): Promise<boolean> => {
+      // Snapshot for rollback so the user sees their recording reappear if
+      // the server rejects (e.g. 404, 5xx, network down).
+      const snapshot = attempts.find((a) => a.id === id) ?? null;
+      setAttempts((prev) => prev.filter((a) => a.id !== id));
+      try {
+        await api<void>(`/api/v1/shadowing/attempts/${id}`, { method: "DELETE" });
+        return true;
+      } catch (err) {
+        // Roll back so the UI matches the server state.
+        if (snapshot) {
+          setAttempts((prev) => {
+            if (prev.some((a) => a.id === id)) return prev;
+            return [snapshot, ...prev];
+          });
+        }
+        const msg = err instanceof Error ? err.message : "删除失败";
+        toast.error(msg);
+        return false;
       }
-      const msg = err instanceof Error ? err.message : "删除失败";
-      toast.error(msg);
-      return false;
-    }
-  }, []);
+    },
+    [attempts]
+  );
 
-  const setSatisfied = useCallback(async (id: string, value: boolean): Promise<boolean> => {
-    // Snapshot the previous flag so a rejected PATCH can restore the row.
-    let previous: boolean | null = null;
-    setAttempts((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a;
-        previous = a.is_satisfied;
-        return { ...a, is_satisfied: value };
-      })
-    );
-    try {
-      await api<ShadowingAttempt>(`/api/v1/shadowing/attempts/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_satisfied: value }),
-      });
-      return true;
-    } catch (err) {
-      if (previous !== null) {
-        setAttempts((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, is_satisfied: previous! } : a))
-        );
+  const setSatisfied = useCallback(
+    async (id: string, value: boolean): Promise<boolean> => {
+      // Snapshot the previous flag so a rejected PATCH can restore the row.
+      const previous = attempts.find((a) => a.id === id)?.is_satisfied ?? null;
+      setAttempts((prev) => prev.map((a) => (a.id === id ? { ...a, is_satisfied: value } : a)));
+      try {
+        await api<ShadowingAttempt>(`/api/v1/shadowing/attempts/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ is_satisfied: value }),
+        });
+        return true;
+      } catch (err) {
+        if (previous !== null) {
+          setAttempts((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, is_satisfied: previous } : a))
+          );
+        }
+        const msg = err instanceof Error ? err.message : "保存失败";
+        toast.error(msg);
+        return false;
       }
-      const msg = err instanceof Error ? err.message : "保存失败";
-      toast.error(msg);
-      return false;
-    }
-  }, []);
+    },
+    [attempts]
+  );
 
   return {
     uploadAndSave,

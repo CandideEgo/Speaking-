@@ -287,7 +287,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           return false;
         }
         const data = await res.json();
-        get().login(data.token, data.refresh_token);
+        if (typeof data?.token !== "string" || !data.token) {
+          get().logout();
+          return false;
+        }
+        get().login(data.token, typeof data.refresh_token === "string" ? data.refresh_token : null);
         return true;
       } catch {
         get().logout();

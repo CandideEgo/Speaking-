@@ -52,13 +52,8 @@ export function NotificationPreferences() {
     try {
       const data = await api<Preferences>("/api/v1/notifications/preferences");
       setPreferences(data);
-    } catch {
-      // Initialize with all enabled by default
-      const defaults: Preferences = {};
-      NOTIFICATION_TYPES.forEach((t) => {
-        defaults[t.id] = true;
-      });
-      setPreferences(defaults);
+    } catch (err) {
+      toastApiError(err, "通知设置加载失败");
     } finally {
       setLoading(false);
     }

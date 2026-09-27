@@ -37,15 +37,6 @@ const DAILY_MINUTES = [
   { value: 60, label: "60 分钟", description: "高强度" },
 ];
 
-const TOPICS = [
-  { value: "tech", label: "科技" },
-  { value: "business", label: "商业" },
-  { value: "education", label: "教育" },
-  { value: "culture", label: "文化" },
-  { value: "life", label: "生活" },
-  { value: "news", label: "新闻" },
-];
-
 const TOTAL_STEPS = 3;
 
 export default function OnboardingPage() {
@@ -59,17 +50,10 @@ export default function OnboardingPage() {
   const [level, setLevel] = useState<string | null>(null);
   const [targetExam, setTargetExam] = useState<string | null>(null);
   const [dailyMinutes, setDailyMinutes] = useState<number>(30);
-  const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   if (authLoading) return null;
   if (!isAuthenticated) return null;
-
-  function toggleTopic(value: string) {
-    setTopics((prev) =>
-      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
-    );
-  }
 
   async function handleSkip() {
     setSaving(true);
@@ -90,25 +74,25 @@ export default function OnboardingPage() {
   async function handleComplete() {
     setSaving(true);
     try {
-      await Promise.all([
-        api("/api/v1/users/me", {
-          method: "PATCH",
-          body: JSON.stringify({ level }),
+      await api("/api/v1/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ level }),
+      });
+      await api("/api/v1/users/me/preferences", {
+        method: "PUT",
+        body: JSON.stringify({
+          // "daily" 无 canonical 考试键 → 清空目标（后端校验只收 exam_levels 键）。
+          target_exam: targetExam === "daily" ? null : targetExam,
+          daily_goal_type: "minutes",
+          daily_goal_value: dailyMinutes,
         }),
-        api("/api/v1/users/me/preferences", {
-          method: "PUT",
-          body: JSON.stringify({
-            // "daily" 无 canonical 考试键 → 清空目标（后端校验只收 exam_levels 键）。
-            target_exam: targetExam === "daily" ? null : targetExam,
-            daily_goal_type: "minutes",
-            daily_goal_value: dailyMinutes,
-          }),
-        }),
-        api("/api/v1/users/me/onboarding", {
-          method: "POST",
-          body: JSON.stringify({ onboarding_completed: true }),
-        }),
-      ]);
+      });
+      // 串行且引导标记最后写：前面失败时不置位，用户重试即可全部补齐；
+      // 若并行，标记可能先落地而资料未保存，用户会直接跳过引导。
+      await api("/api/v1/users/me/onboarding", {
+        method: "POST",
+        body: JSON.stringify({ onboarding_completed: true }),
+      });
       setOnboardingCompleted();
       router.replace("/");
     } catch (err) {
@@ -218,7 +202,7 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <div>
               <h2 className="font-display text-2xl text-ink mb-1">学习节奏</h2>
-              <p className="text-sm text-muted">设置每日学习时长和兴趣话题</p>
+              <p className="text-sm text-muted">设置每日学习时长</p>
             </div>
 
             {/* Daily minutes */}
@@ -238,30 +222,6 @@ export default function OnboardingPage() {
                   >
                     <div className="font-medium">{d.label}</div>
                     <div className="text-xs text-muted mt-0.5">{d.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Interest topics */}
-            <div>
-              <p className="text-sm font-medium text-ink mb-2">
-                兴趣话题
-                <span className="ml-1 text-xs text-muted font-normal">（可多选）</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {TOPICS.map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => toggleTopic(t.value)}
-                    className={cn(
-                      "px-3.5 py-2 rounded-full border text-sm font-medium transition-colors",
-                      topics.includes(t.value)
-                        ? "border-brand-500 bg-brand-500/5 text-brand-600"
-                        : "border-hairline text-muted hover:bg-surface-soft hover:text-ink"
-                    )}
-                  >
-                    {t.label}
                   </button>
                 ))}
               </div>

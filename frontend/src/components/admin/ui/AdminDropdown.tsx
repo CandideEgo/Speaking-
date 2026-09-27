@@ -37,6 +37,9 @@ export function AdminDropdown({ items, trigger, align = "right", className }: Ad
   return (
     <div ref={ref} className={cn("relative inline-block", className)}>
       <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen(!open);
@@ -60,6 +63,7 @@ export function AdminDropdown({ items, trigger, align = "right", className }: Ad
           {items.map((item) => (
             <button
               key={item.key}
+              type="button"
               disabled={item.disabled}
               onClick={(e) => {
                 e.stopPropagation();

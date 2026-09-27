@@ -28,20 +28,28 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
   useEffect(() => {
     audioUrlRef.current = audioUrl;
   }, [audioUrl]);
+  // Live stream + abort flag: the unmount cleanup and the abort path must read
+  // the current values, not the ones captured on the first render.
+  const streamRef = useRef<MediaStream | null>(null);
+  const abortedRef = useRef(false);
 
-  // Revoke the object URL and clear recording state on unmount.
+  // Release the mic, stop the recorder and revoke the object URL on unmount.
   useEffect(() => {
     return () => {
+      abortedRef.current = true;
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      recordingStream?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function stopSpeaking() {
+    abortedRef.current = true;
     if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
-    recordingStream?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     setRecordingStream(null);
     setSpeakingState("idle");
     setSpeakingActive(false);
@@ -58,12 +66,14 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
 
   async function startRecording() {
     if (!requireAuth()) return;
+    abortedRef.current = false;
     setSpeakingActive(true);
     try {
       // echoCancellation + noiseSuppression 提升跟读音质
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
+      streamRef.current = stream;
       setRecordingStream(stream);
       // 探测浏览器支持的 mimeType，旧 Safari 不支持 webm
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -78,11 +88,17 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       r.onstop = () => {
+        // 已放弃的录音（退出/重录）不再产生 blob，也不要把状态推回 reviewing。
+        if (abortedRef.current) return;
         const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
+        const nextUrl = URL.createObjectURL(blob);
+        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = nextUrl;
         setAudioBlob(blob);
-        setAudioUrl(URL.createObjectURL(blob));
+        setAudioUrl(nextUrl);
         setSpeakingState("reviewing");
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         setRecordingStream(null);
         // Stop timer if active
         if (timerRef.current) {
@@ -100,6 +116,9 @@ export function useSpeakingRecorder(requireAuth: () => boolean, options?: { time
         }, 1000);
       }
     } catch {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setRecordingStream(null);
       setSpeakingActive(false);
       toast.error("麦克风访问失败，请检查浏览器权限");
     }

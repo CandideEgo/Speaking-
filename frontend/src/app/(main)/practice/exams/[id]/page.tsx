@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -33,18 +33,26 @@ export default function ExamPaperPage() {
   const [paper, setPaper] = useState<PaperDetail | null>(null);
   const [attempt, setAttempt] = useState<AttemptCreate | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const attemptRef = useRef<{ paperId: string; promise: Promise<AttemptCreate> } | null>(null);
+
+  // 同一套试卷只创建一次 attempt（StrictMode/依赖变化导致 effect 重跑时复用同一请求）。
+  const createAttempt = (paperId: string) => {
+    if (attemptRef.current?.paperId === paperId) return attemptRef.current.promise;
+    const promise = api<AttemptCreate>(`/api/v1/exams/${paperId}/attempts`, { method: "POST" });
+    attemptRef.current = { paperId, promise };
+    return promise;
+  };
 
   useEffect(() => {
     if (!isAuthenticated || isLoading || !params.id) return;
+    const paperId = params.id;
     let cancelled = false;
     (async () => {
       try {
-        const detail = await api<PaperDetail>(`/api/v1/exams/${params.id}`);
+        const detail = await api<PaperDetail>(`/api/v1/exams/${paperId}`);
         if (cancelled) return;
         setPaper(detail);
-        const created = await api<AttemptCreate>(`/api/v1/exams/${params.id}/attempts`, {
-          method: "POST",
-        });
+        const created = await createAttempt(paperId);
         if (!cancelled) setAttempt(created);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");

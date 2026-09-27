@@ -40,6 +40,11 @@ function mergeEnrich(base: WordGloss, enrich: WordGloss): WordGloss {
   };
 }
 
+/** 转义正则元字符：字幕词元可能含 `(` `[` `*` 等，直接插值进 RegExp 会抛错。 */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Hook for word lookup state on the watch page.
  * Manages: selected word, gloss lookup (ECDICT + AI contextual notes),
@@ -75,7 +80,7 @@ export function useWordLookup({
       speakWord(clean);
       const subtitles = getSubtitles();
       // Use word-boundary regex to avoid substring matches (e.g. "act" in "actually")
-      const wordRe = new RegExp(`\\b${clean}\\b`, "i");
+      const wordRe = new RegExp(`\\b${escapeRegExp(clean)}\\b`, "i");
       const ctx = subtitles?.find((s) => wordRe.test(s.text_en));
 
       // 第一级：ECDICT 静态释义（内存查询，无 DB 往返）→ 词卡基础内容先渲染。
@@ -111,7 +116,7 @@ export function useWordLookup({
   const saveToVocabulary = useCallback(async () => {
     if (!selectedWord || !requireAuth()) return;
     const subtitles = getSubtitles();
-    const wordRe = new RegExp(`\\b${selectedWord}\\b`, "i");
+    const wordRe = new RegExp(`\\b${escapeRegExp(selectedWord)}\\b`, "i");
     const ctx = subtitles?.find((s) => wordRe.test(s.text_en));
     try {
       const params = new URLSearchParams({ word: selectedWord });

@@ -81,7 +81,8 @@ export function VideoControls({
   const [menu, setMenu] = useState<"rate" | "more" | null>(null);
   const hideTimerRef = useRef<number | null>(null);
 
-  const total = duration ?? videoRef.current?.duration ?? 0;
+  const rawTotal = duration ?? videoRef.current?.duration ?? 0;
+  const total = Number.isFinite(rawTotal) ? rawTotal : 0;
 
   // 进度条/时间显示：timeupdate 快速路径 + 250ms 轮询兜底
   // （iOS Safari 的 timeupdate 可能停发；轮询保证进度条不冻结）。

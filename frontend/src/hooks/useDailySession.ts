@@ -27,7 +27,7 @@ export interface DailySession {
  */
 export function useDailySession(enabled: boolean) {
   const [session, setSession] = useState<DailySession | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {

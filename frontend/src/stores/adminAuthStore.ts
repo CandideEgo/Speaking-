@@ -48,6 +48,8 @@ const MIGRATION_MAPPINGS: [string, string][] = [
 ];
 
 let refreshPromise: Promise<boolean> | null = null;
+/** Bumped by logout() so a refresh that lands later cannot resurrect the session. */
+let sessionEpoch = 0;
 
 export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set, get) => ({
   token: null,
@@ -75,6 +77,7 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
   },
 
   logout() {
+    sessionEpoch += 1;
     const currentToken = get().token;
     const currentRefreshToken = get().refreshToken;
     if (currentToken && typeof window !== "undefined") {
@@ -158,10 +161,11 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
 
   async refreshAccessToken(): Promise<boolean> {
     if (refreshPromise) return refreshPromise;
+    const epoch = sessionEpoch;
     refreshPromise = (async () => {
       const { refreshToken } = get();
       if (!refreshToken) {
-        get().logout();
+        if (epoch === sessionEpoch) get().logout();
         return false;
       }
       try {
@@ -170,15 +174,21 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
+        if (epoch !== sessionEpoch) return false;
         if (!res.ok) {
           get().logout();
           return false;
         }
         const data = await res.json();
-        get().login(data.token, data.refresh_token);
+        if (epoch !== sessionEpoch) return false;
+        if (typeof data?.token !== "string" || !data.token) {
+          get().logout();
+          return false;
+        }
+        get().login(data.token, typeof data.refresh_token === "string" ? data.refresh_token : null);
         return true;
       } catch {
-        get().logout();
+        if (epoch === sessionEpoch) get().logout();
         return false;
       } finally {
         refreshPromise = null;

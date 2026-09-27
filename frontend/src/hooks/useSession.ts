@@ -10,7 +10,7 @@ import type { GradedResult } from "@/types";
 /** A single question/item in any practice session. Each mode provides its own
  *  concrete type (PracticeItem). */
 // No structural constraint — concrete item types are passed through as-is.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+
 export type SessionItem = object;
 
 /** The result of grading one item. */
@@ -139,6 +139,8 @@ export function useSession<I extends SessionItem>({
       try {
         const result = await grader(item, ua);
         setGraded((prev) => ({ ...prev, [index]: result }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "评分失败，请重试");
       } finally {
         setGrading((prev) => {
           const next = { ...prev };

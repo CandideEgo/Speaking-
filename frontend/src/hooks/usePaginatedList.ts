@@ -74,6 +74,11 @@ export function usePaginatedList<T>(
 ): UsePaginatedListReturn<T> {
   const { fetcher, mode = "replace", filters = [], enabled = true } = options;
 
+  // A serialized, fixed-length form of `filters`: the effect below must react to
+  // filter values without letting the dep array change size when a caller's
+  // filters array length changes (React rejects a growing/shrinking dep array).
+  const filtersKey = filters.map((f) => String(f)).join("\u0001");
+
   const [items, setItems] = useState<T[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -151,7 +156,7 @@ export function usePaginatedList<T>(
     hasFetchedOnceRef.current = false;
     fetchPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...filters, enabled]);
+  }, [filtersKey, enabled]);
 
   // -----------------------------------------------------------------------
   // Page change (for replace mode, user clicking prev/next)

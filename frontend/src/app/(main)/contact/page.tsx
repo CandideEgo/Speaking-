@@ -10,7 +10,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/common/Badge";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Megaphone, Send, MessageSquare, CheckCircle2 } from "lucide-react";
@@ -41,10 +41,10 @@ const CATEGORIES = [
   { key: "other", label: "其他" },
 ] as const;
 
-const STATUS_LABEL: Record<string, { tone: string; text: string }> = {
+const STATUS_LABEL: Record<string, { tone: BadgeTone; text: string }> = {
   open: { tone: "brand", text: "待处理" },
-  in_progress: { tone: "warning", text: "处理中" },
-  resolved: { tone: "success", text: "已解决" },
+  in_progress: { tone: "amber", text: "处理中" },
+  resolved: { tone: "green", text: "已解决" },
 };
 
 export default function ContactPage() {
@@ -60,7 +60,12 @@ export default function ContactPage() {
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
 
   useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
+    if (isLoading) return;
+    if (!isAuthenticated) {
+      setAnnouncements([]);
+      setMyFeedback([]);
+      return;
+    }
     // Fetch announcements (type=announcement) + the user's own feedback in parallel.
     (async () => {
       try {
@@ -225,7 +230,7 @@ export default function ContactPage() {
                 return (
                   <Card key={f.id} padding={4}>
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <Badge tone={st.tone as never}>{st.text}</Badge>
+                      <Badge tone={st.tone}>{st.text}</Badge>
                       <span className="text-[11px] text-muted-soft">
                         {relativeTime(f.created_at)}
                       </span>

@@ -27,7 +27,10 @@ export function useVocabSetDetail(
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(null);

@@ -40,19 +40,26 @@ const INITIAL_STATE: VocabularyState = {
   },
 };
 
+/** Bumped by reset() so a response that a logout has superseded is dropped. */
+let generation = 0;
+
 export const useVocabularyStore = create<VocabularyStore>((set) => ({
   ...INITIAL_STATE,
 
   async fetchStats() {
+    const gen = generation;
     try {
       const data = await api<VocabStats>("/api/v1/vocabulary/stats");
+      if (gen !== generation) return;
       set({ stats: data });
-    } catch {
-      // Keep existing stats on error
+    } catch (err) {
+      if (gen !== generation) return;
+      console.error("[vocabularyStore] fetchStats failed", err);
     }
   },
 
   reset() {
+    generation += 1;
     set(INITIAL_STATE);
   },
 }));

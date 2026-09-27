@@ -65,7 +65,10 @@ export function WordLevelsEditor({
             <button
               key={`${raw}-${i}`}
               type="button"
-              onClick={() => setSelectedToken(token === selectedToken ? null : token)}
+              onClick={() => {
+                if (!token) return;
+                setSelectedToken(token === selectedToken ? null : token);
+              }}
               className={`px-1.5 py-0.5 rounded text-sm ${
                 selectedToken === token ? "ring-2 ring-ink" : ""
               } ${lvls.length ? wordHighlightClass(lvls) : "text-muted"}`}

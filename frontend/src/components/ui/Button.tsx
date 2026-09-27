@@ -94,6 +94,7 @@ export function Button({
         "disabled:cursor-not-allowed",
         className
       )}
+      type="button"
       {...props}
     >
       {Icon && !iconRight && <Icon size={iconSize} />}

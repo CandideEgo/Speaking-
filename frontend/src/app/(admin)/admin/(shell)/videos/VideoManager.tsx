@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
@@ -139,8 +139,11 @@ export default function VideoManager() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
+  const loadIdRef = useRef(0);
+
   const loadVideos = useCallback(
     async (pg: number) => {
+      const loadId = ++loadIdRef.current;
       setLoading(true);
       try {
         const data = await listVideos({
@@ -151,13 +154,15 @@ export default function VideoManager() {
           quality: qualityFilter,
           keyword,
         });
+        if (loadId !== loadIdRef.current) return;
         setVideos(data.items);
         setHasMore(data.has_more);
         setPage(pg);
       } catch {
+        if (loadId !== loadIdRef.current) return;
         toast.error("加载视频列表失败");
       } finally {
-        setLoading(false);
+        if (loadId === loadIdRef.current) setLoading(false);
       }
     },
     [statusFilter, reviewStatusFilter, qualityFilter, keyword]

@@ -147,6 +147,7 @@ export function useVideoPlayer({
   const ytReadyRef = useRef(false);
   const ytPlayingRef = useRef(false);
   const mountedYtIdRef = useRef<string | null>(null);
+  const ytTargetIdRef = useRef<string | null>(null);
 
   const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("loading");
@@ -237,7 +238,10 @@ export function useVideoPlayer({
         if (updated.status === "ready" && canPlay(updated) && unlocked) setPlaybackMode("ready");
         else if (updated.status === "ready_subtitles" || updated.status === "processing")
           setPlaybackMode("processing");
-        else if (updated.status === "error") setPlaybackMode("loading");
+        else if (updated.status === "error") {
+          setPlaybackMode("error");
+          toast.error("视频处理失败");
+        }
       } catch {
         /* ignore polling errors */
       }
@@ -297,8 +301,8 @@ export function useVideoPlayer({
   }, [videoId]);
 
   const createYouTubePlayer = useCallback(
-    (ytId: string) => {
-      if (!ytContainerRef.current || !window.YT?.Player) return;
+    (ytId: string): boolean => {
+      if (!ytContainerRef.current || !window.YT?.Player) return false;
       ytReadyRef.current = false;
       ytPlayingRef.current = false;
       ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
@@ -324,6 +328,7 @@ export function useVideoPlayer({
           },
         },
       });
+      return true;
     },
     [resumeFromSavedPosition]
   );
@@ -332,8 +337,13 @@ export function useVideoPlayer({
   const mountYouTube = useCallback(
     (ytId: string) => {
       if (mountedYtIdRef.current === ytId) return;
-      mountedYtIdRef.current = ytId;
-      ensureYouTubeApi().then(() => createYouTubePlayer(ytId));
+      ytTargetIdRef.current = ytId;
+      ensureYouTubeApi().then(() => {
+        // 目标已改（切换视频/卸载），或已被更早的等待者创建：放弃这次创建。
+        if (ytTargetIdRef.current !== ytId || mountedYtIdRef.current === ytId) return;
+        // 容器尚未渲染时创建失败，不记录 id，留待下一次 effect 重试。
+        if (createYouTubePlayer(ytId)) mountedYtIdRef.current = ytId;
+      });
     },
     [ensureYouTubeApi, createYouTubePlayer]
   );
@@ -348,13 +358,17 @@ export function useVideoPlayer({
     ytReadyRef.current = false;
     ytPlayingRef.current = false;
     mountedYtIdRef.current = null;
+    ytTargetIdRef.current = null;
   }, []);
 
   // Derive the playback backend from the loaded video. When a local file
   // exists we prefer HTML5; otherwise fall back to the YouTube IFrame.
+  // isYtMode 也必须在依赖里：容器只在它为真时渲染，第一次尝试可能早于
+  // 容器挂载，需要在容器就位后的这次运行里重试。
   useEffect(() => {
     if (playbackMode !== "ready" || !video) {
       setIsYtMode(false);
+      destroyYouTube();
       return;
     }
     const yt = youtubeId(video);
@@ -362,7 +376,7 @@ export function useVideoPlayer({
     setIsYtMode(useYt);
     if (useYt && yt) mountYouTube(yt);
     else destroyYouTube();
-  }, [playbackMode, video, mountYouTube, destroyYouTube]);
+  }, [playbackMode, video, mountYouTube, destroyYouTube, isYtMode]);
 
   // YouTube time poll: keeps the subtitle highlight + watch-time tracking in
   // sync while the IFrame plays (IFrame has no timeupdate DOM events).
@@ -410,14 +424,8 @@ export function useVideoPlayer({
 
   // Clean up the IFrame player on unmount.
   useEffect(() => {
-    return () => {
-      try {
-        ytPlayerRef.current?.destroy?.();
-      } catch {
-        /* noop */
-      }
-    };
-  }, []);
+    return () => destroyYouTube();
+  }, [destroyYouTube]);
 
   // ---------------------------------------------------------------------------
   // Unified playback controls (both backends)

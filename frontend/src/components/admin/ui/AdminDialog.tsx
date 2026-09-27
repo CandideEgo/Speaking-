@@ -33,16 +33,16 @@ export function AdminDialog({
   className,
 }: AdminDialogProps) {
   useEffect(() => {
+    if (!open) return;
     function handleEsc(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    if (open) {
-      document.addEventListener("keydown", handleEsc);
-      document.body.style.overflow = "hidden";
-    }
+    document.addEventListener("keydown", handleEsc);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleEsc);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
     };
   }, [open, onClose]);
 
@@ -65,6 +65,8 @@ export function AdminDialog({
               {description && <p className="mt-1 text-sm text-muted">{description}</p>}
             </div>
             <button
+              type="button"
+              aria-label="关闭对话框"
               onClick={onClose}
               className="ml-4 rounded-lg p-1.5 text-muted hover:bg-surface-soft hover:text-ink transition-colors"
             >

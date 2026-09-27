@@ -28,11 +28,13 @@ interface NotificationDropdownProps {
  * Build WebSocket URL from the current page origin.
  * Detects ws:/wss: from the page protocol and uses the same host,
  * so nginx (prod) or Next.js rewrites (dev) route to the backend.
+ *
+ * The JWT travels as a WebSocket subprotocol, never in the query string:
+ * query strings land in proxy and uvicorn access logs.
  */
-function buildWsUrl(token: string): string {
+function buildWsUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host;
-  return `${protocol}//${host}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
+  return `${protocol}//${window.location.host}/api/v1/notifications/ws`;
 }
 
 export function NotificationDropdown({ onClose, onUnreadCountChange }: NotificationDropdownProps) {
@@ -97,7 +99,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
       if (!token) return;
 
       try {
-        ws = new WebSocket(buildWsUrl(token));
+        ws = new WebSocket(buildWsUrl(), ["bearer", token]);
         wsRef.current = ws;
 
         ws.onopen = () => {

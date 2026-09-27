@@ -29,6 +29,7 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
     let cancelled = false;
 
     async function fetchTrend() {
+      setError(false);
       try {
         const res = await api<MasteryTrendResponse>(`/api/v1/plan/mastery-trend?weeks=${weeks}`);
         if (cancelled) return;

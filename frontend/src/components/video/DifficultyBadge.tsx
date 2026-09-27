@@ -31,7 +31,7 @@ export interface DifficultyBadgeProps {
  */
 export function DifficultyBadge({ level, size = "sm", className, style }: DifficultyBadgeProps) {
   // 白名单清洗：历史脏值（如 "CR"）不渲染，避免卡片透出无意义徽章。
-  if (!level || !LEVEL_COLORS[level]) return null;
+  if (!level || !Object.prototype.hasOwnProperty.call(LEVEL_COLORS, level)) return null;
 
   const color = LEVEL_COLORS[level];
   // CEFR 附考试体系对照（与引导/筛选/高亮统一语言），hover 可见。

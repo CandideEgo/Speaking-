@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import {
@@ -90,6 +90,22 @@ export function VideoDetailRow({
   const [isDemo, setIsDemo] = useState(video.is_demo ?? false);
   const [adminNotes, setAdminNotes] = useState(video.admin_notes || "");
   const [saving, setSaving] = useState(false);
+
+  // 父级动作（批准/驳回/下线/轮询）会改写这些布尔字段，需重新同步本地表单，
+  // 否则随后的「保存」会把服务端刚写入的状态改回旧值。
+  useEffect(() => {
+    setIsOfficial(video.is_official);
+    setIsFeatured(video.is_featured);
+    setIsPublished(video.is_published);
+    setShowOnHomepage(video.show_on_homepage ?? false);
+    setIsDemo(video.is_demo ?? false);
+  }, [
+    video.is_official,
+    video.is_featured,
+    video.is_published,
+    video.show_on_homepage,
+    video.is_demo,
+  ]);
 
   // Poll while processing.
   useVideoPolling(video.id, video.status, patchVideo, onSaved);

@@ -32,6 +32,7 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
     (text: string, options?: { rate?: number }) => {
       if (!text) return;
 
+      utteranceRef.current = null;
       speechSynthesis.cancel();
       setIsPlaying(true);
       setCurrentText(text);
@@ -41,12 +42,16 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
       u.rate = options?.rate ?? rate;
 
       u.onend = () => {
+        if (utteranceRef.current !== u) return;
+        utteranceRef.current = null;
         setIsPlaying(false);
         setCurrentText(null);
         onEnd?.();
       };
 
       u.onerror = () => {
+        if (utteranceRef.current !== u) return;
+        utteranceRef.current = null;
         setIsPlaying(false);
         setCurrentText(null);
       };
@@ -66,6 +71,7 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
   // Stop speech on unmount to prevent audio playing after navigating away
   useEffect(() => {
     return () => {
+      utteranceRef.current = null;
       speechSynthesis.cancel();
     };
   }, []);

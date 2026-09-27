@@ -201,6 +201,7 @@ export function QualityReportPanel({ videoId }: { videoId: string }) {
 
       <ConfirmDialog
         open={!!confirmEngine}
+        busy={retranslating}
         title="确认换引擎重翻译"
         message={`将清空现有中文翻译与质量标记，用 ${confirmEngine?.toUpperCase()} 重新生成。继续？`}
         tone="danger"

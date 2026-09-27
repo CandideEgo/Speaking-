@@ -562,6 +562,22 @@ export default function WatchPage() {
   // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；「下一句」由录音展开态按钮承担。
 
   // --- Loading / Error states ---
+  // 终态处理失败先于通用加载失败态：playbackMode === "error" 也会由处理中轮询到的
+  // error 置位（见 useVideoPlayer），其通用文案会遮蔽这里的真实原因与 error_message。
+  if (video?.status === "error")
+    return (
+      <ErrorState
+        title="处理失败"
+        message={video.error_message || "未知错误"}
+        action={
+          <button onClick={back.go} className="mt-4 text-sm text-brand-500 hover:underline">
+            {back.label}
+          </button>
+        }
+        fullPage
+      />
+    );
+
   if (!video && playbackMode !== "error") return <FullPageSpinner />;
 
   if (playbackMode === "error") {
@@ -622,20 +638,6 @@ export default function WatchPage() {
       </main>
     );
   }
-
-  if (video.status === "error")
-    return (
-      <ErrorState
-        title="处理失败"
-        message={video.error_message || "未知错误"}
-        action={
-          <button onClick={back.go} className="mt-4 text-sm text-brand-500 hover:underline">
-            {back.label}
-          </button>
-        }
-        fullPage
-      />
-    );
 
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
 

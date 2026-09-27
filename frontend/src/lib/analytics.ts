@@ -23,6 +23,9 @@ interface BehaviorEvent {
 const QUEUE: BehaviorEvent[] = [];
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE = 20;
+// Ceiling on the retained queue after a failed batch. Bounds memory when the
+// ingest endpoint is unreachable; normal batches stay far below it.
+const MAX_RETAINED_QUEUE = 200;
 
 function makeSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -33,6 +36,9 @@ function makeSessionId(): string {
 const SESSION_ID = makeSessionId();
 
 let flushTimer: ReturnType<typeof setInterval> | null = null;
+// A second batch sent while the first is pending can land before the older
+// re-queued events, reordering them server-side.
+let isFlushing = false;
 
 function ensureTimer(): void {
   if (flushTimer || typeof window === "undefined") return;
@@ -67,7 +73,8 @@ export function track(
 }
 
 export async function flush(): Promise<void> {
-  if (QUEUE.length === 0) return;
+  if (isFlushing || QUEUE.length === 0) return;
+  isFlushing = true;
   const events = QUEUE.splice(0, QUEUE.length);
   try {
     await api("/api/v1/behavior/events/batch", {
@@ -75,8 +82,11 @@ export async function flush(): Promise<void> {
       body: JSON.stringify({ events }),
     });
   } catch {
-    // Re-queue on failure, cap to avoid unbounded growth
-    QUEUE.unshift(...events.slice(0, 50));
+    // Re-queue the whole batch, order preserved, so nothing is dropped silently.
+    QUEUE.unshift(...events);
+    if (QUEUE.length > MAX_RETAINED_QUEUE) QUEUE.length = MAX_RETAINED_QUEUE;
+  } finally {
+    isFlushing = false;
   }
 }
 

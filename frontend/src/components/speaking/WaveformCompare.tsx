@@ -171,6 +171,7 @@ export function WaveformCompare({
       setOrigEnv(null);
       return;
     }
+    let cancelled = false;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ORIGINAL_FETCH_TIMEOUT_MS);
     fetch(originalUrl, { signal: controller.signal })
@@ -179,9 +180,14 @@ export function WaveformCompare({
         return res.arrayBuffer();
       })
       .then((data) => computeClippedEnvelope(data, originalClip.start, originalClip.end))
-      .then((env) => setOrigEnv(env))
-      .catch(() => setOrigEnv(null));
+      .then((env) => {
+        if (!cancelled) setOrigEnv(env);
+      })
+      .catch(() => {
+        if (!cancelled) setOrigEnv(null);
+      });
     return () => {
+      cancelled = true;
       clearTimeout(timer);
       controller.abort();
     };

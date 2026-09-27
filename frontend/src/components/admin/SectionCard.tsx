@@ -18,7 +18,7 @@ export function SectionCard({
 }) {
   return (
     <Card as="section" className={cn(className)}>
-      {(title || actions) && (
+      {(title || description || actions) && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             {title && <h2 className="font-display text-2xl text-ink">{title}</h2>}

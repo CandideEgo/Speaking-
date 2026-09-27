@@ -231,13 +231,7 @@ function SelfEvaluateButtons({
   );
 }
 
-function RecordAndEvaluate({
-  sentence,
-  onResult,
-}: {
-  sentence: string;
-  onResult: (correct: boolean) => void;
-}) {
+function RecordAndEvaluate({ onResult }: { onResult: (correct: boolean) => void }) {
   const { speakingState, startRecording, stopRecording, audioUrl } = useSpeakingRecorder(
     () => true
   );
@@ -486,7 +480,6 @@ function PracticeItemRenderer({
         >
           {!locked && (
             <RecordAndEvaluate
-              sentence={item.full_sentence ?? item.word}
               onResult={(correct) => {
                 const ans = correct ? "self_correct" : "self_wrong";
                 onAnswer(ans);
@@ -670,7 +663,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
       {/* Current item only — one-at-a-time focused drill */}
       <PracticeItemRenderer
         key={currentIndex}
-        item={session.items[currentIndex]}
+        item={session.items[currentIndex] ?? session.items[0]}
         index={currentIndex}
         answer={session.answers[currentIndex] ?? ""}
         graded={currentGraded}

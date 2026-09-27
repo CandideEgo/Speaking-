@@ -56,6 +56,8 @@ export function mediaUrl(
   // Shadowing recordings are access-controlled per user; non-public video
   // media (drafts) require an owner/admin JWT. The backend reads ?token=
   // because <audio>/<video> tags cannot attach Authorization headers.
+  // 因此该 URL 里是长期有效的 bearer 凭证：不得写进日志/Referer/分享链接
+  // （nginx log_format 用 $uri 不含 query，uvicorn 访问日志默认含 query）。
   if (
     path.startsWith("/media/shadowing/") ||
     opts?.withToken === true ||

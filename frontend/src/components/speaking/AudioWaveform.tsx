@@ -34,7 +34,13 @@ export function AudioWaveform({ stream, color = "#ff5a1f", barCount = 32 }: Audi
 
     const canvas = canvasRef.current;
     const drawCtx = canvas.getContext("2d");
-    if (!drawCtx) return;
+    if (!drawCtx) {
+      source.disconnect();
+      ctx.close();
+      analyserRef.current = null;
+      sourceRef.current = null;
+      return;
+    }
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
 

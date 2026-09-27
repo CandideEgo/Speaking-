@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { ErrorState } from "@/components/common/ErrorState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 
 interface PaperListItem {
@@ -33,11 +34,14 @@ export default function ExamPapersPage() {
   const [papers, setPapers] = useState<PaperListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
     let cancelled = false;
     setLoading(true);
+    setError(null);
     api<{ items: PaperListItem[]; total: number }>(
       `/api/v1/exams?level=${level}&page=1&page_size=50`
     )
@@ -46,11 +50,17 @@ export default function ExamPapersPage() {
         setPapers(data.items);
         setTotal(data.total);
       })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setPapers([]);
+        setTotal(0);
+        setError(e instanceof Error ? e.message : "加载失败");
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [level, isAuthenticated, isLoading]);
+  }, [level, isAuthenticated, isLoading, reloadKey]);
 
   if (isLoading || !isAuthenticated) return <FullPageSpinner />;
 
@@ -100,6 +110,8 @@ export default function ExamPapersPage() {
         {/* Paper grid */}
         {loading ? (
           <div className="py-20 text-center text-sm text-muted">加载中…</div>
+        ) : error ? (
+          <ErrorState title={error} onRetry={() => setReloadKey((k) => k + 1)} className="py-10" />
         ) : papers.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted">暂无真题，敬请期待</div>
         ) : (

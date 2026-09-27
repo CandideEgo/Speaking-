@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { PageTransition } from "@/components/common/PageTransition";
+import { ErrorState } from "@/components/common/ErrorState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import {
   RANKING_METRIC_LABELS,
@@ -28,7 +29,7 @@ const SKELETON_ROWS = 10;
 export default function RankingsPage() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const [scope, setScope] = useState<RankingScope>("latest");
-  const { items, loading } = useRankings(scope);
+  const { items, loading, error, retry } = useRankings(scope);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -65,6 +66,8 @@ export default function RankingsPage() {
               <RankingRowSkeleton key={i} />
             ))}
           </div>
+        ) : error ? (
+          <ErrorState title={error} onRetry={retry} className="py-10" />
         ) : items.length === 0 ? (
           <p className="py-20 text-center text-sm text-muted">暂无数据</p>
         ) : (

@@ -24,18 +24,18 @@ export function Modal({
   title?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  /** Dismiss when clicking the backdrop (disable while a request is busy). */
+  /** Dismiss on backdrop click or Escape (disable while a request is busy). */
   closeOnBackdrop?: boolean;
   maxWidth?: string;
 }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && closeOnBackdrop) onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, closeOnBackdrop]);
 
   if (!open) return null;
 

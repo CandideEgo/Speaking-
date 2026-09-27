@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { RankedVideo } from "@/types";
 
@@ -10,6 +10,8 @@ interface UseRankingsReturn {
   items: RankedVideo[];
   loading: boolean;
   error: string | null;
+  /** Re-fetch the current scope (error retry). */
+  retry: () => void;
 }
 
 /**
@@ -21,6 +23,7 @@ export function useRankings(scope: RankingScope): UseRankingsReturn {
   const [items, setItems] = useState<RankedVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,7 +42,9 @@ export function useRankings(scope: RankingScope): UseRankingsReturn {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [scope]);
+  }, [scope, reloadKey]);
 
-  return { items, loading, error };
+  const retry = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  return { items, loading, error, retry };
 }

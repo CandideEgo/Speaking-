@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
-import { Badge } from "@/components/common/Badge";
+import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { relativeTime } from "@/lib/date";
 
@@ -24,10 +24,10 @@ const STATUS_TABS = [
   { key: "resolved", label: "已解决" },
 ] as const;
 
-const STATUS_BADGE: Record<string, { tone: string; text: string }> = {
+const STATUS_BADGE: Record<string, { tone: BadgeTone; text: string }> = {
   open: { tone: "brand", text: "待处理" },
-  in_progress: { tone: "warning", text: "处理中" },
-  resolved: { tone: "success", text: "已解决" },
+  in_progress: { tone: "amber", text: "处理中" },
+  resolved: { tone: "green", text: "已解决" },
 };
 
 export default function AdminFeedbackPage() {
@@ -196,7 +196,7 @@ export default function AdminFeedbackPage() {
                 <Card key={fb.id} padding={4} className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Badge tone={st.tone as never}>{st.text}</Badge>
+                      <Badge tone={st.tone}>{st.text}</Badge>
                       <span className="text-xs text-muted">{fb.user_name ?? "匿名用户"}</span>
                       <span className="text-[11px] text-muted-soft">
                         {relativeTime(fb.created_at)}

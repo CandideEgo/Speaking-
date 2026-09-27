@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock, RotateCcw } from "lucide-react";
@@ -23,6 +23,7 @@ export default function DailyCheckPage() {
   const [attempt, setAttempt] = useState<DailyStart | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const startedRef = useRef(false);
 
   const start = () => {
     setError(null);
@@ -35,7 +36,9 @@ export default function DailyCheckPage() {
   };
 
   useEffect(() => {
-    if (isAuthenticated && !isLoading) start();
+    if (!isAuthenticated || isLoading || startedRef.current) return;
+    startedRef.current = true;
+    start();
   }, [isAuthenticated, isLoading]);
 
   if (isLoading || !isAuthenticated) return <FullPageSpinner />;

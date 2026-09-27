@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Trophy, X, Compass } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -21,9 +21,25 @@ export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
 
-  // Time-based greeting
-  const hour = new Date().getHours();
-  const greeting = hour < 6 ? "夜深了" : hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
+  // Time-based greeting：时钟只在客户端读取，首帧用固定占位，
+  // 否则服务端渲染的时区/小时与浏览器不同会造成 hydration 不一致。
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
+
+  const hour = now?.getHours() ?? null;
+  const greeting =
+    hour === null
+      ? "你好"
+      : hour < 6
+        ? "夜深了"
+        : hour < 12
+          ? "早上好"
+          : hour < 18
+            ? "下午好"
+            : "晚上好";
+  const dateLabel = now
+    ? now.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })
+    : "";
 
   // Learning profile (for milestone banner).
   const { profile } = usePlan();
@@ -50,13 +66,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold text-ink tracking-tight">
             {greeting}，{userName}
           </h1>
-          <p className="text-sm text-muted mt-1">
-            {new Date().toLocaleDateString("zh-CN", {
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })}
-          </p>
+          <p className="text-sm text-muted mt-1">{dateLabel || "\u00A0"}</p>
         </div>
 
         {/* D3a 紧凑统计行：只展示事实，不施压（替代旧进度环） */}

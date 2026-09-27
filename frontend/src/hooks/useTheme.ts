@@ -11,9 +11,13 @@ function getSystemTheme(): Theme {
 
 function getStoredTheme(): Theme | null {
   if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem("theme");
-  if (stored === "light" || stored === "dark") return stored;
-  return null;
+  try {
+    const stored = localStorage.getItem("theme");
+    return stored === "light" || stored === "dark" ? stored : null;
+  } catch {
+    // localStorage 不可用（隐私模式 / 存储被禁用）时按“跟随系统”处理。
+    return null;
+  }
 }
 
 function applyThemeClass(t: Theme) {
@@ -61,7 +65,11 @@ export function useTheme() {
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     applyThemeClass(t);
-    localStorage.setItem("theme", t);
+    try {
+      localStorage.setItem("theme", t);
+    } catch {
+      // 持久化失败不影响本次切换（配额满 / 存储被禁用）。
+    }
   }, []);
 
   const toggleTheme = useCallback(() => {

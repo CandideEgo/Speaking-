@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
@@ -27,8 +27,14 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [noteDraft, setNoteDraft] = useState("");
 
-  // Sync initial count when video detail loads (parent passes new value).
+  // 在途的点赞/收藏请求：一次只处理一个，避免重复提交与乐观值被回滚覆盖。
+  const likeInFlightRef = useRef(false);
+  const favoriteInFlightRef = useRef(false);
+
+  // Sync initial count when video detail loads (parent passes new value);
+  // skipped while a like request is in flight so the optimistic count survives.
   useEffect(() => {
+    if (likeInFlightRef.current) return;
     setLikeCount(initialLikeCount);
   }, [initialLikeCount]);
 
@@ -56,7 +62,8 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
   }, [videoId]);
 
   async function toggleFavorite() {
-    if (!videoId) return;
+    if (!videoId || favoriteInFlightRef.current) return;
+    favoriteInFlightRef.current = true;
     const wasFavorited = isFavorited;
     setIsFavorited(!wasFavorited); // optimistic
     try {
@@ -67,11 +74,14 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
     } catch {
       setIsFavorited(wasFavorited); // rollback
       toast.error("操作失败，请重试");
+    } finally {
+      favoriteInFlightRef.current = false;
     }
   }
 
   async function toggleLike() {
-    if (!videoId) return;
+    if (!videoId || likeInFlightRef.current) return;
+    likeInFlightRef.current = true;
     const wasLiked = isLiked;
     const delta = wasLiked ? -1 : 1;
     setIsLiked(!wasLiked); // optimistic
@@ -84,6 +94,8 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
       setIsLiked(wasLiked); // rollback
       setLikeCount((c) => Math.max(0, c - delta)); // rollback
       toast.error("操作失败，请重试");
+    } finally {
+      likeInFlightRef.current = false;
     }
   }
 

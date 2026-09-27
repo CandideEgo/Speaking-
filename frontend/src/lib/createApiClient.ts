@@ -124,7 +124,11 @@ export function clearApiCache(prefix?: string) {
 }
 
 function _clone<T>(value: T): T {
-  return typeof structuredClone === "function" ? structuredClone(value) : value;
+  if (typeof structuredClone === "function") return structuredClone(value);
+  // Old engines: a JSON round-trip still deep-copies (API payloads are plain
+  // JSON) — returning the original reference would let one caller poison the
+  // cache for every other consumer.
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 async function _dedupedGet<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -173,6 +177,10 @@ export function createApiClient(options: CreateApiClientOptions) {
     reqOptions: Omit<ApiClientRequestOptions, "cacheTtlMs">
   ): Promise<T> {
     const { signal, ...restOptions } = reqOptions;
+    const method = (restOptions.method ?? "GET").toUpperCase();
+    // Re-sending a non-idempotent request whose response was lost can duplicate
+    // the server-side side effect, so retries are limited to GET/HEAD.
+    const retryable = method === "GET" || method === "HEAD";
     const headers = new Headers(restOptions.headers as HeadersInit);
 
     // Content-Type
@@ -225,7 +233,7 @@ export function createApiClient(options: CreateApiClientOptions) {
           null
         ) as InstanceType<typeof ErrorClass>;
 
-        if (attempt < MAX_RETRIES) {
+        if (retryable && attempt < MAX_RETRIES) {
           await sleep(RETRY_DELAYS_MS[attempt], signal);
           continue;
         }
@@ -294,8 +302,9 @@ export function createApiClient(options: CreateApiClientOptions) {
           typeof ErrorClass
         >;
 
-        // Retry on 5xx (server errors), not 4xx (client errors)
-        if (isRetryableStatus(res.status) && attempt < MAX_RETRIES) {
+        // Retry on 5xx (server errors), not 4xx (client errors); idempotent
+        // methods only, see `retryable`.
+        if (retryable && isRetryableStatus(res.status) && attempt < MAX_RETRIES) {
           await sleep(RETRY_DELAYS_MS[attempt], signal);
           continue;
         }

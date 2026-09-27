@@ -10,6 +10,7 @@
 export function relativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return "刚刚";
   const diffMs = now - then;
 
   if (diffMs < 0) return "刚刚";

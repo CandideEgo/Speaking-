@@ -43,12 +43,14 @@ export default function ChannelDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
 
   const load = useCallback(
     async (targetPage: number, append: boolean) => {
       if (append) setLoadingMore(true);
       else setLoading(true);
       setError(null);
+      setLoadMoreError(null);
       try {
         const data = await api<ChannelDetailResponse>(
           `/api/v1/channels/${slug}?page=${targetPage}&page_size=${PAGE_SIZE}`
@@ -62,7 +64,9 @@ export default function ChannelDetailPage() {
         }));
         setVideos((prev) => (append ? [...prev, ...mapped] : mapped));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "加载失败");
+        const message = e instanceof Error ? e.message : "加载失败";
+        if (append) setLoadMoreError(message);
+        else setError(message);
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -182,13 +186,14 @@ export default function ChannelDetailPage() {
 
             {/* Load more */}
             {hasMore && (
-              <div className="flex justify-center mt-10">
+              <div className="flex flex-col items-center gap-2 mt-10">
+                {loadMoreError && <p className="text-xs text-error">{loadMoreError}</p>}
                 <Button
                   variant="outline"
                   onClick={() => load(page + 1, true)}
                   disabled={loadingMore}
                 >
-                  {loadingMore ? "加载中…" : "加载更多"}
+                  {loadingMore ? "加载中…" : loadMoreError ? "重试" : "加载更多"}
                 </Button>
               </div>
             )}

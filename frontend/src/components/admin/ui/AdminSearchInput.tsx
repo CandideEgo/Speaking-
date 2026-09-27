@@ -24,7 +24,10 @@ export function AdminSearchInput({
 
   // Sync from external controlled value (e.g. reset/clear from parent)
   useEffect(() => {
-    if (controlledValue !== undefined) setInternalValue(controlledValue);
+    if (controlledValue !== undefined) {
+      setInternalValue(controlledValue);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
   }, [controlledValue]);
 
   const debouncedOnChange = useCallback(

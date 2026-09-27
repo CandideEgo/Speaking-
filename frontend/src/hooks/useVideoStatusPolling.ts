@@ -48,32 +48,51 @@ export function useVideoStatusPolling(
     const isActive = ACTIVE_POLLING_STATUSES.has(currentStatus);
 
     if (!isActive) {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       return;
     }
 
+    let cancelled = false;
+    let inFlight = false;
+
     pollRef.current = setInterval(async () => {
       // Skip ticks while the tab is hidden — processing keeps going
-      // server-side; we catch up on the next visible tick.
-      if (document.hidden) return;
+      // server-side; we catch up on the next visible tick. A tick whose
+      // request is still in flight is skipped too, so responses cannot
+      // arrive out of order.
+      if (document.hidden || inFlight) return;
+      inFlight = true;
       try {
         const patch = await optionsRef.current.fetchStatus(videoId);
+        if (cancelled) return;
 
         const isTerminal = patch.status === "ready" || patch.status === "error";
 
         if (isTerminal) {
-          if (pollRef.current) clearInterval(pollRef.current);
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
           optionsRef.current.onTerminal?.(patch);
         } else {
           optionsRef.current.onPatch?.(patch);
         }
       } catch {
         /* swallow transient polling errors */
+      } finally {
+        inFlight = false;
       }
     }, 3000);
 
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      cancelled = true;
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
     };
   }, [videoId, currentStatus]);
 }

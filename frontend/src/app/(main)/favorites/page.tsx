@@ -56,13 +56,12 @@ export default function FavoritesPage() {
     []
   );
 
-  const { items, loading, hasMore, loaderRef, total, reload } = usePaginatedList<FavoriteVideoItem>(
-    {
+  const { items, setItems, loading, hasMore, loaderRef, total, reload } =
+    usePaginatedList<FavoriteVideoItem>({
       fetcher,
-      mode: "replace",
+      mode: "append",
       enabled: isAuthenticated && !isLoading,
-    }
-  );
+    });
 
   useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
 
@@ -70,6 +69,12 @@ export default function FavoritesPage() {
     setRemovingIds((prev) => new Set(prev).add(videoId));
     try {
       await api(`/api/v1/videos/${videoId}/favorite`, { method: "DELETE" });
+      setItems((prev) => prev.filter((v) => v.id !== videoId));
+      setRemovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(videoId);
+        return next;
+      });
       toast.success(`已取消收藏：${title}`, {
         action: {
           label: "撤销",

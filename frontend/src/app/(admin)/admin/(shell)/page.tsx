@@ -21,7 +21,7 @@ import {
   Video,
 } from "lucide-react";
 
-import { AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
+import { AdminPageHeader, AdminEmptyState, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { AdminStats } from "@/types";
@@ -129,9 +129,11 @@ export default function AdminDashboardPage() {
   const [workerOnline, setWorkerOnline] = useState<boolean | null>(null);
   const [ugc, setUgc] = useState<UgcPending | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const [s, w, u] = await Promise.all([
         getAdminStats(),
@@ -144,6 +146,7 @@ export default function AdminDashboardPage() {
       setWorkerOnline(w);
       setUgc(u);
     } catch {
+      setError(true);
       toast.error("加载概览失败");
     } finally {
       setLoading(false);
@@ -153,6 +156,20 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  if (!stats && error) {
+    return (
+      <AdminEmptyState
+        text="加载概览失败"
+        description="无法获取运营数据，请检查网络后重试"
+        action={
+          <Button onClick={load} variant="secondary" size="sm" icon={RefreshCw}>
+            重试
+          </Button>
+        }
+      />
+    );
+  }
 
   if (loading || !stats) {
     return <AdminSkeleton.Page />;

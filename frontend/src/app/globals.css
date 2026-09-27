@@ -535,12 +535,12 @@
 /* Plan item completion: card background flashes success then settles */
 @keyframes complete-flash {
   0% {
-    background-color: rgb(var(--success) / 0.18);
-    border-color: rgb(var(--success) / 0.5);
+    background-color: color-mix(in oklab, var(--success) 18%, transparent);
+    border-color: color-mix(in oklab, var(--success) 50%, transparent);
   }
   100% {
-    background-color: rgb(var(--success) / 0.06);
-    border-color: rgb(var(--success) / 0.2);
+    background-color: color-mix(in oklab, var(--success) 6%, transparent);
+    border-color: color-mix(in oklab, var(--success) 20%, transparent);
   }
 }
 

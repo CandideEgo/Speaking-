@@ -91,8 +91,11 @@ export function MetricCard({
     return (
       <div
         className={cn(
-          "bg-canvas rounded-lg p-5 border border-hairline hover:shadow-soft transition-all duration-150",
-          t.border && `!${t.border}`,
+          // 边框色两种取值互斥地二选一：写 `border-hairline` 再叠一个 `!border-*`
+          // 在 Tailwind v4 下两头都落空——运行时拼出来的 `!border-*` 是扫描器
+          // 看不见的候选类，既不生成规则，也让 tailwind-merge 认不出冲突。
+          "bg-canvas rounded-lg p-5 border hover:shadow-soft transition-all duration-150",
+          t.border ?? "border-hairline",
           className
         )}
       >

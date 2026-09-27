@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { toastApiError } from "@/lib/errors";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
@@ -85,9 +85,9 @@ export default function ForgotPasswordPage() {
       });
       setDone(true);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      // 验证码错误/失效 -> 回到第二步重新输入或重发
-      if (msg.includes("验证码")) {
+      // 验证码错误/失效 -> 回到第二步重新输入或重发。
+      // 该端点返回 400 只可能是验证码无效（密码强度失败是 422），故按状态码判断。
+      if (err instanceof ApiError && err.status === 400) {
         setStep(1);
         setError("验证码错误或已失效，请重新输入");
       } else {

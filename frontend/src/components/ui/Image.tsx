@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 import { mediaUrl } from "@/lib/api";
@@ -66,6 +66,11 @@ export function Image({
 >) {
   const [errored, setErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setErrored(false);
+    setLoaded(false);
+  }, [src]);
 
   const transition = cn("transition-opacity duration-300", loaded ? "opacity-100" : "opacity-0");
 

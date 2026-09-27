@@ -10,8 +10,12 @@ const VALID_MODES: SubtitleMode[] = ["bilingual", "english", "chinese", "hidden"
 
 function loadPersistedSubtitleMode(): SubtitleMode {
   if (typeof window === "undefined") return "bilingual";
-  const saved = window.localStorage.getItem(SUBTITLE_MODE_STORAGE_KEY);
-  return VALID_MODES.includes(saved as SubtitleMode) ? (saved as SubtitleMode) : "bilingual";
+  try {
+    const saved = window.localStorage.getItem(SUBTITLE_MODE_STORAGE_KEY);
+    return VALID_MODES.includes(saved as SubtitleMode) ? (saved as SubtitleMode) : "bilingual";
+  } catch {
+    return "bilingual";
+  }
 }
 
 interface WatchStore {
@@ -45,7 +49,11 @@ export const useWatchStore = create<WatchStore>((set) => ({
   subtitleMode: loadPersistedSubtitleMode(),
   setSubtitleMode: (mode) => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(SUBTITLE_MODE_STORAGE_KEY, mode);
+      try {
+        window.localStorage.setItem(SUBTITLE_MODE_STORAGE_KEY, mode);
+      } catch {
+        // storage unavailable (quota/private mode) — in-memory state still applies
+      }
     }
     set({ subtitleMode: mode });
   },

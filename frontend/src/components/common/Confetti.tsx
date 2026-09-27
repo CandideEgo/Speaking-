@@ -16,6 +16,11 @@ export function Confetti({ fire, durationMs = 2200, onDone }: ConfettiProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startedRef = useRef(0);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     if (!fire) return;
@@ -85,7 +90,7 @@ export function Confetti({ fire, durationMs = 2200, onDone }: ConfettiProps) {
       } else {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        onDone?.();
+        onDoneRef.current?.();
       }
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -95,7 +100,7 @@ export function Confetti({ fire, durationMs = 2200, onDone }: ConfettiProps) {
       window.removeEventListener("resize", resize);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
-  }, [fire, durationMs, onDone]);
+  }, [fire, durationMs]);
 
   if (!fire) return null;
   return (

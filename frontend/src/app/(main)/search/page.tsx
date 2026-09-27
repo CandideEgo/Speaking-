@@ -104,6 +104,7 @@ export default function SearchPage() {
   const [activeIdx, setActiveIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeqRef = useRef(0);
 
   useScrollRestore(
     scrollKey(pathname, searchParams.toString()),
@@ -133,6 +134,8 @@ export default function SearchPage() {
   }, [initialQ]);
 
   const performSearch = useCallback(async (searchQuery: string) => {
+    // 每次搜索占一个序号；响应回来时若已不是最新一次，直接丢弃（旧请求可能更慢）。
+    const seq = ++searchSeqRef.current;
     if (!searchQuery.trim()) {
       setVideoResults([]);
       setSubtitleResults([]);
@@ -150,15 +153,17 @@ export default function SearchPage() {
           `/api/v1/videos/search/subtitles?q=${encodeURIComponent(searchQuery)}&limit=5`
         ).catch(() => [] as SubtitleSearchResult[]),
       ]);
+      if (seq !== searchSeqRef.current) return;
       setVideoResults(vResults);
       setSubtitleResults(sResults);
       setHasSearched(true);
     } catch {
+      if (seq !== searchSeqRef.current) return;
       setVideoResults([]);
       setSubtitleResults([]);
       setHasSearched(true);
     } finally {
-      setIsSearching(false);
+      if (seq === searchSeqRef.current) setIsSearching(false);
     }
   }, []);
 

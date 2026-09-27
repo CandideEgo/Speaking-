@@ -55,6 +55,11 @@ function formatRange(mondayIso: string): string {
 
 export function ShareCard({ report, onReady }: ShareCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onReadyRef = useRef(onReady);
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -193,7 +198,7 @@ export function ShareCard({ report, onReady }: ShareCardProps) {
       if (!cancelled) {
         ctx.fillText("扫码一起学", W / 2, 1880 - 48);
         ctx.textAlign = "left";
-        onReady?.(canvas);
+        onReadyRef.current?.(canvas);
       }
     };
 
@@ -201,7 +206,7 @@ export function ShareCard({ report, onReady }: ShareCardProps) {
     return () => {
       cancelled = true;
     };
-  }, [report, onReady]);
+  }, [report]);
 
   return (
     <canvas

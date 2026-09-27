@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -15,6 +15,7 @@ import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
 import { watchHref } from "@/lib/watchEntry";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
 import { relativeTime, formatTimeSpent, groupByDate } from "@/lib/date";
 import { Calendar, Clock, CheckCircle, PlayCircle, Flame } from "lucide-react";
@@ -40,7 +41,9 @@ export default function HistoryPage() {
     total,
     hasMore,
     loading,
+    error,
     loaderRef,
+    reload,
   } = usePaginatedList<LearningRecord>({
     fetcher: (pg) => {
       const params = new URLSearchParams({ page: String(pg), page_size: "20" });
@@ -56,14 +59,27 @@ export default function HistoryPage() {
   useScrollRestore(scrollKey(pathname, searchParams.toString()), records.length > 0);
 
   // Summary stats（原型 12 stat-grid：本周学习时长/已学视频/学完视频/连续天数）
-  const stats = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const weekSeconds = records
-      .filter((r) => new Date(r.last_accessed_at || r.created_at).getTime() >= weekAgo)
-      .reduce((sum, r) => sum + r.time_spent_seconds, 0);
-    const completedCount = records.filter((r) => r.completed).length;
-    return { weekSeconds, completedCount };
-  }, [records]);
+  const [stats, setStats] = useState<{ weekSeconds: number; completedCount: number } | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    let alive = true;
+    Promise.all([
+      api<{ this_week_minutes: number }>("/api/v1/learning/stats/weekly").catch(() => null),
+      api<Paginated<LearningRecord>>(
+        "/api/v1/learning/records?page=1&page_size=1&completed=true"
+      ).catch(() => null),
+    ]).then(([weekly, completed]) => {
+      if (!alive) return;
+      setStats({
+        weekSeconds: (weekly?.this_week_minutes ?? 0) * 60,
+        completedCount: completed?.total ?? 0,
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated, isLoading]);
 
   // Date grouping
   const groups = useMemo(
@@ -83,14 +99,14 @@ export default function HistoryPage() {
             <MetricCard
               icon={Clock}
               label="本周学习时长"
-              value={formatTimeSpent(stats.weekSeconds)}
+              value={formatTimeSpent(stats?.weekSeconds ?? 0)}
               variant="label-top"
             />
             <MetricCard icon={PlayCircle} label="已学视频" value={total} variant="label-top" />
             <MetricCard
               icon={CheckCircle}
               label="学完视频"
-              value={stats.completedCount}
+              value={stats?.completedCount ?? 0}
               tone="success"
               variant="label-top"
             />
@@ -121,6 +137,8 @@ export default function HistoryPage() {
           <div className="flex justify-center py-12">
             <div className="w-6 h-6 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
           </div>
+        ) : error && records.length === 0 ? (
+          <ErrorState title={error} onRetry={reload} className="py-12" />
         ) : records.length === 0 ? (
           <EmptyState
             icon={Calendar}

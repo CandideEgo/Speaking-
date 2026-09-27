@@ -149,7 +149,7 @@ export function CoachMark({ steps, stepIndex, onNext, onSkip, onFinish }: CoachM
       <div
         className={cn(
           "absolute z-[101] max-w-[320px] bg-canvas border border-hairline rounded-xl shadow-lift p-4",
-          (isFinal || isMobile) && "left-1/2 -translate-x-1/2 bottom-6"
+          (isFinal || isMobile || !rect) && "left-1/2 -translate-x-1/2 bottom-6"
         )}
         style={
           isFinal || isMobile || !rect

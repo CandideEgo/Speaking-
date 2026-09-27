@@ -83,7 +83,6 @@ export default function AdminInvitesPage() {
 
   const {
     items: codes,
-    setItems,
     page,
     setPage,
     hasMore,
@@ -125,11 +124,7 @@ export default function AdminInvitesPage() {
       toast.success(`已生成 ${generated.length} 个兑换码`);
       setLastGenerated(generated);
       refreshSummary();
-      if (page === 1 && !statusFilter && !keyword) {
-        setItems((prev) => [...generated, ...prev]);
-      } else {
-        reload();
-      }
+      reload();
     } catch (err) {
       toastApiError(err, "生成失败");
     } finally {

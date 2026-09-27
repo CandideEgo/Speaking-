@@ -2,16 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  AlertCircle,
-  Gift,
-  Loader2,
-  Save,
-  Settings2,
-  ShieldCheck,
-  UserCog,
-  Zap,
-} from "lucide-react";
+import { AlertCircle, Loader2, Save, Settings2, ShieldCheck, UserCog, Zap } from "lucide-react";
 
 import { AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
@@ -357,19 +348,12 @@ export default function AdminSettingsPage() {
           {admins.length === 0 ? (
             <p className="py-2 text-center text-xs text-muted">暂无管理员账户</p>
           ) : (
-            admins.map((a, i) => (
+            admins.map((a) => (
               <div
                 key={a.id}
                 className="flex items-center gap-3 rounded-[10px] border border-hairline px-3.5 py-2.5"
               >
-                <div
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white",
-                    i === 0
-                      ? "bg-gradient-to-br from-brand-500 to-brand-400"
-                      : "bg-gradient-to-br from-indigo to-indigo/70"
-                  )}
-                >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-sm font-semibold text-white">
                   {(a.name || "管").slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -391,20 +375,8 @@ export default function AdminSettingsPage() {
                       : "—"}
                   </p>
                 </div>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    i === 0 ? "bg-brand-50 text-brand-600" : "bg-indigo-soft text-indigo"
-                  )}
-                >
-                  {i === 0 ? (
-                    <>
-                      <Gift size={11} />
-                      超级管理员
-                    </>
-                  ) : (
-                    "管理员"
-                  )}
+                <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-600">
+                  管理员
                 </span>
               </div>
             ))

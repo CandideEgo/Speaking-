@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { SCROLL_CONTAINER_ID, loadScroll, saveScroll } from "@/lib/scrollMemory";
 
 /** 恢复循环的上限：连续 3 帧命中目标（±1px）即停，否则最多跑这么久。 */
@@ -18,17 +18,12 @@ const SAVE_THROTTLE_MS = 200;
  * absent — that case silently does nothing.
  */
 export function useScrollRestore(key: string, ready: boolean): void {
-  // The save listener outlives individual `key` values, so it always reads the
-  // latest one instead of being re-attached on every change.
-  const keyRef = useRef(key);
-  keyRef.current = key;
-
   useEffect(() => {
     if (!ready) return;
     const container = document.getElementById(SCROLL_CONTAINER_ID);
     if (!container) return;
-    return watchContainer(container, () => keyRef.current);
-  }, [ready]);
+    return watchContainer(container, () => key);
+  }, [ready, key]);
 }
 
 /** Attach the restore-then-remember pair to the shell scroller. */
