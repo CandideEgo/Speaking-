@@ -13,7 +13,7 @@ Last Updated: 2026-09-27
 
 ## Next Steps
 
-1. **AI 审计收尾**（DEC-049/050/051，修复已提交）：报告附录 B 续跑剩余 176 文件；「夸大/条件性」项需先决策——H12（`payment_verify_signature` 默认 False）、H17 的 payload 无上限、H1 的 refresh 不查封禁；C6 复习竞态需运行时实证
+1. **AI 审计收尾**（DEC-049/050/051，修复已提交）：附录 B 续跑剩余 176 文件（命令就绪，待确认 API 预算）；上轮条件性遗留三条已收账（09-27：H1 封禁检查、H12 验签 fail-closed（DEC-058）、H17 批/payload 上限）；C6 已被 S5 drillRound 重写吸收（e2e 验证）
 2. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页；部署迁移 + 导入 772 条 + 端到端验证一条 promote；重抓脚本收进 `backend/scripts/`
 3. 视频存储收尾：Docker cache prune 可随时做；**删源站 `_raw` 母带被阻塞**——当前未配 OSS（09-27 确认），raw 是唯一副本，删除=不可逆丢失；需先配对象存储/离线备份，或明确放弃母带只留成品
 4. 集成测试 / Playwright e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）

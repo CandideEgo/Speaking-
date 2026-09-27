@@ -127,7 +127,11 @@ class Settings(BaseSettings):
     wechat_mch_id: str = ""
     wechat_api_v3_key: str = ""
     wechat_serial_no: str = ""
-    payment_verify_signature: bool = False
+    payment_verify_signature: bool = True
+    # 审计 H12：默认必须 fail-closed。旁路「env=development 且本 flag 为 False」
+    # 才生效（alipay/wechat _verify_*），而 env 默认也是 development —— 两个默认
+    # 叠加曾构成「漏配 ENV + 开支付 = 可伪造回调」。dev 要跳过验签须显式
+    # PAYMENT_VERIFY_SIGNATURE=False（有 warning 日志）。
     # ICP 合规：个体工商户无 ICP 经营许可证，不能站内收款。默认禁用站内支付，
     # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
     payments_enabled: bool = False

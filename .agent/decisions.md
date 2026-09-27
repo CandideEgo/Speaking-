@@ -367,3 +367,11 @@ DEC-053 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 **Decision**: ① `interval_days` / `next_review_at` 按错误次数分档直接计算：本轮内答错过→次日；本轮内一次没错→3 天；复习时答错→回次日且 `wrong_count += 1`；此后全对且 `wrong_count = 0` 走 3→7→16→35 天，全对但 `wrong_count ≥ 1` 走 2→5→12→25 天，`wrong_count ≥ 3` 间隔上限压到 7 天。② 保留 SM-2 全部列，`ease_factor` 不再参与计算（留作兼容/显示）。③ 复习队列排序改为：昨天错过的优先 → `wrong_count` 降序 → 到期时间升序。④ review 端点补写 `wrong_count` / `last_wrong_at`。
 
 **Reason**: 错误次数是产品已有的客观信号，直接映射间隔消除 ease_factor 隐式状态；分档表可被表驱动测试逐条验证（演化公式做不到等价验证）；「昨天错得最多最先出现」把复习预算优先花在最脆弱的记忆上。
+
+## 2026-09-27 — 支付验签默认 fail-closed，dev 旁路须显式 opt-out（审计 H12）
+
+**Problem**: `payment_verify_signature` 与 `env` 的默认值（False / development）叠加时，支付回调签名验证被整体旁路；「开支付 + 忘配 ENV + 忘配验签」三个默认值里有两个不安全，安全态势依赖配置纪律而不是默认安全。
+
+**Decision**: `payment_verify_signature` 默认翻为 `True`。development 联调要跳过验签必须显式 `PAYMENT_VERIFY_SIGNATURE=false`（既有 warning 日志保留）；production 分支本就不读该 flag、一律强制验签。`.env.example` 补注释说明口径。
+
+**Reason**: 旁路是「多条件与」结构，把其中唯一一个可独立安全化的条件从默认 False 翻为默认 True，使剩余旁路前提（env=development 且显式 opt-out）必然是有人有意为之；配置安全的通用原则是「安全能力默认开，关闭必须留痕」。ICP 解封前 `payments_enabled=False` 使该变更对现状零影响，正是改默认值的无痛窗口。

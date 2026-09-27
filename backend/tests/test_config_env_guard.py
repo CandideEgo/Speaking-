@@ -88,3 +88,23 @@ class TestSecretGuards:
     def test_development_keeps_explicit_values(self):
         s = _settings(env="development", jwt_secret="mine", database_url="postgresql+asyncpg://u:p@db/x")
         assert (s.jwt_secret, s.database_url) == ("mine", "postgresql+asyncpg://u:p@db/x")
+
+
+class TestPaymentSignatureDefault:
+    """审计 H12：验签必须默认 fail-closed，dev 旁路只能显式开启。"""
+
+    def test_verify_signature_defaults_on(self):
+        # production 无旁路路径（_verify_* 只看 development 分支），无需构造。
+        for env in ("development", "testing"):
+            assert _settings(env=env).payment_verify_signature is True, env
+
+    def test_dev_bypass_requires_explicit_opt_out(self, monkeypatch):
+        """默认下无 sign 的回调走验签并失败；显式 False 才旁路（带 warning）。"""
+        from app.services import alipay_payment
+
+        monkeypatch.setattr(alipay_payment.settings, "env", "development")
+        monkeypatch.setattr(alipay_payment.settings, "payment_verify_signature", True)
+        assert alipay_payment._verify_alipay_signature({}) is False
+
+        monkeypatch.setattr(alipay_payment.settings, "payment_verify_signature", False)
+        assert alipay_payment._verify_alipay_signature({}) is True
