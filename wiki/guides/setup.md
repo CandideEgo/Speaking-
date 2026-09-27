@@ -49,14 +49,11 @@ Production: gunicorn (2 workers, `docker-compose.prod.yml` 的 `-w 2`) + nginx (
 
 ```bash
 cd backend
-python -m scripts.seed_official_videos              # create all videos
-python -m scripts.seed_official_videos --dry-run     # preview only
-python -m scripts.seed_official_videos --category ted
-python -m scripts.seed_official_videos --force       # re-fetch metadata + subtitles
+python scripts/seed_official_videos.py              # create all videos
+python scripts/seed_official_videos.py --dry-run    # preview only
+python scripts/seed_official_videos.py --category ted
+python scripts/seed_official_videos.py --force      # re-fetch metadata + subtitles
 ```
-
-`-m`, not a bare path: the script puts only its own directory on `sys.path`, so
-`python scripts/seed_official_videos.py` dies with `ModuleNotFoundError: No module named 'app'`.
 
 Idempotent: skips by `source_url`. Incremental: add to `OFFICIAL_VIDEOS` list and re-run.
 

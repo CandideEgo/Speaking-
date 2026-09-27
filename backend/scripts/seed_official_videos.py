@@ -12,7 +12,7 @@ Uses yt-dlp to extract metadata + subtitles directly (no Celery needed).
 YouTube videos are set to lightweight mode (embed playback, no local file).
 
 Usage:
-    cd backend && python seed_official_videos.py
+    cd backend && python scripts/seed_official_videos.py
 
 Requires:
     - PostgreSQL running (docker compose -f docker-compose.dev.yml up -d)
@@ -33,7 +33,7 @@ from pathlib import Path
 import httpx
 
 # Add backend to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import yt_dlp
 from sqlalchemy import select

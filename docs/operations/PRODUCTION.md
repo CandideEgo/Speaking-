@@ -347,10 +347,10 @@ python scripts/create_admin.py --email admin@example.com --password 'newpass' --
 ```bash
 # 通过 seed 脚本种子官方视频
 cd backend
-python seed_official_videos.py
+python scripts/seed_official_videos.py
 
 # 或预览模式（不写入数据库）
-python seed_official_videos.py --dry-run
+python scripts/seed_official_videos.py --dry-run
 ```
 
 建议准备 **10-20 个** 不同难度（A2-C1）和不同话题的精选视频。
