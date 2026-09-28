@@ -61,9 +61,15 @@ test.describe("Login", () => {
     await page.evaluate(() => {
       (window as unknown as { __loginMarker?: string }).__loginMarker = "kept";
     });
-    const mainFrameNavigations: string[] = [];
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) mainFrameNavigations.push(frame.url());
+    // 只统计**真的换掉文档**的导航。旧实现（401 被当成会话过期）的签名是
+    // `window.location.href = "/login"` —— 一次文档级加载，错误文案随 DOM 一起
+    // 消失。`framenavigated` 对同文档导航（history API）同样会触发，会把
+    // 「Next 在客户端替换了一次 URL」也算成回归，所以这里改成看文档请求。
+    const loginDocumentLoads: string[] = [];
+    page.on("request", (req) => {
+      if (req.isNavigationRequest() && new URL(req.url()).pathname === "/login") {
+        loginDocumentLoads.push(req.url());
+      }
     });
 
     await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
@@ -73,11 +79,16 @@ test.describe("Login", () => {
     // The backend's 401 message must reach the user. This used to log out and
     // hard-redirect to /login twice, wiping the message before it could render.
     await expect(page.locator("p.text-error")).toHaveText("手机号或密码错误", { timeout: 10000 });
-    expect(mainFrameNavigations).toEqual([]);
     const marker = await page.evaluate(
       () => (window as unknown as { __loginMarker?: string }).__loginMarker ?? null
     );
-    expect(marker).toBe("kept");
+    expect(marker, "DOM marker died — the login page reloaded after the failed submit").toBe(
+      "kept"
+    );
+    expect(
+      loginDocumentLoads,
+      `failed submit reloaded the /login document: ${loginDocumentLoads.join(", ")}`
+    ).toEqual([]);
 
     const token = await page.evaluate(() => localStorage.getItem("seeword_token"));
     expect(token).toBeNull();
