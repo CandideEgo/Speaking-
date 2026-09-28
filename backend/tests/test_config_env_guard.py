@@ -16,7 +16,9 @@ def _settings(**overrides) -> Settings:
     """Build ``Settings`` from the explicit kwargs only.
 
     ``_env_file=None`` disables the repo's ``.env`` dotenv source so the
-    assertions do not depend on the developer's local file.
+    assertions do not depend on the developer's local file. ``os.environ`` still
+    applies — tests that assert a value is *missing* must clear it themselves
+    (see ``test_production_rejects_defaulted_redis_url``).
     """
     return Settings(_env_file=None, **overrides)
 
@@ -74,8 +76,14 @@ class TestSecretGuards:
                 openai_api_key="k",
             )
 
-    def test_production_rejects_defaulted_redis_url(self):
-        """``REDIS_URL`` has a working localhost default, so production must set it explicitly."""
+    def test_production_rejects_defaulted_redis_url(self, monkeypatch):
+        """``REDIS_URL`` has a working localhost default, so production must set it explicitly.
+
+        The guard fires when ``redis_url`` was never *set* (``model_fields_set``),
+        and an environment variable counts as set — so CI's ``REDIS_URL`` for the
+        rest of the suite would satisfy it silently. Clear it for this test.
+        """
+        monkeypatch.delenv("REDIS_URL", raising=False)
         with pytest.raises(RuntimeError, match="REDIS_URL"):
             _settings(
                 env="production",
