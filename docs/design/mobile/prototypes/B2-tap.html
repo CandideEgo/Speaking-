@@ -27,7 +27,7 @@
   <div class="main">
     <div class="player tapmode">
       <div class="frame">
-        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×129 · 16:9 原高 211</span></div>
+        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×… · 16:9 原高 211</span></div>
         <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
           <span class="kicker">CNBC Make It · 四级</span>
           <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
@@ -116,6 +116,13 @@ window.SHELL.notes =
 
   function el(id) { return document.getElementById(id); }
 
+  /* 画框上那行标注必须接量尺 —— 曾经它是写死的「375×129」：
+     换成真实长句后画面只剩 46px，它照旧报 129。量尺不许描述一个它没看见的 DOM。 */
+  function syncMarks() {
+    el("clearDim").textContent =
+      "可见画面 375×" + S.visiblePicture() + " · 16:9 原高 211";
+  }
+
   S = SB.bind({
     mode: "tap",                       /* 控制条从常驻改成点出 */
     dock: false,                       /* 共用卡口在这里失效，自己给两条腿 */
@@ -168,6 +175,9 @@ window.SHELL.notes =
     var want = !!(WT.state.lift && on);      /* classList.toggle 收到 undefined 会当成「没给 force」＝直接翻转，必须 !! */
 
     el("burn").classList.toggle("lift", want);
+    syncMarks();
+    /* .ctl 与 .lift 都是 transform 过渡：这一瞬间量到的还是旧位置，落定之后再报一次 */
+    setTimeout(syncMarks, 260);
     if (!on) {
       var hint = el("ctlHint");
       setTimeout(function () { hint.classList.remove("on"); }, 1200);   /* 提示只闪 1.2s */
@@ -175,7 +185,13 @@ window.SHELL.notes =
   });
   WT.on(function () {
     el("burn").classList.toggle("lift", !!(WT.state.lift && SB.state.ctlOn));
+    syncMarks();
   });
+  S.on("onCurrent", syncMarks);
+  S.on("onStyle", syncMarks);
+  syncMarks();
+  /* 壳（顶栏 / 底栏）后挂：它一落定，画框的位置才定下来 —— 那时再报一次 */
+  window.addEventListener("shell:ready", syncMarks);
 
   document.getElementById("btnMic").addEventListener("click", function () {
     SB.toast("录音（原型示意）—— 归 #23 的跟读流程");
