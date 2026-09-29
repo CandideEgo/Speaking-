@@ -61,12 +61,14 @@ cd frontend && npm run dev                          # :3000
 
 - **iOS Safari 的 `100vh` 恒等于地址栏收起时的高度**，地址栏一展开就比可视区多 40px —— 壳拿它当高度，就必然有 40px 内容落在可视区外
 - **夸克没有这个问题**：四个高度单位读数一致、`100vh` = `innerHeight`，地址栏收放不动它们。所以「底栏被地址栏吃掉」是 Safari 独有的病历
-- 安全区在 `fit=auto` 下四边都是 0（预期如此）。**`fit=cover` 下能拿到多少，这次没拿到可信读数**：四张 cover 截图的数值经 OCR 读出来仍是 0，与「iPhone 有 Home indicator、cover 下应给 34」的预期不符；OCR 对小字号右对齐数字不可靠，所以记「未确认」而不是「就是 0」。这直接决定壳的 `env(safe-area-inset-bottom)` 在该机上到底生不生效 —— 重跑一次量具页并**贴报告文本**即可（拍屏读不出小字，就是这么废掉的）。社区口径是「cover 生效时 insets 才有值，否则恒 0」（[WebKit 原说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x)），iOS 26 起 Safari 浏览器模式下还能不能铺进工具条区则两种说法都有。**两种读数的落点都安全**：0 → 壳 padding 加 0，底栏贴在可视区底边（本就在工具条之上）；34 → 底栏抬高 34px 躲开 Home indicator
+- 安全区在 `fit=auto` **和 `fit=cover` 下四边都是 0**（09-30 贴报告文本重跑确认，原文在 `probe-2026-09-30.txt` 末节）。两张表逐行相同、连 `100vh` 都是 790 —— **说明 `viewport-fit=cover` 在 Safari 浏览器模式下根本没生效**。社区口径是「cover 生效时 insets 才有值」（[WebKit 原说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x)），而 iOS 26 起 Safari 还允不允许铺进上下工具条区，社区里已有「浏览器模式下不生效、只有加到主屏才生效」的说法，与这里的读数一致
+  - **所以壳那段 `env()` padding 今天在 Safari 上是 no-op**（加 0），底栏贴在可视区底边、本就在工具条之上，不会落进 Home indicator 条；它是留给 standalone（加到主屏）与有 cutout 的 Android 的保险。本项目没有 manifest / `apple-mobile-web-app-capable`，连「加到主屏」都走不到非零读数
+  - **已知缺口**：非 `(main)` 壳的路由（login / onboarding / legal / admin）没有安全区归属，哪天 insets 真的非 0，它们的第一行与最后一行会贴到刘海和 Home indicator 上
 
 ## 量不到的（只有真机能给）
 
 1. ~~**地址栏收放的真实行为**~~ → **09-30 已量到**，见上一节。原先我用「把视口从 812 改成 700」模拟过，**那个模拟是错的**：它把 `100vh` 也一起改了，而 iOS 上 `100vh` 恰恰不变。那次错误模拟的截图已删，不留误导
-2. ~~**安全区**（刘海 / 灵动岛 / Home indicator）~~ → `fit=auto` 下量到全 0；`fit=cover` 的读数未确认，见上一节
+2. ~~**安全区**（刘海 / 灵动岛 / Home indicator）~~ → **09-30 量完**：`fit=auto` 与 `fit=cover` 四边全 0（cover 在 Safari 浏览器模式下不生效，见上一节）。`standalone`（加到主屏）那份没有实现路径 —— 项目没有 manifest / `apple-mobile-web-app-capable`
 3. **全屏**：移动端控制条上按 `aria-label` 找不到全屏按钮；原生全屏一旦接管，字幕与点词是否还在，只能真机看（这条同时决定 #25）
 
 ## 截图
@@ -77,7 +79,7 @@ cd frontend && npm run dev                          # :3000
 | `iphone-2-scrolled-mini.png` | 滚过视频后的迷你播放器状态 |
 | `iphone-3-word-card.png` | 点词后的词卡 |
 | `probe-safari-auto.jpg` / `probe-quark-auto.jpg` | 真机量具页，`fit=auto`（Safari / 夸克） |
-| `probe-safari-cover.jpg` / `probe-quark-cover.jpg` | 真机量具页，`fit=cover` —— 就是这四张的读数没能读出来，见上一节末条 |
+| `probe-safari-cover.jpg` / `probe-quark-cover.jpg` | 真机量具页，`fit=cover`（09-30 重跑确认：读数与 `auto` 逐行相同，insets 全 0 —— cover 在 Safari 浏览器模式下不生效） |
 
 量具页本体存为 `dev-probe.html`，**不在 `frontend/public/` 里**（一次性量具，不随生产构建发布）。要重跑：把它拷回 `frontend/public/`，手机开 `http://<局域网 IP>:3000/dev-probe.html?fit=cover`，点一次 A、收起/展开地址栏再点一次 B，然后截图或复制报告文本。dev 站要从手机访问，`next.config.js` 的 `allowedDevOrigins` 得放行你的网段（默认 `192.168.*.*`）。
 
