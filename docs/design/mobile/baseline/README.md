@@ -62,7 +62,7 @@ cd frontend && npm run dev                          # :3000
 - **iOS Safari 的 `100vh` 恒等于地址栏收起时的高度**，地址栏一展开就比可视区多 40px —— 壳拿它当高度，就必然有 40px 内容落在可视区外
 - **夸克没有这个问题**：四个高度单位读数一致、`100vh` = `innerHeight`，地址栏收放不动它们。所以「底栏被地址栏吃掉」是 Safari 独有的病历
 - 安全区在 `fit=auto` **和 `fit=cover` 下四边都是 0**（09-30 贴报告文本重跑确认，原文在 `probe-2026-09-30.txt` 末节）。两张表逐行相同、连 `100vh` 都是 790 —— **说明 `viewport-fit=cover` 在 Safari 浏览器模式下根本没生效**。社区口径是「cover 生效时 insets 才有值」（[WebKit 原说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x)），而 iOS 26 起 Safari 还允不允许铺进上下工具条区，社区里已有「浏览器模式下不生效、只有加到主屏才生效」的说法，与这里的读数一致
-  - **所以壳那段 `env()` padding 今天在 Safari 上是 no-op**（加 0），底栏贴在可视区底边、本就在工具条之上，不会落进 Home indicator 条；它是留给 standalone（加到主屏）与有 cutout 的 Android 的保险。本项目没有 manifest / `apple-mobile-web-app-capable`，连「加到主屏」都走不到非零读数
+  - **所以壳那段 `env()` padding 今天在 Safari 上是 no-op**（加 0），底栏贴在可视区底边、本就在工具条之上，不会落进 Home indicator 条；它是留给 standalone（加到主屏）与有 cutout 的 Android 的保险。本项目目前没有 manifest / `apple-mobile-web-app-capable`，所以「加到主屏」那条路也还没实测过 —— **别据此把那段 padding 当死代码删掉**：有 manifest 之后、以及有 cutout 的 Android 上，它就是唯一在挡这条内容的东西
   - **已知缺口**：非 `(main)` 壳的路由（login / onboarding / legal / admin）没有安全区归属，哪天 insets 真的非 0，它们的第一行与最后一行会贴到刘海和 Home indicator 上
 
 ## 量不到的（只有真机能给）
