@@ -1413,10 +1413,12 @@ def size_report() -> None:
     of writing buys shorter sentences, not fewer facts, and a number that never gates
     anything is still worth seeing, because a directory that quietly doubled is how a layer
     stops being read. Hot files are what a session loads before it knows the task; cold
-    directories are what it reads on demand.
+    entries are what it reads on demand.
 
     Both lists come from paths.json, so the report follows the layout instead of restating
-    it, and either can be edited there without touching the checker.
+    it, and either can be edited there without touching the checker. A cold entry's `kind`
+    decides whether it is totalled as a directory or measured as a single top-level file,
+    so the one list can hold both without saying which is which twice.
     """
     report = PATH_CONFIG["size_report"]
     print("knowledge size report: bytes on disk; hot = read every session, cold = on demand")
@@ -1433,12 +1435,15 @@ def size_report() -> None:
         print(f"  hot   {size:>8}  {_cfg(key)}")
     cold_size = 0
     cold_files = 0
-    for key in report["cold_dirs"]:
+    for key in report["cold"]:
         path = REPO_ROOT / _cfg(key)
-        if not path.is_dir():
+        if PATHS[key]["kind"] == "dir" and path.is_dir():
+            size, files = directory_size(path)
+        elif PATHS[key]["kind"] == "file" and path.is_file():
+            size, files = path.stat().st_size, 1
+        else:
             print(f"  cold  {'missing':>8}  {_cfg(key)}")
             continue
-        size, files = directory_size(path)
         cold_size += size
         cold_files += files
         print(f"  cold  {size:>8}  {files:>4} files  {_cfg(key)}")

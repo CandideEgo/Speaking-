@@ -59,7 +59,8 @@ the repo may drop) and `knowledge/archive/handoffs/` (git does not track an empt
 unresolvable blocker fails the `handoff` check in its own right).
 
 The same file feeds `--size-report`: the hot files it lists are read every session, the cold
-directories it totals are read on demand. Neither list gates anything, so both are free to edit.
+entries it totals — directories and top-level files together — are read on demand. Neither list
+gates anything, so both are free to edit.
 
 ## Repository layout (the `layout` check)
 
@@ -196,7 +197,8 @@ python scripts/check-knowledge/check_knowledge.py --size-report    # hot files, 
 ```
 
 It prints the bytes of each file a session loads before it knows the task, then a total and a file
-count per knowledge directory, and exits 0 whatever it finds. Both lists live in `paths.json`.
+count for every other cold entry — a directory's whole subtree, or a top-level file counted on its
+own — and exits 0 whatever it finds. Both lists live in `paths.json`.
 
 ## Exemptions
 

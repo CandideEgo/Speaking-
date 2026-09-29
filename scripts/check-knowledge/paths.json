@@ -14,6 +14,7 @@
     "operations": {"path": "knowledge/operations", "kind": "dir", "required": true, "note": "operational knowledge; it narrates history, so commit hashes are allowed"},
     "plans": {"path": "knowledge/plans", "kind": "dir", "required": true, "note": "design records; narrates history"},
     "progress": {"path": "knowledge/progress", "kind": "dir", "required": true, "note": "work logs; narrates history"},
+    "requirements": {"path": "knowledge/requirements", "kind": "dir", "required": true, "note": "the product intent, tidied; narrates history"},
     "archive": {"path": "knowledge/archive", "kind": "dir", "required": true, "note": "frozen history: exempt from every check, links and schema as of when it was written"},
     "decisions": {"path": "knowledge/decisions.md", "kind": "file", "required": true, "note": "append-only: never edit or reorder an existing entry"},
     "decisions_index": {"path": "knowledge/decisions-index.md", "kind": "file", "required": true, "note": "mirrors decision titles verbatim, so it inherits any commit hash an entry carries"},
@@ -62,8 +63,11 @@
     "capture_triage": "triage.md"
   },
   "size_report": {
-    "_comment": "What --size-report prints. Report-only: neither list gates anything, so both can be edited freely without touching the checker. hot_files is the set a session loads before it knows the task; there is no byte ceiling and no byte target anywhere (DEC-067).",
+    "_comment": "What --size-report prints. Report-only: neither list gates anything, so both can be edited freely without touching the checker. hot_files is the set a session loads before it knows the task; `cold` is the rest of the layer, read on demand, and it accepts directories and top-level files alike -- the entry's own `kind` decides which is which. There is no byte ceiling and no byte target anywhere (DEC-067); a cold entry missing from this list is a number nobody sees, so `cold` names every location under knowledge_root.",
     "hot_files": ["agents", "claude", "context", "readme", "state", "invariants", "owners"],
-    "cold_dirs": ["wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress"]
+    "cold": [
+      "wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress",
+      "requirements", "decisions", "decisions_index", "system_map", "changelog"
+    ]
   }
 }
