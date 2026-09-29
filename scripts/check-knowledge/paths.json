@@ -66,7 +66,7 @@
     "_comment": "What --size-report prints. Report-only: neither list gates anything, so both can be edited freely without touching the checker. hot_files is the set a session loads before it knows the task; `cold` is the rest of the layer, read on demand, and it accepts directories and top-level files alike -- the entry's own `kind` decides which is which. There is no byte ceiling and no byte target anywhere (DEC-067); a cold entry missing from this list is a number nobody sees, so `cold` names every location under knowledge_root.",
     "hot_files": ["agents", "claude", "context", "readme", "state", "invariants", "owners"],
     "cold": [
-      "wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress",
+      "index", "wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress",
       "requirements", "decisions", "decisions_index", "system_map", "changelog"
     ]
   }
