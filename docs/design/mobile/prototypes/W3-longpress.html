@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 点词丙 —— 长按进选词态</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<style>
+  /* ── 变体丙自有：长按任意句子 → 全屏下半的「选词态」；词卡在同一个面板里顶上钉住来源句 ──
+     结构性保证：来源句是面板的第一个元素、词卡在它下面 —— 遮挡在结构上不存在。 */
+
+  .wt .burn { cursor: default; }
+  .wt .script li { cursor: pointer; }
+
+  .scrim {
+    position: absolute; inset: 0; z-index: 56; background: rgba(10, 10, 10, .42);
+    display: none;
+  }
+  .scrim.on { display: block; }
+
+  .pick {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 58;
+    height: 62%; display: flex; flex-direction: column;
+    background: var(--canvas); border-top: 1px solid var(--hairline);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, .3);
+    transform: translateY(100%); transition: transform .2s ease-out;
+  }
+  .pick.on { transform: none; }
+  .pick-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; }
+  .pick-head .t { font-size: 10px; font-weight: 800; letter-spacing: .08em; color: var(--brand-600); }
+  .pick-head .ts { font-size: 10.5px; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
+  .pick-head .x {
+    margin-left: auto; min-height: 44px; min-width: 44px; border: 0; background: transparent;
+    color: var(--muted-c); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; border-radius: var(--radius-sm);
+  }
+  .pick-head .x:hover { background: var(--surface-card); color: var(--ink); }
+
+  /* 来源句：面板的第一个元素，行高 44px；它永远不被下面任何东西盖住 */
+  .pick-sent { flex: 0 0 auto; padding: 0 12px 10px; border-bottom: 1px solid var(--hairline); }
+  .pick-en { font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+  .pick-en .word {
+    display: inline-block; min-height: 44px; line-height: 44px; padding: 0 6px;
+    margin: 0 2px 2px 0; border-radius: 7px; background: var(--surface-card);
+  }
+  .pick-en .word:hover { background: var(--brand-50); }
+  .pick-en .word.sel { background: var(--brand-500); color: #fff; }
+  .pick-zh { font-size: 12.5px; line-height: 17px; color: var(--muted-c); margin-top: 3px; }
+
+  .pick-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .pick-body .wt-card { flex: 1 1 auto; min-height: 0; }
+  .pick-body .wc-head { padding-top: 10px; }
+  .pick-body .wc-foot { display: none; }
+  .pick-foot {
+    flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 14px 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+  }
+  .pick-foot .btn { min-height: 44px; flex: 1; padding: 0 10px; font-size: 13px; }
+  .pick-wait { padding: 6px 14px 14px; font-size: 12px; color: var(--muted-soft); line-height: 1.5; }
+  .pick-wait b { color: var(--ink); }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+    z-index: 70; background: rgba(10, 10, 10, .82); color: #fff;
+    font-size: 12px; font-weight: 600; padding: 9px 14px; border-radius: var(--radius-pill);
+    opacity: 0; transition: opacity .18s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.on { opacity: 1; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 当前句：长按它（或文稿任意一行）进选词态 -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <div class="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <!-- 选词态：来源句钉在面板顶部，词卡在它下面 —— 结构性不被遮挡 -->
+  <section class="pick" id="pick">
+    <div class="pick-head">
+      <span class="t">选词态</span>
+      <span class="ts" id="pickTs">00:22</span>
+      <button class="x" id="pickClose" aria-label="退出选词态">✕</button>
+    </div>
+    <div class="pick-sent">
+      <div class="pick-en" id="pickEn"></div>
+      <div class="pick-zh" id="pickZh"></div>
+    </div>
+    <div class="pick-body" id="pickBody">
+      <div class="pick-wait" id="pickWait">
+        点上面任意单词查义 —— 每个词 <b>44px 高</b>、彼此不重叠，这是行内 22px 行距做不到的。<br>
+        点空白处或 ✕ 退出；退出后自动恢复播放。
+      </div>
+    </div>
+    <div class="pick-foot" id="pickFoot" hidden>
+      <button class="btn" data-speak>发音</button>
+      <button class="btn primary" data-save>加入词库</button>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";   // 丙 自己接管点词：轻点行＝跳转，长按行＝进选词态
+window.SHELL.notes =
+  "<b>变体丙 —— 长按任意句子进「选词态」</b><br>" +
+  "赌注：把点词做成一次<b>明确的、有开始有结束的动作</b>，而不是在 22px 行距里赌手指的准头。" +
+  "代价是它必须用长按——一个没有外显的第二个手势，所以选词态里<b>只放选词</b>，不叠手势。<br><br>" +
+  "<b>它答四问。</b>① 触发＝长按 400ms（画面内字幕或文稿任意一行都一样）→ 进选词态；轻点行仍是跳转。" +
+  "② 词卡从哪出＝选词面板内、来源句正下方就地展开——来源句是面板的第一个元素，<b>结构上不可能被遮住</b>。" +
+  "③ 点完之后＝进选词态即暂停（这是模态的应有之义），退出恢复；加入词库默认不关（可切）。" +
+  "④ 抢位＝画面被压暗 42%，入画字幕在模态期间不参与；文稿列表让位给面板（面板盖住它）。<br><br>" +
+  "<b>代价一 · 长按是第二个手势，且不可见。</b>本仓现状是零手势码基（#20 §5 特别警告过不要一上来就叠手势）；" +
+  "所以这条路线里长按<b>只做一件事</b>，且轻点行会吐一句提示教它。<br>" +
+  "<b>代价二 · 44px 是「行高」换的，且只换了高。</b>实测热区 <b>高 44px、宽 17–108px</b>（宽随词长，「I」只有 17px 宽 —— 高度达标不等于目标够大）；来源句 2 行 = 92px，面板只留 62% 屏高，句子越长，词卡的地盘越小。<br>" +
+  "<b>代价三 · 模态打断看片。</b>它天然暂停——好处是不会错过下一句，坏处是每次查词都是一次「进出」。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var burn = document.getElementById("burn");
+  var burnEn = document.getElementById("burnEn");
+  var burnZh = document.getElementById("burnZh");
+  var pick = document.getElementById("pick");
+  var pickEn = document.getElementById("pickEn");
+  var pickBody = document.getElementById("pickBody");
+  var pickFoot = document.getElementById("pickFoot");
+  var pickWait = document.getElementById("pickWait");
+  var pickTs = document.getElementById("pickTs");
+  var toastEl = document.getElementById("toast");
+  var curIdx = 2;
+  var openWord = null;
+  var suppressUntil = 0;
+
+  function setCurrent(idx) {
+    curIdx = Math.max(0, Math.min(D.script.length - 1, idx));
+    var row = D.script[curIdx];
+    burnEn.innerHTML = WT.words(row.en, { tappable: false, hot: true });
+    burnZh.textContent = row.zh;
+    document.querySelectorAll("#script li").forEach(function (li) {
+      li.classList.toggle("on", Number(li.getAttribute("data-idx")) === curIdx);
+    });
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("on");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { toastEl.classList.remove("on"); }, 1700);
+  }
+
+  function openPick(idx) {
+    setCurrent(idx);
+    var row = D.script[curIdx];
+    pickTs.textContent = row.t;
+    pickEn.innerHTML = WT.words(row.en, { tappable: true });
+    document.getElementById("pickZh").textContent = row.zh;
+    bindPickWords();
+    closeCard();
+    document.getElementById("scrim").classList.add("on");
+    pick.classList.add("on");
+    document.body.style.overscrollBehavior = "none";
+    WT.refresh();
+    setTimeout(function () { WT.refresh(); }, 220);
+  }
+
+  function closePick() {
+    pick.classList.remove("on");
+    document.getElementById("scrim").classList.remove("on");
+    closeCard();
+    WT.refresh();
+  }
+
+  function bindPickWords() {
+    pickEn.querySelectorAll(".word").forEach(function (w) {
+      w.addEventListener("click", function () {
+        pickEn.querySelectorAll(".word.sel").forEach(function (x) { x.classList.remove("sel"); });
+        w.classList.add("sel");
+        openCard(WT.clean(w.textContent));
+      });
+    });
+  }
+
+  function openCard(word) {
+    openWord = word;
+    Array.prototype.forEach.call(pickBody.querySelectorAll(".wt-card"), function (n) { n.remove(); });
+    pickBody.appendChild(WT.card(word, { showClose: false, onAutoClose: closeCard }));
+    pickWait.hidden = true;
+    pickFoot.hidden = false;
+    pickFoot.setAttribute("data-word", word);
+    WT.refresh();
+  }
+
+  function closeCard() {
+    openWord = null;
+    Array.prototype.forEach.call(pickBody.querySelectorAll(".wt-card"), function (n) { n.remove(); });
+    pickWait.hidden = false;
+    pickFoot.hidden = true;
+    WT.refresh();
+  }
+
+  pickFoot.querySelector("[data-speak]").addEventListener("click", function () {
+    toast("发音：" + (pickFoot.getAttribute("data-word") || ""));
+  });
+  pickFoot.querySelector("[data-save]").addEventListener("click", function () {
+    if (WT.state.autoClose) closePick(); else toast("已加入词库（原型示意）");
+  });
+  document.getElementById("pickClose").addEventListener("click", closePick);
+  document.getElementById("scrim").addEventListener("click", closePick);
+
+  /* 长按（400ms）进选词态；轻点仍是跳转 */
+  function bindLongPress(root, onLong, onTap) {
+    var t = null, sx = 0, sy = 0, fired = false, hit = null;
+    root.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      hit = e.target.closest("li") || root;
+      sx = e.clientX; sy = e.clientY; fired = false;
+      t = setTimeout(function () { t = null; fired = true; onLong(hit); }, 400);
+    });
+    root.addEventListener("pointermove", function (e) {
+      if (t && (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8)) { clearTimeout(t); t = null; }
+    });
+    root.addEventListener("pointerup", function () {
+      if (t) { clearTimeout(t); t = null; if (!fired) onTap && onTap(hit); }
+    });
+    root.addEventListener("pointercancel", function () { if (t) { clearTimeout(t); t = null; } });
+  }
+
+  bindLongPress(burn, function () { openPick(curIdx); });
+  bindLongPress(document.getElementById("script"), function (li) {
+    suppressUntil = Date.now() + 600;   // 长按已经处理过这次，别让随后的 click 再当轻点
+    openPick(Number(li.getAttribute("data-idx")));
+  });
+
+  WT.build({
+    onRow: function (idx) {
+      if (Date.now() < suppressUntil) return;   // 长按已处理，别再把这次当轻点
+      setCurrent(idx);
+      toast("已跳到这句 —— 长按任意句子可进选词态");
+    },
+    toggles: [
+      { key: "pause", label: "进选词态时", on: "暂停", off: "继续播" },
+      { key: "autoClose", label: "加入词库后", on: "退出选词态", off: "保持" }
+    ],
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 —— 被压暗，模态期间不参与", tone: "dim" },
+      { sel: "#pick", label: "② 选词面板（62% 屏高）" },
+      { sel: "#pickEn", label: "③ 来源句：钉在面板顶部，行高 44px", tone: "quiet" },
+      { sel: "#listwrap", label: "④ 文稿列表 —— 让位给面板", tone: "quiet" }
+    ],
+    read: [
+      { label: "选词态里词热区", get: function () {
+          if (!pick.classList.contains("on")) return { v: "—（未进选词态）", tone: "bad" };
+          var ws = pickEn.querySelectorAll(".word");
+          if (!ws.length) return "—";
+          var min = 1e9, max = 0, h = 0;
+          Array.prototype.forEach.call(ws, function (w) {
+            var r = w.getBoundingClientRect();
+            min = Math.min(min, r.width); max = Math.max(max, r.width); h = Math.max(h, r.height);
+          });
+          return { v: "高 " + Math.round(h) + "px · 宽 " + Math.round(min) + "–" + Math.round(max) + "px（宽随词长）", tone: h >= 44 ? "good" : "bad" };
+        } },
+      { label: "来源句下沿 → 词卡上沿", get: function () {
+          var c = pickBody.querySelector(".wt-card");
+          if (!c) return "—（未开词卡）";
+          var s = document.getElementById("pickEn").getBoundingClientRect().bottom;
+          var t = c.getBoundingClientRect().top;
+          return { v: Math.round(t - s) + "px（同一面板相邻）", tone: "good" };
+        } },
+      { label: "词卡遮住来源句", get: function () {
+          var c = pickBody.querySelector(".wt-card");
+          if (!c) return "—（未开词卡）";
+          return { v: "0px（结构上不可能）", tone: "good" };
+        } },
+      { label: "画面内字幕", get: function () {
+          if (!pick.classList.contains("on")) return "可见（常态）";
+          return { v: "被压暗且不可点", tone: "bad" };
+        } },
+      { label: "面板高度 / 屏高", get: function () {
+          var h = pick.getBoundingClientRect().height;
+          var a = document.querySelector(".app").getBoundingClientRect().height;
+          return Math.round(h) + "px / " + Math.round(a) + "px（" + Math.round(h / a * 100) + "%）";
+        } },
+      { label: "查一个词的代价", get: { v: "长按 400ms + 点词 1 次", tone: "bad" } }
+    ],
+    note: function () {
+      return "丙 的核心不是热区数字，是<b>把点词变成一次有开始有结束的动作</b>：" +
+        "来源句钉在面板顶部，词卡永远在它下面 —— 遮挡在结构上不存在。" +
+        (openWord ? "现在看着「" + openWord + "」。" : "长按画面里那句，或文稿里任意一行。");
+    }
+  });
+
+  setCurrent(curIdx);
+})();
+</script>
+</body>
+</html>

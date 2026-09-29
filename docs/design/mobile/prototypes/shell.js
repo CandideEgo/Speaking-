@@ -97,8 +97,9 @@
     var n = document.getElementById("variant-note");
     if (n && S.notes) n.innerHTML = S.notes;
 
-    // 单词点击 → 底部弹层（三个变体都用同一套点词容器，便于横向比较）
-    document.querySelectorAll(".word").forEach(function (w) {
+    // 单词点击 → 底部弹层（#24 的三个变体都用同一套点词容器，便于横向比较）
+    // #27 的点词原型自己接管点词（S.wordTap === "none"），这里让位，其余行为一概不变。
+    if (S.wordTap !== "none") document.querySelectorAll(".word").forEach(function (w) {
       w.addEventListener("click", function () {
         document.querySelectorAll(".word.sel").forEach(function (x) { x.classList.remove("sel"); });
         w.classList.add("sel");

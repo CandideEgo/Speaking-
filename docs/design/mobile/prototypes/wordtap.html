@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>#27 点词的触发与呈现 —— 三条路线</title>
+<style>
+  :root {
+    --bg: #18181b; --card: #232327; --line: #35353a; --ink: #fafafa;
+    --dim: #a1a1aa; --brand: #ff5a1f; --ok: #4ade80; --warn: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Inter, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 46px 0 12px; letter-spacing: -.01em; }
+  h3 { font-size: 16px; margin: 0 0 4px; }
+  .lede { color: var(--dim); font-size: 15px; max-width: 78ch; margin: 0; }
+  .lede b { color: var(--ink); }
+  a { color: var(--brand); }
+  code { background: #2a2a2f; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #1f1f23; font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td b { color: var(--ink); }
+  tr.hard td { background: rgba(74, 222, 128, .07); }
+  tr.softhard td { background: rgba(250, 204, 21, .06); }
+  .bad { color: #fca5a5; }
+  .good { color: var(--ok); }
+  .mid { color: var(--warn); }
+
+  .phones { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+  .phone { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; flex: 0 0 auto; }
+  .phone .bet { color: var(--dim); font-size: 12.5px; min-height: 58px; margin: 0 0 10px; }
+  .phone iframe { width: 375px; height: 812px; border: 0; border-radius: 16px; background: #fff; display: block; }
+  .phone .go { display: inline-block; margin-top: 10px; font-size: 13px; }
+  .phone .shots { font-size: 11.5px; color: var(--dim); margin: 8px 0 0; line-height: 1.7; }
+
+  .note { background: #1f1f23; border-left: 3px solid var(--brand); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; color: var(--dim); margin-top: 12px; }
+  .note b { color: var(--ink); }
+  ol.q { font-size: 14px; color: var(--dim); }
+  ol.q b { color: var(--ink); }
+  ul.s { font-size: 13.5px; color: var(--dim); }
+  ul.s b { color: var(--ink); }
+  img { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  figure { margin: 12px 0 0; }
+  figcaption { font-size: 11.5px; color: var(--dim); margin-top: 6px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#27 点词的触发与呈现 —— 三条路线</h1>
+  <p class="lede">
+    乙（#24 选定）把字幕搬进了画面，点词因此断成两截：热区在画面上部、词卡从屏幕底部升起，中间隔 470px。
+    本页是同一份数据、同一套外壳（<code>topBar: compact</code> + <code>tabBar: visible</code> + 乙 的入画字幕）上的<b>三条点词路线</b>，
+    加上 <b>#24 的原样对照</b>。三个都按 <b>375×812</b> 设计并按这个尺寸量过（Playwright，取 <code>getBoundingClientRect()</code>）。
+  </p>
+
+  <div class="note">
+    <b>硬约束（先立在这）：词卡不能遮住刚点的那句。</b>
+    实测结论：<b>三条路线都做得到 0px 遮挡</b> —— 甲让句子和词卡同处一个不滚动的停靠区、乙把卡口抬在字幕下方、
+    丙把来源句钉在面板顶部。真正的差别不在「遮不遮」，而在<b>为此让谁让位</b>，以及<b>触发那一下要付多少</b>。
+    对照（底部弹层）也只是「够不到」而非「遮得住」——它遮的是文稿列表。
+  </div>
+
+  <h2>四问 × 四方案</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:132px">#27 要回答的</th>
+        <th>甲 · 停靠焦点条</th>
+        <th>乙 · 画面下沿升起</th>
+        <th>丙 · 长按选词态</th>
+        <th>对照 · #24 乙 原样</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>① 触发形式</b></td>
+        <td>点<b>整句</b>：画面内字幕整块、文稿任意整行（全宽 ≥44px）。词不是热区。</td>
+        <td>行内点词，但<b>只在画面内当前句</b>可用；文稿里点行＝把这句跳到画面里，然后才点得动词。</td>
+        <td><b>长按 400ms</b> 任意句子（画面内或文稿）进选词态；轻点行仍是跳转。</td>
+        <td>行内点词：画面内与文稿<b>两处都能点</b>，热区 74×20px（#22 实测）。</td>
+      </tr>
+      <tr>
+        <td><b>② 词卡从哪出</b></td>
+        <td>停靠条内、焦点句<b>正下方就地展开</b>（同一容器，不浮）。</td>
+        <td>从<b>画面下沿升起</b>的浮层；卡口可在「画面下沿／字幕下沿」之间切。</td>
+        <td>选词面板内、来源句正下方；来源句是面板第一个元素。</td>
+        <td>屏幕底部弹层（现状容器形态）。</td>
+      </tr>
+      <tr>
+        <td><b>③ 点完之后</b></td>
+        <td>默认<b>继续播</b>（可切暂停）；焦点句同时在文稿里高亮；「加入词库」默认<b>不自动关</b>（可切）。</td>
+        <td>同左（默认继续播、不自动关，都可切）。</td>
+        <td>进选词态<b>即暂停</b>（模态的应有之义），退出恢复；「加入词库」可选退出。</td>
+        <td>现状：不暂停、不自动关。</td>
+      </tr>
+      <tr>
+        <td><b>④ 与入画字幕抢位</b></td>
+        <td>画面<b>完全不参与</b>；停靠条抢的是字幕条那 64px（95/187 与跟读/录音让位），查词时文稿列表整体让位。</td>
+        <td>卡口＝画面下沿：断层 65px、<b>保住控制条</b>，盖住字幕条 64px + 文稿 325px；卡口＝字幕下沿：断层 0px、<b>控制条被盖</b>，盖住文稿 260px。</td>
+        <td>画面被压暗 42%，入画字幕模态期间不参与；面板盖住文稿列表。</td>
+        <td>弹层盖住字幕条 + 文稿列表 + 底栏一角；与画面内字幕相距 <b>≈470px</b>。</td>
+      </tr>
+      <tr class="hard">
+        <td><b>词卡遮住刚点的那句</b></td>
+        <td class="n good">0px（结构上不可能）</td>
+        <td class="n good">0px</td>
+        <td class="n good">0px（结构上不可能）</td>
+        <td class="n good">0px（几何上够不到，但离 ≈470px）</td>
+      </tr>
+      <tr class="softhard">
+        <td><b>词热区（实测）</b></td>
+        <td class="n good">40×44px（行高＝热区，行间不重叠）</td>
+        <td class="n bad">可点区间 21–29px（22px 行距 + 外扩 4px，上排被下排压掉 8px）</td>
+        <td class="n mid">高 44px · 宽 17–108px（高度达标，宽度随词长）</td>
+        <td class="n bad">74×20px</td>
+      </tr>
+      <tr>
+        <td><b>查一个词的代价</b></td>
+        <td>2 次点击（先句子后词）</td>
+        <td>1 次点击；文稿里要先跳句再点词＝2 次</td>
+        <td>长按 400ms + 1 次点击</td>
+        <td>1 次点击</td>
+      </tr>
+      <tr>
+        <td><b>它换掉了什么</b></td>
+        <td>字幕条（95/187、逐句跟读、录音）；查词时整段文稿</td>
+        <td>文稿列表里点词这一能力；卡口＝字幕下沿时连控制条一起让</td>
+        <td>看片的连续性（模态）；（长按是第二个手势）</td>
+        <td>—（这是现状）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>三条路线</h2>
+  <div class="phones">
+
+    <div class="phone">
+      <h3>甲 · 停靠焦点条</h3>
+      <p class="bet">赌「点词值得一个专用容器」：句子先搬到画面下方的停靠条，词才在条里可点 —— 44px 在这里成立，代价是多一步与一条常驻 180px 的条。</p>
+      <iframe src="W1-dock.html" title="变体甲 停靠焦点条"></iframe>
+      <p class="shots">
+        截图：<a href="shots/W1-dock-idle.png">空闲</a> · <a href="shots/W1-dock.png">停靠（句）</a> ·
+        <a href="shots/W1-card.png">停靠（词卡）</a> · <a href="shots/W1-metrics.png">量尺</a> · <a href="shots/W1-long.png">最长一句</a>
+      </p>
+      <a class="go" href="W1-dock.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>乙 · 画面下沿升起</h3>
+      <p class="bet">赌「问题只在卡离得远」：入画字幕不动，词卡抬到画面正下方，断层 470px→0–65px。热区与小目标一概不碰。</p>
+      <iframe src="W2-edge.html" title="变体乙 画面下沿升起"></iframe>
+      <p class="shots">
+        截图：<a href="shots/W2-edge-idle.png">空闲</a> · <a href="shots/W2-card.png">词卡（贴画面下沿）</a> ·
+        <a href="shots/W2-metrics.png">量尺</a> · <a href="shots/W2-metrics-flush.png">卡口＝字幕下沿</a> · <a href="shots/W2-long.png">最长一句</a>
+      </p>
+      <a class="go" href="W2-edge.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>丙 · 长按选词态</h3>
+      <p class="bet">赌「点词应该是一件有开始有结束的事」：长按任意句进选词态，来源句钉在面板顶部、词卡在它下面 —— 遮挡在结构上不存在。</p>
+      <iframe src="W3-longpress.html" title="变体丙 长按选词态"></iframe>
+      <p class="shots">
+        截图：<a href="shots/W3-longpress-idle.png">空闲</a> · <a href="shots/W3-pick.png">选词态</a> ·
+        <a href="shots/W3-card.png">词卡</a> · <a href="shots/W3-metrics.png">量尺</a> ·
+        <a href="shots/W3-long.png">最长一句</a> · <a href="shots/W3-longpress.png">轻点行＝跳转</a>
+      </p>
+      <a class="go" href="W3-longpress.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>对照 · #24 乙 原样</h3>
+      <p class="bet">这是 #27 要判的那个现状：行内点词 + 底部弹层。它的 470px 断层不是猜的 —— #22 在真实栈上量过。</p>
+      <iframe src="B-subtitle-in-frame.html" title="对照 #24 乙"></iframe>
+      <p class="shots">
+        这个词卡容器与三条路线不同，是本票要替换掉的那一个。<br>
+        #24 的三变体总览在 <a href="index.html">上一页</a>。
+      </p>
+      <a class="go" href="B-subtitle-in-frame.html">单独打开 →</a>
+    </div>
+
+  </div>
+
+  <h2>怎么读数</h2>
+  <div class="note">
+    每个原型左下角有个 <b>「量给我看」</b> 按钮：点开后会按真实的 <code>getBoundingClientRect()</code> 把
+    <b>词热区、卡与句的距离、谁被盖掉多少</b> 一条条列出来，并在界面上画出虚线框（①②③④）。
+    右上角的「屏高构成」是 #24 留下的标尺，标的是<b>空闲态</b>的屏高分配 —— 三条路线的空闲态与乙 完全一致，所以共用一份。<br><br>
+    两个可切开关（黑面板里）：<b>点词后是否暂停</b>、<b>加入词库后是否自动关</b>；乙 多一个 <b>卡口</b>（贴画面下沿／贴字幕下沿）。
+    这三个开关就是第 ③ 问的全部内容 —— 别用文字答，直接切给我看。
+  </div>
+
+  <h2>实测读数（375×812 @2x，Playwright 取 rect）</h2>
+  <table>
+    <thead><tr><th>量什么</th><th>甲</th><th>乙</th><th>丙</th><th>对照（#24 乙）</th></tr></thead>
+    <tbody>
+      <tr><td>整页高度 / 横向溢出</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td></tr>
+      <tr><td>空闲态文稿列表高</td><td class="n">437px</td><td class="n">396px（多一行提示）</td><td class="n">437px</td><td class="n">437px</td></tr>
+      <tr><td>点词态：文稿列表可见高</td><td class="n bad">0px（让位）</td><td class="n bad">70px（卡口＝画面下沿）／135px（＝字幕下沿）</td><td class="n bad">0px（被面板盖住）</td><td class="n bad">被弹层盖住 124px（#24 原型标注，非本次实测）</td></tr>
+      <tr><td>点词态：卡片/停靠区高</td><td class="n">401px</td><td class="n">389px（上限 497px）</td><td class="n">503px（面板 62%）</td><td class="n">180px（弹层）</td></tr>
+      <tr><td>入画字幕永久占画面</td><td class="n bad">79px / 211px（37%）</td><td class="n bad">79px / 211px（37%）</td><td class="n bad">79px / 211px（37%）</td><td class="n bad">79px / 211px（37%）</td></tr>
+      <tr><td>本片最长一句（71 字符）折行</td><td class="n">44px 行高下 2 行（92px）</td><td class="n">22px 行距下 2 行（79px）</td><td class="n">44px 行高下 2 行（92px）</td><td class="n">2 行（79px）</td></tr>
+      <tr><td>控制台报错 / page error</td><td class="n good">0</td><td class="n good">0</td><td class="n good">0</td><td class="n">—（#24 产物）</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:10px">
+    入画字幕吃掉 37% 画面这一条是<b>三条路线共同的</b>、也是 #24 选乙时就知道的代价 ——
+    它在 #28（入画字幕的版式）里解决，不在本票。
+  </p>
+
+  <h2>这条路线的取舍，其实就是三句话</h2>
+  <ul class="s">
+    <li><b>甲</b>：用「多一次点击 + 字幕条让位 + 查词时文稿让位」换「44px 热区 + 焦点句永不消失 + 逐句翻」。</li>
+    <li><b>乙</b>：只解决「卡离得远」。它承认 22px 行距是天花板，于是把点词缩到只剩画面内那一句；文稿里想点词就得多一步跳句。</li>
+    <li><b>丙</b>：把点词做成一次明确的进出（长按 → 选词态 → 退出）。热区够大、遮挡不可能，代价是看片被模态打断，且引入第二个手势。</li>
+  </ul>
+
+  <div class="note">
+    <b>本页不替你决定。</b>#27 是 HITL 票：要回答的是「触发形式 / 词卡从哪出 / 点完之后 / 与入画字幕抢位」这四问，
+    而它们互相咬合 —— 选了触发形式，容器基本就被决定了。挑一条（或从三条里各取一块，例如「乙 的卡口 + 甲 的 44px 焦点条」），
+    把结论写在 #27 里。真机手感（长按的可达性、地址栏收放、安全区）这一页证明不了，归 #22。
+  </div>
+
+  <h2>怎么打开</h2>
+  <div class="note">
+    <b>没有联网请求</b>：不用 Tailwind CDN、不用外部字体、不用外链图片，断网也能开。<br>
+    <b>本页用 iframe 内嵌四个原型</b>，<code>file://</code> 直开时 Safari 会拦掉本地 iframe（Chrome 不拦）。
+    被拦了就点每个卡片下的「单独打开 →」，或在本目录起一个静态服务：
+    <code>python -m http.server 8099</code>，然后开 <code>http://127.0.0.1:8099/wordtap.html</code>。<br>
+    懒得开浏览器就看 <code>shots/</code> 里的静态截图（375×812 @2x）。
+  </div>
+
+</div>
+</body>
+</html>

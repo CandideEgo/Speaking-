@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 点词乙 —— 画面下沿升起</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<style>
+  /* ── 变体乙自有：词卡从画面下沿升起（浮层），点词只在画面内当前句可用 ──
+     关键几何：入画字幕下沿 ←→ 词卡上沿。两个卡口可切：
+       画面下沿（top = 播放器下沿 255）→ 中间露出 65px 控制条，断层 65px；
+       字幕下沿（top = 入画字幕下沿 ~190）→ 控制条被盖住，断层 0px。 */
+
+  .burn { cursor: default; }
+  .burn-en { display: block; }
+
+  /* 文稿列表：整行是跳转把手，行内词不是热区（这就是「降级成只在当前句可用」的代价面） */
+  .wt .script li { cursor: pointer; }
+  .wt .script .word { pointer-events: none; }
+  .script-hint {
+    flex: 0 0 auto; display: flex; gap: 8px; align-items: center;
+    padding: 6px 16px; border-top: 1px solid var(--hairline-soft);
+    font-size: 10.5px; color: var(--muted-soft); line-height: 1.35;
+  }
+
+  /* 词卡：从画面下沿升起，盖住字幕条与文稿列表顶部，够不到画面内的句子 */
+  .edgecard {
+    position: absolute; left: 0; right: 0; z-index: 38;
+    display: flex; flex-direction: column;
+    background: var(--canvas);
+    border-top: 1px solid var(--hairline);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -10px 30px rgba(10, 10, 10, .16);
+    opacity: 0; transform: translateY(14px); pointer-events: none;
+    transition: transform .16s ease-out, opacity .16s ease-out;
+  }
+  .edgecard.on { opacity: 1; transform: none; pointer-events: auto; }
+  .edgecard .ec-grab { flex: 0 0 auto; padding: 7px 0 2px; display: flex; justify-content: center; }
+  .edgecard .ec-grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-strong); }
+  .edgecard .ec-why {
+    flex: 0 0 auto; padding: 0 14px 6px; font-size: 10.5px; color: var(--brand-600);
+    font-weight: 700; letter-spacing: .02em; line-height: 1.35;
+  }
+  .edgecard .wt-card { flex: 1 1 auto; min-height: 0; }
+  .edgecard .wc-head { padding-top: 2px; }
+  .edgecard .wc-foot { display: none; }              /* 卡脚并进 evaluate 行，省高度 */
+  .edgecard .ec-foot {
+    flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 14px 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+  }
+  .edgecard .ec-foot .btn { min-height: 44px; flex: 1; padding: 0 10px; font-size: 13px; }
+
+  /* 「本该在这儿的控制条」被盖住时，替它画一条台阶，提醒代价 */
+  .ctl-eaten {
+    position: absolute; left: 0; right: 0; z-index: 39; pointer-events: none;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(10, 10, 10, .55); color: #fff; font-size: 10px; font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .ctl-eaten.on { display: flex; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 当前句：词 30px 热区（22px 行距 + ::after 外扩 4px），只有这一句可点词 -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+    <div class="script-hint" id="scriptHint">文稿列表里点词无效 —— 想查某句里的词，先把那句跳到画面里（点行 = 跳转）</div>
+  </div>
+
+  <div class="ctl-eaten" id="ctlEaten">控制条被词卡盖住（卡口＝字幕下沿）</div>
+
+  <!-- 词卡：从画面下沿升起 -->
+  <div class="edgecard" id="edgeCard" style="top:255px">
+    <div class="ec-grab"><i></i></div>
+    <div class="ec-why" id="ecWhy"></div>
+    <div id="ecHost"></div>
+    <div class="ec-foot">
+      <button class="btn" data-speak>发音</button>
+      <button class="btn primary" data-save>加入词库</button>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";   // 乙(#27) 自己接管点词：只有画面内当前句可点
+window.SHELL.notes =
+  "<b>变体乙 —— 词卡从画面下沿升起</b><br>" +
+  "赌注：入画字幕（#24 选定）不动，只把词卡从「屏幕底部」搬到<b>画面正下方</b> —— 视线断层从 ≈470px 压到 <b>0–65px</b>。<br><br>" +
+  "<b>它答四问。</b>① 触发＝行内点词，但<b>降级为只在画面内当前句可用</b>（热区仍是 30px，22px 行距是天花板）；文稿列表里点行＝跳转，跳完那句就能点词。" +
+  "② 词卡从哪出＝从画面下沿升起（浮层）——不是底部弹层，也不是行内。③ 点完之后＝默认继续播（可切暂停）；画面内那句同时是文稿里高亮的那行；「加入词库」默认不关（可切）。" +
+  "④ 抢位＝卡口可切：<b>贴字幕下沿</b>（控制条被盖住，断层 0px）或 <b>贴画面下沿</b>（露出 65px 控制条，断层 65px）。<br><br>" +
+  "<b>代价一 · 热区还是小。</b>实测画面内词的可点区间只有 <b>21–29px</b>：22px 行距 + ::after 外扩 4px，且上排被下排压掉 8px（谁在上面由绘制顺序定）。这条路线没打算解决 44px，只解决「卡离得远」。<br>" +
+  "<b>代价二 · 盖住的是别的东西。</b>实测：卡口＝画面下沿时盖掉字幕条 64px + 文稿列表 325px；抬到字幕下沿时盖掉字幕条 64px + 文稿列表 260px（控制条也一起被盖）。<br>" +
+  "<b>代价三 · 文稿里点词被拿掉了。</b>想查第 7 句里的词，得先点行把第 7 句跳到画面里 —— 多一步，换来的是「热区只在你看得见的那句上」。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var app = document.querySelector(".app");
+  var burn = document.getElementById("burn");
+  var burnEn = document.getElementById("burnEn");
+  var burnZh = document.getElementById("burnZh");
+  var card = document.getElementById("edgeCard");
+  var host = document.getElementById("ecHost");
+  var ctlEaten = document.getElementById("ctlEaten");
+  var curIdx = 2;
+  var openWord = null;
+
+  function setCurrent(idx) {
+    curIdx = Math.max(0, Math.min(D.script.length - 1, idx));
+    var row = D.script[curIdx];
+    burnEn.innerHTML = WT.words(row.en, { tappable: true, hot: true });
+    burnZh.textContent = row.zh;
+    document.querySelectorAll("#script li").forEach(function (li) {
+      li.classList.toggle("on", Number(li.getAttribute("data-idx")) === curIdx);
+    });
+    closeCard();
+  }
+
+  /* 卡口：贴着入画字幕下沿（盖控制条）还是贴着画面下沿（露控制条） */
+  function cardTop() {
+    var a = app.getBoundingClientRect();
+    var target = WT.state.edge ? burn.getBoundingClientRect().bottom : document.querySelector(".player").getBoundingClientRect().bottom;
+    return Math.round(target - a.top);
+  }
+
+  function layout() {
+    var top = cardTop();
+    card.style.top = top + "px";
+    var appH = app.getBoundingClientRect().height;
+    var tabEl = document.querySelector(".tabbar");
+    var tabH = tabEl ? tabEl.getBoundingClientRect().height : 56;
+    card.style.maxHeight = Math.floor(appH - top - tabH - 4) + "px";
+    // 「本该在这儿的控制条」
+    var ctl = document.getElementById("ctl").getBoundingClientRect();
+    var a = app.getBoundingClientRect();
+    ctlEaten.style.top = Math.round(ctl.top - a.top) + "px";
+    ctlEaten.style.height = Math.round(ctl.height) + "px";
+    ctlEaten.classList.toggle("on", openWord !== null && WT.state.edge);
+    if (openWord !== null) {
+      var player = document.querySelector(".player").getBoundingClientRect();
+      var gap = Math.round(player.bottom - burn.getBoundingClientRect().bottom);
+      document.getElementById("ecWhy").innerHTML = WT.state.edge
+        ? "卡口＝贴字幕下沿 · 断层 0px · 代价：控制条被盖住"
+        : "卡口＝贴画面下沿 · 断层 " + gap + "px（那截是控制条，留住了）";
+    }
+  }
+
+  function openCard(word) {
+    openWord = word;
+    host.innerHTML = "";
+    host.appendChild(WT.card(word, { onClose: closeCard, onAutoClose: closeCard }));
+    card.classList.add("on");
+    layout();
+    WT.refresh();
+  }
+
+  function closeCard() {
+    openWord = null;
+    card.classList.remove("on");
+    host.innerHTML = "";
+    ctlEaten.classList.remove("on");
+    WT.refresh();
+  }
+
+  burn.addEventListener("click", function (e) {
+    var w = e.target.closest(".word");
+    if (!w) return;
+    var word = WT.clean(w.textContent);
+    if (openWord === word) { closeCard(); return; }
+    burn.querySelectorAll(".word.sel").forEach(function (x) { x.classList.remove("sel"); });
+    w.classList.add("sel");
+    openCard(word);
+  });
+
+  // 点卡外任意处收起（点词/点行不在此列，它们自己处理）
+  document.querySelector(".main").addEventListener("click", function (e) {
+    if (openWord === null) return;
+    if (e.target.closest(".edgecard")) return;
+    if (e.target.closest("#burn")) return;
+    closeCard();
+  });
+
+  card.querySelector("[data-speak]").addEventListener("click", function () { WT.flash(card, "发音（原型示意）"); });
+  card.querySelector("[data-save]").addEventListener("click", function () {
+    if (WT.state.autoClose) closeCard(); else WT.flash(card, "已加入词库（原型示意）");
+  });
+  card.addEventListener("transitionend", function () { layout(); WT.refresh(); });
+  window.addEventListener("resize", layout);
+
+  WT.on(function () { layout(); });   // 开关只改几何：这条回调里绝不能再调 WT.refresh()
+
+  WT.build({
+    onRow: function (idx) { setCurrent(idx); },
+    toggles: [
+      { key: "edge", label: "卡口", values: ["贴画面下沿（露控制条）", "贴字幕下沿（盖控制条）"] },
+      { key: "pause", label: "点词后", on: "暂停", off: "继续播" },
+      { key: "autoClose", label: "加入词库后", on: "自动关", off: "保持" }
+    ],
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕（只有它的词可点）", tone: "dim" },
+      { sel: "#edgeCard", label: "② 词卡：从画面下沿升起" },
+      { sel: "#subbar", label: "③ 字幕条 —— 被盖住", tone: "quiet" },
+      { sel: "#listwrap", label: "④ 文稿列表 —— 顶部被盖住，且行内点词已关", tone: "quiet" }
+    ],
+    read: [
+      { label: "画面内词热区（44px 底线）", get: function () {
+          var ws = burnEn.querySelectorAll(".word");
+          if (!ws.length) return "—";
+          var mn = 1e9, mx = 0;
+          Array.prototype.forEach.call(ws, function (w) {
+            var h = WT.hit(w);
+            if (h) { mn = Math.min(mn, h.h); mx = Math.max(mx, h.h); }
+          });
+          return { v: mn + "–" + mx + "px（22px 行距 + 外扩 4px，上排被下排压掉）", tone: mx >= 44 ? "good" : "bad" };
+        } },
+      { label: "入画字幕下沿 → 词卡上沿", get: function () {
+          if (openWord === null) return "—（未开词卡）";
+          var gap = card.getBoundingClientRect().top - burn.getBoundingClientRect().bottom;
+          return { v: Math.round(gap) + "px", tone: Math.abs(gap) < 2 ? "good" : "" };
+        } },
+      { label: "词卡遮住入画字幕", get: function () {
+          if (openWord === null) return "—（未开词卡）";
+          var r = overlap(card, burn);
+          return { v: Math.round(r) + "px", tone: r > 0 ? "bad" : "good" };
+        } },
+      { label: "词卡遮住字幕条", get: function () {
+          if (openWord === null) return "—（未开词卡）";
+          var r = overlap(card, document.getElementById("subbar"));
+          return { v: Math.round(r) + "px", tone: r > 0 ? "bad" : "" };
+        } },
+      { label: "词卡遮住文稿列表", get: function () {
+          if (openWord === null) return "—（未开词卡）";
+          var r = overlap(card, document.getElementById("listwrap"));
+          return { v: Math.round(r) + "px", tone: r > 0 ? "bad" : "" };
+        } },
+      { label: "画面被入画字幕永久占掉", get: function () {
+          var b = burn.getBoundingClientRect().height;
+          var f = document.querySelector(".frame").getBoundingClientRect().height;
+          return { v: Math.round(b) + "px / " + Math.round(f) + "px（" + Math.round(b / f * 100) + "%）", tone: "bad" };
+        } },
+      { label: "文稿列表里能点词吗", get: { v: "不能（点行＝跳转到这句）", tone: "bad" } }
+    ],
+    note: function () {
+      return "乙 只解决「卡离得远」：<b>把卡口抬到画面下沿，断层 470px→0–65px</b>；" +
+        "它<b>不解决</b> 30px 热区，也<b>不该</b>把卡放到画面里（那就变成遮视频）。" +
+        (openWord ? "现在开着「" + openWord + "」的词卡。" : "点画面内任意单词试试。");
+    }
+  });
+
+  function overlap(a, b) {
+    var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    if (!ra.height || !rb.height) return 0;
+    return Math.max(0, Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top));
+  }
+
+  setCurrent(curIdx);
+  layout();
+})();
+</script>
+</body>
+</html>

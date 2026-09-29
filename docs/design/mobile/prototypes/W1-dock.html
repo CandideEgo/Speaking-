@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 点词甲 —— 停靠焦点条</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<style>
+  /* ── 变体甲自有：停靠焦点条（句 + 词卡同处一条，谁都不浮在谁上面）──
+     尺寸写死像素：焦点句英文行高 44px 是「44px 热区」唯一的落点，写死才对得上量尺。 */
+
+  .burn { cursor: pointer; }
+  .burn-tap {
+    position: absolute; right: 8px; top: 6px;
+    background: rgba(255, 90, 31, .92); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: var(--radius-pill); letter-spacing: .02em;
+    pointer-events: none;
+  }
+  .burn.armed { outline: 2px solid rgba(255, 90, 31, .9); outline-offset: -3px; }
+
+  /* 停靠区：空闲隐藏；展开时自己长高，把文稿列表往下压（不是浮层，不遮任何东西） */
+  /* 停靠条展开时，下面那条 95/187 + 跟读 + 录音 的字幕条让位（跟读/录音的新住处归 #26） */
+  .subbar.gone { display: none; }
+
+  .dock {
+    flex: 0 0 auto; display: flex; flex-direction: column;
+    max-height: calc(100% - 44px - 211px - 56px);   /* 画面与底栏之间全给它 */
+    background: var(--canvas);
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -8px 24px rgba(10, 10, 10, .06);
+  }
+  .dock-head { flex: 0 0 auto; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+  .dock-head .src { flex: 0 0 auto; font-size: 10px; font-weight: 800; color: var(--brand-600); letter-spacing: .04em; }
+  .dock-head .cnt { flex: 0 0 auto; font-size: 10.5px; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
+  .dock-head .pbar { flex: 1 1 auto; min-width: 24px; height: 3px; border-radius: 2px; background: var(--surface-card); }
+  .dock-head .pbar i { display: block; height: 100%; width: 51%; border-radius: 2px; background: var(--brand-500); }
+  .dock-head button {
+    flex: 0 0 auto; min-height: 38px; min-width: 38px; padding: 0 8px;
+    border: 0; background: transparent; color: var(--muted-c); font: inherit;
+    font-size: 12px; font-weight: 700; cursor: pointer; border-radius: var(--radius-sm);
+  }
+  .dock-head button:hover { background: var(--surface-card); color: var(--ink); }
+
+  /* 焦点句：英文行高 44px —— 热区 = 行高，无需外扩、不与相邻行互压 */
+  .dock-sent { flex: 0 0 auto; padding: 0 12px 8px; }
+  .dock-en { font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+  .dock-en .word {
+    display: inline-block; min-height: 44px; line-height: 44px; padding: 0 6px;
+    margin: 0 2px 2px 0; border-radius: 7px; background: var(--surface-card);
+  }
+  .dock-en .word:hover { background: var(--brand-50); }
+  .dock-en .word.sel { background: var(--brand-500); color: #fff; }
+  .dock-zh { font-size: 12.5px; line-height: 17px; color: var(--muted-c); margin-top: 3px; }
+  .dock-tip { font-size: 11px; color: var(--muted-soft); margin-top: 6px; }
+
+  /* 词卡：焦点句下方就地展开，同一个容器里，遮不到上面的句子 */
+  .dock-card { flex: 1 1 auto; min-height: 0; display: none; border-top: 1px solid var(--hairline); }
+  .dock-card.on { display: flex; flex-direction: column; }
+  .dock-card .wt-card { flex: 1 1 auto; min-height: 0; }
+  .dock-card .wc-foot { display: none; }          /* 卡脚在甲里并入停靠条头行 */
+  .dock-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--hairline); }
+  .dock-foot .btn { min-height: 44px; flex: 1; padding: 0 10px; font-size: 13px; }
+  .dock-foot .why { flex: 1 1 auto; font-size: 10.5px; color: var(--muted-soft); line-height: 1.35; }
+
+  .listwrap.away { display: none; }
+  .away-note {
+    flex: 0 0 auto; padding: 6px 12px; background: var(--surface-soft);
+    border-top: 1px solid var(--hairline); font-size: 10.5px; color: var(--muted-c); line-height: 1.4;
+  }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <!-- ===== 画面：出血 375 宽，字幕烧在底边 ===== -->
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 当前句：英文在上、中文在下，压在画面底边。
+             甲 里词不是热区 —— 整块是把手，点它把这句接到下面的停靠条。 -->
+        <div class="burn" id="burn" role="button" tabindex="0" aria-label="点这句进入精读">
+          <span class="burn-tap">点这句 → 精读</span>
+          <div class="burn-en">
+            <span class="word">But</span> <span class="word">I</span> <span class="word">think</span> <span class="word">you're</span> <span class="word">coming</span> <span class="word">at</span> <span class="word">it</span>
+          </div>
+          <div class="burn-en">
+            <span class="word">from</span> <span class="word">the</span> <span class="word">wrong</span> <span class="word">perspective.</span>
+          </div>
+          <div class="burn-zh">但我觉得，你一开始就理解错了。</div>
+        </div>
+
+        <div class="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 空闲态：字幕条（乙 原样） ===== -->
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <!-- ===== 停靠焦点条：点句子才出现；词卡在它里面就地展开 ===== -->
+    <section class="dock" id="dock" hidden>
+      <div class="dock-head">
+        <span class="src" id="dockSrc">精读 · 00:22</span>
+        <span class="cnt">95 / 187</span>
+        <div class="pbar"><i></i></div>
+        <button id="dockPrev" aria-label="上一句">‹</button>
+        <button id="dockNext" aria-label="下一句">›</button>
+        <button id="dockClose" aria-label="收起精读条">收起</button>
+      </div>
+      <div class="dock-sent">
+        <div class="dock-en" id="dockEn"></div>
+        <div class="dock-zh" id="dockZh"></div>
+        <div class="dock-tip" id="dockTip">点上面任意单词查义（每个词 44px 热区）</div>
+      </div>
+      <div class="dock-card" id="dockCard"></div>
+      <div class="dock-foot" id="dockFoot" hidden>
+        <span class="why" id="dockWhy"></span>
+      </div>
+    </section>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+    <div class="away-note" id="awayNote" hidden>查词时文稿列表整体让位 —— 用停靠条的 ‹ › 逐句走，或关掉词卡把它要回来。</div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";     // 甲 自己接管点词：词不是热区，整句才是把手
+window.SHELL.notes =
+  "<b>变体甲 —— 停靠焦点条（先点句，再点词）</b><br>" +
+  "赌注：把点词从行内挪进一个专用停靠区，热区因此真能做到 <b>44px</b>，而不是接受 22px 行距这个天花板。<br><br>" +
+  "<b>规则一句话：画面内那句、文稿里每一行，都只是「把手」——点它们把句子接到画面下方的停靠条上；词只在停靠条里可点。</b><br><br>" +
+  "<b>它答四问。</b>① 触发＝点整句（画面内字幕整块 / 文稿整行，全宽 ≥44px），不是点单词。" +
+  "② 词卡从哪出＝停靠条内、焦点句正下方就地展开（同一容器），不浮、不遮。" +
+  "③ 点完之后＝默认继续播（可切暂停）；焦点句同时在文稿里高亮；「加入词库」后默认不关（可切）。" +
+  "④ 抢位＝画面与入画字幕完全不参与；查词时文稿列表整体让位。<br><br>" +
+  "<b>代价一 · 多一步。</b>查一个词要两次点击（先句子后词）。乙（#24）是一次。<br>" +
+  "<b>代价二 · 44px 是行高买的。</b>实测：停靠条里词热区 40×44px（宽随词长，「I」只有 17px 宽）；停靠条常驻 180px，而它占的正是字幕条那 64px 的位置 —— 95/187 与意大利面式的行内操作让位，「逐句跟读 / 录音」也一起没了位置（归 #26）。文稿列表从 437px 掉到 321px。<br>" +
+  "<b>代价三 · 查词时看不到整段文稿</b>（停靠条长到 401px，文稿 0px）——换来的是焦点句永不消失，且 ‹ › 能逐句翻，这是底部弹层给不了的。<br>" +
+  "<b>代价四 · 它没解决「行里有几个词」这件事。</b>实测本片最长一句（71 字符）在 44px 行高下仍是 2 行（92px）；若按字幕规范 ≤32 字符/行 强行断行，它要 3 行 = 136px —— 停靠条会长到 224px。这条张力归 #28。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var dock = document.getElementById("dock");
+  var dockEn = document.getElementById("dockEn");
+  var dockZh = document.getElementById("dockZh");
+  var dockCard = document.getElementById("dockCard");
+  var dockFoot = document.getElementById("dockFoot");
+  var dockSrc = document.getElementById("dockSrc");
+  var tips = document.getElementById("dockTip");
+  var listwrap = document.getElementById("listwrap");
+  var awayNote = document.getElementById("awayNote");
+  var curIdx = 2;
+  var curWord = null;
+
+  /* 把第 idx 句接到停靠条上 */
+  function dockSentence(idx) {
+    curIdx = Math.max(0, Math.min(D.script.length - 1, idx));
+    var row = D.script[curIdx];
+    dockEn.innerHTML = WT.words(row.en, { tappable: true });
+    dockZh.textContent = row.zh;
+    dockSrc.textContent = "精读 · " + row.t;
+    dock.hidden = false;
+    document.getElementById("subbar").classList.add("gone");   // 字幕条让位给停靠条
+    closeCard();
+    bindDockWords();
+    document.querySelectorAll("#script li").forEach(function (li) {
+      li.classList.toggle("on", Number(li.getAttribute("data-idx")) === curIdx);
+    });
+    WT.refresh();
+  }
+
+  function bindDockWords() {
+    dockEn.querySelectorAll(".word").forEach(function (w) {
+      w.addEventListener("click", function () {
+        dockEn.querySelectorAll(".word.sel").forEach(function (x) { x.classList.remove("sel"); });
+        w.classList.add("sel");
+        openCard(WT.clean(w.textContent));
+      });
+    });
+  }
+
+  function openCard(word) {
+    curWord = word;
+    dockCard.innerHTML = "";
+    dockCard.appendChild(WT.card(word, { showClose: false, onAutoClose: closeCard }));
+    dockCard.classList.add("on");
+    tips.hidden = true;
+    dockFoot.hidden = false;
+    document.getElementById("dockWhy").innerHTML =
+      "词卡就在焦点句下方 —— 同一条停靠区，<b>几何上不可能遮住刚点的那句</b>。";
+    listwrap.classList.add("away");
+    awayNote.hidden = false;
+  }
+
+  function closeCard() {
+    curWord = null;
+    dockCard.classList.remove("on");
+    dockCard.innerHTML = "";
+    tips.hidden = false;
+    dockFoot.hidden = true;
+    listwrap.classList.remove("away");
+    awayNote.hidden = true;
+    WT.refresh();
+  }
+
+  document.getElementById("burn").addEventListener("click", function () { dockSentence(curIdx); });
+  document.getElementById("dockClose").addEventListener("click", function () {
+    dock.hidden = true;
+    document.getElementById("subbar").classList.remove("gone");
+    listwrap.classList.remove("away");
+    awayNote.hidden = true;
+    WT.refresh();
+  });
+  document.getElementById("dockPrev").addEventListener("click", function () { dockSentence(curIdx - 1); });
+  document.getElementById("dockNext").addEventListener("click", function () { dockSentence(curIdx + 1); });
+
+  WT.build({
+    onRow: function (idx) { dockSentence(idx); },
+    toggles: [
+      { key: "pause", label: "点词后", on: "暂停", off: "继续播" },
+      { key: "autoClose", label: "加入词库后", on: "自动关", off: "保持" }
+    ],
+    boxes: [
+      { sel: ".burn", label: "① 画面内字幕整块＝把手（词不可点）", tone: "dim" },
+      { sel: "#dock", label: "② 停靠焦点条（不浮，压的是下方内容）" },
+      { sel: "#dockEn", label: "③ 焦点句：行高 44px ＝ 词热区", tone: "quiet" },
+      { sel: "#dockCard", label: "④ 词卡：就地展开在句下方" },
+      { sel: "#listwrap", label: "⑤ 文稿列表（查词时让位）", tone: "quiet" }
+    ],
+    read: [
+      { label: "停靠条里词热区", get: function () {
+          var w = document.querySelector("#dockEn .word");
+          if (!w) return { v: "—（先点一句话）", tone: "bad" };
+          var r = w.getBoundingClientRect();
+          return { v: Math.round(r.width) + "×" + Math.round(r.height) + "px（行高＝热区，行间不重叠）", tone: r.height >= 44 ? "good" : "bad" };
+        } },
+      { label: "画面内词热区", get: function () {
+          var w = document.querySelector("#burn .word").getBoundingClientRect();
+          return { v: Math.round(w.width) + "×" + Math.round(w.height) + "px（不可点）", tone: "bad" };
+        } },
+      { label: "焦点句下沿 → 词卡上沿", get: function () {
+          var c = document.getElementById("dockCard");
+          if (!c.classList.contains("on")) return "—（未开词卡）";
+          var s = document.getElementById("dockEn").getBoundingClientRect().bottom;
+          var t = c.getBoundingClientRect().top;
+          return { v: Math.round(t - s) + "px（同一容器相邻）", tone: "good" };
+        } },
+      { label: "词卡遮住焦点句", get: function () {
+          var c = document.getElementById("dockCard");
+          if (!c.classList.contains("on")) return "—（未开词卡）";
+          return { v: "0px（结构上不可能）", tone: "good" };
+        } },
+      { label: "停靠区高度", get: function () {
+          if (dock.hidden) return "—（收起）";
+          return Math.round(dock.getBoundingClientRect().height) + "px";
+        } },
+      { label: "文稿列表高度", get: function () {
+          if (listwrap.classList.contains("away")) return { v: "0px（让位）", tone: "bad" };
+          return Math.round(listwrap.getBoundingClientRect().height) + "px";
+        } },
+      { label: "查一个词要点几次", get: "2 次（先句子，后词）" }
+    ],
+    note: function () {
+      return "甲 的取舍只有一句：<b>用「多一次点击 + 文稿让位」换「44px 热区 + 焦点句永不消失」</b>。" +
+        (curWord ? "现在开着「" + curWord + "」的词卡。" : "先点画面里那句或文稿里任意一行。");
+    }
+  });
+})();
+</script>
+</body>
+</html>
