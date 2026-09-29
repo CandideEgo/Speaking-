@@ -27,3 +27,4 @@
 - [Testing Guide](guides/testing.md) — Backend tests, frontend checks, CI, lint & format
 - [Release / Pre-Push Checklist](guides/release-checklist.md) — The four local gates, known CI traps, migration checks before pushing
 - [Image Handling in Agent Sessions](guides/agent-image-handling.md) — Why pasting images corrupts agent sessions, and how to recover
+- [Repository Layout](guides/repository-layout.md) — Which directory holds which kind of thing, and what a new top-level entry needs

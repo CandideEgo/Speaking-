@@ -55,11 +55,17 @@ Speaking/
 │       ├── lib/              # API 客户端、工具、设计 token
 │       ├── hooks/            # 自定义 Hooks
 │       └── types/            # TypeScript 类型
-├── docs/                     # 架构/进度/API/计划文档
+├── .agent/                   # 热层：每个会话必读的事实（context/system-map/invariants/decisions/state）
+├── wiki/                     # 长期工程知识：architecture / problems / guides
+├── docs/                     # 沉淀层：adr / operations / progress / plans / requirements / agents / design
+├── scripts/                  # 项目级脚本（check-knowledge、release）
+├── logs/                     # 本地运行产物（不入库）
 ├── docker-compose.dev.yml    # 仅基础设施 (DB + Redis)
 ├── docker-compose.prod.yml   # 生产环境 (Nginx + Gunicorn)
 └── .github/workflows/ci.yml  # CI/CD
 ```
+
+> 哪个目录装哪种东西、新文件该放哪：见 [wiki/guides/repository-layout.md](wiki/guides/repository-layout.md)。
 
 > 完整架构见 [AGENTS.md](AGENTS.md)、`.agent/system-map.md` 与 [wiki/](wiki/INDEX.md)。
 
@@ -132,6 +138,7 @@ docker compose -f docker-compose.prod.yml up -d
 | [.agent/context.md](.agent/context.md) | 产品定位、技术栈、领域术语、已砍功能 |
 | [.agent/system-map.md](.agent/system-map.md) | 系统模块地图与关键不变量 |
 | [wiki/INDEX.md](wiki/INDEX.md) | 长期工程知识库（架构/指南/问题） |
+| [wiki/guides/repository-layout.md](wiki/guides/repository-layout.md) | 目录归属：哪个目录装哪种东西、新增顶层目录需要什么 |
 | [docs/progress/PROGRESS.md](docs/progress/PROGRESS.md) | 开发进度快照（冻结于 2026-07-20） |
 | [CHANGELOG.md](CHANGELOG.md) | 现行变更记录 |
 

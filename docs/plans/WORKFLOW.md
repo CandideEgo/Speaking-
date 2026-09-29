@@ -6,6 +6,15 @@
 
 ---
 
+## 0. 想法入口（口播 → 分段 → 分流）
+
+想法通常以口播形式一次来一大坨，混着「要决策的」和「直接能做的」，所以它先落 `inbox/`：原话
+**逐字封存**进 `inbox/<id>/raw.md`（正文不可改，格式随便改），再一段一行分进 `triage.md`
+（摘要 / 处置 / 去向），然后才进下面第 1 节。五个阶段的交互是 `/intake`；格式契约、七个处置词
+与机器检查是 `inbox/README.md`；为什么这样设计是 DEC-064。
+
+---
+
 ## 1. 功能开发流程
 
 ### 三种开发模式
@@ -224,7 +233,7 @@ curl https://api.your-domain.com/health
 | "改 X 会影响什么？" | grep 调用方分析 | 修改前看影响范围 |
 | "审查我的改动" | `/code-review` | Standards + Spec 双轴审查 |
 | "开发关键功能" | `/code-review` | 审查关键改动 |
-| "验证改动生效" | `/verify` | 运行应用观察行为 |
+| "验证改动生效" | 手工运行 + 四道本地门 | 见 `wiki/guides/release-checklist.md` |
 | "重启前端" | `/speaking-dev` | 清缓存 + 重启 |
 
 ### 影响分析规则
@@ -251,15 +260,9 @@ curl https://api.your-domain.com/health
 
 ## 7. 任务与问题管理
 
-### 系统：GitHub Issues + 最小标签
+### 系统：GitHub Issues
 
-| 标签 | 颜色 | 用途 |
-|------|------|------|
-| `bug` | 红 | 确认的 bug |
-| `feature` | 蓝 | 新功能/增强 |
-| `refactor` | 紫 | 代码质量改进 |
-| `security` | 橙 | 安全相关 |
-| `blocked` | 黄 | 等待外部依赖 |
+Issues 住在 GitHub Issues，用 `gh` CLI 操作。**五个排查角色与标签词表的唯一家是 `docs/agents/triage-labels.md`**（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`），操作命令在 `docs/agents/issue-tracker.md`，本文件不复述。仓库里另有 GitHub 自带的 `bug` / `enhancement` / `documentation` 等粗分类标签，与这五个角色并存（现存 3 个 open issue 用的就是 `bug` + `needs-triage`）。
 
 ### 任务流程
 

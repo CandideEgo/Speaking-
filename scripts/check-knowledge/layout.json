@@ -1,0 +1,145 @@
+{
+  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: hot | settled | input | material | code | tooling | runtime | entry | deploy. The doctrine behind this table is wiki/guides/repository-layout.md.",
+  "entries": {
+    ".agent": {
+      "kind": "dir",
+      "layer": "hot",
+      "purpose": "每个会话必读的事实层（context / system-map / invariants / decisions+index / state / owners / handoffs / archive）"
+    },
+    ".claude": {
+      "kind": "dir",
+      "layer": "tooling",
+      "purpose": "项目级 agent 配置与 skills（含 speaking-dev）"
+    },
+    ".github": {
+      "kind": "dir",
+      "layer": "tooling",
+      "purpose": "CI/CD workflows 与 dependabot"
+    },
+    "backend": {
+      "kind": "dir",
+      "layer": "code",
+      "purpose": "FastAPI 后端（app / migrations / tests / scripts）"
+    },
+    "docs": {
+      "kind": "dir",
+      "layer": "settled",
+      "purpose": "沉淀层：adr / operations / progress / plans / requirements / agents / design（子目录归属见 wiki/guides/repository-layout.md）"
+    },
+    "frontend": {
+      "kind": "dir",
+      "layer": "code",
+      "purpose": "Next.js 前端"
+    },
+    "inbox": {
+      "kind": "dir",
+      "layer": "input",
+      "purpose": "口播原话的存放处：每个 capture 一个目录，raw.md 逐字封存 + triage.md 一段一行（inbox/README.md）"
+    },
+    "logs": {
+      "kind": "dir",
+      "layer": "runtime",
+      "purpose": "本地运行产物，除 .gitkeep 与审计原始输出外不入库"
+    },
+    "scripts": {
+      "kind": "dir",
+      "layer": "tooling",
+      "purpose": "项目级脚本（check-knowledge/、release.sh）"
+    },
+    "wiki": {
+      "kind": "dir",
+      "layer": "settled",
+      "purpose": "长期工程知识：architecture / problems / guides"
+    },
+    "AGENTS.md": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "agent 入口：路由表与强制规则"
+    },
+    "CLAUDE.md": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "Claude Code 入口重定向到 AGENTS.md"
+    },
+    "CONTEXT.md": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "领域术语重定向到 .agent/context.md"
+    },
+    "README.md": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "项目说明与目录结构"
+    },
+    "CONTRIBUTING.md": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "贡献与提交流程（GitHub 自动识别）"
+    },
+    "LICENSE": {
+      "kind": "file",
+      "layer": "entry",
+      "purpose": "私有许可"
+    },
+    "CHANGELOG.md": {
+      "kind": "file",
+      "layer": "settled",
+      "purpose": "变更记录（含未发布区段）"
+    },
+    ".gitignore": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "忽略规则"
+    },
+    ".gitattributes": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "行尾与二进制属性"
+    },
+    ".pre-commit-config.yaml": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "本地提交门禁"
+    },
+    "docker-compose.yml": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "基础 compose"
+    },
+    "docker-compose.dev.yml": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "本地基础设施（DB + Redis）"
+    },
+    "docker-compose.prod.yml": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "生产栈（nginx / gunicorn / celery / loki）"
+    },
+    "deploy.sh": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "单机部署脚本"
+    },
+    "deploy-oneclick.sh": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "一键部署脚本"
+    },
+    "nginx.conf": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "开发/默认 nginx 站点"
+    },
+    "nginx.ssl.conf": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "生产 nginx（TLS、安全头、日志脱敏）"
+    },
+    "promtail.yml": {
+      "kind": "file",
+      "layer": "deploy",
+      "purpose": "日志采集"
+    }
+  }
+}

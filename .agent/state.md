@@ -1,14 +1,15 @@
 # Project State
 
 > Forward-looking only: what is in flight, what is next, what is broken. Completed work belongs in
-> `decisions-index.md`, `CHANGELOG.md` or `archive/`; `knowledge-budget.json` caps this file's size.
+> `decisions-index.md`, `CHANGELOG.md` or `archive/`; only the tier ceilings in
+> `knowledge-budget.json` are hard gates, per-file sizes are targets (DEC-062).
 
-Last Updated: 2026-09-28
+Last Updated: 2026-09-29
 
 ## Current Focus
 
 - **附录 B 全仓扫描收尾（09-28，DEC-059/060/061）**：235 个文件 1308 条 finding；critical/high 153 条已逐条核实（53 成立 / 75 降级 / 24 证伪），128 项修复落地
-- **知识层**：`decisions-index.md`（99%）/`context.md`（95%）仍 RED——本轮压缩索引头部 + 归档 `decisions.md` 的 DEC-054..056 腾余量；索引无归档阀，下轮 maintain 继续收缩或按 DEC-055 显式抬 ceiling
+- **知识层体积治理（09-29，DEC-062）**：单文件上限从门降为目标（越线只 `[target]`，`--strict` 才失败），索引按状态收敛——56 行对 62 条正文，6 条退役进 `Retired` 行。仍未机器化：热层行形状（S2）、stale 命中承重模块升级为失败（S6）
 - **内测上线收尾**：proxy 代理播放实现（需求 §5.4 优先级 3）、海报视觉稿、内测反馈收集渠道
 
 ## Next Steps
@@ -27,7 +28,6 @@ Last Updated: 2026-09-28
 - **catalog 并发 promote 的窄窗**（DEC-049 残留）：共享同一 `source_url` 的两个条目并发 promote 仍各播一次
 - **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，已落库的值 / 裸 dict 响应 / 无 schema 的 JSONB 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
 - **静态基线不是「已验无害」**：`backend/.mypy-baseline` 里碰 ORM 属性/列名/跨模块签名的条目是待验运行时风险（见 `wiki/problems/audit-verification-failure-modes.md`）
-- **知识层 `stale` 检查遇未暂存删除会崩**（`git ls-files` 仍含已删文件，digest 读取抛错）；暂存该删除即恢复
 - **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
 - **E2E coverage 不完整**：播放 / 词汇复习 / 考试流程缺 e2e；`mobile-d1-d10.spec.ts` 的隐藏控件断言需真能播的视频，CI 会 skip

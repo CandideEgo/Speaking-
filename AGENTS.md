@@ -30,6 +30,8 @@ Read this file every session. It routes; it deliberately holds no knowledge of i
 | Resuming work | `.agent/state.md` |
 | Debugging something that feels familiar | `wiki/problems/` |
 | Operating a deployment | `docs/operations/` |
+| Deciding where a file belongs, or adding a top-level directory | `wiki/guides/repository-layout.md` |
+| The user dictated a wall of ideas to place | `inbox/README.md`, then `/intake` |
 
 Never read `.agent/decisions.md` end to end — it is the largest file in the layer and only grows.
 `.agent/README.md` says which file owns which kind of fact, and how to add to them.
@@ -73,8 +75,11 @@ and `docs/operations/`.
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the `Knowledge` CI workflow.
 It fails on: broken links, `ADR-00xx` with no file, invalid `wiki/` frontmatter, unknown or dead
-`related_code` modules, commit hashes in stable knowledge files, index/entry drift, and size-ceiling
-growth. A seventh check, `stale`, names the `wiki/` pages whose code changed since they were
+`related_code` modules, commit hashes in stable knowledge files, index/entry drift, a tracked
+top-level entry missing from `scripts/check-knowledge/layout.json`, a capture whose content changed
+after it was sealed or whose segments lost their disposition, and hot-tier growth. Per-file sizes
+are targets, not gates (DEC-062): overshooting one prints a `[target]` notice and fails only under
+`--strict`. A ninth check, `stale`, names the `wiki/` pages whose code changed since they were
 verified — a reminder, not a failure. Run it directly with
 `pre-commit run knowledge-check --all-files`.
 
@@ -94,8 +99,9 @@ verified — a reminder, not a failure. Run it directly with
 
 - NEVER 修改或重排 `.agent/decisions.md` 里已存在的条目。改变主意 = 追加新条目 + 在索引里把旧条目标为 `superseded by DEC-0xx`
 - NEVER 把 git 提交哈希写进 `.agent/`（`decisions.md`、`archive/` 除外）或 `wiki/` 的稳定文件；历史属于决策记录与 `CHANGELOG.md`
-- NEVER 为了通过检查而手改预算数字。要么缩小内容，要么按归档流程处理（`scripts/check-knowledge/README.md`），要么显式执行 `--budget-refresh` 接受新上限
+- NEVER 为了通过检查而手改预算数字。要么缩小内容，要么按归档流程处理（`scripts/check-knowledge/README.md`）；`--budget-refresh` 只抬 tier 上限，单文件目标是手改的（DEC-062）
 - NEVER 在 `memory/` 中重复记录 `.agent/` 或 `wiki/` 已覆盖的架构知识
+- NEVER 修改 `inbox/*/raw.md` 的正文。原话只增不改：改一个字封存摘要就失败，`--capture-seal` 也会拒绝重签。要修订 = 另起一张 capture，旧的 `triage.md` 指过去
 
 ### Implicit Knowledge Filter
 

@@ -29,7 +29,7 @@ repos:
         entry: python scripts/check-knowledge/check_knowledge.py
         language: system
         pass_filenames: false
-        files: ^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|\.agent/|wiki/|docs/|scripts/check-knowledge/|\.claude/skills/)
+        files: ^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|\.agent/|wiki/|docs/|scripts/check-knowledge/|\.claude/skills/|inbox/)
 
       # The advisory half: has code changed under a module some wiki/ document
       # describes? Always runs and always prints, because pre-commit hides the output
@@ -52,5 +52,5 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: [--maxkb=1024]
-        exclude: ^seeword-beta-assets/
+        exclude: ^docs/design/beta-launch/
       - id: detect-private-key

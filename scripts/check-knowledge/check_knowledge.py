@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Six violation checks plus one advisory reminder, all deterministic (no LLM, no network):
+Eight violation checks plus two advisory outputs, all deterministic (no LLM, no network):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
   frontmatter  wiki/ documents carry a valid schema, and every `related_code`
                module exists and still matches at least one real file.
   ownership    Git commit hashes stay in the places allowed to narrate history.
-  index        decisions-index.md and decisions.md agree on count, order, date
-               and title.
+  index        Every entry in decisions.md is either a row in decisions-index.md
+               or named on its `Retired N — …` line, and each row agrees with its
+               entry on ID, date and title.
   paths        Repo-convention invariants that reduce to a path check.
-  budget       The must-read knowledge set never grows past its recorded size,
-               plus the declared `slack` for each file and tier.
+  budget       The tiers a session loads, plus the two globs that say "this page
+               should split". A per-file `limit` is a target, not a gate
+               (DEC-062): over it prints a notice and never fails a commit.
+  layout       Every top-level entry git tracks is registered in layout.json with
+               the layer that owns it, and every registered entry still has
+               something tracked there. The doctrine is wiki/guides/repository-layout.md.
+  captures     The user's dictated words stay exactly as captured, and every segment of
+               them carries a disposition. The doctrine is inbox/README.md.
   stale        Code changed under a module some wiki/ document describes, since
                that document was last verified.
 
@@ -21,15 +28,16 @@ Usage:
     python scripts/check-knowledge/check_knowledge.py stale      # the reminder alone
     python scripts/check-knowledge/check_knowledge.py --baseline-update
     python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module auth
+    python scripts/check-knowledge/check_knowledge.py --capture-seal 2026-09-29-01
 
 Exit code is 0 when clean, 1 when a violation is not already recorded in
 knowledge-baseline.json. Baselines are for debt that is scheduled to be paid
 off, not for silencing a check -- see README.md.
 
-`stale` is the one advisory check: its notices print but do not fail the run unless
-`--strict` asks them to -- nobody verifies prose on command, so a reminder that blocks
-commits buys silence instead of accuracy. Faults in `knowledge-stamps.json` itself do
-fail, so the reminder cannot quietly stop covering a module.
+`stale` notices and the per-file `budget` targets are advisory: they print but do not fail the
+run unless `--strict` asks them to -- nobody verifies prose on command, and a byte wall at the
+moment of writing buys shorter sentences rather than fewer facts (DEC-062). Faults in
+`knowledge-stamps.json` itself do fail, so the reminder cannot quietly stop covering a module.
 """
 
 from __future__ import annotations
@@ -83,6 +91,17 @@ REQUIRED_FM_KEYS = (
 # Documents that describe code must declare which modules they describe;
 # guides describe process and may legitimately declare none.
 MODULES_REQUIRED_PREFIXES = ("wiki/architecture/", "wiki/problems/")
+
+# `inbox/` holds the user's own dictated words, captured verbatim (inbox/README.md). A raw
+# capture is frozen by a content digest, so a prose check it cannot satisfy is a check
+# nobody may fix -- those words are not ours to edit.
+INBOX_PREFIX = "inbox/"
+VERBATIM_SUFFIX = "/raw.md"
+
+
+def is_verbatim(where: str) -> bool:
+    """True for a capture's raw body: the user's words, not the repo's prose."""
+    return where.startswith(INBOX_PREFIX) and where.endswith(VERBATIM_SUFFIX)
 
 
 class Violation:
@@ -150,17 +169,27 @@ def load_json(path: Path) -> dict:
 # --------------------------------------------------------------------------- refs
 
 
+def blank_keeping_lines(match: re.Match) -> str:
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
 def mask_code(text: str) -> str:
     """Blank out fenced and inline code, preserving offsets and line numbers.
 
     Regex fragments and paths inside code samples are not links; parsing them as
     links produces false positives.
     """
+    return INLINE_CODE_RE.sub(blank_keeping_lines, FENCE_RE.sub(blank_keeping_lines, text))
 
-    def blank(match: re.Match) -> str:
-        return re.sub(r"[^\n]", " ", match.group(0))
 
-    return INLINE_CODE_RE.sub(blank, FENCE_RE.sub(blank, text))
+def mask_fences(text: str) -> str:
+    """Blank out fenced code only.
+
+    A capture reference inside a fence is an example; the same reference in a table
+    cell or a code span is a citation, and citations are what the `captures` check
+    resolves.
+    """
+    return FENCE_RE.sub(blank_keeping_lines, text)
 
 
 def looks_like_path(target: str) -> bool:
@@ -175,11 +204,13 @@ def check_refs(files: list[Path]) -> list[Violation]:
     }
 
     for path in files:
+        where = rel(path)
+        if is_verbatim(where):
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        where = rel(path)
 
         for lineno, line in enumerate(mask_code(text).splitlines(), start=1):
             for target in LINK_RE.findall(line):
@@ -352,25 +383,17 @@ def tier_ceiling(spec: dict, files: dict) -> int:
 
 
 def check_budget(budget: dict) -> list[Violation]:
+    """The enforced ceilings: tiers, plus the globs that say "this page should split".
+
+    A per-file `limit` is a target, not a gate (DEC-062). Exceeding one prints a notice
+    (`budget_notices`) and never fails a commit: a byte wall at the moment of writing
+    buys shorter sentences, not fewer facts. What is enforced is the tier — the bytes a
+    session actually loads before it knows the task — and the two globs, which catch a
+    runaway page rather than save bytes.
+    """
     violations: list[Violation] = []
-    files = budget.get("files", {})
+    named = set(budget.get("files", {}))
 
-    for where, spec in files.items():
-        path = REPO_ROOT / where
-        if not path.is_file():
-            continue
-        size = path.stat().st_size
-        allowed = ceiling(spec)
-        if size > allowed:
-            violations.append(
-                Violation(
-                    "budget",
-                    where,
-                    f"{size} B exceeds ceiling {allowed} B (+{size - allowed} B)",
-                )
-            )
-
-    named = set(files)
     for spec in budget.get("globs", []):
         for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
             where = Path(hit).as_posix()
@@ -393,7 +416,7 @@ def check_budget(budget: dict) -> list[Violation]:
             for where in spec["files"]
             if (REPO_ROOT / where).is_file()
         )
-        allowed = tier_ceiling(spec, files)
+        allowed = tier_ceiling(spec, budget.get("files", {}))
         if total > allowed:
             violations.append(
                 Violation(
@@ -406,12 +429,37 @@ def check_budget(budget: dict) -> list[Violation]:
     return violations
 
 
+def budget_notices(budget: dict) -> list[str]:
+    """Per-file targets that are over, worst first. Advisory by design (DEC-062).
+
+    A target is where a file should land, not where it may stop: the tier is what a
+    session pays, and the two are not the same question.
+    """
+    over: list[tuple[int, str, int, int]] = []
+    for where, spec in budget.get("files", {}).items():
+        path = REPO_ROOT / where
+        if not path.is_file():
+            continue
+        size = path.stat().st_size
+        allowed = ceiling(spec)
+        if size > allowed:
+            over.append((size - allowed, where, size, allowed))
+    over.sort(reverse=True)
+    return [
+        f"  [target] {where}: {size} B, target {allowed} B (+{delta} B)"
+        f" — shrink or move at the next maintain round; not a failure"
+        for delta, where, size, allowed in over
+    ]
+
+
 # -------------------------------------------------------------------------- index
 
 DECISIONS_FILE = ".agent/decisions.md"
 DECISIONS_INDEX_FILE = ".agent/decisions-index.md"
 DEC_HEADING_RE = re.compile(r"^## (\d{4}-\d{2}-\d{2})\s*[—\-]\s*(.+?)\s*$")
 INDEX_ROW_RE = re.compile(r"^\|\s*(DEC-\d{3})\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+?)\s*\|")
+INDEX_RETIRED_RE = re.compile(r"^Retired (\d+) — (.+?) —", re.MULTILINE)
+DEC_ID_RE = re.compile(r"\bDEC-(\d{3})\b")
 
 
 def decision_headings() -> list[tuple[str, str]]:
@@ -427,41 +475,59 @@ def decision_headings() -> list[tuple[str, str]]:
 
 
 def check_index() -> list[Violation]:
-    """The decision index is the only navigation into decisions.md, so drift is fatal."""
+    """The index is the navigation into decisions.md, so drift is fatal.
+
+    Since DEC-062 the index lists the decisions that still govern the code, not every
+    entry ever made: a retired entry loses its row and is named on the index's
+    `Retired N — …` line instead. That line is what keeps the shrink honest — every
+    entry in decisions.md is either a row or named there, so dropping a row without
+    naming it, or naming one that is still active, still fails.
+    """
     index_path = REPO_ROOT / DECISIONS_INDEX_FILE
     if not index_path.is_file():
         return [Violation("index", DECISIONS_INDEX_FILE, "index file is missing")]
+    text = index_path.read_text(encoding="utf-8", errors="replace")
 
     rows = [
         (match.group(1), match.group(2), match.group(3))
-        for match in (
-            INDEX_ROW_RE.match(line)
-            for line in index_path.read_text(encoding="utf-8", errors="replace").splitlines()
-        )
+        for match in (INDEX_ROW_RE.match(line) for line in text.splitlines())
         if match
     ]
     headings = decision_headings()
-
-    if len(rows) != len(headings):
-        return [
-            Violation(
-                "index",
-                DECISIONS_INDEX_FILE,
-                f"{len(rows)} rows for {len(headings)} entries in {DECISIONS_FILE}",
-            )
-        ]
+    if not headings:
+        return [Violation("index", DECISIONS_FILE, "no decision entry found")]
+    if not rows:
+        return [Violation("index", DECISIONS_INDEX_FILE, "index lists no decision")]
 
     violations: list[Violation] = []
-    for position, ((dec_id, date, title), heading) in enumerate(zip(rows, headings), start=1):
-        expected_id = f"DEC-{position:03d}"
-        if dec_id != expected_id:
+    listed: set[int] = set()
+    highest = 0
+    for dec_id, date, title in rows:
+        number = int(dec_id[4:])
+        if number in listed:
+            violations.append(
+                Violation("index", f"{DECISIONS_INDEX_FILE}#{dec_id}", "row appears twice")
+            )
+        elif number <= highest:
             violations.append(
                 Violation(
                     "index",
-                    f"{DECISIONS_INDEX_FILE}#{position}",
-                    f"expected {expected_id}, found {dec_id} — IDs are assigned in file order",
+                    f"{DECISIONS_INDEX_FILE}#{dec_id}",
+                    "rows must ascend by ID — IDs are issued in decisions.md order",
                 )
             )
+        listed.add(number)
+        highest = max(highest, number)
+        if not 1 <= number <= len(headings):
+            violations.append(
+                Violation(
+                    "index",
+                    f"{DECISIONS_INDEX_FILE}#{dec_id}",
+                    f"no entry {number} in {DECISIONS_FILE} ({len(headings)} entries)",
+                )
+            )
+            continue
+        heading = headings[number - 1]
         if (date, title) != heading:
             violations.append(
                 Violation(
@@ -470,6 +536,32 @@ def check_index() -> list[Violation]:
                     f"row says '{date} — {title}', {DECISIONS_FILE} says '{heading[0]} — {heading[1]}'",
                 )
             )
+
+    retired = INDEX_RETIRED_RE.search(text)
+    if not retired:
+        violations.append(
+            Violation(
+                "index",
+                DECISIONS_INDEX_FILE,
+                "missing the `Retired N — DEC-xxx, … —` line that reconciles rows with "
+                f"{DECISIONS_FILE}; every entry must be a row or named there",
+            )
+        )
+        return violations
+    declared = int(retired.group(1))
+    named = sorted({int(match.group(1)) for match in DEC_ID_RE.finditer(retired.group(2))})
+    expected = sorted(set(range(1, len(headings) + 1)) - listed)
+    if declared != len(expected) or named != expected:
+        want = ", ".join(f"DEC-{n:03d}" for n in expected) or "none"
+        got = ", ".join(f"DEC-{n:03d}" for n in named) or "none"
+        violations.append(
+            Violation(
+                "index",
+                DECISIONS_INDEX_FILE,
+                f"Retired line says {declared} ({got}); {DECISIONS_FILE} has {len(headings)} "
+                f"entries against {len(rows)} rows, so it should say {len(expected)} ({want})",
+            )
+        )
     return violations
 
 
@@ -496,6 +588,407 @@ def check_paths() -> list[Violation]:
             )
 
     return violations
+
+
+# ------------------------------------------------------------------------- layout
+
+LAYOUT_FILE = SCRIPT_DIR / "layout.json"
+# The layer a top-level entry is assigned to. The doctrine behind the table is
+# wiki/guides/repository-layout.md; this is only the vocabulary, so a typo fails.
+LAYOUT_LAYERS = frozenset(
+    {"hot", "settled", "input", "material", "code", "tooling", "runtime", "entry", "deploy"}
+)
+
+
+def tracked_top_level() -> set[str] | None:
+    """The top-level entries git tracks: depth-1 files, plus a deeper path's first component.
+
+    `-z` keeps git from quoting non-ASCII paths (core.quotepath), which would otherwise
+    report `docs/…` as an entry named `"docs`. `None` means the list could not be read --
+    falling back to the working tree would flag every ignored directory as unregistered.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=REPO_ROOT, capture_output=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return {
+        entry.split("/", 1)[0]
+        for entry in out.decode("utf-8", "replace").split("\0")
+        if entry
+    }
+
+
+def check_layout() -> list[Violation]:
+    """Every tracked top-level entry is registered, and every registration still exists.
+
+    Top level only, by design: what a nested directory may hold is the owning layer's
+    business, and the table is the one place saying which layer owns what
+    (wiki/guides/repository-layout.md).
+    """
+    entries = load_json(LAYOUT_FILE).get("entries", {})
+    tracked = tracked_top_level()
+    if tracked is None:
+        return [
+            Violation(
+                "layout",
+                "git",
+                "cannot read `git ls-files`; the tracked-file list is what this check compares "
+                "against, so it cannot tell registered from unregistered",
+            )
+        ]
+    violations: list[Violation] = []
+
+    for name in tracked - set(entries):
+        violations.append(
+            Violation(
+                "layout",
+                name,
+                "tracked top-level entry is not registered; add it to "
+                "scripts/check-knowledge/layout.json with the layer that owns it "
+                "(wiki/guides/repository-layout.md)",
+            )
+        )
+    for name in set(entries) - tracked:
+        violations.append(
+            Violation(
+                "layout",
+                name,
+                "registered in layout.json but nothing is tracked there; the entry is stale "
+                "or the path must be restored",
+            )
+        )
+    for name, spec in entries.items():
+        if not isinstance(spec, dict):
+            violations.append(Violation("layout", name, "entry must be an object with kind/layer/purpose"))
+            continue
+        if spec.get("layer") not in LAYOUT_LAYERS:
+            violations.append(
+                Violation(
+                    "layout",
+                    name,
+                    f"unknown layer '{spec.get('layer')}' (want one of {'/'.join(sorted(LAYOUT_LAYERS))})",
+                )
+            )
+        purpose = spec.get("purpose")
+        if not isinstance(purpose, str) or not purpose.strip():
+            violations.append(Violation("layout", name, "purpose must be a non-empty string"))
+
+    return sorted(violations, key=lambda violation: (violation.location, violation.message))
+
+
+# ---------------------------------------------------------------------- captures
+
+CAPTURES_FILE = SCRIPT_DIR / "captures.json"
+CAPTURES_COMMENT = (
+    "Per-capture seal: the date a capture was frozen, and a sha256 over its content with "
+    "the cut markers and all whitespace removed. Written only by --capture-seal, which "
+    "refuses to re-seal content that changed. The doctrine is inbox/README.md."
+)
+CAPTURE_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{2}$")
+MARKER_RE = re.compile(r"<!--#(S\d{2,})-->")
+CAPTURE_REF_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}-\d{2})#(S\d{2,})\b")
+TRIAGE_ID_RE = re.compile(r"^S\d+$")
+CAPTURE_STATUS = {"open", "closed"}
+# What may happen to one segment of a capture. The vocabulary is closed so a dropped idea
+# has nowhere to hide: every segment is either placed, or explicitly parked.
+DISPOSITIONS = {
+    "decide": "needs a decision before anything can be built",
+    "clarify": "cannot be placed until the user answers something",
+    "execute": "small and unambiguous; folds straight into a plan",
+    "defer": "acknowledged, not now; carries no destination",
+    "reject": "deliberately not doing; carries no destination",
+    "dup": "another segment already carries it; the destination names it as #Sxx",
+    "noise": "filler with no content; carries no destination",
+}
+OPEN_DISPOSITIONS = {"decide", "clarify", "execute"}
+
+
+def capture_body(text: str) -> str:
+    """Everything after the frontmatter block."""
+    match = FM_RE.match(text)
+    return text[match.end():] if match else text
+
+
+def content_digest(body: str) -> str:
+    """sha256 over the content, insensitive to formatting.
+
+    Cut markers and all whitespace go first, and that is the rule rather than a
+    shortcut: the format may change, the content may not (DEC-064). Re-wrapping a
+    paragraph, re-indenting it or moving a cut marker leaves the digest alone; changing
+    one character does not. It also means pre-commit's trailing-whitespace and
+    end-of-file fixers cannot break a seal.
+    """
+    flat = "".join(MARKER_RE.sub("", body).split())
+    return "sha256:" + hashlib.sha256(flat.encode("utf-8")).hexdigest()
+
+
+def capture_dirs() -> dict[str, Path]:
+    """capture id -> directory, for `inbox/<YYYY-MM-DD-NN>-<slug>/`."""
+    found: dict[str, Path] = {}
+    root = REPO_ROOT / INBOX_PREFIX.rstrip("/")
+    if not root.is_dir():
+        return found
+    for path in sorted(root.iterdir()):
+        name = path.name
+        if path.is_dir() and CAPTURE_ID_RE.match(name[:13]) and name[13:14] == "-":
+            found[name[:13]] = path
+    return found
+
+
+def triage_rows(path: Path) -> list[list[str]]:
+    """The `| Sxx | summary | disposition | destination |` rows of a triage table."""
+    rows: list[list[str]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) == 4 and TRIAGE_ID_RE.match(cells[0]):
+            rows.append(cells)
+    return rows
+
+
+def check_captures(files: list[Path]) -> list[Violation]:
+    """The intake pipeline: the words stay as dictated, and no segment goes missing.
+
+    Three properties, all mechanical. The content is frozen -- a digest over raw.md with
+    formatting removed must match the seal, so the words cannot be quietly rewritten. The
+    cut markers must read S01..Sn in order, so the segments tile the body exactly.
+    triage.md must carry exactly one row per segment, with a disposition from the closed
+    vocabulary, so an idea the user said out loud cannot be dropped without the check
+    noticing where it went.
+    """
+    violations: list[Violation] = []
+    sealed: dict = {}
+    if CAPTURES_FILE.is_file():
+        sealed = load_json(CAPTURES_FILE).get("sealed", {})
+    else:
+        violations.append(
+            Violation(
+                "captures",
+                rel(CAPTURES_FILE),
+                "missing; freeze the first capture with --capture-seal <id>",
+            )
+        )
+
+    dirs = capture_dirs()
+    root = REPO_ROOT / INBOX_PREFIX.rstrip("/")
+    known_names = {path.name for path in dirs.values()}
+    if root.is_dir():
+        for path in sorted(root.iterdir()):
+            if path.is_dir() and path.name not in known_names:
+                violations.append(
+                    Violation(
+                        "captures",
+                        rel(path),
+                        "capture directory must be named <YYYY-MM-DD-NN>-<slug>"
+                        " (inbox/README.md)",
+                    )
+                )
+
+    for name in sorted(set(sealed) - set(dirs)):
+        violations.append(
+            Violation(
+                "captures",
+                f"{INBOX_PREFIX}{name}",
+                "sealed in captures.json but the directory is gone; restore it rather than "
+                "letting a seal outlive what it froze",
+            )
+        )
+    for name in sorted(set(dirs) - set(sealed)):
+        violations.append(
+            Violation(
+                "captures",
+                rel(dirs[name]),
+                f"not sealed; run --capture-seal {name} once the words are captured",
+            )
+        )
+
+    segments: dict[str, set[str]] = {}
+    for name, path in sorted(dirs.items()):
+        raw_path = path / "raw.md"
+        triage_path = path / "triage.md"
+        for missing in (raw_path, triage_path):
+            if not missing.is_file():
+                violations.append(
+                    Violation(
+                        "captures",
+                        rel(missing),
+                        "missing from the capture (inbox/README.md)",
+                    )
+                )
+        if not raw_path.is_file() or not triage_path.is_file():
+            continue
+
+        raw = raw_path.read_text(encoding="utf-8", errors="replace")
+        body = capture_body(raw)
+        digest = content_digest(body)
+        recorded = sealed.get(name, {}).get("digest")
+        if recorded and recorded != digest:
+            violations.append(
+                Violation(
+                    "captures",
+                    rel(raw_path),
+                    "the content changed after it was sealed; only the format may change, "
+                    "append a new capture instead of editing this one",
+                )
+            )
+
+        status = (parse_frontmatter(raw) or {}).get("status", "")
+        if status not in CAPTURE_STATUS:
+            violations.append(
+                Violation(
+                    "captures",
+                    rel(raw_path),
+                    f"frontmatter status '{status or '(missing)'}' is not one of "
+                    f"{'/'.join(sorted(CAPTURE_STATUS))}",
+                )
+            )
+
+        markers = MARKER_RE.findall(body)
+        first = MARKER_RE.search(body)
+        if first and body[: first.start()].strip():
+            violations.append(
+                Violation(
+                    "captures",
+                    rel(raw_path),
+                    "text before the first cut marker belongs to no segment; start the body "
+                    "with `<!--#S01-->` so the segments tile it",
+                )
+            )
+        expected = [f"S{number:02d}" for number in range(1, len(markers) + 1)]
+        if markers != expected:
+            found = ", ".join(markers) if markers else "none"
+            violations.append(
+                Violation(
+                    "captures",
+                    rel(raw_path),
+                    f"cut markers must read S01..S{len(markers):02d} in order, one per segment;"
+                    f" found {found}",
+                )
+            )
+
+        rows = triage_rows(triage_path)
+        ids = [row[0] for row in rows]
+        segments[name] = set(ids)
+        unplaced = [marker for marker in markers if marker not in ids]
+        unknown = [segment for segment in ids if segment not in markers]
+        if unplaced or unknown:
+            detail = []
+            if unplaced:
+                detail.append(f"no triage row for {', '.join(unplaced)}")
+            if unknown:
+                detail.append(f"triage row for unknown segment {', '.join(unknown)}")
+            violations.append(Violation("captures", rel(triage_path), "; ".join(detail)))
+        elif ids != markers:
+            violations.append(
+                Violation("captures", rel(triage_path), "triage rows are not in segment order")
+            )
+
+        for segment, _summary, disposition, destination in rows:
+            where = f"{rel(triage_path)}#{segment}"
+            if disposition not in DISPOSITIONS:
+                violations.append(
+                    Violation(
+                        "captures",
+                        where,
+                        f"unknown disposition '{disposition}' (want one of "
+                        f"{', '.join(sorted(DISPOSITIONS))})",
+                    )
+                )
+                continue
+            if disposition == "dup" and destination.lstrip("#") not in markers:
+                violations.append(
+                    Violation(
+                        "captures",
+                        where,
+                        f"a duplicate must name the segment that carries it as #Sxx;"
+                        f" '{destination}' is not one",
+                    )
+                )
+            if (
+                status == "closed"
+                and disposition in OPEN_DISPOSITIONS
+                and destination.strip("—- ") == ""
+            ):
+                violations.append(
+                    Violation(
+                        "captures",
+                        where,
+                        f"the capture is closed but this segment is still '{disposition}'"
+                        " with nowhere to go",
+                    )
+                )
+
+    for path in files:
+        where = rel(path)
+        if is_verbatim(where):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, line in enumerate(mask_fences(text).splitlines(), start=1):
+            for capture_id, segment in CAPTURE_REF_RE.findall(line):
+                if capture_id not in dirs:
+                    violations.append(
+                        Violation(
+                            "captures",
+                            f"{where}:{lineno}",
+                            f"{capture_id}#{segment} names no capture in {INBOX_PREFIX}",
+                        )
+                    )
+                elif segment not in segments.get(capture_id, set()):
+                    violations.append(
+                        Violation(
+                            "captures",
+                            f"{where}:{lineno}",
+                            f"{capture_id}#{segment} names no segment of that capture",
+                        )
+                    )
+
+    return violations
+
+
+def seal_capture(capture_id: str) -> int:
+    """Record a capture's content digest -- the act that freezes the user's words.
+
+    Re-sealing is idempotent only while the content is unchanged. A different digest means
+    raw.md was edited after it was captured, which is exactly what the seal exists to
+    catch, so it needs a deliberate second look rather than a quiet rewrite.
+    """
+    dirs = capture_dirs()
+    if capture_id not in dirs:
+        print(f"no capture directory for id '{capture_id}' in {INBOX_PREFIX}", file=sys.stderr)
+        return 2
+    raw = dirs[capture_id] / "raw.md"
+    if not raw.is_file():
+        print(f"{rel(raw)} is missing", file=sys.stderr)
+        return 2
+    digest = content_digest(capture_body(raw.read_text(encoding="utf-8", errors="replace")))
+
+    data = load_json(CAPTURES_FILE) if CAPTURES_FILE.is_file() else {}
+    sealed = dict(data.get("sealed", {}))
+    previous = sealed.get(capture_id, {}).get("digest")
+    if previous == digest:
+        print(f"{capture_id}: already sealed, content unchanged")
+        return 0
+    if previous:
+        print(
+            f"refusing to re-seal {capture_id}: the content changed after sealing\n"
+            f"  sealed {previous}\n"
+            f"  now    {digest}\n"
+            f"  the words are frozen; append a new capture instead of editing this one",
+            file=sys.stderr,
+        )
+        return 2
+
+    sealed[capture_id] = {"date": datetime.date.today().isoformat(), "digest": digest}
+    payload = {"_comment": CAPTURES_COMMENT, "sealed": {key: sealed[key] for key in sorted(sealed)}}
+    CAPTURES_FILE.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"{capture_id}: sealed {digest}")
+    return 0
 
 
 # -------------------------------------------------------------------------- stale
@@ -542,12 +1035,16 @@ def module_digest(modules: dict, module: str) -> str:
             paths.setdefault(rel(path), path)
 
     digest = hashlib.sha256()
-    for where in sorted(paths):
+    for where, path in sorted(paths.items()):
         if where in SELF_STATE_FILES:
+            continue
+        # git ls-files still lists a file deleted from the working tree but not staged,
+        # and reading it would raise; an unstaged delete is not a knowledge-layer fault.
+        if not path.is_file():
             continue
         digest.update(where.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(paths[where].read_bytes().replace(b"\r\n", b"\n"))
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
         digest.update(b"\0")
     return "sha256:" + digest.hexdigest()
 
@@ -640,7 +1137,7 @@ def refresh_stamps(only: list[str]) -> int:
 
 # -------------------------------------------------------------------------- main
 
-CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "budget")
+CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "budget", "layout", "captures")
 ADVISORY = ("stale",)
 SELECTABLE = CHECKS + ADVISORY
 
@@ -661,6 +1158,10 @@ def run_checks(selected: list[str]) -> list[Violation]:
         violations += check_paths()
     if "budget" in selected:
         violations += check_budget(load_json(BUDGET_FILE))
+    if "layout" in selected:
+        violations += check_layout()
+    if "captures" in selected:
+        violations += check_captures(files)
     return violations
 
 
@@ -669,10 +1170,14 @@ def budget_report() -> None:
 
     `[SB]` marks must-read membership: S = tier:session_start, B = tier:before_code_change
     (their union, session_total, is the hot layer DEC-055 prices per byte per session).
+
+    The first column says which rows are gates: `GATE` for a tier and for a glob, `target`
+    for a per-file entry. Only a gate can fail a commit (DEC-062); a target is where the
+    file should land, and the traffic light is the prompt to get it there, not a verdict.
     """
     budget = load_json(BUDGET_FILE)
     files = budget.get("files", {})
-    rows: list[tuple[str, int, int, str]] = []
+    rows: list[tuple[str, int, int, str, str]] = []
 
     tier_marks: dict[str, str] = {}
     for name, spec in budget.get("tiers", {}).items():
@@ -686,14 +1191,18 @@ def budget_report() -> None:
     for where, spec in files.items():
         path = REPO_ROOT / where
         if path.is_file():
-            rows.append((where, path.stat().st_size, ceiling(spec), tier_marks.get(where, "")))
+            rows.append(
+                (where, path.stat().st_size, ceiling(spec), tier_marks.get(where, ""), "target")
+            )
 
     for spec in budget.get("globs", []):
         for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
             where = Path(hit).as_posix()
             path = REPO_ROOT / where
             if path.is_file() and where not in files:
-                rows.append((where, path.stat().st_size, spec["limit"], tier_marks.get(where, "")))
+                rows.append(
+                    (where, path.stat().st_size, spec["limit"], tier_marks.get(where, ""), "GATE")
+                )
 
     for name, spec in budget.get("tiers", {}).items():
         total = sum(
@@ -701,28 +1210,32 @@ def budget_report() -> None:
             for where in spec["files"]
             if (REPO_ROOT / where).is_file()
         )
-        rows.append((f"tier:{name}", total, tier_ceiling(spec, files), ""))
+        rows.append((f"tier:{name}", total, tier_ceiling(spec, files), "", "GATE"))
 
     rows.sort(key=lambda row: row[1] / row[2], reverse=True)
-    for where, size, allowed, marks in rows:
+    for where, size, allowed, marks, kind in rows:
         share = size / allowed
         zone = "RED" if share > 0.95 else "YELLOW" if share > 0.85 else "green"
-        print(f"{zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  {where}{f' [{marks}]' if marks else ''}")
+        print(
+            f"{kind:6s} {zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  "
+            f"{where}{f' [{marks}]' if marks else ''}"
+        )
 
 
 def refresh_budget() -> None:
-    """Raise every ceiling to the current size. Deliberate growth only.
+    """Raise the tier ceilings to the current size. Deliberate growth only.
 
-    Writes the *measured* size into `limit` and leaves `slack` alone: the ceiling is
-    `limit + slack` (see `ceiling`), so folding slack into the limit would grant it twice.
-    A tier's limit is likewise the sum of its members' measured sizes, which lets the tier
-    inherit their slack instead of landing at zero headroom.
+    Tiers alone. A per-file `limit` is a target, and a target that tracks the file's
+    current size is not a target (DEC-062): rewriting it here *was* the ratchet — every
+    archive round pulled decisions.md's ceiling down after it (44032 → 24576 B in six
+    days), and a ceiling that only ever falls turns "write less precisely" into the cheap
+    move. The two glob limits are hand-set policy ("this page should split"), so they stay.
+
+    A tier's limit is the sum of its members' measured sizes, which lets the tier inherit
+    their slack instead of landing at zero headroom; `slack` itself is never folded into
+    the limit, or `limit + slack` (see `ceiling`) would grant it twice.
     """
     budget = load_json(BUDGET_FILE)
-    for where, spec in budget.get("files", {}).items():
-        path = REPO_ROOT / where
-        if path.is_file():
-            spec["limit"] = path.stat().st_size
     for spec in budget.get("tiers", {}).values():
         spec["limit"] = sum(
             (REPO_ROOT / where).stat().st_size
@@ -730,7 +1243,8 @@ def refresh_budget() -> None:
             if (REPO_ROOT / where).is_file()
         )
     BUDGET_FILE.write_text(json.dumps(budget, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"budget ceilings refreshed from {BUDGET_FILE.name}")
+    print(f"budget tiers refreshed from {BUDGET_FILE.name}")
+    print("per-file targets and glob limits left alone — a target is not a gate (DEC-062)")
 
 
 def update_baseline() -> None:
@@ -752,13 +1266,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--budget-report", action="store_true",
                         help="print usage against every ceiling, worst first (no checks run)")
     parser.add_argument("--budget-refresh", action="store_true",
-                        help="raise every size ceiling to the current size")
+                        help="raise the tier ceilings to the current size (per-file targets stay put)")
     parser.add_argument("--stamp-refresh", action="store_true",
                         help="record the current code as verified for the watched modules")
+    parser.add_argument("--capture-seal", metavar="CAPTURE_ID",
+                        help="freeze a capture's content digest, refusing to re-seal a change")
     parser.add_argument("--module", action="append", default=[],
                         help="with --stamp-refresh: refresh only this module (repeatable)")
     parser.add_argument("--strict", action="store_true",
-                        help="treat `stale` reminders as violations")
+                        help="treat `stale` reminders and per-file target notices as violations")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -775,6 +1291,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.stamp_refresh:
         return refresh_stamps(args.module)
+    if args.capture_seal:
+        return seal_capture(args.capture_seal)
     if args.baseline_update:
         update_baseline()
         return 0
@@ -788,8 +1306,11 @@ def main(argv: list[str] | None = None) -> int:
     if "stale" in selected:
         stale_faults, notices = check_stale()
         violations += stale_faults
-    # `stale` has no baseline: a fault means the reminder stopped covering something,
-    # which is the one failure this check exists to prevent.
+    targets: list[str] = []
+    if "budget" in selected:
+        targets = budget_notices(load_json(BUDGET_FILE))
+    # `stale` and the per-file budget targets have no baseline: a fault means the reminder
+    # stopped covering something, which is the one failure this check exists to prevent.
     new = [v for v in violations if v.fingerprint not in accepted.get(v.check, set())]
     grandfathered = len(violations) - len(new)
 
@@ -808,6 +1329,19 @@ def main(argv: list[str] | None = None) -> int:
     if grandfathered:
         print(f"\n{grandfathered} grandfathered violation(s) in knowledge-baseline.json")
 
+    if targets:
+        print()
+        for notice in targets[:NOTICE_LIMIT]:
+            print(notice)
+        if len(targets) > NOTICE_LIMIT:
+            print(f"  ... and {len(targets) - NOTICE_LIMIT} more file(s)")
+        verdict = (
+            "Failing, because --strict is set."
+            if args.strict
+            else "Targets, not gates: this does not fail a commit."
+        )
+        print(f"\n{len(targets)} file(s) over their target. {verdict}")
+
     if notices:
         print()
         for notice in notices[:NOTICE_LIMIT]:
@@ -820,7 +1354,7 @@ def main(argv: list[str] | None = None) -> int:
     if new:
         print(f"\n{len(new)} new violation(s). Fix them, or record debt deliberately with --baseline-update.")
         return 1
-    if args.strict and notices:
+    if args.strict and (notices or targets):
         return 1
     return 0
 

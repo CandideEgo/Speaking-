@@ -14,9 +14,10 @@
 > IDs live in the index, assigned in file order (append order, not date order). 9 dates repeat, so
 > date alone does not identify an entry — cite the `DEC-` ID.
 >
-> **Archived bodies**: when this file reaches its size ceiling, the oldest era's entry text moves
-> verbatim to `archive/decisions-YYYY-MM.md`, and its heading stays here as a stub pointing at it.
-> Nothing is reordered and no ID is reassigned — see `scripts/check-knowledge/README.md`.
+> **Archived bodies**: entry text that no longer constrains today's code moves verbatim to
+> `archive/decisions-YYYY-MM.md`, and its heading stays here as a stub pointing at it. Retirement is
+> triggered by status, not by a size ceiling (DEC-062). Nothing is reordered and no ID is reassigned
+> — see `scripts/check-knowledge/README.md`.
 
 ## 2026-07-03 — Product positioning: video vocabulary + community UGC
 
@@ -384,3 +385,43 @@ DEC-056 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 **Decision**: 生产守卫改为同时要求该字段被显式提供（`"redis_url" not in self.model_fields_set` 即拒绝启动）；`docs/operations/PRODUCTION.md` 的生产环境模板本就把 `REDIS_URL` 列为必填。
 
 **Reason**: 有默认值的安全相关配置项，只有「是否被显式提供」能区分有意与遗漏。**代价**：漏配的生产环境改为拒绝启动（有意为之）。
+
+## 2026-09-29 — 知识层体积治理：单文件上限降为目标，索引按状态收敛（修订 DEC-054/055）
+
+**Problem**: 体积治理成了反向棘轮。DEC-054 把「每次压缩后下调该文件 limit」当作正循环的可见产出，`decisions.md` 的上限在 09-20 至 09-25 六天内走了 44032 → 36864 → 32768 → 24576 B；单文件余量被压到一句话以内（索引 +43 B、`state.md` +94 B），而承载它们的 tier 还空着 5–6 KB。上限在写入那一刻生效，最省事的应对是「写短」或「不写」，而这两种损失没有任何检查能发现。索引更无解：它必须与 append-only 的正文逐条对应，因此必然增长，已被迫抬两次上限。
+
+**Options**: A) 维持现状、按需抬 ceiling；B) 只把单文件上限改成警告；C) 改计价口径——唯一硬门是 tier，单文件降为目标，索引只列仍生效的决策，归档由状态触发。
+
+**Decision**: C。① `budget` 只对 tier 与两个 glob 失败，单文件超目标只打印通知；`--budget-refresh` 不再改写单文件 limit。② 索引只列仍生效的决策，退役者在末尾 `Retired N — …` 行点名，`index` 检查校验「每条正文要么有一行、要么被点名」。③ 归档触发从「撞上限」改为「不再约束今天的代码」，与年龄无关。④ 写入标准改为按行计价 + 三类准入（约束 / 指针 / 仍生效的决策），细则见 `scripts/check-knowledge/README.md`。
+
+**Reason**: 一次会话真正付出的成本由 tier 计量，单文件字节只是它的代理量，而代理量在写入那一刻变成「把话说短」的激励；索引改成「仍生效的约束表」后随退役自然收缩，不再需要抬上限。**代价**：单文件不再有硬门，长期靠 tier 与写入标准约束；`--strict` 可把目标超限升级为失败，留给想要门的人。
+
+## 2026-09-29 — 目录归属：顶层按「存放种类」划分，物料与知识分离（layout 检查）
+
+**Problem**: 顶层目录是两次一次性活动（`prototypes/`、`seeword-beta-assets/`）加一个杂物抽屉（`docs/` 的 8 个子目录里只有 3 个在 `.agent/README.md` 的层表里有名字）叠出来的。知识层规定了「一个事实一个家」，却没规定「一种文件一个目录」，于是每做完一件事就在顶层留一个目录：86 个 tracked 文件（设计稿、HTML 原型、发布图）既不是知识也不是代码，其中 `docs/mockups/` 没有任何文档引用它。
+
+**Options**: A) 只写一份目录说明，文件不动；B) 按「谁在用」归位（物料进 `docs/design/`、`docs/reports/` 并入 `docs/progress/`），并加一个检查防止顶层重新长乱；C) 顺手删掉无人引用的 `docs/mockups/` 与 `prototypes/`（git 历史仍可找回）。
+
+**Decision**: B。① 三条原则写进 `wiki/guides/repository-layout.md`：顶层目录＝存放种类；位置由读取频率决定（沿用 DEC-055 的定价）；根目录只放工具要求必须在根的文件。② `docs/design/` 收物料（`mockups/`、`prototypes/`、`beta-launch/`），`docs/reports/` 并入 `docs/progress/`。③ 新增 `layout` 检查：「tracked 顶层条目未登记」与「登记了却已无 tracked 文件」都判失败。④ 刻意不动：部署文件留根（生产实际执行的路径）、已落地方案留 `docs/plans/`（被 ADR 与 handoff 大量引用）、`backend/` 运行时目录不改名（改名等于改应用配置与线上 volume）。
+
+**Reason**: 目录是给人找东西用的，判据只能是「谁在用」；物料不是知识——没人靠读海报做决定，所以它不该参与知识层的链接与体积规则。检查只查顶层，因为它只能诚实判断顶层：嵌套规则写在文档里，比一个假装懂得更多的检查有用。**代价**：`docs/` 仍是 7 个子目录，子目录归属只靠文档约束；本次不删除任何文件，选项 C 留作下一步。
+
+## 2026-09-29 — 口播原话的入库与分流：内容冻结、段落全覆盖（`inbox/` + `captures` 检查）
+
+**Problem**: 想法以口播形式进来，一次一大坨、混着「要决策的」与「直接能做的」，而全仓没有一个地方存原话——它只活在那次会话里，出了会话不可达。于是两种损失无人发现：整理时被顺手改顺（原始措辞、口误、前后矛盾都消失），以及整条想法被漏掉而没人知道它存在过。`docs/requirements/` 存的是整理好的产品意图，`docs/plans/` 存的是已成形的方案，两者都假定「原话已被正确理解」，而这一步此前没有任何东西在看着。
+
+**Options**: A) 原话写进 `docs/requirements/`，靠纪律不删改；B) 原话单独一层，内容用摘要封存、段落用剪切标记全覆盖，二者都进机器检查；C) 每次整理后把「我改了什么」列给你看（人审，无机器保证）。
+
+**Decision**: B。① 顶层新增 `inbox/`（layer `input`），一个 capture 一个目录；格式契约、七个封闭处置词与检查清单见 `inbox/README.md`（本条目不复述）。② `--capture-seal` 记录**正文去掉标记与空白后的 sha256**：格式随便改，改一个字就失败，且封存后内容真的变了时命令**拒绝**重签。③ 新增第八道门 `captures`。④ `raw.md` 是全仓唯一豁免 `refs` 的文件——不可编辑的内容配不上一个它不可能通过的检查。⑤ 「先审问再开工」那类不进本仓（`docs/plans/agent技能线-落地方案-2026-09.md` §3 P4 已否决 Grill Me 式技能）：到达时是四十个想法而不是一个，审问因此降级为粗剪之后只针对 `decide`/`clarify` 段的定向追问。
+
+**Reason**: 原话是素材不是知识：不可编辑、天生冗长、唯一用途是被引用。把「不可编辑」做成 sha256、把「不许漏」做成「每段恰有一行 + 封闭词表」，比任何「请勿改写原话」的散文约定结实——后者正是本仓反复验证会腐烂的东西。**代价**：多一层目录与一道门；封存后要修订原话必须另起一张 capture；全仓 `id#Sxx` 笔误会拦提交。
+
+## 2026-09-29 — 技能层采用 mattpocock/skills，仓库按其 setup 初始化（不采用自建编排层）
+
+**Problem**: 想法到落地之间缺的是连接件，不是容器。`inbox/`（DEC-064）只解决了原话存哪；`docs/agents/{issue-tracker,triage-labels,domain}.md` 三份是为**从未安装**的技能写的配置（`triage-labels.md` 自称「The skills speak in terms of…」、`issue-tracker.md` 写「`/triage` reads this flag」），全仓没有执行者；`WORKFLOW.md` §6 引用不存在的 `/verify`，§7 那张 `bug/feature/refactor/security/blocked` 与 `triage-labels.md`、与 GitHub 实际标签是三家不同词。同日的口播需求（`inbox/2026-09-29-01-口播需求管线/`）要求「想法 → 整理 → 决策/执行分流 → 分派」，当时的产出是自建编排层方案（`docs/plans/编排层-落地方案-2026-09.md`：四道缝 + frontier + 认领 + 关闭）。
+
+**Options**: A) 按自建方案落四道缝（本地 markdown 队列 + `handoff` 门 + `/dispatch` `/accept`）；B) 装 mattpocock/skills 全套 38 个技能，走它的 `/grill-with-docs → /to-spec → /to-tickets → /implement` 主流程，仓库按 `/setup-matt-pocock-skills` 初始化；C) 两者都做。
+
+**Decision**: B。① 装到**全局**（`~/.agents/skills` 真实文件 + `~/.claude/skills` junction，`npx skills update` 升级），**本仓不留技能副本**——避开 38 个目录进版本控制，也避开 `layout` 检查与体积预算。② 激活三份配置：`issue-tracker.md` 换成当前 GitHub 模板（补上整节 `## Wayfinding operations`：map / 子票 / 原生 `blocked_by` 依赖边 / frontier 查询 / 认领 = assignee / resolve = close）；`domain.md` 换模板并加一行本仓注记（术语表真身在 `.agent/context.md`，根 `CONTEXT.md` 只是指针）；`triage-labels.md` 与 seed 逐字一致，不动。③ GitHub 上补齐 `needs-info` / `ready-for-agent` / `ready-for-human` 与 `wayfinder:*` 五枚——`/triage` 按名字贴标签、不负责创建。④ `WORKFLOW.md` §7 标签表收敛为指针（词表的家 = `triage-labels.md`）；§6 的 `/verify` 改指 `wiki/guides/release-checklist.md`。⑤ 偏离 skill 字面规则一处：它要求「有 `CLAUDE.md` 就写它」，本仓 `CLAUDE.md` 只有三行重定向，`## Agent skills` 块留在 `AGENTS.md`。⑥ 自建方案不删，状态改为未采用。
+
+**Reason**: 那套缺的从来不是模型（节点/边/frontier/认领/关闭），是**没人强制**；本仓的判据是「能变成检查的才进门」，而工作流本身还没跑过——先冻结一版自建约定，等于先冻结一版猜测。跑几轮才知道本仓真正该机器化的是哪条缝（最可疑的两处：`/wayfinder` 的 frontier、`/implement` 不关票）。**代价**：技能在仓外，换机器要重装（仓内的锚是 `docs/agents/*.md`）；关票是手工步骤，下游解锁靠人记得；阻塞边与 frontier **没有检查在看着**——这是最可能要回收的一处。

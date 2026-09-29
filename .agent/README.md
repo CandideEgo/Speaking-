@@ -16,7 +16,9 @@
 | `handoffs/` | per-task state transfer between agents | per split task | pickup/acceptance of a split task |
 | `archive/` | frozen point-in-time records, incl. archived decision bodies | never | archaeology |
 
-Sibling layers: `wiki/` (long-form — `architecture/`, `problems/`, `guides/`), `docs/adr/`, `docs/progress/`, `CHANGELOG.md`, `docs/operations/`.
+Sibling layers: `wiki/` (`architecture/`, `problems/`, `guides/`), `docs/` (`adr/`, `operations/`,
+`progress/`, `plans/`, `requirements/`, `agents/`, `design/`), `CHANGELOG.md`. Which directory owns
+which kind of file: `wiki/guides/repository-layout.md`.
 
 ## Read order
 
@@ -48,10 +50,10 @@ If a fact fits two rows, the more specific one owns it; the other links.
 - **Every `wiki/` document declares `related_code`** via module IDs from
   `scripts/check-knowledge/modules.json`; a module matching no file fails — code deletion surfacing
   as drift.
-- **Size ceilings are ceilings, not targets.** Density rules and the shrink → archive → refresh
-  ladder: `scripts/check-knowledge/README.md`.
+- **A tier ceiling is a gate; a per-file size is a target.** Over a target, shrink or move the file —
+  never raise the number (DEC-062). Density rules: `scripts/check-knowledge/README.md`.
 - **`.agent/archive/` is exempt from the checks.** Frozen records are correct as written, not held
-  to today's links; a file at its ceiling archives its oldest era here and leaves stubs behind.
+  to today's links; entry text that no longer constrains the code moves here and leaves a stub.
 
 ## Enforcement
 

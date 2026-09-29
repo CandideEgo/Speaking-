@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-capture seal: the date a capture was frozen, and a sha256 over its content with the cut markers and all whitespace removed. Written only by --capture-seal, which refuses to re-seal content that changed. The doctrine is inbox/README.md.",
+  "sealed": {
+    "2026-09-29-01": {
+      "date": "2026-09-29",
+      "digest": "sha256:d5f93e37cb479f9276a27557b578e41cbdb9edfe7641c821309fd5bdf029a991"
+    }
+  }
+}

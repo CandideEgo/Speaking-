@@ -84,7 +84,7 @@ ocr scan --path backend/app --resume <session-id> --concurrency 4 --max-tokens-b
 | 排除：非源码扩展名 | 132 |
 | 排除：测试路径 | 100 |
 | 排除：二进制 | 39 |
-| 排除：单文件超限 | 1（`seeword-beta-assets/poster_v2.png`，2.26 MB > 2 MB） |
+| 排除：单文件超限 | 1（`docs/design/beta-launch/poster_v2.png`，2.26 MB > 2 MB） |
 | 真正代码：`backend/app` | 160 文件 / 30,120 行 |
 | 真正代码：`frontend/src` | 219 文件 / 33,506 行 |
 

@@ -332,8 +332,8 @@ Date: YYYY-MM-DD
   `CHANGELOG.md` or `.agent/archive/`; `## Recently Completed` holds a short tail, newest first.
 - `## Last Updated` holds a `Date: YYYY-MM-DD` line plus a few bullets. It is the staleness signal:
   once it is more than 14 days old, run `/knowledge-verify`.
-- Keep the file small — it is read every session, and `scripts/check-knowledge/knowledge-budget.json`
-  caps it.
+- Keep the file small — it is read every session. `scripts/check-knowledge/knowledge-budget.json`
+  sets a per-file target, and what a session actually pays is the tier that contains it (DEC-062).
 
 ---
 
@@ -381,15 +381,18 @@ whether knowledge is worth recording.
 # Mechanical Drift vs Judgement Drift
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the CI `Knowledge` workflow.
-Seven checks — `refs`, `frontmatter`, `ownership`, `index`, `paths`, `budget` and the advisory
-`stale` — already catch, deterministically:
+Eight checks — `refs`, `frontmatter`, `ownership`, `index`, `paths`, `budget`, `layout` and the
+advisory `stale` — already catch, deterministically:
 
 1. A markdown link that no longer resolves, or an ADR reference with no file in `docs/adr/`
 2. Invalid `wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
 3. A commit hash in a stable knowledge file (`.agent/*.md`, `wiki/*.md`) — point at the decision ID instead
 4. `.agent/decisions-index.md` drifting from `.agent/decisions.md` in count, order, date or title
-5. A forbidden or missing path, and knowledge files growing past their size ceiling
-6. Code changed under a module some `wiki/` page declares, since that page was verified — `stale`
+5. A tracked top-level entry missing from `scripts/check-knowledge/layout.json`, or an entry with
+   nothing tracked at it — the folder doctrine is `wiki/guides/repository-layout.md`
+6. A forbidden or missing path, and a tier or one of the two globs growing past its ceiling — a
+   per-file size past its target only prints a notice (DEC-062)
+7. Code changed under a module some `wiki/` page declares, since that page was verified — `stale`
    prints which pages to re-read, and fails only when its own coverage has a hole
 
 Do not hand-check those. What no check can read is prose that no longer matches reality — that
@@ -411,7 +414,7 @@ After `/knowledge-verify` has cleared a page, acknowledge it so the reminder goe
 python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>
 ```
 
-**If the file you must add to is at its ceiling**, shrink it or archive it: move the oldest era's
-entry bodies verbatim into `.agent/archive/decisions-YYYY-MM.md`, leave their headings behind as
-stubs, then lower the ceiling — the procedure is in `scripts/check-knowledge/README.md`. What you
-never do is raise the number so that your own change passes.
+**If the file you must add to is over its target**, shrink it or retire it: entry bodies that no
+longer constrain the code move verbatim into `.agent/archive/decisions-YYYY-MM.md` and their headings
+stay behind as stubs — the procedure is in `scripts/check-knowledge/README.md`. Retiring follows
+status, not size (DEC-062): what you never do is raise the number so that your own change passes.

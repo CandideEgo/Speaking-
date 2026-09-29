@@ -1,6 +1,6 @@
 # 前端设计重构落地计划 - prototypes → frontend Next.js
 
-> 来源: `prototypes/seeword/` 33 页设计原型（已 commit `c255fd1`）。
+> 来源: `docs/design/prototypes/` 33 页设计原型（已 commit `c255fd1`）。
 > 目标: 把原型视觉/布局方案落地为 `frontend/` 真实 Next.js 代码，**保留现有功能逻辑与数据接入**。
 
 ## 现状关键结论（已调研）
