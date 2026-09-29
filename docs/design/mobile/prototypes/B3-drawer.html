@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · #28 丙 —— 文稿收进抽屉（画面一像素不让）</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_sub.css">
+<style>
+  /* 丙 唯一的变量：文稿列表从「常驻 437px」变成「底边升起的抽屉」。
+     画面、控制条、字幕条、入画字幕 —— 一个字没动。 */
+  .void {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 7px; padding: 0 30px; text-align: center;
+    background-image: repeating-linear-gradient(45deg,
+      var(--surface-soft) 0 6px, transparent 6px 14px);
+  }
+  .void .vk { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--muted-soft); }
+  .void .vt { font-size: 12.5px; line-height: 1.55; color: var(--muted-c); }
+  .void .vt b { color: var(--body); }
+  .dr-peek { bottom: var(--tabbar-h); border: 0; font: inherit; text-align: left; }
+  .sb-chip { border: 0; font-family: inherit; cursor: pointer; }
+  .drawer.closed { --dh: 0px; border-top-color: transparent; box-shadow: none; pointer-events: none; }
+  .drawer .grab:hover i { background: var(--muted-soft); }
+  .drawer .pane-hint { border-top: 1px solid var(--hairline-soft); }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_sub.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 滚动文稿时那句是「预览」：画面跟着滚，但播放不动；点行才跳播 -->
+        <button class="sb-chip" id="sbChip">预览 · 第 3 句</button>
+
+        <!-- 入画字幕：#24 乙 原样，中英双语、16px/12.5px、79px -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+            <button aria-label="全屏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="btnShadow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="btnMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <!-- 文稿收起后露出来的那段空白 —— 丙 最诚实的代价，不拿别的东西去填 -->
+    <div class="void" id="void">
+      <span class="vk">抽屉收起时的这段空白 · <span id="voidPx">400px</span></span>
+      <p class="vt">文稿没有被藏起来，它只是<b>不再占用画面以下的每一屏</b>。<br>
+        要读整段，就把抽屉拉上来；不读的时候，这一段就空着。</p>
+    </div>
+  </div>
+
+  <!-- 收起的形态：一节 37px 的「当前句露头」，就贴在底栏上面 -->
+  <button class="peek dr-peek" id="peek">
+    <span class="pk-ts">0:22</span>
+    <span class="pk-en" id="peekEn"></span>
+    <span class="pk-more">全文 ▲</span>
+  </button>
+
+  <!-- 抽屉：与 #26 的跟读抽屉共用一条边（都从底栏上沿升起），停位也一样（半屏 400 / 全抬 501） -->
+  <div class="drawer closed" id="drawer">
+    <button class="grab" id="grab"><i></i><span id="grabTip">上拉看全文</span></button>
+    <div class="tabs" id="tabs">
+      <button data-pane="doc" class="on">整段文稿</button>
+      <button data-pane="shadow">逐句跟读</button>
+    </div>
+    <div class="pane" id="paneDoc">
+      <ol class="script pad" id="dScript"></ol>
+      <div class="pane-hint" id="docHint">滚动＝画面跟着预览（<b>播放不动</b>）；点一行才跳播。</div>
+    </div>
+    <div class="pane" id="paneShadow" hidden>
+      <div class="pane-hint" style="border-top:0;padding-top:14px">
+        <b>#26 已经把跟读的容器定成「底部抽屉」。</b>两个抽屉共用同一条边（底栏上沿）：
+        跟读一旦拉起来，文稿就得先收下去 —— 它们不能同时开。这正是丙 要在图上说清的事。
+      </div>
+      <div style="padding:0 16px 14px">
+        <button class="btn" id="btnShadow2" style="width:100%;min-height:44px">打开跟读抽屉（#26 的原型）</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL = window.SHELL || {};
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.bands = [
+  { label: "顶栏", pct: 5.4, chrome: true },
+  { label: "可见画面", pct: 8.3 },
+  { label: "入画字幕", pct: 9.7 },
+  { label: "控制条", pct: 8.0 },
+  { label: "字幕条", pct: 7.9 },
+  { label: "空白 + 露头条", pct: 53.8 },
+  { label: "底部导航", pct: 6.9, chrome: true }
+];
+window.SHELL.notes =
+  "<b>丙 · 文稿收进抽屉 —— 画面一像素不让。</b><br>" +
+  "赌注：437px 的文稿列表是<b>这一屏最大的那块</b>，而它大部分时候只是「待读」。把它挪进抽屉，" +
+  "画面内的三件东西（入画字幕 / 控制条 / 字幕条）保持 <b>#24 乙 原样</b>，一个都不动。<br><br>" +
+  "<b>代价一 · 收起时那段空白是真的。</b>抽屉不是变魔术，腾出来的 <b>437px</b> 里，底下 37px 是「当前句露头」（点它拉抽屉），" +
+  "上面 <b>400px 真的空着</b>（这就是半屏停位为什么定在 400）—— 本路线不拿词卡、不拿推荐去填它。" +
+  "要么接受这段留白，要么这条路线就不成立。<br>" +
+  "<b>代价二 · 多一步。</b>读整段要点一下「全文 ▲」；读的过程中想看第 3 句，还得在抽屉里滚。" +
+  "于是本路线把「滚动」与「跳播」拆成两件事：<b>滚动只预览（画面跟着换、播放不动）</b>，" +
+  "<b>点行才跳播</b>——两者用一个橙色「预览」标记分清。<br>" +
+  "<b>代价三 · 全抬时会盖掉字幕条。</b>抽屉的两个停位都停在画面下沿<b>以下</b>（画面零遮挡），" +
+  "但全抬 501px 会把 95/187 那条进度 + 逐句跟读 / 录音 一并盖住 —— 跟读在抽屉里还有一个入口，进度条没有。<br><br>" +
+  "<b>连带效应（会牵动 #26）。</b>#26 把跟读容器也定成「底部抽屉」，停位同样是 400 / 501。" +
+  "两个抽屉从同一条边升起，就必须二选一 —— 本路线把它们做成抽屉里的两个页签，就是这个原因。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var S, drawer = document.getElementById("drawer"), peek = document.getElementById("peek");
+  var voidEl = document.getElementById("void");
+  var doc = document.getElementById("dScript"), chip = document.getElementById("sbChip");
+  var STOP = [0, 400, 501];        /* 收起 / 半屏 / 全抬（#26 定过的两个停位） */
+  var stop = 0, preview = null;
+
+  function setStop(next) {
+    stop = next;
+    drawer.classList.toggle("closed", stop === 0);
+    drawer.style.setProperty("--dh", stop + "px");
+    peek.hidden = stop !== 0;
+    document.getElementById("grabTip").textContent =
+      stop === 0 ? "上拉看全文" : stop === 400 ? "上拉抬到画面下沿 · 点这里收起" : "已抬到画面下沿 · 点这里收起";
+    if (stop === 0) clearPreview();        /* 抽屉一收，预览标记就没有落脚处了 */
+    WT.refresh();
+  }
+
+  /* ── 滚动＝预览：画面跟着滚，播放不动 ── */
+  function clearPreview() {
+    if (preview === null) return;
+    preview = null;
+    chip.classList.remove("on");
+  }
+  function setPreview(idx) {
+    preview = idx;
+    chip.textContent = "预览 · 第 " + (idx + 1) + " 句（点它回到当前句）";
+    chip.classList.add("on");
+  }
+  /* 取「抽屉可视区顶部往下第一行」当预览行 */
+  function topRow() {
+    var lis = doc.querySelectorAll("li"), box = doc.getBoundingClientRect();
+    for (var i = 0; i < lis.length; i++) {
+      var r = lis[i].getBoundingClientRect();
+      if (r.bottom > box.top + 8) return i;
+    }
+    return lis.length - 1;
+  }
+  doc.addEventListener("scroll", function () {
+    var i = topRow();
+    if (i === SB.state.cur) { clearPreview(); return; }
+    if (i === preview) return;
+    S.renderBurn(i);               /* 只换画面里那一句，不动播放位置 */
+    setPreview(i);
+  });
+
+  chip.addEventListener("click", function () {
+    clearPreview();
+    S.renderBurn(SB.state.cur);
+    var li = doc.querySelectorAll("li")[SB.state.cur];
+    if (li) li.scrollIntoView({ block: "center" });
+    SB.toast("回到当前句（第 " + (SB.state.cur + 1) + " 句）");
+  });
+
+  S = SB.bind({
+    start: 2,
+    listSel: "#dScript",
+    onRow: function (idx) {
+      clearPreview();
+      SB.toast("跳到第 " + (idx + 1) + " 句，播放跟着走");
+      updatePeek();
+    },
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 79px —— 原样", tone: "dim" },
+      { sel: "#ctl", label: "② 控制条 65px —— 原样", tone: "quiet" },
+      { sel: "#subbar", label: "③ 字幕条 64px —— 原样", tone: "quiet" },
+      { sel: "#drawer", label: "④ 文稿抽屉 —— 本路线唯一的变量", tone: "" },
+      { sel: "#peek", label: "⑤ 收起的形态：露头 37px", tone: "" }
+    ],
+    reads: [
+      { label: "抽屉停位 / 上沿 y", get: function () {
+          var d = drawer.getBoundingClientRect();
+          return { v: (stop === 0 ? "收起" : stop + "px") + " · 上沿 y=" + Math.round(d.top), tone: "" };
+        } },
+      { label: "全抬时上沿 ← 画面下沿", get: function () {
+          var gap = drawer.getBoundingClientRect().top - document.querySelector(".frame").getBoundingClientRect().bottom;
+          return { v: Math.round(gap) + "px" + (Math.abs(gap) < 2 ? "（画面零遮挡）" : ""),
+                   tone: Math.abs(gap) < 2 ? "good" : "bad" };
+        } },
+      { label: "全抬时遮住谁", get: function () {
+          if (!stop) return { v: "抽屉收起，什么都没遮", tone: "" };
+          var a = Math.round(SB.overlap(drawer, document.getElementById("subbar")));
+          return { v: a > 0 ? "字幕条 " + a + "px（95/187 进度 + 逐句跟读 / 录音 的入口）" : "只遮文稿区，字幕条保住了",
+                   tone: a > 0 ? "bad" : "good" };
+        } },
+      { label: "收起时的空白", get: function () {
+          return { v: Math.round(voidEl.getBoundingClientRect().height) + "px（本路线不填它）", tone: "bad" };
+        } },
+      { label: "画面内那一句跟随谁", get: function () {
+          return preview === null
+            ? { v: "跟着播放（当前第 " + (SB.state.cur + 1) + " 句）", tone: "good" }
+            : { v: "跟着手指预览第 " + (preview + 1) + " 句，播放没动", tone: "" };
+        } }
+    ],
+    note: function () {
+      return "抽屉：点把手在 <b>收起 → 半屏 400 → 全抬 501</b> 之间循环，也可以直接点「全文 ▲」。" +
+        "在抽屉里滚动文稿，画面会跟着滚（预览）；点一行才真的跳播。点画面里的词＝开词卡（#27 乙 的形态）。<br>" +
+        "两个停位都停在画面下沿<b>以下</b>（画面零遮挡，恒 67px），代价是全抬时盖掉字幕条 64px；" +
+        "收起时那 437px 里下面 37px 是露头、上面 <b>400px 真的空着</b>。滚动预览会把画面内那句换成 1 行句（画面涨到 89px）。";
+    }
+  });
+
+  function updatePeek() {
+    var row = window.DEMO.script[SB.state.cur];
+    document.getElementById("peekEn").textContent = row.en;
+    chip.textContent = "预览 · 第 " + (SB.state.cur + 1) + " 句（点它回到当前句）";
+  }
+
+  document.getElementById("grab").addEventListener("click", function () {
+    setStop(stop === 0 ? 400 : stop === 400 ? 501 : 0);
+  });
+  peek.addEventListener("click", function () { setStop(400); });
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var pane = b.getAttribute("data-pane");
+    document.querySelectorAll("#tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    document.getElementById("paneDoc").hidden = pane !== "doc";
+    document.getElementById("paneShadow").hidden = pane !== "shadow";
+    if (stop === 0) setStop(400);
+    WT.refresh();
+  });
+  document.getElementById("btnShadow2").addEventListener("click", function () {
+    SB.toast("跟读容器归 #26 —— 本票只证明「两个抽屉共用一条边」");
+  });
+  document.getElementById("btnShadow").addEventListener("click", function () {
+    setStop(400);
+    document.querySelector('#tabs button[data-pane="shadow"]').click();
+  });
+  document.getElementById("btnMic").addEventListener("click", function () {
+    SB.toast("录音（原型示意）—— 归 #23 的跟读流程");
+  });
+  S.on("onCurrent", updatePeek);
+
+  setStop(0);
+  updatePeek();
+  voidEl.querySelector("#voidPx").textContent =
+    Math.round(voidEl.getBoundingClientRect().height) + "px";
+})();
+</script>
+</body>
+</html>

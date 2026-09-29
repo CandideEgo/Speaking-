@@ -1,0 +1,201 @@
+/* #28 入画字幕的版式与整段文稿的入口 —— 四条路线（B1..B4）共享的「可变量」
+ *
+ * 底座（画面内字幕 / 细控制条 / 字幕条 / 文稿列表 / 词卡 / 量给我看）全部来自 _wordtap.css，
+ * 这里只放本票新引入的四样东西，外加词卡（#27 乙 的形态，四条路线共用）：
+ *   ① 字号与语言的真实入口（控制条上的 Aa → 弹层）
+ *   ② 控制条「点出」态（默认隐藏 + 3px 细进度常驻）
+ *   ③ 文稿抽屉（半屏 400 / 全抬 501，与 #26 的跟读抽屉同一容器）
+ *   ④ 跟读工作区 与 文稿独立页
+ *
+ * 尺寸写死像素：这些数要跟 375×812 的屏高构成对得上，不能靠估算。
+ * 被 B1-fit / B2-tap / B3-drawer / B4-page 加载；A/B/C-*.html 与 W1..W3 不受本文件影响。
+ */
+
+/* ── ① Aa：字号档 + 语言档的真实入口（在控制条里）── */
+.aa-btn { position: relative; font-weight: 800; letter-spacing: .02em; }
+.aa-pop {
+  position: absolute; right: 6px; bottom: calc(65px + 6px); z-index: 42;
+  width: 244px; padding: 10px 12px 11px;
+  background: rgba(9, 9, 11, .94); color: #fafafa;
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  font-size: 11.5px; line-height: 1.45;
+}
+.aa-pop[hidden] { display: none; }
+.aa-pop .aa-hd {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--brand-200); margin-bottom: 8px;
+}
+.aa-pop .aa-hd::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, .16); }
+.aa-pop .aa-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.aa-pop .aa-row > span { flex: 0 0 34px; color: rgba(250, 250, 250, .6); }
+.aa-pop .seg { display: flex; flex: 1; border: 1px solid rgba(255, 255, 255, .22); border-radius: var(--radius-pill); overflow: hidden; }
+.aa-pop .seg button {
+  flex: 1; min-height: 30px; border: 0; background: transparent; color: #fafafa;
+  font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.aa-pop .seg button + button { border-left: 1px solid rgba(255, 255, 255, .18); }
+.aa-pop .seg button.on { background: var(--brand-500); color: #fff; }
+.aa-pop .aa-hint { color: rgba(250, 250, 250, .5); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+
+/* 字号档对画面的影响也直接写在字上：中英两种语言的档位互不相同，中文永远比英文小一档 */
+.burn .word { cursor: pointer; }
+
+/* ── ② 控制条「点出」态：默认沉下去，点画面浮起；同时常驻一条 3px 细进度 ── */
+.player .ctl.tap {
+  transform: translateY(100%); pointer-events: none;
+  transition: transform .18s ease-out;
+}
+.player .ctl.tap.on { transform: none; pointer-events: auto; }
+.thinbar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 4;
+  background: rgba(255, 255, 255, .22); pointer-events: none;
+}
+.thinbar i { display: block; height: 100%; width: 28%; background: var(--brand-500); }
+/* 画面上的「点一下出控制条」提示，只在空闲 1.2s 内闪一次 */
+.ctl-hint {
+  position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%); z-index: 5;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 10.5px; font-weight: 600;
+  border-radius: var(--radius-pill); padding: 4px 10px; pointer-events: none;
+  opacity: 0; transition: opacity .2s;
+}
+.ctl-hint.on { opacity: 1; }
+
+/* ── ③ 文稿抽屉（半屏 400 / 全抬 501）＋ 37px「当前句露头」条 ── */
+.peek {
+  position: absolute; left: 0; right: 0; z-index: 30;
+  height: 37px; display: flex; align-items: center; gap: 8px; padding: 0 16px;
+  background: var(--surface-soft); box-shadow: inset 0 1px 0 var(--hairline), inset 0 -1px 0 var(--hairline);
+  font-size: 11px; color: var(--muted-c); cursor: pointer;
+}
+.peek .pk-ts { flex: 0 0 auto; font-size: 10px; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
+.peek .pk-en {
+  flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px; color: var(--body);
+}
+.peek .pk-more { flex: 0 0 auto; font-size: 10px; color: var(--brand-600); font-weight: 700; }
+
+.drawer {
+  position: absolute; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 34;
+  height: var(--dh, 400px);
+  display: flex; flex-direction: column; overflow: hidden;   /* 收起时高度 0，内容必须跟着裁掉，别压在底栏上 */
+  background: var(--canvas);
+  border-top: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -10px 30px rgba(10, 10, 10, .14);
+  transition: height .18s ease-out;
+}
+.drawer .grab {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 0 3px; cursor: pointer; border: 0; background: transparent; font: inherit;
+}
+.drawer .grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-strong); }
+.drawer .grab span { font-size: 10px; color: var(--muted-soft); }
+.drawer .tabs { flex: 0 0 auto; display: flex; gap: 6px; padding: 0 16px 8px; }
+.drawer .tabs button {
+  min-height: 32px; padding: 0 12px; border-radius: var(--radius-pill);
+  border: 1px solid var(--hairline); background: var(--canvas); color: var(--body);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.drawer .tabs button.on { background: var(--brand-50); border-color: var(--brand-200); color: var(--brand-700); }
+.drawer .pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.drawer .pane[hidden] { display: none; }
+.drawer .pane .script { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pane-hint {
+  flex: 0 0 auto; padding: 7px 16px 9px; border-top: 1px solid var(--hairline-soft);
+  font-size: 10.5px; color: var(--muted-soft); line-height: 1.4;
+}
+
+/* 预览标记：滚动文稿时画面内那句是「预览」，点行才跳播 */
+.sb-chip {
+  position: absolute; left: 10px; top: 8px; z-index: 6;
+  display: none; align-items: center; gap: 5px;
+  background: rgba(255, 90, 31, .92); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  padding: 3px 8px; border-radius: var(--radius-pill);
+}
+.sb-chip.on { display: inline-flex; }
+
+/* ── ④ 跟读工作区（丁 常驻）── */
+.work { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0; overflow-y: auto; }
+.work .wk-src { padding: 12px 16px 10px; border-bottom: 1px solid var(--hairline-soft); }
+.work .wk-src .k { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--muted-soft); margin-bottom: 5px; }
+.work .wk-src .en { font-size: 17px; line-height: 23px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+.work .wk-src .zh { font-size: 13px; line-height: 18px; color: var(--muted-c); margin-top: 4px; }
+.work .wk-nav { display: flex; gap: 8px; padding: 10px 16px 0; }
+.work .wk-nav .btn { flex: 1; min-height: 44px; font-size: 12px; }
+.work .wk-mid { padding: 12px 16px 0; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.work .wave {
+  width: 291px; height: 44px; display: flex; align-items: center; gap: 2px;
+  background: var(--surface-soft); border-radius: var(--radius); padding: 0 8px;
+}
+.work .wave i { flex: 1; background: var(--brand-500); border-radius: 1px; height: 6px; }
+.work .wave.idle i { background: var(--surface-strong); }
+.work .wk-meta { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--muted-c); font-variant-numeric: tabular-nums; }
+.work .wk-rec {
+  width: 100%; min-height: 48px; border-radius: var(--radius); border: 1px solid var(--brand-200);
+  background: var(--brand-50); color: var(--brand-700); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.work .wk-rec.on { background: var(--brand-500); border-color: var(--brand-500); color: #fff; }
+.work .wk-ab { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.work .wk-ab .k { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--muted-soft); }
+.work .wk-ab .row2 { display: flex; gap: 8px; }
+.work .wk-ab .row2 .btn { flex: 1; min-height: 44px; font-size: 12px; }
+.work .wk-note { padding: 0 16px 16px; font-size: 10.5px; color: var(--muted-soft); line-height: 1.5; }
+
+/* ── ⑤ 文稿独立页（丁 的精读态：整屏，进入即暂停）── */
+.docpage {
+  position: absolute; inset: 0; z-index: 50; display: none; flex-direction: column;
+  background: var(--canvas);
+}
+.docpage.on { display: flex; }
+.docpage .dp-top {
+  flex: 0 0 auto; height: 52px; display: flex; align-items: center; gap: 10px;
+  padding: 0 12px 0 6px; border-bottom: 1px solid var(--hairline);
+}
+.docpage .dp-top .ttl { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 700; }
+.docpage .dp-top .sub { display: block; font-size: 10.5px; color: var(--muted-soft); font-weight: 500; margin-top: 1px; }
+.docpage .dp-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.docpage .dp-body .script { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: 4px; }
+.docpage .dp-foot {
+  flex: 0 0 auto; border-top: 1px solid var(--hairline); padding: 8px 16px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted-c);
+}
+
+/* ── ⑥ 一句话的反馈：本票不动的那些按钮，点了要答得出「它归谁」── */
+.sb-toast {
+  position: absolute; left: 50%; bottom: calc(var(--tabbar-h) + 20px); z-index: 70;
+  transform: translateX(-50%) translateY(6px);
+  max-width: 88%; text-align: center;
+  background: rgba(9, 9, 11, .92); color: #fafafa;
+  font-size: 11.5px; line-height: 1.4; font-weight: 600;
+  padding: 7px 12px; border-radius: var(--radius-pill);
+  opacity: 0; pointer-events: none;
+  transition: opacity .16s, transform .16s;
+}
+.sb-toast.on { opacity: 1; transform: translateX(-50%); }
+
+/* ── 词卡（#27 乙 的形态：从画面下沿升起；卡口可切「贴字幕下沿」）── */
+.edgecard {
+  position: absolute; left: 0; right: 0; z-index: 38;
+  display: flex; flex-direction: column;
+  background: var(--canvas); border-top: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -10px 30px rgba(10, 10, 10, .16);
+  opacity: 0; transform: translateY(14px); pointer-events: none;
+  transition: transform .16s ease-out, opacity .16s ease-out;
+}
+.edgecard.on { opacity: 1; transform: none; pointer-events: auto; }
+.edgecard .ec-grab { flex: 0 0 auto; padding: 7px 0 2px; display: flex; justify-content: center; }
+.edgecard .ec-grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-strong); }
+.edgecard .ec-why { flex: 0 0 auto; padding: 0 14px 6px; font-size: 10.5px; color: var(--brand-600); font-weight: 700; line-height: 1.35; }
+.edgecard .wt-card { flex: 1 1 auto; min-height: 0; }
+.edgecard .wc-head { padding-top: 2px; }
+.edgecard .wc-foot { display: none; }
+.edgecard .ec-foot {
+  flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 14px 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--hairline);
+}
+.edgecard .ec-foot .btn { min-height: 44px; flex: 1; padding: 0 10px; font-size: 13px; }

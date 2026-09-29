@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>#28 入画字幕的版式与整段文稿的入口 —— 四条路线</title>
+<style>
+  :root {
+    --bg: #18181b; --card: #232327; --line: #35353a; --ink: #fafafa;
+    --dim: #a1a1aa; --brand: #ff5a1f; --ok: #4ade80; --warn: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Inter, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 46px 0 12px; letter-spacing: -.01em; }
+  h3 { font-size: 16px; margin: 0 0 4px; }
+  .lede { color: var(--dim); font-size: 15px; max-width: 78ch; margin: 0; }
+  .lede b { color: var(--ink); }
+  a { color: var(--brand); }
+  code { background: #2a2a2f; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #1f1f23; font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td b { color: var(--ink); }
+  tr.hard td { background: rgba(74, 222, 128, .07); }
+  tr.softhard td { background: rgba(250, 204, 21, .06); }
+  .bad { color: #fca5a5; }
+  .good { color: var(--ok); }
+  .mid { color: var(--warn); }
+
+  .phones { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+  .phone { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; flex: 0 0 auto; }
+  .phone .bet { color: var(--dim); font-size: 12.5px; min-height: 76px; margin: 0 0 10px; }
+  .phone iframe { width: 375px; height: 812px; border: 0; border-radius: 16px; background: #fff; display: block; }
+  .phone .go { display: inline-block; margin-top: 10px; font-size: 13px; }
+  .phone .shots { font-size: 11.5px; color: var(--dim); margin: 8px 0 0; line-height: 1.7; }
+
+  .note { background: #1f1f23; border-left: 3px solid var(--brand); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; color: var(--dim); margin-top: 12px; }
+  .note b { color: var(--ink); }
+  ol.q { font-size: 14px; color: var(--dim); }
+  ol.q b { color: var(--ink); }
+  ul.s { font-size: 13.5px; color: var(--dim); }
+  ul.s b { color: var(--ink); }
+  img { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  figure { margin: 12px 0 0; }
+  figcaption { font-size: 11.5px; color: var(--dim); margin-top: 6px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#28 入画字幕的版式与整段文稿的入口 —— 四条路线</h1>
+  <p class="lede">
+    #24 选了乙：<b>把当前句烧进画面下沿</b>（中英双语，79px）。选完之后剩下的账没结 ——
+    字幕块因此吃掉 211px 画框里的 79px，<b>可见画面只剩 67px</b>；而画面下面那 437px 的文稿列表，
+    在「看片」这个动作里大部分时候只是待读。<br>
+    本页是同一份数据、同一套外壳上的<b>四条路线</b>，每条<b>只改一个变量</b>，其余一概保持 #24 乙 原样 ——
+    这样每个数字都能归因。加上 <b>#24 乙 原样对照</b>共五屏。全部按 <b>375×812 @2x</b> 渲染，
+    读数取自真实的 <code>getBoundingClientRect()</code>（Playwright），没有一个是估的。
+  </p>
+
+  <div class="note">
+    <b>先说一条硬事实（它决定了甲 的形态）：</b>入画字幕的高度是<b>内容参数</b>，不是设计参数 ——
+    句子多长，它就多高。实测本片 10 句在三个档位下的折行：
+    <b>16px 下只有 2 句</b>（33 / 45 字符）自然成 1 行，<b>降到 14px 也只有 5 句</b>，
+    剩下 5 句（57–70 字符）在<b>任何档位都是 2 行</b>。<br>
+    也就是说：<b>只要中文留在画面里，「2 行封顶」就不存在</b>（英文 2 行 + 中文 1 行 = 79px）。
+    要封顶，只能把中文请出画面 —— 这正是甲 的赌注，也是它唯一的赌注。
+  </div>
+
+  <h2>五问 × 四方案</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:126px">#28 要回答的</th>
+        <th>甲 · 封顶制<br><span style="color:#a1a1aa;font-weight:400">改「字幕块的版式」</span></th>
+        <th>乙 · 控制条点出<br><span style="color:#a1a1aa;font-weight:400">改「谁给谁让位」</span></th>
+        <th>丙 · 文稿收进抽屉<br><span style="color:#a1a1aa;font-weight:400">改「整段文稿在哪」</span></th>
+        <th>丁 · 文稿去独立页<br><span style="color:#a1a1aa;font-weight:400">改「整段文稿在哪」</span></th>
+        <th style="width:150px">对照 · #24 乙 原样</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>① 占几行</b></td>
+        <td>画面内<b>只有英文，1–2 行</b>（实测 38 / 60px，大档 66 / 小档 54）。中文一律在文稿里。</td>
+        <td>与 #24 原样一致：<b>2 行英文 + 1 行中文</b>（79px），不封顶。</td>
+        <td>同左（79px），不封顶。</td>
+        <td>同左（79px），不封顶。</td>
+        <td>2 行英文 + 1 行中文 = 79px。</td>
+      </tr>
+      <tr>
+        <td><b>② 字号档位</b></td>
+        <td>大 18 / 中 16 / 小 14（Aa 里切），外加一个<b>「降档封顶」</b>开关：为保住 1 行自动往小档试。</td>
+        <td>同样三档（Aa 里切），<b>但不自动降档</b> —— 档位是你选的，句子长了就是长了。</td>
+        <td>同乙。</td>
+        <td>同乙。</td>
+        <td>字号固定，没有档位入口（本票新做的 Aa 就是为这一问）。</td>
+      </tr>
+      <tr>
+        <td><b>③ 与画面内其他元素</b></td>
+        <td><b>谁也不让</b>：控制条 65px 常驻、字幕条 64px 常驻，靠字幕自己瘦身换画面。</td>
+        <td><b>控制条让位</b>：从常驻 65px 变成 3px 细进度 + 点出。浮起时它压在字幕上（实测遮 62px），3s 自收。</td>
+        <td><b>字幕条让位</b>：抽屉全抬时盖住那 64px（进度 95/187 + 跟读 / 录音入口）。画面本身<b>零遮挡</b>。</td>
+        <td><b>谁也不让</b>（画面内三件全按 #24 原样），动的是文稿的位置。</td>
+        <td>控制条 65px 常驻、字幕条 64px 常驻，都常驻。</td>
+      </tr>
+      <tr>
+        <td><b>④ 整段文稿的入口</b></td>
+        <td colspan="2">不动：仍是画面下方那 437px 的常驻列表（与 #24 原样一致）。</td>
+        <td><b>底部抽屉</b>：收起时只剩 37px 露头，两个停位（400 / 501），从底栏上沿升起。</td>
+        <td><b>48px 整宽行「全文文稿」</b> → 独立页（覆盖 y0→756，底栏 56px 留在原地）。</td>
+        <td>常驻列表 437px。</td>
+      </tr>
+      <tr class="hard">
+        <td><b>⑤ 当前句与整段的同步</b></td>
+        <td colspan="2">点行＝换句：画面里那句跟着换，播放位置不动（与 #24 原样一致）。</td>
+        <td><b>滚动＝预览</b>（画面跟着手指走，播放<b>不动</b>，左下角出现「预览 · 第N句」可点回当前句）；<b>点行才跳播</b>。两件事用颜色分清。</td>
+        <td>进文稿页<b>即暂停</b>；页里点行＝选句，之后是「回播放」还是「留在页里」可切。</td>
+        <td>点行＝换句。</td>
+      </tr>
+      <tr class="softhard">
+        <td><b>可见画面（实测）</b></td>
+        <td class="n mid">86px（1 行句 108px）</td>
+        <td class="n good">129px（最短句 151px）</td>
+        <td class="n bad">67px（＝ #24 原样，没变好；预览时 89px）</td>
+        <td class="n bad">67px（＝ #24 原样，没变好）</td>
+        <td class="n bad">67px</td>
+      </tr>
+      <tr>
+        <td><b>它换掉了什么</b></td>
+        <td>中文入画；画面内可点的词（英文一行时只剩一行热区）</td>
+        <td>进度条的常驻与「随时可拖」；#27 的默认卡口</td>
+        <td>收起时那 400px 的空白；「扫一眼上一句」</td>
+        <td>「扫一眼上一句」；且要把空出来的地方给跟读（与 #23 冲突）</td>
+        <td>—（这是现状）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>四条路线</h2>
+  <div class="phones">
+
+    <div class="phone">
+      <h3>甲 · 封顶制</h3>
+      <p class="bet">赌「2 行是个硬约束」：把中文请出画面，字幕块就只剩英文 1–2 行。可见画面 67→86px，最好情况 108px。
+        代价是把「双语入画」这条参照稿共识反过来 —— 而且长句常常封不住（5 句在任何档位都是 2 行）。</p>
+      <iframe src="B1-fit.html" title="变体甲 封顶制"></iframe>
+      <p class="shots">
+        截图：<a href="shots/B1-fit.png">默认（长句）</a> · <a href="shots/B1-fit-cap.png">降档封顶</a> ·
+        <a href="shots/B1-fit-short.png">最短句 = 1 行</a> · <a href="shots/B1-fit-large.png">Aa＝大</a> ·
+        <a href="shots/B1-fit-card.png">词卡</a>
+      </p>
+      <a class="go" href="B1-fit.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>乙 · 控制条点出</h3>
+      <p class="bet">赌「该让位的是低频的那件」：控制条从常驻 65px 变成 3px 细进度 + 点出，那 65px 直接给画面。
+        可见画面 67→129px，字幕一个字没动。代价是浮起时压住字幕 62px（所以 3s 自收）。</p>
+      <iframe src="B2-tap.html" title="变体乙 控制条点出"></iframe>
+      <p class="shots">
+        截图：<a href="shots/B2-tap.png">控制条沉下</a> · <a href="shots/B2-tap-ctl.png">浮起（压字幕）</a> ·
+        <a href="shots/B2-tap-lift.png">浮起 + 字幕上移</a> · <a href="shots/B2-tap-short.png">最短句</a> ·
+        <a href="shots/B2-tap-card-above.png">词卡（贴字幕上沿）</a> · <a href="shots/B2-tap-card-below.png">词卡（贴字幕下沿）</a>
+      </p>
+      <a class="go" href="B2-tap.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>丙 · 文稿收进抽屉</h3>
+      <p class="bet">赌「437px 那块大部分时候只是待读」：文稿挪进底部抽屉，收起时只留 37px 露头。
+        画面内三件一个不动，抽屉两个停位都停在画面下沿以下（零遮挡）。代价是那 400px 真的空着。</p>
+      <iframe src="B3-drawer.html" title="变体丙 文稿抽屉"></iframe>
+      <p class="shots">
+        截图：<a href="shots/B3-drawer.png">收起（露头 + 空白）</a> · <a href="shots/B3-drawer-half.png">半屏 400</a> ·
+        <a href="shots/B3-drawer-full.png">全抬 501</a> · <a href="shots/B3-drawer-preview.png">滚动预览</a> ·
+        <a href="shots/B3-drawer-jump.png">点行跳播</a> · <a href="shots/B3-drawer-shadow.png">跟读页签</a> ·
+        <a href="shots/B3-drawer-card.png">词卡</a>
+      </p>
+      <a class="go" href="B3-drawer.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>丁 · 文稿去独立页</h3>
+      <p class="bet">赌「读整段是另一种姿势」：文稿整段挪走，这一屏只留一条 48px 入口 + 空出来的地方给常驻跟读。
+        这一条要改 #23（跟读是按需还是常驻），本页不替它遮掩。</p>
+      <iframe src="B4-page.html" title="变体丁 文稿独立页"></iframe>
+      <p class="shots">
+        截图：<a href="shots/B4-page.png">入口 + 常驻跟读</a> · <a href="shots/B4-page-doc.png">文稿独立页（进入即暂停）</a> ·
+        <a href="shots/B4-page-back.png">点句＝回播放</a> · <a href="shots/B4-page-stay.png">点句＝留在页里</a> ·
+        <a href="shots/B4-page-short.png">最短句</a> · <a href="shots/B4-page-card.png">词卡</a>
+      </p>
+      <a class="go" href="B4-page.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>对照 · #24 乙 原样</h3>
+      <p class="bet">四条路线都是拿它当基线改的：中英双语入画 79px、控制条常驻 65px、字幕条 64px、文稿列表 437px。
+        每屏读数的第一个数（67px 可见画面）就是从这里来的。</p>
+      <iframe src="B-subtitle-in-frame.html" title="对照 #24 乙"></iframe>
+      <p class="shots">
+        #24 的三变体总览在 <a href="index.html">上一页</a>；它自己的量尺也在左下角。
+      </p>
+      <a class="go" href="B-subtitle-in-frame.html">单独打开 →</a>
+    </div>
+
+  </div>
+
+  <h2>实测读数（375×812 @2x，Playwright 取 rect）</h2>
+  <table>
+    <thead><tr><th>量什么</th><th>甲</th><th>乙</th><th>丙</th><th>丁</th><th>对照（#24 乙）</th></tr></thead>
+    <tbody>
+      <tr><td>整页高度 / 横向溢出</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td><td class="n good">812 / 无</td></tr>
+      <tr><td>可见画面（当前句 = 2 行英文 + 1 行中文）</td><td class="n mid">86px</td><td class="n good">129px</td><td class="n bad">67px</td><td class="n bad">67px</td><td class="n bad">67px</td></tr>
+      <tr><td>可见画面（当前句 = 1 行）</td><td class="n mid">108px</td><td class="n good">151px</td><td class="n">89px</td><td class="n">89px</td><td class="n">89px</td></tr>
+      <tr><td>入画字幕块高</td><td class="n">60px（1 行时 38px）</td><td class="n bad">79px（最短句 57px）</td><td class="n bad">79px（最短句 57px）</td><td class="n bad">79px</td><td class="n bad">79px</td></tr>
+      <tr><td>控制条常驻占用</td><td class="n bad">65px</td><td class="n good">3px</td><td class="n bad">65px</td><td class="n bad">65px</td><td class="n bad">65px</td></tr>
+      <tr><td>控制条浮起时盖住字幕</td><td class="n">—（不浮）</td><td class="n bad">62px（切「字幕上移」则 0px、画面回到 67px）</td><td class="n">—（不浮）</td><td class="n">—（不浮）</td><td class="n">—（不浮）</td></tr>
+      <tr><td>文稿那一块（收起态）</td><td class="n">列表 437px</td><td class="n">列表 437px</td><td class="n bad">露头 37px + 空白 400px</td><td class="n">入口 48px + 工作区 389px</td><td class="n">列表 437px</td></tr>
+      <tr><td>整段文稿打开时的画面遮挡</td><td class="n">—（常驻）</td><td class="n">—（常驻）</td><td class="n good">0px（抽屉上沿 = 画面下沿）</td><td class="n good">0px（独立页在底栏以上，不压画面）</td><td class="n">—（常驻）</td></tr>
+      <tr><td>词卡窗口</td><td class="n good">285px（贴画面下沿，0 遮挡）</td><td class="n mid">125px（贴字幕上沿）／285px（贴字幕下沿，盖字幕）</td><td class="n good">285px（贴画面下沿，0 遮挡）</td><td class="n good">285px（贴画面下沿，0 遮挡）</td><td class="n good">285px</td></tr>
+      <tr><td>控制台报错 / page error</td><td class="n good">0</td><td class="n good">0</td><td class="n good">0</td><td class="n good">0</td><td class="n">—（#24 产物）</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:10px">
+    <b>对照 一列的两处来源说明：</b>「1 行句 89px」与「词卡 285px」没有单独在 #24 的页面上重测 ——
+    丙 只改了文稿区，画面区与它逐像素相同，这两个数取自丙 的 <a href="shots/B3-drawer-preview.png">滚动预览</a> 与
+    <a href="shots/B3-drawer-card.png">词卡</a> 两态。其余对照数字来自 #24 的读数。
+  </p>
+
+  <h2>那张决定一切的矩阵（甲 的证据，也是全票的证据）</h2>
+  <p class="lede">每行一档，数字＝该句在这一档下折几行（实测 <code>#burnEn</code> 高度 ÷ 行距，不是估算）。</p>
+  <table>
+    <thead><tr><th>句子（字符数）</th><th>大 18px</th><th>中 16px</th><th>小 14px</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>第 4 句（33）</td><td class="n">1 行</td><td class="n">1 行</td><td class="n">1 行</td><td class="good">任何档位都是 1 行</td></tr>
+      <tr><td>第 6 句（45）</td><td class="n">1 行</td><td class="n">1 行</td><td class="n">1 行</td><td class="good">同上</td></tr>
+      <tr><td>第 8 句（47）</td><td class="n">2 行</td><td class="n">1 行</td><td class="n">1 行</td><td class="mid">要靠降档才成 1 行</td></tr>
+      <tr><td>第 10 句（48）</td><td class="n">2 行</td><td class="n">1 行</td><td class="n">1 行</td><td class="mid">同上</td></tr>
+      <tr><td>第 7 句（52）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">1 行</td><td class="mid">只有降到最小档才 1 行</td></tr>
+      <tr class="softhard"><td>第 9 句（57）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">2 行</td><td class="bad">封不住</td></tr>
+      <tr class="softhard"><td>第 3 句（59）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">2 行</td><td class="bad">封不住（当前句就在这一档）</td></tr>
+      <tr class="softhard"><td>第 5 句（61）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">2 行</td><td class="bad">封不住</td></tr>
+      <tr class="softhard"><td>第 1 句（65）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">2 行</td><td class="bad">封不住</td></tr>
+      <tr class="softhard"><td>第 2 句（70）</td><td class="n">2 行</td><td class="n">2 行</td><td class="n">2 行</td><td class="bad">封不住</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:10px">
+    每行字符容量（实测量 26 个字母的平均字宽，故标「估」）：<b>大 ≈39 / 中 ≈44 / 小 ≈50</b> 字符。
+    注意「50 字符/行」和「第 7 句 52 字符在小档 1 行」并不矛盾 —— 容量是平均值，字母窄的句子装得多。
+    <b>所以「几个字一行」这种说法在这一票里不能当依据，只能看折行实测。</b>
+  </p>
+
+  <h2>两处只有实测才会显形的事</h2>
+  <ul class="s">
+    <li><b>字幕块的高度会随句子浮动，而它一浮动，画面就跟着动。</b>
+      中英双语下：2 行句 → 字幕块 79px、可见画面 <b>67px</b>；1 行句 → 57px、可见画面 <b>89px</b>（丙 的滚动预览里量到的）。
+      乙 把地板抬到 129px，可浮动值一模一样是 22px（129 ↔ 151）。<b>甲 是四条里唯一在治这个病的</b>（它把浮动压到 38↔60px 的字幕块，也就是 86↔108px 的画面），
+      代价就是中文出画。</li>
+    <li><b>抽屉式的文稿会把「滚动」和「跳播」逼成两件事。</b>丙 里在抽屉里滚动时，画面内那句跟着换、播放不动，
+      于是必须给一个「预览 · 第N句」的标记告诉用户「你现在看的不是正在播的那句」。这条在甲 / 乙 / 丁 里都不存在。</li>
+  </ul>
+
+  <h2>为什么不让画面变大</h2>
+  <div class="note">
+    这是评审一定会问的一句，先把答案放这：<b>211px 不是我们分的，是视频自己的形状。</b>
+    16:9 的视频放进 375px 宽的屏，高度就是 211px —— 想更多画面只有三条路：
+    ① <b>把别的带子让出来</b>（乙 让控制条、丙 让文稿、丁 让文稿），这正是本页四条路线在做的事；
+    ② <b>裁掉视频</b>（放大到填满），那是改内容，归 #25 的全屏与方向策略；
+    ③ <b>去掉字幕条 64px 或底栏 56px</b> —— 前者是 95/187 的进度与跟读入口，后者是壳（INV-019），都不在本票范围内。<br>
+    换句话说：这四条路线不是「谁更好看」，而是<b>同一块 812px 的屏，你愿意把哪一段让给画面</b>。
+  </div>
+
+  <h2>四条路线各自的取与舍，各一句话</h2>
+  <ul class="s">
+    <li><b>甲</b>：用「中文出画」换「字幕块可预测」（38–60px）。它治的是病根，但把参照稿的双语入画改掉了 —— 而且 5 句长句照样封不住，只换来 6px。</li>
+    <li><b>乙</b>：不碰字幕，只让控制条让位，<b>+62px 是最便宜的一笔</b>。代价是浮起那一下压住字幕 62px，和 #27 的默认卡口失去锚点（剩 125px 窗口）。</li>
+    <li><b>丙</b>：让文稿离开常驻，画面内三件一件不动（零遮挡），还把「滚动预览 / 点行跳播」讲清楚了。代价是 400px 的空白与两次手势。</li>
+    <li><b>丁</b>：把「读整段」当成另一个页面，最彻底；但它要塞进常驻跟读才不自相矛盾，而那要改 #23。</li>
+  </ul>
+
+  <h2>连带效应（会被这四条路线牵动的票）</h2>
+  <ul class="s">
+    <li><b>乙 → #27（点词）</b>：控制条不再常驻，#27 定的默认卡口「贴画面下沿（露控制条）」就失去了锚点 ——
+      词卡只剩「贴字幕上沿」（实测窗口 125px）和「贴字幕下沿」（285px 但盖住字幕自己）两条腿。</li>
+    <li><b>丙 → #26（跟读容器）</b>：#26 把跟读定成「底部抽屉」，停位 400 / 501 —— 与丙 的文稿抽屉<b>共用同一条边、同一个停位</b>，
+      两者不能同时开。丙 把它们做成抽屉里的两个页签，正是为了这件事。</li>
+    <li><b>丁 → #23（跟读降级为按需）</b>：丁 把空出来的 437px 给了<b>常驻</b>跟读工作区（实测 389px），
+      与 #23 的结论直接冲突。要么改 #23，要么丁 不成立 —— 不打算含糊过去。</li>
+  </ul>
+
+  <h2>怎么读数</h2>
+  <div class="note">
+    每个原型左下角有个 <b>「量给我看」</b> 按钮：点开后会按真实的 <code>getBoundingClientRect()</code> 把
+    <b>可见画面 / 字幕块高 / 折几行 / 词热区 / 谁盖住谁多少</b> 一条条列出来，并在界面上画出虚线框（①②③④）。
+    右上角的「屏高构成」是 #24 留下的标尺，标的是<b>各路线自己的初始态</b>屏高分配 —— 四条各不相同，正是本票的读法。<br><br>
+    可切的开关（黑面板里，每条路线不同）：
+    <b>甲</b> 长句处理（允许长高 / 降档封顶）；
+    <b>乙</b> 词卡卡口、控制条浮起时字幕是否上移；
+    <b>丙</b> 抽屉停位（下拉把手 / 点露头 / 点灰条切换）；
+    <b>丁</b> 文稿页点句后的落点（回播放 / 留在页里）。
+    另外四条路线右下角的控制条上都有一个 <b>Aa</b>（字号 / 语言）—— 那是第 ② 问的入口，四条共用。
+  </div>
+
+  <h2>怎么打开</h2>
+  <div class="note">
+    <b>没有联网请求</b>：不用 Tailwind CDN、不用外部字体、不用外链图片，断网也能开。<br>
+    <b>本页用 iframe 内嵌五个原型</b>，<code>file://</code> 直开时 Safari 会拦掉本地 iframe（Chrome 不拦）。
+    被拦了就点每个卡片下的「单独打开 →」，或在本目录起一个静态服务：
+    <code>python -m http.server 8099</code>，然后开 <code>http://127.0.0.1:8099/subtitle.html</code>。<br>
+    懒得开浏览器就看 <code>shots/</code> 里的静态截图（375×812 @2x）。
+  </div>
+
+  <div class="note">
+    <b>本页不替你决定。</b>#28 是 HITL 票：五个问题里 ① ② 是一组（字幕块的版式），③ 是独立的一问（画面内谁让谁），
+    ④ ⑤ 是一组（整段文稿的位置与同步）。四条路线各自把其中<b>一条</b>走到极端，所以你完全可以组合 ——
+    例如「乙 的控制条点出 + 丙 的抽屉」「甲 的 Aa 档位 + 谁都不让」都是合法答案。
+    挑一条（或拼一条），把结论写在 #28 里。真机手感（拖抽屉的力度、点画面的误触、安全区）这一页证明不了，归 #22。
+  </div>
+
+</div>
+</body>
+</html>

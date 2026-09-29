@@ -87,6 +87,10 @@
     var app = document.querySelector(".app");
     if (app && S.bands) app.insertAdjacentHTML("beforeend", measureHTML(S.bands));
 
+    /* 壳是最后一块拼上的版图：顶栏 / 底栏一挂，.main 从 812 变成 712。
+       广播一声，让「量尺」在壳落定之后再读一次 —— 在此之前读到的都是半成品 */
+    window.dispatchEvent(new Event("shell:ready"));
+
     var mb = document.getElementById("measureBtn");
     if (mb) mb.addEventListener("click", function () {
       document.getElementById("measure").classList.toggle("on");

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · #28 甲 —— 封顶制（画面内只留英文）</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_sub.css">
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_sub.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×86 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 当前句：封顶 2 行。中文默认出画（留在文稿里），Aa 可切回中英双语 -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+            <button aria-label="全屏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="btnShadow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="btnMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL = window.SHELL || {};
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";        /* #27 乙：点词归 SB 的词卡管，shell 的底部弹层让位 */
+window.SHELL.bands = [
+  { label: "顶栏", pct: 5.4, chrome: true },
+  { label: "可见画面", pct: 10.6 },
+  { label: "入画字幕", pct: 7.4 },
+  { label: "控制条", pct: 8.0 },
+  { label: "字幕条", pct: 7.9 },
+  { label: "文稿列表", pct: 53.8 },
+  { label: "底部导航", pct: 6.9, chrome: true }
+];
+window.SHELL.notes =
+  "<b>甲 · 封顶制 —— 把「画面内字幕最多 2 行」当硬约束。</b><br>" +
+  "赌注：入画字幕的高度是个<b>内容参数</b>（句子多长就多高），不封顶它就会随句子涨落；封顶的唯一办法是把<b>中文请出画面</b>。" +
+  "于是画面内只有英文、1–2 行（实测 38px / 60px），中文一律在下方文稿里看。" +
+  "可见画面 67px → <b>86px</b>（当前句 59 字符 / 中 16px / 2 行）；最好情况是遇到 1 行句，<b>108px</b>。<br><br>" +
+  "<b>代价一 · 中文不在画面里了。</b>看中文要往下看文稿 —— 这条正好和参照稿相反（参照稿是双语入画），也是 <b>B 站「主/副语言」</b>那套的反面：这里干脆只留主语言。<br>" +
+  "<b>代价二 · 封顶要花钱买，而且常常买不到。</b>实测每一档的容量（估）：大 39 / 中 44 / 小 50 字符每行；" +
+  "本片 10 句里，<b>16px 下只有 2 句</b>（33 / 45 字符）自然成 1 行，<b>降到 14px 也只有 5 句</b>，" +
+  "剩下 5 句（57–70 字符）在<b>任何档位都是 2 行</b> —— 对它们「降档封顶」只换来 6px（60→54），换不来一行。" +
+  "所以右下角这个开关其实是在两种认输里选：<b>降档</b>（字变小、仍然是 2 行）还是<b>允许长高</b>。<br>" +
+  "<b>代价三 · 画面内的词热区没有变好。</b>仍是 22px 行距 + 外扩 4px = 30px（#27 已实测），单行时热区反而少了一行可点的词。<br><br>" +
+  "卡口沿用 #27 的默认（贴画面下沿、露控制条，实测卡片窗口 285px、0 遮挡），控制条 65px 与字幕条 64px 一行没动 —— 本路线只动字幕块这一件事。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var S, idx = 2;
+
+  /* 降档封顶：把「英文 1 行」当约束时，逐档往下试；试到底还不行的，就承认封顶失效（块长到 2 行） */
+  function fit(size, text, lang) {
+    if (!WT.state.cap) return size;
+    var order = ["l", "m", "s"], i = order.indexOf(size);
+    for (var k = i; k < order.length; k++) {
+      if (SB.linesOf(text, order[k], lang) <= 1) return order[k];
+    }
+    return "s";
+  }
+
+  function syncMarks() {
+    document.getElementById("clearDim").textContent =
+      "可见画面 375×" + S.visiblePicture() + " · 16:9 原高 211";
+  }
+
+  S = SB.bind({
+    lang: "en",                       /* 甲 的赌注：中文请出画面 */
+    fit: fit,
+    start: 2,
+    toggles: [
+      { key: "cap", label: "长句处理", values: ["允许长高（能几行就几行）", "降档封顶（先试 1 行，试不到就 2 行）"] }
+    ],
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 —— 本路线唯一的变量", tone: "dim" },
+      { sel: "#ctl", label: "② 控制条 65px 常驻（不动）", tone: "quiet" },
+      { sel: "#subbar", label: "③ 字幕条 64px 常驻（不动）", tone: "quiet" },
+      { sel: "#listwrap", label: "④ 文稿列表 437px 常驻（不动）", tone: "quiet" }
+    ],
+    reads: [
+      { label: "文稿列表（不动）", get: function () {
+          return { v: Math.round(document.getElementById("listwrap").getBoundingClientRect().height) + "px（与 #24 原样一致）", tone: "" };
+        } },
+      { label: "中文在画面里吗", get: function () {
+          return SB.state.lang === "en"
+            ? { v: "不在（只看文稿；Aa 可切回中英）", tone: "bad" }
+            : { v: "在（块回到 2–3 行）", tone: "" };
+        } }
+    ],
+    note: function () {
+      return "点画面里的词开词卡（#27 乙 的形态）；点行＝把这句换进画面。<br>" +
+        "<b>长句处理</b>决定「封顶」是不是真的存在：允许长高时当前句（59 字符）占 2 行 60px、画面 86px；" +
+        "切到降档封顶会降到 14px，<b>仍然是 2 行</b>（画面 92px）—— 封顶只在 ≤52 字符的句子上真能换来 1 行（那时画面 108px）。";
+    }
+  });
+
+  /* 换句 / 换档 / 换语言都要刷新「可见画面」那条标注 */
+  S.on("onCurrent", syncMarks);
+  S.on("onStyle", syncMarks);
+  /* 只有「长句处理」这个开关要重算封顶。别的开关（暂停 / 自动关 / 词卡卡口）动的时候
+     重绘画面内那句是有害的：它会把正在被点的 <button class="word"> 换掉，卡片刚开就被外面关掉 */
+  var lastCap = WT.state.cap;
+  WT.on(function () {
+    if (WT.state.cap === lastCap) { syncMarks(); return; }
+    lastCap = WT.state.cap;
+    S.renderBurn(S.state.cur);
+    syncMarks();
+  });
+
+  document.getElementById("btnMic").addEventListener("click", function () {
+    SB.toast("录音（原型示意）—— 归 #23 的跟读流程");
+  });
+  document.getElementById("btnShadow").addEventListener("click", function () {
+    SB.toast("跟读容器归 #26：底部抽屉，本票不动它");
+  });
+
+  syncMarks();
+  S.visiblePicture && setTimeout(syncMarks, 0);
+})();
+</script>
+</body>
+</html>

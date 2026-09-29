@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · #28 丁 —— 文稿挪去独立页，空出来的位置给常驻跟读</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_sub.css">
+<style>
+  /* 丁 动了两处（诚实记账）：① 文稿从这一屏挪去独立页；② 空出来的 437px 给了常驻跟读。
+     第②条与 #23「跟读降级为按需」冲突 —— 这正是本路线最需要被否掉或改掉的地方。 */
+  .dentry {
+    flex: 0 0 auto; width: 100%; min-height: 48px; display: flex; align-items: center; gap: 8px;
+    padding: 0 16px; border: 0; border-bottom: 1px solid var(--hairline);
+    background: var(--canvas); font: inherit; text-align: left; cursor: pointer;
+  }
+  .dentry .dt { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .dentry .ds { font-size: 11px; color: var(--muted-soft); }
+  .dentry .dm { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--brand-600); }
+  .docpage { bottom: var(--tabbar-h); }            /* 独立页是路由，底栏仍在（INV-019 的壳不破） */
+  .docpage .dp-back {
+    min-height: 44px; padding: 0 10px; border: 0; background: transparent;
+    color: var(--brand-600); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .docpage .dp-foot .sp { flex: 1; }
+  .docpage .dp-foot .btn { min-height: 40px; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_sub.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player">
+      <div class="frame">
+        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 入画字幕：#24 乙 原样，79px -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+            <button aria-label="全屏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="btnShadow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="btnMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <!-- ④ 整段文稿的入口：一条 48px 的整宽行（这是 丁 对「入口形态」的回答） -->
+    <button class="dentry" id="dEntry">
+      <span class="dt">全文文稿</span>
+      <span class="ds">187 句 · 中英对照</span>
+      <span class="dm">打开 ›</span>
+    </button>
+
+    <!-- 空出来的地方给了常驻跟读（与 #23「跟读降级为按需」冲突，见 notes） -->
+    <div class="work" id="work">
+      <div class="wk-src">
+        <div class="k">当前句 · 第 <span id="wIdx">3</span> / 187 句</div>
+        <div class="en" id="wEn"></div>
+        <div class="zh" id="wZh"></div>
+      </div>
+      <div class="wk-nav">
+        <button class="btn" id="wPrev">‹ 上一句</button>
+        <button class="btn" id="wNext">下一句 ›</button>
+      </div>
+      <div class="wk-mid">
+        <div class="wave idle" id="wave">
+          <i style="height:6px"></i><i style="height:14px"></i><i style="height:24px"></i><i style="height:10px"></i>
+          <i style="height:30px"></i><i style="height:18px"></i><i style="height:26px"></i><i style="height:8px"></i>
+          <i style="height:20px"></i><i style="height:32px"></i><i style="height:12px"></i><i style="height:22px"></i>
+        </div>
+        <div class="wk-meta"><span>参考音频 3.2s</span><span>·</span><span id="wRecState">未录音</span></div>
+        <button class="wk-rec" id="wRec">点一下开始录</button>
+      </div>
+      <div class="wk-ab">
+        <div class="k">复读（A–B）</div>
+        <div class="row2"><button class="btn" id="abA">设 A</button><button class="btn" id="abB">设 B</button></div>
+      </div>
+      <div class="wk-note">跟读只录、不回分 —— AI 评分在 ADR-0002 里砍掉了，别在这里重新长出来。</div>
+    </div>
+  </div>
+
+  <!-- ⑤ 整段文稿的落点：一个独立页（路由），底栏不动 -->
+  <div class="docpage" id="docPage">
+    <div class="dp-top">
+      <button class="dp-back" id="dpBack">‹ 返回</button>
+      <div class="ttl">全文文稿<span class="sub" id="dpSub">187 句 · 中英对照 · 进入即暂停</span></div>
+    </div>
+    <div class="dp-body">
+      <ol class="script pad" id="pScript"></ol>
+    </div>
+    <div class="dp-foot">
+      <span id="dpPos">当前第 3 句</span>
+      <span class="sp"></span>
+      <button class="btn" id="dpShadow">跟读这一句</button>
+      <button class="btn primary" id="dpBack2">回到播放</button>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL = window.SHELL || {};
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.bands = [
+  { label: "顶栏", pct: 5.4, chrome: true },
+  { label: "可见画面", pct: 8.3 },
+  { label: "入画字幕", pct: 9.7 },
+  { label: "控制条", pct: 8.0 },
+  { label: "字幕条", pct: 7.9 },
+  { label: "文稿入口（48px 整宽行）", pct: 5.9 },
+  { label: "常驻跟读工作区", pct: 47.9 },
+  { label: "底部导航", pct: 6.9, chrome: true }
+];
+window.SHELL.notes =
+  "<b>丁 · 文稿去独立页 —— 把「读整段」当成另一种姿势。</b><br>" +
+  "赌注：读整段文稿和看视频是<b>两种不同的姿势</b>（一个盯着画面、一个扫着文字）。" +
+  "硬把它们塞进同一屏，就必然有一段 437px 的列表在画面下面等着被挤扁。" +
+  "丁 把它整段挪走：这一屏只留「全文文稿」一条 <b>48px</b> 的入口，读整段是<b>另一个页面</b>。" +
+  "参照物是 VoiceTube 的「影片下方字幕 / 学习模式」分页，和每日英语听力的全屏侧栏文稿。<br><br>" +
+  "<b>代价一 · 来回一趟。</b>读整段要跳页，回到播放要再跳回来。所以进入即暂停（否则你回来时视频已经走远了）。<br>" +
+  "<b>代价二 · 少了一个「扫一眼」。</b>常驻列表的价值是随时能扫到上一句 / 下一句；独立页把这件事推到一趟跳转之外。<br>" +
+  "<b>代价三 · 这一条要改 #23。</b>空出来的 437px 本路线给了<b>常驻跟读工作区</b>（这是它区别于「页面空着」的唯一理由），" +
+  "但 #23 已经把跟读定成<b>按需拉起</b>。要么改 #23，要么这条路线不成立 —— 不打算含糊过去。<br><br>" +
+  "<b>同步（怎么对上第 5 问）：</b>文稿页里点一行＝选句。选句之后是「当场回播放」还是「留在页里继续读」，右下角可切。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var S, page = document.getElementById("docPage");
+  var wEn = document.getElementById("wEn"), wZh = document.getElementById("wZh"), wIdx = document.getElementById("wIdx");
+
+  function openDoc() {
+    page.classList.add("on");
+    WT.state.pause = true; WT.refresh();          /* 进入即暂停：回来时那一帧还在原处 */
+    SB.toast("进入文稿页：已暂停");
+    var li = document.querySelectorAll("#pScript li")[S.state.cur];
+    if (li) li.scrollIntoView({ block: "center" });
+  }
+  function closeDoc() {
+    page.classList.remove("on");
+    WT.refresh();                                  /* 保持暂停，等你自己按下播放 */
+  }
+
+  S = SB.bind({
+    start: 2,
+    listSel: "#pScript",
+    toggles: [
+      { key: "back", label: "文稿页点句后", values: ["回到播放", "留在页里"] }
+    ],
+    onRow: function (idx) {
+      if (WT.state.back) { SB.toast("第 " + (idx + 1) + " 句已选中，留在文稿页"); return; }
+      closeDoc();
+      SB.toast("第 " + (idx + 1) + " 句已选中，回到播放（仍暂停）");
+    },
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 79px —— 原样", tone: "dim" },
+      { sel: "#ctl", label: "② 控制条 65px —— 原样", tone: "quiet" },
+      { sel: "#subbar", label: "③ 字幕条 64px —— 原样", tone: "quiet" },
+      { sel: "#dEntry", label: "④ 文稿入口 48px —— 本路线唯一的变量", tone: "" },
+      { sel: "#work", label: "⑤ 常驻跟读工作区（代价三：要改 #23）", tone: "" }
+    ],
+    reads: [
+      { label: "这一屏还剩下文稿列表吗", get: function () {
+          return { v: "没有。文稿在独立页里（#pScript）", tone: "bad" };
+        } },
+      { label: "文稿页覆盖到哪", get: function () {
+          var t = Math.round(page.getBoundingClientRect().top);
+          var b = Math.round(page.getBoundingClientRect().bottom);
+          return { v: "y " + t + " → " + b + "（底栏 " + Math.round(window.innerHeight - b) + "px 不被覆盖）", tone: "" };
+        } },
+      { label: "跟读工作区得到的面积", get: function () {
+          var h = Math.round(document.getElementById("work").getBoundingClientRect().height);
+          return { v: h + "px（原来这块是文稿列表）", tone: h > 300 ? "good" : "bad" };
+        } },
+      { label: "点句后", get: function () {
+          return { v: WT.state.back ? "留在文稿页继续读" : "当场回播放（进入即暂停过）", tone: "" };
+        } }
+    ],
+    note: function () {
+      return "点「全文文稿」进独立页（进入即暂停）。页里点一行＝选句，落点由右下角开关决定。" +
+        "点画面里的词＝开词卡（#27 乙 的形态）。<br>" +
+        "这一屏不再有文稿列表：入口占 48px，其余 437px 给了<b>常驻跟读工作区</b>（389px）—— 画面仍旧 67px（1 行句 89px），" +
+        "而这条与 #23「跟读按需」直接冲突，是本路线最该被否掉的地方。";
+    }
+  });
+
+  function sync() {
+    var row = window.DEMO.script[S.state.cur];
+    wEn.textContent = row.en;
+    wZh.textContent = row.zh;
+    wIdx.textContent = S.state.cur + 1;
+    document.getElementById("dpPos").textContent = "当前第 " + (S.state.cur + 1) + " 句";
+  }
+  S.on("onCurrent", sync);
+
+  document.getElementById("dEntry").addEventListener("click", openDoc);
+  document.getElementById("dpBack").addEventListener("click", closeDoc);
+  document.getElementById("dpBack2").addEventListener("click", function () {
+    closeDoc(); SB.toast("回到播放（仍暂停，按播放继续）");
+  });
+  document.getElementById("dpShadow").addEventListener("click", function () {
+    SB.toast("跟读这一句 —— 工作区常驻在这一屏，不用走");
+  });
+  document.getElementById("wPrev").addEventListener("click", function () { S.renderBurn(S.state.cur - 1); });
+  document.getElementById("wNext").addEventListener("click", function () { S.renderBurn(S.state.cur + 1); });
+  document.getElementById("wRec").addEventListener("click", function () {
+    var b = document.getElementById("wRec"), on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    b.textContent = on ? "● 正在录 · 再点一下结束" : "点一下开始录";
+    document.getElementById("wRecState").textContent = on ? "录音中" : "未录音";
+    document.getElementById("wave").classList.toggle("idle", !on);
+  });
+  document.getElementById("abA").addEventListener("click", function () { SB.toast("A 点＝这一句的开头（原型示意）"); });
+  document.getElementById("abB").addEventListener("click", function () { SB.toast("B 点＝这一句的结尾（原型示意）"); });
+  document.getElementById("btnShadow").addEventListener("click", function () {
+    SB.toast("跟读工作区就在画面下面 —— 这条路线里它常驻");
+  });
+  document.getElementById("btnMic").addEventListener("click", function () {
+    SB.toast("录音（原型示意）—— 归 #23 的跟读流程");
+  });
+
+  sync();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · #28 乙 —— 控制条点出（画面内字幕不动）</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_sub.css">
+<style>
+  /* 乙 唯一的变量：控制条从「常驻 65px」变成「点出，浮起 3s 自收」。
+     它原来占的那 65px 顺势给了入画字幕 —— 字幕于是落到画框最下沿。 */
+  .player.tapmode .burn { bottom: 3px; transition: transform .18s ease-out; }
+  /* 「谁让谁」的另一档：控制条浮起时把字幕顶上去，可见画面当场缩回 67px */
+  .player.tapmode .burn.lift { transform: translateY(-62px); }
+  /* 词卡的两条腿都要踩在字幕上：字幕既在最下沿，就没有「不遮东西」的卡口了 */
+  .player.tapmode .burn { z-index: 5; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_sub.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <div class="player tapmode">
+      <div class="frame">
+        <div class="clearmark"><span class="dim" id="clearDim">可见画面 375×129 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="wt-paused" id="wt-paused">❙❙ 已暂停（原型示意）</div>
+
+        <!-- 当前句：#24 乙 原样（中英双语，16px/12.5px），只是位置落到画框最下沿 -->
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+
+        <!-- 控制条点出：常驻的只剩这条 3px 的进度 -->
+        <div class="thinbar"><i></i></div>
+        <div class="ctl-hint" id="ctlHint">点画面出控制条</div>
+
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+            <button aria-label="全屏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="btnShadow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="btnMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL = window.SHELL || {};
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.bands = [
+  { label: "顶栏", pct: 5.4, chrome: true },
+  { label: "可见画面", pct: 15.9 },
+  { label: "入画字幕", pct: 9.7 },
+  { label: "控制条（点出，常驻仅 3px）", pct: 0.4 },
+  { label: "字幕条", pct: 7.9 },
+  { label: "文稿列表", pct: 53.8 },
+  { label: "底部导航", pct: 6.9, chrome: true }
+];
+window.SHELL.notes =
+  "<b>乙 · 控制条点出 —— 把「谁让谁」按<b>使用频率</b>排序。</b><br>" +
+  "赌注：入画字幕是<b>每时每刻都在看</b>的东西，控制条是<b>偶尔才动一下</b>的东西。" +
+  "让低频的那件让位，收益立刻兑现：可见画面 67px → <b>129px</b>（+62px，几乎翻倍），而入画字幕一个字没动 —— " +
+  "仍是 <b>#24 乙 原样</b>的中英双语、16px/12.5px（字幕块 79px）。<br><br>" +
+  "<b>代价一 · 浮起时会盖住字幕。</b>实测：控制条弹上来压住字幕块 <b>62px</b>（79px 里的 62px —— 第一行英文加整行中文都没了）。" +
+  "这是 3s 自收的全部理由：把它限制成「一闪而过」。<br>" +
+  "<b>代价二 · 收益不是白来的。</b>右下角「浮起时谁让」切到<b>字幕上移</b>，控制条就不盖任何东西了 —— " +
+  "但可见画面当场缩回 <b>67px</b>，和 #24 原样一模一样。两档都留着，是因为答案取决于你更怕哪一个。<br>" +
+  "<b>代价三 · 进度条变成 3px 细线。</b>拖动改成「点出后再拖」，多一步。手势上还要和「点词」错开：点词在 <code>.word</code> 上，已经让开。<br>" +
+  "<b>病根没除。</b>字幕块的高度仍然跟着句子走：遇到 1 行英文 + 1 行中文的最短句（57px），可见画面会涨到 <b>151px</b>；" +
+  "本路线只是把地板从 67px 抬到 129px —— 22px 的浮动一模一样。<br><br>" +
+  "<b>连带效应（会牵动 #27）。</b>#27 定的默认卡口是「贴画面下沿（露控制条）」。控制条不再常驻之后，" +
+  "这个卡口和「贴字幕下沿」几乎重合，词卡就没有「不遮东西」的位置了 —— 本路线给它的第三条腿是<b>贴字幕上沿</b>，" +
+  "实测卡片窗口只剩 <b>125px</b>（画框顶到字幕上沿），另一条腿「贴字幕下沿」则有 285px、但盖住字幕自己。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var S;
+
+  function el(id) { return document.getElementById(id); }
+
+  S = SB.bind({
+    mode: "tap",                       /* 控制条从常驻改成点出 */
+    dock: false,                       /* 共用卡口在这里失效，自己给两条腿 */
+    start: 2,
+    /* 词卡卡口：字幕贴着画框下沿，于是两条腿都踩在字幕上，区别只是踩上面还是踩下面 */
+    cardEdge: function () { return WT.state.dock ? "bottom" : "aboveBurn"; },
+    why: function () {
+      var a = Math.round(SB.overlap(el("edgeCard"), el("burn")));
+      var win = Math.round(el("edgeCard").getBoundingClientRect().height);
+      return WT.state.dock
+        ? "卡口＝贴字幕下沿 · 遮住字幕 " + a + "px · 字幕自己看不见了"
+        : "卡口＝贴字幕上沿 · 遮住字幕 " + a + "px · 卡片只剩 " + win + "px 窗口（上面就是画面顶）";
+    },
+    toggles: [
+      { key: "dock", label: "词卡卡口", values: ["贴字幕上沿（盖画面下半）", "贴字幕下沿（盖字幕自己）"] },
+      { key: "lift", label: "控制条浮起时", values: ["字幕不动（压在字幕上）", "字幕上移（画面缩回 67px）"] }
+    ],
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 —— 位置变了，版式一字未动", tone: "dim" },
+      { sel: ".thinbar", label: "② 常驻的进度：3px", tone: "" },
+      { sel: "#subbar", label: "③ 字幕条 64px 常驻（不动）", tone: "quiet" },
+      { sel: "#listwrap", label: "④ 文稿列表 437px 常驻（不动）", tone: "quiet" }
+    ],
+    reads: [
+      { label: "控制条浮起时盖住字幕", get: function () {
+          var a = Math.round(SB.overlap(el("ctl"), el("burn")));
+          return { v: a + "px", tone: a > 0 ? "bad" : "good" };
+        } },
+      { label: "字幕条 / 文稿列表（不动）", get: function () {
+          return { v: Math.round(el("subbar").getBoundingClientRect().height) + "px / " +
+                      Math.round(el("listwrap").getBoundingClientRect().height) + "px",
+                   tone: "" };
+        } }
+    ],
+    note: function () {
+      return "点画面＝呼出控制条（3 秒自动收回）；点画面里的词＝开词卡（#27 乙 的形态）。<br>" +
+        "收益：控制条沉下时画面 <b>129px</b>（#24 原样是 67px），字幕一个字没动。" +
+        "代价：控制条浮起时压住字幕 <b>62px</b>；把「浮起时」切到<b>字幕上移</b>就不再压了，但画面当场回到 <b>67px</b>。";
+    }
+  });
+
+  /* 点画面 = 呼出/收起控制条。点词、点控制条自己、点 Aa 弹层都不算。 */
+  document.querySelector(".frame").addEventListener("click", function (e) {
+    if (e.target.closest(".word") || e.target.closest(".ctl") || e.target.closest(".aa-pop")) return;
+    S.showCtl(!SB.state.ctlOn);
+  });
+
+  /* 「字幕上移」那一档：浮起时给字幕加 .lift，落下时去掉 */
+  S.on("onCtl", function (on) {
+    var want = !!(WT.state.lift && on);      /* classList.toggle 收到 undefined 会当成「没给 force」＝直接翻转，必须 !! */
+
+    el("burn").classList.toggle("lift", want);
+    if (!on) {
+      var hint = el("ctlHint");
+      setTimeout(function () { hint.classList.remove("on"); }, 1200);   /* 提示只闪 1.2s */
+    }
+  });
+  WT.on(function () {
+    el("burn").classList.toggle("lift", !!(WT.state.lift && SB.state.ctlOn));
+  });
+
+  document.getElementById("btnMic").addEventListener("click", function () {
+    SB.toast("录音（原型示意）—— 归 #23 的跟读流程");
+  });
+  document.getElementById("btnShadow").addEventListener("click", function () {
+    SB.toast("跟读容器归 #26：底部抽屉，本票不动它");
+  });
+})();
+</script>
+</body>
+</html>
