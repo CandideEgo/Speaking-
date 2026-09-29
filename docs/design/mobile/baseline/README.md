@@ -61,7 +61,7 @@ cd frontend && npm run dev                          # :3000
 
 - **iOS Safari 的 `100vh` 恒等于地址栏收起时的高度**，地址栏一展开就比可视区多 40px —— 壳拿它当高度，就必然有 40px 内容落在可视区外
 - **夸克没有这个问题**：四个高度单位读数一致、`100vh` = `innerHeight`，地址栏收放不动它们。所以「底栏被地址栏吃掉」是 Safari 独有的病历
-- 安全区在 `fit=auto` 下四边都是 0（预期如此）。**`fit=cover` 下能拿到多少，这次没拿到可信读数**：四张 cover 截图的数值经 OCR 读出来仍是 0，与「iPhone 有 Home indicator、cover 下应给 34」的预期不符；OCR 对小字号右对齐数字不可靠，所以记「未确认」而不是「就是 0」。这直接决定壳的 `env(safe-area-inset-bottom)` 在该机上到底生不生效 —— 重跑一次量具页即可，见文末
+- 安全区在 `fit=auto` 下四边都是 0（预期如此）。**`fit=cover` 下能拿到多少，这次没拿到可信读数**：四张 cover 截图的数值经 OCR 读出来仍是 0，与「iPhone 有 Home indicator、cover 下应给 34」的预期不符；OCR 对小字号右对齐数字不可靠，所以记「未确认」而不是「就是 0」。这直接决定壳的 `env(safe-area-inset-bottom)` 在该机上到底生不生效 —— 重跑一次量具页并**贴报告文本**即可（拍屏读不出小字，就是这么废掉的）。社区口径是「cover 生效时 insets 才有值，否则恒 0」（[WebKit 原说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x)），iOS 26 起 Safari 浏览器模式下还能不能铺进工具条区则两种说法都有。**两种读数的落点都安全**：0 → 壳 padding 加 0，底栏贴在可视区底边（本就在工具条之上）；34 → 底栏抬高 34px 躲开 Home indicator
 
 ## 量不到的（只有真机能给）
 
