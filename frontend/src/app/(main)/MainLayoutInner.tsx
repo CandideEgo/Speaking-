@@ -15,20 +15,6 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const isLoading = useAuthStore((s) => s.isLoading);
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
 
-  // 未认证 → 渲染公开落地页（ADR-0005：未登录 `/` → 落地页，而非裸跳 /login）。
-  // 落地页自身可滚动，所以只在已认证的 shell 模式下锁 <html> 滚动。
-  // shell 模式是单页式，由内部 <main> 负责滚动；不锁的话内容溢出会泄漏到 <html>，
-  // 产生额外的浏览器滚动条和底部留白（播放页尤为明显）。
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const html = document.documentElement;
-    const prev = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = prev;
-    };
-  }, [isAuthenticated]);
-
   // Onboarding redirect: after auth, check user.onboarding_completed
   // Non-blocking: render the shell immediately, redirect in background.
   useEffect(() => {
@@ -67,12 +53,20 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
   // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
   if (!isAuthenticated) {
-    return <div className="min-h-screen bg-canvas">{children}</div>;
+    return <div className="min-h-dvh bg-canvas">{children}</div>;
   }
 
   // Render shell immediately — onboarding check runs in background
+  // 壳自己扛安全区：viewport-fit=cover 后页面会铺到刘海 / Home indicator 下，
+  // 用 padding 把可视区推回安全区内（底部导航是 fixed，另有一份自己的 padding）。
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div
+      className="flex flex-col h-dvh overflow-hidden"
+      style={{
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
       <TopBar />
       <main
         id={SCROLL_CONTAINER_ID}

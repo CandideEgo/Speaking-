@@ -57,7 +57,7 @@ export default function AdminShellLayout({ children }: { children: React.ReactNo
 
   if (status !== "ok") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-soft">
+      <div className="flex min-h-dvh items-center justify-center bg-surface-soft">
         <div className="text-center">
           {status === "denied" ? (
             <>
@@ -73,7 +73,7 @@ export default function AdminShellLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-soft">
+    <div className="flex h-dvh overflow-hidden bg-surface-soft">
       <AdminSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopbar />

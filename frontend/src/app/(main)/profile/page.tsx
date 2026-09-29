@@ -162,7 +162,7 @@ export default function ProfilePage() {
 
   if (isLoading || loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
+      <main className="flex min-h-dvh items-center justify-center bg-canvas">
         <div className="w-8 h-8 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
       </main>
     );

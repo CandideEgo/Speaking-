@@ -23,7 +23,7 @@ export function AuthCard({
   children: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen bg-canvas">
+    <main className="flex min-h-dvh bg-canvas">
       {/* Left brand panel — hidden on mobile */}
       <div className="hidden lg:flex lg:w-[45%] xl:w-[42%] relative overflow-hidden bg-surface-dark flex-col justify-between p-10">
         {/* Decorative gradient orbs */}

@@ -582,7 +582,7 @@ export default function WatchPage() {
 
   if (playbackMode === "error") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
+      <main className="flex min-h-dvh items-center justify-center bg-canvas">
         <div className="text-center">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-ink">加载视频失败</p>
@@ -601,7 +601,7 @@ export default function WatchPage() {
   // 收藏夹与集合页「回看原视频」会落到这里，故给出明确说明与出口。
   if (playbackMode === "offline") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
+      <main className="flex min-h-dvh items-center justify-center bg-canvas">
         <div className="text-center max-w-md px-4">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-lg font-semibold text-ink">该视频已下架</p>
@@ -626,7 +626,7 @@ export default function WatchPage() {
       ? (STEP_LABELS[video.processing_step] ?? "处理中...")
       : "处理中...";
     return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">
+      <main className="flex min-h-dvh items-center justify-center bg-canvas">
         <div className="text-center">
           <Loader2 size={32} className="mx-auto animate-spin text-brand-500" />
           <p className="mt-4 text-ink">{stepLabel}</p>

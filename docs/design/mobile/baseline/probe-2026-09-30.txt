@@ -1,0 +1,116 @@
+真机量具页（dev-probe.html）报告，2026-09-30 由用户从手机上复制粘贴
+设备：iPhone 11（screen 414×896 css、devicePixelRatio 2、portrait-primary）
+两条都是 fit=auto（应用当时的 viewport 导出状态）
+
+[A] = 地址栏收起态，[B] = 地址栏展开态。原文逐字保留，未改一字。
+
+================ Safari ================
+seeword dev-probe 报告
+ua: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1
+
+[A] fit=auto @ 2026-09-29T18:19:00.415Z
+  innerHeight = 790
+  100vh（= h-screen） = 790
+  visualViewport.height = 790
+  100vh − visualViewport.height = 0
+  visualViewport.offsetTop = 0
+  100svh（地址栏出现时） = 750
+  100lvh（地址栏收起时） = 790
+  100dvh（动态） = 790
+  innerWidth = 414
+  screen.width × screen.height = 414 × 896
+  devicePixelRatio = 2
+  方向 = portrait-primary
+  scrollY = 54
+  安全上下文（https） = 否（http）
+  standalone（加桌面） = 否
+  safe-area-inset-top = 0
+  safe-area-inset-right = 0
+  safe-area-inset-bottom = 0
+  safe-area-inset-left = 0
+
+[B] fit=auto @ 2026-09-29T18:19:03.465Z
+  innerHeight = 750
+  100vh（= h-screen） = 790
+  visualViewport.height = 750
+  100vh − visualViewport.height = 40
+  visualViewport.offsetTop = 0
+  100svh（地址栏出现时） = 750
+  100lvh（地址栏收起时） = 790
+  100dvh（动态） = 750
+  innerWidth = 414
+  screen.width × screen.height = 414 × 896
+  devicePixelRatio = 2
+  方向 = portrait-primary
+  scrollY = 0
+  安全上下文（https） = 否（http）
+  standalone（加桌面） = 否
+  safe-area-inset-top = 0
+  safe-area-inset-right = 0
+  safe-area-inset-bottom = 0
+  safe-area-inset-left = 0
+
+[A→B]
+  100vh（= h-screen） 790 → 790 (Δ0)
+  innerHeight 790 → 750 (Δ-40)
+  visualViewport.height 790 → 750 (Δ-40)
+  visualViewport.offsetTop 0 → 0 (Δ0)
+（复制时这一段到这里断了，后半截没粘进来）
+
+================ 夸克 ================
+seeword dev-probe 报告
+ua: Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X; zh-cn) AppleWebKit/601.1.46 (KHTML, like Gecko) Mobile/24A437 Quark/10.17.5.3195 Mobile
+
+[A] fit=auto @ 2026-09-29T18:20:52.765Z
+  innerHeight = 749
+  100vh（= h-screen） = 749
+  visualViewport.height = 749
+  100vh − visualViewport.height = 0
+  visualViewport.offsetTop = 0
+  100svh（地址栏出现时） = 749
+  100lvh（地址栏收起时） = 749
+  100dvh（动态） = 749
+  innerWidth = 414
+  screen.width × screen.height = 414 × 896
+  devicePixelRatio = 2
+  方向 = portrait-primary
+  scrollY = 0
+  安全上下文（https） = 是
+  standalone（加桌面） = 否
+  safe-area-inset-top = 0
+  safe-area-inset-right = 0
+  safe-area-inset-bottom = 0
+  safe-area-inset-left = 0
+
+[B] fit=auto @ 2026-09-29T18:21:02.039Z
+  innerHeight = 749
+  100vh（= h-screen） = 749
+  visualViewport.height = 749
+  100vh − visualViewport.height = 0
+  visualViewport.offsetTop = 0
+  100svh（地址栏出现时） = 749
+  100lvh（地址栏收起时） = 749
+  100dvh（动态） = 749
+  innerWidth = 414
+  screen.width × screen.height = 414 × 896
+  devicePixelRatio = 2
+  方向 = portrait-primary
+  scrollY = 0
+  安全上下文（https） = 是
+  standalone（加桌面） = 否
+  safe-area-inset-top = 0
+  safe-area-inset-right = 0
+  safe-area-inset-bottom = 0
+  safe-area-inset-left = 0
+
+[A→B]
+  100vh（= h-screen） 749 → 749 (Δ0)
+  innerHeight 749 → 749 (Δ0)
+  visualViewport.height 749 → 749 (Δ0)
+  visualViewport.offsetTop 0 → 0 (Δ0)
+
+================ 未确认的一项 ================
+fit=cover 下四边安全区的数值没拿到可信读数：量具页在 cover 模式下打印的
+`safe-area-inset-bottom` 经截图 OCR 读出来仍是 0，与「iPhone 有 Home indicator，
+cover 下应给 34」的预期不符；OCR 对小字号右对齐数字不可靠，所以这是「未确认」而不是
+「就是 0」。重跑一次量具页即可确定，见 README。

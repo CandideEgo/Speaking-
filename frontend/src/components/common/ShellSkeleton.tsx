@@ -6,7 +6,7 @@
  */
 export function ShellSkeleton() {
   return (
-    <div className="flex h-screen overflow-hidden bg-canvas">
+    <div className="flex h-dvh overflow-hidden bg-canvas">
       {/* Sidebar placeholder */}
       <aside className="hidden md:flex w-[248px] flex-col border-r border-hairline bg-canvas">
         <div className="h-16 border-b border-hairline flex items-center px-5">

@@ -14,6 +14,11 @@ try {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // 真机联调（手机通过局域网 IP 访问 dev 站）：Next 16 的 cross-site 防护会把
+  // 来自未登记来源的 HMR WebSocket 挡掉，表现是页面停在骨架屏、一个 API 都不发
+  // ——不是白屏报错。默认放行 192.168.x.x，其他网段用 DEV_ALLOWED_ORIGINS
+  // （逗号分隔，支持 `*` 通配段）覆盖。
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS || "192.168.*.*").split(","),
   experimental: {
     // Rewrite barrel-file imports (recharts, lucide-react) into direct,
     // tree-shakeable imports to keep unused chart/icon code out of bundles.

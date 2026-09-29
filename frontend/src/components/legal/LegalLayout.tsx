@@ -72,7 +72,7 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
   }
 
   return (
-    <main className="min-h-screen bg-canvas">
+    <main className="min-h-dvh bg-canvas">
       {/* Reading progress bar (顶部) */}
       <div className="fixed top-0 left-0 right-0 h-1 z-40 bg-hairline-soft">
         <div

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function RootNotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
       <div className="text-center">
         <h1 className="text-6xl font-display font-medium text-ink">404</h1>
         <p className="mt-4 text-lg text-muted">页面不存在</p>

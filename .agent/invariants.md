@@ -3,7 +3,7 @@
 > Rules that must keep holding, and features that must not come back. Read this before changing
 > code. If a change breaks one of these, the change is wrong — not the invariant.
 
-**Enforcement coverage: 2 machine checks, 5 test suites, 1 known gap, 10 review-only.** The
+**Enforcement coverage: 2 machine checks, 6 test suites, 1 known gap, 10 review-only.** The
 `Enforced by` column is a to-do list: every `review` that could be a check, should be one. See
 `scripts/check-knowledge/README.md` for the check layer.
 
@@ -29,6 +29,8 @@
 | INV-016 | Video media is served from the backend's local media volume; covers are localized at ingest | rendering must not depend on external CDNs, and range requests need the local router | review — see `knowledge/operations/MEDIA-TOPOLOGY.md` |
 | INV-017 | New frontend components use semantic tokens, not hardcoded colour values | dark mode is a single `.dark` variable block; hardcoded colours opt out of it | review |
 | INV-018 | Anonymous users are denied media, detail and shadowing for any non-`is_demo` video | the login wall is a product decision that survived the free-tier change | review |
+| INV-019 | The mobile tab bar (`MobileTabBar`) is the shell's last in-flow row — never `position: fixed` at the bottom. Safe areas are the shell's job alone (`MainLayoutInner` 的 `env()` padding), so no second copy on the bar | On iOS Safari `fixed` anchors to the **layout** viewport (= `100lvh`), so a fixed bottom bar sits 40px below the visual viewport whenever the address bar is shown — 真机实测：45px 的标签正好压在地址栏上沿。其它仍用 `fixed bottom` 的浮层（考试交卷栏、迷你播放器）共担同一风险，见 wayfinder #30 | test — [viewport-height.spec.ts](../frontend/e2e/viewport-height.spec.ts) asserts the bar is not `fixed`, is ≥44px tall, and sits flush with the shell's bottom edge |
+| INV-020 | Shell and full-page heights use `dvh` (`h-dvh` / `min-h-dvh`), never `vh` | `100vh` on iOS Safari is the address-bar-**hidden** height — 40px taller than the visual viewport (真机实测 790 vs 750)，拿它当高度就必然有 40px 内容落在可视区外 | test — same spec asserts shell height == `100dvh` == `innerHeight` and no document overflow |
 
 ## Removed features — do not reintroduce
 

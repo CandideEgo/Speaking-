@@ -47,7 +47,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-surface-soft">
+    <main className="flex min-h-dvh bg-surface-soft">
       {/* Left brand panel */}
       <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] relative overflow-hidden bg-surface-dark flex-col justify-between p-12">
         {/* Decorative elements */}

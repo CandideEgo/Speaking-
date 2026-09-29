@@ -103,7 +103,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-md">
         {/* Skip button — top right */}
         <div className="flex justify-end mb-4">

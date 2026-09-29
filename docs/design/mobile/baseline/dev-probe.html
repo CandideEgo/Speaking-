@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>
+  // viewport-fit 由 ?fit=cover|auto 决定，必须在解析期写入 meta 才生效。
+  var __fit = new URLSearchParams(location.search).get("fit") === "cover" ? "cover" : "auto";
+  document.write('<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=' + __fit + '">');
+</script>
+<title>seeword 真机量具（#22 一次性）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 42px 12px 140px;
+    background: #101318; color: #e8ecf2;
+    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 17px; margin: 14px 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 6px; color: #9fb3cd; font-weight: 600; }
+  p.note { margin: 6px 0; color: #93a3b8; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 0; border-bottom: 1px solid #232a35; vertical-align: top; }
+  td.k { color: #9fb3cd; }
+  td.v { text-align: right; font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .big { font-size: 15px; }
+  .hi { color: #ffd166; font-weight: 700; }
+  .row { display: flex; gap: 8px; margin: 12px 0; }
+  button {
+    flex: 1; padding: 12px 8px; font-size: 15px; font-weight: 600;
+    background: #273040; color: #e8ecf2; border: 1px solid #3a4658; border-radius: 10px;
+  }
+  button:active { background: #35415a; }
+  a { color: #7cc4ff; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #273040; font-size: 12px; }
+  .ruler { position: relative; margin-top: 8px; }
+  .box {
+    position: relative; border-radius: 8px;
+    border: 1px dashed #4a5a72; margin-bottom: 10px;
+  }
+  .box > .tag {
+    position: absolute; left: 8px; bottom: 6px; font-size: 13px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .vh { background: linear-gradient(180deg, #1c2a3d, #16202e); }
+  .dvh { background: linear-gradient(180deg, #1f3326, #16241c); }
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    background: rgba(16,19,24,.92); border-bottom: 1px solid #2a3342;
+    padding: 6px 12px; font-family: ui-monospace, Consolas, monospace; font-size: 13px;
+  }
+  .bottombar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    height: 45px; background: #c0562f; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  /* 6px 青色条钉在底栏下沿：截图里还在 = 下沿没被切；消失 = 至少被切 6px。 */
+  .bottombar::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+    height: 6px; background: #00e5ff;
+  }
+  /* 5px 品红条钉在页面顶边：截图里一眼认出页面顶，避免和 HUD 同色混淆。 */
+  .topstrip {
+    position: fixed; top: 0; left: 0; right: 0; height: 5px;
+    background: #ff00e1; z-index: 30;
+  }
+  textarea {
+    width: 100%; height: 190px; background: #0b0e13; color: #cfe3ff;
+    border: 1px solid #2a3342; border-radius: 8px; padding: 8px;
+    font: 12px/1.45 ui-monospace, Consolas, monospace;
+  }
+  .spacer { height: 30vh; }
+</style>
+</head>
+<body>
+
+<div class="topstrip"></div>
+<div class="hud" id="hud">载入中…</div>
+
+<h1>seeword 真机量具 <span class="pill" id="fitpill"></span></h1>
+<p class="note">一次性页面，只为 wayfinder #22 取真机读数；票关了就删。数字全部来自浏览器 API，不是目测。</p>
+
+<h2>怎么用</h2>
+<p class="note">
+  1. 上滑页面让 <b>地址栏收起</b>，点「记 A」。<br>
+  2. 下拉让 <b>地址栏出现</b>（或用手指把页面往上拖一下露出地址栏），点「记 B」。<br>
+  3. 看下面的「A → B 差值」：<span class="hi">100vh 减可视高度的差值就是底栏被切掉的像素</span>。<br>
+  4. 截图时留意两条色带：页面顶边那条 <b style="color:#ff7df0">品红</b>、底栏下沿那条 <b style="color:#00e5ff">青色</b>。
+  <b>青色条还在</b> = 45px 底栏完整贴在可视区底部；<b>青色条看不见</b> = 底栏下沿被切掉了。<br>
+  5. 点「选中报告」→ 长按文本框 → 全选 → 拷贝，贴回来给我；或者直接截图这一屏。
+</p>
+
+<div class="row">
+  <button id="btnA">记 A（地址栏收起）</button>
+  <button id="btnB">记 B（地址栏出现）</button>
+</div>
+
+<h2>实时读数</h2>
+<table id="live"></table>
+
+<h2>安全区（env(safe-area-inset-*)）</h2>
+<table id="safe"></table>
+<p class="note">
+  当前 <b id="fitname"></b> 模式。应用本体没有 <code>viewport</code> 导出 → 等价于 <b>auto</b>（不铺到刘海下，读数多半是 0）。
+  切到 <a id="linkcover" href="#">fit=cover</a> 看「如果加了 viewport-fit=cover 会拿到多少」——
+  这个数字决定刘海/Home indicator 要预留多少，直接给 #25 / #30 用。
+</p>
+
+<h2>A → B 差值</h2>
+<table id="diff"><tr><td class="k">还没记</td><td class="v"></td></tr></table>
+
+<h2>视觉对照</h2>
+<p class="note">
+  两个盒子都和屏幕一样高，但高度写法不同。底部那行字贴着盒子的下沿——
+  <b>看不到盒子底部那行字，就是被地址栏吃了多少</b>。橙色固定条是 45px，和界面底部导航一样高、一样是 <code>fixed bottom-0</code>。
+</p>
+<div class="ruler">
+  <div class="box vh" id="boxvh" style="height:100vh"><span class="tag">100vh（应用现在用的 h-screen）</span></div>
+  <div class="box dvh" id="boxdvh" style="height:100dvh"><span class="tag">100dvh（动态视口）</span></div>
+</div>
+<div class="spacer"></div>
+
+<h2>报告</h2>
+<div class="row">
+  <button id="btnCopy">选中报告</button>
+  <button id="btnClip">尝试复制</button>
+</div>
+<textarea id="report" readonly></textarea>
+
+<div class="bottombar" id="bottombar">45px 固定底栏（fixed bottom-0）</div>
+
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+  var fit = __fit;
+  el("fitpill").textContent = "fit=" + fit;
+  el("fitname").textContent = "fit=" + fit;
+  el("linkcover").setAttribute("href", "?fit=" + (fit === "cover" ? "auto" : "cover"));
+  el("linkcover").textContent = fit === "cover" ? "切回 fit=auto" : "切到 fit=cover";
+
+  // 量一个 height:100Xh 的盒子真实像素高。
+  var probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;left:-9999px;top:0;width:1px;visibility:hidden";
+  document.body.appendChild(probe);
+  function boxH(v) {
+    probe.style.height = v;
+    return probe.getBoundingClientRect().height;
+  }
+  // env() 读不到计算值，用 padding 折算。
+  var safeProbe = document.createElement("div");
+  safeProbe.style.cssText =
+    "position:absolute;left:-9999px;top:0;width:1px;visibility:hidden;" +
+    "padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);" +
+    "padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)";
+  document.body.appendChild(safeProbe);
+  function inset(side) {
+    return parseFloat(getComputedStyle(safeProbe)["padding" + side]) || 0;
+  }
+
+  function vv() { return window.visualViewport || null; }
+  function r1(n) { return typeof n === "number" ? Math.round(n * 10) / 10 : n; }
+  function fmt(n) { return typeof n === "number" ? String(r1(n)) : String(n); }
+
+  var METRICS = [
+    ["innerHeight", function () { return window.innerHeight; }],
+    ["100vh（= h-screen）", function () { return boxH("100vh"); }],
+    ["visualViewport.height", function () { var v = vv(); return v ? v.height : "n/a"; }],
+    ["100vh − visualViewport.height", function () { var v = vv(); return v ? boxH("100vh") - v.height : "n/a"; }],
+    ["visualViewport.offsetTop", function () { var v = vv(); return v ? v.offsetTop : "n/a"; }],
+    ["100svh（地址栏出现时）", function () { return boxH("100svh"); }],
+    ["100lvh（地址栏收起时）", function () { return boxH("100lvh"); }],
+    ["100dvh（动态）", function () { return boxH("100dvh"); }],
+    ["innerWidth", function () { return window.innerWidth; }],
+    ["screen.width × screen.height", function () { return screen.width + " × " + screen.height; }],
+    ["devicePixelRatio", function () { return window.devicePixelRatio; }],
+    ["方向", function () { return (screen.orientation && screen.orientation.type) || (innerWidth > innerHeight ? "landscape" : "portrait"); }],
+    ["scrollY", function () { return window.scrollY; }],
+    ["安全上下文（https）", function () { return window.isSecureContext ? "是" : "否（http）"; }],
+    ["standalone（加桌面）", function () {
+      return (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) ? "是" : "否";
+    }],
+  ];
+  var SAFE = [
+    ["safe-area-inset-top", function () { return inset("Top"); }],
+    ["safe-area-inset-right", function () { return inset("Right"); }],
+    ["safe-area-inset-bottom", function () { return inset("Bottom"); }],
+    ["safe-area-inset-left", function () { return inset("Left"); }],
+  ];
+
+  function snapshot() {
+    var raw = {};
+    METRICS.concat(SAFE).forEach(function (m) { raw[m[0]] = m[1](); });
+    return { t: new Date().toISOString(), fit: fit, raw: raw };
+  }
+
+  function renderTable(target, defs, snap, prev) {
+    var out = "";
+    defs.forEach(function (m) {
+      var v = snap.raw[m[0]];
+      var d = "";
+      if (prev && typeof v === "number" && typeof prev.raw[m[0]] === "number") {
+        var delta = v - prev.raw[m[0]];
+        if (Math.abs(delta) >= 0.5) d = " <span class='hi'>(" + (delta > 0 ? "+" : "") + r1(delta) + ")</span>";
+      }
+      out += "<tr><td class='k'>" + m[0] + "</td><td class='v'>" + fmt(v) + d + "</td></tr>";
+    });
+    target.innerHTML = out;
+  }
+
+  var A = null, B = null;
+
+  function tick() {
+    var now = snapshot();
+    renderTable(el("live"), METRICS, now, null);
+    renderTable(el("safe"), SAFE, now, null);
+    var delta = now.raw["100vh − visualViewport.height"];
+    el("hud").textContent =
+      "innerH " + fmt(now.raw["innerHeight"]) +
+      " / 100vh " + fmt(now.raw["100vh（= h-screen）"]) +
+      " / vv " + fmt(now.raw["visualViewport.height"]) +
+      "  → 差 " + fmt(delta) + "px";
+    // 底栏文字带实时差值 + 已记的 A/B，截图一张就能读全。
+    el("bottombar").textContent =
+      "45px 固定底栏 · 实时差 " + fmt(delta) + "px" +
+      (A ? " · A:" + fmt(A.raw["100vh − visualViewport.height"]) : " · A:—") +
+      (B ? " · B:" + fmt(B.raw["100vh − visualViewport.height"]) : " · B:—");
+  }
+
+  function renderDiff() {
+    var t = el("diff");
+    if (!A || !B) { t.innerHTML = "<tr><td class='k'>还没记</td><td class='v'></td></tr>"; return; }
+    var keys = ["100vh（= h-screen）", "innerHeight", "visualViewport.height", "visualViewport.offsetTop", "100svh（地址栏出现时）", "100dvh（动态）", "safe-area-inset-bottom"];
+    var out = "<tr><td class='k'>指标</td><td class='v'>A → B</td></tr>";
+    var labels = {};
+    METRICS.concat(SAFE).forEach(function (m) { labels[m[0]] = true; });
+    keys.forEach(function (k) {
+      if (!labels[k]) return;
+      var a = A.raw[k], b = B.raw[k];
+      if (typeof a !== "number" || typeof b !== "number") return;
+      out += "<tr><td class='k'>" + k + "</td><td class='v'>" + fmt(a) + " → " + fmt(b) + " <span class='hi'>Δ" + (b - a > 0 ? "+" : "") + r1(b - a) + "</span></td></tr>";
+    });
+    t.innerHTML = out;
+  }
+
+  function report() {
+    var lines = [];
+    lines.push("seeword dev-probe 报告");
+    lines.push("ua: " + navigator.userAgent);
+    [["A", A], ["B", B]].forEach(function (p) {
+      if (!p[1]) return;
+      lines.push("");
+      lines.push("[" + p[0] + "] fit=" + p[1].fit + " @ " + p[1].t);
+      METRICS.concat(SAFE).forEach(function (m) {
+        lines.push("  " + m[0] + " = " + fmt(p[1].raw[m[0]]));
+      });
+    });
+    if (A && B) {
+      lines.push("");
+      lines.push("[A→B]");
+      ["100vh（= h-screen）", "innerHeight", "visualViewport.height", "visualViewport.offsetTop"].forEach(function (k) {
+        if (typeof A.raw[k] === "number" && typeof B.raw[k] === "number") {
+          lines.push("  " + k + " " + fmt(A.raw[k]) + " → " + fmt(B.raw[k]) + " (Δ" + r1(B.raw[k] - A.raw[k]) + ")");
+        }
+      });
+    }
+    return lines.join("\n");
+  }
+
+  function refreshReport() { el("report").value = report(); }
+
+  el("btnA").addEventListener("click", function () { A = snapshot(); renderDiff(); refreshReport(); el("btnA").textContent = "记 A ✓ 重记"; });
+  el("btnB").addEventListener("click", function () { B = snapshot(); renderDiff(); refreshReport(); el("btnB").textContent = "记 B ✓ 重记"; });
+  el("btnCopy").addEventListener("click", function () { el("report").focus(); el("report").setSelectionRange(0, 999999); });
+  el("btnClip").addEventListener("click", function () {
+    var txt = el("report").value;
+    try {
+      navigator.clipboard.writeText(txt).then(function () { el("btnClip").textContent = "已复制 ✓"; },
+        function () { el("btnCopy").click(); el("btnClip").textContent = "手动拷贝"; });
+    } catch (e) { el("btnCopy").click(); el("btnClip").textContent = "手动拷贝"; }
+  });
+
+  // 盒子高度用 CSS 表达，这里只把实测高写进标签，方便截图时对读。
+  function relabel() {
+    el("boxvh").querySelector(".tag").textContent = "100vh = " + fmt(boxH("100vh")) + "px（应用现在的 h-screen）";
+    el("boxdvh").querySelector(".tag").textContent = "100dvh = " + fmt(boxH("100dvh")) + "px";
+  }
+
+  function all() { tick(); relabel(); }
+
+  all(); refreshReport();
+  window.addEventListener("resize", all);
+  if (vv()) { vv().addEventListener("resize", all); vv().addEventListener("scroll", tick); }
+  window.addEventListener("scroll", tick, { passive: true });
+})();
+</script>
+</body>
+</html>

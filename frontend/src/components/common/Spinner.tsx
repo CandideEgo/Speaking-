@@ -14,7 +14,7 @@ const sizeMap = { sm: "h-6 w-6", md: "h-8 w-8", lg: "h-10 w-10" } as const;
 export function FullPageSpinner({ size = "md" }: FullPageSpinnerProps) {
   const sizeClass = sizeMap[size];
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas">
+    <div className="flex h-dvh items-center justify-center bg-canvas">
       <div
         className={`${sizeClass} animate-spin rounded-full border-2 border-brand-500 border-t-transparent`}
       />

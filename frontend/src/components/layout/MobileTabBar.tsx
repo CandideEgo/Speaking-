@@ -55,11 +55,13 @@ export function MobileTabBar() {
 
   if (isExamFlow) return null;
 
+  // 底栏是壳里的常规流元素，**不是** `fixed bottom-0`：
+  // iOS Safari 上 fixed 锚的是 layout viewport（= 工具栏收起时的高度 100lvh），
+  // 地址栏一出来可视区只剩 100dvh（少 40px），底栏就比可视区底边低 40px、压在地址栏上。
+  // 壳是 `h-dvh` 的 flex column，让底栏 in-flow 收尾就永远贴在可视区底边；
+  // 底部安全区（Home indicator）由壳自己的 padding 兜住，这里不再重复留。
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-hairline bg-canvas md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-    >
+    <nav className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden">
       <div className="flex items-center justify-around">
         {TABS.map((tab) => {
           const active = isActive(tab.href);

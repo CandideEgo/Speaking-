@@ -18,7 +18,7 @@ interface ErrorStateProps {
   retryLabel?: string;
   /** Custom action node (overrides onRetry button) */
   action?: React.ReactNode;
-  /** Full-page mode: centers on min-h-screen bg-canvas */
+  /** Full-page mode: centers on min-h-dvh bg-canvas */
   fullPage?: boolean;
   /** Additional classes on the wrapper */
   className?: string;
@@ -60,9 +60,7 @@ export function ErrorState({
   );
 
   if (fullPage) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas">{content}</main>
-    );
+    return <main className="flex min-h-dvh items-center justify-center bg-canvas">{content}</main>;
   }
 
   return content;
