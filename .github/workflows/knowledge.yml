@@ -1,7 +1,7 @@
 name: Knowledge
 
-# Gates the knowledge layer (`.agent/`, `wiki/`, `docs/`, `AGENTS.md`) and the repo-convention
-# invariants declared in scripts/check-knowledge/.
+# Gates the knowledge layer (the hot layer: `AGENTS.md`, `CONTEXT.md`, `.agent/`; the cold store
+# `knowledge/`) and the repo-convention invariants declared in scripts/check-knowledge/.
 #
 # Runs on every push and PR rather than behind a `paths` filter. The check is stdlib-only and
 # finishes in about a second, so the cost of always running it is smaller than the cost of

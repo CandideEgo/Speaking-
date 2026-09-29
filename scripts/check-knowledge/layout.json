@@ -1,10 +1,10 @@
 {
-  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: hot | settled | input | material | code | tooling | runtime | entry | deploy. The doctrine behind this table is wiki/guides/repository-layout.md.",
+  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: hot | settled | material | code | tooling | runtime | entry | deploy. Two layers hold knowledge (DEC-066): `hot` is read every session and must be true now, `settled` is on-disk history under knowledge/ and is read on demand. The doctrine behind this table is knowledge/wiki/guides/repository-layout.md.",
   "entries": {
     ".agent": {
       "kind": "dir",
       "layer": "hot",
-      "purpose": "每个会话必读的事实层（context / system-map / invariants / decisions+index / state / owners / handoffs / archive）"
+      "purpose": "热层：每会话必读的事实（README 分层标准 / state / invariants / owners / handoffs 在飞票）"
     },
     ".claude": {
       "kind": "dir",
@@ -23,18 +23,18 @@
     },
     "docs": {
       "kind": "dir",
-      "layer": "settled",
-      "purpose": "沉淀层：adr / operations / progress / plans / requirements / agents / design（子目录归属见 wiki/guides/repository-layout.md）"
+      "layer": "tooling",
+      "purpose": "只放工具按固定路径找的文件（agents/：技能配置）与物料（design/：设计稿、原型、发布图）"
     },
     "frontend": {
       "kind": "dir",
       "layer": "code",
       "purpose": "Next.js 前端"
     },
-    "inbox": {
+    "knowledge": {
       "kind": "dir",
-      "layer": "input",
-      "purpose": "口播原话的存放处：每个 capture 一个目录，raw.md 逐字封存 + triage.md 一段一行（inbox/README.md）"
+      "layer": "settled",
+      "purpose": "冷仓：一切记录过去的知识，入口是 knowledge/INDEX.md（wiki / adr / plans / progress / requirements / operations / archive / inbox / decisions+index / system-map / CHANGELOG）"
     },
     "logs": {
       "kind": "dir",
@@ -45,11 +45,6 @@
       "kind": "dir",
       "layer": "tooling",
       "purpose": "项目级脚本（check-knowledge/、release.sh）"
-    },
-    "wiki": {
-      "kind": "dir",
-      "layer": "settled",
-      "purpose": "长期工程知识：architecture / problems / guides"
     },
     "AGENTS.md": {
       "kind": "file",
@@ -64,7 +59,7 @@
     "CONTEXT.md": {
       "kind": "file",
       "layer": "entry",
-      "purpose": "领域术语重定向到 .agent/context.md"
+      "purpose": "领域术语表（真身；每会话可读）"
     },
     "README.md": {
       "kind": "file",
@@ -80,11 +75,6 @@
       "kind": "file",
       "layer": "entry",
       "purpose": "私有许可"
-    },
-    "CHANGELOG.md": {
-      "kind": "file",
-      "layer": "settled",
-      "purpose": "变更记录（含未发布区段）"
     },
     ".gitignore": {
       "kind": "file",

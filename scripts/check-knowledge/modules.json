@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical module vocabulary for the knowledge layer. Every `related_code` value in wiki/ frontmatter must be a key here, and every module's globs must match at least one tracked file. Adding a module is the only way to make a new area referenceable; deleting the code without deleting the module fails the check.",
+  "_comment": "Canonical module vocabulary for the knowledge layer. Every `related_code` value in knowledge/wiki/ frontmatter must be a key here, and every module's globs must match at least one tracked file. Adding a module is the only way to make a new area referenceable; deleting the code without deleting the module fails the check.",
   "modules": {
     "video-pipeline": {
       "description": "Head/GPU/Tail video processing pipeline and publish path",
@@ -126,8 +126,8 @@
       "globs": ["frontend/package.json"]
     },
     "knowledge-layer": {
-      "description": "The knowledge layer itself: .agent/, wiki/ and its checks",
-      "globs": [".agent/*.md", "wiki/**/*.md", "scripts/check-knowledge/*"]
+      "description": "The knowledge layer itself: the hot layer (.agent/), the cold store (knowledge/) and its checks",
+      "globs": [".agent/*.md", "knowledge/**/*.md", "scripts/check-knowledge/*"]
     }
   }
 }

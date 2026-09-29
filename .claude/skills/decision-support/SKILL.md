@@ -66,9 +66,9 @@ Do not rely only on memory.
 
 Review:
 
-.agent/decisions-index.md
+knowledge/decisions-index.md
 
-.agent/decisions.md — only the one entry you need
+knowledge/decisions.md — only the one entry you need
 
 Never read `decisions.md` end to end; the index exists so you don't have to.
 
@@ -138,7 +138,7 @@ Consider:
 
 # Record Decision
 
-If a non-obvious choice was made, record it in `.agent/decisions.md`:
+If a non-obvious choice was made, record it in `knowledge/decisions.md`:
 
 ```markdown
 ## YYYY-MM-DD — Title
@@ -151,22 +151,22 @@ If a non-obvious choice was made, record it in `.agent/decisions.md`:
 
 The heading form matters: the `index` check parses entries as `## YYYY-MM-DD — Title`.
 
-`.agent/decisions.md` is append-only and immutable:
+`knowledge/decisions.md` is append-only and immutable:
 
 - **Never edit, reorder or delete an existing entry.** Not to correct it, not to update it.
 - To change course, append a new entry at the **END** of the file, then mark the old row
-  `superseded by DEC-0NN` in `.agent/decisions-index.md`.
+  `superseded by DEC-0NN` in `knowledge/decisions-index.md`.
 - A new decision requires **both** the appended entry and a new row in the index. IDs are assigned
   in file order, and the title in the index must match the entry heading verbatim — the `index`
   check fails on any disagreement, and on an ID out of sequence.
 
-If the project has a `docs/adr/` system, create an ADR as well.
+If the project has a `knowledge/adr/` system, create an ADR as well.
 
 ## Where to Record
 
-- Decisions with ADR-level impact → `docs/adr/` (one file per accepted ADR) + the entry in
-  `.agent/decisions.md` + its row in `.agent/decisions-index.md`
-- Decisions with module-level impact → `.agent/decisions.md` + its index row
+- Decisions with ADR-level impact → `knowledge/adr/` (one file per accepted ADR) + the entry in
+  `knowledge/decisions.md` + its row in `knowledge/decisions-index.md`
+- Decisions with module-level impact → `knowledge/decisions.md` + its index row
 - Decisions that are obvious or low-impact → do not record (fails Implicit Knowledge Filter gate 2)
 
-Operational knowledge is not a decision: it belongs in `docs/operations/` or `.agent/state.md`.
+Operational knowledge is not a decision: it belongs in `knowledge/operations/` or `.agent/state.md`.

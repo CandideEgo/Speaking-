@@ -6,7 +6,7 @@
 
 ## 任务
 
-SM-2 由「质量评分 × ease_factor」驱动，而作答是客观对错、ease_factor 状态对用户不可解释，且没有「昨天错得多的词今天优先」的机制。本票把复习间隔换成错误次数分档直接计算，并重排复习队列。设计依据：`docs/plans/词汇训练与播放页返回-设计方案-2026-09.md` §5.4 §5.5；算法决策 DEC-057。
+SM-2 由「质量评分 × ease_factor」驱动，而作答是客观对错、ease_factor 状态对用户不可解释，且没有「昨天错得多的词今天优先」的机制。本票把复习间隔换成错误次数分档直接计算，并重排复习队列。设计依据：`knowledge/plans/词汇训练与播放页返回-设计方案-2026-09.md` §5.4 §5.5；算法决策 DEC-057。
 
 ## 已完成
 
@@ -42,5 +42,5 @@ SM-2 由「质量评分 × ease_factor」驱动，而作答是客观对错、eas
 - 文案反查不适用（本票无前端改动）；未跑 e2e（无导航/文案/路由改动）。
 - `frontend/src/components/vocabulary/DailyHero.tsx` 说明文案仍写「按 SM-2 间隔推送」——前端不在本票边界，属文案漂移，建议随 S8 或 T5 顺手改。
 - 24h 近似的理论偏差：用户在轮内答错后跨越 24h 才答对（现实中轮内间隔为分钟级，不会触发），或同日稍晚手工重测——后者按设计意图处理。
-- `/knowledge-maintain` 未跑（本票边界禁改 `wiki/**` 与 `.agent/` decisions*）；跨模块知识收尾归 T5（`apply_review` 与 `submit_practice_results` 的语义变更已在各自 docstring 内自述）。
+- `/knowledge-maintain` 未跑（本票边界禁改 `knowledge/wiki/**` 与 `.agent/` decisions*）；跨模块知识收尾归 T5（`apply_review` 与 `submit_practice_results` 的语义变更已在各自 docstring 内自述）。
 - 本票未提交（按约定由 planner 串行提交）；S8 依赖本票先合入（同文件 `api/v1/vocabulary.py`）。

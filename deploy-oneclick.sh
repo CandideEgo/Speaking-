@@ -12,7 +12,7 @@
 # ⚠️ 已失效（2026-09-20）：本脚本假定在服务器上 `git clone/pull` + 就地构建镜像。
 # 实际的 /opt/speaking 是源码副本（无 .git），且生产机规格（2C/1.6GB）不足以
 # 就地构建（会打满内存、冻结宿主机）。首次装机的 [1/6] 工具安装、[3/6] .env
-# 生成仍可参照；构建与启动部分改用 docs/operations/RUNBOOK.md §1.1。
+# 生成仍可参照；构建与启动部分改用 knowledge/operations/RUNBOOK.md §1.1。
 
 set -e
 

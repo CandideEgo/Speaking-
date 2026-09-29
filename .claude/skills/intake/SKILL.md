@@ -12,17 +12,17 @@ into work without losing any of it. This is that pipeline's procedure.
 
 ## Where the rules live
 
-`inbox/README.md` owns the file format, the seven dispositions and what the `captures` check
+`knowledge/inbox/README.md` owns the file format, the seven dispositions and what the `captures` check
 enforces — read it before the first capture of a session, and do not restate its tables here.
-Reasoning and cost: DEC-064. Which directory owns what: `wiki/guides/repository-layout.md`.
+Reasoning and cost: DEC-064. Which directory owns what: `knowledge/wiki/guides/repository-layout.md`.
 
 ## Stages
 
 ### 1. Capture — write the words down exactly
 
-1. `ls inbox/` for today's serial, then the id is `YYYY-MM-DD-NN` (`2026-09-29-02` if `…-01` is
+1. `ls knowledge/inbox/` for today's serial, then the id is `YYYY-MM-DD-NN` (`2026-09-29-02` if `…-01` is
    taken).
-2. `Write` `inbox/<id>-<slug>/raw.md` in one call: the frontmatter `inbox/README.md` specifies,
+2. `Write` `knowledge/inbox/<id>-<slug>/raw.md` in one call: the frontmatter `knowledge/inbox/README.md` specifies,
    with `status: open`.
 3. The body is the user's words, character for character:
    - Keep every typo, repetition, ASR mistake and contradiction. Contradictions are what stage 3
@@ -59,16 +59,19 @@ triage could not settle.
 
 ### 4. Plan — 方案
 
-`execute` segments, and decided ones, become plans in `docs/plans/` citing their sources as
+`execute` segments, and decided ones, become plans in `knowledge/plans/` citing their sources as
 `<id>#Sxx`; the `captures` check resolves those, so a stale citation fails the build. Update the
 segment's `去向` to the plan path as it lands. Anything that needed a decision gets a `DEC-0xx`
-entry first, by the usual rule.
+entry first, by the usual rule. Once the plan lands, slice it into tickets (stage 5).
 
-### 5. Dispatch — 分给子代理
+### 5. Dispatch — 出票 + 派发
 
-The splitting rules already exist: `.agent/owners.md` for slices, budgets and the ≤2 parallel
-bound, `.agent/handoffs/README.md` for the ticket shape. Each handoff names the segments it
-implements. Nothing new to invent here.
+Slice the plan into vertical-slice tickets (narrow but complete, individually demoable, fit in
+one context window, pre-refactor first). Each ticket is one `.agent/handoffs/<date>-<slug>.md`:
+planner fills `Blocked by` / `演示路径` / `Planner acceptance`, sets `Status: dispatched`, leaves
+`Owner` empty. The ticket shape contract lives in `.agent/handoffs/README.md`, not here. Then the
+executor claims via `/dispatch` — **never write `Owner` here for them**; claiming is the
+executor's own action.
 
 ### Close
 
@@ -80,5 +83,5 @@ The frontmatter is not sealed; the body is.
 - Edit a sealed `raw.md` body, for any reason — "obvious typo" and "the user asked me to" included.
 - Summarise into `raw.md`; summaries belong in `triage.md`.
 - Leave a segment without a row, or invent an eighth disposition.
-- Restate the disposition table here — it lives in `inbox/README.md`.
+- Restate the disposition table here — it lives in `knowledge/inbox/README.md`.
 - Turn this into a gate that runs every session: it runs when there is dictation to place.

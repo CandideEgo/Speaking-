@@ -26,7 +26,7 @@
 | INV-013 | Re-running `finalize_video` computes `word_levels` only when it is `None`, preserving manual overrides | re-processing must not destroy human work | **known gap — unenforced.** The guard is inlined in the "annotating" step of [video_processing.py](../backend/app/tasks/video_processing.py); `TestWordLevelsPreservation` only checks DB round-tripping. Extracting the decision from the Celery task would make it testable |
 | INV-014 | LearningEvent emission must be non-blocking (try/except, logged, never raised) | analytics must never break the user-facing flow that emitted it | review |
 | INV-015 | LearningEvent and BehaviorEvent stay separate models | different query patterns, retention and nullability; merging loses both | review |
-| INV-016 | Video media is served from the backend's local media volume; covers are localized at ingest | rendering must not depend on external CDNs, and range requests need the local router | review — see `docs/operations/MEDIA-TOPOLOGY.md` |
+| INV-016 | Video media is served from the backend's local media volume; covers are localized at ingest | rendering must not depend on external CDNs, and range requests need the local router | review — see `knowledge/operations/MEDIA-TOPOLOGY.md` |
 | INV-017 | New frontend components use semantic tokens, not hardcoded colour values | dark mode is a single `.dark` variable block; hardcoded colours opt out of it | review |
 | INV-018 | Anonymous users are denied media, detail and shadowing for any non-`is_demo` video | the login wall is a product decision that survived the free-tier change | review |
 

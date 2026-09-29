@@ -125,9 +125,9 @@ If the project already has these documents, **extract from them, do not duplicat
 |---|---|
 | `AGENTS.md` / `CLAUDE.md` | Already contains project info — context.md should complement, not copy |
 | `CONTEXT.md` | Already contains domain terms — context.md should add architecture understanding |
-| `docs/adr/` | Already contains decisions — decisions.md should reference, not repeat |
+| `knowledge/adr/` | Already contains decisions — decisions.md should reference, not repeat |
 | `README.md` | Already contains project intro — context.md should add deeper understanding |
-| `docs/operations/` | Already holds runbooks — link to it for operational knowledge instead of restating it |
+| `knowledge/operations/` | Already holds runbooks — link to it for operational knowledge instead of restating it |
 
 ---
 
@@ -139,19 +139,19 @@ Create only what is missing:
 
 .agent/invariants.md
 
-.agent/system-map.md
+knowledge/system-map.md
 
-.agent/context.md
+CONTEXT.md
 
 .agent/state.md
 
-.agent/decisions-index.md
+knowledge/decisions-index.md
 
-.agent/decisions.md
+knowledge/decisions.md
 
-.agent/archive/
+knowledge/archive/
 
-Wiki documents are a separate, long-form layer under `wiki/` (`architecture/`, `problems/`,
+Wiki documents are a separate, long-form layer under `knowledge/wiki/` (`architecture/`, `problems/`,
 `guides/`). Create them only when there is knowledge worth a document, and always with the
 frontmatter that `scripts/check-knowledge/check_knowledge.py` enforces.
 
@@ -308,7 +308,7 @@ Date: YYYY-MM-DD
 - [important known problems]
 ```
 
-Completed work is recorded in `decisions-index.md`, `CHANGELOG.md` or `archive/`, not accumulated
+Completed work is recorded in `decisions-index.md`, `knowledge/CHANGELOG.md` or `archive/`, not accumulated
 here — `state.md` is read every session and is size-capped.
 
 ---

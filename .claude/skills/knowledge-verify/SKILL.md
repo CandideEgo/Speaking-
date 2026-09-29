@@ -14,14 +14,15 @@ Prevent the agent's understanding from becoming outdated.
 Code is the source of truth.
 
 Mechanical drift is already caught for you: `scripts/check-knowledge/check_knowledge.py` runs in
-pre-commit and in the CI `Knowledge` workflow, and its seven failure checks — `refs`, `frontmatter`,
-`ownership`, `index`, `paths`, `budget`, `layout` — cover broken links, missing ADRs, invalid wiki
-frontmatter, unknown or dead `related_code` modules, commit hashes in stable knowledge files,
-index/entry drift, a tracked top-level directory nobody registered as belonging to a layer (the
-doctrine is `wiki/guides/repository-layout.md`), forbidden paths and hot-tier growth (a per-file
-size past its target only prints a notice — DEC-062).
+pre-commit and in the CI `Knowledge` workflow, and its eight failure checks — `refs`, `frontmatter`,
+`ownership`, `index`, `paths`, `layout`, `captures`, `handoff` — cover broken links, missing ADRs,
+invalid wiki frontmatter, unknown or dead `related_code` modules, commit hashes in stable knowledge
+files, decision-table and cold-store-index drift, a knowledge path that moved without
+`scripts/check-knowledge/paths.json` being updated, a tracked top-level entry nobody registered as
+belonging to a layer (the doctrine is `knowledge/wiki/guides/repository-layout.md`), a ticket whose
+shape or blockers do not hold, and a capture whose words changed after sealing.
 
-An eighth check, `stale`, says where to start: it compares each documented module against the digest
+A ninth check, `stale`, says where to start: it compares each documented module against the digest
 recorded in `scripts/check-knowledge/knowledge-stamps.json` when its pages were last verified, and
 names the pages whose code has moved since. Treat it as a starting point, not a verdict — code
 moving under a page does not make the page wrong.
@@ -67,8 +68,8 @@ enforces it: an ID that is not in that file fails, and so does a module whose gl
 file. That is the drift detector — the vocabulary is how deleting code becomes visible as stale
 documentation. Module IDs are more stable than file paths, so they survive refactors.
 
-`wiki/architecture/**` and `wiki/problems/**` must declare at least one module.
-`wiki/guides/**` may declare none.
+`knowledge/wiki/architecture/**` and `knowledge/wiki/problems/**` must declare at least one module.
+`knowledge/wiki/guides/**` may declare none.
 
 ## When to Verify
 
@@ -90,10 +91,10 @@ python scripts/check-knowledge/check_knowledge.py
 
 Then read the knowledge layer, using the ownership table in `.agent/README.md`:
 
-- `.agent/README.md`, `.agent/invariants.md`, `.agent/system-map.md`, `.agent/context.md`, `.agent/state.md`
-- `.agent/decisions-index.md`, then only the entries you need — never read `.agent/decisions.md` end to end
-- `.agent/archive/` — frozen records, exempt from the checks, opened only for archaeology
-- `wiki/` documents (all files with frontmatter, except `INDEX.md`)
+- `.agent/README.md`, `.agent/invariants.md`, `knowledge/system-map.md`, `CONTEXT.md`, `.agent/state.md`
+- `knowledge/decisions-index.md`, then only the entries you need — never read `knowledge/decisions.md` end to end
+- `knowledge/archive/` — frozen records, exempt from the checks, opened only for archaeology
+- `knowledge/wiki/` documents (all files with frontmatter, except `INDEX.md`)
 
 Note their `status`, `confidence`, `related_code`, and `updated` date. The `.agent/*.md` files carry no
 frontmatter; for them the freshness signal is `state.md` `## Last Updated`.
@@ -136,7 +137,7 @@ Archived:
 
 `.agent/README.md` gives each kind of fact exactly one home. For each claim, check:
 
-- Does another `.agent/` or `wiki/` document already own it?
+- Does another `.agent/` or `knowledge/wiki/` document already own it?
 - If yes, is this version adding anything unique?
 - If no → recommend: "Replace with a cross-reference to [owning file]"
 
@@ -153,7 +154,7 @@ For each drift:
 - **Mark archived** — set `status: archived` if the knowledge explains past decisions but is no longer current
 - **Downgrade confidence** — set `confidence: assumed` or `unverified` if partially verified
 - **Supersede a decision** — never edit the entry. Append a new entry at the **END** of
-  `.agent/decisions.md`, then mark the old row `superseded by DEC-0NN` in `.agent/decisions-index.md`.
+  `knowledge/decisions.md`, then mark the old row `superseded by DEC-0NN` in `knowledge/decisions-index.md`.
   A new decision requires both the entry and its index row.
 - **Recommend deletion** — if the document fails the Implicit Knowledge Filter (only describes "what", no decision value, not hidden from code), recommend deletion rather than updating
 
@@ -175,7 +176,7 @@ confidence: unverified  # trust: not checked
 
 Update the `updated` date, and keep all eight required keys (`title`, `tags`, `status`, `confidence`,
 `related_code`, `related`, `created`, `updated`). The `frontmatter` check fails on a missing key, an
-unknown `related_code` module, an empty `related_code` in `wiki/architecture/` or `wiki/problems/`,
+unknown `related_code` module, an empty `related_code` in `knowledge/wiki/architecture/` or `knowledge/wiki/problems/`,
 a `related` path that does not exist, or an `updated` date earlier than `created`.
 
 ## Acknowledge the reminder

@@ -1,31 +1,41 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Eight violation checks plus two advisory outputs, all deterministic (no LLM, no network):
+Eight violation checks, one advisory check and an on-demand size report, all
+deterministic (no LLM, no network):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
-  frontmatter  wiki/ documents carry a valid schema, and every `related_code`
+  frontmatter  knowledge/wiki/ documents carry a valid schema, and every `related_code`
                module exists and still matches at least one real file.
   ownership    Git commit hashes stay in the places allowed to narrate history.
-  index        Every entry in decisions.md is either a row in decisions-index.md
-               or named on its `Retired N — …` line, and each row agrees with its
-               entry on ID, date and title.
-  paths        Repo-convention invariants that reduce to a path check.
-  budget       The tiers a session loads, plus the two globs that say "this page
-               should split". A per-file `limit` is a target, not a gate
-               (DEC-062): over it prints a notice and never fails a commit.
+  index        Both tables of contents. decisions-index.md carries one row per entry in
+               decisions.md, in ID order and agreeing on date and title -- or names the
+               entry on its `Retired N — …` line. INDEX.md lists every markdown file in
+               the cold store exactly once, so nothing there is reachable only by guessing.
+  paths        Repo-convention invariants that reduce to a path check, plus the
+               knowledge paths in paths.json: an entry marked required that is not
+               on disk fails here, instead of leaving a gate matching nothing.
   layout       Every top-level entry git tracks is registered in layout.json with
                the layer that owns it, and every registered entry still has
-               something tracked there. The doctrine is wiki/guides/repository-layout.md.
+               something tracked there. The doctrine is knowledge/wiki/guides/repository-layout.md.
   captures     The user's dictated words stay exactly as captured, and every segment of
-               them carries a disposition. The doctrine is inbox/README.md.
-  stale        Code changed under a module some wiki/ document describes, since
-               that document was last verified.
+               them carries a disposition. The doctrine is knowledge/inbox/README.md.
+  handoff      The tickets in .agent/handoffs/ carry their full shape (sections,
+               演示路径, Blocked by), blockers resolve and stay acyclic, claims and
+               statuses agree -- and the frontier (ready-to-claim tickets) is printed.
+               The doctrine is .agent/handoffs/README.md.
+  stale        (advisory) Code changed under a module some knowledge/wiki/ document describes,
+               since that document was last verified.
+
+Every location above is resolved from scripts/check-knowledge/paths.json rather than from a
+string literal, which is what makes a move of the layer loud instead of silent: read that
+file before moving a knowledge directory.
 
 Usage:
     python scripts/check-knowledge/check_knowledge.py            # all checks
     python scripts/check-knowledge/check_knowledge.py refs       # one check
     python scripts/check-knowledge/check_knowledge.py stale      # the reminder alone
+    python scripts/check-knowledge/check_knowledge.py --size-report
     python scripts/check-knowledge/check_knowledge.py --baseline-update
     python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module auth
     python scripts/check-knowledge/check_knowledge.py --capture-seal 2026-09-29-01
@@ -34,10 +44,11 @@ Exit code is 0 when clean, 1 when a violation is not already recorded in
 knowledge-baseline.json. Baselines are for debt that is scheduled to be paid
 off, not for silencing a check -- see README.md.
 
-`stale` notices and the per-file `budget` targets are advisory: they print but do not fail the
-run unless `--strict` asks them to -- nobody verifies prose on command, and a byte wall at the
-moment of writing buys shorter sentences rather than fewer facts (DEC-062). Faults in
-`knowledge-stamps.json` itself do fail, so the reminder cannot quietly stop covering a module.
+`stale` notices are advisory: they print but do not fail the run unless `--strict` asks them
+to -- nobody verifies prose on command. Faults in `knowledge-stamps.json` itself do fail, so
+the reminder cannot quietly stop covering a module. Sizes are reported (`--size-report`) and
+never judged: the layer carries no byte ceiling and no byte target (DEC-067), because a wall
+at the moment of writing buys shorter sentences, not fewer facts.
 """
 
 from __future__ import annotations
@@ -55,21 +66,81 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = Path(__file__).resolve().parent
 MODULES_FILE = SCRIPT_DIR / "modules.json"
-BUDGET_FILE = SCRIPT_DIR / "knowledge-budget.json"
+PATHS_FILE = SCRIPT_DIR / "paths.json"
 BASELINE_FILE = SCRIPT_DIR / "knowledge-baseline.json"
 
+
+def rel(path: Path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def load_json(path: Path) -> dict:
+    with path.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+# ------------------------------------------------------------------ paths config
+
+# Every location this checker scans, skips or reports is resolved from paths.json, and the
+# constants below are only the shape the code wants them in. The indirection is the point:
+# a gate keyed off a literal prefix keeps matching nothing after a directory moves and
+# prints [ok] on the empty set, while a gate keyed off a missing config entry fails loudly.
+PATH_CONFIG = load_json(PATHS_FILE)
+PATHS = PATH_CONFIG["paths"]
+FILENAMES = PATH_CONFIG["filenames"]
+
+
+def _cfg(key: str) -> str:
+    """One configured path, relative to the repository root."""
+    try:
+        return PATHS[key]["path"]
+    except KeyError:
+        raise SystemExit(
+            f"{rel(PATHS_FILE)}: no path entry '{key}'. The checker reads this file by key; "
+            f"restore the key, or point the checker at whatever replaced it."
+        ) from None
+
+
+def _prefix(key: str) -> str:
+    """A configured path as a `startswith()` prefix.
+
+    The trailing slash comes from `kind`, never from the value as written: the config says
+    what the path is, not the shape a gate wants it in, so one entry spells a directory the
+    same way for the existence check and for the prefix match that scans it.
+    """
+    return _cfg(key) + "/" if PATHS[key]["kind"] == "dir" else _cfg(key)
+
+
+def _filename(key: str) -> str:
+    """One configured bare filename: a name inside a directory, not a repository path."""
+    try:
+        return FILENAMES[key]
+    except KeyError:
+        raise SystemExit(f"{rel(PATHS_FILE)}: no filename entry '{key}'") from None
+
+
+for _key, _spec in PATHS.items():
+    # A typo'd kind would silently drop the slash and leave the prefix matching nothing.
+    if _spec.get("kind") not in ("dir", "file"):
+        raise SystemExit(
+            f"{rel(PATHS_FILE)}: '{_key}' declares kind '{_spec.get('kind')}'; want dir or file"
+        )
+
 # History-narrating locations that are allowed to carry commit hashes.
-HASH_ALLOWED_PREFIXES = (
-    ".agent/decisions.md",
-    # The index mirrors decision titles verbatim, so it inherits whatever they contain.
-    ".agent/decisions-index.md",
-    ".agent/archive/",
-    "docs/adr/",
-    "docs/operations/",
-    "docs/plans/",
-    "docs/progress/",
-    "CHANGELOG.md",
-)
+HASH_ALLOWED_PREFIXES = tuple(_prefix(key) for key in PATH_CONFIG["hash_allowed_prefixes"])
+WIKI_PREFIX = _prefix("wiki")
+# The hot layer and the cold store are both held to the commit-hash rule; what that rule
+# allows (history that narrates itself) is `hash_allowed_prefixes`.
+OWNERSHIP_PREFIXES = tuple(_prefix(key) for key in PATH_CONFIG["ownership_prefixes"])
+ADR_DIR = _cfg("adr")
+INDEX_FILE = _cfg("index")
+INDEX_FILENAME = Path(INDEX_FILE).name
+DECISIONS_FILE = _cfg("decisions")
+DECISIONS_INDEX_FILE = _cfg("decisions_index")
+CHANGELOG_FILE = _cfg("changelog")
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 FENCE_RE = re.compile(r"^[ \t]*```.*?^[ \t]*```", re.DOTALL | re.MULTILINE)
@@ -84,19 +155,22 @@ VALID_STATUS = {"active", "deprecated", "archived"}
 VALID_CONFIDENCE = {"verified", "assumed", "unverified"}
 # Frozen historical records: correct as of when they were written, not held to
 # today's links or schema. ADRs and post-incident reviews are point-in-time by design.
-FROZEN_PREFIXES = (".agent/archive/",)
+FROZEN_PREFIXES = tuple(_prefix(key) for key in PATH_CONFIG["frozen_prefixes"])
 REQUIRED_FM_KEYS = (
     "title", "tags", "status", "confidence", "related_code", "related", "created", "updated",
 )
 # Documents that describe code must declare which modules they describe;
 # guides describe process and may legitimately declare none.
-MODULES_REQUIRED_PREFIXES = ("wiki/architecture/", "wiki/problems/")
+MODULES_REQUIRED_PREFIXES = tuple(_prefix(key) for key in PATH_CONFIG["modules_required_prefixes"])
 
-# `inbox/` holds the user's own dictated words, captured verbatim (inbox/README.md). A raw
+# `knowledge/inbox/` holds the user's own dictated words, captured verbatim (knowledge/inbox/README.md). A raw
 # capture is frozen by a content digest, so a prose check it cannot satisfy is a check
 # nobody may fix -- those words are not ours to edit.
-INBOX_PREFIX = "inbox/"
-VERBATIM_SUFFIX = "/raw.md"
+INBOX_DIR = _cfg("inbox")
+INBOX_PREFIX = _prefix("inbox")
+CAPTURE_RAW = _filename("capture_raw")
+CAPTURE_TRIAGE = _filename("capture_triage")
+VERBATIM_SUFFIX = "/" + CAPTURE_RAW
 
 
 def is_verbatim(where: str) -> bool:
@@ -122,13 +196,6 @@ class Violation:
         return f"  {self.location}: {self.message}"
 
 
-def rel(path: Path) -> str:
-    try:
-        return path.relative_to(REPO_ROOT).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def repo_paths(pattern: str, *, untracked: bool = False) -> list[Path]:
     """Files matching a glob. Tracked-only avoids .venv/node_modules.
 
@@ -142,8 +209,12 @@ def repo_paths(pattern: str, *, untracked: bool = False) -> list[Path]:
     found: dict[str, Path] = {}
     for command in commands:
         try:
+            # git prints UTF-8; decoding it as the console's locale codec (GBK on a
+            # Chinese Windows) raises on any non-ASCII path and takes the whole run
+            # down. Decode explicitly and never raise on a stray byte.
             out = subprocess.run(
                 command, cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+                encoding="utf-8", errors="replace",
             ).stdout
         except (subprocess.CalledProcessError, FileNotFoundError):
             out = "\n".join(globlib.glob(pattern, recursive=True))
@@ -159,11 +230,6 @@ def md_files() -> list[Path]:
         for path in repo_paths("*.md", untracked=True)
         if path.is_file() and not rel(path).startswith(FROZEN_PREFIXES)
     ]
-
-
-def load_json(path: Path) -> dict:
-    with path.open(encoding="utf-8") as handle:
-        return json.load(handle)
 
 
 # --------------------------------------------------------------------------- refs
@@ -200,7 +266,7 @@ def looks_like_path(target: str) -> bool:
 def check_refs(files: list[Path]) -> list[Violation]:
     violations: list[Violation] = []
     adr_numbers = {
-        p.name[:4] for p in (REPO_ROOT / "docs" / "adr").glob("*.md") if p.name[:4].isdigit()
+        p.name[:4] for p in (REPO_ROOT / ADR_DIR).glob("*.md") if p.name[:4].isdigit()
     }
 
     for path in files:
@@ -229,7 +295,11 @@ def check_refs(files: list[Path]) -> list[Violation]:
             for number in set(ADR_RE.findall(line)):
                 if number not in adr_numbers:
                     violations.append(
-                        Violation("refs", f"{where}:{lineno}", f"ADR-{number} has no file in docs/adr/")
+                        Violation(
+                            "refs",
+                            f"{where}:{lineno}",
+                            f"ADR-{number} has no file in {ADR_DIR}/",
+                        )
                     )
 
     return violations
@@ -265,7 +335,7 @@ def check_frontmatter(files: list[Path], modules: dict) -> list[Violation]:
 
     for path in files:
         where = rel(path)
-        if not where.startswith("wiki/") or where.endswith("INDEX.md"):
+        if not where.startswith(WIKI_PREFIX) or where.endswith(INDEX_FILENAME):
             continue
 
         fields = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
@@ -340,7 +410,7 @@ def check_ownership(files: list[Path]) -> list[Violation]:
 
     for path in files:
         where = rel(path)
-        if not (where.startswith(".agent/") or where.startswith("wiki/")):
+        if not where.startswith(OWNERSHIP_PREFIXES):
             continue
         if where.startswith(HASH_ALLOWED_PREFIXES):
             continue
@@ -353,109 +423,16 @@ def check_ownership(files: list[Path]) -> list[Violation]:
                     Violation(
                         "ownership",
                         f"{where}:{lineno}",
-                        f"commit hash '{token}' — history belongs in {'.agent/decisions.md'} or CHANGELOG.md",
+                        f"commit hash '{token}' — history belongs in {DECISIONS_FILE} "
+                        f"or {CHANGELOG_FILE}",
                     )
                 )
 
     return violations
-
-
-# ------------------------------------------------------------------------- budget
-
-
-def ceiling(spec: dict) -> int:
-    """The size a file is actually held to: `limit` plus declared `slack`.
-
-    `slack` is headroom for content this repo does not author by hand — machine-rewritten
-    blocks (entry-point injections) or generated sections. Without it, a machine rewrite trips
-    the budget for a change no one made by hand.
-    """
-    return spec["limit"] + spec.get("slack", 0)
-
-
-def tier_ceiling(spec: dict, files: dict) -> int:
-    """A tier's ceiling is its own limit plus its members' slack, and nothing more.
-
-    A tier is the sum of its files, so it cannot be granted slack its members do not
-    have — otherwise the tier would pass while every file in it was over.
-    """
-    return spec["limit"] + sum(files.get(where, {}).get("slack", 0) for where in spec["files"])
-
-
-def check_budget(budget: dict) -> list[Violation]:
-    """The enforced ceilings: tiers, plus the globs that say "this page should split".
-
-    A per-file `limit` is a target, not a gate (DEC-062). Exceeding one prints a notice
-    (`budget_notices`) and never fails a commit: a byte wall at the moment of writing
-    buys shorter sentences, not fewer facts. What is enforced is the tier — the bytes a
-    session actually loads before it knows the task — and the two globs, which catch a
-    runaway page rather than save bytes.
-    """
-    violations: list[Violation] = []
-    named = set(budget.get("files", {}))
-
-    for spec in budget.get("globs", []):
-        for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
-            where = Path(hit).as_posix()
-            path = REPO_ROOT / where
-            if not path.is_file() or where in named:
-                continue
-            size = path.stat().st_size
-            if size > spec["limit"]:
-                violations.append(
-                    Violation(
-                        "budget",
-                        where,
-                        f"{size} B exceeds limit {spec['limit']} B for {spec['pattern']}",
-                    )
-                )
-
-    for name, spec in budget.get("tiers", {}).items():
-        total = sum(
-            (REPO_ROOT / where).stat().st_size
-            for where in spec["files"]
-            if (REPO_ROOT / where).is_file()
-        )
-        allowed = tier_ceiling(spec, budget.get("files", {}))
-        if total > allowed:
-            violations.append(
-                Violation(
-                    "budget",
-                    f"tier:{name}",
-                    f"{total} B exceeds ceiling {allowed} B (+{total - allowed} B)",
-                )
-            )
-
-    return violations
-
-
-def budget_notices(budget: dict) -> list[str]:
-    """Per-file targets that are over, worst first. Advisory by design (DEC-062).
-
-    A target is where a file should land, not where it may stop: the tier is what a
-    session pays, and the two are not the same question.
-    """
-    over: list[tuple[int, str, int, int]] = []
-    for where, spec in budget.get("files", {}).items():
-        path = REPO_ROOT / where
-        if not path.is_file():
-            continue
-        size = path.stat().st_size
-        allowed = ceiling(spec)
-        if size > allowed:
-            over.append((size - allowed, where, size, allowed))
-    over.sort(reverse=True)
-    return [
-        f"  [target] {where}: {size} B, target {allowed} B (+{delta} B)"
-        f" — shrink or move at the next maintain round; not a failure"
-        for delta, where, size, allowed in over
-    ]
 
 
 # -------------------------------------------------------------------------- index
 
-DECISIONS_FILE = ".agent/decisions.md"
-DECISIONS_INDEX_FILE = ".agent/decisions-index.md"
 DEC_HEADING_RE = re.compile(r"^## (\d{4}-\d{2}-\d{2})\s*[—\-]\s*(.+?)\s*$")
 INDEX_ROW_RE = re.compile(r"^\|\s*(DEC-\d{3})\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+?)\s*\|")
 INDEX_RETIRED_RE = re.compile(r"^Retired (\d+) — (.+?) —", re.MULTILINE)
@@ -475,6 +452,17 @@ def decision_headings() -> list[tuple[str, str]]:
 
 
 def check_index() -> list[Violation]:
+    """The cold store's two tables of contents, each held to what it describes.
+
+    decisions-index.md mirrors decisions.md entry for entry; INDEX.md lists every
+    markdown file in the cold store exactly once. One check, because they fail the same
+    way: a table of contents that stopped describing what it points at, which is how a
+    settled layer quietly becomes a place things are forgotten in.
+    """
+    return check_decision_index() + check_index_listing()
+
+
+def check_decision_index() -> list[Violation]:
     """The index is the navigation into decisions.md, so drift is fatal.
 
     Since DEC-062 the index lists the decisions that still govern the code, not every
@@ -565,13 +553,88 @@ def check_index() -> list[Violation]:
     return violations
 
 
+def check_index_listing() -> list[Violation]:
+    """Every markdown file in the cold store is listed in INDEX.md exactly once.
+
+    This is the half that keeps a cold store from becoming a place things are forgotten
+    in: a file nobody indexes is a file nobody opens, and a file listed twice is two rows
+    that drift apart. The other direction -- a listed path with no file behind it -- is
+    the `refs` check's job, and it runs in the same process and the same pre-commit hook,
+    so a dead row is reported once there rather than twice here.
+
+    Files under the archive prefix are exempt on purpose: frozen history is an
+    archaeology site, not an index entry, and INDEX.md says so in prose.
+    """
+    index_path = REPO_ROOT / INDEX_FILE
+    if not index_path.is_file():
+        return [Violation("index", INDEX_FILE, "the cold store's index file is missing")]
+
+    # The census is taken the same way everywhere else in this file -- tracked plus
+    # not-yet-staged .md files -- so a new document is expected in the index before it
+    # is committed, not after.
+    root = _cfg("knowledge_root")
+    root_prefix = _prefix("knowledge_root")
+    archive_prefix = _prefix("archive")
+    text = index_path.read_text(encoding="utf-8", errors="replace")
+    listed: dict[str, int] = {}
+    for target in LINK_RE.findall(mask_code(text)):
+        if target.startswith(("http://", "https://", "mailto:", "tel:", "#")):
+            continue
+        clean = target.split("#", 1)[0]
+        if not clean or not looks_like_path(clean):
+            continue
+        # Index links are relative to the cold store root, so that is what they resolve
+        # against; the key is the repo-relative path, the shape every check registers.
+        where = rel((REPO_ROOT / root / clean).resolve())
+        listed[where] = listed.get(where, 0) + 1
+
+    violations: list[Violation] = []
+    for where in sorted(listed):
+        if listed[where] > 1:
+            violations.append(
+                Violation(
+                    "index",
+                    INDEX_FILE,
+                    f"{where} is listed {listed[where]} times; one row per file, or the "
+                    "rows drift apart",
+                )
+            )
+
+    for path in sorted(repo_paths("*.md", untracked=True)):
+        # git ls-files still lists a file deleted from the working tree but not staged,
+        # and an unstaged delete is not a missing row.
+        if not path.is_file():
+            continue
+        where = rel(path)
+        if not where.startswith(root_prefix) or where.startswith(archive_prefix):
+            continue
+        if where == INDEX_FILE or where in listed:
+            continue
+        violations.append(
+            Violation(
+                "index",
+                INDEX_FILE,
+                f"{where} is not listed; a cold-store file outside its table of contents "
+                "is one nobody finds",
+            )
+        )
+
+    return violations
+
+
 # -------------------------------------------------------------------------- paths
 
 INVARIANTS_FILE = SCRIPT_DIR / "invariants.json"
 
 
 def check_paths() -> list[Violation]:
-    """Repo-convention invariants that reduce to a path check."""
+    """Repo-convention invariants that reduce to a path check.
+
+    Two sources of rule. `invariants.json` is a rule someone wrote down about this repo.
+    `paths.json` is where the knowledge layer says it is -- and checking it is what keeps a
+    move loud: without this, renaming a directory leaves every gate keyed off its prefix
+    scanning an empty set, which reports [ok] as cheerfully as a healthy tree does.
+    """
     config = load_json(INVARIANTS_FILE)
     violations: list[Violation] = []
 
@@ -587,6 +650,19 @@ def check_paths() -> list[Violation]:
                 Violation("paths", rule["path"], f"is missing ({rule['invariant']}): {rule['why']}")
             )
 
+    for key, spec in PATHS.items():
+        if not spec.get("required") or (REPO_ROOT / spec["path"]).exists():
+            continue
+        violations.append(
+            Violation(
+                "paths",
+                f"{rel(PATHS_FILE)}#{key}",
+                f"'{spec['path']}' does not exist. A knowledge path moved or was renamed: "
+                f"update the '{key}' entry (or drop it if the path is gone for good), so the "
+                f"checks that read it fail here instead of matching nothing",
+            )
+        )
+
     return violations
 
 
@@ -594,7 +670,7 @@ def check_paths() -> list[Violation]:
 
 LAYOUT_FILE = SCRIPT_DIR / "layout.json"
 # The layer a top-level entry is assigned to. The doctrine behind the table is
-# wiki/guides/repository-layout.md; this is only the vocabulary, so a typo fails.
+# knowledge/wiki/guides/repository-layout.md; this is only the vocabulary, so a typo fails.
 LAYOUT_LAYERS = frozenset(
     {"hot", "settled", "input", "material", "code", "tooling", "runtime", "entry", "deploy"}
 )
@@ -625,7 +701,7 @@ def check_layout() -> list[Violation]:
 
     Top level only, by design: what a nested directory may hold is the owning layer's
     business, and the table is the one place saying which layer owns what
-    (wiki/guides/repository-layout.md).
+    (knowledge/wiki/guides/repository-layout.md).
     """
     entries = load_json(LAYOUT_FILE).get("entries", {})
     tracked = tracked_top_level()
@@ -647,7 +723,7 @@ def check_layout() -> list[Violation]:
                 name,
                 "tracked top-level entry is not registered; add it to "
                 "scripts/check-knowledge/layout.json with the layer that owns it "
-                "(wiki/guides/repository-layout.md)",
+                "(knowledge/wiki/guides/repository-layout.md)",
             )
         )
     for name in set(entries) - tracked:
@@ -684,7 +760,7 @@ CAPTURES_FILE = SCRIPT_DIR / "captures.json"
 CAPTURES_COMMENT = (
     "Per-capture seal: the date a capture was frozen, and a sha256 over its content with "
     "the cut markers and all whitespace removed. Written only by --capture-seal, which "
-    "refuses to re-seal content that changed. The doctrine is inbox/README.md."
+    f"refuses to re-seal content that changed. The doctrine is {INBOX_PREFIX}README.md."
 )
 CAPTURE_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{2}$")
 MARKER_RE = re.compile(r"<!--#(S\d{2,})-->")
@@ -725,9 +801,9 @@ def content_digest(body: str) -> str:
 
 
 def capture_dirs() -> dict[str, Path]:
-    """capture id -> directory, for `inbox/<YYYY-MM-DD-NN>-<slug>/`."""
+    """capture id -> directory, for `knowledge/inbox/<YYYY-MM-DD-NN>-<slug>/`."""
     found: dict[str, Path] = {}
-    root = REPO_ROOT / INBOX_PREFIX.rstrip("/")
+    root = REPO_ROOT / INBOX_DIR
     if not root.is_dir():
         return found
     for path in sorted(root.iterdir()):
@@ -774,7 +850,7 @@ def check_captures(files: list[Path]) -> list[Violation]:
         )
 
     dirs = capture_dirs()
-    root = REPO_ROOT / INBOX_PREFIX.rstrip("/")
+    root = REPO_ROOT / INBOX_DIR
     known_names = {path.name for path in dirs.values()}
     if root.is_dir():
         for path in sorted(root.iterdir()):
@@ -784,7 +860,7 @@ def check_captures(files: list[Path]) -> list[Violation]:
                         "captures",
                         rel(path),
                         "capture directory must be named <YYYY-MM-DD-NN>-<slug>"
-                        " (inbox/README.md)",
+                        f" ({INBOX_PREFIX}README.md)",
                     )
                 )
 
@@ -808,15 +884,15 @@ def check_captures(files: list[Path]) -> list[Violation]:
 
     segments: dict[str, set[str]] = {}
     for name, path in sorted(dirs.items()):
-        raw_path = path / "raw.md"
-        triage_path = path / "triage.md"
+        raw_path = path / CAPTURE_RAW
+        triage_path = path / CAPTURE_TRIAGE
         for missing in (raw_path, triage_path):
             if not missing.is_file():
                 violations.append(
                     Violation(
                         "captures",
                         rel(missing),
-                        "missing from the capture (inbox/README.md)",
+                        f"missing from the capture ({INBOX_PREFIX}README.md)",
                     )
                 )
         if not raw_path.is_file() or not triage_path.is_file():
@@ -960,7 +1036,7 @@ def seal_capture(capture_id: str) -> int:
     if capture_id not in dirs:
         print(f"no capture directory for id '{capture_id}' in {INBOX_PREFIX}", file=sys.stderr)
         return 2
-    raw = dirs[capture_id] / "raw.md"
+    raw = dirs[capture_id] / CAPTURE_RAW
     if not raw.is_file():
         print(f"{rel(raw)} is missing", file=sys.stderr)
         return 2
@@ -995,22 +1071,19 @@ def seal_capture(capture_id: str) -> int:
 
 STAMPS_FILE = SCRIPT_DIR / "knowledge-stamps.json"
 REFRESH_HINT = "python scripts/check-knowledge/check_knowledge.py --stamp-refresh"
-# The checker's own state. A module may legitimately glob this directory, and hashing the
-# stamp file into the digest that file stores would make the digest stale as it is written.
-SELF_STATE_FILES = (
-    "scripts/check-knowledge/knowledge-stamps.json",
-    "scripts/check-knowledge/knowledge-baseline.json",
-    "scripts/check-knowledge/knowledge-budget.json",
-)
+# The checker's own state, kept in paths.json because a module may legitimately glob that
+# directory: hashing the stamp file into the digest that file stores would make the digest
+# stale as it is written.
+SELF_STATE_FILES = tuple(PATH_CONFIG["self_state_files"])
 NOTICE_LIMIT = 8
 
 
 def documented_modules(files: list[Path]) -> dict[str, list[str]]:
-    """module -> the wiki/ documents declaring it, in path order."""
+    """module -> the knowledge/wiki/ documents declaring it, in path order."""
     claimants: dict[str, list[str]] = {}
     for path in files:
         where = rel(path)
-        if not where.startswith("wiki/") or where.endswith("INDEX.md"):
+        if not where.startswith(WIKI_PREFIX) or where.endswith(INDEX_FILENAME):
             continue
         fields = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
         if fields is None:
@@ -1050,7 +1123,7 @@ def module_digest(modules: dict, module: str) -> str:
 
 
 def check_stale() -> tuple[list[Violation], list[str]]:
-    """Remind that a wiki/ document may no longer describe the code.
+    """Remind that a knowledge/wiki/ document may no longer describe the code.
 
     Returns (faults, notices). Faults are defects in the stamps file -- an unknown
     module, or a documented module no stamp covers -- and they fail the run, because a
@@ -1088,13 +1161,170 @@ def check_stale() -> tuple[list[Violation], list[str]]:
         if watched[module].get("digest") == module_digest(modules, module):
             continue
         verified = watched[module].get("verified", "an unknown date")
-        described_in = ", ".join(docs.get(module, [])) or "no wiki/ document"
+        described_in = ", ".join(docs.get(module, [])) or f"no {WIKI_PREFIX} document"
         notices.append(
             f"  [watch] {module}: code changed since its documents were verified on {verified}\n"
             f"          {described_in}\n"
             f"          run /knowledge-verify, then: {REFRESH_HINT} --module {module}"
         )
     return faults, notices
+
+
+# ---------------------------------------------------------------------- handoff
+
+
+# A ticket is one file in .agent/handoffs/ (the doctrine is .agent/handoffs/README.md).
+# The fields ARE the state machine -- no state file exists. The check enforces the
+# ticket shape (缝 2), the dependency edges (缝 2/3), the claim lock (缝 3), and prints
+# the frontier (tickets whose blockers are all closed, unclaimed). Closing/archiving
+# is what releases downstream tickets, so an archived blocker counts as closed.
+HANDOFF_DIR = REPO_ROOT / _cfg("handoffs")
+HANDOFF_ARCHIVE_DIR = REPO_ROOT / _cfg("handoffs_archive")
+HANDOFF_README = _cfg("handoffs_readme")
+HANDOFF_SECTIONS = ("任务", "已完成", "契约变更", "关键决策", "遗留")
+HANDOFF_STATUSES = ("dispatched", "in progress", "done", "closed")
+HANDOFF_FIELDS = ("Owner", "Status", "Planner acceptance", "Blocked by", "演示路径")
+HANDOFF_FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
+
+
+def _handoff_files() -> list[Path]:
+    """Live tickets only; the archive is closed history, not scanned."""
+    if not HANDOFF_DIR.is_dir():
+        return []
+    return sorted(path for path in HANDOFF_DIR.glob("*.md") if rel(path) != HANDOFF_README)
+
+
+def _parse_handoff(path: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Return (fields, sections). Fields come from the leading `- Key: value` lines,
+    before the first `## ` heading; sections are the `## ` headings anywhere."""
+    fields: dict[str, str] = {}
+    sections: dict[str, str] = {}
+    in_header = True
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if in_header:
+            if line.startswith("- ") and HANDOFF_FIELD_RE.match(line):
+                match = HANDOFF_FIELD_RE.match(line)
+                if match.group(1).strip() in HANDOFF_FIELDS:
+                    fields[match.group(1).strip()] = match.group(2).strip()
+            elif line.startswith("## "):
+                in_header = False
+        if line.startswith("## "):
+            sections[line[3:].strip()] = line[3:].strip()
+    return fields, sections
+
+
+def _blocker_targets(fields: dict[str, str]) -> list[str]:
+    """Blocked by holds handoff filenames, comma separated; 「无」/empty means none."""
+    value = fields.get("Blocked by", "")
+    if not value or value in ("无", "none", "None", "-"):
+        return []
+    return [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
+
+
+def _resolve_blocker(name: str) -> Path | None:
+    for base in (HANDOFF_DIR, HANDOFF_ARCHIVE_DIR):
+        candidate = base / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _blocker_closed(path: Path) -> bool:
+    """Archived = closed; otherwise the ticket must be done or closed."""
+    if HANDOFF_ARCHIVE_DIR in path.parents:
+        return True
+    fields, _ = _parse_handoff(path)
+    return fields.get("Status", "") in ("done", "closed")
+
+
+def check_handoff() -> tuple[list[Violation], list[str]]:
+    """Gate the ticket shape and print the frontier.
+
+    Returns (violations, frontier). Violations fail the run (a gate); frontier is the
+    list of tickets ready to claim -- `Status: dispatched`, no Owner, all blockers
+    closed -- and is informational, printed for the human and /dispatch to read.
+    """
+    violations: list[Violation] = []
+    files = _handoff_files()
+    fields_by_name: dict[str, dict[str, str]] = {}
+
+    for path in files:
+        fields, sections = _parse_handoff(path)
+        fields_by_name[path.name] = fields
+        where = rel(path)
+        for section in HANDOFF_SECTIONS:
+            if section not in sections:
+                violations.append(Violation("handoff", where, f"缺小节 \"## {section}\""))
+        if not fields.get("演示路径"):
+            violations.append(Violation("handoff", where, "缺 \"演示路径\" 字段或为空"))
+        if "Blocked by" not in fields:
+            violations.append(Violation("handoff", where, "缺 \"Blocked by\" 字段（无依赖写「无」）"))
+        status = fields.get("Status", "")
+        if status and status not in HANDOFF_STATUSES:
+            violations.append(Violation(
+                "handoff", where, f"Status 非法: {status}（应为 {' | '.join(HANDOFF_STATUSES)}）"
+            ))
+        if status == "dispatched" and fields.get("Owner"):
+            violations.append(Violation(
+                "handoff", where, "已写 Owner 但 Status 仍为 dispatched（认领后应改为 in progress）"
+            ))
+        if status == "in progress" and not fields.get("Owner"):
+            violations.append(Violation(
+                "handoff", where, "Status: in progress 但无 Owner（认领 = 写 Owner）"
+            ))
+        for target in _blocker_targets(fields):
+            if _resolve_blocker(target) is None:
+                violations.append(Violation("handoff", where, f"阻塞项不存在: {target}"))
+
+    # Dependency cycles: report every file on a cycle. Only live tickets emit edges.
+    archive_names = (
+        {p.name for p in HANDOFF_ARCHIVE_DIR.glob("*.md")}
+        if HANDOFF_ARCHIVE_DIR.is_dir()
+        else set()
+    )
+    all_names = set(fields_by_name) | archive_names
+    edges: dict[str, list[str]] = {
+        path.name: [t for t in _blocker_targets(fields_by_name[path.name]) if t in all_names]
+        for path in files
+    }
+    state: dict[str, int] = {}
+    stack: list[str] = []
+    cycles: set[str] = set()
+
+    def visit(name: str) -> None:
+        state[name] = 1
+        stack.append(name)
+        for nxt in edges.get(name, []):
+            if state.get(nxt, 0) == 0:
+                visit(nxt)
+            elif state[nxt] == 1:
+                start = stack.index(nxt)
+                for node in stack[start:] + [nxt]:
+                    cycles.add(node)
+        stack.pop()
+        state[name] = 2
+
+    for path in files:
+        if state.get(path.name, 0) == 0:
+            visit(path.name)
+    for name in sorted(cycles):
+        violations.append(Violation(
+            "handoff", rel(HANDOFF_DIR / name), "依赖成环（环上每个文件都报）"
+        ))
+
+    # Frontier: ready to claim, in dependency-safe file order. A ticket whose
+    # blocker resolves to nothing is broken (flagged above); its readiness is
+    # unknown, so it stays out of the frontier until the link is fixed.
+    frontier: list[str] = []
+    for path in files:
+        fields = fields_by_name[path.name]
+        if fields.get("Status") != "dispatched" or fields.get("Owner"):
+            continue
+        blockers = _blocker_targets(fields)
+        resolved = [r for r in (_resolve_blocker(t) for t in blockers) if r is not None]
+        if len(resolved) == len(blockers) and all(_blocker_closed(r) for r in resolved):
+            frontier.append(path.name)
+    return violations, sorted(frontier)
 
 
 def refresh_stamps(only: list[str]) -> int:
@@ -1137,7 +1367,7 @@ def refresh_stamps(only: list[str]) -> int:
 
 # -------------------------------------------------------------------------- main
 
-CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "budget", "layout", "captures")
+CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "captures", "handoff")
 ADVISORY = ("stale",)
 SELECTABLE = CHECKS + ADVISORY
 
@@ -1156,95 +1386,66 @@ def run_checks(selected: list[str]) -> list[Violation]:
         violations += check_index()
     if "paths" in selected:
         violations += check_paths()
-    if "budget" in selected:
-        violations += check_budget(load_json(BUDGET_FILE))
     if "layout" in selected:
         violations += check_layout()
     if "captures" in selected:
         violations += check_captures(files)
+    if "handoff" in selected:
+        violations += check_handoff()[0]
     return violations
 
 
-def budget_report() -> None:
-    """Print usage against every ceiling, worst first. The DEC-054 traffic-light monitor.
+def directory_size(path: Path) -> tuple[int, int]:
+    """(bytes, files) under a directory, recursively."""
+    size = 0
+    files = 0
+    for found in path.rglob("*"):
+        if found.is_file():
+            size += found.stat().st_size
+            files += 1
+    return size, files
 
-    `[SB]` marks must-read membership: S = tier:session_start, B = tier:before_code_change
-    (their union, session_total, is the hot layer DEC-055 prices per byte per session).
 
-    The first column says which rows are gates: `GATE` for a tier and for a glob, `target`
-    for a per-file entry. Only a gate can fail a commit (DEC-062); a target is where the
-    file should land, and the traffic light is the prompt to get it there, not a verdict.
+def size_report() -> None:
+    """Print what the knowledge layer weighs. Report only: nothing here can fail.
+
+    The layer carries no byte ceiling and no byte target (DEC-067) -- a wall at the moment
+    of writing buys shorter sentences, not fewer facts, and a number that never gates
+    anything is still worth seeing, because a directory that quietly doubled is how a layer
+    stops being read. Hot files are what a session loads before it knows the task; cold
+    directories are what it reads on demand.
+
+    Both lists come from paths.json, so the report follows the layout instead of restating
+    it, and either can be edited there without touching the checker.
     """
-    budget = load_json(BUDGET_FILE)
-    files = budget.get("files", {})
-    rows: list[tuple[str, int, int, str, str]] = []
-
-    tier_marks: dict[str, str] = {}
-    for name, spec in budget.get("tiers", {}).items():
-        if name == "session_total":
-            continue  # the union of the other two — its mark would collide and add nothing
-        mark = name[0].upper()
-        for where in spec["files"]:
-            if mark not in tier_marks.setdefault(where, ""):
-                tier_marks[where] += mark
-
-    for where, spec in files.items():
-        path = REPO_ROOT / where
-        if path.is_file():
-            rows.append(
-                (where, path.stat().st_size, ceiling(spec), tier_marks.get(where, ""), "target")
-            )
-
-    for spec in budget.get("globs", []):
-        for hit in sorted(globlib.glob(spec["pattern"], recursive=True, root_dir=REPO_ROOT)):
-            where = Path(hit).as_posix()
-            path = REPO_ROOT / where
-            if path.is_file() and where not in files:
-                rows.append(
-                    (where, path.stat().st_size, spec["limit"], tier_marks.get(where, ""), "GATE")
-                )
-
-    for name, spec in budget.get("tiers", {}).items():
-        total = sum(
-            (REPO_ROOT / where).stat().st_size
-            for where in spec["files"]
-            if (REPO_ROOT / where).is_file()
-        )
-        rows.append((f"tier:{name}", total, tier_ceiling(spec, files), "", "GATE"))
-
-    rows.sort(key=lambda row: row[1] / row[2], reverse=True)
-    for where, size, allowed, marks, kind in rows:
-        share = size / allowed
-        zone = "RED" if share > 0.95 else "YELLOW" if share > 0.85 else "green"
-        print(
-            f"{kind:6s} {zone:6s} {share:6.1%}  {size:6d} / {allowed:6d} B  "
-            f"{where}{f' [{marks}]' if marks else ''}"
-        )
-
-
-def refresh_budget() -> None:
-    """Raise the tier ceilings to the current size. Deliberate growth only.
-
-    Tiers alone. A per-file `limit` is a target, and a target that tracks the file's
-    current size is not a target (DEC-062): rewriting it here *was* the ratchet — every
-    archive round pulled decisions.md's ceiling down after it (44032 → 24576 B in six
-    days), and a ceiling that only ever falls turns "write less precisely" into the cheap
-    move. The two glob limits are hand-set policy ("this page should split"), so they stay.
-
-    A tier's limit is the sum of its members' measured sizes, which lets the tier inherit
-    their slack instead of landing at zero headroom; `slack` itself is never folded into
-    the limit, or `limit + slack` (see `ceiling`) would grant it twice.
-    """
-    budget = load_json(BUDGET_FILE)
-    for spec in budget.get("tiers", {}).values():
-        spec["limit"] = sum(
-            (REPO_ROOT / where).stat().st_size
-            for where in spec["files"]
-            if (REPO_ROOT / where).is_file()
-        )
-    BUDGET_FILE.write_text(json.dumps(budget, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"budget tiers refreshed from {BUDGET_FILE.name}")
-    print("per-file targets and glob limits left alone — a target is not a gate (DEC-062)")
+    report = PATH_CONFIG["size_report"]
+    print("knowledge size report: bytes on disk; hot = read every session, cold = on demand")
+    hot_size = 0
+    hot_files = 0
+    for key in report["hot_files"]:
+        path = REPO_ROOT / _cfg(key)
+        if not path.is_file():
+            print(f"  hot   {'missing':>8}  {_cfg(key)}")
+            continue
+        size = path.stat().st_size
+        hot_size += size
+        hot_files += 1
+        print(f"  hot   {size:>8}  {_cfg(key)}")
+    cold_size = 0
+    cold_files = 0
+    for key in report["cold_dirs"]:
+        path = REPO_ROOT / _cfg(key)
+        if not path.is_dir():
+            print(f"  cold  {'missing':>8}  {_cfg(key)}")
+            continue
+        size, files = directory_size(path)
+        cold_size += size
+        cold_files += files
+        print(f"  cold  {size:>8}  {files:>4} files  {_cfg(key)}")
+    print(
+        f"hot {hot_size} B in {hot_files} files; "
+        f"cold {cold_size} B in {cold_files} files; total {hot_size + cold_size} B"
+    )
 
 
 def update_baseline() -> None:
@@ -1263,10 +1464,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="run only these checks (default: all)")
     parser.add_argument("--baseline-update", action="store_true",
                         help="accept the current violations as the baseline")
-    parser.add_argument("--budget-report", action="store_true",
-                        help="print usage against every ceiling, worst first (no checks run)")
-    parser.add_argument("--budget-refresh", action="store_true",
-                        help="raise the tier ceilings to the current size (per-file targets stay put)")
+    parser.add_argument("--size-report", action="store_true",
+                        help="print the layer's size, hot files then cold directories (no checks run)")
     parser.add_argument("--stamp-refresh", action="store_true",
                         help="record the current code as verified for the watched modules")
     parser.add_argument("--capture-seal", metavar="CAPTURE_ID",
@@ -1274,21 +1473,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--module", action="append", default=[],
                         help="with --stamp-refresh: refresh only this module (repeatable)")
     parser.add_argument("--strict", action="store_true",
-                        help="treat `stale` reminders and per-file target notices as violations")
+                        help="treat `stale` reminders as violations")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    if args.budget_report:
-        budget_report()
+    if args.size_report:
+        size_report()
         return 0
     if args.module and not args.stamp_refresh:
         parser.error("--module is only meaningful together with --stamp-refresh")
-    if args.budget_refresh:
-        refresh_budget()
-        return 0
     if args.stamp_refresh:
         return refresh_stamps(args.module)
     if args.capture_seal:
@@ -1306,11 +1502,11 @@ def main(argv: list[str] | None = None) -> int:
     if "stale" in selected:
         stale_faults, notices = check_stale()
         violations += stale_faults
-    targets: list[str] = []
-    if "budget" in selected:
-        targets = budget_notices(load_json(BUDGET_FILE))
-    # `stale` and the per-file budget targets have no baseline: a fault means the reminder
-    # stopped covering something, which is the one failure this check exists to prevent.
+    frontier: list[str] = []
+    if "handoff" in selected:
+        _, frontier = check_handoff()
+    # `stale` has no baseline: a fault means the reminder stopped covering something,
+    # which is the one failure this check exists to prevent.
     new = [v for v in violations if v.fingerprint not in accepted.get(v.check, set())]
     grandfathered = len(violations) - len(new)
 
@@ -1326,21 +1522,17 @@ def main(argv: list[str] | None = None) -> int:
         for violation in check_new:
             print(violation)
 
+    if "handoff" in selected:
+        print()
+        if frontier:
+            print("--- frontier: 可开工（阻塞全关、无 Owner；按依赖序取第一张）---")
+            for name in frontier:
+                print(f"    {name}")
+        else:
+            print("--- frontier: 无待认领的票 ---")
+
     if grandfathered:
         print(f"\n{grandfathered} grandfathered violation(s) in knowledge-baseline.json")
-
-    if targets:
-        print()
-        for notice in targets[:NOTICE_LIMIT]:
-            print(notice)
-        if len(targets) > NOTICE_LIMIT:
-            print(f"  ... and {len(targets) - NOTICE_LIMIT} more file(s)")
-        verdict = (
-            "Failing, because --strict is set."
-            if args.strict
-            else "Targets, not gates: this does not fail a commit."
-        )
-        print(f"\n{len(targets)} file(s) over their target. {verdict}")
 
     if notices:
         print()
@@ -1354,7 +1546,7 @@ def main(argv: list[str] | None = None) -> int:
     if new:
         print(f"\n{len(new)} new violation(s). Fix them, or record debt deliberately with --baseline-update.")
         return 1
-    if args.strict and (notices or targets):
+    if args.strict and notices:
         return 1
     return 0
 

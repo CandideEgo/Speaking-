@@ -123,7 +123,7 @@ docker compose up -d
 
 ### 3.2 需求 ID 引用
 
-历史提交引用的需求 ID 来自旧 PRD `docs/api/REQUIREMENTS.md`（已归档删除，见 `docs/progress/DEV-LOG-2026-08.md`）。新提交不再强制引用需求 ID，可改为引用 ADR 或 issue 编号：
+历史提交引用的需求 ID 来自旧 PRD `docs/api/REQUIREMENTS.md`（已归档删除，见 `knowledge/progress/DEV-LOG-2026-08.md`）。新提交不再强制引用需求 ID，可改为引用 ADR 或 issue 编号：
 
 ```
 feat(video): handle duplicate source_url race condition (V-06)
@@ -287,7 +287,7 @@ await session.execute(select(Video).filter_by(id=video_id))
 ### 6.6 禁止忽略支付安全
 
 - 支付回调必须验证签名
-- Alipay/WeChat 回调签名验证已实现（RSA2 / HMAC-SHA256，见 `docs/operations/SECURITY.md` VULN-01）；生产环境需配置对应公钥/APIv3 key，禁止在未验证签名的情况下升级 Pro
+- Alipay/WeChat 回调签名验证已实现（RSA2 / HMAC-SHA256，见 `knowledge/operations/SECURITY.md` VULN-01）；生产环境需配置对应公钥/APIv3 key，禁止在未验证签名的情况下升级 Pro
 
 ---
 
@@ -311,14 +311,17 @@ Speaking/
 ├── docker-compose.dev.yml    # 开发基础设施
 ├── docker-compose.yml        # 全栈开发环境
 ├── docker-compose.prod.yml   # 生产环境
-├── docs/                     # 项目文档
+├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners / handoffs）
+├── knowledge/                # 冷仓：一切记录过去的知识，入口 knowledge/INDEX.md
+│   ├── wiki/                 # 长期工程知识（architecture / problems / guides）
 │   ├── adr/                  # 架构决策记录 (ADR)
-│   ├── agents/               # Agent 工作约定
+│   ├── plans/                # 方案（含已落地的）
+│   ├── progress/             # 带日期的记录：进度、审查报告、交接
+│   ├── requirements/         # 产品需求
 │   ├── operations/           # 运维手册 + 生产指南 + 安全策略
-│   ├── progress/             # 开发进度 + 变更日志 + 审查报告
-│   ├── design/               # 设计系统 + 未来设计
-│   ├── reports/              # 技术研究报告
-│   └── plans/                # 改进计划 + 管线文档 + 开发工作流
+│   └── inbox/                # 口播原话（封存，不可编辑）
+├── docs/                     # 只放技能按固定路径读的配置（agents/）与物料（design/）
+├── scripts/                  # 项目级脚本（check-knowledge、release）
 ├── .pre-commit-config.yaml   # Pre-commit hooks (ruff + prettier + 通用检查)
 ├── nginx.conf                # Nginx 配置 (HTTP, 开发用)
 ├── nginx.ssl.conf            # Nginx 配置 (HTTPS, 生产用)
@@ -327,8 +330,8 @@ Speaking/
 
 ---
 
-*最后更新：2026-08-14*
+*最后更新：2026-09-29*
 
 ---
 
-> 📋 完整开发工作流见 [WORKFLOW.md](docs/plans/WORKFLOW.md) — 包含功能开发流程、代码质量门禁、AI 辅助开发等
+> 📋 完整开发工作流见 [WORKFLOW.md](knowledge/plans/WORKFLOW.md) — 包含功能开发流程、代码质量门禁、AI 辅助开发等

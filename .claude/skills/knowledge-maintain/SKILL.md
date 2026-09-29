@@ -25,15 +25,15 @@ adding to them. Read it before writing anything.
 |------|------|
 | `.agent/README.md` | Which file owns which fact; the rules for adding to them |
 | `.agent/invariants.md` | Rules that must keep holding; features that must not come back |
-| `.agent/system-map.md` | Modules, non-obvious dependencies, critical paths, external boundaries |
-| `.agent/context.md` | What the product is; domain vocabulary |
+| `knowledge/system-map.md` | Modules, non-obvious dependencies, critical paths, external boundaries |
+| `CONTEXT.md` | What the product is; domain vocabulary |
 | `.agent/state.md` | Forward-looking state only |
-| `.agent/decisions-index.md` | ID → date → title → ADR → status |
-| `.agent/decisions.md` | The full reasoning of each decision; append-only |
-| `.agent/archive/` | Frozen point-in-time records |
-| `wiki/` | Long-form knowledge — `architecture/`, `problems/`, `guides/` |
+| `knowledge/decisions-index.md` | ID → date → title → ADR → status |
+| `knowledge/decisions.md` | The full reasoning of each decision; append-only |
+| `knowledge/archive/` | Frozen point-in-time records |
+| `knowledge/wiki/` | Long-form knowledge — `architecture/`, `problems/`, `guides/` |
 
-Operational and environment knowledge belongs in `docs/operations/` and `.agent/state.md`.
+Operational and environment knowledge belongs in `knowledge/operations/` and `.agent/state.md`.
 There is no `memory/` layer in this project; do not route knowledge to one.
 
 ---
@@ -100,9 +100,9 @@ The filter exists to prevent knowledge bloat — the system's worst enemy is not
 
 Update:
 
-.agent/context.md — when the product, its domain language, or a critical flow changes
+CONTEXT.md — when the product, its domain language, or a critical flow changes
 
-.agent/system-map.md — when modules, their connections, or a boundary changes
+knowledge/system-map.md — when modules, their connections, or a boundary changes
 
 .agent/invariants.md — when a rule that must keep holding is discovered, or a feature is removed
 
@@ -118,7 +118,7 @@ When:
 
 Update:
 
-.agent/decisions.md, plus one row in .agent/decisions-index.md
+knowledge/decisions.md, plus one row in knowledge/decisions-index.md
 
 When:
 
@@ -158,7 +158,7 @@ When:
 
 Create:
 
-wiki/problems/
+knowledge/wiki/problems/
 
 When:
 
@@ -185,27 +185,27 @@ After knowledge passes the filter, determine where to record it:
 | Knowledge type | Record in | Reason |
 |---------------|-----------|--------|
 | Rule that must keep holding | `.agent/invariants.md` | Read before any code change; names what enforces it |
-| Why a decision was made | `.agent/decisions.md` + a row in `.agent/decisions-index.md` | Referenced before future changes |
-| How two modules relate | `.agent/system-map.md` | Non-obvious dependencies and boundaries |
-| What a domain word means | `.agent/context.md` | Product vocabulary |
+| Why a decision was made | `knowledge/decisions.md` + a row in `knowledge/decisions-index.md` | Referenced before future changes |
+| How two modules relate | `knowledge/system-map.md` | Non-obvious dependencies and boundaries |
+| What a domain word means | `CONTEXT.md` | Product vocabulary |
 | Current project state | `.agent/state.md` | Always update after significant changes |
-| Reusable problem/solution pattern | `wiki/problems/` | Structured long-term reference |
-| How a subsystem is designed, in depth | `wiki/architecture/` | Long-form, with frontmatter |
-| Operational failure mode or environment trap | `docs/operations/` and `.agent/state.md` | Environment-specific, not architectural |
-| Dated record of what happened | `docs/progress/`, `CHANGELOG.md` | History, not understanding |
+| Reusable problem/solution pattern | `knowledge/wiki/problems/` | Structured long-term reference |
+| How a subsystem is designed, in depth | `knowledge/wiki/architecture/` | Long-form, with frontmatter |
+| Operational failure mode or environment trap | `knowledge/operations/` and `.agent/state.md` | Environment-specific, not architectural |
+| Dated record of what happened | `knowledge/progress/`, `knowledge/CHANGELOG.md` | History, not understanding |
 
-**Before adding anything, check**: does another `.agent/` or `wiki/` document already own this fact?
+**Before adding anything, check**: does another `.agent/` or `knowledge/wiki/` document already own this fact?
 If yes, update that document or link to it — do not create a duplicate.
 
 ---
 
 # Decisions Are Append-Only
 
-`.agent/decisions.md` is immutable history.
+`knowledge/decisions.md` is immutable history.
 
 - **Never edit or reorder an existing entry.** Not to correct it, not to update it, not to merge it.
-- To change course: append a new entry at the **END** of `.agent/decisions.md`, then mark the old row
-  `superseded by DEC-0NN` in `.agent/decisions-index.md`.
+- To change course: append a new entry at the **END** of `knowledge/decisions.md`, then mark the old row
+  `superseded by DEC-0NN` in `knowledge/decisions-index.md`.
 - A new decision requires **both**: the appended entry and a new row in the index.
 - IDs are assigned in file order (`DEC-001` upward) and are never reassigned. The `index` check
   fails when the table and the file disagree on count, order, date or title, and it parses entry
@@ -242,7 +242,7 @@ updated: [ISO date]
 ---
 ```
 
-The `frontmatter` check enforces this schema on `wiki/**/*.md`:
+The `frontmatter` check enforces this schema on `knowledge/wiki/**/*.md`:
 
 - All eight keys are required. `status` is `active`/`deprecated`/`archived`;
   `confidence` is `verified`/`assumed`/`unverified`; `created` and `updated` are ISO dates and
@@ -251,7 +251,7 @@ The `frontmatter` check enforces this schema on `wiki/**/*.md`:
   is the only vocabulary. An ID that is not in that file fails the check, and a module whose globs
   match no real file fails it too — that is how deleting code surfaces as documentation drift. If a
   new area needs to be referenceable, add the module to `modules.json` first.
-- `wiki/architecture/**` and `wiki/problems/**` must declare at least one module; `wiki/guides/**`
+- `knowledge/wiki/architecture/**` and `knowledge/wiki/problems/**` must declare at least one module; `knowledge/wiki/guides/**`
   may declare none, because guides describe process rather than code.
 - `related` entries are repo-relative paths, and every one of them must exist.
 
@@ -328,12 +328,13 @@ Date: YYYY-MM-DD
 - [add or remove issues]
 ```
 
-- Completed work does not accumulate here. It belongs in `.agent/decisions-index.md`,
-  `CHANGELOG.md` or `.agent/archive/`; `## Recently Completed` holds a short tail, newest first.
+- Completed work does not accumulate here. It belongs in `knowledge/decisions-index.md`,
+  `knowledge/CHANGELOG.md` or `knowledge/archive/`; `## Recently Completed` holds a short tail, newest first.
 - `## Last Updated` holds a `Date: YYYY-MM-DD` line plus a few bullets. It is the staleness signal:
   once it is more than 14 days old, run `/knowledge-verify`.
-- Keep the file small — it is read every session. `scripts/check-knowledge/knowledge-budget.json`
-  sets a per-file target, and what a session actually pays is the tier that contains it (DEC-062).
+- Keep the file small — it is read every session. There is no size target to hit: sizes are reported
+  (`--size-report`) and never gated (DEC-067). When the file feels too big, the question is whether
+  each fact belongs in this layer at all, not how to say it more briefly.
 
 ---
 
@@ -381,18 +382,22 @@ whether knowledge is worth recording.
 # Mechanical Drift vs Judgement Drift
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the CI `Knowledge` workflow.
-Eight checks — `refs`, `frontmatter`, `ownership`, `index`, `paths`, `budget`, `layout` and the
-advisory `stale` — already catch, deterministically:
+Nine checks — the eight that fail, `refs`, `frontmatter`, `ownership`, `index`, `paths`, `layout`,
+`captures`, `handoff`, plus the advisory `stale` — already catch, deterministically:
 
-1. A markdown link that no longer resolves, or an ADR reference with no file in `docs/adr/`
-2. Invalid `wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
-3. A commit hash in a stable knowledge file (`.agent/*.md`, `wiki/*.md`) — point at the decision ID instead
-4. `.agent/decisions-index.md` drifting from `.agent/decisions.md` in count, order, date or title
-5. A tracked top-level entry missing from `scripts/check-knowledge/layout.json`, or an entry with
-   nothing tracked at it — the folder doctrine is `wiki/guides/repository-layout.md`
-6. A forbidden or missing path, and a tier or one of the two globs growing past its ceiling — a
-   per-file size past its target only prints a notice (DEC-062)
-7. Code changed under a module some `wiki/` page declares, since that page was verified — `stale`
+1. A markdown link that no longer resolves, or an ADR reference with no file in `knowledge/adr/`
+2. Invalid `knowledge/wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
+3. A commit hash in a stable knowledge file (`.agent/*.md`, `knowledge/wiki/*.md`) — point at the decision ID instead
+4. `knowledge/decisions-index.md` drifting from `knowledge/decisions.md` in count, order, date or title,
+   or a cold-store file missing from `knowledge/INDEX.md` (or listed there twice)
+5. A tracked top-level entry missing from `scripts/check-knowledge/layout.json`, an entry with
+   nothing tracked at it, or a layer outside the vocabulary — the folder doctrine is
+   `knowledge/wiki/guides/repository-layout.md`
+6. A forbidden path that exists, a required `invariants.json` path that is missing, or a knowledge
+   path `scripts/check-knowledge/paths.json` marks `required` that is not on disk
+7. A ticket in `.agent/handoffs/` whose shape, `Status`/`Owner` pair or blockers do not hold
+8. A capture in `knowledge/inbox/` whose words changed after sealing, or whose segments lost a disposition
+9. Code changed under a module some `knowledge/wiki/` page declares, since that page was verified — `stale`
    prints which pages to re-read, and fails only when its own coverage has a hole
 
 Do not hand-check those. What no check can read is prose that no longer matches reality — that
@@ -404,9 +409,9 @@ Run it directly:
 python scripts/check-knowledge/check_knowledge.py
 ```
 
-Fix your own violations. The checker, `knowledge-budget.json`, `knowledge-baseline.json` and
-`knowledge-stamps.json` are not edited to make a change pass. `.agent/archive/` is exempt — frozen
-records are not held to today's links or schema.
+Fix your own violations. The checker, `knowledge-baseline.json` and `knowledge-stamps.json` are not
+edited to make a change pass. `knowledge/archive/` is exempt — frozen records are not held to today's
+links or schema.
 
 After `/knowledge-verify` has cleared a page, acknowledge it so the reminder goes quiet:
 
@@ -414,7 +419,8 @@ After `/knowledge-verify` has cleared a page, acknowledge it so the reminder goe
 python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>
 ```
 
-**If the file you must add to is over its target**, shrink it or retire it: entry bodies that no
-longer constrain the code move verbatim into `.agent/archive/decisions-YYYY-MM.md` and their headings
-stay behind as stubs — the procedure is in `scripts/check-knowledge/README.md`. Retiring follows
-status, not size (DEC-062): what you never do is raise the number so that your own change passes.
+**If the file you must add to feels too big**, ask the layering question first: does this fact belong
+in this layer at all? A fact that stopped being current moves out — entry bodies that no longer
+constrain the code move verbatim into `knowledge/archive/decisions-YYYY-MM.md` and their headings stay
+behind as stubs (the procedure is in `scripts/check-knowledge/README.md`). Retiring follows status,
+not size (DEC-062), and there is no number left to raise (DEC-067).

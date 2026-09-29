@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-capture seal: the date a capture was frozen, and a sha256 over its content with the cut markers and all whitespace removed. Written only by --capture-seal, which refuses to re-seal content that changed. The doctrine is inbox/README.md.",
+  "_comment": "Per-capture seal: the date a capture was frozen, and a sha256 over its content with the cut markers and all whitespace removed. Written only by --capture-seal, which refuses to re-seal content that changed. The doctrine is knowledge/inbox/README.md.",
   "sealed": {
     "2026-09-29-01": {
       "date": "2026-09-29",

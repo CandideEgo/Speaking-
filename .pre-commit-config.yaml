@@ -21,17 +21,18 @@ repos:
         files: ^frontend/
         types_or: [ts, tsx, css, json, markdown]
 
-      # Knowledge-layer integrity: broken links, ADR references, wiki frontmatter
-      # schema, module vocabulary, growth budgets. Cross-file by nature, so it
-      # ignores the passed filename list and rescans the whole layer.
+      # Knowledge-layer integrity: broken links and ADR references, wiki frontmatter
+      # schema, the module vocabulary, the cold store's index, forbidden and missing
+      # paths, the top-level layout, captures and tickets. Cross-file by nature, so
+      # it ignores the passed filename list and rescans the whole layer.
       - id: knowledge-check
         name: knowledge layer integrity
         entry: python scripts/check-knowledge/check_knowledge.py
         language: system
         pass_filenames: false
-        files: ^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|\.agent/|wiki/|docs/|scripts/check-knowledge/|\.claude/skills/|inbox/)
+        files: ^(AGENTS\.md|CLAUDE\.md|CONTEXT\.md|README\.md|CONTRIBUTING\.md|\.agent/|knowledge/|docs/|scripts/check-knowledge/|\.claude/skills/)
 
-      # The advisory half: has code changed under a module some wiki/ document
+      # The advisory half: has code changed under a module some knowledge/wiki/ document
       # describes? Always runs and always prints, because pre-commit hides the output
       # of a hook that passes and a reminder nobody sees is not a reminder. It fails
       # only on a hole in knowledge-stamps.json, never on the reminder itself.

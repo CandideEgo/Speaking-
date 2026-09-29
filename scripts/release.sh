@@ -50,14 +50,14 @@ open(p,'a').write('\n')
 print('bumped frontend/package.json -> $NEXT')
 "
 
-# Archive the [Unreleased] section in CHANGELOG.md -> [NEXT] (today's date).
+# Archive the [Unreleased] section in knowledge/CHANGELOG.md -> [NEXT] (today's date).
 TODAY=$(python -c "from datetime import date;print(date.today().isoformat())")
 python -c "
-p='CHANGELOG.md'
+p='knowledge/CHANGELOG.md'
 s=open(p,encoding='utf-8').read()
 header='## [Unreleased]'
 if header not in s:
-    raise SystemExit('CHANGELOG.md has no ## [Unreleased] section')
+    raise SystemExit('knowledge/CHANGELOG.md has no ## [Unreleased] section')
 # Replace the Unreleased header with the new version, then add a fresh empty
 # Unreleased section above it so the next cycle has a home.
 new_section='## [Unreleased]\n\n### Added\n- \n\n### Changed\n- \n\n### Fixed\n- \n\n## [$NEXT] - $TODAY'
@@ -66,7 +66,7 @@ open(p,'w',encoding='utf-8').write(s)
 print('archived CHANGELOG -> [$NEXT] ($TODAY)')
 "
 
-git add frontend/package.json CHANGELOG.md
+git add frontend/package.json knowledge/CHANGELOG.md
 git commit -m "chore(release): v$NEXT
 
 Version bump $CUR -> $NEXT. CHANGELOG [Unreleased] archived to [$NEXT]."

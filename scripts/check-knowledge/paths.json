@@ -1,0 +1,69 @@
+{
+  "_comment": "The knowledge layer's paths, in one place. check_knowledge.py resolves every location it scans, skips or reports from the keys below, so moving the layer (wiki/ -> knowledge/wiki/, docs/adr/ -> knowledge/adr/, .agent/decisions.md -> knowledge/decisions.md, ...) is a few value edits here instead of twenty silent no-ops in the code. This file is the anchor that makes such a move loud: the `paths` check fails on a `required` entry that is not on disk.",
+  "_rule": "Values are paths relative to the repository root. A gate builds its startswith() prefix from `kind`, never from the value as written: a `dir` gains the trailing slash, a `file` is matched exactly. `required: true` means the path must exist, and a run that finds it missing fails with the config key and the path -- so renaming a knowledge path without updating this file fails, and never passes quietly. `required: false` is only for a path whose absence is legitimate, and only where the gate that reads it fails loudly in its own right.",
+  "_list_rule": "The list sections name `paths` keys, never paths: one key holds one value, so a path cannot be updated in one place and forgotten in another. A list naming a key that `paths` does not have is a hard error, not a skip.",
+  "_layering": "Two layers, one directory each (DEC-066). Hot = read every session; it must be true *now*, not a record of the past. Cold = read on demand, all of it under `knowledge_root`, entered through `index`, and never read end to end.",
+  "paths": {
+    "hot_layer": {"path": ".agent", "kind": "dir", "required": true, "note": "the facts a session reads before it knows the task; `ownership` scans this and the cold store"},
+    "knowledge_root": {"path": "knowledge", "kind": "dir", "required": true, "note": "the cold store: everything that records the past, entered through `index`"},
+    "index": {"path": "knowledge/INDEX.md", "kind": "file", "required": true, "note": "the cold store's table of contents; every file under `knowledge_root` is listed there exactly once, and every listed path exists"},
+    "wiki": {"path": "knowledge/wiki", "kind": "dir", "required": true, "note": "settled engineering knowledge: architecture / problems / guides"},
+    "wiki_architecture": {"path": "knowledge/wiki/architecture", "kind": "dir", "required": true, "note": "a document here must declare related_code, or the stale reminder cannot watch it"},
+    "wiki_problems": {"path": "knowledge/wiki/problems", "kind": "dir", "required": true, "note": "same rule as architecture/: what the code cannot say is written here"},
+    "adr": {"path": "knowledge/adr", "kind": "dir", "required": true, "note": "point-in-time records; the filenames are what an ADR-00xx reference resolves against"},
+    "operations": {"path": "knowledge/operations", "kind": "dir", "required": true, "note": "operational knowledge; it narrates history, so commit hashes are allowed"},
+    "plans": {"path": "knowledge/plans", "kind": "dir", "required": true, "note": "design records; narrates history"},
+    "progress": {"path": "knowledge/progress", "kind": "dir", "required": true, "note": "work logs; narrates history"},
+    "archive": {"path": "knowledge/archive", "kind": "dir", "required": true, "note": "frozen history: exempt from every check, links and schema as of when it was written"},
+    "decisions": {"path": "knowledge/decisions.md", "kind": "file", "required": true, "note": "append-only: never edit or reorder an existing entry"},
+    "decisions_index": {"path": "knowledge/decisions-index.md", "kind": "file", "required": true, "note": "mirrors decision titles verbatim, so it inherits any commit hash an entry carries"},
+    "handoffs": {"path": ".agent/handoffs", "kind": "dir", "required": true, "note": "one file per live ticket; the fields ARE the state machine. Live tickets are in flight, so they stay hot"},
+    "handoffs_archive": {"path": "knowledge/archive/handoffs", "kind": "dir", "required": false, "note": "an archived ticket counts as closed, so a blocker may point here; optional because git does not track an empty directory, and an unresolvable blocker fails loudly"},
+    "handoffs_readme": {"path": ".agent/handoffs/README.md", "kind": "file", "required": true, "note": "the ticket doctrine; the one file in that directory which is not a ticket"},
+    "inbox": {"path": "knowledge/inbox", "kind": "dir", "required": true, "note": "the user's dictated words, sealed verbatim; `refs` exempts <capture>/raw.md alone"},
+    "changelog": {"path": "knowledge/CHANGELOG.md", "kind": "file", "required": true, "note": "history, so commit hashes are allowed here"},
+    "agents": {"path": "AGENTS.md", "kind": "file", "required": true, "note": "the entry point and routing table"},
+    "claude": {"path": "CLAUDE.md", "kind": "file", "required": false, "note": "a tool-specific redirect the repo may drop; a renamed top-level name is already caught by layout.json"},
+    "context": {"path": "CONTEXT.md", "kind": "file", "required": true, "note": "hot: the domain vocabulary, at the path the domain-docs convention expects"},
+    "readme": {"path": ".agent/README.md", "kind": "file", "required": true, "note": "hot: the layering standard -- which fact belongs in which layer, and the index contract"},
+    "state": {"path": ".agent/state.md", "kind": "file", "required": true, "note": "hot: in-flight work and next steps"},
+    "invariants": {"path": ".agent/invariants.md", "kind": "file", "required": true, "note": "hot: hard constraints, read before touching code"},
+    "owners": {"path": ".agent/owners.md", "kind": "file", "required": true, "note": "hot: slices, tickets and the parallel-work rules"},
+    "system_map": {"path": "knowledge/system-map.md", "kind": "file", "required": true, "note": "how the modules connect; read before changing code, but not at session start -- so it is cold, routed from AGENTS.md"}
+  },
+  "hash_allowed_prefixes": [
+    "decisions",
+    "decisions_index",
+    "archive",
+    "adr",
+    "operations",
+    "plans",
+    "progress",
+    "changelog"
+  ],
+  "frozen_prefixes": [
+    "archive"
+  ],
+  "modules_required_prefixes": [
+    "wiki_architecture",
+    "wiki_problems"
+  ],
+  "ownership_prefixes": [
+    "hot_layer",
+    "knowledge_root"
+  ],
+  "self_state_files": [
+    "scripts/check-knowledge/knowledge-stamps.json",
+    "scripts/check-knowledge/knowledge-baseline.json"
+  ],
+  "filenames": {
+    "_comment": "Bare filenames, relative to the directory that holds them -- not repository paths, so they are not held to the existence check.",
+    "capture_raw": "raw.md",
+    "capture_triage": "triage.md"
+  },
+  "size_report": {
+    "_comment": "What --size-report prints. Report-only: neither list gates anything, so both can be edited freely without touching the checker. hot_files is the set a session loads before it knows the task; there is no byte ceiling and no byte target anywhere (DEC-067).",
+    "hot_files": ["agents", "claude", "context", "readme", "state", "invariants", "owners"],
+    "cold_dirs": ["wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress"]
+  }
+}

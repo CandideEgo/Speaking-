@@ -2,7 +2,7 @@
 
 > Routing table for splitting one task across multiple agents (or resuming a split task
 > in a fresh session). Each owner is a context slice: an agent working that slice loads
-> only its own row here, its one `wiki/` document, and the contract files it touches.
+> only its own row here, its one `knowledge/wiki/` document, and the contract files it touches.
 > Knowledge facts still belong to the files listed in `README.md` — this table only
 > decides *which* of them an agent loads. State transfer between agents goes through
 > `handoffs/`, not through chat history.
@@ -21,11 +21,11 @@ requires a handoff entry (see `handoffs/README.md`):
 
 | Owner | Backend scope | Frontend scope | Must-read wiki |
 |-------|---------------|----------------|----------------|
-| `video-pipeline` | `tasks/`, `services/transcription/`, `services/translation/`, `services/video_*`, `api/v1/media.py`, `api/v1/videos.py` | media playback pieces under `components/watch/` | `wiki/architecture/video-pipeline.md` + `wiki/architecture/translation-quality-safety-net.md` |
-| `vocab-learning` | `services/exam_service.py`, `vocab_set_service.py`, `vocabulary_service.py`, `sr_service.py`, `word_notes.py`, `ecdict/`, `api/v1/vocabulary*.py`, `api/v1/exams.py` | `app/(main)/vocabulary/`, sieve UI | `wiki/architecture/exam-vocabulary.md` |
-| `user-ops` | `api/v1/auth.py`, `users.py`, `redeem.py`, `notifications.py`, payments, `services/profile_service.py`, `learning_event_service.py` | `app/(main)/profile/`, `app/(main)/login|register|onboarding` | `wiki/architecture/auth-system.md` |
-| `admin-console` | `services/admin_service.py`, `video_review_service.py`, `subtitle_edit_service.py`, `api/v1/admin*.py`, `api/v1/catalog*.py` | `app/(admin)/`, `components/admin/`, `components/video-edit/` | `wiki/architecture/backend-services.md` + `wiki/architecture/frontend-architecture.md` |
-| `frontend-main` | — | `app/(main)/` (home, browse, watch, search, favorites, history), `components/` except admin/video-edit, `stores/`, `hooks/` | `wiki/architecture/frontend-architecture.md` |
+| `video-pipeline` | `tasks/`, `services/transcription/`, `services/translation/`, `services/video_*`, `api/v1/media.py`, `api/v1/videos.py` | media playback pieces under `components/watch/` | `knowledge/wiki/architecture/video-pipeline.md` + `knowledge/wiki/architecture/translation-quality-safety-net.md` |
+| `vocab-learning` | `services/exam_service.py`, `vocab_set_service.py`, `vocabulary_service.py`, `sr_service.py`, `word_notes.py`, `ecdict/`, `api/v1/vocabulary*.py`, `api/v1/exams.py` | `app/(main)/vocabulary/`, sieve UI | `knowledge/wiki/architecture/exam-vocabulary.md` |
+| `user-ops` | `api/v1/auth.py`, `users.py`, `redeem.py`, `notifications.py`, payments, `services/profile_service.py`, `learning_event_service.py` | `app/(main)/profile/`, `app/(main)/login|register|onboarding` | `knowledge/wiki/architecture/auth-system.md` |
+| `admin-console` | `services/admin_service.py`, `video_review_service.py`, `subtitle_edit_service.py`, `api/v1/admin*.py`, `api/v1/catalog*.py` | `app/(admin)/`, `components/admin/`, `components/video-edit/` | `knowledge/wiki/architecture/backend-services.md` + `knowledge/wiki/architecture/frontend-architecture.md` |
+| `frontend-main` | — | `app/(main)/` (home, browse, watch, search, favorites, history), `components/` except admin/video-edit, `stores/`, `hooks/` | `knowledge/wiki/architecture/frontend-architecture.md` |
 | `infra-quality` | `core/`, `models/`, `schemas/`, `scripts/check-knowledge/` | lint/test/build configs | none — read the check configs directly |
 
 Hot files (load on demand, never whole unless editing them):
@@ -37,7 +37,7 @@ Hot files (load on demand, never whole unless editing them):
 | Tier | Content | Budget |
 |------|---------|--------|
 | T0 | `AGENTS.md` + `invariants.md` + `state.md` Current Focus | ≤15K tokens |
-| T1 | This file (owner row) + the owner's `wiki/` document | ≤15K |
+| T1 | This file (owner row) + the owner's `knowledge/wiki/` document | ≤15K |
 | T2 | Own slice's code + contract files as needed | ≤80K |
 | T3 | Test output tail only; exploration beyond ~2 files goes to a subagent | transient |
 
@@ -57,3 +57,11 @@ Hot files (load on demand, never whole unless editing them):
 5. Acceptance is mechanical first: `pytest`, `ruff check`, `mypy`, `tsc --noEmit`,
    `eslint`, `check_knowledge.py` all green. The planner then reviews the handoffs
    plus contract diffs only — never the full diff.
+6. **One ticket per session, clear between tickets.** An execution session works
+   exactly one ticket and ends explicitly; it does not carry the previous ticket's
+   context into the next.
+7. **Never dispatch a ticket whose blockers are not all closed.** The frontier is
+   printed by `check_knowledge.py handoff`, not maintained by hand. Claiming a
+   ticket = writing `Owner` + `Status: in progress` (`/dispatch`); closing =
+   `Status: closed` + archiving (`/accept`). Blockers count as closed when their
+   file is `done`/`closed` or already in `knowledge/archive/handoffs/`.

@@ -10,7 +10,7 @@
 
 ## release.sh
 
-bump `frontend/package.json` 版本，把 `CHANGELOG.md` 的 `[Unreleased]` 区段归档为新版本（带日期），新增空的 `[Unreleased]` 供下轮填写，最后 `git commit`（不 push，需人工 review 后 `git push && git tag vX.Y.Z && git push --tags`）。
+bump `frontend/package.json` 版本，把 `knowledge/CHANGELOG.md` 的 `[Unreleased]` 区段归档为新版本（带日期），新增空的 `[Unreleased]` 供下轮填写，最后 `git commit`（不 push，需人工 review 后 `git push && git tag vX.Y.Z && git push --tags`）。
 
 ```bash
 scripts/release.sh patch    # 0.1.0 -> 0.1.1

@@ -55,9 +55,10 @@ Speaking/
 │       ├── lib/              # API 客户端、工具、设计 token
 │       ├── hooks/            # 自定义 Hooks
 │       └── types/            # TypeScript 类型
-├── .agent/                   # 热层：每个会话必读的事实（context/system-map/invariants/decisions/state）
-├── wiki/                     # 长期工程知识：architecture / problems / guides
-├── docs/                     # 沉淀层：adr / operations / progress / plans / requirements / agents / design
+├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners / handoffs）
+├── knowledge/                # 冷仓：一切记录过去的知识，入口 knowledge/INDEX.md
+│                             #   （wiki/adr/plans/progress/requirements/operations/archive/inbox/decisions）
+├── docs/                     # 只放技能按固定路径读的配置（agents/）与物料（design/）
 ├── scripts/                  # 项目级脚本（check-knowledge、release）
 ├── logs/                     # 本地运行产物（不入库）
 ├── docker-compose.dev.yml    # 仅基础设施 (DB + Redis)
@@ -65,9 +66,9 @@ Speaking/
 └── .github/workflows/ci.yml  # CI/CD
 ```
 
-> 哪个目录装哪种东西、新文件该放哪：见 [wiki/guides/repository-layout.md](wiki/guides/repository-layout.md)。
+> 哪个目录装哪种东西、新文件该放哪：见 [knowledge/wiki/guides/repository-layout.md](knowledge/wiki/guides/repository-layout.md)。
 
-> 完整架构见 [AGENTS.md](AGENTS.md)、`.agent/system-map.md` 与 [wiki/](wiki/INDEX.md)。
+> 完整架构见 [AGENTS.md](AGENTS.md)、`knowledge/system-map.md` 与 [knowledge/INDEX.md](knowledge/INDEX.md)（冷仓入口）。
 
 ---
 
@@ -120,13 +121,13 @@ cp backend/.env.example backend/.env   # 填生产值
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-生产架构：Nginx (SSL/反代) -> Gunicorn (4 workers) / Next.js / Celery 云 worker -> PostgreSQL + Redis；远程 GPU worker 走 transcription_gpu 队列。详见 [docs/operations/](docs/operations/)。
+生产架构：Nginx (SSL/反代) -> Gunicorn (4 workers) / Next.js / Celery 云 worker -> PostgreSQL + Redis；远程 GPU worker 走 transcription_gpu 队列。详见 [knowledge/operations/](knowledge/operations/)。
 
 ---
 
 ## 开发进度
 
-总体进度 **100%**（92/92 项完成，快照冻结于 2026-07-20；当前状态见 [.agent/state.md](.agent/state.md)）。详见 [docs/progress/PROGRESS.md](docs/progress/PROGRESS.md)。
+总体进度 **100%**（92/92 项完成，快照冻结于 2026-07-20；当前状态见 [.agent/state.md](.agent/state.md)）。详见 [knowledge/progress/PROGRESS.md](knowledge/progress/PROGRESS.md)。
 
 ---
 
@@ -135,12 +136,12 @@ docker compose -f docker-compose.prod.yml up -d
 | 文档 | 内容 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Agent 工作约定 + 知识层规则（CLAUDE.md 为其重定向） |
-| [.agent/context.md](.agent/context.md) | 产品定位、技术栈、领域术语、已砍功能 |
-| [.agent/system-map.md](.agent/system-map.md) | 系统模块地图与关键不变量 |
-| [wiki/INDEX.md](wiki/INDEX.md) | 长期工程知识库（架构/指南/问题） |
-| [wiki/guides/repository-layout.md](wiki/guides/repository-layout.md) | 目录归属：哪个目录装哪种东西、新增顶层目录需要什么 |
-| [docs/progress/PROGRESS.md](docs/progress/PROGRESS.md) | 开发进度快照（冻结于 2026-07-20） |
-| [CHANGELOG.md](CHANGELOG.md) | 现行变更记录 |
+| [CONTEXT.md](CONTEXT.md) | 产品定位、技术栈、领域术语、已砍功能 |
+| [knowledge/system-map.md](knowledge/system-map.md) | 系统模块地图与关键不变量 |
+| [knowledge/INDEX.md](knowledge/INDEX.md) | 冷仓入口：长期工程知识全书目（架构/问题/指南/方案/进展/运维/归档） |
+| [knowledge/wiki/guides/repository-layout.md](knowledge/wiki/guides/repository-layout.md) | 目录归属：哪个目录装哪种东西、新增顶层目录需要什么 |
+| [knowledge/progress/PROGRESS.md](knowledge/progress/PROGRESS.md) | 开发进度快照（冻结于 2026-07-20） |
+| [knowledge/CHANGELOG.md](knowledge/CHANGELOG.md) | 现行变更记录 |
 
 ---
 
