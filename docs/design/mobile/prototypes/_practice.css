@@ -1,0 +1,162 @@
+/* #26 跟读/练习区容器原型 —— 四条方案共享的「跟读内容」样式
+ *
+ * 依赖 _wordtap.css 提供的 #24 乙 外壳（画面内字幕 / 细控制条 / 字幕条 / 文稿列表）：
+ * 四条方案的外壳必须一模一样，差异才只来自「容器」。
+ *
+ * 这里只放两份东西：
+ *   ① 跟读内容的排版（原句 / 状态行 / 波形对比 / 动作行 / 最近跟读）—— 内容共用，容器各写各的；
+ *   ② 「现状对照」用的那套尺寸（P0 专用）—— 全部照抄真代码，一个值都不许美化：
+ *      mic 行 w-11（44）、AudioWaveform canvas 200×32 无宽度类、WaveformCompare canvas 400×28、
+ *      Button size="sm"（≈30px 高）、删除按钮 w-6 h-6 且 group-hover 才可见。
+ */
+.pr { --pr-gutter: 16px; }
+
+/* 多处用 display:flex 覆盖 [hidden] 的默认 display:none，这里补回语义 */
+.pr [hidden] { display: none !important; }
+
+/* ── ① 跟读内容（四条方案的公共层级）────────────────────────────── */
+.pr-wrap { display: flex; flex-direction: column; }
+
+.pr-sent { padding: 10px 14px 8px; }
+.pr-k {
+  font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--brand-600);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
+}
+.pr-k .n { color: var(--muted-soft); font-weight: 700; letter-spacing: 0; margin-left: auto; font-variant-numeric: tabular-nums; }
+.pr-en { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--ink); }
+.pr-en .w { padding: 0 1px; }
+.pr-en .w.now { color: var(--brand-600); }
+.pr-zh { font-size: 12.5px; line-height: 17px; color: var(--muted-c); margin-top: 3px; }
+
+.pr-state {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 14px 8px; padding: 7px 10px; border-radius: var(--radius-sm);
+  background: var(--surface-soft); font-size: 12px; font-weight: 600; color: var(--body);
+}
+.pr-state .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-soft); flex: 0 0 auto; }
+.pr-state.rec { background: var(--red-soft); color: var(--error); }
+.pr-state.rec .dot { background: var(--error); animation: pr-pulse 1s infinite; }
+.pr-state.review { background: var(--success-soft); color: var(--success); }
+.pr-state.review .dot { background: var(--success); }
+.pr-state .tm { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 800; }
+@keyframes pr-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+
+/* 波形对比：原声 / 我的。两行都按容器实宽绘制（现状是 400px 内在宽被挤）
+   整行是播放目标（≥44px），不再放 24px 的小圆钮 —— 现状那个键在触屏上本来就够不着 */
+.pr-wave { padding: 0 14px 4px; display: flex; flex-direction: column; gap: 6px; }
+.pr-wrow {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; width: 100%;
+  padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent;
+  font: inherit; cursor: pointer;
+}
+.pr-wrow:hover { background: var(--surface-soft); }
+.pr-wrow.on { background: var(--brand-50); }
+.pr-wlbl { width: 48px; flex: 0 0 auto; font-size: 10.5px; color: var(--muted-c); text-align: left; }
+.pr-wcv { flex: 1 1 auto; min-width: 0; height: 28px; display: block; border-radius: 4px; background: var(--surface-soft); }
+.pr-wrow:hover .pr-wcv { background: var(--surface-card); }
+.pr-wnote { font-size: 10.5px; color: var(--muted-soft); padding: 0 14px 6px; line-height: 1.4; }
+
+/* 动作行：四条方案里所有跟读控件一律 44px（现状 30 / 24 / hover 才可见） */
+.pr-acts { display: flex; gap: 8px; padding: 8px 14px 10px; }
+.pr-acts .btn { flex: 1; padding: 0 8px; font-size: 13px; }
+.pr-acts .btn.rec { background: var(--error); border-color: var(--error); color: #fff; }
+.pr-acts .btn.ok { background: var(--success); border-color: var(--success); color: #fff; }
+
+/* 最近跟读 */
+.pr-hist { border-top: 1px solid var(--hairline); }
+.pr-hd {
+  display: flex; align-items: center; gap: 6px; padding: 9px 14px 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--muted-soft);
+}
+.pr-hd .c { margin-left: auto; letter-spacing: 0; font-weight: 700; }
+.pr-hlist { display: flex; flex-direction: column; gap: 6px; padding: 0 14px 10px; }
+.pr-hrow { display: flex; align-items: center; gap: 8px; background: var(--surface-soft); border-radius: var(--radius-sm); padding: 8px 10px; }
+.pr-hrow audio { height: 28px; flex: 1 1 auto; min-width: 0; max-width: 200px; }
+.pr-ht { font-size: 11px; color: var(--muted-c); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr-hs { font-size: 11px; color: var(--success); font-weight: 600; white-space: nowrap; }
+.pr-hdel {
+  width: 44px; height: 44px; flex: 0 0 auto; margin: -8px -6px -8px 0;
+  border: 0; background: transparent; color: var(--muted-soft);
+  display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer;
+}
+/* 现状：删除键 w-6 h-6（24px）且 hover 才可见 —— 触屏上等于不存在 */
+.pr-hdel.today { width: 24px; height: 24px; margin: 0; opacity: 0; }
+.pr-hrow:hover .pr-hdel.today { opacity: 1; }
+
+/* 历史折叠条（甲 用来把它压到一行） */
+.pr-strip {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 44px; padding: 0 14px; border: 0; border-top: 1px solid var(--hairline);
+  background: var(--canvas); color: var(--body); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.pr-strip .k { color: var(--muted-soft); font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.pr-strip .n { margin-left: auto; color: var(--muted-c); font-weight: 700; }
+
+/* 跟读时视频暂停的示意（自带一枚，避免和 WT 的 pause 开关打架） */
+.pr-paused {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  z-index: 6; display: none; align-items: center; gap: 6px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; border-radius: var(--radius-pill); border: 1px solid rgba(255, 255, 255, .25);
+  pointer-events: none;
+}
+.pr-paused.on { display: flex; }
+
+/* 「入口挪进画面」那个选项的落点：画面里只剩标题卡上面那块空位，按钮只能压在那儿 */
+.pr-entry {
+  position: absolute; right: 10px; top: 8px; z-index: 8;
+  min-height: 44px; padding: 0 12px; border-radius: var(--radius-pill);
+  border: 1px solid rgba(250, 250, 250, .35); background: rgba(0, 0, 0, .55); color: #fff;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; backdrop-filter: blur(4px);
+}
+
+/* ── ② 现状对照（P0 专用）：全部照抄真代码，一个值都不许美化 ────── */
+.today-card {
+  background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg); padding: 20px;                /* rounded-xl p-5 */
+}
+.today-row { display: flex; align-items: flex-start; gap: 16px; }  /* flex items-start gap-4 */
+.today-tx { flex: 1 1 auto; min-width: 0; }
+.today-btns { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.today-btn {
+  min-height: 44px; padding: 8px 14px; border-radius: var(--radius-sm);  /* min-h-[44px] px-3.5 py-2 rounded-lg */
+  border: 1px solid var(--hairline); background: var(--canvas); color: var(--ink);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
+}
+.today-btn.mic { border-color: var(--brand-200); background: var(--brand-50); color: var(--brand-600); }
+.today-open { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hairline); }  /* mt-4 pt-4 border-t */
+.today-row2 { display: flex; align-items: center; gap: 12px; background: var(--surface-soft); border-radius: var(--radius-sm); padding: 12px; }
+/* 真代码这里是 <div className="flex-1">，**没有** min-w-0 —— 自动最小宽 = 内容的 min-content，
+   所以 200px 的画布会把这一格撑破。测试用具如实照抄这一点。 */
+.today-flex1 { flex: 1 1 0%; }
+.today-mic {
+  width: 44px; height: 44px; flex: 0 0 auto; border-radius: 50%;
+  border: 0; background: var(--brand-500); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.today-wplay {
+  width: 24px; height: 24px; flex: 0 0 auto; padding: 0; border-radius: 50%;
+  border: 0; background: var(--surface-soft); color: var(--muted-c);
+  display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer;
+}
+.today-mic.rec { background: var(--error); animation: pr-pulse 1s infinite; }
+.today-cancel { border: 0; background: transparent; color: var(--muted-c); font-size: 13px; font-weight: 600; cursor: pointer; }
+.today-panel { background: var(--surface-soft); border-radius: var(--radius-sm); padding: 12px; }
+.today-status { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 12px; }
+/* AudioWaveform：canvas width=200 height=32，类名只有 rounded-md —— 没有任何宽度约束 */
+.today-canvas { width: 200px; height: 32px; border-radius: 6px; background: var(--surface-card); display: block; }
+.today-wrow { display: flex; align-items: center; gap: 8px; }
+.today-wlbl { width: 48px; flex: 0 0 auto; font-size: 11px; color: var(--muted-c); text-align: right; }
+/* WaveformCompare：canvas width=400 height=28 + class="flex-1 rounded"。
+   flex-1 = flex:1 1 0%，而**没有** min-width:0 → 自动最小宽 = 内在宽 400px，缩不下去。 */
+.today-wcv { flex: 1 1 0%; height: 28px; border-radius: 4px; background: var(--surface-card); display: block; }
+.today-wbox { flex: 1 1 0%; }
+.today-sm {
+  min-height: 0; padding: 6px 12px; border-radius: var(--radius-sm);   /* px-3 py-1.5 text-xs */
+  border: 1px solid var(--hairline); background: var(--canvas); color: var(--ink);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.today-sm.primary { background: var(--brand-500); border-color: var(--brand-500); color: #fff; }

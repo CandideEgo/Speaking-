@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 跟读容器乙 —— 底部抽屉</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_practice.css">
+<style>
+  /* ── 乙 · 底部抽屉 ──
+     面板是浮层，从底部导航上方升起。抽屉顶边钉住「要跟读的这一句」，
+     所以视线只需要在画面（含入画字幕）和抽屉顶之间来回，不必找底部。
+     两个高度可切：半屏 / 抬到画面下沿。 */
+  .pr .main { display: flex; flex-direction: column; overflow: hidden; }
+  .pr-sheet {
+    position: absolute; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 38;
+    display: flex; flex-direction: column;
+    background: var(--canvas); border-top: 1px solid var(--hairline);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -10px 30px rgba(10, 10, 10, .16);
+    opacity: 0; transform: translateY(14px); pointer-events: none;
+    transition: transform .16s ease-out, opacity .16s ease-out;
+  }
+  .pr-sheet.on { opacity: 1; transform: none; pointer-events: auto; }
+  .pr-sheet .grab { flex: 0 0 auto; padding: 8px 0 4px; display: flex; justify-content: center; touch-action: none; cursor: grab; }
+  .pr-sheet .grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-strong); }
+  .pr-sheet .grab-hint { flex: 0 0 auto; padding: 0 14px 4px; font-size: 10.5px; color: var(--brand-600); font-weight: 700; }
+  .pr-sheet .sd-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .pr-sheet .sd-foot {
+    flex: 0 0 auto; border-top: 1px solid var(--hairline);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_practice.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt pr" id="app">
+  <div id="shell-top"></div>
+
+  <div class="main" id="main">
+    <div class="player" id="player">
+      <div class="frame" id="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="pr-paused" id="prPaused">❙❙ 跟读时视频暂停（示意）</div>
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+        <button class="pr-entry" id="prEntry2" hidden>🎤 跟读</button>
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="entryFlow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="entryMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div class="pr-sheet" id="prSheet">
+    <div class="grab" id="prGrab"><i></i></div>
+    <div class="grab-hint" id="prHint">下拉关掉（拖动把手试试）</div>
+    <div class="sd-body"><div id="prBody"></div></div>
+    <div class="sd-foot" id="prFoot"></div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.notes =
+  "<b>乙 · 底部抽屉</b><br>" +
+  "面板从底部导航上方升起，是<b>浮层</b>：它盖住文稿列表，但不动画面、不动伴侣条的位置。" +
+  "抽屉顶边第一件事就是把<b>「要跟读的这一句」钉住</b>，所以「看着句子念」不需要回到画面上。<br><br>" +
+  "两个高度可切：<b>半屏</b>（只看练习）与<b>抬到画面下沿</b>（把伴侣条也一起盖掉，中间不留断层）。" +
+  "把手支持下拉关闭 —— 顺带回答「退出用按钮还是手势」。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var app = document.getElementById("app");
+  var sheet = document.getElementById("prSheet");
+  var body = document.getElementById("prBody");
+  var foot = document.getElementById("prFoot");
+  var open = false;
+
+  function rebuild() {
+    PR.mount(body, { hist: WT.state.histOpen ? "full" : "strip" });
+    PR.render(body);
+    foot.innerHTML = "";
+  }
+
+  function layout() {
+    var appH = app.getBoundingClientRect().height;
+    var tabEl = document.querySelector(".tabbar");
+    var tabH = tabEl ? tabEl.getBoundingClientRect().height : 56;
+    var player = document.getElementById("player").getBoundingClientRect();
+    var top = WT.state.sheetHigh
+      ? Math.round(player.bottom - app.getBoundingClientRect().top)
+      : Math.round(appH - tabH - 400);
+    sheet.style.top = top + "px";
+    document.getElementById("prHint").textContent = WT.state.sheetHigh
+      ? "下拉关掉 · 顶边已抬到画面下沿（伴侣条被盖住）"
+      : "下拉关掉 · 半屏（伴侣条还在）";
+  }
+
+  function show(on) {
+    open = on;
+    sheet.classList.toggle("on", on);
+    if (on) { rebuild(); if (PR.state.mode === "idle") PR.start(); }
+    layout();
+    if (window.WT) WT.refresh();
+  }
+
+  function setEntry(corner) {
+    document.getElementById("prEntry2").hidden = !corner;
+    document.querySelectorAll("#entryFlow, #entryMic").forEach(function (b) { b.hidden = corner; });
+  }
+
+  document.getElementById("entryFlow").addEventListener("click", function () { show(true); });
+  document.getElementById("entryMic").addEventListener("click", function () { show(true); PR.setMode("idle"); });
+  document.getElementById("prEntry2").addEventListener("click", function () { show(true); });
+
+  /* 下拉关闭：把手上的指针拖动 > 64px 就关（手势退出这一问的实物） */
+  (function () {
+    var y0 = null;
+    var grab = document.getElementById("prGrab");
+    grab.addEventListener("pointerdown", function (e) { y0 = e.clientY; grab.setPointerCapture(e.pointerId); });
+    grab.addEventListener("pointermove", function (e) {
+      if (y0 === null) return;
+      var d = Math.max(0, e.clientY - y0);
+      sheet.style.transform = "translateY(" + d + "px)";
+    });
+    grab.addEventListener("pointerup", function (e) {
+      if (y0 === null) return;
+      var d = e.clientY - y0;
+      y0 = null;
+      sheet.style.transform = "";
+      if (d > 64) show(false);
+    });
+  })();
+
+  PR.on(function () {
+    if (body.children.length) PR.render(body);
+    if (window.WT) WT.refresh();
+  });
+  var lastHist = null;
+  WT.on(function () {            /* 只改几何/入口，绝不在这里调 WT.refresh() */
+    setEntry(!!WT.state.entryCorner);
+    if (open && lastHist !== WT.state.histOpen) { lastHist = WT.state.histOpen; rebuild(); }
+    document.getElementById("prPaused").classList.toggle("on",
+      !!(WT.state.prPause && (PR.state.mode === "rec" || PR.state.mode === "playing")));
+    layout();
+  });
+
+  WT.build({
+    onRow: function (idx) { PR.state.idx = idx; PR.emit(); },
+    toggles: [
+      { key: "sheetHigh", label: "抽屉高度", on: "抬到画面下沿", off: "半屏" },
+      { key: "histOpen", label: "最近跟读", on: "全展开", off: "折叠一行" },
+      { key: "waveOne", label: "波形", on: "合并一条", off: "两条分开" },
+      { key: "autoAdvance", label: "自动推进", on: "开", off: "关" },
+      { key: "prPause", label: "跟读时视频", on: "暂停", off: "继续放" },
+      { key: "entryCorner", label: "入口", on: "画面角落", off: "伴侣条原位" }
+    ],
+    boxes: [
+      { sel: "#burn", label: "① 入画字幕 —— 抽屉不碰它", tone: "dim" },
+      { sel: "#prSheet", label: "② 抽屉：顶边钉住「要跟读的这一句」" },
+      { sel: "#subbar", label: "③ 伴侣条 —— 半屏时还在，抬高后就被盖住", tone: "quiet" },
+      { sel: "#listwrap", label: "④ 文稿列表 —— 被抽屉整个盖住", tone: "quiet" }
+    ],
+    read: [
+      { label: "播放器高度 展开前 → 展开后", get: function () { return "211 → 211px（没动）"; } },
+      { label: "抽屉占屏高", get: function () {
+          if (!open) return "—（未展开）";
+          var r = PR.rect("#prSheet");
+          return Math.round(r.height) + "px / 812px（" + Math.round(r.height / 812 * 100) + "%）";
+        } },
+      { label: "抽屉内容 vs 可视", get: function () {
+          if (!open) return "—（未展开）";
+          var d = PR.overflowY(".sd-body");
+          return { v: d > 0 ? "内容多出 " + d + "px（抽屉内要滚）" : "正好装下（不用滚）", tone: d > 0 ? "bad" : "good" };
+        } },
+      { label: "入画字幕下沿 → 抽屉顶", get: function () {
+          if (!open) return "—（未展开）";
+          var g = Math.round(PR.rect("#prSheet").top - PR.rect("#burn").bottom);
+          return { v: g + "px" + (WT.state.sheetHigh ? "（贴住，中间无断层）" : "（那截是伴侣条，看得见）"), tone: g <= 4 ? "good" : "" };
+        } },
+      { label: "抽屉盖住伴侣条", get: function () { return PR.overlap("#prSheet", "#subbar") + "px"; } },
+      { label: "抽屉盖住文稿列表", get: function () { return PR.overlap("#prSheet", "#listwrap") + "px"; } },
+      { label: "原句与状态行同屏", get: function () {
+          if (!open) return "—（未展开）";
+          var s = PR.inView("[data-pr-en]"), t = PR.inView("[data-pr-state]");
+          if (s === null || t === null) return "—";
+          return { v: (s ? "原句在" : "原句滚出去了") + " · " + (t ? "状态行在" : "状态行滚出去了"), tone: s && t ? "good" : "bad" };
+        } },
+      { label: "跟读控件最小触控目标", get: function () {
+          var m = PR.minTarget([".pr-acts .btn", ".pr-hdel", ".pr-wrow", ".pr-strip"]);
+          return m ? { v: m.v + "px（" + m.sel + "）", tone: m.v >= 44 ? "good" : "bad" } : "—";
+        } },
+      { label: "最近跟读可见几条", get: function () {
+          if (!open) return "—（未展开）";
+          var rows = document.querySelectorAll("#prBody .pr-hrow");
+          if (!rows.length) return "折叠成一行（点开才占高度）";
+          var box = document.querySelector(".sd-body").getBoundingClientRect();
+          var n = 0;
+          rows.forEach(function (r) { var b = r.getBoundingClientRect(); if (b.top >= box.top - 1 && b.bottom <= box.bottom + 1) n++; });
+          return { v: n + " / " + rows.length + " 条" + (n === 0 ? "（首屏看不到，要往下滚）" : ""), tone: n === rows.length ? "good" : "bad" };
+        } },
+      { label: "退出方式", get: { v: "把手下拉 > 64px（含按钮位），实测可关", tone: "good" } },
+      { label: "入口在哪（开关可切）", get: function () {
+          if (WT.state.entryCorner) {
+            var o = PR.overlap("#prEntry2", ".titlecard");
+            return { v: "画面右上角，压住标题卡 " + o + "px", tone: "bad" };
+          }
+          return { v: "伴侣条原位（#23 已定）", tone: "good" };
+        } }
+    ],
+    note: function () {
+      return open
+        ? "乙 用<b>浮层</b>换垂直空间：抽屉拿走多少，就是从文稿列表身上盖掉多少 —— 但画面和伴侣条的位置一个像素都没动。" +
+          "试「抽屉高度：抬到画面下沿」，看在画面上多看到一截伴侣条值不值。"
+        : "点伴侣条的「逐句跟读」，抽屉从底部升起。把手可以往下拖，拖过 64px 就关。";
+    }
+  });
+
+  var row = D.script[PR.state.idx];
+  document.getElementById("burnEn").innerHTML = row.en.split(/\s+/)
+    .map(function (t) { return '<span class="word">' + t + "</span>"; }).join(" ");
+  document.getElementById("burnZh").textContent = row.zh;
+  setEntry(false);
+  window.P2 = { show: show, layout: layout };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 跟读容器丙 —— 练习模式（整页换掉）</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_practice.css">
+<style>
+  /* ── 丙 · 练习模式 ──
+     不再「在页面上挤一块出来」，而是换一个模式：练习层盖住画面以下的全部（含底栏），
+     画面本身缩成 160×90 停靠条，钉在练习层顶部 —— 硬约束「视频得一直在」用缩略画面兑现。
+     代价立刻出现：90px 高的画面里放不下 79px 的入画字幕，也放不下 65px 的控制条。 */
+  .pr .main { display: flex; flex-direction: column; overflow: hidden; }
+  .pr-mode {
+    position: absolute; left: 0; right: 0; top: 44px; bottom: 0; z-index: 45;
+    display: flex; flex-direction: column; background: var(--canvas);
+  }
+  .pr-mode[hidden] { display: none; }
+  .md-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-bottom: 1px solid var(--hairline);
+  }
+  .md-k { font-size: 12px; font-weight: 800; letter-spacing: .04em; color: var(--ink); }
+  .md-n { font-size: 11px; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
+  .md-x { margin-left: auto; }
+  .md-stage { flex: 0 0 auto; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px 6px; }
+  .md-dock { flex: 0 0 auto; width: 160px; }
+  .md-dock .player { width: 160px; }
+  .md-dock .player .frame { width: 160px; }
+  .md-dock .clipless { font-size: 10px; color: var(--muted-soft); line-height: 1.35; margin-top: 5px; }
+  .md-state { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .md-state .pr-state { margin: 0; }
+  .md-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  /* 停靠后 90px 高的画面里装不下入画字幕与控制条 —— 都拿掉，只剩画面 */
+  .pr.docked .burn, .pr.docked .ctl, .pr.docked .clearmark, .pr.docked .titlecard { display: none; }
+  .pr.docked .frame { background: linear-gradient(135deg, #1c1c1c 0%, #0a0a0a 60%); }
+  .pr-mode .pr-en { font-size: 19px; line-height: 26px; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_practice.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt pr" id="app">
+  <div id="shell-top"></div>
+
+  <div class="main" id="main">
+    <div class="player" id="player">
+      <div class="frame" id="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="pr-paused" id="prPaused">❙❙ 跟读时视频暂停（示意）</div>
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+        <button class="pr-entry" id="prEntry2" hidden>🎤 跟读</button>
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="entryFlow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="entryMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div class="pr-mode" id="prMode" hidden>
+    <div class="md-head">
+      <span class="md-k">跟读练习</span>
+      <span class="md-n" id="mdCount">95 / 187</span>
+      <button class="btn" data-act="exit" style="min-height:36px;padding:0 12px;font-size:12px">✕ 退出</button>
+    </div>
+    <div class="md-stage">
+      <div class="md-dock" id="mdDock"></div>
+      <div class="md-state" id="mdState"></div>
+    </div>
+    <div class="md-body" id="prBody"></div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.notes =
+  "<b>丙 · 练习模式（整页换掉）</b><br>" +
+  "不挤、不盖，而是<b>切一个模式</b>：练习层盖住画面以下的全部（连底部导航一起），" +
+  "画面缩成 <b>160×90 停靠条</b>钉在层顶部 —— 硬约束「视频得一直在」用缩略画面兑现。<br><br>" +
+  "<b>代价不止一处</b>：① 底栏被盖掉，和 #24 乙「保留底部导航」直接冲突；" +
+  "② 90px 高的画面里放不下 79px 的入画字幕，也放不下 65px 控制条 —— 停靠后两个字幕块都得拿掉；" +
+  "③ 练习层里再写一遍原句，就和画面内那句重复了（开关可切）。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var app = document.getElementById("app");
+  var main = document.getElementById("main");
+  var player = document.getElementById("player");
+  var mode = document.getElementById("prMode");
+  var body = document.getElementById("prBody");
+  var open = false;
+  var homeNext = player.nextElementSibling;   // 退出时把播放器放回原位
+
+  function rebuild() {
+    PR.mount(body, { hist: WT.state.histStrip ? "strip" : "full", hide: WT.state.dupSent ? ["sent"] : [] });
+    var st = body.querySelector("[data-pr-state]");
+    var state = document.getElementById("mdState");
+    state.innerHTML = "";               /* 不先清空，重挂一次就会多出一行状态 */
+    if (st) state.appendChild(st);
+    /* 状态行被挪出了 body，PR.render(body) 之后再也找不到它 —— 所以本页一律用 document 作用域渲染 */
+    PR.render(document);
+  }
+
+  function layout() {
+    if (!open) return;
+    var docked = !WT.state.keepVideo;
+    var dock = document.getElementById("mdDock");
+    var note = document.getElementById("mdNote");
+    if (docked) {
+      if (player.parentNode !== dock) dock.insertBefore(player, dock.firstChild);
+      if (!note) dock.insertAdjacentHTML("beforeend",
+        '<div class="clipless" id="mdNote">画面 160×90：入画字幕（79px）与控制条（65px）都放不进去了 —— 停靠后已拿掉</div>');
+    } else {
+      if (note) note.remove();
+      if (player.parentNode === dock) homeNext.parentNode.insertBefore(player, homeNext);
+    }
+    app.classList.toggle("docked", docked);
+    document.querySelector(".md-stage").classList.toggle("nodock", !docked);
+    // 不缩画面时，练习层只能从画面下沿开始 —— 这一档退化成「全屏层」
+    mode.style.top = docked ? "44px" : Math.round(PR.rect("#player").bottom - PR.rect(".app").top) + "px";
+  }
+
+  function show(on) {
+    open = on;
+    mode.hidden = !on;
+    if (on) {
+      layout();
+      rebuild();
+      if (PR.state.mode === "idle") PR.start();
+    } else {
+      var note = document.getElementById("mdNote");
+      if (note) note.remove();
+      if (player.parentNode === document.getElementById("mdDock")) homeNext.parentNode.insertBefore(player, homeNext);
+      document.querySelector(".md-stage").classList.remove("nodock");
+      app.classList.remove("docked");
+      document.getElementById("mdState").innerHTML = "";
+    }
+    if (window.WT) WT.refresh();
+  }
+
+  function setEntry(corner) {
+    document.getElementById("prEntry2").hidden = !corner;
+    document.querySelectorAll("#entryFlow, #entryMic").forEach(function (b) { b.hidden = corner; });
+  }
+
+  document.getElementById("entryFlow").addEventListener("click", function () { show(true); });
+  document.getElementById("entryMic").addEventListener("click", function () { show(true); PR.setMode("idle"); });
+  document.getElementById("prEntry2").addEventListener("click", function () { show(true); });
+
+  /* 下拉退出：在顶栏上往下拖 > 64px */
+  (function () {
+    var y0 = null, head = document.querySelector(".md-head");
+    head.addEventListener("pointerdown", function (e) { y0 = e.clientY; head.setPointerCapture(e.pointerId); });
+    head.addEventListener("pointermove", function (e) {
+      if (y0 === null) return;
+      mode.style.transform = "translateY(" + Math.max(0, e.clientY - y0) + "px)";
+    });
+    head.addEventListener("pointerup", function (e) {
+      if (y0 === null) return;
+      var d = e.clientY - y0; y0 = null; mode.style.transform = "";
+      if (d > 64) show(false);
+    });
+  })();
+
+  PR.on(function () {
+    if (body.children.length) PR.render(document);
+    if (window.WT) WT.refresh();
+  });
+  var lastHist;
+  WT.on(function () {            /* 只改几何/入口，绝不在这里调 WT.refresh() */
+    setEntry(!!WT.state.entryCorner);
+    if (open && lastHist !== WT.state.histStrip) { lastHist = WT.state.histStrip; rebuild(); }
+    document.getElementById("prPaused").classList.toggle("on",
+      !!(WT.state.prPause && (PR.state.mode === "rec" || PR.state.mode === "playing")));
+    if (open) {
+      layout();
+      if (body.children.length) PR.render(document);
+    }
+  });
+
+  WT.build({
+    onRow: function (idx) { PR.state.idx = idx; PR.emit(); },
+    toggles: [
+      { key: "keepVideo", label: "画面", on: "保持 375×211", off: "缩成 160×90 停靠" },
+      { key: "histStrip", label: "最近跟读", on: "折叠一行", off: "全展开" },
+      { key: "waveOne", label: "波形", on: "合并一条", off: "两条分开" },
+      { key: "dupSent", label: "练习层里的原句", on: "去掉（只信画面内）", off: "保留" },
+      { key: "autoAdvance", label: "自动推进", on: "开", off: "关" },
+      { key: "prPause", label: "跟读时视频", on: "暂停", off: "继续放" },
+      { key: "entryCorner", label: "入口", on: "画面角落", off: "伴侣条原位" }
+    ],
+    boxes: [
+      { sel: "#prMode", label: "① 练习层：盖住画面以下全部（含底栏）" },
+      { sel: "#mdDock", label: "② 停靠画面 160×90 —— 入画字幕被拿掉", tone: "dim" },
+      { sel: "#prBody", label: "③ 原句 + 波形 + 动作行（波形拿到整宽）" },
+      { sel: "#listwrap", label: "④ 文稿列表与底栏 —— 都在层下面", tone: "quiet" }
+    ],
+    read: [
+      { label: "播放器尺寸（展开前 → 展开后）", get: function () {
+          var r = PR.rect("#player");
+          if (!open) return "375×211px";
+          var docked = document.querySelector(".app").classList.contains("docked");
+          return { v: Math.round(r.width) + "×" + Math.round(r.height) + "px" + (docked ? "（缩成停靠条）" : "（没动）"), tone: docked ? "" : "good" };
+        } },
+      { label: "入画字幕还在吗", get: function () {
+          var docked = document.querySelector(".app").classList.contains("docked");
+          if (!open || !docked) return { v: "在（画面 211px 装得下 79px）", tone: "good" };
+          return { v: "已被拿掉 —— 90px 高的画面装不下 79px 的字幕块", tone: "bad" };
+        } },
+      { label: "练习层占屏高", get: function () {
+          if (!open) return "—（未展开）";
+          var r = PR.rect("#prMode");
+          return Math.round(r.height) + "px / 812px（" + Math.round(r.height / 812 * 100) + "%）";
+        } },
+      { label: "底部导航 / 文稿列表", get: function () {
+          if (!open) return "正常";
+          return { v: "被练习层盖住 " + PR.overlap("#prMode", ".tabbar") + "px（底栏）", tone: "bad" };
+        } },
+      { label: "原句字号 / 波形位宽", get: function () {
+          var cs = getComputedStyle(document.querySelector("[data-pr-en]") || document.body);
+          var cv = null;
+          document.querySelectorAll("[data-wave]").forEach(function (c) { if (!cv && c.clientWidth) cv = c; });
+          return { v: (cs.fontSize || "—") + " / " + (cv ? Math.round(cv.clientWidth) + "px" : "—") + "（甲 16px / 291px，乙 16px / 291px）", tone: "good" };
+        } },
+      { label: "同一句出现几次", get: function () {
+          if (!open) return "—";
+          var a = PR.rect("#burn") ? 1 : 0;
+          var b = PR.rect("[data-pr-en]") ? 1 : 0;
+          return { v: a + b + " 次" + (a + b > 1 ? "（画面内 + 练习层）" : ""), tone: a + b > 1 ? "bad" : "good" };
+        } },
+      { label: "跟读控件最小触控目标", get: function () {
+          var m = PR.minTarget([".pr-acts .btn", ".pr-hdel", ".pr-wrow", ".pr-strip"]);
+          return m ? { v: m.v + "px（" + m.sel + "）", tone: m.v >= 44 ? "good" : "bad" } : "—";
+        } },
+      { label: "最近跟读可见几条", get: function () {
+          if (!open) return "—（未展开）";
+          var rows = document.querySelectorAll("#prBody .pr-hrow");
+          if (!rows.length) return "折叠成一行";
+          var box = document.querySelector(".md-body").getBoundingClientRect();
+          var n = 0;
+          rows.forEach(function (r) { var b = r.getBoundingClientRect(); if (b.top >= box.top - 1 && b.bottom <= box.bottom + 1) n++; });
+          return n + " / " + rows.length + " 条";
+        } },
+      { label: "退出方式", get: { v: "顶栏 ✕ 或下拉 > 64px，退出即恢复原页面", tone: "good" } },
+      { label: "入口在哪（开关可切）", get: function () {
+          if (WT.state.entryCorner) {
+            var o = PR.overlap("#prEntry2", ".titlecard");
+            return { v: "画面右上角，压住标题卡 " + o + "px", tone: "bad" };
+          }
+          return { v: "伴侣条原位（#23 已定）", tone: "good" };
+        } }
+    ],
+    note: function () {
+      return open
+        ? "丙 买到的：一次性拿到 <b>768px（95% 屏高）</b>全给练习，原句放大到 19px，状态行与画面并排，什么都不用滚。" +
+          "花掉的是：<b>底栏消失</b>、入画字幕在 90px 的画面里放不下、与 #24 乙「保留底部导航」直接冲突。" +
+          "切「画面：保持 375×211」看退化成普通全屏层之后还剩什么。"
+        : "点伴侣条的「逐句跟读」进入练习模式。往下拖顶栏可以退出。";
+    }
+  });
+
+  var row = D.script[PR.state.idx];
+  document.getElementById("burnEn").innerHTML = row.en.split(/\s+/)
+    .map(function (t) { return '<span class="word">' + t + "</span>"; }).join(" ");
+  document.getElementById("burnZh").textContent = row.zh;
+  setEntry(false);
+  window.P3 = { show: show };
+})();
+</script>
+</body>
+</html>

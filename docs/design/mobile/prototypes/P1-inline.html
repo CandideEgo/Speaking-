@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 跟读容器甲 —— 伴侣条就地展开</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_practice.css">
+<style>
+  /* ── 甲 · 伴侣条就地展开 ──
+     不浮、不覆盖：面板长在伴侣条正下方，把文稿列表往下挤。
+     代价面 = 文稿列表（#23 说它是「页面主体」）在练习期间能被挤掉多少。 */
+  .pr .main { display: flex; flex-direction: column; overflow: hidden; }
+  .pr-slot { flex: 0 0 auto; background: var(--canvas); box-shadow: inset 0 1px 0 var(--hairline); }
+  .pr-slot[hidden] { display: none; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_practice.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt pr" id="app">
+  <div id="shell-top"></div>
+
+  <div class="main" id="main">
+    <div class="player" id="player">
+      <div class="frame" id="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="pr-paused" id="prPaused">❙❙ 跟读时视频暂停（示意）</div>
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+        <button class="pr-entry" id="prEntry2" hidden>🎤 跟读</button>
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="entryFlow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="entryMic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <div class="pr-slot" id="prHost" hidden><div id="prBody" data-hide=""></div></div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.notes =
+  "<b>甲 · 伴侣条就地展开</b><br>" +
+  "面板长在伴侣条正下方，<b>不浮起来</b> —— 画面、伴侣条、文稿列表还在原来的位置上，只是文稿被往下挤。" +
+  "它不制造新的层，所以不存在「挡住别的东西」；代价全落在<b>文稿列表</b>上：挤掉多少，就是这一案的价格。<br><br>" +
+  "<b>为什么默认把「最近跟读」收成一行</b>：不收的话面板 ≈460px，比伴侣条以下全部可用高度（437px）还高，" +
+  "文稿直接归零。收成一行后面板 ≈250px，文稿还剩 ≈190px —— 切上面的「最近跟读」开关能直接看这两个读数。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var body = document.getElementById("prBody");
+  var host = document.getElementById("prHost");
+  var open = false;
+
+  function rebuild() {
+    var opts = { hist: WT.state.histOpen ? "full" : "strip" };
+    body.setAttribute("data-hide", "");
+    PR.mount(body, opts);
+    PR.render(body);
+  }
+
+  function show(on) {
+    open = on;
+    host.hidden = !on;
+    if (on) { rebuild(); if (PR.state.mode === "idle") PR.start(); }
+    if (window.WT) WT.refresh();
+  }
+
+  function setEntry(corner) {
+    document.getElementById("prEntry2").hidden = !corner;
+    document.querySelectorAll("#entryFlow, #entryMic").forEach(function (b) { b.hidden = corner; });
+  }
+
+  document.getElementById("entryFlow").addEventListener("click", function () { show(true); });
+  document.getElementById("entryMic").addEventListener("click", function () { show(true); PR.setMode("idle"); });
+  document.getElementById("prEntry2").addEventListener("click", function () { show(true); });
+
+  PR.on(function () {
+    if (body.children.length) PR.render(body);
+    if (window.WT) WT.refresh();
+  });
+  var lastHist = null;
+  WT.on(function () {            /* 只改几何/入口，绝不在这里调 WT.refresh() */
+    setEntry(!!WT.state.entryCorner);
+    if (open && lastHist !== WT.state.histOpen) { lastHist = WT.state.histOpen; rebuild(); }
+    document.getElementById("prPaused").classList.toggle("on",
+      !!(WT.state.prPause && (PR.state.mode === "rec" || PR.state.mode === "playing")));
+  });
+
+  WT.build({
+    onRow: function (idx) { PR.state.idx = idx; PR.emit(); },
+    toggles: [
+      { key: "histOpen", label: "最近跟读", on: "全展开", off: "折叠一行" },
+      { key: "waveOne", label: "波形", on: "合并一条", off: "两条分开" },
+      { key: "autoAdvance", label: "自动推进", on: "开", off: "关" },
+      { key: "prPause", label: "跟读时视频", on: "暂停", off: "继续放" },
+      { key: "entryCorner", label: "入口", on: "画面角落", off: "伴侣条原位" }
+    ],
+    boxes: [
+      { sel: "#subbar", label: "① 伴侣条（入口原位，#23 已定）", tone: "dim" },
+      { sel: "#prHost", label: "② 就地展开的面板：不浮，压的是下方" },
+      { sel: "#listwrap", label: "③ 文稿列表 —— 被挤掉的就是它", tone: "quiet" },
+      { sel: "#player", label: "④ 播放器 —— 一律不动", tone: "dim" }
+    ],
+    read: [
+      { label: "播放器高度 展开前 → 展开后", get: function () { return "211 → 211px（没动）"; } },
+      { label: "面板占屏高", get: function () {
+          if (!open) return "—（未展开）";
+          var r = PR.rect("#prHost");
+          return { v: Math.round(r.height) + "px / 437px 可用", tone: r.height > 437 ? "bad" : "" };
+        } },
+      { label: "文稿列表剩余", get: function () {
+          var h = Math.round(PR.visibleH("#listwrap"));
+          return { v: h + "px（空闲态 437px）", tone: h < 120 ? "bad" : "good" };
+        } },
+      { label: "原句与状态行同屏", get: function () {
+          if (!open) return "—（未展开）";
+          var s = PR.inView("[data-pr-en]"), t = PR.inView("[data-pr-state]");
+          if (s === null || t === null) return "—";
+          return { v: (s ? "原句在" : "原句滚出去了") + " · " + (t ? "状态行在" : "状态行滚出去了"), tone: s && t ? "good" : "bad" };
+        } },
+      { label: "跟读控件最小触控目标", get: function () {
+          var m = PR.minTarget([".pr-acts .btn", ".pr-hdel", ".pr-wrow", ".pr-strip"]);
+          return m ? { v: m.v + "px（" + m.sel + "）", tone: m.v >= 44 ? "good" : "bad" } : "—";
+        } },
+      { label: "波形画布位宽", get: function () {
+          var cv = null;
+          document.querySelectorAll("[data-wave]").forEach(function (c) { if (!cv && c.clientWidth) cv = c; });
+          if (!cv || !PR.state.mode.match(/rec|review/)) return "—（未录音）";
+          return { v: Math.round(cv.clientWidth) + "px（按容器实宽画，不是固定的 200/400）", tone: "good" };
+        } },
+      { label: "最近跟读可见几条", get: function () {
+          if (!open) return "—（未展开）";
+          var rows = document.querySelectorAll("#prBody .pr-hrow");
+          if (!rows.length) return "折叠成一行（点开才占高度）";
+          var app = document.querySelector(".app").getBoundingClientRect();
+          var n = 0;
+          rows.forEach(function (r) { var b = r.getBoundingClientRect(); if (b.bottom <= app.bottom + 1) n++; });
+          return { v: n + " / " + rows.length + " 条", tone: n === rows.length ? "good" : "bad" };
+        } },
+      { label: "退出方式", get: { v: "面板内的「取消」（无手势）" } },
+      { label: "入口在哪（开关可切）", get: function () {
+          if (WT.state.entryCorner) {
+            var o = PR.overlap("#prEntry2", ".titlecard");
+            return { v: "画面右上角，压住标题卡 " + o + "px", tone: "bad" };
+          }
+          return { v: "伴侣条原位（#23 已定）", tone: "good" };
+        } }
+    ],
+    note: function () {
+      return open
+        ? "甲 只动<b>一处</b>：把面板插进伴侣条和文稿列表之间。它不产生遮挡，代价是<b>文稿列表被挤</b>。" +
+          "切「最近跟读：全展开」看它挤到什么程度。"
+        : "点伴侣条的「逐句跟读」展开。甲 的空间只从文稿列表那一格来 —— 面板多高，文稿就少多少。";
+    }
+  });
+
+  var row = D.script[PR.state.idx];
+  document.getElementById("burnEn").innerHTML = row.en.split(/\s+/)
+    .map(function (t) { return '<span class="word">' + t + "</span>"; }).join(" ");
+  document.getElementById("burnZh").textContent = row.zh;
+  setEntry(false);
+  window.P1 = { show: show };
+})();
+</script>
+</body>
+</html>

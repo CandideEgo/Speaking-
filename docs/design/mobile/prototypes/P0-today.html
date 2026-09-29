@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 跟读容器对照 —— 现状原样</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_wordtap.css">
+<link rel="stylesheet" href="_practice.css">
+<style>
+  /* 对照：把「今天的展开态」原样搬进 #24 乙 的外壳里。
+     尺寸全部照抄真代码，一个值都没美化：
+       mic 行      page.tsx:1082-1104  flex items-center gap-3 bg-surface-soft rounded-lg p-3
+       停止键      w-11 h-11（44）
+       实时波形    AudioWaveform.tsx:84   canvas width=200 height=32，类名只有 rounded-md
+       对比两行    WaveformCompare.tsx:125-127  canvas width=400 height=28 flex-1
+       动作行      page.tsx:1135-1158  Button size="sm"（Button.tsx:41 ≈30px 高）
+       最近跟读    ShadowingHistory.tsx:35-73  原生 audio h-7 max-w-[200px]，删除键 w-6 h-6 且 opacity-0 group-hover
+     容器位置也不动：就在字幕条下面就地展开，把文稿列表往下挤。 */
+  .pr .main { display: flex; flex-direction: column; overflow: hidden; }
+  /* 今天的展开态是「内容多高就多高」，不会自己缩 —— 缺的高度全从文稿列表扣 */
+  .today-wrap { flex: 0 0 auto; }
+</style>
+<script src="_demo.js"></script>
+<script src="_wordtap.js"></script>
+<script src="_practice.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app wt pr" id="app">
+  <div id="shell-top"></div>
+
+  <div class="main" id="main">
+    <div class="player" id="player">
+      <div class="frame" id="frame">
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+        <div class="pr-paused" id="prPaused">❙❙ 跟读时视频暂停（现状：录音不暂停，只有逐句跟读在句末暂停）</div>
+        <div class="burn" id="burn">
+          <div class="burn-en" id="burnEn"></div>
+          <div class="burn-zh" id="burnZh"></div>
+        </div>
+        <button class="pr-entry" id="prEntry2" hidden>🎤 跟读</button>
+        <div class="ctl" id="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="entryFlow" data-entry>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic" id="entryMic" data-entry>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <!-- 现状：字幕卡里就地展开（page.tsx:1064 的 mt-4 pt-4 border-t） -->
+    <div class="today-wrap" id="prHost" hidden>
+      <div style="padding:0 16px 12px">
+        <div class="today-card" style="padding-top:16px;box-shadow:none;border:0">
+          <div class="today-open" style="margin:0;padding-top:16px">
+            <!-- idle：page.tsx:1066-1080 -->
+            <div class="today-row2" id="prIdle">
+              <button class="today-mic" data-act="start" aria-label="开始录音">🎤</button>
+              <div class="today-flex1">
+                <p style="margin:0;font-size:13px;font-weight:600">点击麦克风开始录音</p>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--muted-c)">朗读上方高亮字幕</p>
+              </div>
+            </div>
+            <!-- listening：page.tsx:1082-1104 -->
+            <div class="today-row2" id="prRec" hidden>
+              <button class="today-mic rec" data-act="stop" aria-label="停止录音">🎤</button>
+              <div class="today-flex1">
+                <p style="margin:0;font-size:13px;font-weight:600">录音中…</p>
+                <div style="margin-top:4px">
+                  <canvas class="today-canvas" width="200" height="32" data-wave="live"></canvas>
+                </div>
+              </div>
+              <button class="today-cancel" data-act="exit">取消</button>
+            </div>
+            <!-- reviewing：page.tsx:1106-1160 -->
+            <div class="today-panel" id="prReview" hidden>
+              <div class="today-status"><span id="prSaved">录音完成，回放听自己的发音</span></div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div class="today-wrow">
+                  <button class="today-wplay" aria-label="播放原声">▶</button>
+                  <div class="today-wbox"><div class="today-wrow">
+                    <span class="today-wlbl">原句</span><canvas class="today-wcv" width="400" height="28" data-wave="orig"></canvas>
+                  </div></div>
+                </div>
+                <div class="today-wrow">
+                  <button class="today-wplay" aria-label="播放我的录音">▶</button>
+                  <div class="today-wbox"><div class="today-wrow">
+                    <span class="today-wlbl">我的</span><canvas class="today-wcv" width="400" height="28" data-wave="mine"></canvas>
+                  </div></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+                <button class="today-sm" data-act="again">重录</button>
+                <button class="today-sm" data-act="save">✓ 满意</button>
+                <button class="today-sm primary" data-act="next">下一句</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ShadowingHistory：page.tsx:1165-1167，无论展开与否都渲染 -->
+      <div style="padding:0 16px 12px" id="prHistHost"></div>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+  </div>
+
+  <div id="shell-bottom"></div>
+</div></div>
+
+<script>
+window.SHELL.topBar = "compact";
+window.SHELL.tabBar = "visible";
+window.SHELL.wordTap = "none";
+window.SHELL.notes =
+  "<b>对照 —— 把今天的展开态原样放进乙 的外壳</b><br>" +
+  "这一页不做任何设计：mic 行、<code>AudioWaveform</code> 的 200px 画布、<code>WaveformCompare</code> 的 400px 画布、" +
+  "<code>Button size=\"sm\"</code> 的 30px 按钮、hover 才出现的删除键，全部照抄真代码。<br>" +
+  "它存在的意义是<b>给出一个可量的参照</b>：四条方案的读数都拿它比。";
+</script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var D = window.DEMO;
+  var open = false;
+  var histHost = document.getElementById("prHistHost");
+  var playerH0 = 0;
+
+  function openPanel(on) {
+    open = on;
+    document.getElementById("prHost").hidden = !on;
+    layout();
+  }
+
+  function histHTML() {
+    return PR.attempts.map(function (a) {
+      return '<div class="pr-hrow">' +
+        '<audio controls preload="none" src="' + PR.SILENT + '"></audio>' +
+        '<span class="pr-ht">' + a.at + " · " + a.dur + "</span>" +
+        (a.ok ? '<span class="pr-hs">✓ 满意</span>' : "") +
+        '<button class="pr-hdel today" aria-label="删除这条跟读录音">🗑</button>' +
+        "</div>";
+    }).join("");
+  }
+
+  function renderStates() {
+    var m = PR.state.mode;
+    var idle = m === "idle", rec = m === "rec", rev = m === "review" || m === "playing";
+    document.getElementById("prIdle").hidden = !idle;
+    document.getElementById("prRec").hidden = !rec;
+    document.getElementById("prReview").hidden = !rev;
+    // 现状：录音中不显示计时（seconds 只在上传时用掉）—— 这里也不显示，忠实还原
+    document.getElementById("prSaved").textContent =
+      m === "playing" ? "正在准备…" : "录音完成，回放听自己的发音";
+    layout();
+    PR.paintAll(document);
+  }
+
+  function layout() {
+    var paused = document.getElementById("prPaused");
+    paused.classList.toggle("on", !!(WT.state.prPause &&
+      (PR.state.mode === "rec" || PR.state.mode === "playing")));
+  }
+
+  function setEntry(corner) {
+    document.getElementById("prEntry2").hidden = !corner;
+    document.querySelectorAll("[data-entry]").forEach(function (b) { b.hidden = corner; });
+  }
+
+  /* 「状态」开关 = 把机器推进到录音态或回放态（原型不真录音，但两态的排版是真的） */
+  function syncMode() {
+    var wantReview = !!WT.state.review;
+    var m = PR.state.mode;
+    if (wantReview && (m === "rec" || m === "idle" || m === "playing")) { PR.setMode("review"); return true; }
+    if (!wantReview && m === "review") { PR.setMode("rec"); return true; }
+    return false;
+  }
+
+  /* 入口：伴侣条原位（#23 已定）还是挪进画面 */
+  document.getElementById("entryFlow").addEventListener("click", function () { openPanel(true); PR.start(); });
+  document.getElementById("entryMic").addEventListener("click", function () { openPanel(true); PR.setMode("idle"); });
+  document.getElementById("prEntry2").addEventListener("click", function () { openPanel(true); PR.start(); });
+
+  PR.on(function () { renderStates(); WT.refresh(); });
+  histHost.innerHTML = histHTML();
+
+  WT.on(function () {            /* 开关只改状态/几何，这里绝不能再调 WT.refresh() */
+    if (syncMode()) return;      /* setMode 自己会 emit，走 PR.on 那一路重绘 */
+    setEntry(!!WT.state.entryCorner);
+    renderStates();
+  });
+
+  WT.build({
+    onRow: function (idx) { PR.state.idx = idx; PR.emit(); },
+    toggles: [
+      { key: "review", label: "状态", on: "回放对比", off: "录音中" },
+      { key: "waveOne", label: "波形", on: "合并成一条", off: "两条分开" },
+      { key: "prPause", label: "跟读时视频", on: "暂停", off: "继续放" },
+      { key: "entryCorner", label: "入口", on: "画面角落", off: "伴侣条原位" }
+    ],
+    boxes: [
+      { sel: "#subbar", label: "① 伴侣条：95/187 + 逐句跟读 + 录音（现状入口）", tone: "dim" },
+      { sel: "#prRec", label: "② 录音行：canvas 200px 撑破这一格", tone: "quiet" },
+      { sel: "#prReview", label: "③ 回放态：canvas 400px × 2 + 30px 按钮" },
+      { sel: "#listwrap", label: "④ 文稿列表 —— 被展开态往下挤", tone: "quiet" }
+    ],
+    read: [
+      { label: "播放器高度 展开前 → 展开后", get: function () {
+          var h = Math.round(document.getElementById("player").getBoundingClientRect().height);
+          return { v: playerH0 + " → " + h + "px" + (h === playerH0 ? "（没动）" : "（动了 " + (h - playerH0) + "px）"), tone: h === playerH0 ? "good" : "bad" };
+        } },
+      { label: "录音行撑出容器", get: function () {
+          if (PR.state.mode !== "rec") return "—（不是录音态）";
+          var row = document.getElementById("prRec");
+          var cv = document.querySelector("#prRec .today-canvas");
+          var cell = document.querySelector("#prRec .today-flex1");
+          var d = row.scrollWidth - row.clientWidth;
+          return { v: "内容 " + row.scrollWidth + " vs 容器 " + row.clientWidth + "px（撑出 " + d + "px；画布内在 200px，顶住了那一格 " + Math.round(cell.clientWidth) + "px）", tone: d > 0 ? "bad" : "good" };
+        } },
+      { label: "回放行撑出容器", get: function () {
+          if (PR.state.mode !== "review" && PR.state.mode !== "playing") return "—（不是回放态）";
+          var panel = document.getElementById("prReview");
+          var row = document.querySelector("#prReview .today-wrow");
+          var d = panel.scrollWidth - panel.clientWidth;
+          return { v: "行要 " + row.scrollWidth + "px，容器 " + panel.clientWidth + "px（撑出 " + d + "px；画布内在 400px）", tone: d > 0 ? "bad" : "good" };
+        } },
+      { label: "跟读控件最小触控目标", get: function () {
+          var m = PR.minTarget([".today-sm", ".pr-hdel.today"]);
+          return m ? { v: m.v + "px（" + m.sel + "）", tone: m.v >= 44 ? "good" : "bad" } : "—";
+        } },
+      { label: "删除键在触屏上", get: { v: "opacity:0 + group-hover —— 摸不到", tone: "bad" } },
+      { label: "展开态占屏高", get: function () {
+          if (!open) return "—（未展开）";
+          var r = PR.rect("#prHost");
+          return { v: Math.round(r.height) + "px / 812px（" + Math.round(r.height / 812 * 100) + "%）", tone: r.height > 300 ? "bad" : "" };
+        } },
+      { label: "展开态被裁掉", get: function () {
+          if (!open) return "—（未展开）";
+          var h = document.getElementById("prHost");
+          var d = h.scrollHeight - h.clientHeight;
+          return { v: d > 0 ? d + "px（容纳不下，底部切掉）" : "0px（刚好装下）", tone: d > 0 ? "bad" : "good" };
+        } },
+      { label: "文稿列表剩余", get: function () {
+          return Math.round(PR.visibleH("#listwrap")) + "px";
+        } },
+      { label: "最近跟读可见几条", get: function () {
+          var rows = document.querySelectorAll("#prHistHost .pr-hrow");
+          if (!rows.length) return "—（未展开）";
+          var main = document.querySelector(".main").getBoundingClientRect();
+          var app = document.querySelector(".app").getBoundingClientRect();
+          var top = Math.max(main.top, app.top), bottom = Math.min(main.bottom, app.bottom);
+          var n = 0;
+          rows.forEach(function (r) {
+            var b = r.getBoundingClientRect();
+            if (b.top >= top - 1 && b.bottom <= bottom + 1) n++;
+          });
+          return { v: n + " / " + rows.length + " 条" + (n < rows.length ? "（其余在屏外）" : ""), tone: n === rows.length ? "good" : "bad" };
+        } },
+      { label: "退出方式", get: { v: "「取消」文字按钮 —— 现状（无手势）", tone: "bad" } },
+      { label: "入口在哪（开关可切）", get: function () {
+          var e = document.getElementById("prEntry2");
+          if (WT.state.entryCorner) {
+            var o = PR.overlap("#prEntry2", ".titlecard");
+            return { v: "画面右上角，压住标题卡 " + o + "px", tone: "bad" };
+          }
+          return { v: "伴侣条原位（#23 已定）", tone: "good" };
+        } }
+    ],
+    note: function () {
+      return "现状的问题不在「住哪」，而在<b>尺寸</b>：30px 的按钮、24px 的删除键、200/400px 的画布、以及展开就把文稿挤没。" +
+        "切「状态」开关能看录音态与回放态各自的样子。";
+    }
+  });
+
+  playerH0 = Math.round(document.getElementById("player").getBoundingClientRect().height);
+  renderStates();
+  setEntry(false);
+  document.getElementById("burnEn").innerHTML = D.script[PR.state.idx].en.split(/\s+/)
+    .map(function (t) { return '<span class="word">' + t + "</span>"; }).join(" ");
+  document.getElementById("burnZh").textContent = D.script[PR.state.idx].zh;
+  layout();
+  window.TODAY = { open: openPanel, render: renderStates, layout: layout };
+})();
+</script>
+</body>
+</html>
