@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · 变体乙 —— 字幕入画</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  /* ── 变体乙自有部分：入画字幕 / 细控制条 / 可见画面边界 / 弹层落点 ──
+     尺寸全部写死像素，因为「屏高构成」标尺必须和真实排版对得上：
+     375×9/16 = 210.94 ≈ 211 的画面里，露出画面 67px、入画字幕 79px、控制条 65px。 */
+
+  /* base 在窄屏只给了 min-height:100vh —— 内容一多 .app 就长过屏、底栏被顶下去，
+     标尺（inset:0 相对 .app）的百分比也会跟着失真。钉成 100vh，让 .main 成为滚动容器。 */
+  @media (max-width: 459px) { .app { height: 100vh; } }
+
+  /* 露出的画面（黑底上的虚线边界，把「被吃掉的那块」画出来） */
+  .clearmark {
+    position: absolute; left: 0; right: 0; top: 0; height: 67px;
+    border-bottom: 1px dashed rgba(255, 255, 255, .5);
+    pointer-events: none;
+  }
+  .clearmark .dim {
+    position: absolute; right: 6px; bottom: 3px;
+    font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+    color: #fff; background: rgba(0, 0, 0, .62); padding: 1px 5px; border-radius: 4px;
+  }
+
+  /* 入画字幕：16px/22px × 2 行 + 中文 17px；按字幕规范 ≤32 字符/行预断行 */
+  .burn {
+    position: absolute; left: 0; right: 0; bottom: 65px;
+    padding: 6px 10px 10px; color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, .94) 0%, rgba(0, 0, 0, .78) 55%, rgba(0, 0, 0, 0) 100%);
+  }
+  .burn-en { font-size: 16px; line-height: 22px; font-weight: 600; letter-spacing: -.01em; }
+  /* 行内词的热区：按钮在 Blink 里恒为 inline-block，vertical padding 会把行高从 22 撑到 30。
+     所以 padding 归零、用 ::after 向外扩 4px：热区 22+8 = 30px，排版仍然是 22px 一行。
+     代价：30px 的热区压在 22px 的行距上，相邻两行互相重叠 4px —— 画面内点词的天花板就是这个。 */
+  .burn .word { position: relative; color: #fff; margin: 0; padding: 0 1px; border-bottom: 0; }
+  .burn .word::after { content: ""; position: absolute; inset: -4px -1px; }
+  .burn .word:hover { background: rgba(255, 255, 255, .18); }
+  .burn .word.sel { background: rgba(255, 90, 31, .35); }
+  .burn-zh { font-size: 12.5px; line-height: 17px; color: rgba(250, 250, 250, .88); margin-top: 2px; }
+
+  /* 控制条：6 + 4 + 5 + 44 + 6 = 65px。按钮必须是 44px 触控底线 —— 这一条把画面又削掉 11px。 */
+  .player .ctl { padding: 6px 10px 6px; }
+  .player .ctl .bar { margin-bottom: 5px; }
+  .player .ctl .bar::after { content: ""; position: absolute; inset: -8px 0; }  /* 进度条触摸带 → 20px */
+  .player .ctl .row { height: 44px; gap: 8px; font-size: 11px; }
+  .player .ctl button { height: 44px; min-width: 44px; padding: 0 6px; font-size: 11px; }
+  .player .ctl button.on { background: rgba(255, 90, 31, .28); font-weight: 700; }
+
+  /* 字幕条：95/187 + 进度 + 逐句跟读 + 录音，一行放完，高 64px */
+  .subbar {
+    height: 64px; display: flex; align-items: center; gap: 8px;
+    box-shadow: inset 0 -1px 0 var(--hairline);
+  }
+  .subbar .cnt { flex: 0 0 auto; font-size: 11px; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
+  .subbar .pbar { flex: 1 1 auto; min-width: 40px; height: 3px; border-radius: 2px; background: var(--surface-card); }
+  .subbar .pbar i { display: block; height: 100%; width: 51%; border-radius: 2px; background: var(--brand-500); }
+  .subbar .btn { flex: 0 0 auto; padding: 0 10px; font-size: 12.5px; gap: 4px; }
+  .subbar .btn.mic { border-color: var(--brand-200); background: var(--brand-50); color: var(--brand-600); }
+
+  /* 文稿列表：固定 437px，把屏高让给上面的画面 */
+  .listwrap { position: relative; }
+  .listwrap .script { height: 437px; overflow-y: auto; }
+  .script li:first-child { border-top: 0; }
+  .script .tx { flex: 1 1 auto; min-width: 0; }
+  .script .ts {
+    width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent;
+    display: flex; align-items: center; font: inherit; font-size: 10px;
+    color: var(--muted-soft); font-variant-numeric: tabular-nums; cursor: pointer;
+  }
+  .script li.on .ts { color: var(--brand-600); font-weight: 700; }
+  .script .en { font-size: 14px; line-height: 20px; }
+  .script .word { margin: 0; padding: 4px 2px; }
+  .script li.on .en { color: var(--brand-700); }
+  .script .zh { font-size: 12px; line-height: 17px; margin-top: 2px; }
+
+  /* 点词弹层的落点（虚线框 = 弹层升起后占的那块，实测弹层高 180px → 顶边在 y632，
+     于是它盖住 .main 的末 124px，也就是文稿列表里往后还没读到的那几句） */
+  .sheetzone {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 124px;
+    border: 1px dashed rgba(255, 90, 31, .8); background: rgba(255, 90, 31, .06);
+    pointer-events: none; border-radius: 4px;
+  }
+  .sheetzone .tag { left: 8px; top: 6px; max-width: 300px; white-space: normal; line-height: 1.5; }
+</style>
+<script src="_demo.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app">
+  <div id="shell-top"></div>
+
+  <div class="main">
+    <!-- ===== 画面：出血 375 宽，字幕烧在底边 ===== -->
+    <div class="player">
+      <div class="frame">
+        <!-- 同样 16:9 的框架里，真正露出的画面只有这 67px -->
+        <div class="clearmark"><span class="dim">可见画面 375×67 · 16:9 原高 211</span></div>
+
+        <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:3px">
+          <span class="kicker">CNBC Make It · 四级</span>
+          <div class="ttl" style="font-size:13px;max-width:24ch">How to make discipline so fun it's hard to skip</div>
+        </div>
+
+        <span class="tag" style="top:8px;right:8px;pointer-events:none">① 入画字幕吃掉画面 79px</span>
+
+        <!-- 当前句：英文在上、中文在下，压在画面底边 -->
+        <div class="burn">
+          <div class="burn-en"><button class="word">But</button> <button class="word">I</button> <button class="word">think</button> <button class="word">you're</button> <button class="word">coming</button> <button class="word">at</button> <button class="word">it</button></div>
+          <div class="burn-en"><button class="word">from</button> <button class="word">the</button> <button class="word">wrong</button> <button class="word">perspective.</button></div>
+          <div class="burn-zh">但我觉得，你一开始就理解错了。</div>
+        </div>
+
+        <span class="tag" style="top:92px;right:8px;max-width:104px;white-space:normal;line-height:1.4;text-align:right;pointer-events:none">② 词热区 30px<br>贴着控制条</span>
+
+        <!-- 细控制条 -->
+        <div class="ctl">
+          <div class="bar"><i></i><b></b></div>
+          <div class="row">
+            <button aria-label="播放"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+            <span>0:22 / 8:10</span>
+            <span class="sp"></span>
+            <button class="on" aria-label="画面内字幕已开">字幕</button>
+            <button aria-label="倍速">1.0×</button>
+            <button aria-label="全屏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 字幕条：95 / 187 + 进度 + 逐句跟读（收起态）+ 录音 ===== -->
+    <div class="subbar pad">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        逐句跟读
+      </button>
+      <button class="btn mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+        录音
+      </button>
+    </div>
+
+    <!-- ===== 整段文稿：当前句高亮 ===== -->
+    <div class="listwrap">
+      <ol class="script pad">
+        <li><button class="ts">00:12</button><div class="tx">
+          <div class="en"><button class="word learned">Most</button> <button class="word">people</button> <button class="word">think</button> <button class="word learned">discipline</button> <button class="word">means</button> <button class="word">forcing</button> <button class="word">yourself</button> <button class="word">to</button> <button class="word">do</button> <button class="word">things.</button></div>
+          <div class="zh">大多数人以为自律就是逼自己去做事。</div>
+        </div></li>
+        <li><button class="ts">00:17</button><div class="tx">
+          <div class="en"><button class="word">Or</button> <button class="word">just</button> <button class="word">unappealing,</button> <button class="word">right,</button> <button class="word">because</button> <button class="word">of</button> <button class="word">how</button> <button class="word learned">challenging</button> <button class="word">it</button> <button class="word">actually</button> <button class="word">is.</button></div>
+          <div class="zh">或者干脆提不起劲——毕竟它真的挺难的。</div>
+        </div></li>
+        <li class="on"><button class="ts">00:22</button><div class="tx">
+          <div class="en"><button class="word">But</button> <button class="word">I</button> <button class="word">think</button> <button class="word">you're</button> <button class="word">coming</button> <button class="word">at</button> <button class="word">it</button> <button class="word">from</button> <button class="word">the</button> <button class="word">wrong</button> <button class="word">perspective.</button></div>
+          <div class="zh">但我觉得，你一开始就理解错了。</div>
+        </div></li>
+        <li><button class="ts">00:26</button><div class="tx">
+          <div class="en"><button class="word">Fun</button> <button class="word">is</button> <button class="word">not</button> <button class="word">easy.</button> <button class="word">Fun</button> <button class="word">is</button> <button class="word">engaging.</button></div>
+          <div class="zh">有趣，从来就不是轻松的事。有趣是让人投入。</div>
+        </div></li>
+        <li><button class="ts">00:31</button><div class="tx">
+          <div class="en"><button class="word">The</button> <button class="word">trick</button> <button class="word">is</button> <button class="word">to</button> <button class="word">make</button> <button class="word">the</button> <button class="word">first</button> <button class="word">two</button> <button class="word">minutes</button> <button class="word">almost</button> <button class="word">effortless.</button></div>
+          <div class="zh">诀窍在于让最开始的两分钟几乎毫不费力。</div>
+        </div></li>
+        <li><button class="ts">00:37</button><div class="tx">
+          <div class="en"><button class="word">Shrink</button> <button class="word">the</button> <button class="word">task</button> <button class="word">until</button> <button class="word">starting</button> <button class="word">feels</button> <button class="word">trivial.</button></div>
+          <div class="zh">把任务缩小到「开始」这件事显得微不足道。</div>
+        </div></li>
+        <li><button class="ts">00:43</button><div class="tx">
+          <div class="en"><button class="word">Then</button> <button class="word">let</button> <button class="word">the</button> <button class="word">momentum</button> <button class="word">carry</button> <button class="word">the</button> <button class="word">rest</button> <button class="word">of</button> <button class="word">the</button> <button class="word">session.</button></div>
+          <div class="zh">然后让惯性带走这一轮剩下的部分。</div>
+        </div></li>
+        <li><button class="ts">00:49</button><div class="tx">
+          <div class="en"><button class="word">That</button> <button class="word">is</button> <button class="word">why</button> <button class="word">streaks</button> <button class="word">work</button> <button class="word">better</button> <button class="word">than</button> <button class="word">willpower.</button></div>
+          <div class="zh">这就是为什么连续打卡比意志力管用。</div>
+        </div></li>
+        <li><button class="ts">00:55</button><div class="tx">
+          <div class="en"><button class="word">You</button> <button class="word">are</button> <button class="word">not</button> <button class="word">fighting</button> <button class="word">yourself,</button> <button class="word">you</button> <button class="word">are</button> <button class="word">removing</button> <button class="word">friction.</button></div>
+          <div class="zh">你不是在跟自己较劲，你是在去掉摩擦。</div>
+        </div></li>
+        <li><button class="ts">01:01</button><div class="tx">
+          <div class="en"><button class="word">Start</button> <button class="word">small</button> <button class="word">enough</button> <button class="word">that</button> <button class="word">skipping</button> <button class="word">it</button> <button class="word">feels</button> <button class="word">silly.</button></div>
+          <div class="zh">小到「不做」反而显得荒唐，就够了。</div>
+        </div></li>
+      </ol>
+
+      <!-- 弹层升起后占的那块（虚线框）：见变体说明里的「代价三」 -->
+      <div class="sheetzone" aria-hidden="true">
+        <span class="tag">③ 点词弹层升起后盖住这块（弹层实测 180px，顶边 y632）—— 盖住的是列表里还没读到的后几句；画面里那句字幕在 y111–191，弹层够不到它，但从你点的那行字幕到弹层顶边 ≈470px</span>
+      </div>
+    </div>
+
+    <div class="note" id="variant-note"></div>
+  </div>
+
+  <div id="shell-bottom"></div>
+
+  <!-- 三个变体共用的点词弹层（由 shell.js 接线） -->
+  <div id="scrim" style="display:none;position:absolute;inset:0;background:rgba(10,10,10,.45);z-index:55"></div>
+  <div class="sheet" id="wordSheet" style="display:none">
+    <div class="grab"><i></i></div>
+    <div class="body">
+      <div class="row" style="gap:8px;align-items:baseline">
+        <b style="font-size:22px" data-word>—</b>
+        <span class="hint" data-phon>/—/</span>
+        <span class="chip" data-pos style="padding:1px 7px;font-size:11px">n.</span>
+      </div>
+      <p style="margin:8px 0 0;font-size:15px" data-zh>—</p>
+      <p style="margin:8px 0 0;font-size:13px;color:var(--muted-c);font-style:italic" data-ex></p>
+    </div>
+    <div class="foot">
+      <button class="btn" data-close-sheet>发音</button>
+      <button class="btn primary" style="flex:1" data-close-sheet>加入词库</button>
+    </div>
+  </div>
+</div></div>
+
+<script>
+window.SHELL = {
+  topBar: "compact",
+  tabBar: "visible",
+  notes: "<b>变体乙 —— 字幕入画</b><br>" +
+    "赌注：双语当前句烧进画面底边，看片即看字幕，眼睛不用在画面和字幕卡之间来回瞟（Lingopie / B站 / YouTube 走的就是这条）。<br><br>" +
+    "<b>代价一 · 字幕吃的是画面高度。</b>框架仍是 16:9 的 375×211，但底边 79px 让给入画字幕、65px 让给控制条 —— 真正露出的画面只剩 <b>375×67</b>。按「屏高构成」，同一个 211px 的画面被切成 可见画面 8.3% / 入画字幕 9.7% / 控制条 8.0%。控制条之所以是 65px 而不是更薄：按钮必须满足 44px 触控底线，这一条又削掉 11px 画面。<br>" +
+    "<b>代价二 · 热区又小又贴着控制条。</b>行内词最多拿到 30px 高的点击区（22px 行距是天花板，30px 的热区还和相邻行互压 4px），而且紧贴时间轴与播放键，拇指想点词时容易先点到播放/进度。44px 只能给按钮，给不了词。<br>" +
+    "<b>代价三 · 弹层离得远。</b>弹层从屏底升起（实测顶边 y632），刚点的那行字幕在画面里 y111–191，两者相距 <b>≈470px</b>。注意这条在乙里是「距离」不是「遮挡」：几何上弹层够不到画面内的字幕，被盖住的是文稿列表末段（虚线框）。想边看词释边回读原句，视线要跨屏折返。<br><br>" +
+    "<b>顶栏为什么用 compact。</b>入画这条路的重点是让画面自己去承载字幕，顶栏本不是它的赌注；但既然字幕已经吃掉 79px 画面，把 64px 顶栏压到 44px 是这条线上唯一能白拿的 20px。没用 overlay：那会把 logo / 通知压到画面上，等于在「画面里已经有字幕」之上再加一层遮挡。<br>" +
+    "<b>字幕断行按 ≤32 字符/行、最多 2 行</b>（本句 58 字符 → 2 行）。这条规范在本片撑不住：文稿第 2 句 71 字符，按 32 断要 3 行，超出「最多 2 行」，只能缩字号或砍字 —— 入画字幕的字号是被画面宽度锁死的。",
+  bands: [
+    { label: "顶栏", pct: 5.4, chrome: true },
+    { label: "可见画面", pct: 8.3 },
+    { label: "入画字幕", pct: 9.7 },
+    { label: "控制条", pct: 8.0 },
+    { label: "字幕条", pct: 7.9 },
+    { label: "文稿列表", pct: 53.8 },
+    { label: "底部导航", pct: 6.9, chrome: true }
+  ]
+};
+</script>
+<script src="shell.js"></script>
+</body>
+</html>

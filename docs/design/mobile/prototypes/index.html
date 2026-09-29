@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>移动端播放页 —— 三个变体</title>
+<style>
+  :root {
+    --bg: #18181b; --card: #232327; --line: #35353a; --ink: #fafafa;
+    --dim: #a1a1aa; --brand: #ff5a1f; --ok: #4ade80; --warn: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Inter, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 44px 0 12px; letter-spacing: -.01em; }
+  .lede { color: var(--dim); font-size: 15px; max-width: 74ch; margin: 0; }
+  .lede b { color: var(--ink); }
+  a { color: var(--brand); }
+  code { background: #2a2a2f; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 8px 0 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #1f1f23; font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.best td { background: rgba(74, 222, 128, .07); }
+  tr.worst td { background: rgba(250, 204, 21, .06); }
+
+  .phones { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+  .phone { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; flex: 0 0 auto; }
+  .phone h3 { margin: 0 0 4px; font-size: 16px; }
+  .phone .bet { color: var(--dim); font-size: 12.5px; min-height: 52px; margin: 0 0 10px; }
+  .phone iframe { width: 375px; height: 812px; border: 0; border-radius: 16px; background: #fff; display: block; }
+  .phone .go { display: inline-block; margin-top: 10px; font-size: 13px; }
+  .phone .shell { font-size: 11.5px; color: var(--dim); margin: 6px 0 0; }
+  .phone .shell code { font-size: 11px; }
+
+  .note { background: #1f1f23; border-left: 3px solid var(--brand); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; color: var(--dim); }
+  .note b { color: var(--ink); }
+  ol.q { font-size: 14px; color: var(--dim); }
+  ol.q b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>移动端播放页 —— 三个变体</h1>
+  <p class="lede">
+    同一份数据、同一套外壳脚本、同一个点词容器，<b>只变布局</b>。三个都按 <b>375×812</b> 设计并按这个尺寸量过。
+    右上角「屏高构成」按钮会把该变体自己申报的屏高分配摊开——数字与该变体真实元素边界对齐，误差 ≤3px。
+    点英文单词可唤出底部词卡。
+  </p>
+
+  <h2>先把口径统一：三个变体的 16:9 画面几乎一样高</h2>
+  <p class="lede">
+    这是整件事最反直觉的一点——它们<b>不比谁的视频大</b>。差别在于：屏幕上下被外壳吃掉多少、
+    画面里有多少是<b>永久</b>被别的信息占掉的、以及字幕区拿到多少。
+  </p>
+  <table>
+    <thead>
+      <tr><th>变体</th><th>顶部外壳</th><th>16:9 画面</th><th>其中永久被占（字幕入画）</th><th>画面外字幕区</th><th>底部外壳</th><th>内容合计</th></tr>
+    </thead>
+    <tbody>
+      <tr class="best">
+        <td><b>甲</b> 出血到底</td>
+        <td class="n">0（顶栏浮在画面上）</td><td class="n">26%</td><td class="n">0</td>
+        <td class="n">64.1%</td><td class="n">0（底栏让位）</td><td class="n"><b>90.1%</b></td>
+      </tr>
+      <tr>
+        <td><b>乙</b> 字幕入画</td>
+        <td class="n">5.4%（44px 细条）</td><td class="n">26%</td><td class="n">9.7%（79px，吃掉画面 37%）</td>
+        <td class="n">61.7%</td><td class="n">6.9%</td><td class="n">87.7%</td>
+      </tr>
+      <tr class="worst">
+        <td><b>丙</b> 保持现状骨架</td>
+        <td class="n">20%（顶栏+页头+元信息）</td><td class="n">24%</td><td class="n">0</td>
+        <td class="n">49%</td><td class="n">7%</td><td class="n"><b>73%</b></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:10px">
+    读法：<b>甲</b>把 90% 的屏高给了内容，代价是播放页上再也点不到导航；
+    <b>乙</b>的内容总量与甲接近，但那 9.7% 是从画面里挖的，且画面内的点词热区又小又贴着控制条；
+    <b>丙</b>最保守——只拿回「该修的」那部分，结构一动不动。
+  </p>
+
+  <h2>三个变体</h2>
+  <div class="phones">
+
+    <div class="phone">
+      <h3>甲 · 出血到底</h3>
+      <p class="bet">赌「竖屏的胜负在视频上下的留白，不在视频大小」。顶栏浮在画面上、底栏在播放页让位。</p>
+      <iframe src="A-bleed-to-edge.html" title="变体甲"></iframe>
+      <p class="shell">
+        外壳 <code>topBar: overlay</code> · <code>tabBar: hidden</code><br>
+        屏高 视频 26 · 字幕卡头 6.4 · 当前句 17.5 · 文稿 40.2 · 迷你窗停靠带 9.9
+      </p>
+      <a class="go" href="A-bleed-to-edge.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>乙 · 字幕入画</h3>
+      <p class="bet">赌「看片即看字幕」省掉视线折返。代价已标在界面上：字幕吃画面、热区贴控制条、弹层与字幕的距离。</p>
+      <iframe src="B-subtitle-in-frame.html" title="变体乙"></iframe>
+      <p class="shell">
+        外壳 <code>topBar: compact</code> · <code>tabBar: visible</code><br>
+        屏高 顶栏 5.4 · 可见画面 8.3 · 入画字幕 9.7 · 控制条 8.0 · 字幕条 7.9 · 文稿 53.8 · 底栏 6.9
+      </p>
+      <a class="go" href="B-subtitle-in-frame.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>丙 · 保持现状骨架</h3>
+      <p class="bet">赌「不动结构，只把该修的修了」。唯一能当参照物的一版：它有多「就那样」，甲乙值不值得就看它。</p>
+      <iframe src="C-fix-current.html" title="变体丙"></iframe>
+      <p class="shell">
+        外壳 <code>topBar: full</code> · <code>tabBar: visible</code><br>
+        屏高 顶栏 8 · 页头+元信息 12 · 视频 24 · 当前句卡片 31 · 文稿 18 · 底栏 7
+      </p>
+      <a class="go" href="C-fix-current.html">单独打开 →</a>
+    </div>
+
+  </div>
+
+  <h2>三者共有（刻意固定，不参与比较）</h2>
+  <div class="note">
+    演示数据 <code>_demo.js</code>、外壳与标尺 <code>shell.js</code>、基底 <code>_base.css</code>、词卡容器（底部弹层）——
+    三个变体完全一致，所以横向差异只可能来自布局本身。<br>
+    <b>没有联网请求</b>：不用 Tailwind CDN、不用外部字体、不用外链图片，断网也能开。<br>
+    <b>怎么打开：</b>本页用 iframe 内嵌三个变体，<code>file://</code> 直开时 Safari 会拦掉本地 iframe（Chrome 不拦）。
+    被拦了就点每个卡片下的「单独打开 →」，或在 <code>docs/design/mobile/prototypes/</code> 下起一个静态服务：
+    <code>python -m http.server 8099</code>，然后开 <code>http://127.0.0.1:8099/</code>。
+    懒得开浏览器就看静态截图：<code>shots/A.png</code> · <code>shots/B.png</code> · <code>shots/C.png</code>（375×812 @2x）。
+  </div>
+
+  <h2>怎么选</h2>
+  <ol class="q">
+    <li><b>顶部那 20% 的留白，值不值得拿导航换？</b>甲把它砍到 0，但代价是播放页上再也没有底栏——从播放页去「词汇」得先退出。</li>
+    <li><b>字幕入画，换来的视线折返值不值那 37% 的画面？</b>乙的画面只剩 132px 高（211 里被字幕挖掉 79）。</li>
+    <li><b>丙的修补够不够用？</b>如果够，就不必动外壳，风险最小；如果不够，甲乙里挑一个。</li>
+    <li><b>三方共同的一条天花板</b>：行内点词做不出 44px 热区——22px 行距就是天花板，外扩到 30px 已经会与相邻行重叠。要让点词真正好按，得改交互形式，而不是改尺寸。</li>
+  </ol>
+
+  <h2>已知的不足（别当成设计结论）</h2>
+  <div class="note">
+    静态原型证明不了真机行为：<b>地址栏收放时 <code>h-screen</code> 的表现、安全区、以及滚动中的迷你播放器</b>
+    都只能靠真机看。甲里的迷你播放器是固定示意的静态小窗，不是真的滚动触发。
+    这些归 <code>docs/design/mobile/</code> 的「真机现状基线」那张票。
+  </div>
+
+</div>
+</body>
+</html>

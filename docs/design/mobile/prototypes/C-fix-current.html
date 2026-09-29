@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>变体丙 · 保持现状骨架 —— SeeWord 移动端播放页原型</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  /* 变体丙只做三类修补，其余照抄现状。每条都标出现状里的来源数值可核对。 */
+
+  /* 判屏 375×812 下把机身钉死：_base.css 只在 ≥460px 给机身定高，375 下是 min-height，
+     内容一长 .app 就被撑过屏，底栏与标尺（inset:0 相对 .app）一起失真。 */
+  @media (max-width: 459px) { .app { height: 100vh; } }
+
+  /* 修补① 触控目标：VideoControls 现状 = w-8 h-8(32px) 按钮 / h-1.5(6px) 进度条 */
+  .ctl { padding: 12px 10px 6px; }
+  .ctl .seek { height: 44px; display: flex; align-items: center; margin: 0 2px 2px; }
+  .ctl .seek .track { position: relative; width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,.28); }
+  .ctl .seek .track i { position: absolute; inset: 0 auto 0 0; width: 28%; background: var(--brand-500); border-radius: 4px; }
+  .ctl .seek .track b { position: absolute; top: 50%; left: 28%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.55); }
+  .ctl .row { gap: 6px; }
+  .ctl .row button { width: 44px; height: 44px; min-width: 44px; font-size: 12px; }
+
+  /* 修补② 横向利用率：文稿行不再套 aside 的 p-1.5 + border-l-3 + row p-3，
+     时间戳从 34px 左列改成压在英文行下方的小字，英文行才拿得到整宽 */
+  .script li { display: block; padding: 9px 16px; }
+  .script li.on { margin: 0; border-radius: 0; padding: 9px 16px; }
+
+  /* 点词按钮沿用 .word，只把 margin/padding 让给源码里的真实空格：折行点才落在词与词之间 */
+  .word { margin: 0; padding: 2px 0; }
+
+  .tag { pointer-events: none; }   /* 标注钉不许挡住点词 */
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="app">
+    <div id="shell-top"></div>
+
+    <div class="main">
+
+      <!-- ① 播放页页头行（现状顺序：返回首页 · 标题 · 点赞 · 收藏 · 分享） -->
+      <section style="padding:12px 16px 13px">
+        <div class="row" style="gap:6px;min-height:44px">
+          <button class="btn ghost" style="min-height:44px;padding:0 6px;font-size:13px;gap:4px;flex:0 0 auto">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+            返回首页
+          </button>
+          <h1 style="margin:0;flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">How to make discipline so fun it's hard to skip</h1>
+          <button class="icon-btn" style="width:44px;height:44px" aria-label="点赞">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20.5s-7.5-4.7-7.5-10A4.5 4.5 0 0112 7.4a4.5 4.5 0 017.5 3.1c0 5.3-7.5 10-7.5 10z"/></svg>
+          </button>
+          <button class="icon-btn" style="width:44px;height:44px" aria-label="收藏">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3.5h12a1 1 0 011 1v16l-7-4-7 4v-16a1 1 0 011-1z"/></svg>
+          </button>
+          <button class="icon-btn" style="width:44px;height:44px" aria-label="分享">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4M8 8l4-4 4 4M5 14v5a1 1 0 001 1h12a1 1 0 001-1v-5"/></svg>
+          </button>
+        </div>
+
+        <!-- 元信息行（现状：频道 · 级别 · 时长） -->
+        <div class="row" style="margin-top:8px;gap:6px;font-size:12px;line-height:1.2;color:var(--muted-c)">
+          <span style="border:1px solid var(--hairline);border-radius:var(--radius-pill);padding:2px 8px;font-weight:600;color:var(--ink)">CNBC Make It ›</span>
+          <span>四级</span>
+          <span>·</span>
+          <span>17:43</span>
+        </div>
+      </section>
+
+      <!-- ② 视频：刻意不出血，仍在 --gutter 内 343×193，圆角卡片 -->
+      <section style="padding:0 16px;position:relative">
+        <div class="player" style="border-radius:16px;overflow:hidden">
+          <div class="frame">
+            <div style="position:absolute;left:0;right:0;top:0;bottom:106px;display:flex;align-items:center;justify-content:center">
+              <span style="width:44px;height:44px;border-radius:50%;background:rgba(250,250,250,.14);border:1px solid rgba(250,250,250,.3);display:flex;align-items:center;justify-content:center;color:#fff">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>
+              </span>
+            </div>
+            <!-- 现状：播放器右上角 ExamLevelSelector 药丸 -->
+            <span class="pill" style="position:absolute;right:10px;top:10px">四级</span>
+
+            <div class="ctl">
+              <div class="seek"><div class="track"><i></i><b></b></div></div>
+              <div class="row">
+                <button aria-label="暂停">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 5h3v14H9zM14 5h3v14h-3z"/></svg>
+                </button>
+                <span style="font-size:11px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.85)">00:12 / 08:10</span>
+                <span class="sp"></span>
+                <button aria-label="字幕字号" style="font-weight:700">Aa</button>
+                <button aria-label="更多">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <span class="tag" style="left:8px;top:8px">触控 32→44px</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ 当前句卡片（现状：计数 + 进度 + 可点词句子 + 逐句跟读/录音 + 跟读历史） -->
+      <div class="card" style="margin:12px 16px 0;padding:13px 14px;position:relative">
+        <div class="row" style="gap:10px;height:20px">
+          <span style="font-size:11px;font-family:ui-monospace,SFMono-Regular,monospace;color:var(--muted-soft);font-variant-numeric:tabular-nums">95 / 187</span>
+          <div style="flex:1;height:6px;border-radius:3px;background:var(--surface-card);position:relative">
+            <div style="width:51%;height:100%;border-radius:3px;background:var(--brand-500)"></div>
+            <span style="position:absolute;left:51%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--brand-500);border:2px solid var(--canvas);box-sizing:border-box"></span>
+          </div>
+        </div>
+
+        <div style="margin-top:9px">
+          <div class="sub-en">
+            <button class="word">But</button>
+            <button class="word">I</button>
+            <button class="word learned">think</button>
+            <button class="word">you're</button>
+            <button class="word">coming</button>
+            <button class="word">at</button>
+            <button class="word">it</button>
+            <button class="word">from</button>
+            <button class="word">the</button>
+            <button class="word learned">wrong</button>
+            <button class="word">perspective.</button>
+          </div>
+          <div class="sub-zh">但我觉得，你一开始就理解错了。</div>
+        </div>
+
+        <div class="row" style="margin-top:12px;gap:10px">
+          <button class="btn" style="flex:1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10h3l4-4v12l-4-4H4zM16 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/></svg>
+            逐句跟读
+          </button>
+          <button class="btn primary" style="flex:1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0012 0M12 17v4"/></svg>
+            录音
+          </button>
+        </div>
+
+        <div class="row" style="margin-top:10px;justify-content:space-between">
+          <span class="hint">最近跟读 · 暂无记录</span>
+          <span class="hint" style="color:var(--brand-600);font-weight:600">全部记录 ›</span>
+        </div>
+
+        <span class="tag" style="left:10px;bottom:-9px">字号 17/14</span>
+      </div>
+
+      <!-- ④ 整段文稿列表（行贴 gutter 整宽；底部仍常驻 5 项导航） -->
+      <section style="margin-top:12px;position:relative">
+        <div class="row" style="padding:0 16px 8px;justify-content:space-between">
+          <span style="font-size:13px;font-weight:700">整段文稿 <span class="hint">187 句</span></span>
+          <span class="row" style="gap:6px">
+            <span class="chip on">双语</span>
+            <span class="chip">仅英文</span>
+          </span>
+        </div>
+
+        <ul class="script">
+          <li class="on">
+            <div class="en">
+              <button class="word">But</button>
+              <button class="word">I</button>
+              <button class="word learned">think</button>
+              <button class="word">you're</button>
+              <button class="word">coming</button>
+              <button class="word">at</button>
+              <button class="word">it</button>
+              <button class="word">from</button>
+              <button class="word">the</button>
+              <button class="word learned">wrong</button>
+              <button class="word">perspective.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">但我觉得，你一开始就理解错了。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:22</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">Fun</button>
+              <button class="word">is</button>
+              <button class="word">not</button>
+              <button class="word">easy.</button>
+              <button class="word">Fun</button>
+              <button class="word">is</button>
+              <button class="word">engaging.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">有趣，从来就不是轻松的事。有趣是让人投入。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:26</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">The</button>
+              <button class="word">trick</button>
+              <button class="word">is</button>
+              <button class="word">to</button>
+              <button class="word">make</button>
+              <button class="word">the</button>
+              <button class="word">first</button>
+              <button class="word">two</button>
+              <button class="word">minutes</button>
+              <button class="word learned">almost</button>
+              <button class="word">effortless.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">诀窍在于让最开始的两分钟几乎毫不费力。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:31</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">Shrink</button>
+              <button class="word">the</button>
+              <button class="word">task</button>
+              <button class="word">until</button>
+              <button class="word">starting</button>
+              <button class="word">feels</button>
+              <button class="word">trivial.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">把任务缩小到「开始」这件事显得微不足道。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:37</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">Then</button>
+              <button class="word">let</button>
+              <button class="word">the</button>
+              <button class="word">momentum</button>
+              <button class="word">carry</button>
+              <button class="word">the</button>
+              <button class="word">rest</button>
+              <button class="word">of</button>
+              <button class="word">the</button>
+              <button class="word">session.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">然后让惯性带走这一轮剩下的部分。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:43</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">That</button>
+              <button class="word">is</button>
+              <button class="word">why</button>
+              <button class="word">streaks</button>
+              <button class="word">work</button>
+              <button class="word">better</button>
+              <button class="word">than</button>
+              <button class="word">willpower.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">这就是为什么连续打卡比意志力管用。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:49</span>
+            </div>
+          </li>
+
+          <li>
+            <div class="en">
+              <button class="word">You</button>
+              <button class="word">are</button>
+              <button class="word">not</button>
+              <button class="word">fighting</button>
+              <button class="word">yourself,</button>
+              <button class="word">you</button>
+              <button class="word">are</button>
+              <button class="word">removing</button>
+              <button class="word">friction.</button>
+            </div>
+            <div class="row" style="margin-top:2px;justify-content:space-between;align-items:baseline">
+              <span class="zh" style="margin-top:0">你不是在跟自己较劲，你是在去掉摩擦。</span>
+              <span class="hint" style="flex:0 0 auto;padding-left:8px;font-variant-numeric:tabular-nums">00:55</span>
+            </div>
+          </li>
+        </ul>
+
+        <span class="tag" style="right:12px;top:-9px">行宽 260→343px</span>
+      </section>
+
+      <div class="note" id="variant-note"></div>
+    </div>
+
+    <div id="shell-bottom"></div>
+
+    <!-- 共享点词弹层：三版逐字相同 -->
+    <div id="scrim" style="display:none;position:absolute;inset:0;background:rgba(10,10,10,.45);z-index:55"></div>
+    <div class="sheet" id="wordSheet" style="display:none">
+      <div class="grab"><i></i></div>
+      <div class="body">
+        <div class="row" style="gap:8px;align-items:baseline">
+          <b style="font-size:22px" data-word>—</b>
+          <span class="hint" data-phon>/—/</span>
+          <span class="chip" data-pos style="padding:1px 7px;font-size:11px">n.</span>
+        </div>
+        <p style="margin:8px 0 0;font-size:15px" data-zh>—</p>
+        <p style="margin:8px 0 0;font-size:13px;color:var(--muted-c);font-style:italic" data-ex></p>
+      </div>
+      <div class="foot">
+        <button class="btn" data-close-sheet>发音</button>
+        <button class="btn primary" style="flex:1" data-close-sheet>加入词库</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_demo.js"></script>
+<script>
+window.SHELL = {
+  topBar: "full",
+  tabBar: "visible",
+  notes:
+    "<b>变体丙 —— 保持现状骨架</b><br>" +
+    "不动结构，只修该修的三处，每处都在界面上钉了标注：<br>" +
+    "① <b>触控目标</b>：播放/暂停与「更多」32px → 44px；进度条 6px 轨道 → 8px、滑块 12px → 22px、命中区 44px 高。" +
+    "代价很直白：整条控件带 108px，占掉 343×193 画面的 56%。<br>" +
+    "② <b>横向利用率</b>：文稿行不再套 aside 的 p-1.5 + border-l-3 + row p-3 三层水平内边距，时间戳从 34px 左列改成压在英文行下方的小字，" +
+    "英文行可用宽度 260px → 343px（x16→x359）。截屏 OCR 读到的「英文只铺到屏宽约 1/3」按现有代码结构复现不出来，仍待真机复核。<br>" +
+    "③ <b>字号档位</b>：page.tsx:61-70 的 small/medium/large = 14/17/20 在 375px 下只有一档站得住，" +
+    "本版锁死 medium（英文 17 / 中文 14），控制条上的 Aa 不再可切；列表按密度用 14/12。<br>" +
+    "<b>没动的</b>：不出血（视频仍在 16px gutter 内，343×193，圆角卡片）· 逐句跟读与录音仍在字幕卡片里 · 底栏 5 项仍在。" +
+    "副作用有一个：两个 44px 按钮放不进句子行——现状 min-h-[44px] 横排时句子只剩约 111px 宽（要折 5 行），本版把按钮移到句子下方，句子独占 315px（2 行）。" +
+    "刻意留着的将就：文稿模式 chip 仍 24px 高、英文单词的命中区仍贴着行高（句子里的词 26×32、列表里的词 21×26），都远小于 44px——今天不改，留作「现状到底有多将就」的证据。<br>" +
+    "<b>屏高构成</b>：顶栏 8% + 页头与元信息 12% = 20%（截屏读数 21%，对得上）；视频 24%；字幕区 49%（卡片 31% + 列表 18%）——" +
+    "截屏的 36% 是 896pt 屏上的读数，里面含 iOS 状态栏 5% 与 Safari 底栏 10%；原型 812 里这两段不存在，差额就落回列表，所以合计看起来更大；底栏 7%。" +
+    "本文件另补了一条 @media (max-width:459px){.app{height:100vh}}，让 375 宽下机身就是 812 的定高框、底栏钉底、标尺百分比才对得上。",
+  bands: [
+    { label: "顶栏 64px", pct: 8, chrome: true },
+    { label: "页头 + 元信息", pct: 12, chrome: true },
+    { label: "视频 343×193", pct: 24 },
+    { label: "当前句卡片", pct: 31 },
+    { label: "文稿列表", pct: 18 },
+    { label: "底栏 56px", pct: 7, chrome: true }
+  ]
+};
+</script>
+<script src="shell.js"></script>
+</body>
+</html>

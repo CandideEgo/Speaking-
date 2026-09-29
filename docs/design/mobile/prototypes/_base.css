@@ -1,0 +1,354 @@
+/* SeeWord 移动端播放页原型 —— 共享基底
+   语义 token 抄自 frontend/src/app/globals.css（`@theme` 与 `:root` / `.dark`）。
+   刻意不用 Tailwind CDN：原型要能在 file:// 直接打开、离线可看，外壳像素才算得准。 */
+
+:root {
+  color-scheme: light;
+
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-card: #f4f4f5;
+  --surface-strong: #ededed;
+
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --body-strong: #18181b;
+  --muted-c: #71717a;
+  --muted-soft: #a1a1aa;
+
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-200: #ffc1a8;
+  --brand-500: #ff5a1f;
+  --brand-600: #e84a10;
+  --brand-700: #c33c0c;
+  --brand-800: #9a3210;
+
+  --success: #16a34a;
+  --success-soft: #ecfdf5;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+  --error: #dc2626;
+  --red-soft: #fef2f2;
+  --sky-soft: #f0f9ff;
+
+  --surface-dark: #0a0a0a;
+  --surface-dark-elevated: #161616;
+  --surface-dark-soft: #1c1c1c;
+  --on-dark: #fafafa;
+  --on-dark-soft: #a1a1aa;
+  --on-primary: #ffffff;
+
+  --learn-highlight: #4ade80;
+  --learn-phrase: #facc15;
+
+  --topbar-bg: #ffffff;
+  --elevation-soft: 0 1px 2px rgba(10, 10, 10, .04), 0 1px 3px rgba(10, 10, 10, .04);
+  --elevation-card: 0 2px 8px rgba(10, 10, 10, .05), 0 1px 2px rgba(10, 10, 10, .04);
+  --elevation-lift: 0 12px 32px rgba(10, 10, 10, .08), 0 2px 8px rgba(10, 10, 10, .04);
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* 外壳尺寸 —— 真机基线待 #22 校准（截屏读数约 64pt 含浏览器底栏） */
+  --topbar-h: 64px;
+  --tabbar-h: 56px;
+  --gutter: 16px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0a0a0a;
+  --surface-soft: #111112;
+  --surface-card: #1a1a1c;
+  --surface-strong: #262628;
+  --ink: #fafafa;
+  --body: #d4d4d8;
+  --body-strong: #e4e4e7;
+  --muted-c: #a1a1aa;
+  --muted-soft: #6b6b72;
+  --hairline: #242426;
+  --hairline-soft: #1c1c1e;
+  --brand-50: #241109;
+  --brand-100: #2f170c;
+  --brand-200: #3d1d0f;
+  --brand-700: #ff7a45;
+  --brand-800: #ff9b76;
+  --success: #22c55e;
+  --success-soft: #0d2417;
+  --warning: #f59e0b;
+  --warning-soft: #241a08;
+  --error: #ef4444;
+  --red-soft: #261212;
+  --sky-soft: #0c1a24;
+  --topbar-bg: #0e0e10;
+  --elevation-lift: 0 12px 32px rgba(0, 0, 0, .6), 0 2px 8px rgba(0, 0, 0, .45);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #6b7280;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 桌面观看时把 375px 的机身居中；窄屏（面板里 375×812）则铺满 ── */
+.stage {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+  padding: 0;
+}
+.app {
+  width: 100%;
+  max-width: 375px;
+  min-height: 100vh;
+  background: var(--canvas);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* 窄屏（面板里 375×812、以及真机）必须钉死视口高：否则内容一长 .app 就长过视口，
+   底栏被顶出屏外，标尺（inset:0 相对 .app）的百分比也全失真。三个变体各自撞过这个坑。 */
+@media (max-width: 459px) {
+  .app { height: 100vh; height: 100dvh; }
+}
+
+@media (min-width: 460px) {
+  .stage { padding: 24px 0; background: #52525b; }
+  .app {
+    min-height: 812px;
+    height: 812px;
+    border-radius: 28px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .4);
+  }
+}
+
+/* ── 外壳 ── */
+.topbar {
+  flex: 0 0 auto;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--gutter);
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--hairline);
+  position: relative;
+  z-index: 30;
+}
+.topbar .logo {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--brand-500); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 17px; flex: 0 0 auto;
+}
+.topbar .spacer { flex: 1; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  border: 0; background: transparent; color: var(--body);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; cursor: pointer; flex: 0 0 auto;
+}
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface-card); border: 1px solid var(--hairline);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--muted-c); flex: 0 0 auto;
+}
+
+.tabbar {
+  flex: 0 0 auto;
+  height: var(--tabbar-h);
+  display: flex;
+  align-items: stretch;
+  background: var(--canvas);
+  border-top: 1px solid var(--hairline);
+  position: relative;
+  z-index: 40;
+}
+.tabbar .tab {
+  flex: 1;
+  min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 10px; color: var(--muted-c); text-decoration: none;
+  border: 0; background: transparent; cursor: pointer;
+  position: relative;
+}
+.tabbar .tab svg { width: 20px; height: 20px; }
+.tabbar .tab.on { color: var(--brand-500); }
+.tabbar .badge {
+  position: absolute; top: 4px; left: 50%; margin-left: 4px;
+  background: var(--error); color: #fff; font-size: 9px; font-weight: 700;
+  padding: 1px 4px; border-radius: var(--radius-pill); line-height: 1.3;
+}
+
+/* 主滚动区 */
+.main {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--canvas);
+}
+
+/* ── 播放器 ── */
+.player { background: var(--surface-dark); position: relative; }
+.player .frame {
+  width: 100%; aspect-ratio: 16 / 9; position: relative;
+  background: linear-gradient(135deg, #1c1c1c 0%, #0a0a0a 60%);
+  overflow: hidden;
+}
+.player .titlecard {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  padding: 18px 20px; color: var(--on-dark);
+}
+.player .titlecard .kicker { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark-soft); }
+.player .titlecard .ttl { font-size: 15px; font-weight: 700; line-height: 1.25; max-width: 26ch; }
+.play-badge {
+  position: absolute; right: 12px; bottom: 46px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(250, 250, 250, .16); border: 1px solid rgba(250, 250, 250, .3);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px); cursor: pointer;
+}
+.ctl {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 20px 10px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .8), rgba(0, 0, 0, .32) 60%, transparent);
+  color: #fff;
+}
+.ctl .bar {
+  height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .25);
+  position: relative; margin-bottom: 8px;
+}
+.ctl .bar i { position: absolute; inset: 0 auto 0 0; width: 28%; background: var(--brand-500); border-radius: 2px; }
+.ctl .bar b {
+  position: absolute; top: 50%; left: 28%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+.ctl .row { display: flex; align-items: center; gap: 10px; font-size: 11px; color: rgba(255, 255, 255, .85); }
+.ctl .row .sp { flex: 1; }
+.ctl button {
+  border: 0; background: transparent; color: #fff; cursor: pointer;
+  height: 36px; min-width: 36px; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; border-radius: var(--radius-sm);
+}
+
+/* 字幕 */
+.subs { padding: 4px 0 0; }
+.sub-en { font-size: 17px; line-height: 1.5; font-weight: 600; letter-spacing: -.01em; }
+.sub-zh { font-size: 14px; line-height: 1.5; color: var(--body); margin-top: 6px; }
+.word {
+  border: 0; background: transparent; padding: 2px 1px; margin: 0 1px;
+  font: inherit; color: inherit; cursor: pointer; border-radius: 4px;
+  border-bottom: 2px solid transparent;
+}
+.word:hover { background: var(--brand-50); border-bottom-color: var(--brand-200); }
+.word.now { color: var(--brand-600); font-weight: 700; }
+.word.learned { border-bottom-color: var(--learn-highlight); }
+
+/* 整段列表 */
+.script { list-style: none; margin: 0; padding: 0; }
+.script li {
+  display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--hairline-soft);
+  cursor: pointer;
+}
+.script li.on { background: var(--brand-50); margin: 0 -12px; padding: 10px 12px; border-radius: var(--radius-sm); }
+.script .ts { font-size: 10px; color: var(--muted-soft); font-variant-numeric: tabular-nums; padding-top: 3px; flex: 0 0 auto; width: 34px; }
+.script .en { font-size: 14px; line-height: 1.45; }
+.script .zh { font-size: 12px; color: var(--muted-c); line-height: 1.45; margin-top: 2px; }
+
+/* ── 通用小件 ── */
+.pad { padding: 0 var(--gutter); }
+.card {
+  background: var(--canvas); border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg); box-shadow: var(--elevation-soft);
+}
+.row { display: flex; align-items: center; gap: 10px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-card); color: var(--body); font-size: 12px; border: 0; cursor: pointer;
+}
+.chip.on { background: var(--brand-50); color: var(--brand-700); font-weight: 600; }
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px;
+}
+.hint { font-size: 11px; color: var(--muted-soft); }
+.btn {
+  min-height: 44px; padding: 0 16px; border-radius: var(--radius);
+  border: 1px solid var(--hairline); background: var(--canvas); color: var(--ink);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn.primary { background: var(--brand-500); border-color: var(--brand-500); color: var(--on-primary); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted-c); }
+
+/* 底部弹层（点词容器） */
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 60;
+  background: var(--canvas); border-top: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--elevation-lift);
+  max-height: 62%; display: flex; flex-direction: column;
+}
+.sheet .grab { padding: 8px 0 4px; display: flex; justify-content: center; }
+.sheet .grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--surface-strong); }
+.sheet .body { overflow-y: auto; padding: 0 16px 12px; }
+.sheet .foot {
+  border-top: 1px solid var(--hairline); padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 10px;
+}
+
+/* 标注 */
+.tag {
+  position: absolute; z-index: 70;
+  background: var(--brand-500); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px; letter-spacing: .02em;
+}
+.note {
+  margin: 12px var(--gutter) 20px; padding: 12px 14px;
+  border: 1px dashed var(--brand-200); background: var(--brand-50);
+  border-radius: var(--radius); font-size: 12px; line-height: 1.6; color: var(--body);
+}
+.note b { color: var(--brand-700); }
+
+/* 屏高标尺：把「视频占多少、字幕占多少、外壳吃掉多少」摊开给人看 */
+.measure { position: absolute; inset: 0; z-index: 65; pointer-events: none; display: none; }
+.measure.on { display: block; }
+.measure .band {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px dashed rgba(255, 90, 31, .9);
+  background: rgba(255, 90, 31, .1);
+}
+.measure .band span {
+  position: absolute; right: 6px; top: 3px;
+  background: var(--brand-500); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+}
+.measure .chrome { background: rgba(113, 113, 122, .18); border-top-color: rgba(113, 113, 122, .9); }
+.measure .chrome span { background: #52525b; }
+.measure-btn {
+  position: absolute; right: 8px; top: calc(var(--topbar-h) + 8px); z-index: 66;
+  background: rgba(0, 0, 0, .55); color: #fff; border: 0; border-radius: var(--radius-pill);
+  font-size: 11px; padding: 6px 10px; cursor: pointer;
+  /* 它是叠在界面上的标注控件，不是界面本身：压到哪个元素上都要让那个元素还看得见 */
+  opacity: .55; transition: opacity .15s;
+}
+.measure-btn:hover, .measure-btn:focus-visible { opacity: 1; }
