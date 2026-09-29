@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Eight violation checks, one advisory check and an on-demand size report, all
+Seven violation checks, one advisory check and an on-demand size report, all
 deterministic (no LLM, no network):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
@@ -20,10 +20,6 @@ deterministic (no LLM, no network):
                something tracked there. The doctrine is knowledge/wiki/guides/repository-layout.md.
   captures     The user's dictated words stay exactly as captured, and every segment of
                them carries a disposition. The doctrine is knowledge/inbox/README.md.
-  handoff      The tickets in .agent/handoffs/ carry their full shape (sections,
-               演示路径, Blocked by), blockers resolve and stay acyclic, claims and
-               statuses agree -- and the frontier (ready-to-claim tickets) is printed.
-               The doctrine is .agent/handoffs/README.md.
   stale        (advisory) Code changed under a module some knowledge/wiki/ document describes,
                since that document was last verified.
 
@@ -1170,161 +1166,6 @@ def check_stale() -> tuple[list[Violation], list[str]]:
     return faults, notices
 
 
-# ---------------------------------------------------------------------- handoff
-
-
-# A ticket is one file in .agent/handoffs/ (the doctrine is .agent/handoffs/README.md).
-# The fields ARE the state machine -- no state file exists. The check enforces the
-# ticket shape (缝 2), the dependency edges (缝 2/3), the claim lock (缝 3), and prints
-# the frontier (tickets whose blockers are all closed, unclaimed). Closing/archiving
-# is what releases downstream tickets, so an archived blocker counts as closed.
-HANDOFF_DIR = REPO_ROOT / _cfg("handoffs")
-HANDOFF_ARCHIVE_DIR = REPO_ROOT / _cfg("handoffs_archive")
-HANDOFF_README = _cfg("handoffs_readme")
-HANDOFF_SECTIONS = ("任务", "已完成", "契约变更", "关键决策", "遗留")
-HANDOFF_STATUSES = ("dispatched", "in progress", "done", "closed")
-HANDOFF_FIELDS = ("Owner", "Status", "Planner acceptance", "Blocked by", "演示路径")
-HANDOFF_FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
-
-
-def _handoff_files() -> list[Path]:
-    """Live tickets only; the archive is closed history, not scanned."""
-    if not HANDOFF_DIR.is_dir():
-        return []
-    return sorted(path for path in HANDOFF_DIR.glob("*.md") if rel(path) != HANDOFF_README)
-
-
-def _parse_handoff(path: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """Return (fields, sections). Fields come from the leading `- Key: value` lines,
-    before the first `## ` heading; sections are the `## ` headings anywhere."""
-    fields: dict[str, str] = {}
-    sections: dict[str, str] = {}
-    in_header = True
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if in_header:
-            if line.startswith("- ") and HANDOFF_FIELD_RE.match(line):
-                match = HANDOFF_FIELD_RE.match(line)
-                if match.group(1).strip() in HANDOFF_FIELDS:
-                    fields[match.group(1).strip()] = match.group(2).strip()
-            elif line.startswith("## "):
-                in_header = False
-        if line.startswith("## "):
-            sections[line[3:].strip()] = line[3:].strip()
-    return fields, sections
-
-
-def _blocker_targets(fields: dict[str, str]) -> list[str]:
-    """Blocked by holds handoff filenames, comma separated; 「无」/empty means none."""
-    value = fields.get("Blocked by", "")
-    if not value or value in ("无", "none", "None", "-"):
-        return []
-    return [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
-
-
-def _resolve_blocker(name: str) -> Path | None:
-    for base in (HANDOFF_DIR, HANDOFF_ARCHIVE_DIR):
-        candidate = base / name
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def _blocker_closed(path: Path) -> bool:
-    """Archived = closed; otherwise the ticket must be done or closed."""
-    if HANDOFF_ARCHIVE_DIR in path.parents:
-        return True
-    fields, _ = _parse_handoff(path)
-    return fields.get("Status", "") in ("done", "closed")
-
-
-def check_handoff() -> tuple[list[Violation], list[str]]:
-    """Gate the ticket shape and print the frontier.
-
-    Returns (violations, frontier). Violations fail the run (a gate); frontier is the
-    list of tickets ready to claim -- `Status: dispatched`, no Owner, all blockers
-    closed -- and is informational, printed for the human and /dispatch to read.
-    """
-    violations: list[Violation] = []
-    files = _handoff_files()
-    fields_by_name: dict[str, dict[str, str]] = {}
-
-    for path in files:
-        fields, sections = _parse_handoff(path)
-        fields_by_name[path.name] = fields
-        where = rel(path)
-        for section in HANDOFF_SECTIONS:
-            if section not in sections:
-                violations.append(Violation("handoff", where, f"缺小节 \"## {section}\""))
-        if not fields.get("演示路径"):
-            violations.append(Violation("handoff", where, "缺 \"演示路径\" 字段或为空"))
-        if "Blocked by" not in fields:
-            violations.append(Violation("handoff", where, "缺 \"Blocked by\" 字段（无依赖写「无」）"))
-        status = fields.get("Status", "")
-        if status and status not in HANDOFF_STATUSES:
-            violations.append(Violation(
-                "handoff", where, f"Status 非法: {status}（应为 {' | '.join(HANDOFF_STATUSES)}）"
-            ))
-        if status == "dispatched" and fields.get("Owner"):
-            violations.append(Violation(
-                "handoff", where, "已写 Owner 但 Status 仍为 dispatched（认领后应改为 in progress）"
-            ))
-        if status == "in progress" and not fields.get("Owner"):
-            violations.append(Violation(
-                "handoff", where, "Status: in progress 但无 Owner（认领 = 写 Owner）"
-            ))
-        for target in _blocker_targets(fields):
-            if _resolve_blocker(target) is None:
-                violations.append(Violation("handoff", where, f"阻塞项不存在: {target}"))
-
-    # Dependency cycles: report every file on a cycle. Only live tickets emit edges.
-    archive_names = (
-        {p.name for p in HANDOFF_ARCHIVE_DIR.glob("*.md")}
-        if HANDOFF_ARCHIVE_DIR.is_dir()
-        else set()
-    )
-    all_names = set(fields_by_name) | archive_names
-    edges: dict[str, list[str]] = {
-        path.name: [t for t in _blocker_targets(fields_by_name[path.name]) if t in all_names]
-        for path in files
-    }
-    state: dict[str, int] = {}
-    stack: list[str] = []
-    cycles: set[str] = set()
-
-    def visit(name: str) -> None:
-        state[name] = 1
-        stack.append(name)
-        for nxt in edges.get(name, []):
-            if state.get(nxt, 0) == 0:
-                visit(nxt)
-            elif state[nxt] == 1:
-                start = stack.index(nxt)
-                for node in stack[start:] + [nxt]:
-                    cycles.add(node)
-        stack.pop()
-        state[name] = 2
-
-    for path in files:
-        if state.get(path.name, 0) == 0:
-            visit(path.name)
-    for name in sorted(cycles):
-        violations.append(Violation(
-            "handoff", rel(HANDOFF_DIR / name), "依赖成环（环上每个文件都报）"
-        ))
-
-    # Frontier: ready to claim, in dependency-safe file order. A ticket whose
-    # blocker resolves to nothing is broken (flagged above); its readiness is
-    # unknown, so it stays out of the frontier until the link is fixed.
-    frontier: list[str] = []
-    for path in files:
-        fields = fields_by_name[path.name]
-        if fields.get("Status") != "dispatched" or fields.get("Owner"):
-            continue
-        blockers = _blocker_targets(fields)
-        resolved = [r for r in (_resolve_blocker(t) for t in blockers) if r is not None]
-        if len(resolved) == len(blockers) and all(_blocker_closed(r) for r in resolved):
-            frontier.append(path.name)
-    return violations, sorted(frontier)
 
 
 def refresh_stamps(only: list[str]) -> int:
@@ -1367,7 +1208,7 @@ def refresh_stamps(only: list[str]) -> int:
 
 # -------------------------------------------------------------------------- main
 
-CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "captures", "handoff")
+CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "captures")
 ADVISORY = ("stale",)
 SELECTABLE = CHECKS + ADVISORY
 
@@ -1390,8 +1231,6 @@ def run_checks(selected: list[str]) -> list[Violation]:
         violations += check_layout()
     if "captures" in selected:
         violations += check_captures(files)
-    if "handoff" in selected:
-        violations += check_handoff()[0]
     return violations
 
 
@@ -1507,9 +1346,6 @@ def main(argv: list[str] | None = None) -> int:
     if "stale" in selected:
         stale_faults, notices = check_stale()
         violations += stale_faults
-    frontier: list[str] = []
-    if "handoff" in selected:
-        _, frontier = check_handoff()
     # `stale` has no baseline: a fault means the reminder stopped covering something,
     # which is the one failure this check exists to prevent.
     new = [v for v in violations if v.fingerprint not in accepted.get(v.check, set())]
@@ -1526,15 +1362,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{status}] {check}{suffix}")
         for violation in check_new:
             print(violation)
-
-    if "handoff" in selected:
-        print()
-        if frontier:
-            print("--- frontier: 可开工（阻塞全关、无 Owner；按依赖序取第一张）---")
-            for name in frontier:
-                print(f"    {name}")
-        else:
-            print("--- frontier: 无待认领的票 ---")
 
     if grandfathered:
         print(f"\n{grandfathered} grandfathered violation(s) in knowledge-baseline.json")

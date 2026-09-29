@@ -4,7 +4,7 @@
     ".agent": {
       "kind": "dir",
       "layer": "hot",
-      "purpose": "热层：每会话必读的事实（README 分层标准 / state / invariants / owners / handoffs 在飞票）"
+      "purpose": "热层：每会话必读的事实（README 分层标准 / state / invariants / owners）"
     },
     ".claude": {
       "kind": "dir",

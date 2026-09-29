@@ -37,8 +37,8 @@ vocabulary is stale.
 ## Where the paths live (paths.json)
 
 The checker holds no knowledge path as a string literal. Which files `frontmatter` and `ownership`
-scan, where `refs` looks for ADRs, which directory the `captures` check reads, which decisions and
-handoff files the `index` and `handoff` checks open, which files the `stale` digest skips — all of
+scan, where `refs` looks for ADRs, which directory the `captures` check reads, which decisions the
+`index` check opens, which files the `stale` digest skips — all of
 it comes from `scripts/check-knowledge/paths.json`. Two rules make the indirection worth it:
 
 - **One key names one location, and one location is written down once.** A list section names
@@ -55,8 +55,8 @@ it — green CI verifying nothing. **Renaming a knowledge directory without upda
 must fail the run, never pass quietly.**
 
 `"required": false` is used only where absence is legitimate: `CLAUDE.md` (a tool-specific redirect
-the repo may drop) and `knowledge/archive/handoffs/` (git does not track an empty directory, and an
-unresolvable blocker fails the `handoff` check in its own right).
+the repo may drop), or a directory git does not track when empty — absence there means nothing to
+scan yet, not a broken promise.
 
 The same file feeds `--size-report`: the hot files it lists are read every session, the cold
 entries it totals — directories and top-level files together — are read on demand. Neither list
@@ -82,7 +82,7 @@ recorded, over the body with cut markers and whitespace removed — formatting i
 not. The cut markers must read `S01..Sn`, so the segments tile the body and nothing between them is
 unaccounted for. Every segment needs exactly one triage row with a disposition from the closed
 vocabulary, so an idea said out loud cannot be dropped without the check noticing where it went.
-Every `<id>#Sxx` citation anywhere in the repo must resolve, so a plan or a handoff cannot point at
+Every `<id>#Sxx` citation anywhere in the repo must resolve, so a plan cannot point at
 a segment that does not exist. And a seal may not outlive the directory it froze.
 
 `--capture-seal <id>` is the only writer of `captures.json`, and it refuses to re-seal content that
@@ -90,7 +90,7 @@ changed: that refusal is the mechanism working, not an obstacle to route around.
 
 ## The one advisory check: `stale`
 
-The eight checks above decide pass or fail, and `stale` is the ninth: the one wholly advisory part of
+The seven checks above decide pass or fail, and `stale` is the eighth: the one wholly advisory part of
 the run. It only reminds, because to re-read prose you need a person, and a reminder that blocks a
 commit buys silence rather than accuracy.
 
@@ -153,8 +153,8 @@ inside them were written for their pre-move location in `.agent/`.
 The split, in one place:
 
 - **Fails a commit**: dead links and `ADR-00xx` references, `index` drift in both of its contracts, a
-  knowledge path that moved without `paths.json` being updated, the `invariants.json` paths, a ticket
-  whose shape, claims or blockers are broken, and a capture whose words changed after sealing.
+  knowledge path that moved without `paths.json` being updated, the `invariants.json` paths, and a capture whose
+  words changed after sealing.
 - **Prints only**: `--size-report` and the `stale` reminders. `--strict` turns the reminders into
   failures for whoever wants the gate instead.
 - **No byte number decides what may be written** (DEC-067). Nothing in the checker measures a file

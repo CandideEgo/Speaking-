@@ -64,14 +64,13 @@ triage could not settle.
 segment's `去向` to the plan path as it lands. Anything that needed a decision gets a `DEC-0xx`
 entry first, by the usual rule. Once the plan lands, slice it into tickets (stage 5).
 
-### 5. Dispatch — 出票 + 派发
+### 5. Dispatch — 切片 + 派发
 
 Slice the plan into vertical-slice tickets (narrow but complete, individually demoable, fit in
-one context window, pre-refactor first). Each ticket is one `.agent/handoffs/<date>-<slug>.md`:
-planner fills `Blocked by` / `演示路径` / `Planner acceptance`, sets `Status: dispatched`, leaves
-`Owner` empty. The ticket shape contract lives in `.agent/handoffs/README.md`, not here. Then the
-executor claims via `/dispatch` — **never write `Owner` here for them**; claiming is the
-executor's own action.
+one context window, pre-refactor first). The ticket system is GitHub Issues, not local files
+(DEC-065): open one issue per slice with the acceptance criterion and the demo path, so a slice
+that is only horizontal shows up there. Do not claim it for the executor — claiming is their own
+action. The doctrine is `docs/agents/issue-tracker.md`.
 
 ### Close
 

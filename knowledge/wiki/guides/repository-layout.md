@@ -35,7 +35,7 @@ edited together.
 
 | Entry | Layer | Holds | Add here when… |
 |---|---|---|---|
-| `.agent/` | hot | the facts every session loads: `README.md` (the layering standard), `state`, `invariants`, `owners`, `handoffs/` (tickets in flight) | the fact changes what the next session does before it knows the task |
+| `.agent/` | hot | the facts every session loads: `README.md` (the layering standard), `state`, `invariants`, `owners` | the fact changes what the next session does before it knows the task |
 | `.claude/` | tooling | project-level agent config and skills (`intake`, `knowledge-maintain`, `knowledge-verify`, `speaking-dev`, …) | a skill or a tool reads it at this fixed path |
 | `.github/` | tooling | CI/CD workflows and dependabot | GitHub reads it at this fixed path |
 | `backend/` | code | the FastAPI application (`app/`, `migrations/`, `tests/`, `scripts/`) | it is code, or a config the code reads |
@@ -121,8 +121,8 @@ posters are megabytes by nature.
 - **Deployment files stay at the root** (`docker-compose*.yml`, `nginx*.conf`, `promtail.yml`,
   `deploy*.sh`). They are what production actually runs, `docker` convention expects a compose file
   at the root, and moving them is a deploy rehearsal rather than a tidy-up.
-- **Delivered plans stay in `knowledge/plans/`.** ADRs, handoffs and migration docstrings cite them by
-  path; citation stability beats directory purity.
+- **Delivered plans stay in `knowledge/plans/`.** ADRs, archived tickets and migration docstrings cite
+  them by path; citation stability beats directory purity.
 - **`backend/` runtime directories keep their names** (`media/`, `data/`, `logs/`, `temp/`, `tmp/`,
   `transcripts/`, `reprocess_export/`). Renaming them means changing app config and production
   volumes.

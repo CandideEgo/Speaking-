@@ -4,13 +4,13 @@
 > in a fresh session). Each owner is a context slice: an agent working that slice loads
 > only its own row here, its one `knowledge/wiki/` document, and the contract files it touches.
 > Knowledge facts still belong to the files listed in `README.md` — this table only
-> decides *which* of them an agent loads. State transfer between agents goes through
-> `handoffs/`, not through chat history.
+> decides *which* of them an agent loads. State transfer between agents goes through the
+> work item (a GitHub issue, DEC-065) and `.agent/state.md`, not through chat history.
 
 ## Contract files
 
-Cross-owner coupling points. Any change to one of these is a **contract change** and
-requires a handoff entry (see `handoffs/README.md`):
+Cross-owner coupling points. Any change to one of these is a **contract change**: write it down in the
+commit message and the work item (DEC-065) before the session ends, both directions counted.
 
 - `backend/app/schemas/video.py` — API response shapes
 - `backend/app/core/config.py` — settings surface
@@ -46,22 +46,21 @@ Hot files (load on demand, never whole unless editing them):
 1. The planning session loads T0 only — task list plus acceptance criteria, never
    implementation files.
 2. An execution agent loads T0+T1+its slice. It must not read another owner's files
-   except contract files, and learns about upstream work from `handoffs/`, not from
-   re-reading diffs.
-3. Contract changes are written to a handoff entry **before the session ends**;
+   except contract files, and learns about upstream work from the work item and `.agent/state.md`, not
+   from re-reading diffs.
+3. Contract changes are written down (commit message + work item) **before the session ends**;
    both directions count (backend shape change → check `frontend/src/types/`,
    frontend type change → check `schemas/`).
 4. At most 2 execution agents run in parallel, and only when they touch different
    owners and different contract files. Worktree parallelism is not used here —
    backend dev/tests share one Postgres and Redis.
 5. Acceptance is mechanical first: `pytest`, `ruff check`, `mypy`, `tsc --noEmit`,
-   `eslint`, `check_knowledge.py` all green. The planner then reviews the handoffs
-   plus contract diffs only — never the full diff.
-6. **One ticket per session, clear between tickets.** An execution session works
-   exactly one ticket and ends explicitly; it does not carry the previous ticket's
+   `eslint`, `check_knowledge.py` all green. The planner then reviews the contract diffs
+   only — never the full diff.
+6. **One work item per session, clear between them.** An execution session works
+   exactly one item and ends explicitly; it does not carry the previous item's
    context into the next.
-7. **Never dispatch a ticket whose blockers are not all closed.** The frontier is
-   printed by `check_knowledge.py handoff`, not maintained by hand. Claiming a
-   ticket = writing `Owner` + `Status: in progress` (`/dispatch`); closing =
-   `Status: closed` + archiving (`/accept`). Blockers count as closed when their
-   file is `done`/`closed` or already in `knowledge/archive/handoffs/`.
+7. **Never start an item whose blockers are still open.** Blockers are GitHub's
+   native `blocked_by` edges; the frontier query, claiming (= assignee) and closing
+   are DEC-065's flow, `docs/agents/issue-tracker.md`. Nothing local keeps that
+   list in sync, so check it before starting.

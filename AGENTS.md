@@ -52,7 +52,7 @@ Never read `knowledge/decisions.md` end to end — it is the largest file in the
 | a review-fix round repeating an old mistake | [review/fix failure modes](knowledge/wiki/problems/review-fix-failure-modes.md) |
 | servers, media topology, credentials | [runbook](knowledge/operations/RUNBOOK.md) · [media topology](knowledge/operations/MEDIA-TOPOLOGY.md) |
 | local setup, running tests, pushing | [setup](knowledge/wiki/guides/setup.md) · [testing](knowledge/wiki/guides/testing.md) · [release checklist](knowledge/wiki/guides/release-checklist.md) |
-| splitting one task across multiple agents | [module owners](.agent/owners.md) · [handoff format](.agent/handoffs/README.md) |
+| splitting one task across multiple agents | [module owners](.agent/owners.md) |
 
 ## Knowledge Layers
 
@@ -83,8 +83,8 @@ and `knowledge/operations/`.
 It fails on: broken links, `ADR-00xx` with no file, invalid `knowledge/wiki/` frontmatter, unknown or dead
 `related_code` modules, commit hashes in stable knowledge files, index/entry drift, a tracked
 top-level entry missing from `scripts/check-knowledge/layout.json`, a capture whose content changed
-after it was sealed or whose segments lost their disposition, a ticket in `.agent/handoffs/` whose
-fields or blockers do not hold, and a configured knowledge path that is not on disk. A ninth check,
+after it was sealed or whose segments lost their disposition, and a configured knowledge path that is
+not on disk. An eighth check,
 `stale`, names the `knowledge/wiki/` pages whose code changed since they were verified — a reminder,
 not a failure. Run it directly with `pre-commit run knowledge-check --all-files`.
 

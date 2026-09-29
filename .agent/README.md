@@ -29,7 +29,6 @@ Three admission tests for the hot layer — **all** must hold:
 | `.agent/state.md` | what is in flight, what is next, what is broken | session start |
 | `.agent/invariants.md` | rules that must keep holding; removed features | before changing code |
 | `.agent/owners.md` | slices, tickets, parallel-work rules | splitting a task across agents |
-| `.agent/handoffs/` | one file per **open** ticket; the fields are the state machine | claiming or accepting a ticket |
 
 ## Cold store
 

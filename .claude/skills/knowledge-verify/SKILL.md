@@ -14,15 +14,15 @@ Prevent the agent's understanding from becoming outdated.
 Code is the source of truth.
 
 Mechanical drift is already caught for you: `scripts/check-knowledge/check_knowledge.py` runs in
-pre-commit and in the CI `Knowledge` workflow, and its eight failure checks — `refs`, `frontmatter`,
-`ownership`, `index`, `paths`, `layout`, `captures`, `handoff` — cover broken links, missing ADRs,
+pre-commit and in the CI `Knowledge` workflow, and its seven failure checks — `refs`, `frontmatter`,
+`ownership`, `index`, `paths`, `layout`, `captures` — cover broken links, missing ADRs,
 invalid wiki frontmatter, unknown or dead `related_code` modules, commit hashes in stable knowledge
 files, decision-table and cold-store-index drift, a knowledge path that moved without
 `scripts/check-knowledge/paths.json` being updated, a tracked top-level entry nobody registered as
-belonging to a layer (the doctrine is `knowledge/wiki/guides/repository-layout.md`), a ticket whose
-shape or blockers do not hold, and a capture whose words changed after sealing.
+belonging to a layer (the doctrine is `knowledge/wiki/guides/repository-layout.md`), and a capture
+whose words changed after sealing.
 
-A ninth check, `stale`, says where to start: it compares each documented module against the digest
+An eighth check, `stale`, says where to start: it compares each documented module against the digest
 recorded in `scripts/check-knowledge/knowledge-stamps.json` when its pages were last verified, and
 names the pages whose code has moved since. Treat it as a starting point, not a verdict — code
 moving under a page does not make the page wrong.

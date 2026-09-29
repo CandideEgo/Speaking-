@@ -18,9 +18,6 @@
     "archive": {"path": "knowledge/archive", "kind": "dir", "required": true, "note": "frozen history: exempt from every check, links and schema as of when it was written"},
     "decisions": {"path": "knowledge/decisions.md", "kind": "file", "required": true, "note": "append-only: never edit or reorder an existing entry"},
     "decisions_index": {"path": "knowledge/decisions-index.md", "kind": "file", "required": true, "note": "mirrors decision titles verbatim, so it inherits any commit hash an entry carries"},
-    "handoffs": {"path": ".agent/handoffs", "kind": "dir", "required": true, "note": "one file per live ticket; the fields ARE the state machine. Live tickets are in flight, so they stay hot"},
-    "handoffs_archive": {"path": "knowledge/archive/handoffs", "kind": "dir", "required": false, "note": "an archived ticket counts as closed, so a blocker may point here; optional because git does not track an empty directory, and an unresolvable blocker fails loudly"},
-    "handoffs_readme": {"path": ".agent/handoffs/README.md", "kind": "file", "required": true, "note": "the ticket doctrine; the one file in that directory which is not a ticket"},
     "inbox": {"path": "knowledge/inbox", "kind": "dir", "required": true, "note": "the user's dictated words, sealed verbatim; `refs` exempts <capture>/raw.md alone"},
     "changelog": {"path": "knowledge/CHANGELOG.md", "kind": "file", "required": true, "note": "history, so commit hashes are allowed here"},
     "agents": {"path": "AGENTS.md", "kind": "file", "required": true, "note": "the entry point and routing table"},
@@ -66,7 +63,7 @@
     "_comment": "What --size-report prints. Report-only: neither list gates anything, so both can be edited freely without touching the checker. hot_files is the set a session loads before it knows the task; `cold` is the rest of the layer, read on demand, and it accepts directories and top-level files alike -- the entry's own `kind` decides which is which. There is no byte ceiling and no byte target anywhere (DEC-067); a cold entry missing from this list is a number nobody sees, so `cold` names every location under knowledge_root.",
     "hot_files": ["agents", "claude", "context", "readme", "state", "invariants", "owners"],
     "cold": [
-      "index", "wiki", "adr", "archive", "inbox", "handoffs", "operations", "plans", "progress",
+      "index", "wiki", "adr", "archive", "inbox", "operations", "plans", "progress",
       "requirements", "decisions", "decisions_index", "system_map", "changelog"
     ]
   }

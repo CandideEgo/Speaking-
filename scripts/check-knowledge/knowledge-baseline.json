@@ -5,15 +5,5 @@
   "index": [],
   "paths": [],
   "layout": [],
-  "captures": [],
-  "handoff": [
-    "handoff|.agent/handoffs/2026-09-27-s4-distractors.md|缺 \"Blocked by\" 字段（无依赖写「无」）",
-    "handoff|.agent/handoffs/2026-09-27-s4-distractors.md|缺 \"演示路径\" 字段或为空",
-    "handoff|.agent/handoffs/2026-09-27-s5-multiple-choice.md|缺 \"Blocked by\" 字段（无依赖写「无」）",
-    "handoff|.agent/handoffs/2026-09-27-s5-multiple-choice.md|缺 \"演示路径\" 字段或为空",
-    "handoff|.agent/handoffs/2026-09-27-s6-review-interval.md|缺 \"Blocked by\" 字段（无依赖写「无」）",
-    "handoff|.agent/handoffs/2026-09-27-s6-review-interval.md|缺 \"演示路径\" 字段或为空",
-    "handoff|.agent/handoffs/2026-09-27-s8-sets-detail.md|缺 \"Blocked by\" 字段（无依赖写「无」）",
-    "handoff|.agent/handoffs/2026-09-27-s8-sets-detail.md|缺 \"演示路径\" 字段或为空"
-  ]
+  "captures": []
 }

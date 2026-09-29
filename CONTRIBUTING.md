@@ -311,7 +311,7 @@ Speaking/
 ├── docker-compose.dev.yml    # 开发基础设施
 ├── docker-compose.yml        # 全栈开发环境
 ├── docker-compose.prod.yml   # 生产环境
-├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners / handoffs）
+├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners）
 ├── knowledge/                # 冷仓：一切记录过去的知识，入口 knowledge/INDEX.md
 │   ├── wiki/                 # 长期工程知识（architecture / problems / guides）
 │   ├── adr/                  # 架构决策记录 (ADR)

@@ -55,7 +55,7 @@ Speaking/
 │       ├── lib/              # API 客户端、工具、设计 token
 │       ├── hooks/            # 自定义 Hooks
 │       └── types/            # TypeScript 类型
-├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners / handoffs）
+├── .agent/                   # 热层：每会话必读（README 分层标准 / state / invariants / owners）
 ├── knowledge/                # 冷仓：一切记录过去的知识，入口 knowledge/INDEX.md
 │                             #   （wiki/adr/plans/progress/requirements/operations/archive/inbox/decisions）
 ├── docs/                     # 只放技能按固定路径读的配置（agents/）与物料（design/）

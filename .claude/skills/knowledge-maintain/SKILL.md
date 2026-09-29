@@ -382,8 +382,8 @@ whether knowledge is worth recording.
 # Mechanical Drift vs Judgement Drift
 
 `scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the CI `Knowledge` workflow.
-Nine checks — the eight that fail, `refs`, `frontmatter`, `ownership`, `index`, `paths`, `layout`,
-`captures`, `handoff`, plus the advisory `stale` — already catch, deterministically:
+Eight checks — the seven that fail, `refs`, `frontmatter`, `ownership`, `index`, `paths`, `layout`,
+`captures`, plus the advisory `stale` — already catch, deterministically:
 
 1. A markdown link that no longer resolves, or an ADR reference with no file in `knowledge/adr/`
 2. Invalid `knowledge/wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
@@ -395,9 +395,8 @@ Nine checks — the eight that fail, `refs`, `frontmatter`, `ownership`, `index`
    `knowledge/wiki/guides/repository-layout.md`
 6. A forbidden path that exists, a required `invariants.json` path that is missing, or a knowledge
    path `scripts/check-knowledge/paths.json` marks `required` that is not on disk
-7. A ticket in `.agent/handoffs/` whose shape, `Status`/`Owner` pair or blockers do not hold
-8. A capture in `knowledge/inbox/` whose words changed after sealing, or whose segments lost a disposition
-9. Code changed under a module some `knowledge/wiki/` page declares, since that page was verified — `stale`
+7. A capture in `knowledge/inbox/` whose words changed after sealing, or whose segments lost a disposition
+8. Code changed under a module some `knowledge/wiki/` page declares, since that page was verified — `stale`
    prints which pages to re-read, and fails only when its own coverage has a hole
 
 Do not hand-check those. What no check can read is prose that no longer matches reality — that
