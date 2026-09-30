@@ -9,7 +9,7 @@ Last Updated: 2026-09-30
 ## Current Focus
 
 - **进度真身（跨会话，先读这里）**：移动端播放页这条线「做到哪了」以 wayfinder 地图 [#20](https://github.com/CandideEgo/Speaking-/issues/20) 的 `Decisions so far` 与 `Not yet specified` 两节为准 —— 这张图同时被别的会话推进，本文件只记「现在在飞什么」与「哪里是坏的」，别拿它当进度台账
-- **移动端播放页重设计（wayfinder #20）**：六个决定都已拍板（#21 范式对照 / #23 竖屏优先、看+点词为主 / #24 选**乙·字幕入画** / #26 选**乙·跟读底部抽屉** / #27 选**乙·词卡贴画面下沿** / #28 选**乙·控制条点出**），逐条记在 #20 的 Decisions。**下一步是地图 Destination 的三节**：壳层最小改动清单、触控目标与可达性基线、真机验收清单与 e2e 补测点。**还没拍的票**：#25 全屏与方向策略、#29 手势集、#30 滚动与迷你窗。**待复议**：#27 的默认卡口「贴画面下沿（露出 65px 控制条）」被 #28 撤销常驻控制条拿掉了理由，需复议或新票。**在飞**：#28 的两条毕业物（入画字幕落画框最下沿、控制条 3px 常驻 + 点画面浮起 65px + 3s 自收）正在落进 app，实测读数要直接进「壳层最小改动清单」
+- **移动端播放页重设计（wayfinder #20）**：六个决定都已拍板（#21 范式对照 / #23 竖屏优先、看+点词为主 / #24 选**乙·字幕入画** / #26 选**乙·跟读底部抽屉** / #27 选**乙·词卡贴画面下沿** / #28 选**乙·控制条点出**），逐条记在 #20 的 Decisions。**下一步是地图 Destination 的三节**：壳层最小改动清单、触控目标与可达性基线、真机验收清单与 e2e 补测点。**还没拍的票**：#25 全屏与方向策略、#29 手势集、#30 滚动与迷你窗。**待复议**：#27 的默认卡口「贴画面下沿（露出 65px 控制条）」被 #28 撤销常驻控制条拿掉了理由，需复议或新票。**已落进 app（10-01）**：#28 的两条毕业物（入画字幕落画框最下沿、3px 细进度常驻 + 点画面浮起 + 3s 自收）已落地，规矩记进 INV-021，读数与代价在 `knowledge/CHANGELOG.md` 的 Unreleased/Changed，回归在 `frontend/e2e/mobile-inline-subtitle.spec.ts`（实测 414 档可见画面 129.8px ≈ 决议里写的 129px；浮起时盖住字幕 82.1px —— app 现有控制条是 100px，不是原型那版 65px）。**乙还剩两条没落**：#27 的词卡贴画面下沿、#26 的跟读底部抽屉
 - **移动端视口收尾（09-30，wayfinder #22）**：底栏从 `fixed bottom-0` 改成壳 `h-dvh` 的常规流收尾行、安全区收归壳独占、全仓 `vh → dvh`，回归在 `frontend/e2e/viewport-height.spec.ts`（INV-019/020）。真机读数已齐：Safari 地址栏收放差 40px（`100vh` 恒 790 / 可视区 750↔790）、夸克不受影响、`cover` 在 Safari 浏览器模式下不生效（insets 恒 0，所以壳的 `env()` padding 在那里是 no-op，只在 standalone / 有 cutout 的 Android 上生效（standalone 那份未实测：项目无 manifest / `apple-mobile-web-app-capable`，别当死代码删）。**真机复测通过（09-30）**：改动落地后用户在真机上确认「地址栏展开时底栏贴住可视区底边」，不再被地址栏压住。**已知缺口**：非 shell 路由（login / onboarding / legal / admin）没有安全区归属，等哪天 insets 真的非 0 才会暴露
 - **附录 B 全仓扫描收尾（09-28，DEC-059/060/061）**：235 个文件 1308 条 finding；critical/high 153 条已逐条核实（53 成立 / 75 降级 / 24 证伪），128 项修复落地
 - **知识层分层重构（09-29，DEC-066/067）**：冷仓收敛为一个目录 `knowledge/`（99 个文件搬动、521 处路径引用重写），热层只余 `AGENTS.md` / `CONTEXT.md` / `.agent/` 的 README+state+invariants+owners；`knowledge/INDEX.md` 双向检查上线；字节上限与目标全删，改为只报不判的 `--size-report`；检查器改配置驱动（`scripts/check-knowledge/paths.json`，配置里的路径不存在即失败）。仍未机器化：热层行形状（S2）、stale 命中承重模块升级为失败（S6）
@@ -32,6 +32,9 @@ Last Updated: 2026-09-30
 - **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，已落库的值 / 裸 dict 响应 / 无 schema 的 JSONB 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
 - **静态基线不是「已验无害」**：`backend/.mypy-baseline` 里碰 ORM 属性/列名/跨模块签名的条目是待验运行时风险（见 `knowledge/wiki/problems/audit-verification-failure-modes.md`）
 - **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步
+- **375×812 下播放页一进页面就是迷你窗**（10-01 量到）：`useStickyPip` 的观察带是「视口上 20%」，而 375 宽时画框顶 y≈166 已越过该带（812×20% = 162.4），于是 `isPip` 立刻为真、内联播放器连同入画字幕一起不渲染。414×896 上带顶 179 就落在带内，看不出问题。属 wayfinder #30（滚动与迷你窗）的范围，别当成本轮入画字幕的缺陷
+- **本地要跑「播放中」类 e2e，`backend/media/<id>.mp4` 得是真文件**：CI seed 只写占位 SQL 行 + 假 URL（`/media/<id>.mp4` 404），`mobile-d1-d10.spec.ts` 与 `mobile-inline-subtitle.spec.ts` 会整条 skip。本地补法是往 `backend/media/` 放一个同名真 mp4（该目录已 gitignore）
+- **本地 e2e 容易被限流打脸**：`/auth/sms/register` 是 3/minute（按 IP），一个 spec 文件注册几个用户就 429，看到 `API registration failed: 429` 先清 `LIMITS:LIMITER/127.0.0.1//api/v1/auth/sms/{register,send-code}*` 再跑
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
 - **E2E coverage 不完整**：播放 / 词汇复习 / 考试流程缺 e2e；`mobile-d1-d10.spec.ts` 的隐藏控件断言需真能播的视频，CI 会 skip
 - **ICP compliance**：等个体营业执照才能全量部署（payment 保持禁用）

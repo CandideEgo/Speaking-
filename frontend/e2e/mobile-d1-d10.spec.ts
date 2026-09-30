@@ -123,26 +123,31 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
     await page.waitForTimeout(4000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-after-3s-idle.png` });
 
-    // Inspect the controls container. D1 uses
-    // `transition-opacity duration-200` + `opacity-100` / `opacity-0 pointer-events-none`.
+    // Inspect the controls container (data-testid, 不绑 class 串).
+    // 桌面端收起 = opacity 0 + pointer-events:none；
+    // 移动端（#28 乙）收起 = 整条 translate-y-full 沉到画框外，也不可点。
     const controlsState = await page.evaluate(() => {
-      const root = document.querySelector(
-        "div.absolute.inset-x-0.bottom-0.transition-opacity"
-      ) as HTMLElement | null;
+      const root = document.querySelector('[data-testid="controls-bar"]') as HTMLElement | null;
       if (!root) return { found: false as const };
       const cs = window.getComputedStyle(root);
+      const r = root.getBoundingClientRect();
+      const frame = document.querySelector("video")?.getBoundingClientRect() ?? null;
       return {
         found: true as const,
         className: root.className,
         opacity: parseFloat(cs.opacity),
         pointerEvents: cs.pointerEvents,
+        belowFrame: frame ? r.top >= frame.bottom - 2 : null,
       };
     });
     console.log("[D1] controls state after 4s idle (while playing):", controlsState);
     expect(controlsState.found, "D1 controls container must be present").toBe(true);
     if (controlsState.found) {
-      expect(controlsState.opacity).toBeLessThan(0.5);
       expect(controlsState.pointerEvents).toBe("none");
+      expect(
+        controlsState.belowFrame === true || controlsState.opacity < 0.5,
+        `controls must be retracted (belowFrame=${controlsState.belowFrame}, opacity=${controlsState.opacity})`
+      ).toBe(true);
     }
 
     await page.mouse.click(187, 350);

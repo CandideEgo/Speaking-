@@ -53,6 +53,11 @@ interface VideoControlsProps {
   onFontSizeChange: (size: SubtitleFontSize) => void;
   toggleFullscreen: () => void;
   isMobile: boolean;
+  /**
+   * 移动端入画字幕（#24 乙 / #28 决议）：由调用方构造，本组件只负责它的落位与点击穿透
+   * —— 字幕贴画框最下沿，落在控制条之下；点词由字幕自己 stopPropagation。
+   */
+  mobileSubtitle?: React.ReactNode;
   /** PiP 小窗时不渲染控制条（由调用方决定）。 */
   /** D10 跟读时间线：绿点标记已跟读句子的位置（秒），点击回到对应句。 */
   markers?: { position: number; onClick: () => void }[];
@@ -73,6 +78,7 @@ export function VideoControls({
   onFontSizeChange,
   toggleFullscreen,
   isMobile,
+  mobileSubtitle,
   markers,
 }: VideoControlsProps) {
   const [currentTime, setCurrentTime] = useState(0);
@@ -124,6 +130,12 @@ export function VideoControls({
     };
   }, [isPlaying, menu, scheduleHide]);
 
+  // #28 乙：移动端控制条不再常驻 —— 静息只剩画框底部那条 3px 细进度；
+  // 点画面浮起、3s 后由 scheduleHide 自收。桌面端保持原样（opacity 淡入淡出）。
+  useEffect(() => {
+    if (isMobile) setVisible(false);
+  }, [isMobile]);
+
   function handleActivity() {
     setVisible(true);
     if (isPlaying) scheduleHide();
@@ -137,14 +149,19 @@ export function VideoControls({
     handleActivity();
   }
 
-  /** 覆盖层点击：移动端切换控制条显隐，桌面端播放/暂停。 */
+  /** 覆盖层点击：移动端点出/收起控制条，桌面端播放/暂停。 */
   function handleSurfaceClick() {
     if (menu) {
       setMenu(null);
       return;
     }
     if (isMobile) {
-      setVisible((v) => !v);
+      if (visible) {
+        setVisible(false);
+      } else {
+        setVisible(true);
+        scheduleHide();
+      }
     } else {
       togglePlayPause();
     }
@@ -170,18 +187,49 @@ export function VideoControls({
     handleActivity();
   };
 
+  const progressPct = total > 0 ? Math.min(100, (currentTime / total) * 100) : 0;
+
   return (
     <div
       className="absolute inset-0 z-10 select-none"
-      onPointerMove={handleActivity}
+      // 移动端只有「点」才算交互：pointermove 会在滑动时把控制条顶起来，与「点出」冲突。
+      onPointerMove={isMobile ? undefined : handleActivity}
       onClick={handleSurfaceClick}
     >
+      {/* 移动端入画字幕 —— 贴画框最下沿（3px 细进度之上），在控制条之下 */}
+      {isMobile && mobileSubtitle && (
+        <div
+          data-testid="burn-subtitle"
+          className="pointer-events-none absolute inset-x-0 bottom-[3px]"
+        >
+          {mobileSubtitle}
+        </div>
+      )}
+
+      {/* 常驻的只剩这条 3px 细进度（#28 乙）——纯展示，拖动要先把控制条点出来 */}
+      {isMobile && (
+        <div
+          data-testid="thin-progress"
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[3px] bg-white/25"
+        >
+          <div className="h-full bg-brand-500" style={{ width: `${progressPct}%` }} />
+        </div>
+      )}
+
       {/* 底部控制条 */}
       <div
+        data-testid="controls-bar"
         className={cn(
           "absolute inset-x-0 bottom-0 px-3 pb-2 pt-8 bg-gradient-to-t from-black/75 via-black/35 to-transparent",
-          "transition-opacity duration-200",
-          visible ? "opacity-100" : "opacity-0 pointer-events-none"
+          "transition-[opacity,transform] duration-200",
+          isMobile
+            ? visible
+              ? "translate-y-0"
+              : "translate-y-full pointer-events-none"
+            : visible
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
         )}
         onClick={(e) => e.stopPropagation()}
       >

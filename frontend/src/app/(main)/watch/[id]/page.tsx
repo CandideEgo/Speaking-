@@ -641,6 +641,45 @@ export default function WatchPage() {
 
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
 
+  // #24 乙 / #28 决议：移动端当前句入画，落在画框最下沿，版式沿用现有字号档位。
+  // 桌面端不渲染它（下方字幕卡原样保留），两处永远只有一处显示当前句。
+  const mobileSubtitle =
+    isMobile && !isPip && currentSubtitle && subtitleMode !== "hidden" ? (
+      <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pt-1.5 pb-2.5 text-left">
+        {subtitleMode !== "chinese" && (
+          <div
+            data-testid="burn-subtitle-en"
+            className="burn-sub-en font-semibold"
+            style={{ fontSize: SUBTITLE_FONT_EN[subtitleFontSize] }}
+          >
+            {currentSubtitle.text_en.split(" ").map((word, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "burn-sub-word",
+                  levelClassFor(word, currentSubtitle.word_levels),
+                  isSelectedWord(word) && "burn-sub-word-hl"
+                )}
+                onClick={(e) => {
+                  // 点词与「点画面出控制条」错开：词自己吞掉这次点击。
+                  e.stopPropagation();
+                  handleWordClick(word);
+                }}
+              >
+                {word}{" "}
+              </span>
+            ))}
+          </div>
+        )}
+        {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+          currentSubtitle.text_zh && (
+            <div className="burn-sub-zh" style={{ fontSize: SUBTITLE_FONT_ZH[subtitleFontSize] }}>
+              {currentSubtitle.text_zh}
+            </div>
+          )}
+      </div>
+    ) : null;
+
   return (
     // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
     // max-w-[1280px] 居中容器（对齐原型 05-watch.html）：在 125%/150% 缩放倍率下
@@ -878,6 +917,7 @@ export default function WatchPage() {
                       onFontSizeChange={handleFontSizeChange}
                       toggleFullscreen={toggleFullscreen}
                       isMobile={isMobile}
+                      mobileSubtitle={mobileSubtitle}
                       markers={shadowMarkers}
                     />
                   )}
@@ -972,7 +1012,8 @@ export default function WatchPage() {
               </div>
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  {subtitleMode !== "chinese" && subtitleMode !== "hidden" && (
+                  {/* 移动端当前句已入画（画框最下沿），卡片里就不重复一遍 */}
+                  {!isMobile && subtitleMode !== "chinese" && subtitleMode !== "hidden" && (
                     <div
                       className="now-sub-en text-left leading-[1.7]"
                       style={{ fontSize: SUBTITLE_FONT_EN[subtitleFontSize] }}
@@ -995,7 +1036,8 @@ export default function WatchPage() {
                   {subtitleMode === "hidden" && (
                     <p className="text-[12px] text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
                   )}
-                  {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+                  {!isMobile &&
+                    (subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                     currentSubtitle.text_zh && (
                       <div
                         className="now-sub-zh"

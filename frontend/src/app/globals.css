@@ -606,6 +606,30 @@
     @apply text-sm text-muted mt-1.5;
   }
 
+  /* === 移动端入画字幕（#24 乙 / #28 决议）===
+     画框内的当前句：白字压在画面自带的黑色渐变上；字号仍由字号档位给（行内 style）。
+     整块 pointer-events-none（点画面出控制条要穿过去），只有词自己接指针。 */
+  .burn-sub-en {
+    @apply leading-[1.35] text-white;
+  }
+  .burn-sub-zh {
+    @apply mt-0.5 leading-[1.3] text-white/85;
+  }
+  .burn-sub-word {
+    @apply relative pointer-events-auto cursor-pointer rounded px-px transition-colors duration-100
+           hover:bg-white/20;
+  }
+  /* 行内词热区：排版仍是 22px 一行，热区向外扩 4px（与 #27 原型同款 ::after）。
+     画面内点词的可达性天花板就在这儿 —— 相邻两行互压 4px，#22 已实测。 */
+  .burn-sub-word::after {
+    content: "";
+    position: absolute;
+    inset: -4px -1px;
+  }
+  .burn-sub-word-hl {
+    @apply bg-brand-500/40 text-brand-100;
+  }
+
   /* === Quiz block === */
   .q-opt {
     @apply block px-3.5 py-2.5 border border-hairline rounded-sm text-[13px]
