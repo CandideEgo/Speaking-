@@ -1,5 +1,11 @@
 node_modules/
 .next/
+# Next 自动生成的声明文件：16.3.7 起 `next dev` 写 `.next/dev/types/*`、`next build` 写
+# `.next/types/*`，两条路径随谁最后跑而翻转（dev 每跑一次就翻脏工作区一次）。Next 自带文档
+# （node_modules/next/dist/docs/02-project-structure.md）明说它 "should not be tracked by
+# version control"；tsconfig 的 include 保留即可 —— 实测「没有 .next + 没有该文件」时
+# `tsc --noEmit` 仍然通过。
+next-env.d.ts
 __pycache__/
 *.pyc
 # IDE planning artifacts (local agent session outputs)
