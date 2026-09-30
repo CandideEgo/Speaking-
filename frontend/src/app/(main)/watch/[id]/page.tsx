@@ -95,6 +95,123 @@ function useWatchReturn(): { label: string; go: () => void } {
   }, [router, searchParams]);
 }
 
+/**
+ * 视频的动作行（点赞 / 收藏 / 加入学习 / 单词训练 / 笔记）。
+ *
+ * 抽出来是因为移动端要换位置：#24/#28 乙把首屏全给画面，页头那 102px 不能留在
+ * 播放器上方（原型 B2-tap 实测画框顶 y=44＝壳顶，app 曾是 y=166）。移动端这一行
+ * 落到字幕卡下面，桌面端仍在页头原位。
+ */
+function VideoActions({
+  compact,
+  isLiked,
+  likeCount,
+  isFavorited,
+  vocabSet,
+  addingVocabSet,
+  noteOpen,
+  onToggleLike,
+  onToggleFavorite,
+  onVocabSet,
+  onNotes,
+  onDrill,
+}: {
+  compact: boolean;
+  isLiked: boolean;
+  likeCount: number;
+  isFavorited: boolean;
+  vocabSet: VocabSet | null;
+  addingVocabSet: boolean;
+  noteOpen: boolean;
+  onToggleLike: () => void;
+  onToggleFavorite: () => void;
+  onVocabSet: () => void;
+  onNotes: () => void;
+  onDrill: () => void;
+}) {
+  // 移动端一律 44px 触控目标（#24/#28 的触控基线），桌面端维持原有的 36px 紧凑档。
+  const box = compact ? "w-11 h-11" : "w-9 h-9";
+  return (
+    <div className={cn("flex items-center", compact ? "gap-1" : "gap-1 shrink-0")}>
+      <button
+        className={cn(
+          box,
+          "px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer",
+          !compact && "h-9 w-auto"
+        )}
+        onClick={onToggleLike}
+        aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
+        title={isLiked ? "取消点赞" : "点赞"}
+      >
+        <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+        {!compact && (
+          <span
+            className={cn(
+              "text-xs font-semibold tabular-nums",
+              isLiked ? "text-error" : "text-muted"
+            )}
+          >
+            {likeCount > 0 ? likeCount : "点赞"}
+          </span>
+        )}
+      </button>
+      <button
+        className={cn(
+          box,
+          "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+        )}
+        onClick={onToggleFavorite}
+        aria-label={isFavorited ? "取消收藏" : "收藏视频"}
+        title={isFavorited ? "取消收藏" : "收藏"}
+      >
+        <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+      </button>
+      <button
+        className={cn(
+          box,
+          "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+          vocabSet ? "text-brand-500" : "text-muted hover:bg-surface-card hover:text-ink"
+        )}
+        onClick={onVocabSet}
+        aria-label={vocabSet ? "已加入学习，查看词汇集合" : "把本视频单词加入学习"}
+        title={vocabSet ? "已加入学习" : "加入学习"}
+        disabled={addingVocabSet}
+      >
+        {addingVocabSet ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : (
+          <GraduationCap size={18} className={cn(vocabSet && "fill-current")} />
+        )}
+      </button>
+      <button
+        className={cn(
+          box,
+          "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+        )}
+        onClick={onDrill}
+        aria-label="单词训练"
+        title="单词训练"
+      >
+        <BookOpen size={18} />
+      </button>
+      <button
+        className={cn(
+          box,
+          "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+          noteOpen
+            ? "bg-brand-50 text-brand-500"
+            : "text-muted hover:bg-surface-card hover:text-ink"
+        )}
+        onClick={onNotes}
+        aria-label="笔记"
+        title="笔记"
+      >
+        <Pencil size={18} />
+      </button>
+    </div>
+  );
+}
+
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -701,10 +818,11 @@ export default function WatchPage() {
     // max-w-[1280px] 居中容器（对齐原型 05-watch.html）：在 125%/150% 缩放倍率下
     // 保持视频与字幕面板的最佳比例，避免宽屏下视频列过度拉伸。
     <div className="mx-auto max-w-[1280px] px-4 sm:px-7 pt-6 pb-16">
-      {/* ===== Header ===== */}
-      <div className="mb-4">
+      {/* 移动端页头整块让位给画面（#24/#28 乙）：标题画进画面里，动作行搬到字幕卡下面，
+          所以只有「笔记」打开时才需要这块壳；桌面端原样保留。 */}
+      <div className={cn(isMobile && !noteOpen ? "hidden" : "mb-4")}>
         {/* 顶部细行：返回 + 标题 + 操作图标 */}
-        <div className="flex items-center gap-3">
+        <div className={cn("flex items-center gap-3", isMobile && "hidden")}>
           <button
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
             onClick={back.go}
@@ -716,73 +834,29 @@ export default function WatchPage() {
           <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
             {video.title}
           </h1>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              className="h-9 px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={toggleLike}
-              aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
-              title={isLiked ? "取消点赞" : "点赞"}
-            >
-              <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
-              <span
-                className={cn(
-                  "text-xs font-semibold tabular-nums",
-                  isLiked ? "text-error" : "text-muted"
-                )}
-              >
-                {likeCount > 0 ? likeCount : "点赞"}
-              </span>
-            </button>
-            <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={toggleFavorite}
-              aria-label={isFavorited ? "取消收藏" : "收藏视频"}
-              title={isFavorited ? "取消收藏" : "收藏"}
-            >
-              <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
-            </button>
-            <button
-              className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-                vocabSet ? "text-brand-500" : "text-muted hover:bg-surface-card hover:text-ink"
-              )}
-              onClick={handleVocabSetClick}
-              aria-label={vocabSet ? "已加入学习，查看词汇集合" : "把本视频单词加入学习"}
-              title={vocabSet ? "已加入学习" : "加入学习"}
-              disabled={addingVocabSet}
-            >
-              {addingVocabSet ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <GraduationCap size={18} className={cn(vocabSet && "fill-current")} />
-              )}
-            </button>
-            <button
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-              onClick={() => router.push("/vocabulary")}
-              aria-label="单词训练"
-              title="单词训练"
-            >
-              <BookOpen size={18} />
-            </button>
-            <button
-              className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-                noteOpen
-                  ? "bg-brand-50 text-brand-500"
-                  : "text-muted hover:bg-surface-card hover:text-ink"
-              )}
-              onClick={() => setNoteOpen((v) => !v)}
-              aria-label="笔记"
-              title="笔记"
-            >
-              <Pencil size={18} />
-            </button>
-          </div>
+          <VideoActions
+            compact={false}
+            isLiked={isLiked}
+            likeCount={likeCount}
+            isFavorited={isFavorited}
+            vocabSet={vocabSet}
+            addingVocabSet={addingVocabSet}
+            noteOpen={noteOpen}
+            onToggleLike={toggleLike}
+            onToggleFavorite={toggleFavorite}
+            onVocabSet={handleVocabSetClick}
+            onNotes={() => setNoteOpen((v) => !v)}
+            onDrill={() => router.push("/vocabulary")}
+          />
         </div>
 
         {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
-        <div className="flex items-center gap-2 text-[12px] text-muted mt-2">
+        <div
+          className={cn(
+            "flex items-center gap-2 text-[12px] text-muted mt-2",
+            isMobile && "hidden"
+          )}
+        >
           {video.channel_name ? (
             video.channel_slug ? (
               <Link
@@ -848,10 +922,18 @@ export default function WatchPage() {
         <div className="min-w-0">
           {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
               移动端滚出视口时，内层 wrapper 浮为右下角 mini-player（PiP），
-              <video> 节点不换父，播放连续。 */}
+              <video> 节点不换父，播放连续。
+              移动端**出血满宽 + 顶到壳顶**（#24/#28 乙，原型 B2-tap 实测：画框 x=0
+              w=375 顶部 y=壳顶高）：-mx-4/-mt-6 抵消容器的 px-4/pt-6，桌面端不加。 */}
           <div
             ref={slotRef}
-            className="relative w-full aspect-video bg-surface-dark rounded-xl overflow-hidden shadow-lift"
+            className={cn(
+              "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
+              // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
+              // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
+              isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-xl",
+              isMobile && !noteOpen && "-mt-6"
+            )}
           >
             <div
               ref={(el) => {
@@ -916,6 +998,32 @@ export default function WatchPage() {
                       ]);
                     }}
                   />
+                  {/* #24 乙：移动端标题画进画面里（原型 .titlecard 的落点），页头因此
+                      不占首屏一像素；返回键也浮在画面左上，桌面端不渲染。 */}
+                  {isMobile && !isPip && (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 bg-gradient-to-b from-black/60 via-black/25 to-transparent px-2 pt-2 pb-8">
+                      <button
+                        type="button"
+                        onClick={back.go}
+                        aria-label={back.label}
+                        className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/35 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/55 cursor-pointer"
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+                      <div className="min-w-0 pt-1.5">
+                        <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/70">
+                          {video.channel_name || "SeeWord"} ·{" "}
+                          {cefrWithExamHint(video.difficulty_level || "B2")}
+                        </div>
+                        <div
+                          data-testid="frame-title"
+                          className="line-clamp-2 text-[13px] font-bold leading-tight text-white"
+                        >
+                          {video.title}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {/* D1 自定义控制条（PiP 小窗不渲染，避免小窗内控件拥挤） */}
                   {!isPip && (
                     <VideoControls
@@ -1241,6 +1349,30 @@ export default function WatchPage() {
                   <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 移动端动作行（#24/#28 乙）：页头让位给画面之后，点赞/收藏/加入学习/单词训练/
+              笔记落到字幕卡下面，44px 触控目标；桌面端仍在页头。 */}
+          {isMobile && (
+            <div className="mt-3 flex items-center gap-2" data-testid="mobile-actions">
+              <VideoActions
+                compact
+                isLiked={isLiked}
+                likeCount={likeCount}
+                isFavorited={isFavorited}
+                vocabSet={vocabSet}
+                addingVocabSet={addingVocabSet}
+                noteOpen={noteOpen}
+                onToggleLike={toggleLike}
+                onToggleFavorite={toggleFavorite}
+                onVocabSet={handleVocabSetClick}
+                onNotes={() => setNoteOpen((v) => !v)}
+                onDrill={() => router.push("/vocabulary")}
+              />
+              <span className="ml-auto text-[11px] text-muted-soft">
+                {formatDuration(video.duration)}
+              </span>
             </div>
           )}
 

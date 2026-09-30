@@ -17,7 +17,11 @@ const MIN_SHEET_HEIGHT = 240;
  * 断层 0px，因此它盖住的全是画面**以下**的内容（伴侣条 / 文稿列表），
  * 永远压不到刚点的那一句 —— 票面那条硬约束在结构上成立。
  *
- * 底边钉在移动底栏上沿（不盖底栏，见 `useSheetGeometry`）。
+ * **高度随内容**（原型 W2-edge 实测：`top:255px` 只给 top、卡高由内容决定，
+ * `max-height` 497 封顶），只在内容够高时才一路撑到底栏上沿。早先实现写死
+ * `height = 底栏顶 - 顶边`，把卡拉成 408px 的满屏白板、底下的文稿列表一句都看不见 ——
+ * 与「从画面下沿升起、盖住字幕条与文稿列表**顶部**」的票面描述不符。
+ * 底边仍不越过移动底栏上沿（`useSheetGeometry` 给的就是底栏顶）。
  */
 export function WordCardSheet({
   anchorRef,
@@ -53,7 +57,7 @@ export function WordCardSheet({
   if (!geo) return null;
 
   const top = Math.max(8, Math.min(geo.frameBottom, geo.bottom - MIN_SHEET_HEIGHT));
-  const height = Math.max(MIN_SHEET_HEIGHT, geo.bottom - top);
+  const maxHeight = Math.max(MIN_SHEET_HEIGHT, geo.bottom - top);
 
   return (
     <div
@@ -61,7 +65,7 @@ export function WordCardSheet({
       data-variant="sheet"
       role="dialog"
       aria-label={`${word} 词卡`}
-      style={{ top, height, transform: dy ? `translateY(${dy}px)` : undefined }}
+      style={{ top, maxHeight, transform: dy ? `translateY(${dy}px)` : undefined }}
       className={cn(
         "fixed inset-x-0 z-50 flex flex-col overflow-hidden bg-canvas",
         "rounded-t-2xl border-t border-hairline shadow-lift",

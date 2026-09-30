@@ -3,7 +3,8 @@
  *
  * 断言的是决议里写死的那几个数，不是「看起来差不多」：
  *   ① #27 复议后的卡口：词卡顶边 = 画框下沿 → 压不到刚点的那句（0px 盖住画面）
- *   ② 词卡底边贴移动底栏上沿（不盖底栏），「加入词库」默认不自动关
+ *   ② 词卡高度随内容、底边不越过移动底栏上沿（不铺满屏，原型 W2-edge 的形态），
+ *      「加入词库」默认不自动关
  *   ③ #26 硬约束：抽屉展开前后播放器几何一像素不动
  *   ④ 抽屉顶边同样不越过画框下沿（半屏 400px 与「不压画面」取更靠下的一条）
  *   ⑤ 抽屉里真的有「要跟读的这一句」、有计时（现状缺口：seconds 从来没画出来）
@@ -117,7 +118,7 @@ async function enterWatch(page: Page, request: APIRequestContext) {
   return { frame, tabBar };
 }
 
-test("① 词卡贴画框下沿升起：压不到刚点的那句，底边贴底栏", async ({ page, request }) => {
+test("① 词卡贴画框下沿升起：压不到刚点的那句，高度随内容、不铺满屏", async ({ page, request }) => {
   const { frame, tabBar } = await enterWatch(page, request);
   expect(tabBar).not.toBeNull();
   const frameBottom = frame.y + frame.height;
@@ -133,9 +134,11 @@ test("① 词卡贴画框下沿升起：压不到刚点的那句，底边贴底�
   expect(card.height, "词卡有实际高度").toBeGreaterThan(200);
   expect(card.x, "词卡出血到屏宽两侧").toBeCloseTo(0, 0);
   expect(card.width).toBeCloseTo(375, 0);
-  // 底边贴底栏上沿：底栏不被盖。
-  expect(Math.abs(card.y + card.height - tabBar!.y), "词卡底边贴移动底栏上沿").toBeLessThanOrEqual(
-    2
+  // 高度随内容（原型 W2-edge：只给 top、卡高由内容决定，max-height 封顶）：
+  // 底边**不**钉在底栏上沿，而是内容多高就多高，底下的文稿列表仍看得见。
+  expect(card.y + card.height, "词卡底边不越过移动底栏上沿").toBeLessThanOrEqual(tabBar!.y + 2);
+  expect(card.y + card.height, "词卡没铺满到只剩一条缝（内容高 vs 拉满）").toBeLessThan(
+    tabBar!.y - 80
   );
   console.log(
     `[#27] 375×812 画框底=${frameBottom.toFixed(1)} 入画字幕顶=${subtitleBottom.toFixed(1)} ` +
