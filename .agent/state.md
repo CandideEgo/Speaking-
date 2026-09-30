@@ -32,7 +32,7 @@ Last Updated: 2026-10-01
 - **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，已落库的值 / 裸 dict 响应 / 无 schema 的 JSONB 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
 - **静态基线不是「已验无害」**：`backend/.mypy-baseline` 里碰 ORM 属性/列名/跨模块签名的条目是待验运行时风险（见 `knowledge/wiki/problems/audit-verification-failure-modes.md`）
 - **iPhone 真机验证待办**：内联播放 / 滚动 PiP / 字幕同步
-- **375×812 下播放页一进页面就是迷你窗**（10-01 量到）：`useStickyPip` 的观察带是「视口上 20%」，而 375 宽时画框顶 y≈166 已越过该带（812×20% = 162.4），于是 `isPip` 立刻为真、内联播放器连同入画字幕一起不渲染。414×896 上带顶 179 就落在带内，看不出问题。属 wayfinder #30（滚动与迷你窗）的范围，别当成本轮入画字幕的缺陷
+- **375×812 下播放页一进页面就是迷你窗**（10-01 首屏实测：`controls-bar` **0 个**、`burn-subtitle` **0 个**、迷你窗可见）：`useStickyPip` 的观察带是「视口上 20%」（`rootMargin: 0 0 -80% 0`），375×812 的带底是 162.4，而画框顶 y=166 落在带**下方**，于是 `isPip` 首帧即为真、内联播放器连同入画字幕一起根本不渲染 —— **本轮落地的移动端重设计在 375 档等于不可见**，用户得先点那个 24px 的「关闭小窗播放」才看得到。390×844（带底 168.8）与 414×896（179.2）只靠 2.8 / 13.2px 余量落在带内，是巧合不是设计。属 wayfinder #30（滚动与迷你窗），是那条线现在的头号缺陷；两套 e2e 里的「先点关闭小窗」只是这个缺陷的 workaround，所以它们盖不住它
 - **本地要跑「播放中」类 e2e，`backend/media/<id>.mp4` 得是真文件**：CI seed 只写占位 SQL 行 + 假 URL（`/media/<id>.mp4` 404），`mobile-d1-d10.spec.ts` 与 `mobile-inline-subtitle.spec.ts` 会整条 skip。本地补法是往 `backend/media/` 放一个同名真 mp4（该目录已 gitignore）
 - **本地 e2e 容易被限流打脸**：`/auth/sms/register` 是 3/minute（按 IP），一个 spec 文件注册几个用户就 429，看到 `API registration failed: 429` 先清 `LIMITS:LIMITER/127.0.0.1//api/v1/auth/sms/{register,send-code}*` 再跑
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
