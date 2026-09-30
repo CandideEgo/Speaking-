@@ -61,7 +61,10 @@ export function MobileTabBar() {
   // 壳是 `h-dvh` 的 flex column，让底栏 in-flow 收尾就永远贴在可视区底边；
   // 底部安全区（Home indicator）由壳自己的 padding 兜住，这里不再重复留。
   return (
-    <nav className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden">
+    <nav
+      data-testid="mobile-tab-bar"
+      className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden"
+    >
       <div className="flex items-center justify-around">
         {TABS.map((tab) => {
           const active = isActive(tab.href);

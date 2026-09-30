@@ -71,137 +71,104 @@ function SectionLabel({ icon: Icon, children }: { icon?: LucideIcon; children: R
   );
 }
 
-/** Word card — 方案 B · 学习卡式。
- *  信息分层：词头 → 词形变化 → 本视频语境释义（第一焦点）→ 词典释义 → 真题例句 → 易错/拓展。
- *  可拖动浮动卡：默认停泊（展开=左下避字幕，收起=右下），pointer 拖动改位置，边界自动夹紧。 */
-export function WordTooltipInline({
+/** 词头区拖动手柄的指针事件（只有桌面浮动卡传）。 */
+interface HeaderDrag {
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+}
+
+/**
+ * WordCardBody — 词卡内容本体（词头 → 词形变化 → 本视频语境释义 → 词典释义 →
+ * 真题例句 → 易错/拓展 + 底部「发音 / 加入词库」）。
+ *
+ * 两种外壳共用同一份内容，避免文案与信息分层各写一遍：
+ *  - 桌面：`WordTooltipInline` 的可拖动浮动卡（词头区当拖动手柄）；
+ *  - 移动端：`WordCardSheet` 贴画面下沿升起的浮层（#27 决议乙）。
+ */
+export function WordCardBody({
   word,
   gloss,
   onClose,
   onPronounce,
   onSave,
-  panelCollapsed = false,
+  headerDrag,
+  scrollClassName,
+  touchTargets = false,
 }: {
   word: string;
   gloss: WordGloss | null;
   onClose: () => void;
   onPronounce: () => void;
   onSave: () => Promise<void>;
-  /** 右栏字幕面板是否折叠为窄轨。展开时词卡停左下避开字幕；收起时停右下。 */
-  panelCollapsed?: boolean;
+  headerDrag?: HeaderDrag;
+  /** 滚动主体的额外类：浮动卡限高，浮层里改成 flex-1 由容器给高。 */
+  scrollClassName?: string;
+  /** 触屏外壳：底部两个操作按钮撑到 44px（#26 的触控目标基线）。 */
+  touchTargets?: boolean;
 }) {
   const loading = !gloss;
-  const cardRef = useRef<HTMLDivElement>(null);
-  // pos 为 null 时使用默认停泊位（展开=左下避字幕，收起=右下）；拖动后切换为 left/top 定位。
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const dragOffset = useRef<{ dx: number; dy: number } | null>(null);
-
-  function onPointerDown(e: React.PointerEvent) {
-    // 从按钮上发起的按压不触发拖动
-    if ((e.target as HTMLElement).closest("button")) return;
-    const card = cardRef.current;
-    if (!card) return;
-    const rect = card.getBoundingClientRect();
-    dragOffset.current = {
-      dx: e.clientX - rect.left,
-      dy: e.clientY - rect.top,
-    };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragOffset.current) return;
-    const card = cardRef.current;
-    const w = card?.offsetWidth ?? 400;
-    const h = card?.offsetHeight ?? 320;
-    const maxX = window.innerWidth - w - 8;
-    const maxY = window.innerHeight - h - 8;
-    const x = Math.max(8, Math.min(e.clientX - dragOffset.current.dx, maxX));
-    const y = Math.max(8, Math.min(e.clientY - dragOffset.current.dy, maxY));
-    setPos({ x, y });
-  }
-
-  function onPointerUp(e: React.PointerEvent) {
-    dragOffset.current = null;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // pointerId may already be released
-    }
-  }
-
-  const style: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : panelCollapsed
-      ? { right: 24, bottom: 24, left: "auto", top: "auto" }
-      : { left: 24, bottom: 24, right: "auto", top: "auto" };
-
   const senses = parseSenses(gloss?.translation ?? null);
   const showFormBar = !!(gloss?.lemma && gloss?.inflection);
 
   return (
-    <div
-      ref={cardRef}
-      style={style}
-      data-testid="word-tooltip"
-      className="fixed z-50 flex flex-col overflow-hidden bg-canvas border border-hairline rounded-xl shadow-lift w-[min(92vw,400px)] touch-none"
-    >
-      {/* ── 可滚动主体 ── */}
-      <div className="overflow-y-auto max-h-[min(72vh,560px)]">
-        {/* 词头区（拖动手柄） */}
-        <div
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          className="px-4 pt-4 pb-2 cursor-grab active:cursor-grabbing select-none"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              {/* 显示字幕中的原词（surface form），而非 lemma */}
-              <div className="text-2xl font-extrabold tracking-tight text-ink leading-tight break-words">
-                {word}
-              </div>
-              {gloss?.phonetic && (
-                <div className="text-xs text-muted font-mono mt-1">/{gloss.phonetic}/</div>
-              )}
+    <>
+      {/* 词头区（桌面浮动卡的拖动手柄；浮层里不接拖动） */}
+      <div
+        {...(headerDrag ?? {})}
+        className={cn(
+          "px-4 pt-4 pb-2 select-none",
+          headerDrag && "cursor-grab active:cursor-grabbing"
+        )}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/* 显示字幕中的原词（surface form），而非 lemma */}
+            <div className="text-2xl font-extrabold tracking-tight text-ink leading-tight break-words">
+              {word}
             </div>
-            <button
-              onClick={onClose}
-              className="text-muted hover:text-ink transition-colors shrink-0 p-1 -m-1"
-              aria-label="关闭"
-            >
-              <X size={17} />
-            </button>
+            {gloss?.phonetic && (
+              <div className="text-xs text-muted font-mono mt-1">/{gloss.phonetic}/</div>
+            )}
           </div>
-
-          {/* 考试等级 + 真题高频 */}
-          {gloss && (gloss.levels.length > 0 || gloss.is_high_freq) && (
-            <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
-              {gloss.levels.map((lv) => {
-                const meta = levelMeta(lv);
-                if (!meta) return null;
-                return (
-                  <span
-                    key={lv}
-                    className={cn(
-                      "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded",
-                      wordHighlightClass([lv])
-                    )}
-                  >
-                    <span className={cn("w-1.5 h-1.5 rounded-full", levelDotClass(meta.color))} />
-                    {meta.label}
-                  </span>
-                );
-              })}
-              {gloss.is_high_freq && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning-soft text-warning">
-                  <GraduationCap size={10} /> 真题高频
-                </span>
-              )}
-            </div>
-          )}
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-ink transition-colors shrink-0 p-1 -m-1"
+            aria-label="关闭"
+          >
+            <X size={17} />
+          </button>
         </div>
 
+        {/* 考试等级 + 真题高频 */}
+        {gloss && (gloss.levels.length > 0 || gloss.is_high_freq) && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+            {gloss.levels.map((lv) => {
+              const meta = levelMeta(lv);
+              if (!meta) return null;
+              return (
+                <span
+                  key={lv}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                    wordHighlightClass([lv])
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", levelDotClass(meta.color))} />
+                  {meta.label}
+                </span>
+              );
+            })}
+            {gloss.is_high_freq && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning-soft text-warning">
+                <GraduationCap size={10} /> 真题高频
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className={cn("overflow-y-auto max-h-[min(72vh,560px)]", scrollClassName)}>
         {loading ? (
           <div className="px-4 pb-4 space-y-2.5">
             <div className="h-16 bg-surface-card rounded-lg animate-pulse" />
@@ -317,15 +284,113 @@ export function WordTooltipInline({
         )}
       </div>
 
-      {/* ── 底部操作（固定不随内容滚动）── */}
+      {/* 底部操作（固定不随内容滚动） */}
       <div className="flex gap-2 px-4 py-3 border-t border-hairline bg-canvas flex-shrink-0">
-        <Button variant="outline" size="sm" fullWidth icon={Volume2} onClick={onPronounce}>
+        <Button
+          variant="outline"
+          size="sm"
+          fullWidth
+          icon={Volume2}
+          onClick={onPronounce}
+          className={touchTargets ? "min-h-[44px]" : undefined}
+        >
           发音
         </Button>
-        <Button size="sm" fullWidth icon={Bookmark} onClick={onSave}>
+        <Button
+          size="sm"
+          fullWidth
+          icon={Bookmark}
+          onClick={onSave}
+          className={touchTargets ? "min-h-[44px]" : undefined}
+        >
           加入词库
         </Button>
       </div>
+    </>
+  );
+}
+
+/** Word card — 方案 B · 学习卡式。
+ *  信息分层：词头 → 词形变化 → 本视频语境释义（第一焦点）→ 词典释义 → 真题例句 → 易错/拓展。
+ *  可拖动浮动卡：默认停泊（展开=左下避字幕，收起=右下），pointer 拖动改位置，边界自动夹紧。
+ *  桌面外壳；移动端走 `WordCardSheet`（#27 决议乙：贴画面下沿升起）。 */
+export function WordTooltipInline({
+  word,
+  gloss,
+  onClose,
+  onPronounce,
+  onSave,
+  panelCollapsed = false,
+}: {
+  word: string;
+  gloss: WordGloss | null;
+  onClose: () => void;
+  onPronounce: () => void;
+  onSave: () => Promise<void>;
+  /** 右栏字幕面板是否折叠为窄轨。展开时词卡停左下避开字幕；收起时停右下。 */
+  panelCollapsed?: boolean;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  // pos 为 null 时使用默认停泊位（展开=左下避字幕，收起=右下）；拖动后切换为 left/top 定位。
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragOffset = useRef<{ dx: number; dy: number } | null>(null);
+
+  function onPointerDown(e: React.PointerEvent) {
+    // 从按钮上发起的按压不触发拖动
+    if ((e.target as HTMLElement).closest("button")) return;
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    dragOffset.current = {
+      dx: e.clientX - rect.left,
+      dy: e.clientY - rect.top,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragOffset.current) return;
+    const card = cardRef.current;
+    const w = card?.offsetWidth ?? 400;
+    const h = card?.offsetHeight ?? 320;
+    const maxX = window.innerWidth - w - 8;
+    const maxY = window.innerHeight - h - 8;
+    const x = Math.max(8, Math.min(e.clientX - dragOffset.current.dx, maxX));
+    const y = Math.max(8, Math.min(e.clientY - dragOffset.current.dy, maxY));
+    setPos({ x, y });
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    dragOffset.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // pointerId may already be released
+    }
+  }
+
+  const style: React.CSSProperties = pos
+    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
+    : panelCollapsed
+      ? { right: 24, bottom: 24, left: "auto", top: "auto" }
+      : { left: 24, bottom: 24, right: "auto", top: "auto" };
+
+  return (
+    <div
+      ref={cardRef}
+      style={style}
+      data-testid="word-tooltip"
+      data-variant="floating"
+      className="fixed z-50 flex flex-col overflow-hidden bg-canvas border border-hairline rounded-xl shadow-lift w-[min(92vw,400px)] touch-none"
+    >
+      <WordCardBody
+        word={word}
+        gloss={gloss}
+        onClose={onClose}
+        onPronounce={onPronounce}
+        onSave={onSave}
+        headerDrag={{ onPointerDown, onPointerMove, onPointerUp }}
+      />
     </div>
   );
 }

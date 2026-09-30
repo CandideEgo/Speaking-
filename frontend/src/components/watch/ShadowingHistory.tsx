@@ -60,13 +60,14 @@ export function ShadowingHistory({ attempts, onDelete }: ShadowingHistoryProps) 
               </span>
             )}
             {onDelete && (
+              // 触屏上没有 hover：移动端常驻 44px 删除键，桌面端才保留 hover 才现身的克制样式。
               <button
                 type="button"
                 onClick={() => onDelete(a.id)}
                 aria-label="删除这条跟读录音"
                 title="删除"
-                className="inline-flex items-center justify-center w-6 h-6 rounded
-                  text-muted-soft opacity-0 group-hover:opacity-100
+                className="inline-flex items-center justify-center w-11 h-11 md:w-6 md:h-6 rounded
+                  text-muted-soft opacity-100 md:opacity-0 md:group-hover:opacity-100
                   hover:text-danger hover:bg-danger/10
                   focus-visible:opacity-100 focus-visible:outline-none
                   focus-visible:ring-2 focus-visible:ring-danger/40

@@ -27,6 +27,8 @@ import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
+import { WordCardSheet } from "@/components/watch/WordCardSheet";
+import { ShadowingDrawer } from "@/components/watch/ShadowingDrawer";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
@@ -122,6 +124,8 @@ export default function WatchPage() {
   // 当前句已上传录音的 attempt id —— 「满意」按钮靠它 PATCH 持久化。
   const [lastAttemptId, setLastAttemptId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
+  // #26 乙：移动端练习区搬进底部抽屉；桌面端仍在字幕卡里就地展开（本轮不动桌面）。
+  const [practiceOpen, setPracticeOpen] = useState(false);
 
   // D13: deep link from /favorites with ?note=1 opens the note drawer
   // immediately so the user lands on their saved note.
@@ -229,6 +233,18 @@ export default function WatchPage() {
   useEffect(() => {
     sentenceHandleTimeRef.current = sentenceShadow.handleTime;
   }, [sentenceShadow.handleTime]);
+
+  // #26 乙：练习流程一开就把抽屉推上来。桌面端抽屉不渲染，这个状态只是空转。
+  useEffect(() => {
+    if (speakingActive || sentenceShadow.active) setPracticeOpen(true);
+  }, [speakingActive, sentenceShadow.active]);
+
+  /** 关抽屉 = 退出练习：逐句模式退出、麦克风释放，高亮留在刚才练的那一句（#26 决议④）。 */
+  function closePractice() {
+    setPracticeOpen(false);
+    if (sentenceShadow.active) sentenceShadow.exit();
+    if (speakingActive) stopSpeaking();
+  }
 
   // D10 跟读时间线：进度条绿点（点击定位到对应句并回放该句录音）。
   const replayAttempt = useCallback(
@@ -1049,47 +1065,63 @@ export default function WatchPage() {
                 </div>
 
                 {/* D10 逐句跟读模式开关（YouTube 源不可控时序，置灰） */}
-                <button
-                  className={cn(
-                    "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors",
-                    sentenceShadow.active
-                      ? "bg-success text-white shadow-brand cursor-pointer"
-                      : "text-muted bg-surface-soft hover:bg-hairline cursor-pointer",
-                    isYtMode && "opacity-50 cursor-not-allowed hover:bg-surface-soft"
-                  )}
-                  onClick={() => {
-                    if (isYtMode) return;
-                    if (sentenceShadow.active) sentenceShadow.exit();
-                    else sentenceShadow.start();
-                  }}
-                  disabled={isYtMode}
-                  title={isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"}
-                  aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
+                {/* 入口保持伴侣条原位（#26 决议）：只有展开容器换了 —— 移动端进抽屉。 */}
+                <div
+                  data-coach={isMobile ? "practice" : undefined}
+                  className="shrink-0 flex items-center gap-4"
                 >
-                  <Repeat size={15} />
-                  {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
-                </button>
+                  <button
+                    className={cn(
+                      "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors",
+                      sentenceShadow.active
+                        ? "bg-success text-white shadow-brand cursor-pointer"
+                        : "text-muted bg-surface-soft hover:bg-hairline cursor-pointer",
+                      isYtMode && "opacity-50 cursor-not-allowed hover:bg-surface-soft"
+                    )}
+                    onClick={() => {
+                      if (isYtMode) return;
+                      if (sentenceShadow.active) {
+                        sentenceShadow.exit();
+                        if (isMobile) setPracticeOpen(false);
+                      } else {
+                        if (isMobile) setPracticeOpen(true);
+                        sentenceShadow.start();
+                      }
+                    }}
+                    disabled={isYtMode}
+                    title={isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"}
+                    aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
+                  >
+                    <Repeat size={15} />
+                    {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
+                  </button>
 
-                {/* 录音：默认只一个小按钮，点击才展开录音 UI */}
-                <button
-                  className={cn(
-                    "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
-                    speakingActive
-                      ? "bg-brand-500 text-white shadow-brand"
-                      : "text-brand-500 bg-brand-50 hover:bg-brand-100"
-                  )}
-                  onClick={() => {
-                    if (speakingActive) stopSpeaking();
-                    else startRecording();
-                  }}
-                >
-                  <Mic size={15} />
-                  录音
-                </button>
+                  {/* 录音：移动端点开的是跟读抽屉；桌面端仍在卡片里就地展开 */}
+                  <button
+                    className={cn(
+                      "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
+                      speakingActive
+                        ? "bg-brand-500 text-white shadow-brand"
+                        : "text-brand-500 bg-brand-50 hover:bg-brand-100"
+                    )}
+                    onClick={() => {
+                      if (speakingActive) {
+                        stopSpeaking();
+                        if (isMobile) setPracticeOpen(false);
+                      } else {
+                        if (isMobile) setPracticeOpen(true);
+                        startRecording();
+                      }
+                    }}
+                  >
+                    <Mic size={15} />
+                    录音
+                  </button>
+                </div>
               </div>
 
-              {/* D10 逐句模式状态行（播放中/录音中/回放引导） */}
-              {sentenceShadow.active && (
+              {/* D10 逐句模式状态行（播放中/录音中/回放引导）—— 移动端这条搬进抽屉 */}
+              {!isMobile && sentenceShadow.active && (
                 <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
                   <Repeat size={13} className="shrink-0" />
                   <span className="font-medium">
@@ -1102,8 +1134,8 @@ export default function WatchPage() {
                 </div>
               )}
 
-              {/* 录音展开态：录音 / 回放 / 下一句 */}
-              {speakingActive && (
+              {/* 录音展开态：录音 / 回放 / 下一句 —— 桌面端；移动端搬进跟读抽屉 */}
+              {!isMobile && speakingActive && (
                 <div className="mt-4 pt-4 border-t border-hairline">
                   {speakingState === "idle" && (
                     <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
@@ -1203,10 +1235,12 @@ export default function WatchPage() {
                 </div>
               )}
 
-              {/* Shadowing history: recent attempts for this video */}
-              <div data-coach="practice">
-                <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
-              </div>
+              {/* Shadowing history: recent attempts for this video（移动端在抽屉里） */}
+              {!isMobile && (
+                <div data-coach="practice">
+                  <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
+                </div>
+              )}
             </div>
           )}
 
@@ -1331,17 +1365,64 @@ export default function WatchPage() {
         </div>
       </section>
 
-      {/* Word tooltip overlay（可拖动，默认右下角不遮挡当前字幕句） */}
+      {/* Word tooltip overlay —— 桌面：可拖动浮动卡；移动端：贴画面下沿升起的浮层（#27 决议乙） */}
       {selectedWord && (
         <div data-coach="word-card">
-          <WordTooltipInline
-            word={selectedWord}
-            gloss={wordGloss}
-            onClose={clearWord}
-            onPronounce={() => speakWord(selectedWord)}
-            onSave={saveToVocabulary}
-          />
+          {isMobile ? (
+            <WordCardSheet
+              anchorRef={slotRef}
+              word={selectedWord}
+              gloss={wordGloss}
+              onClose={clearWord}
+              onPronounce={() => speakWord(selectedWord)}
+              onSave={saveToVocabulary}
+            />
+          ) : (
+            <WordTooltipInline
+              word={selectedWord}
+              gloss={wordGloss}
+              onClose={clearWord}
+              onPronounce={() => speakWord(selectedWord)}
+              onSave={saveToVocabulary}
+            />
+          )}
         </div>
+      )}
+
+      {/* 跟读抽屉（#26 决议乙）：移动端练习区，入口仍在字幕卡原位 */}
+      {isMobile && practiceOpen && currentSubtitle && (
+        <ShadowingDrawer
+          anchorRef={slotRef}
+          onClose={closePractice}
+          index={currentSubtitleIndex}
+          total={video.subtitles.length}
+          textEn={currentSubtitle.text_en}
+          textZh={currentSubtitle.text_zh}
+          speakingState={speakingState}
+          seconds={seconds}
+          recordingStream={recordingStream}
+          audioBlob={audioBlob}
+          audioUrl={audioUrl}
+          uploading={uploading}
+          saved={shadowingSaved}
+          satisfied={shadowingSatisfied}
+          canSatisfy={!!lastAttemptId}
+          originalUrl={originalSourceUrl}
+          originalClip={originalClip}
+          onPlayOriginal={playOriginal}
+          onStart={startRecording}
+          onStop={stopRecording}
+          onReRecord={handleReRecord}
+          onToggleSatisfied={handleToggleSatisfied}
+          onNext={sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle}
+          sentenceActive={sentenceShadow.active}
+          sentencePhase={sentenceShadow.phase}
+          autoAdvance={sentenceShadow.autoAdvance}
+          onAutoAdvanceChange={sentenceShadow.setAutoAdvance}
+          attempts={attempts}
+          onDeleteAttempt={deleteAttempt}
+          ytMode={isYtMode}
+        />
       )}
 
       {/* D2 CoachMark — only renders when active (gated by localStorage flag). */}

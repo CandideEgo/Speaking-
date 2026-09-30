@@ -16,6 +16,10 @@ import type { Subtitle } from "@/types";
 
 export type SentenceShadowingPhase = "playing" | "recording" | "reviewing";
 
+/** 自动推进的宽限：录音一停就换句会在用户没准备好时把句子换掉，这是**默认关**的理由；
+ *  开了也留一眼看波形的时间。 */
+const AUTO_ADVANCE_DELAY_MS = 2000;
+
 interface UseSentenceShadowingOptions {
   subtitles: Subtitle[] | null | undefined;
   currentIndex: number;
@@ -45,6 +49,9 @@ interface UseSentenceShadowingReturn {
   next: () => void;
   /** 供 timeupdate tick 调用：句尾自动暂停并开录。 */
   handleTime: (t: number) => void;
+  /** ⑤ 自动推进（#26 决议：默认关）。开了就是「录音一停就换句」。 */
+  autoAdvance: boolean;
+  setAutoAdvance: (v: boolean) => void;
 }
 
 export function useSentenceShadowing({
@@ -62,6 +69,8 @@ export function useSentenceShadowing({
 }: UseSentenceShadowingOptions): UseSentenceShadowingReturn {
   const [active, setActive] = useState(false);
   const [phase, setPhase] = useState<SentenceShadowingPhase | null>(null);
+  // 自动推进：会话级开关，默认关（#26 决议⑤：与「字幕区为主体」冲突，用户没准备好就被换句）。
+  const [autoAdvance, setAutoAdvance] = useState(false);
 
   // handleTime 会被页面层 useCallback 持有（避免重建），用 ref 读最新值。
   const activeRef = useRef(false);
@@ -145,5 +154,12 @@ export function useSentenceShadowing({
     }
   }, [speakingState, setPhaseBoth]);
 
-  return { active, phase, start, exit, next, handleTime };
+  // ⑤ 自动推进：进入回放态后过 `AUTO_ADVANCE_DELAY_MS` 自动下一句（默认关）。
+  useEffect(() => {
+    if (!autoAdvance || phase !== "reviewing") return;
+    const timer = setTimeout(() => next(), AUTO_ADVANCE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [autoAdvance, phase, next]);
+
+  return { active, phase, start, exit, next, handleTime, autoAdvance, setAutoAdvance };
 }

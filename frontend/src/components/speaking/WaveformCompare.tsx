@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * WaveformCompare — D10 原声/录音波形对比（不做任何评分，仅视觉参照）。
@@ -9,6 +10,9 @@ import { Pause, Play } from "lucide-react";
  * 上行显示当前句原声片段的包络（尽力而为：解码视频文件后按字幕时间切片，
  * 失败时降级为仅显示录音波形），下行显示用户录音的包络。包络采样 200 桶，
  * 解码完成后同步绘制，满足 <500ms 渲染要求。
+ *
+ * 尺寸按**容器实宽** + dpr 画（#26 点名的现状缺口：以前写死 `<canvas width={400}>`，
+ * 在 303px 的口袋里撑破容器）。`merged` 把两条合成一张（原声上 / 我的下）。
  */
 
 const BUCKETS = 200;
@@ -26,6 +30,10 @@ interface WaveformCompareProps {
   originalClip?: { start: number; end: number } | null;
   /** 点击「听原声」时由页面驱动（seek 视频到句首播放）。 */
   onPlayOriginal?: () => void;
+  /** 「合并一条」档：原声在上、我的在下，共用一条画布。 */
+  merged?: boolean;
+  /** 触控目标档：`lg` = 44px（跟读抽屉里用，见 #26 ③）。 */
+  minTarget?: "sm" | "lg";
 }
 
 /** Decode audio and reduce channel data to a normalized peak envelope. */
@@ -89,47 +97,60 @@ async function computeClippedEnvelope(
   }
 }
 
-function WaveCanvas({
-  envelope,
-  color,
-  label,
-}: {
+interface WaveRow {
   envelope: number[] | null;
   color: string;
-  label: string;
-}) {
+  /** null = 居中一条；"up"/"down" = 上下分栏（合并档）。 */
+  half: null | "up" | "down";
+}
+
+/** 按容器实宽 × dpr 画包络；容器尺寸一变就重画。 */
+function WaveCanvas({ rows, className }: { rows: WaveRow[]; className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !envelope) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    const barWidth = w / BUCKETS - 1;
-    ctx.fillStyle = color;
-    for (let i = 0; i < envelope.length; i++) {
-      const barHeight = Math.max(1.5, envelope[i] * (h - 2));
-      const x = i * (barWidth + 1);
-      const y = (h - barHeight) / 2;
-      ctx.globalAlpha = 0.45 + envelope[i] * 0.55;
-      ctx.fillRect(x, y, barWidth, barHeight);
-    }
-    ctx.globalAlpha = 1;
-  }, [envelope, color]);
+    if (!canvas) return;
 
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-12 shrink-0 text-[11px] text-muted text-right">{label}</span>
-      {envelope ? (
-        <canvas ref={canvasRef} width={400} height={28} className="flex-1 rounded" />
-      ) : (
-        <span className="flex-1 text-[11px] text-muted-soft py-1.5">波形暂不可用</span>
-      )}
-    </div>
-  );
+    const paint = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, canvas.clientWidth);
+      const h = Math.max(1, canvas.clientHeight);
+      const bitmapW = Math.round(w * dpr);
+      const bitmapH = Math.round(h * dpr);
+      if (canvas.width !== bitmapW) canvas.width = bitmapW;
+      if (canvas.height !== bitmapH) canvas.height = bitmapH;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const barWidth = Math.max(1, w / BUCKETS - 1);
+
+      for (const row of rows) {
+        if (!row.envelope) continue;
+        const half = row.half;
+        for (let i = 0; i < row.envelope.length; i++) {
+          const v = row.envelope[i];
+          const barHeight = half ? Math.max(1.2, v * (h / 2 - 2)) : Math.max(1.5, v * (h - 4));
+          const x = i * (barWidth + 1);
+          const y =
+            half === "up" ? h / 2 - barHeight : half === "down" ? h / 2 : (h - barHeight) / 2;
+          ctx.globalAlpha = 0.45 + v * 0.55;
+          ctx.fillStyle = row.color;
+          ctx.fillRect(x, y, barWidth, barHeight);
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    paint();
+    const observer = new ResizeObserver(paint);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [rows]);
+
+  return <canvas ref={canvasRef} className={cn("block h-7 w-full rounded", className)} />;
 }
 
 export function WaveformCompare({
@@ -138,6 +159,8 @@ export function WaveformCompare({
   originalUrl,
   originalClip,
   onPlayOriginal,
+  merged = false,
+  minTarget = "sm",
 }: WaveformCompareProps) {
   const [recEnv, setRecEnv] = useState<number[] | null>(null);
   const [origEnv, setOrigEnv] = useState<number[] | null>(null);
@@ -200,27 +223,89 @@ export function WaveformCompare({
     else el.play().catch(() => {});
   }
 
+  // rows 的标识要稳定，否则每次 render 都会重挂 ResizeObserver（数组字面量每次都是新对象）。
+  const mergedRows = useMemo<WaveRow[]>(
+    () => [
+      { envelope: origEnv, color: "#0e7490", half: "up" },
+      { envelope: recEnv, color: "#ff5a1f", half: "down" },
+    ],
+    [origEnv, recEnv]
+  );
+  const origRows = useMemo<WaveRow[]>(
+    () => [{ envelope: origEnv, color: "#0e7490", half: null }],
+    [origEnv]
+  );
+  const recRows = useMemo<WaveRow[]>(
+    () => [{ envelope: recEnv, color: "#ff5a1f", half: null }],
+    [recEnv]
+  );
+
+  const btnClass = cn(
+    "shrink-0 rounded-full bg-surface-soft hover:bg-hairline flex items-center justify-center text-muted transition-colors cursor-pointer",
+    minTarget === "lg" ? "w-11 h-11" : "w-6 h-6"
+  );
+  const iconSize = minTarget === "lg" ? 16 : 12;
+
   return (
     <div className="space-y-1.5">
-      {originalUrl && (
+      {merged ? (
         <div className="flex items-center gap-2">
-          <WaveformCompareRow
-            envelope={origEnv}
-            color="#0e7490"
-            label="原声"
-            onPlay={onPlayOriginal}
-          />
+          {onPlayOriginal && (
+            <button
+              type="button"
+              aria-label="播放原声"
+              onClick={onPlayOriginal}
+              className={cn(btnClass, "gap-1 px-2 text-[11px] w-auto min-w-[44px]")}
+            >
+              <Play size={iconSize} className="ml-0.5" />
+              原声
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label={playing ? "暂停我的录音" : "播放我的录音"}
+            onClick={recordingUrl ? toggleRecording : undefined}
+            disabled={!recordingUrl}
+            className={cn(btnClass, "gap-1 px-2 text-[11px] w-auto min-w-[44px]")}
+          >
+            {playing ? <Pause size={iconSize} /> : <Play size={iconSize} className="ml-0.5" />}
+            我的
+          </button>
+          <div className="min-w-0 flex-1">
+            <WaveCanvas rows={mergedRows} />
+          </div>
         </div>
+      ) : (
+        <>
+          {originalUrl && (
+            <div className="flex items-center gap-2">
+              <PlayButton
+                label="原声"
+                onPlay={onPlayOriginal}
+                playing={false}
+                className={btnClass}
+                iconSize={iconSize}
+              />
+              <div className="min-w-0 flex-1">
+                <WaveCanvas rows={origRows} />
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <PlayButton
+              label="我的"
+              onPlay={recordingUrl ? toggleRecording : undefined}
+              playing={playing}
+              className={btnClass}
+              iconSize={iconSize}
+            />
+            <div className="min-w-0 flex-1">
+              <WaveCanvas rows={recRows} />
+            </div>
+          </div>
+        </>
       )}
-      <div className="flex items-center gap-2">
-        <WaveformCompareRow
-          envelope={recEnv}
-          color="#ff5a1f"
-          label="我的"
-          onPlay={recordingUrl ? toggleRecording : undefined}
-          playing={playing}
-        />
-      </div>
+
       {recordingUrl && (
         <audio
           ref={audioRef}
@@ -236,37 +321,30 @@ export function WaveformCompare({
   );
 }
 
-function WaveformCompareRow({
-  envelope,
-  color,
+function PlayButton({
   label,
   onPlay,
   playing,
+  className,
+  iconSize,
 }: {
-  envelope: number[] | null;
-  color: string;
   label: string;
   onPlay?: () => void;
-  playing?: boolean;
+  playing: boolean;
+  className: string;
+  iconSize: number;
 }) {
+  if (!onPlay) {
+    return <span className={cn("shrink-0", className, "pointer-events-none opacity-50")} />;
+  }
   return (
-    <>
-      {onPlay ? (
-        <button
-          type="button"
-          aria-label={playing ? `暂停${label}` : `播放${label}`}
-          onClick={onPlay}
-          className="w-6 h-6 shrink-0 rounded-full bg-surface-soft hover:bg-hairline
-            flex items-center justify-center text-muted transition-colors cursor-pointer"
-        >
-          {playing ? <Pause size={12} /> : <Play size={12} className="ml-0.5" />}
-        </button>
-      ) : (
-        <span className="w-6 shrink-0" />
-      )}
-      <div className="flex-1">
-        <WaveCanvas envelope={envelope} color={color} label={label} />
-      </div>
-    </>
+    <button
+      type="button"
+      aria-label={playing ? `暂停${label}` : `播放${label}`}
+      onClick={onPlay}
+      className={className}
+    >
+      {playing ? <Pause size={iconSize} /> : <Play size={iconSize} className="ml-0.5" />}
+    </button>
   );
 }
