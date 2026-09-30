@@ -16,6 +16,14 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 
+// 串行 + 一次注册：/auth/sms/register 是 3/minute（按 IP），每个用例各注册一个用户
+// 会在第 4 条上 429（本文件现在 4 条）。
+test.describe.configure({ mode: "serial" });
+let token = "";
+test.beforeAll(async ({ request }) => {
+  ({ token } = await registerUserViaApi(request, uniquePhone()));
+});
+
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {
   const res = await request.get("/api/v1/videos/public?page=1&page_size=1");
   if (!res.ok()) return null;
@@ -29,9 +37,17 @@ async function boxOf(page: Page, selector: string) {
   return box;
 }
 
-/** 登录 → 打开第一条 ready 视频 → 跳过教程浮层 → 等到真能播。返回画框几何。 */
-async function enterWatch(page: Page, request: APIRequestContext) {
-  const { token } = await registerUserViaApi(request, uniquePhone());
+/**
+ * 登录 → 打开第一条 ready 视频 → 跳过教程浮层 → 等到真能播。返回画框几何。
+ *
+ * `dismissPip` 默认 true：真滚走了的迷你窗仍要按真人做法退出（这层 workaround 留着，
+ * 但它不再掩盖首屏行为 —— 首屏那条由「进入页面即内联播放器」单独断言）。返回画框几何。
+ */
+async function enterWatch(
+  page: Page,
+  request: APIRequestContext,
+  { dismissPip = true }: { dismissPip?: boolean } = {}
+) {
   // D2 教程浮层会盖住画面：直接用 app 自己的「看过了」标记关掉，别靠点按钮文案。
   await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
   await loginViaToken(page, token);
@@ -56,13 +72,12 @@ async function enterWatch(page: Page, request: APIRequestContext) {
     .catch(() => false);
   test.skip(!playable, "no playable media in local DB (the CI seed writes a placeholder URL)");
 
-  // 375×812 下画框顶（y≈166）落在 useStickyPip 的「上 20%」观察带（y<162）之外，
-  // 于是进页面就已经是迷你窗、内联播放器不渲染。这是既有行为（见 #30），
-  // 这里照真人的做法点 X 退出小窗，再量内联播放器。
-  const pipClose = page.locator('[aria-label="关闭小窗播放"]');
-  if (await pipClose.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await pipClose.click();
-    await page.waitForTimeout(500);
+  if (dismissPip) {
+    const pipClose = page.locator('[aria-label="关闭小窗播放"]');
+    if (await pipClose.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await pipClose.click();
+      await page.waitForTimeout(500);
+    }
   }
   await expect(page.locator('[data-testid="controls-bar"]')).toHaveCount(1);
 
@@ -73,6 +88,45 @@ async function enterWatch(page: Page, request: APIRequestContext) {
 test.use({ viewport: { width: 375, height: 812 } });
 
 test.describe("移动端入画字幕与控制条点出（#28 乙，375×812）", () => {
+  // 375×812 是参考机型（iPhone X），而它的画框顶 y=166 落在 useStickyPip 观察带底
+  // （812×20% = 162.4）之下 —— 只要把「带外」当成「滚走了」，这一档首屏就是迷你窗、
+  // 内联播放器与入画字幕全不渲染，整条移动端重设计等于不可见。所以这条断言盯首屏。
+  test("进入页面即内联播放器：375 首屏不收成迷你窗，入画字幕贴画框下沿", async ({
+    page,
+    request,
+  }) => {
+    const frame = await enterWatch(page, request, { dismissPip: false });
+
+    await expect(page.locator('[aria-label="关闭小窗播放"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="controls-bar"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
+
+    const burn = await boxOf(page, '[data-testid="burn-subtitle"]');
+    const thin = await boxOf(page, '[data-testid="thin-progress"]');
+    expect(Math.round(thin.height), "细进度线高度").toBe(3);
+    expect(
+      Math.abs(burn.y + burn.height + 3 - (frame.y + frame.height)),
+      "入画字幕底边贴画框下沿（其下就是那条 3px 细进度）"
+    ).toBeLessThan(2);
+  });
+
+  // 上面那条修复必须只掐掉「首屏误判」：真滚走了还得收成迷你窗，否则等于把 #30 的
+  // 迷你窗关掉。滚动容器是壳里的 main#main-scroll（window.scrollY 恒 0）。
+  test("向下滚动把画框滚出视口顶部 → 仍然收成迷你窗", async ({ page, request }) => {
+    await enterWatch(page, request, { dismissPip: false });
+
+    await page.evaluate(() => {
+      const main = document.querySelector("main#main-scroll");
+      if (main) main.scrollTop = 700;
+      else window.scrollTo(0, 700);
+    });
+    await page.waitForTimeout(600);
+
+    await expect(page.locator('[aria-label="关闭小窗播放"]')).toBeVisible({ timeout: 5000 });
+    const mini = await boxOf(page, "video");
+    expect(mini.width, "迷你窗是缩小的（不是内联那一块）").toBeLessThanOrEqual(200);
+  });
+
   test("字幕贴画框下沿、常驻 3px 进度线、点画面浮起控制条 3s 自收", async ({ page, request }) => {
     const frame = await enterWatch(page, request);
     const frameBottom = frame.y + frame.height;

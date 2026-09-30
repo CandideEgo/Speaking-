@@ -16,14 +16,23 @@ interface StickyPipResult {
 /**
  * Mobile sticky mini-player (PiP-style) trigger.
  *
- * Observes ``slotRef`` with an IntersectionObserver; when the slot scrolls out
- * of the top 20% of the viewport, ``isPip`` becomes true so the caller can pin
- * the media element as a fixed mini-player. The media element itself is never
- * re-parented — the caller only toggles CSS classes on a wrapper — so playback
- * state is preserved across the switch.
+ * The media element itself is never re-parented — the caller only toggles CSS
+ * classes on a wrapper — so playback state is preserved across the switch.
+ *
+ * **「滚走了」的判据 = 画框真的跑出视口顶部（`bottom ≤ 0`）。** 早先的实现用
+ * `IntersectionObserver` 观察「视口上 20%」这条带、把「不在带内」当成滚走了，
+ * 那条带其实有两个出口：画框跑到带上方（真滚走），以及画框本来就在带下方 ——
+ * 375×812 首屏正是后者（带底 162.4 vs 画框顶 y=166），于是进页面就被判成
+ * 「已滚走」，内联播放器连同入画字幕一起不渲染，整条移动端重设计在参考机型上
+ * 等于不可见（#30）。
+ *
+ * 判据改为**测量**（rAF 合并成每帧一次）而不是观察器的状态跳变：一次跳转滚动
+ * （比如在文稿列表里点一句直接跳下去）会让「不在带内」从 false 直接保持 false，
+ * 观察器根本不回调，迷你窗便永不出现。滚动容器是壳里的 `main#main-scroll`，
+ * scroll 不冒泡，所以监听走捕获阶段。
  *
  * Pass ``enabled=false`` to disable (e.g. on desktop, where the slot is already
- * sticky via CSS). The observer is only attached while enabled.
+ * sticky via CSS).
  */
 export function useStickyPip<T extends HTMLElement>(
   slotRef: RefObject<T | null>,
@@ -40,17 +49,31 @@ export function useStickyPip<T extends HTMLElement>(
     const el = slotRef.current;
     if (!el) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setPinned(!entry.isIntersecting);
-        // Re-arm dismissal whenever the slot re-enters the viewport.
-        if (entry.isIntersecting) setDismissed(false);
-      },
-      // Trigger when the slot leaves the top 20% of the viewport.
-      { threshold: 0, rootMargin: "0px 0px -80% 0px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    let raf = 0;
+
+    const measure = () => {
+      const out = el.getBoundingClientRect().bottom <= 0;
+      setPinned(out);
+      // 画框重新露出来就重新武装关闭（原行为：回到视口内则恢复）。
+      if (!out) setDismissed(false);
+    };
+
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        measure();
+      });
+    };
+
+    measure();
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
+    };
   }, [enabled, slotRef]);
 
   const dismiss = useCallback(() => setDismissed(true), []);
