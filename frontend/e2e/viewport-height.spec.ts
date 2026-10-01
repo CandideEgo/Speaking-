@@ -100,4 +100,84 @@ test.describe("Viewport height - app shell", () => {
       expect(m.docOverflow, `${route} 文档溢出`).toBeLessThanOrEqual(1);
     }
   });
+
+  /**
+   * 底栏上沿 == 滚动区下沿、底栏不 fixed —— 与上面那条同款，抽出来给短视口档复用。
+   * （上面那条留着原样，免得把它的读数证据改掉。）
+   */
+  async function assertTabBarClosesTheShell(page: import("@playwright/test").Page, label: string) {
+    const m = await page.evaluate(() => {
+      const el = document.querySelector("nav.md\\:hidden") as HTMLElement | null;
+      const main = document.querySelector("main") as HTMLElement | null;
+      if (!el || !main) return null;
+      const barRect = el.getBoundingClientRect();
+      return {
+        position: getComputedStyle(el).position,
+        barTop: Math.round(barRect.top),
+        barBottom: Math.round(barRect.bottom),
+        barHeight: Math.round(barRect.height),
+        mainBottom: Math.round(main.getBoundingClientRect().bottom),
+        innerHeight: window.innerHeight,
+      };
+    });
+    expect(m, `${label} 底栏量不到`).not.toBeNull();
+    expect(m!.position, `${label} 底栏不是 fixed`).not.toBe("fixed");
+    expect(m!.barHeight, `${label} 底栏高 ≥44px`).toBeGreaterThanOrEqual(44);
+    expect(
+      Math.abs(m!.barBottom - m!.innerHeight),
+      `${label} 底栏贴可视区底边`
+    ).toBeLessThanOrEqual(1);
+    expect(Math.abs(m!.barTop - m!.mainBottom), `${label} 底栏贴滚动区下沿`).toBeLessThanOrEqual(1);
+  }
+
+  /**
+   * Destination §7 补测点 1：播放页是壳层清单里唯一带出血（`-mt-6` / `w-screen`）
+   * 与贴顶常驻的路由，而上面那份清单只列了 `/ /browse /vocabulary /practice /history /profile`
+   * —— 播放页恰恰是最可能把壳撑破的那一页，不能不在里面。
+   * 不需要能播的视频：壳与滚动容器先于媒体渲染，拿不到 id 才 skip。
+   */
+  test("/watch/<id> 也在壳层清单里：壳高 == 可视高、文档无溢出、底栏收尾", async ({
+    page,
+    request,
+  }) => {
+    await loginViaToken(page, token);
+    const videoId = await firstVideoId(request);
+    test.skip(!videoId, "no ready video in local DB; seed first");
+
+    await page.goto(`/watch/${videoId}`);
+    await expect(page.locator("div.h-dvh").first()).toBeVisible({ timeout: 15000 });
+    const m = await shellMetrics(page);
+    expect(m.shellHeight, "/watch 壳高度").toBe(`${m.innerHeight}px`);
+    expect(m.docOverflow, "/watch 文档溢出").toBeLessThanOrEqual(1);
+    await assertTabBarClosesTheShell(page, "/watch");
+  });
+
+  /**
+   * Destination §7 补测点 2：375×812 只是「地址栏收起」那一档；真机上地址栏展开时
+   * 可视高就是 750/700 这一带（真机实测 100vh 790 / 可视区 750）。Chromium 里
+   * 模拟不了浮动地址栏，缩短视口是最接近的近似 —— 这一档最容易暴露「高度算在
+   * 可视区之外」的残留。
+   */
+  test("375×700（地址栏展开档）壳 / 底栏 / 滚动区复算", async ({ page, request }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await loginViaToken(page, token);
+    const videoId = await firstVideoId(request);
+
+    for (const route of ["/", videoId ? `/watch/${videoId}` : null].filter(Boolean) as string[]) {
+      await page.goto(route);
+      await expect(page.locator("div.h-dvh").first()).toBeVisible({ timeout: 15000 });
+      const m = await shellMetrics(page);
+      expect(m.shellHeight, `700 档 ${route} 壳高度`).toBe(`${m.innerHeight}px`);
+      expect(m.innerHeight, `700 档 ${route} 视口高`).toBe(700);
+      expect(m.docOverflow, `700 档 ${route} 文档溢出`).toBeLessThanOrEqual(1);
+      await assertTabBarClosesTheShell(page, `700 档 ${route}`);
+    }
+  });
+
+  /** 本地库里第一条 ready 视频的 id（公开列表，不需要 token）。 */
+  async function firstVideoId(request: import("@playwright/test").APIRequestContext) {
+    const res = await request.get("/api/v1/videos/public?page=1&page_size=1");
+    if (!res.ok()) return null;
+    return (await res.json())?.items?.[0]?.id ?? null;
+  }
 });

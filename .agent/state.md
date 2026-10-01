@@ -17,15 +17,16 @@ Last Updated: 2026-10-02
 
 ## Next Steps
 
-1. **移动端 Destination §3 的「今天就能写」10 条 e2e 补测点**（清单在 `docs/design/mobile/destination/device-acceptance.md` §7，逐条带缺口与不变量，本轮只出清单没写 spec）：`/watch` 进壳层路由清单、375×700 短视口档、移动端「当前句只渲染一次」的另一半、字幕同步回归、词卡 clamp 落档分支、被点的那句不被盖、计时**在走**、首访教程浮层、**常驻态下的词卡/抽屉卡口**、`word-card-grab` 下拉关闭。被挡的 3 条：#12 等 #25、#13 等 §2 口径（§2 已出，可拍）
-2. **§2 触控基线自认过时**：`docs/design/mobile/destination/touch-targets.md` 的快照声明点名「#30 落地后播放页那几行要重跑」—— 量具 `frontend/scripts/audit-touch-targets.mjs`（`--emit-md` 生成表、原始读数 3MB JSON 已入库）可直接复跑；顺带定 §6 那条 **AA 真缺陷**（控制条进度条 `input[type=range]` 2.5.8 fail）修不修
-3. **审计残留：medium/low 未逐条核实**（674 + 481，连同降级/证伪项共约 1100 条原始 finding 未验证）——引用前先对代码求证，筛查问法见 `knowledge/wiki/problems/audit-verification-failure-modes.md`
-4. **本地 dev uvicorn（:8000）未带 `--reload`**：仍跑旧代码，重启后才含本轮 `/videos/search`、WebSocket 认证、通知 `type` 过滤
-5. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页；部署迁移 + 导入 772 条 + 端到端验证一条 promote；重抓脚本收进 `backend/scripts/`
-6. 视频存储收尾：Docker cache prune 可随时做；**删源站 `_raw` 母带被阻塞**——未配 OSS，raw 是唯一副本，删=不可逆丢失
-7. 集成测试 / e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
-8. Recommendation 深度个性化 P2（ADR-0011）；ICP 解封后项：payment、前端单测、e2e
-9. **词汇训练线收尾（DEC-053/056/057）**：T1 回填 09-28 生产已跑，0 候选（存量词行连 `context_sentence` 都没有）；追票：续轮次序精确化（`wrong_in_round` 改计数）、ECDICT 干扰项兜底、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
+1. **移动端 Destination §3 的 e2e 补测点：11 条已写（10-02）** —— `viewport-height` +2、`mobile-inline-subtitle` +2、`mobile-player-shell` +2、`mobile-wordcard-drawer` +6，四个文件 **26 条全绿**；逐条的落地修正（含「375×600 不触发落档」「抽屉那半必须先开再滚」）记在 `docs/design/mobile/destination/device-acceptance.md` §7「落地结果」。仍排队的：#12 横屏版式断言等 #25、#13 控制条 44px 口径等 §2 拍板（§2 已成文）
+2. **新发现（10-02，交 #25 拍）**：词卡的 `min(画框下沿, 底栏顶 − 240)` 落档支只在**视口高 < ~560px** 时激活（375×600 实测不激活：555−240=315 > 画框底 274.9），而这一档与 INV-022「绝不压进画面」冲突 —— 375×480 卡片抬进画面 79.9px、整句入画字幕被盖。**但不能直接改成 `max`**：横屏 667×375 实测画框 64..439.2 比屏幕还高、底栏顶 330，压回画框下沿 = 卡片高 0。横屏要不要走移动版式正是 #25 的题 —— 决议前 `⑥b` 只锁当前行为并写明「按 INV-022 改会红，那是决议」
+3. **§2 触控基线自认过时**：`docs/design/mobile/destination/touch-targets.md` 的快照声明点名「#30 落地后播放页那几行要重跑」—— 量具 `frontend/scripts/audit-touch-targets.mjs`（`--emit-md` 生成表、原始读数 3MB JSON 已入库）可直接复跑；顺带定 §6 那条 **AA 真缺陷**（控制条进度条 `input[type=range]` 2.5.8 fail）修不修
+4. **审计残留：medium/low 未逐条核实**（674 + 481，连同降级/证伪项共约 1100 条原始 finding 未验证）——引用前先对代码求证，筛查问法见 `knowledge/wiki/problems/audit-verification-failure-modes.md`
+5. **本地 dev uvicorn（:8000）未带 `--reload`**：仍跑旧代码，重启后才含本轮 `/videos/search`、WebSocket 认证、通知 `type` 过滤
+6. **Catalog Phase 2/3（DEC-036 / ADR-0017）**：admin「内容目录」前端页；部署迁移 + 导入 772 条 + 端到端验证一条 promote；重抓脚本收进 `backend/scripts/`
+7. 视频存储收尾：Docker cache prune 可随时做；**删源站 `_raw` 母带被阻塞**——未配 OSS，raw 是唯一副本，删=不可逆丢失
+8. 集成测试 / e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
+9. Recommendation 深度个性化 P2（ADR-0011）；ICP 解封后项：payment、前端单测、e2e
+10. **词汇训练线收尾（DEC-053/056/057）**：T1 回填 09-28 生产已跑，0 候选（存量词行连 `context_sentence` 都没有）；追票：续轮次序精确化（`wrong_in_round` 改计数）、ECDICT 干扰项兜底、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
 
 ## Known Issues
 
@@ -35,6 +36,7 @@ Last Updated: 2026-10-02
 - **静态基线不是「已验无害」**：`backend/.mypy-baseline` 里碰 ORM 属性/列名/跨模块签名的条目是待验运行时风险（见 `knowledge/wiki/problems/audit-verification-failure-modes.md`）
 - **iPhone 真机验证待办**：内联播放 / 滚动跟随（#30 常驻形态）/ 字幕同步 / 跟读录音（局域网 http 非安全上下文，量具页量不了，两条路写在 `docs/design/mobile/destination/device-acceptance.md` §2）—— 清单与量具页已就绪，等一次真机轮次
 - **滚动跟随已按 #30 定稿（10-01）**：形态 = 画面**贴顶常驻**（旧判据「画框跑出视口顶部 `bottom ≤ 0`」对应的是已被取消的右下角迷你窗那一态）。现在是零高度哨兵越过滚动容器顶边 → 画框自己 `sticky top-0`；**不能量被粘住的元素自己**（会自激振荡），**sticky 的活动范围是包含块**（挂在 490px 的左列上会在滚动上限前 ~72px 被推走）—— 两条代价与成对 e2e 都记在 INV-023
+- **横屏没有决议（#25）**：667×375 实测画框 64..439.2 比屏幕还高（16:9 全宽 = 375），底栏顶 330 —— 画面本身就超出可视区；812×375 更夹在 768–1023 那个断点里：`isMobile`（≤1023）为真、`md:hidden` 的底栏却已隐藏（V18 点名的缺口）。词卡落档支与 INV-022 的冲突（Next Steps 2）也归这一题
 - **本地要跑「播放中」类 e2e，`backend/media/<id>.mp4` 得是真文件**：CI seed 只写占位 SQL 行 + 假 URL（`/media/<id>.mp4` 404），`mobile-d1-d10.spec.ts` 与 `mobile-inline-subtitle.spec.ts` 会整条 skip。本地补法是往 `backend/media/` 放一个同名真 mp4（该目录已 gitignore）
 - **本地 e2e 容易被限流打脸**：`/auth/sms/register` 是 3/minute（按 IP），一个 spec 文件注册几个用户就 429，看到 `API registration failed: 429` 先清 `LIMITS:LIMITER/127.0.0.1//api/v1/auth/sms/{register,send-code}*` 再跑
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码

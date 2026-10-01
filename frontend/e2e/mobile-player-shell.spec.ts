@@ -30,9 +30,19 @@ async function boxOf(page: Page, selector: string) {
   return box;
 }
 
-async function openWatch(page: Page, request: APIRequestContext, width: number, height: number) {
+async function openWatch(
+  page: Page,
+  request: APIRequestContext,
+  width: number,
+  height: number,
+  { firstVisit = false }: { firstVisit?: boolean } = {}
+) {
   await page.setViewportSize({ width, height });
-  await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
+  // 所有移动端 spec 都靠这个标记跳过教程浮层 —— 于是「首访那一刻的移动端版式」零覆盖
+  // （§7 补测点 9 就是补它，所以那一条走 firstVisit: true）。
+  if (!firstVisit) {
+    await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
+  }
   await loginViaToken(page, token);
   const res = await request.get("/api/v1/videos/public?page=1&page_size=1");
   const videoId = (await res.json())?.items?.[0]?.id ?? null;
@@ -136,6 +146,60 @@ test.describe("移动端首屏＝画面（#24/#28 乙 的页面级版式）", ()
       expect(m.frame.y, `${w} 档画框贴壳顶`).toBeCloseTo(m.shell.mainTop!, 0);
       expect(m.burn.y - m.frame.y, `${w} 档露出画面不少于 120px`).toBeGreaterThanOrEqual(120);
     }
+  });
+
+  /**
+   * Destination §7 补测点 5：375×812 只是「地址栏收起」档。真机地址栏展开时可视高
+   * 就是 750 / 700 这一带 —— 首屏版式（画框贴壳顶 + 露出画面 ≥120px）必须在那一档
+   * 也成立，否则「首屏就是画面」只在实验室里成立。
+   */
+  test("375×700（地址栏展开档）画框仍贴壳顶、露出画面仍 ≥120px", async ({ page, request }) => {
+    await openWatch(page, request, 375, 700);
+    const m = await measure(page, 375);
+
+    expect(m.frame.x, "700 档出血").toBeCloseTo(0, 0);
+    expect(m.frame.width, "700 档与视口同宽").toBeCloseTo(375, 0);
+    expect(m.frame.y, "700 档画框贴壳顶（页头仍不占首屏）").toBeCloseTo(m.shell.mainTop!, 0);
+    expect(m.burn.y - m.frame.y, "700 档露出画面不少于 120px").toBeGreaterThanOrEqual(120);
+    expect(m.actions.height, "700 档动作行仍是 44px").toBeGreaterThanOrEqual(44);
+    // 短视口最容易翻车的地方：画框 + 字幕卡一起把文档撑出可视区。
+    const overflow = await page.evaluate(() => {
+      const root = document.documentElement;
+      return root.scrollHeight - root.clientHeight;
+    });
+    expect(overflow, "700 档文档无溢出").toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * Destination §7 补测点 9：**首访那一刻**的移动端版式此前零覆盖 —— 所有移动端 spec
+   * 都用 `seeword_coach_done=true` 跳过教程，而教程浮层是 `fixed inset-0 z-[100]`，
+   * 真机上它就是第一屏。这一条走真实首访：浮层必须是全屏 dialog，跳过之后画面内的
+   * 当前句与点词热区**立刻**存在且可点（不是等一帧、等一次滚动）。
+   */
+  test("首访：教程浮层是全屏 dialog；点「跳过教程」后入画字幕与词热区立刻可点", async ({
+    page,
+    request,
+  }) => {
+    await openWatch(page, request, 375, 812, { firstVisit: true });
+
+    const tour = page.locator('[role="dialog"][aria-label="新手引导"]');
+    await expect(tour, "首访要给出教程浮层").toBeVisible({ timeout: 10000 });
+
+    // ① 它是**全屏**的：浮层矩形覆盖整个可视区（真机上它就是第一屏）。
+    const box = (await tour.boundingBox())!;
+    expect(box.x, "教程浮层左边界").toBeCloseTo(0, 0);
+    expect(box.y, "教程浮层上边界").toBeCloseTo(0, 0);
+    expect(box.width, "教程浮层覆盖视口宽").toBeCloseTo(375, 0);
+    expect(box.height, "教程浮层覆盖视口高").toBeCloseTo(812, 0);
+
+    // ② 跳过之后：入画字幕与词热区立刻在，且热区真的可点（能开出词卡）。
+    await page.getByRole("button", { name: "跳过教程" }).click();
+    await expect(tour).toHaveCount(0);
+    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
+    const words = page.locator('[data-testid="burn-subtitle"] .burn-sub-word');
+    expect(await words.count(), "跳过教程后点词热区立刻存在").toBeGreaterThan(0);
+    await words.first().click({ timeout: 5000 });
+    await expect(page.locator('[data-testid="word-tooltip"]')).toBeVisible({ timeout: 10000 });
   });
 
   // INV-024 的标题层是 `z-20`（不是 `z-10`）：`VideoControls` 的面层是 `z-10` 且整块

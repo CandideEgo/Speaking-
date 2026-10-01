@@ -191,6 +191,71 @@ test.describe("移动端入画字幕与控制条点出（#28 乙，375×812）",
     }));
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
   });
+
+  /**
+   * Destination §7 补测点 3：INV-021 的「当前句恰好渲染一次」此前只有桌面那半边
+   * （1280 下 `burn-subtitle` count 0、卡片里 `.now-sub-en` 还在）。移动这半边缺 ——
+   * 而移动端才是两处都存在的风险面：入画一份 + 卡片一份 = 点词热区分裂成两半，
+   * #27 的词卡落位也就没有唯一锚点。
+   */
+  test("375 下当前句只渲染一次：入画那份在，字幕卡那份不在", async ({ page, request }) => {
+    await enterWatch(page, request, { dismissPip: false });
+
+    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="burn-subtitle-en"]')).toHaveCount(1);
+    // 卡片里的当前句与其点词热区在移动端必须一个都不渲染。
+    await expect(page.locator(".now-sub-en")).toHaveCount(0);
+    await expect(page.locator(".now-sub-word")).toHaveCount(0);
+    // 反向：入画那句的点词热区必须真的在（否则「恰好一次」是靠两边都没有达成的）。
+    expect(await page.locator(".burn-sub-word").count()).toBeGreaterThan(0);
+  });
+
+  /**
+   * Destination §7 补测点 4：字幕同步回归（`state.md` 的「iPhone 真机待办：字幕同步」
+   * 需要一条本地可复现的回归；真机只补「音频对齐」那一层）。
+   *
+   * 做法：把播放头设到第 N 句 `start_time + 0.2s`（HTML5 那条路每 250ms 轮询一次
+   * `currentTime` 并重算当前句，所以**暂停状态也能触发**，不依赖播放漂移），
+   * 断言入画字幕的那行字与计数都换成第 N 句。选一句时长 >3s 的，避开跳过去就翻页的短句。
+   */
+  test("字幕同步：跳到第 N 句 start+0.2s，入画字幕与计数立刻换成那一句", async ({
+    page,
+    request,
+  }) => {
+    await enterWatch(page, request, { dismissPip: false });
+
+    const videoId = new URL(page.url()).pathname.split("/").filter(Boolean).pop()!;
+    const res = await request.get(`/api/v1/videos/${videoId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok(), `取字幕失败：${res.status()}`).toBe(true);
+    const subs: { start_time: number; end_time: number; text_en: string }[] =
+      (await res.json())?.subtitles ?? [];
+    test.skip(subs.length < 3, "本地这条视频字幕太短，测不了切句");
+
+    // 第 2 句之后找一句长于 3s 的（跳过去之后不会立刻再翻页）。
+    const index = subs.findIndex((s, i) => i >= 1 && s.end_time - s.start_time > 3);
+    test.skip(index < 0, "没有时长 >3s 的句子可用");
+
+    await page
+      .locator("video")
+      .first()
+      .evaluate((v, t) => {
+        (v as HTMLVideoElement).pause();
+        (v as HTMLVideoElement).currentTime = t;
+      }, subs[index].start_time + 0.2);
+
+    await expect(page.locator('[data-testid="subtitle-counter"]')).toHaveText(
+      `${index + 1} / ${subs.length}`,
+      { timeout: 5000 }
+    );
+    const shown = (await page.locator('[data-testid="burn-subtitle-en"]').innerText())
+      .replace(/\s+/g, " ")
+      .trim();
+    expect(shown, `第 ${index + 1} 句入画字幕`).toBe(
+      subs[index].text_en.replace(/\s+/g, " ").trim()
+    );
+  });
 });
 
 test.describe("桌面端不受影响（#28 只动移动端）", () => {
