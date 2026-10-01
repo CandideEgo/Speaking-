@@ -19,6 +19,11 @@
 # The torch and transformers fixes are GPU-stack major upgrades — torch is pinned
 # in lockstep with torchaudio/torchvision CUDA builds and pyannote-audio — which
 # belong in their own change, not in a scanner-driven bump.
+#
+# Re-assessed 2026-10-02: CVE-2026-80047 added (new disclosure against the
+# unchanged transformers, CI red on master). Upstream has published no fix at all
+# (GitLab advisory: "no solution available yet"; affected 4.49.0–5.8.1), so a bump
+# is not an option — the row records why the entry point is unreachable instead.
 
 # ── torch: the 8 advisories all target operator/deserialization paths we do not call ──
 PYSEC-2025-193  2027-03-01  backend  torch.nn.utils.rnn.unpack_sequence 内存破坏。公告的 last_affected 写作 "2.6.0-NA"（非法版本号），OSV 据此判 2.8.0 不在范围内、pip-audit 判在范围内——按公告本体我们本就出界；且需本地访问（AV:L），app/ 只用 torch.cuda.*
@@ -30,12 +35,13 @@ PYSEC-2025-206  2027-03-01  backend  torch.nan_to_num().long() 整数溢出，�
 PYSEC-2026-139  2027-03-01  backend  pt2 加载处理器反序列化，公告标注仅本地可利用；项目不加载 .pt2 产物
 PYSEC-2026-2286  2027-03-01  backend  恶意 .pth 即使经 torch.load(weights_only=True) 也能内存破坏（修复于 2.10.0）；app/ 无 torch.load 调用，模型产物来自固定仓库名
 
-# ── transformers: all 5 require loading an attacker-controlled model repo or checkpoint ──
+# ── transformers: all 6 require loading an attacker-controlled model repo or checkpoint ──
 PYSEC-2025-217  2027-03-01  backend  X-CLIP checkpoint 转换反序列化，需受害者打开恶意文件；项目不加载 X-CLIP，且无 checkpoint 转换路径
 PYSEC-2026-2288  2027-03-01  backend  Trainer._load_rng_state 未加 weights_only；项目不使用 Trainer，且 torch 2.8（>=2.6）已使 safe_globals 生效
 PYSEC-2026-2289  2027-03-01  backend  恶意 config.json 的 _attn_implementation_internal 触发远端代码执行；项目不调用 AutoModelForCausalLM.from_pretrained，也不接受用户提供的模型仓库
 PYSEC-2026-2290  2027-03-01  backend  LightGlue 加载路径下 trust_remote_code 被 config.json 覆盖；项目不加载 LightGlue，全仓无 trust_remote_code 调用
 PYSEC-2026-3929  2027-03-01  backend  save_pretrained 经 chat template 名做路径穿越；项目只做推理，全仓无 save_pretrained 调用
+CVE-2026-80047  2027-03-01  backend  load_custom_generate() 在 trust_remote_code 同意之前就把 custom_generate/generate.py 写进 ~/.cache/huggingface/modules（GitLab: 4.49.0–5.8.1，无修复版本；CVSS 向量 AV:L）。全仓无 load_custom_generate 调用、无 trust_remote_code，模型仓库全是固定名（whisperx "auto" 对齐模型、oliverguhr 标点模型），不接受用户提供的仓库或 checkpoint——写盘必须先有一次我们不会发起的调用
 
 # ── nltk: not imported by first-party code, and no fix exists upstream ──
 PYSEC-2026-3740  2027-03-01  backend  TransitionParser/AveragedPerceptron/PerceptronTagger/maxent 参数 API 路径穿越；app/ 不 import nltk（经 whisperx/torchmetrics 传递引入），且 3.10.3 已是上游最新、无修复版本
