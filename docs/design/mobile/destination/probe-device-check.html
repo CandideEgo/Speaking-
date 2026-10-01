@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>
+  // viewport-fit 由 ?fit=cover|auto 决定（默认 cover，与 app 的 viewport 导出一致），
+  // 必须在解析期写入 meta 才生效 —— 与 baseline/dev-probe.html 同一手法。
+  var __fit = new URLSearchParams(location.search).get("fit") === "auto" ? "auto" : "cover";
+  document.write('<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=' + __fit + '">');
+</script>
+<title>seeword 真机验收探针（wayfinder #20 destination）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 12px 120px;
+    background: #101318; color: #e8ecf2;
+    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 17px; margin: 14px 0 4px; }
+  h2 { font-size: 15px; margin: 24px 0 6px; color: #9fb3cd; font-weight: 600; }
+  h3 { font-size: 14px; margin: 14px 0 4px; color: #b9c7da; font-weight: 600; }
+  p.note, ol.note, ul.note { margin: 6px 0; color: #93a3b8; font-size: 13px; }
+  ol.note, ul.note { padding-left: 20px; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: #cfe3ff; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 3px 0; border-bottom: 1px solid #232a35; vertical-align: top; }
+  td.k { color: #9fb3cd; }
+  td.v { text-align: right; font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hi { color: #ffd166; font-weight: 700; }
+  .ok { color: #63d68a; }
+  .bad { color: #ff8b7d; }
+  .row { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+  button {
+    flex: 1 1 140px; padding: 12px 8px; font-size: 15px; font-weight: 600;
+    background: #273040; color: #e8ecf2; border: 1px solid #3a4658; border-radius: 10px;
+  }
+  button:active { background: #35415a; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #273040; font-size: 12px; }
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+    background: rgba(16,19,24,.93); border-bottom: 1px solid #2a3342;
+    padding: 6px 12px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+    white-space: nowrap; overflow-x: auto;
+  }
+  .topstrip { position: fixed; top: 0; left: 0; right: 0; height: 5px; background: #ff00e1; z-index: 70; }
+  /* 真实 fixed 陷阱条：4px 橙条钉在 layout viewport 底（= fixed bottom:0 的落点）。 */
+  .fixedstrip { position: fixed; left: 0; right: 0; bottom: 0; height: 4px; background: #ff8c1a; z-index: 55; }
+  textarea {
+    width: 100%; height: 260px; background: #0b0e13; color: #cfe3ff;
+    border: 1px solid #2a3342; border-radius: 8px; padding: 8px;
+    font: 12px/1.45 ui-monospace, Consolas, monospace;
+  }
+  input[type=text] {
+    width: 100%; padding: 10px; background: #0b0e13; color: #cfe3ff;
+    border: 1px solid #2a3342; border-radius: 8px; font: 13px ui-monospace, Consolas, monospace;
+  }
+  pre.out {
+    white-space: pre-wrap; word-break: break-all; background: #0b0e13; border: 1px solid #2a3342;
+    border-radius: 8px; padding: 8px; font: 12px/1.45 ui-monospace, Consolas, monospace; color: #cfe3ff;
+    margin: 6px 0;
+  }
+  /* iframe 可能比窄屏还宽（414 档在 375 手机上）：让它自己横滚，不许把整页撑出横向滚动。 */
+  .framewrap { margin: 0 -12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 12px; }
+  /* #25 P6：自绘伪全屏的几何探针 —— 闪 1.8 秒，量 fixed inset:0 的底边 vs 可视区底边。 */
+  #fsov {
+    display: none; position: fixed; inset: 0; z-index: 65;
+    background: rgba(232, 86, 47, .28); border: 2px solid #e8562f;
+  }
+
+  /* ================= 复刻台（把 app 的移动端版式数值搬到这里量） =================
+     数值来源（frontend/src，不在本页复制实现，只复制几何）：
+       · 壳          app/(main)/MainLayoutInner.tsx:63-69   flex column h-dvh + env() 安全区 padding
+       · 底栏        components/layout/MobileTabBar.tsx:64-93  常规流收尾行（非 fixed），min-h 44px
+       · 画框        (main)/watch/[id]/page.tsx:928-937  w-screen aspect-video，顶边贴壳顶
+       · 入画字幕    components/watch/VideoControls.tsx:200-207  absolute inset-x-0 bottom-[3px]
+       · 细进度      components/watch/VideoControls.tsx:210-218  absolute bottom-0 h-[3px]
+       · 标题 overlay (main)/watch/[id]/page.tsx:1003-1025  返回键 44px + 标题画在画面内
+       · 词卡        components/watch/WordCardSheet.tsx:59-60   top=max(8,min(frameBottom, tabTop-240))
+       · 跟读抽屉    components/watch/ShadowingDrawer.tsx:105-106 top=max(8,max(tabTop-400, frameBottom))
+  */
+  .stage {
+    /* 出血满宽：靠负外边距吃掉 body 的 12px padding（不用 100vw —— 它会把滚动条宽度算进去）。 */
+    position: relative; width: auto; margin: 0 -12px; overflow: hidden;
+    background: #0c0f14; box-shadow: inset 0 1px 0 #2a3342, inset 0 -1px 0 #2a3342;
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+  }
+  .stage .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #1b2430; flex: none; }
+  .stage .burn {
+    position: absolute; left: 0; right: 0; bottom: 3px;
+    background: linear-gradient(to top, rgba(0,0,0,.9), rgba(0,0,0,.7), rgba(0,0,0,0));
+    padding: 6px 12px 10px; text-align: left; font-size: 16px; line-height: 1.35; font-weight: 600; color: #fff;
+    user-select: none; -webkit-user-select: none;      /* 与 VideoControls 根节点 select-none 一致 */
+  }
+  /* globals.css:615-617 .burn-sub-zh：mt-0.5 leading-[1.3] */
+  .stage .burn .zh { font-size: 12.5px; line-height: 1.3; font-weight: 400; color: rgba(255,255,255,.85); margin-top: 2px; }
+  /* globals.css:618-628 .burn-sub-word + ::after{inset:-4px -1px} —— 热区向外扩 4px，排版不动。 */
+  .stage .burn .w { position: relative; pointer-events: auto; touch-action: manipulation; padding: 0 1px; }
+  .stage .burn .w::after { content: ""; position: absolute; inset: -4px -1px; }
+  .stage .thin { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.25); }
+  .stage .thin i { display: block; height: 100%; width: 37%; background: #e8562f; }
+  .stage .titleov { position: absolute; left: 0; right: 0; top: 0; padding: 8px 8px 32px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.6), rgba(0,0,0,.25), rgba(0,0,0,0));
+    display: flex; gap: 8px; align-items: flex-start; }
+  .stage .back { width: 44px; height: 44px; border-radius: 999px; background: rgba(0,0,0,.35); flex: none; }
+  .stage .ttl { font-size: 13px; font-weight: 700; color: #fff; padding-top: 6px; }
+  .stage .filler { flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; color: #6f8098; font-size: 12px; }
+  .stage .tabbar {
+    flex: none; min-height: 44px; border-top: 1px solid #2a3342; background: #101318;
+    display: flex; align-items: center; justify-content: space-around; font-size: 10px; color: #93a3b8;
+  }
+  .stage .tabbar span { flex: 1; text-align: center; }
+  .stage .card, .stage .drawer {
+    position: absolute; left: 0; right: 0; background: #101318; border-top: 1px solid #2a3342;
+    border-radius: 16px 16px 0 0; padding: 8px 12px; font-size: 12px; color: #9fb3cd;
+  }
+  .stage .card { overflow: hidden; }
+  .stage .drawer { overflow: hidden; }
+  .stage .grab { width: 40px; height: 4px; border-radius: 2px; background: #35415a; margin: 0 auto 8px; }
+  .measure { position: absolute; left: -9999px; top: 0; width: 1px; visibility: hidden; }
+
+  /* ================= 手势测试块 ================= */
+  .gesturebox {
+    margin: 8px 0; padding: 14px; border: 1px dashed #4a5a72; border-radius: 10px;
+    background: #141a24; font-size: 14px; color: #cfe3ff; text-align: center;
+  }
+  .gesturebox.armed { border-color: #ffd166; background: #201d13; }
+  .gesturebox .w { font-size: 17px; font-weight: 600; color: #fff; }
+  .gesturebox.manip { touch-action: manipulation; }
+  .gesturebox.noManip { touch-action: auto; }
+  .selectable { user-select: text; -webkit-user-select: text; }
+  .noselect { user-select: none; -webkit-user-select: none; }
+</style>
+</head>
+<body>
+
+<div class="topstrip"></div>
+<div class="hud" id="hud">载入中…</div>
+<div class="fixedstrip" id="fixedstrip"></div>
+
+<h1>seeword 真机验收探针 <span class="pill" id="fitpill"></span></h1>
+<p class="note">
+  自包含单文件（无外链、无框架）。只为 <b>wayfinder #20 destination</b> 的真机验收取读数，<b>不随生产构建发布</b> ——
+  它住在 <code>docs/design/mobile/destination/</code>，要跑时拷进 <code>frontend/public/</code>。
+  数字全部来自浏览器 API 与 <code>getBoundingClientRect()</code>，不是目测。
+</p>
+
+<h2>怎么用</h2>
+<ol class="note">
+  <li>电脑：<code>copy docs\design\mobile\destination\probe-device-check.html frontend\public\</code>（dev 站要跑在 :3000）</li>
+  <li>手机 Safari 打开 <code>http://&lt;局域网IP&gt;:3000/probe-device-check.html?fit=cover</code>。<b>先登录</b>（否则登录墙会把你弹到 /login —— 探针页也在墙后面）</li>
+  <li>点「开始（记本机信息）」→ 得到 <code>[dev]</code> 段</li>
+  <li>上滑让地址栏收起 → 「记 A」；下拉露出地址栏 → 「记 B」</li>
+  <li>点「量复刻版式」→ 得到 <code>[复刻]</code> 段（本页把 app 的移动端几何按同一套数值搭出来量）</li>
+  <li>点「测伪全屏几何」→ 屏幕闪一层橙色覆盖层，得到 <code>[伪全屏 #25 P6]</code> 段</li>
+  <li>（可选，最有用）C 段载入真实播放页，量真实 DOM：首屏 → 滚走 → 点词 → 开抽屉，各点一次「量一次」</li>
+  <li>D 段按提示做手势（双击 / 长按 / 单击 / 纵向拖），E 段是只有人眼能判的项</li>
+  <li>滚到底 → 「选中报告」→ <b>长按文本框 → 全选 → 拷贝</b> → 贴回给 Lead（原文逐字存盘，见 device-acceptance.md）</li>
+</ol>
+<p class="note">
+  <b>读数会自动存在本机</b>（localStorage）：切到别的 App、Safari 重载、甚至误触下拉刷新，回来都还在；
+  想从头再来就点「清空全部读数，重来」。
+</p>
+<p class="note">
+  <b>http 下没有剪贴板 API</b>：局域网 http 不是安全上下文，所以「尝试复制」会退化成手动全选拷贝 —— 这是预期行为，不是坏掉。
+  另外 <b>http 下 <code>navigator.mediaDevices</code> 根本不存在</b>，跟读录音那一项要 HTTPS 才能验（见 device-acceptance.md 的「关键风险」一节）。
+</p>
+
+<div class="row">
+  <button id="btnStart">开始（记本机信息）</button>
+  <button id="btnA">记 A（地址栏收起）</button>
+  <button id="btnB">记 B（地址栏出现）</button>
+</div>
+<div class="row">
+  <button id="btnPseudoFs">测伪全屏几何（#25 P6）</button>
+  <button id="btnReset">清空全部读数，重来</button>
+</div>
+<pre class="out" id="fsout">（#25 P6：点上面那个按钮，屏幕会闪出一层 <code>position:fixed; inset:0</code> 的橙色覆盖层 —— 它要回答的是「自绘伪全屏」到底能不能盖住可视区，还是像 <code>fixed</code> 一样伸出 40px。）</pre>
+<div id="fsov"></div>
+
+<h2>A · 环境真值（实时）</h2>
+<table id="live"></table>
+
+<h3>安全区（env(safe-area-inset-*)）</h3>
+<table id="safe"></table>
+<p class="note">
+  当前 <b id="fitname"></b> 模式，<a id="linkfit" href="#">切到另一种</a>后重载。
+  baseline 读数（iPhone 11 / Safari 27）：<b>fit=auto 与 fit=cover 四边都是 0</b> —— cover 在 Safari 浏览器模式下没生效。
+  这里就是复测这一点：四边若仍是 0，壳上那段 <code>env()</code> padding 在浏览器模式下是 no-op（只在「加到主屏幕」和有 cutout 的 Android 上生效）。
+</p>
+
+<h3>A → B 差值</h3>
+<table id="diff"><tr><td class="k">还没记</td><td class="v"></td></tr></table>
+
+<h2>B · 复刻版式（按 app 的数值在真机上量）</h2>
+<p class="note">
+  下面是<b>复刻台</b>：它把 app 移动端播放页的几何按同一套数值搭出来（壳 <code>h-dvh</code> + 常规流底栏、画框 <code>aspect-video</code> 顶到壳顶、
+  入画字幕 <code>bottom:3px</code>、3px 细进度、标题 overlay、词卡与抽屉的卡口公式），现场量给你看。
+  它<b>不是</b> app 本身 —— app 的 DOM 在 C 段量。<b>真实 fixed 4px 橙条</b>钉在页面底：它是 <code>fixed bottom:0</code> 的落点，用来对照底栏（常规流）贴不贴底。
+</p>
+<div class="row"><button id="btnReplica">量复刻版式</button></div>
+<pre class="out" id="replicaout">（还没量）</pre>
+
+<div class="stage" id="stage">
+  <div class="frame" id="stFrame">
+    <div class="titleov"><div class="back"></div><div class="ttl">标题画在画面里（overlay，不占首屏高度）</div></div>
+    <div class="burn" id="stBurn">
+      <div><span class="w" id="stWord">welcome</span> to the real device acceptance probe for the mobile watch page</div>
+      <div class="zh">真机验收探针：这是按 app 数值复刻的入画字幕</div>
+    </div>
+    <div class="thin" id="stThin"><i></i></div>
+  </div>
+  <div class="filler">复刻台内容区（app 这里是字幕卡 + 文稿列表）<br>长按 / 双击上面的单词，D 段会记录结果。</div>
+  <div class="tabbar" id="stTab"><span>首页</span><span>频道</span><span>练习</span><span>单词训练</span><span>我的</span></div>
+  <div class="card" id="stCard">
+    <div class="grab"></div>
+    复刻词卡（#27：顶边 = 画面下沿，高度随内容，底边不越底栏上沿）
+    <div style="height:300px"></div>
+  </div>
+  <div class="drawer" id="stDrawer">
+    <div class="grab"></div>
+    复刻跟读抽屉（#26：底边贴底栏上沿，顶边 = max(底栏顶 − 400, 画框下沿)）
+    <div style="height:380px"></div>
+  </div>
+</div>
+
+<h2>C · 真实播放页（同源 iframe，量真实 DOM）</h2>
+<p class="note">
+  <b>前提</b>：本页必须与 app <b>同源</b>（即从 <code>frontend/public/</code> 用 :3000 打开），且这台手机已登录。
+  在下面这块里操作 app：<b>首屏 → 上滑把画面滚出视口顶部（收成迷你窗）→ 点画面里的词（开词卡）→ 点「录音」（开抽屉）</b>，
+  每做完一步回来点一次「量一次」，报告里就会多一段 <code>[app#n]</code>。
+  iframe 里没有地址栏（上面的 A 段才是地址栏的真读数），但元素之间的几何是 app 自己的。
+</p>
+<p class="note">
+  路径填 app 的播放页。不知道 id 就点「取第一条 ready 视频」自动填（走 <code>/api/v1/videos/public</code>，需要已登录）。
+</p>
+<div class="row">
+  <button id="btnPick">取第一条 ready 视频</button>
+  <button id="btnLoad">载入 app</button>
+  <button id="btnSnap">量一次</button>
+</div>
+<input type="text" id="apppath" placeholder="/watch/&lt;video-id&gt;（或任何同源路径）">
+<p class="note">
+  尺寸：<a href="#" id="szA">375×812</a> · <a href="#" id="szB">414×896</a> · <a href="#" id="szC">本机全宽×可视高</a>（当前 <b id="szname">375×812</b>）
+</p>
+<div class="framewrap"><iframe id="appframe" style="width:375px;height:812px;border:1px solid #2a3342;border-radius:10px;background:#000;display:block"></iframe></div><pre class="out" id="appout">（还没载入）</pre>
+
+<h2>D · 手势（本页复刻元素上做，自动判）</h2>
+<h3>D1 双击是否触发页面缩放</h3>
+<p class="note">
+  点下面按钮 → 在<b>亮起的框里双击</b>（1 秒内两次）。<code>touch-action: manipulation</code> 是「不要双击缩放」的标准写法（app 里单词热区也是它）。
+  判定：<code>dblclick</code> 事件到达 = 浏览器没缩放；<code>visualViewport.scale</code> 变大 = 缩放了。
+</p>
+<div class="row"><button id="btnDbl">测双击（manipulation）</button><button id="btnDbl2">测双击（默认 touch-action）</button></div>
+<div class="gesturebox manip" id="dblbox">在这里双击（manipulation）<br><span class="w">welcome</span></div>
+<div class="gesturebox noManip" id="dblbox2">在这里双击（默认 touch-action）<br><span class="w">welcome</span></div>
+
+<h3>D2 长按是否出菜单 / 选中</h3>
+<p class="note">
+  点按钮 → 在两个框里各<b>长按单词 1 秒</b>。左框是 app 的画法（父层 <code>select-none</code>，无 callout 抑制），
+  右框加了 <code>-webkit-touch-callout:none</code>。判定记录 <code>contextmenu</code> 事件与是否选中了文本。
+</p>
+<div class="row"><button id="btnLong">测长按</button></div>
+<div class="gesturebox noselect" id="lpbox">app 画法（select-none）——长按 <span class="w" id="lpw1">welcome</span></div>
+<div class="gesturebox selectable" id="lpbox2" style="-webkit-touch-callout:none">callout 抑制（touch-callout:none）——长按 <span class="w" id="lpw2">welcome</span></div>
+
+<h3>D3 单词单击延迟（#29 的输入）</h3>
+<p class="note">点「测单击」→ 点一下单词。记录 <code>touchstart → click</code> 的毫秒数：manipulation 下应 &lt; 50ms，没写的话 iOS 经典 300ms 延迟。</p>
+<div class="row"><button id="btnTap">测单击</button></div>
+<div class="gesturebox manip" id="tapbox">点一下这个单词：<span class="w" id="tapword">welcome</span></div>
+
+<h3>D4 麦克风 / 录音能力</h3>
+<p class="note">点一下即可。http 下这一行会是「不可用」—— 那不是 bug，是不安全上下文的硬限制（详见 device-acceptance.md）。</p>
+<div class="row"><button id="btnMic">测麦克风</button></div>
+<pre class="out" id="micout">（还没测）</pre>
+
+<h3>D5 画框上纵向拖会不会滚页（#29 的 P8）</h3>
+<p class="note">
+  先点「① 记当前位置」，然后<b>在复刻台的画面区纵向拖 100px</b>（手指按住画面往上/下拖），再点「② 读结果」。
+  这条决定画面上能不能用 <code>touch-action:none</code>：若纵向拖动本来就不滚页，关掉缩放的代价为零。
+</p>
+<div class="row"><button id="btnDragMark">① 记当前位置</button><button id="btnDragRead">② 拖完后读</button></div>
+<pre class="out" id="dragout">（还没测）</pre>
+
+<h3>D 段结果</h3>
+<pre class="out" id="gestout">（还没测）</pre>
+
+<h2>E · 只有人眼能判的（本页量不出来）</h2>
+<ul class="note">
+  <li><b>V9 字幕同步</b>：画面上那句与听到的语音是否对得上（视频 / 文稿列表点句跳转后各看一次）</li>
+  <li><b>V8 滚动形态</b>：滚过画面之后是什么形态（贴顶常驻 / 小窗）、退出键好不好按、会不会压底栏</li>
+  <li><b>V15 全屏</b>：全屏后入画字幕与点词还在不在、怎么退出</li>
+  <li><b>V16 首帧闪烁</b>：进页面第一帧有没有闪一下桌面控制条</li>
+  <li><b>V12 旋转</b>：横过来再竖回去，词卡 / 抽屉 / 画面是否重算</li>
+  <li>还有麦克风录音本身（V7）—— http 下做不了，见文档的「关键风险」</li>
+</ul>
+<p class="note">每一条的编号、做法、通过标准在 <code>docs/design/mobile/destination/device-acceptance.md</code>；回传模板也在那份文档里。</p>
+
+<h2>报告</h2>
+<div class="row">
+  <button id="btnSel">选中报告</button>
+  <button id="btnClip">尝试复制</button>
+</div>
+<textarea id="report" readonly></textarea>
+
+<script>
+(function () {
+  "use strict";
+  var fit = __fit;
+  var $ = function (id) { return document.getElementById(id); };
+  function r1(n) { return typeof n === "number" && isFinite(n) ? Math.round(n * 10) / 10 : n; }
+  function fmt(n) { return typeof n === "number" && isFinite(n) ? String(r1(n)) : String(n); }
+  function nowIso() { return new Date().toISOString(); }
+
+  $("fitpill").textContent = "fit=" + fit;
+  $("fitname").textContent = "fit=" + fit;
+  $("linkfit").setAttribute("href", "?fit=" + (fit === "cover" ? "auto" : "cover"));
+  $("linkfit").textContent = "切到 fit=" + (fit === "cover" ? "auto" : "cover");
+
+  /* ---------- 量具 ---------- */
+  var probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;left:-9999px;top:0;width:1px;visibility:hidden";
+  document.body.appendChild(probe);
+  function boxH(v) { probe.style.height = v; return probe.getBoundingClientRect().height; }
+
+  var safeProbe = document.createElement("div");
+  safeProbe.style.cssText =
+    "position:absolute;left:-9999px;top:0;width:1px;visibility:hidden;" +
+    "padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);" +
+    "padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)";
+  document.body.appendChild(safeProbe);
+  function inset(side) { return parseFloat(getComputedStyle(safeProbe)["padding" + side]) || 0; }
+
+  function vv() { return window.visualViewport || null; }
+  function media() {
+    var m = navigator.mediaDevices;
+    return {
+      mediaDevices: m ? "存在" : "不存在",
+      getUserMedia: (m && typeof m.getUserMedia === "function") ? "可用" : "不可用",
+      MediaRecorder: (typeof window.MediaRecorder !== "undefined") ? "存在" : "不存在"
+    };
+  }
+
+  var ENV = [
+    ["innerHeight", function () { return window.innerHeight; }],
+    ["100vh（旧写法 h-screen）", function () { return boxH("100vh"); }],
+    ["100svh（地址栏出现时）", function () { return boxH("100svh"); }],
+    ["100lvh（地址栏收起时）", function () { return boxH("100lvh"); }],
+    ["100dvh（动态，app 壳用的）", function () { return boxH("100dvh"); }],
+    ["visualViewport.height", function () { var v = vv(); return v ? v.height : "n/a"; }],
+    ["visualViewport.offsetTop", function () { var v = vv(); return v ? v.offsetTop : "n/a"; }],
+    ["visualViewport.scale", function () { var v = vv(); return v ? v.scale : "n/a"; }],
+    ["100vh − 可视高（旧壳漏出的量）", function () { var v = vv(); return v ? r1(boxH("100vh") - v.height) : "n/a"; }],
+    ["100dvh − 可视高（app 壳的误差）", function () { var v = vv(); return v ? r1(boxH("100dvh") - v.height) : "n/a"; }],
+    ["innerWidth / clientWidth", function () { return window.innerWidth + " / " + document.documentElement.clientWidth; }],
+    ["本页横向可滚量（scrollWidth − innerWidth）", function () {
+      // 桌面 Chromium 的经典滚动条会让 scrollWidth − clientWidth 虚增一条滚动条的宽，
+      // 所以这里对齐 layout viewport（innerWidth）：真机上两个算法都是 0。
+      return document.documentElement.scrollWidth - window.innerWidth;
+    }],
+    ["screen.width × screen.height", function () { return screen.width + " × " + screen.height; }],
+    ["devicePixelRatio", function () { return window.devicePixelRatio; }],
+    ["方向", function () {
+      return (screen.orientation && screen.orientation.type) || (window.innerWidth > window.innerHeight ? "landscape" : "portrait");
+    }],
+    ["scrollY", function () { return r1(window.scrollY); }],
+    ["安全上下文（https / localhost）", function () { return window.isSecureContext ? "是" : "否（http 局域网）"; }],
+    ["standalone（加到主屏幕）", function () {
+      return (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) ? "是" : "否";
+    }],
+    ["navigator.mediaDevices", function () { return media().mediaDevices; }],
+    ["getUserMedia / MediaRecorder", function () { var m = media(); return m.getUserMedia + " / " + m.MediaRecorder; }],
+    ["显示屏色深 / 触点数", function () { return screen.colorDepth + " bit / " + (navigator.maxTouchPoints || 0); }],
+    // #25 的能力门控判据（fullscreen-orientation.md 的 P1/P8）：非 iPhone 的机型可能真的支持元素全屏。
+    ["fullscreenEnabled / div.requestFullscreen", function () {
+      var d = document.createElement("div");
+      return (document.fullscreenEnabled ? "true" : "false") + " / " + (typeof d.requestFullscreen);
+    }],
+    ["video.webkitEnterFullscreen（iOS 回退）", function () {
+      return typeof document.createElement("video").webkitEnterFullscreen;
+    }],
+    ["screen.orientation / orientation.lock", function () {
+      return (typeof screen.orientation) + " / " + (screen.orientation ? typeof screen.orientation.lock : "n/a");
+    }]
+  ];
+  var SAFE = [
+    ["safe-area-inset-top", function () { return inset("Top"); }],
+    ["safe-area-inset-right", function () { return inset("Right"); }],
+    ["safe-area-inset-bottom", function () { return inset("Bottom"); }],
+    ["safe-area-inset-left", function () { return inset("Left"); }]
+  ];
+
+  function snapshot() {
+    var raw = {};
+    ENV.concat(SAFE).forEach(function (m) { raw[m[0]] = m[1](); });
+    return { t: nowIso(), fit: fit, raw: raw };
+  }
+
+  function renderTable(target, defs, snap, prev) {
+    var out = "";
+    defs.forEach(function (m) {
+      var v = snap.raw[m[0]], d = "";
+      if (prev && typeof v === "number" && typeof prev.raw[m[0]] === "number") {
+        var delta = v - prev.raw[m[0]];
+        if (Math.abs(delta) >= 0.5) d = " <span class='hi'>(" + (delta > 0 ? "+" : "") + r1(delta) + ")</span>";
+      }
+      out += "<tr><td class='k'>" + m[0] + "</td><td class='v'>" + fmt(v) + d + "</td></tr>";
+    });
+    target.innerHTML = out;
+  }
+
+  /* ---------- 状态 ---------- */
+  var dev = null;      // [dev] 本机信息
+  var A = null, B = null;
+  var replica = null;  // [复刻]
+  var appSnaps = [];   // [app#n]
+  var appNote = null;  // C 段说明
+  var fs = null;       // [伪全屏] #25 P6
+  var gest = { dbl: null, dbl2: null, lp: null, tap: null, mic: null, scroll: null, drag: null };
+
+  /* ---------- 读数持久化：手机上切 App / Safari 重载 / 下拉刷新都不该丢读数 ---------- */
+  var SKEY = "seeword_probe_state_v1";
+  function save() {
+    try {
+      localStorage.setItem(SKEY, JSON.stringify({
+        v: 1, dev: dev, A: A, B: B, replica: replica, appSnaps: appSnaps, appNote: appNote, gest: gest, fs: fs
+      }));
+    } catch (e) { /* 隐私模式等：静默 */ }
+  }
+  function restore() {
+    try {
+      var s = JSON.parse(localStorage.getItem(SKEY) || "null");
+      if (!s || s.v !== 1) return;
+      dev = s.dev || null; A = s.A || null; B = s.B || null;
+      replica = s.replica || null; appSnaps = s.appSnaps || []; appNote = s.appNote || null;
+      fs = s.fs || null;
+      if (s.gest) { for (var k in s.gest) { if (s.gest[k]) gest[k] = s.gest[k]; } }
+      if (replica) $("replicaout").textContent = replica.rows.map(function (r) { return "  " + r; }).join("\n");
+      if (appSnaps.length) {
+        $("appout").textContent = (appNote ? appNote + "\n" : "") + appSnaps.map(function (x, i) {
+          return "[app#" + (i + 1) + " · " + x.phase + "] " + x.t + "\n" + x.rows.map(function (r) { return "  " + r; }).join("\n") +
+            (x.notes.length ? "\n  " + x.notes.join("\n  ") : "");
+        }).join("\n");
+      }
+      if (fs) $("fsout").textContent = fs.lines.join("\n");
+      if (gest.mic) $("micout").textContent = gest.mic.join("\n");
+      if (dev) $("btnStart").textContent = "开始 ✓（已从上次读数恢复）";
+      if (A) $("btnA").textContent = "记 A ✓ 重记";
+      if (B) $("btnB").textContent = "记 B ✓ 重记";
+    } catch (e) { /* 坏数据就当没有 */ }
+  }
+
+  /* ---------- A · 实时 ---------- */
+  function tick() {
+    var s = snapshot();
+    renderTable($("live"), ENV, s, null);
+    renderTable($("safe"), SAFE, s, null);
+    var v = vv();
+    $("hud").textContent =
+      "可视高 " + fmt(s.raw["visualViewport.height"]) +
+      " · innerH " + fmt(s.raw["innerHeight"]) +
+      " · 100vh " + fmt(s.raw["100vh（旧写法 h-screen）"]) +
+      " · 100dvh " + fmt(s.raw["100dvh（动态，app 壳用的）"]) +
+      " · scale " + fmt(s.raw["visualViewport.scale"]) +
+      " · " + (window.isSecureContext ? "https" : "http") +
+      " · " + fmt(s.raw["方向"]);
+    if (v) { /* noop, kept for symmetry */ }
+  }
+
+  function renderDiff() {
+    var t = $("diff");
+    if (!A || !B) { t.innerHTML = "<tr><td class='k'>还没记</td><td class='v'></td></tr>"; return; }
+    var keys = [
+      "innerHeight", "visualViewport.height", "visualViewport.offsetTop",
+      "100vh（旧写法 h-screen）", "100dvh（动态，app 壳用的）", "100svh（地址栏出现时）",
+      "100lvh（地址栏收起时）", "safe-area-inset-bottom"
+    ];
+    var out = "<tr><td class='k'>指标</td><td class='v'>A → B</td></tr>";
+    keys.forEach(function (k) {
+      var a = A.raw[k], b = B.raw[k];
+      if (typeof a !== "number" || typeof b !== "number") return;
+      out += "<tr><td class='k'>" + k + "</td><td class='v'>" + fmt(a) + " → " + fmt(b) +
+        " <span class='hi'>Δ" + (b - a > 0 ? "+" : "") + r1(b - a) + "</span></td></tr>";
+    });
+    t.innerHTML = out;
+  }
+
+  /* ---------- B · 复刻台 ---------- */
+  function rectOf(el) { var r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right }; }
+
+  function measureReplica() {
+    var stage = $("stage"), frame = $("stFrame"), burn = $("stBurn"), thin = $("stThin");
+    var tab = $("stTab"), card = $("stCard"), drawer = $("stDrawer"), word = $("stWord");
+    var strip = $("fixedstrip");
+    var v = vv();
+
+    var stageH = stage.offsetHeight;
+    var frameR = frame.getBoundingClientRect();
+    var frameBottom = frameR.bottom;                                  // 视口坐标
+    var tabR = tab.getBoundingClientRect();
+    var tabTop = tabR.top, tabH = tabR.height;
+    var stageR = stage.getBoundingClientRect();
+    var frameW = Math.round(frameR.width);
+
+    // 词卡：top = max(8, min(frameBottom, tabTop - 240))，maxHeight = max(240, tabTop - top)
+    var cardTop = Math.max(8, Math.min(frameBottom, tabTop - 240));
+    var cardMaxH = Math.max(240, tabTop - cardTop);
+    // 内容 300px → 卡高 = min(300, maxHeight)（WordCardSheet 是高度随内容）
+    var cardH = Math.min(300, cardMaxH);
+    // 抽屉：top = max(8, max(tabTop - 400, frameBottom))，height = max(120, tabTop - top)
+    var drawerTop = Math.max(8, Math.max(tabTop - 400, frameBottom));
+    var drawerH = Math.max(120, tabTop - drawerTop);
+
+    card.style.top = (cardTop - stageR.top) + "px"; card.style.height = cardH + "px";
+    drawer.style.top = (drawerTop - stageR.top) + "px"; drawer.style.height = drawerH + "px";
+
+    var burnR = burn.getBoundingClientRect();
+    var burnTopInFrame = burnR.top - frameR.top;
+
+    // 行内词热区：排版高 + ::after 外扩后的**有效命中高**（用 elementFromPoint 上下探）。
+    var wR = word.getBoundingClientRect();
+    var cx = wR.left + wR.width / 2, hitTop = wR.top, hitBottom = wR.bottom;
+    for (var y = wR.top - 12; y <= wR.bottom + 12; y += 1) {
+      var hit = document.elementFromPoint(cx, y);
+      if (hit === word || (hit && hit.parentNode === word)) {
+        if (y < hitTop) hitTop = y;
+        if (y > hitBottom) hitBottom = y;
+      }
+    }
+
+    var rows = [];
+    rows.push("本页自身横向可滚量 = " + (document.documentElement.scrollWidth - window.innerWidth) +
+      "（应 = 0；探针页自己不许横向滚）");
+    rows.push("复刻台宽 " + frameW + "（clientWidth " + document.documentElement.clientWidth +
+      "，innerWidth " + window.innerWidth + "）· 台高 " + fmt(stageH) +
+      "（100dvh = " + fmt(boxH("100dvh")) + "，可视高 = " + fmt(v ? v.height : "n/a") + "）");
+    rows.push("画框 x/w/h = 0 / " + frameW + " / " + fmt(frameR.height) + "（aspect-video 16:9，顶边贴壳顶 = 台顶）");
+    rows.push("露出画面（入画字幕顶 − 画框顶） = " + fmt(burnTopInFrame) + "   ← #28 的可见画面地板 67 → 129px 就该看这个数（复刻字幕字号/行高与 app 一致，差几 px 正常）");
+    rows.push("入画字幕底边 + 3px 细进度 − 画框底 = " + fmt(burnR.bottom + 3 - frameR.bottom) + "   ← 应为 0（INV-021）");
+    rows.push("细进度高 = " + fmt(thin.offsetHeight) + "（应为 3）");
+    rows.push("底栏高 = " + fmt(tabH) + "（≥44）· 底栏底边 − 台底 = " + fmt(stageR.bottom - tabR.bottom) +
+      "（0 = 常规流收尾行贴住 dvh 底边；参照物是壳底 = 可视区底）");
+    rows.push("词卡顶边 − 画框下沿 = " + fmt(cardTop - frameBottom) + "（0 = #27 的卡口；>0 说明底栏顶被 240px 最小高顶下去了）· 卡高 " + fmt(cardH) +
+      " · 卡底 − 底栏顶 = " + fmt(tabTop - cardTop - cardH));
+    rows.push("抽屉底边 − 底栏顶 = " + fmt(tabTop - drawerTop - drawerH) + "（0 = INV-022）· 抽屉顶边 − 画框下沿 = " + fmt(drawerTop - frameBottom) +
+      "（≥0 = 不压画面）· 抽屉高 " + fmt(drawerH) + "（≤400 半屏档）");
+    rows.push("行内单词：排版高 = " + fmt(wR.height) + " · 有效命中高（含 ::after 外扩）= " + fmt(hitBottom - hitTop) +
+      "（app 是 16px 字号 → 21.6px 行高 + 上下各 4px；44px 在行内做不出，见 #27）");
+    rows.push("复刻底栏 vs 真实 fixed 条：fixed 4px 条底边 " + fmt(strip.getBoundingClientRect().bottom) +
+      "，可视区底边 " + fmt(v ? r1(v.offsetTop + v.height) : "n/a") +
+      " → 差 " + fmt(v ? r1(strip.getBoundingClientRect().bottom - v.offsetTop - v.height) : "n/a") +
+      "（非 0 = fixed 层被地址栏拽出可视区，INV-019 的病历）");
+
+    replica = { t: nowIso(), rows: rows };
+    var out = rows.map(function (s) { return "  " + s; }).join("\n");
+    $("replicaout").textContent = out;
+    render();
+  }
+
+  /* ---------- C · 真实 app ---------- */
+  var IF = $("appframe");
+  var SIZES = {
+    a: { w: 375, h: 812, name: "375×812" },
+    b: { w: 414, h: 896, name: "414×896" },
+    c: { w: null, h: null, name: "本机全宽×可视高" }
+  };
+  var curSize = "a";
+  function applySize() {
+    var s = SIZES[curSize];
+    IF.style.width = (s.w ? s.w + "px" : "100%");
+    IF.style.height = (s.h ? s.h + "px" : Math.max(320, (vv() ? vv().height : window.innerHeight) - 40) + "px");
+    $("szname").textContent = s.name;
+  }
+  $("szA").onclick = function (e) { e.preventDefault(); curSize = "a"; applySize(); };
+  $("szB").onclick = function (e) { e.preventDefault(); curSize = "b"; applySize(); };
+  $("szC").onclick = function (e) { e.preventDefault(); curSize = "c"; applySize(); };
+
+  function iframeBox(sel) {
+    var d = IF.contentDocument;
+    if (!d) return null;
+    var el = d.querySelector(sel);
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    // 0×0 的盒子当「没渲染」：隐藏态（display:none / hidden）的元素也会被 querySelector 找到，
+    // 直接报 0 会打出一串看着像真读数的假数字。
+    if (r.width < 0.5 || r.height < 0.5) return null;
+    return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right };
+  }
+  function iframeText(sel) {
+    var d = IF.contentDocument;
+    if (!d) return "—";
+    var el = d.querySelector(sel);
+    return el ? String(el.textContent || "").trim().slice(0, 60) : "—";
+  }
+
+  function loadApp() {
+    var p = $("apppath").value.trim();
+    if (!p) { appNote = "跳过：没填路径（点「取第一条 ready 视频」或手填 /watch/<id>）"; $("appout").textContent = appNote; render(); return; }
+    if (p.charAt(0) !== "/") p = "/" + p;
+    appNote = "载入 " + p + " …（Next dev 首次编译可能要 20–60s）";
+    $("appout").textContent = appNote;
+    appSnaps = [];
+    IF.src = p;
+    var tries = 0;
+    (function wait() {
+      tries++;
+      var ok = false;
+      try { ok = !!(IF.contentDocument && IF.contentDocument.querySelector("video")); } catch (e) { ok = false; }
+      if (ok) { appNote = "已载入 " + p + "（" + tries * 500 + "ms 内出现 <video>）；在该块里操作 app，然后点「量一次」"; $("appout").textContent = appNote; measureApp("首屏"); render(); return; }
+      if (tries > 90) { appNote = "载入超时：iframe 里没出现 <video>（没登录？路径不对？视频不存在？跨源？）"; $("appout").textContent = appNote; render(); return; }
+      setTimeout(wait, 500);
+    })();
+  }
+
+  function measureApp(phase) {
+    if (!IF.src) { appNote = "还没载入 app"; render(); return; }
+    var rows = [], notes = [];
+    try {
+      var d = IF.contentDocument, w = IF.contentWindow;
+      if (!d) throw new Error("拿不到 contentDocument（跨源？探针必须与 app 同源）");
+
+      var main = iframeBox("main#main-scroll");
+      var video = iframeBox("video");
+      var burn = iframeBox('[data-testid="burn-subtitle"]');
+      var burnEn = iframeBox('[data-testid="burn-subtitle-en"]');
+      var thin = iframeBox('[data-testid="thin-progress"]');
+      var bar = iframeBox('[data-testid="controls-bar"]');
+      var tab = iframeBox('[data-testid="mobile-tab-bar"]');
+      var title = iframeBox('[data-testid="frame-title"]');
+      var actions = iframeBox('[data-testid="mobile-actions"]');
+      var card = iframeBox('[data-testid="word-tooltip"][data-variant="sheet"]');
+      var drawer = iframeBox('[data-testid="shadowing-drawer"]');
+      var pipClose = iframeBox('[aria-label="关闭小窗播放"]');
+      var grab = iframeBox('[data-testid="shadowing-drawer-grab"]');
+      var h1 = d.querySelector("h1");
+
+      rows.push("iframe " + fmt(IF.clientWidth) + "×" + fmt(IF.clientHeight) +
+        " · app innerHeight " + fmt(w.innerHeight) +
+        " · app visualViewport.scale " + fmt(w.visualViewport ? w.visualViewport.scale : "n/a") +
+        " · app 100dvh " + (function () {
+          try {
+            var p = d.createElement("div");
+            p.style.cssText = "position:absolute;height:100dvh;width:1px;visibility:hidden";
+            d.body.appendChild(p);
+            var h = p.getBoundingClientRect().height;
+            p.remove();
+            return fmt(h);
+          } catch (e) { return "n/a"; }
+        })());
+      rows.push("壳顶（main#main-scroll top） = " + (main ? fmt(main.y) : "—") +
+        " · 画框 x/y/w/h = " + (video ? fmt(video.x) + " / " + fmt(video.y) + " / " + fmt(video.w) + " / " + fmt(video.h) : "—") +
+        (video && video.w < 220 ? "   ← 迷你窗形态（宽 < 220）" : ""));
+      rows.push("标题 overlay y/h = " + (title ? fmt(title.y) + " / " + fmt(title.h) : "—（未渲染）") +
+        " · 桌面页头 h1 可见 = " + (h1 ? "是" : "否") +
+        " · 动作行 y/h = " + (actions ? fmt(actions.y) + " / " + fmt(actions.h) : "—（未渲染）"));
+      rows.push("入画字幕 x/w/y/h = " + (burn ? fmt(burn.x) + " / " + fmt(burn.w) + " / " + fmt(burn.y) + " / " + fmt(burn.h) : "—（未渲染）") +
+        " · 英文字号 = " + (burnEn ? fmt(parseFloat(w.getComputedStyle(d.querySelector('[data-testid="burn-subtitle-en"]')).fontSize)) : "—"));
+      // 行内词热区：排版高 + ::after 外扩后的有效命中高（同源，可在 iframe 内探点）。
+      var hitLine = "—";
+      if (d.querySelector(".burn-sub-word")) {
+        var wd = d.querySelector(".burn-sub-word");
+        var wr = wd.getBoundingClientRect();
+        var wcx = wr.left + wr.width / 2, wtop = wr.top, wbot = wr.bottom;
+        for (var yy = wr.top - 14; yy <= wr.bottom + 14; yy += 1) {
+          var hh = d.elementFromPoint(wcx, yy);
+          if (hh === wd || (hh && hh.parentNode === wd)) {
+            if (yy < wtop) wtop = yy;
+            if (yy > wbot) wbot = yy;
+          }
+        }
+        hitLine = "排版高 " + fmt(wr.height) + " · 有效命中高 " + fmt(wbot - wtop);
+      }
+      rows.push("行内词热区（app 真实 DOM）= " + hitLine);
+      rows.push("细进度高 = " + (thin ? fmt(thin.h) : "—") +
+        " · 控制条 y = " + (bar ? fmt(bar.y) : "—（未渲染）") +
+        " · 控制条是否沉到画框外 = " + (bar && video ? (bar.y >= video.bottom - 2 ? "是（静息）" : "否（浮起中）") : "—"));
+      rows.push("底栏 top/h/position = " + (tab ? fmt(tab.y) + " / " + fmt(tab.h) + " / " + String(w.getComputedStyle(d.querySelector('[data-testid="mobile-tab-bar"]')).position) : "—（未渲染）") +
+        " · 底栏底边 − app 可视高 = " + (tab ? fmt(tab.bottom - w.innerHeight) : "—"));
+      if (video && burn) rows.push("★ 入画字幕底边 + 3 − 画框下沿 = " + fmt(burn.bottom + 3 - video.bottom) + "（0 = INV-021 成立）");
+      if (video && card) rows.push("★ 词卡顶边 − 画框下沿 = " + fmt(card.y - video.bottom) + " · 卡高 " + fmt(card.h) +
+        " · 卡底 − 底栏顶 = " + (tab ? fmt(tab.y - card.bottom) : "—"));
+      if (drawer) rows.push("★ 抽屉顶边 − 画框下沿 = " + (video ? fmt(drawer.y - video.bottom) : "—") +
+        " · 抽屉底边 − 底栏顶 = " + (tab ? fmt(tab.y - drawer.bottom) : "—") + " · 抽屉高 " + fmt(drawer.h) +
+        " · 把手高 " + (grab ? fmt(grab.h) : "—") + " · 计时 = " + iframeText('[data-testid="recording-timer"]'));
+      if (pipClose && pipClose.w > 0) rows.push("迷你窗关闭按钮 w×h = " + fmt(pipClose.w) + "×" + fmt(pipClose.h) + "（44px 基线下这是缺口）");
+      rows.push("横向溢出：doc.scrollWidth − clientWidth = " + (function () {
+        try { return fmt(d.documentElement.scrollWidth - d.documentElement.clientWidth); } catch (e) { return "n/a"; }
+      })() + " · 滚动容器 scrollTop = " + (function () {
+        try { return fmt((d.querySelector("main#main-scroll") || {}).scrollTop || 0); } catch (e) { return "n/a"; }
+      })());
+      if (!burn) notes.push("入画字幕未渲染 —— 该视频没有字幕，或当前句为空（本地 dev 的 CI 种子视频 subtitles=0 就是这种）");
+      if (!video) notes.push("没找到 <video> 元素");
+    } catch (e) {
+      notes.push("跳过：" + (e && e.message ? e.message : String(e)));
+    }
+    appSnaps.push({ t: nowIso(), phase: phase || "量一次", rows: rows, notes: notes });
+    var out = appNote + "\n" + appSnaps.map(function (s, i) {
+      return "[app#" + (i + 1) + " · " + s.phase + "] " + s.t + "\n" +
+        s.rows.map(function (r) { return "  " + r; }).join("\n") +
+        (s.notes.length ? "\n  " + s.notes.join("\n  ") : "");
+    }).join("\n");
+    $("appout").textContent = out;
+    render();
+  }
+
+  /* ---------- D · 手势 ---------- */
+  var scaleWatch = { at: 0, from: 1, to: 1 };
+  if (vv()) {
+    vv().addEventListener("resize", function () {
+      scaleWatch = { at: Date.now(), from: scaleWatch.to, to: vv().scale };
+    });
+  }
+  function scaleChangedSince(t0) { return scaleWatch.at >= t0 && Math.abs(scaleWatch.to - scaleWatch.from) > 0.02; }
+
+  function bindDoubleTap(boxId, key) {
+    $(boxId).addEventListener("dblclick", function () {
+      if (!gest[key] || gest[key].phase !== "listening") return;
+      gest[key].dblclick = true;
+    });
+  }
+  bindDoubleTap("dblbox", "dbl");
+  bindDoubleTap("dblbox2", "dbl2");
+
+  function runDoubleTap(boxId, key, label) {
+    gest[key] = { phase: "listening", label: label, t: nowIso(), t0: Date.now(), scale0: vv() ? vv().scale : 1, dblclick: false };
+    $(boxId).classList.add("armed");
+    $("gestout").textContent = "在亮起的框里双击（1 秒内两次）…";
+    setTimeout(function () {
+      var g = gest[key];
+      if (!g || g.phase !== "listening") return;
+      g.phase = "done";
+      g.scale1 = vv() ? vv().scale : 1;
+      g.zoomed = scaleChangedSince(g.t0);
+      g.ms = Date.now() - g.t0;
+      $(boxId).classList.remove("armed");
+      render();
+    }, 2600);
+  }
+
+  function runLongPress() {
+    gest.lp = { phase: "listening", t: nowIso(), t0: Date.now(), events: [], chars: 0, samples: 0 };
+    $("gestout").textContent = "在下面两个框里各长按单词 1 秒（先左后右都行）…";
+    var add = function (name) { if (gest.lp && gest.lp.phase === "listening" && gest.lp.events.indexOf(name) < 0) gest.lp.events.push(name); };
+    var onCtx = function () { add("contextmenu"); };
+    var onSelStart = function () { add("selectstart"); };
+    var onSelChange = function () {
+      var s = String(window.getSelection ? window.getSelection() : "");
+      gest.lp.samples++;
+      if (s) { add("选中文本"); gest.lp.chars = Math.max(gest.lp.chars, s.length); }
+    };
+    var onCalloutProbe = function () { add("pointercancel(longpress?)"); };
+    document.addEventListener("contextmenu", onCtx, true);
+    document.addEventListener("selectstart", onSelStart, true);
+    document.addEventListener("selectionchange", onSelChange, true);
+    document.addEventListener("pointercancel", onCalloutProbe, true);
+    setTimeout(function () {
+      document.removeEventListener("contextmenu", onCtx, true);
+      document.removeEventListener("selectstart", onSelStart, true);
+      document.removeEventListener("selectionchange", onSelChange, true);
+      document.removeEventListener("pointercancel", onCalloutProbe, true);
+      if (gest.lp) gest.lp.phase = "done";
+      render();
+    }, 6000);
+  }
+
+  function runTapDelay() {
+    var box = $("tapbox"), word = $("tapword");
+    gest.tap = { phase: "listening", t: nowIso(), t0: 0, ms: null };
+    $("gestout").textContent = "点一下「welcome」这个单词…";
+    var onStart = function () { gest.tap.t0 = performance.now(); };
+    var onClick = function () {
+      if (!gest.tap || gest.tap.phase !== "listening" || !gest.tap.t0) return;
+      gest.tap.ms = r1(performance.now() - gest.tap.t0);
+      gest.tap.phase = "done";
+      box.removeEventListener("touchstart", onStart, true);
+      box.removeEventListener("mousedown", onStart, true);
+      box.removeEventListener("click", onClick, true);
+      render();
+    };
+    box.addEventListener("touchstart", onStart, true);
+    box.addEventListener("mousedown", onStart, true);
+    box.addEventListener("click", onClick, true);
+    void word;
+    setTimeout(function () { if (gest.tap && gest.tap.phase === "listening") { gest.tap.phase = "timeout"; render(); } }, 8000);
+  }
+
+  function runMic() {
+    var lines = [];
+    var m = media();
+    lines.push("isSecureContext = " + (window.isSecureContext ? "是" : "否"));
+    lines.push("navigator.mediaDevices = " + m.mediaDevices);
+    lines.push("MediaRecorder = " + m.MediaRecorder);
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      lines.push("结论 = 不可用：http 非安全上下文，浏览器不暴露 mediaDevices（跟读录音在局域网 http 下验不了）");
+      gest.mic = lines; $("micout").textContent = lines.join("\n"); render(); return;
+    }
+    lines.push("正在请求麦克风（会弹权限框）…");
+    $("micout").textContent = lines.join("\n");
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var n = stream.getAudioTracks().length;
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      lines.push("getUserMedia = 成功（音轨 " + n + " 条）→ 录音这一项可以做");
+      gest.mic = lines; $("micout").textContent = lines.join("\n"); render();
+    }).catch(function (e) {
+      lines.push("getUserMedia = 失败：" + (e && e.name ? e.name : String(e)));
+      lines.push("结论 = 不可用（或权限被拒）；跟读录音这一项本次做不了");
+      gest.mic = lines; $("micout").textContent = lines.join("\n"); render();
+    });
+  }
+
+  /* ---------- #25 P6：自绘伪全屏的几何 ---------- */
+  function testPseudoFs() {
+    var ov = $("fsov");
+    ov.style.display = "block";
+    var r = ov.getBoundingClientRect();
+    var v = vv();
+    var visBottom = v ? r1(v.offsetTop + v.height) : null;
+    var lines = [];
+    lines.push("position:fixed; inset:0 覆盖层 " + fmt(r.width) + "×" + fmt(r.height) + " · 底边 = " + fmt(r.bottom));
+    lines.push("可视区底边（visualViewport）= " + fmt(visBottom) + " · innerHeight = " + fmt(window.innerHeight) +
+      " · 100lvh = " + fmt(boxH("100lvh")) + " · 100dvh = " + fmt(boxH("100dvh")));
+    lines.push("覆盖层底边 − 可视区底边 = " + fmt(visBottom === null ? "n/a" : r1(r.bottom - visBottom)) +
+      "（>0 = 伪全屏也伸出可视区，甲连那 40px 都省不下）");
+    lines.push("测量时地址栏：人眼看一眼（收起 / 展开），写进备注");
+    fs = { t: nowIso(), lines: lines };
+    $("fsout").textContent = lines.join("\n");
+    render();
+    setTimeout(function () { ov.style.display = "none"; }, 1800);
+  }
+
+  /* ---------- D5：纵向拖动是否滚页 ---------- */
+  function markDrag() {
+    gest.drag = { t: nowIso(), y0: window.scrollY, y1: null, vv0: vv() ? vv().offsetTop : null, vv1: null };
+    $("dragout").textContent = "已记当前位置 scrollY = " + fmt(gest.drag.y0) + "。现在去复刻台的画面区纵向拖 100px，然后点「② 拖完后读」。";
+    render();
+  }
+  function readDrag() {
+    if (!gest.drag) { $("dragout").textContent = "先点「① 记当前位置」。"; return; }
+    gest.drag.y1 = window.scrollY;
+    gest.drag.vv1 = vv() ? vv().offsetTop : null;
+    var d = r1(gest.drag.y1 - gest.drag.y0);
+    gest.drag.delta = d;
+    $("dragout").textContent = "scrollY " + fmt(gest.drag.y0) + " → " + fmt(gest.drag.y1) + "（Δ " + fmt(d) + "）" +
+      (Math.abs(d) >= 20 ? " → 纵向拖**会**滚页：关掉缩放要付「从画面起手不能滚页」的代价" :
+        " → 纵向拖**不滚页**：touch-action:none 的代价为零") +
+      " · visualViewport.offsetTop " + fmt(gest.drag.vv0) + " → " + fmt(gest.drag.vv1);
+    render();
+  }
+
+  /* ---------- 报告 ---------- */
+  function envBlock(tag, snap) {
+    if (!snap) return "";
+    var lines = ["[" + tag + "] fit=" + snap.fit + " @ " + snap.t];
+    ENV.concat(SAFE).forEach(function (m) { lines.push("  " + m[0] + " = " + fmt(snap.raw[m[0]])); });
+    return lines.join("\n");
+  }
+
+  function report() {
+    var L = [];
+    L.push("seeword 真机验收报告（probe-device-check.html）");
+    L.push("ua: " + navigator.userAgent);
+    L.push("开始时间: " + (dev ? dev.t : "（没点「开始」）"));
+    L.push("当前: fit=" + fit + " · 安全上下文 " + (window.isSecureContext ? "是" : "否（http）") +
+      " · standalone " + (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "是" : "否") +
+      " · 方向 " + ((screen.orientation && screen.orientation.type) || "—"));
+    if (dev) {
+      L.push("");
+      L.push(envBlock("dev", dev));
+    }
+    L.push("");
+    L.push(envBlock("A 地址栏收起", A) || "[A] （没记）");
+    L.push("");
+    L.push(envBlock("B 地址栏出现", B) || "[B] （没记）");
+    if (A && B) {
+      L.push("");
+      L.push("[A→B]");
+      ["innerHeight", "visualViewport.height", "100vh（旧写法 h-screen）", "100dvh（动态，app 壳用的）",
+        "100svh（地址栏出现时）", "100lvh（地址栏收起时）", "safe-area-inset-bottom"].forEach(function (k) {
+          var a = A.raw[k], b = B.raw[k];
+          if (typeof a === "number" && typeof b === "number") {
+            L.push("  " + k + " " + fmt(a) + " → " + fmt(b) + " (Δ" + r1(b - a) + ")");
+          }
+        });
+    }
+    L.push("");
+    if (replica) {
+      L.push("[复刻] @ " + replica.t);
+      replica.rows.forEach(function (r) { L.push("  " + r); });
+    } else {
+      L.push("[复刻] （没量：点「量复刻版式」）");
+    }
+    L.push("");
+    if (appSnaps.length) {
+      appNote && L.push("[app] " + appNote);
+      appSnaps.forEach(function (s, i) {
+        L.push("[app#" + (i + 1) + " · " + s.phase + "] @ " + s.t);
+        s.rows.forEach(function (r) { L.push("  " + r); });
+        s.notes.forEach(function (n) { L.push("  " + n); });
+      });
+    } else {
+      L.push("[app] （没量：C 段载入真实播放页后点「量一次」）");
+    }
+    L.push("");
+    L.push("[伪全屏 #25 P6]");
+    if (fs) { fs.lines.forEach(function (l) { L.push("  " + l); }); } else { L.push("  （没测：点「测伪全屏几何」）"); }
+    L.push("");
+    L.push("[手势]");
+    var g = gest;
+    L.push("  双击缩放（manipulation） = " + (!g.dbl ? "（没测）" : g.dbl.phase !== "done" ? "（进行中）" :
+      (g.dbl.zoomed ? "缩放发生（scale " + fmt(g.dbl.scale0) + " → " + fmt(g.dbl.scale1) + "）" : "未缩放") +
+      " · dblclick 到达 = " + (g.dbl.dblclick ? "是" : "否")));
+    L.push("  双击缩放（默认 touch-action） = " + (!g.dbl2 ? "（没测）" : g.dbl2.phase !== "done" ? "（进行中）" :
+      (g.dbl2.zoomed ? "缩放发生（scale " + fmt(g.dbl2.scale0) + " → " + fmt(g.dbl2.scale1) + "）" : "未缩放") +
+      " · dblclick 到达 = " + (g.dbl2.dblclick ? "是" : "否")));
+    L.push("  长按单词 = " + (!g.lp ? "（没测）" : g.lp.phase !== "done" ? "（进行中）" :
+      (g.lp.events.length ? g.lp.events.join(" + ") : "什么都没发生") +
+      (g.lp.chars ? "（选中 " + g.lp.chars + " 字）" : "") + " · selectionchange 采样 " + g.lp.samples + " 次"));
+    L.push("  单词单击延迟（touchstart → click） = " + (!g.tap ? "（没测）" :
+      g.tap.ms != null ? g.tap.ms + " ms" : "（" + g.tap.phase + "）"));
+    L.push("  画框上纵向拖 100px 是否滚页（#29 P8） = " + (!g.drag || g.drag.y1 == null ? "（没测）" :
+      "scrollY Δ " + fmt(g.drag.delta) + (Math.abs(g.drag.delta) >= 20 ? " → 会滚页" : " → 不滚页")));
+    L.push("");
+    L.push("[麦克风]");
+    if (g.mic) { g.mic.forEach(function (l) { L.push("  " + l); }); } else { L.push("  （没测）"); }
+    L.push("");
+    L.push("[人眼确认项]（本页量不出来，按 device-acceptance.md 逐条填）");
+    L.push("  V9 字幕同步 = ____    V8 滚动后形态/退出键/压不压底栏 = ____    V15 全屏后字幕点词还在吗 = ____");
+    L.push("  V16 首帧闪不闪桌面控制条 = ____    V12 旋转后重算 = ____    V7 录音（http 下做不了） = ____");
+    L.push("");
+    L.push("[备注] 想补什么写这里：____");
+    return L.join("\n");
+  }
+
+  function render() { $("report").value = report(); save(); }
+  function refreshLive() { tick(); }
+
+  /* ---------- 绑定 ---------- */
+  $("btnStart").onclick = function () {
+    dev = snapshot();
+    applySize();
+    refreshLive(); render();
+    $("btnStart").textContent = "开始 ✓（已记本机信息）";
+  };
+  $("btnA").onclick = function () { A = snapshot(); renderDiff(); render(); $("btnA").textContent = "记 A ✓ 重记"; };
+  $("btnB").onclick = function () { B = snapshot(); renderDiff(); render(); $("btnB").textContent = "记 B ✓ 重记"; };
+  $("btnReplica").onclick = function () { measureReplica(); };
+  $("btnPick").onclick = function () {
+    fetch("/api/v1/videos/public?page=1&page_size=1", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var id = d && d.items && d.items[0] && d.items[0].id;
+        if (!id) { appNote = "没取到 ready 视频（列表为空）"; $("appout").textContent = appNote; render(); return; }
+        $("apppath").value = "/watch/" + id;
+        appNote = "已填入 /watch/" + id + "（点「载入 app」）";
+        $("appout").textContent = appNote; render();
+      })
+      .catch(function (e) { appNote = "取视频失败：" + (e && e.message ? e.message : e) + "（没登录？）"; $("appout").textContent = appNote; render(); });
+  };
+  $("btnLoad").onclick = loadApp;
+  $("btnSnap").onclick = function () { measureApp("量一次"); };
+  $("btnDbl").onclick = function () { runDoubleTap("dblbox", "dbl", "manipulation"); };
+  $("btnDbl2").onclick = function () { runDoubleTap("dblbox2", "dbl2", "默认 touch-action"); };
+  $("btnLong").onclick = runLongPress;
+  $("btnTap").onclick = runTapDelay;
+  $("btnMic").onclick = runMic;
+  $("btnPseudoFs").onclick = testPseudoFs;
+  $("btnDragMark").onclick = markDrag;
+  $("btnDragRead").onclick = readDrag;
+  $("btnReset").onclick = function () {
+    try { localStorage.removeItem(SKEY); } catch (e) {}
+    dev = null; A = null; B = null; replica = null; appSnaps = []; appNote = null; fs = null;
+    gest = { dbl: null, dbl2: null, lp: null, tap: null, mic: null, scroll: null, drag: null };
+    $("replicaout").textContent = "（还没量）";
+    $("appout").textContent = "（还没载入）";
+    $("micout").textContent = "（还没测）";
+    $("gestout").textContent = "（还没测）";
+    $("dragout").textContent = "（还没测）";
+    $("fsout").textContent = "（清空了，点「测伪全屏几何」）";
+    $("btnStart").textContent = "开始（记本机信息）";
+    $("btnA").textContent = "记 A（地址栏收起）";
+    $("btnB").textContent = "记 B（地址栏出现）";
+    renderDiff(); render();
+  };
+  $("btnSel").onclick = function () { var t = $("report"); t.focus(); t.setSelectionRange(0, 999999); };
+  $("btnClip").onclick = function () {
+    var b = $("btnClip"), txt = $("report").value;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () { b.textContent = "已复制 ✓"; },
+          function () { $("btnSel").click(); b.textContent = "手动拷贝"; });
+      } else { $("btnSel").click(); b.textContent = "手动拷贝"; }
+    } catch (e) { $("btnSel").click(); b.textContent = "手动拷贝"; }
+  };
+
+  /* ---------- 启动 ---------- */
+  applySize();
+  restore();
+  refreshLive();
+  render();
+  window.addEventListener("resize", function () { refreshLive(); });
+  if (vv()) {
+    vv().addEventListener("resize", function () { refreshLive(); });
+    vv().addEventListener("scroll", function () { refreshLive(); });
+  }
+  window.addEventListener("scroll", function () { refreshLive(); }, { passive: true });
+  setTimeout(function () { refreshLive(); }, 600);
+})();
+</script>
+</body>
+</html>

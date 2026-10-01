@@ -53,5 +53,9 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: [--maxkb=1024]
-        exclude: ^docs/design/beta-launch/
+        # 大文件例外两处：发布物料，以及量具跑出来的原始读数。
+        # `docs/design/mobile/destination/readings/touch-targets-375.json` 是 3.05 MB ——
+        # 它逐元素记了矩形、计算样式与命中探针（表格由 `--emit-md` 从它生成、不许手改），
+        # 是「读完能复跑、能核对」的那份证据；删掉它就只剩一张不可验证的表。
+        exclude: ^(docs/design/beta-launch/|docs/design/mobile/destination/readings/)
       - id: detect-private-key
