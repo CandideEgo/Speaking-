@@ -72,5 +72,6 @@
 | DEC-065 | 2026-09-29 | 技能层采用 mattpocock/skills，仓库按其 setup 初始化（不采用自建编排层） | — | active |
 | DEC-066 | 2026-09-29 | 知识层分层：冷仓单目录、热层瘦身、索引层（99 个文件一次搬迁） | — | active |
 | DEC-067 | 2026-09-29 | 取消知识层的字节上限与目标，改为一套分层标准（修订 DEC-062） | — | active |
+| DEC-068 | 2026-10-02 | 范围升级要显式：优化类任务不走 wayfinder 地图（关闭 #20，挂起 #25/#29） | — | active |
 
 Retired 6 — DEC-003, DEC-005, DEC-013, DEC-016, DEC-024, DEC-047 — superseded or never implemented; bodies and stubs stay in `decisions.md`.
