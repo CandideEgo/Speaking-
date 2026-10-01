@@ -137,6 +137,35 @@ test.describe("移动端首屏＝画面（#24/#28 乙 的页面级版式）", ()
       expect(m.burn.y - m.frame.y, `${w} 档露出画面不少于 120px`).toBeGreaterThanOrEqual(120);
     }
   });
+
+  // INV-024 的标题层是 `z-20`（不是 `z-10`）：`VideoControls` 的面层是 `z-10` 且整块
+  // `inset-0` 接指针、在 DOM 里更靠后 —— 同层靠后者胜，返回键会被整块吞掉。
+  // 症状不是「点了没反应」而是「点了出控制条」：URL 不变、控制条被点出来。
+  // 这条断言盯的就是它：**返回键的中心点上，命中的必须是它自己**，且 Playwright
+  // 的可点性检查（会自动做 hit-target 校验）必须放行。
+  test("画面内的返回键真的可点（不被控制条面层吞掉）", async ({ page, request }) => {
+    await openWatch(page, request, 375, 812);
+
+    const back = page.locator('[data-testid="frame-back"]');
+    await expect(back).toBeVisible();
+
+    const hit = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="frame-back"]') as HTMLElement;
+      const r = b.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        self: el === b || b.contains(el),
+        got: el ? `${el.tagName}.${String(el.className).slice(0, 40)}` : "null",
+        rect: [r.left, r.top, r.width, r.height].map((n) => Math.round(n)),
+      };
+    });
+    expect(hit.self, `返回键中心命中的是 ${hit.got}，不是它自己`).toBe(true);
+    expect(hit.rect[2], "返回键宽 ≥44px").toBeGreaterThanOrEqual(44);
+    expect(hit.rect[3], "返回键高 ≥44px").toBeGreaterThanOrEqual(44);
+
+    // 旧实现下这一步直接 TimeoutError（元素被覆盖，可点性检查不过）。
+    await back.click({ timeout: 5000 });
+  });
 });
 
 test.describe("桌面端不受影响（壳层改动只动 ≤1023px）", () => {

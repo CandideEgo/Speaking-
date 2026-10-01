@@ -420,11 +420,11 @@ export default function WatchPage() {
   // 字幕自动居中：只滚动右侧内层字幕列表，绝不触碰整页 <main>。
   // 用 scrollIntoView 会连带 <main> 一起拽回顶部，导致停在底部练习区时页面被拽走白屏。
   const subtitleListRef = useRef<HTMLDivElement>(null);
-  // Mobile sticky mini-player: pin the video to the bottom-right when it
-  // scrolls out of view. Desktop keeps its in-flow sticky layout.
+  // #30 决议：移动端滚过画框之后，画面**贴顶常驻**（不是缩成右下角小窗）。
+  // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 1023px)");
-  const { isPip, dismiss } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
+  const { isStuck, dismiss } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
   useEffect(() => {
     const container = subtitleListRef.current;
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
@@ -776,8 +776,9 @@ export default function WatchPage() {
 
   // #24 乙 / #28 决议：移动端当前句入画，落在画框最下沿，版式沿用现有字号档位。
   // 桌面端不渲染它（下方字幕卡原样保留），两处永远只有一处显示当前句。
+  // #30：贴顶常驻那一态**不**收起它 —— 画面一个像素没缩，字幕就还在原位。
   const mobileSubtitle =
-    isMobile && !isPip && currentSubtitle && subtitleMode !== "hidden" ? (
+    isMobile && currentSubtitle && subtitleMode !== "hidden" ? (
       <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pt-1.5 pb-2.5 text-left">
         {subtitleMode !== "chinese" && (
           <div
@@ -914,15 +915,29 @@ export default function WatchPage() {
       {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
       <div
         className={cn(
-          "grid grid-cols-1 gap-5 items-start transition-[grid-template-columns] duration-200",
+          "grid grid-cols-1 items-start transition-[grid-template-columns] duration-200",
+          // #30：移动端左列用 `display: contents` 消掉自己的盒子（见下），
+          // 画框因此成为 grid item —— 列内间距由各自 margin 负责，这里不能再叠 gap。
+          isMobile ? "gap-0" : "gap-5",
           panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
         )}
       >
         {/* ========== LEFT COLUMN ========== */}
-        <div className="min-w-0">
+        {/* #30 贴顶常驻挂在这一层，但**移动端这一层不产生盒子**（`display: contents`）：
+            它的子元素直接成为 grid item，于是被粘的是**画框自己** —— 这正是原型
+            `S-scroll.html` 里 `.player{position: sticky}` 的语义，包含块也从「490px 高的列」
+            变成「整个网格容器」（≈1170px）。
+            两处代价都是实测出来的，别再改回去：
+              · 粘在**列**上（前一版）：包含块只有列那么高，余量 635px < 滚动上限 727px ——
+                页面最后 92px 里画面被包含块底边推着走（实测滚到上限时画框顶 y=-28，
+                壳顶是 64）；而且把列里的字幕卡/行动行/来源卡一起钉住 490px，
+                703px 可视高只剩 189px 给文稿；列自身没有背景，缝隙还透出下面滑过的文稿。
+              · 粘在**内层 absolute div** 上：父级只有 490px 且 `items-start` 不拉伸，
+                元素跟着一起滚走（实测滚 600px 时画框顶 y=-232.8，等于没粘）。
+            `top-0`：画框的 `-mt-6` 已经把它拎到壳顶（INV-024 实测 y=64），贴顶位就是滚动容器上沿。 */}
+        <div className={cn(isMobile ? "contents" : "min-w-0")}>
           {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
-              移动端滚出视口时，内层 wrapper 浮为右下角 mini-player（PiP），
-              <video> 节点不换父，播放连续。
+              `<video>` 节点不换父，所以内联 ↔ 贴顶常驻切换不丢播放进度。
               移动端**出血满宽 + 顶到壳顶**（#24/#28 乙，原型 B2-tap 实测：画框 x=0
               w=375 顶部 y=壳顶高）：-mx-4/-mt-6 抵消容器的 px-4/pt-6，桌面端不加。 */}
           <div
@@ -932,7 +947,10 @@ export default function WatchPage() {
               // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
               // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
               isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-xl",
-              isMobile && !noteOpen && "-mt-6"
+              isMobile && !noteOpen && "-mt-6",
+              // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
+              // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
+              isMobile && isStuck && "sticky top-0 z-40"
             )}
           >
             <div
@@ -940,12 +958,7 @@ export default function WatchPage() {
                 // D1：F 全屏的目标容器（播放器外壳）。
                 fullscreenElRef.current = el;
               }}
-              className={cn(
-                "transition-all duration-300",
-                isPip
-                  ? "fixed bottom-4 right-4 z-50 w-[160px] max-w-[40vw] aspect-video rounded-lg shadow-2xl"
-                  : "absolute inset-0"
-              )}
+              className="absolute inset-0 transition-all duration-300"
             >
               {playbackMode === "ready" && bestVideoUrl(video) ? (
                 <>
@@ -999,12 +1012,19 @@ export default function WatchPage() {
                     }}
                   />
                   {/* #24 乙：移动端标题画进画面里（原型 .titlecard 的落点），页头因此
-                      不占首屏一像素；返回键也浮在画面左上，桌面端不渲染。 */}
-                  {isMobile && !isPip && (
-                    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 bg-gradient-to-b from-black/60 via-black/25 to-transparent px-2 pt-2 pb-8">
+                      不占首屏一像素；返回键也浮在画面左上，桌面端不渲染。
+                      #30：贴顶常驻时它照旧渲染 —— 画面没缩，标题当然还在画面里。
+                      `z-20` 不是随手写的：`VideoControls` 的面层（`VideoControls.tsx:194`）
+                      也是 `z-10` 且整块 `inset-0` 接指针，而它在 DOM 里更靠后 —— 同层靠后者胜，
+                      返回键会被整块吞掉（实测点它 URL 不变、控制条被点出来，Playwright 的
+                      click 直接超时）。所以这一层必须比面层高一级；层内其余部分是
+                      `pointer-events-none`，点画面出控制条照旧。 */}
+                  {isMobile && (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-2 bg-gradient-to-b from-black/60 via-black/25 to-transparent px-2 pt-2 pb-8">
                       <button
                         type="button"
                         onClick={back.go}
+                        data-testid="frame-back"
                         aria-label={back.label}
                         className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/35 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/55 cursor-pointer"
                       >
@@ -1024,39 +1044,47 @@ export default function WatchPage() {
                       </div>
                     </div>
                   )}
-                  {/* D1 自定义控制条（PiP 小窗不渲染，避免小窗内控件拥挤） */}
-                  {!isPip && (
-                    <VideoControls
-                      videoRef={videoRef}
-                      isPlaying={isPlaying}
-                      duration={video.duration}
-                      rate={rate}
-                      setRate={setRate}
-                      muted={muted}
-                      toggleMute={toggleMute}
-                      setVolume={setVolume}
-                      subtitleMode={subtitleMode}
-                      onCycleSubtitleMode={cycleSubtitleMode}
-                      subtitleFontSize={subtitleFontSize}
-                      onFontSizeChange={handleFontSizeChange}
-                      toggleFullscreen={toggleFullscreen}
-                      isMobile={isMobile}
-                      mobileSubtitle={mobileSubtitle}
-                      markers={shadowMarkers}
-                    />
-                  )}
-                  {isPip && (
+                  {/* D1 自定义控制条（含移动端入画字幕）。#30 之后没有「小窗」那一态，
+                      控制条在贴顶常驻时照旧渲染 —— 画面一个像素没缩。 */}
+                  <VideoControls
+                    videoRef={videoRef}
+                    isPlaying={isPlaying}
+                    duration={video.duration}
+                    rate={rate}
+                    setRate={setRate}
+                    muted={muted}
+                    toggleMute={toggleMute}
+                    setVolume={setVolume}
+                    subtitleMode={subtitleMode}
+                    onCycleSubtitleMode={cycleSubtitleMode}
+                    subtitleFontSize={subtitleFontSize}
+                    onFontSizeChange={handleFontSizeChange}
+                    toggleFullscreen={toggleFullscreen}
+                    isMobile={isMobile}
+                    mobileSubtitle={mobileSubtitle}
+                    markers={shadowMarkers}
+                  />
+                  {/* #30：贴顶常驻时给一个「别再跟了」的出口。
+                      热区 44×44（旧小窗那个关闭按钮实测只有 24×24）。
+                      落点：**返回键正下方**（`top-14 left-2`）。四个角都被占了 ——
+                      左上返回键、右上 `ExamLevelSelector` 药丸（z-20，叠上去点不中）、
+                      下沿是入画字幕（左对齐、从 x=12 起，实测 `bottom-3 left-2` 会盖住
+                      最后一行头三个字符）、右下是控制条与 3px 细进度。
+                      而标题文字从 x=60 起（返回键 44 + gap 8 + px-2），所以返回键下方
+                      这条 x=8..52 的竖带是画面里唯一与任何文字都不相交的位置。
+                      老 `aria-label` 原样保留，成对 e2e 继续认它。 */}
+                  {isMobile && isStuck && (
                     <button
                       type="button"
                       onClick={dismiss}
-                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
+                      className="absolute top-14 left-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white shadow backdrop-blur-sm transition-colors hover:bg-black/65"
                       aria-label="关闭小窗播放"
                     >
-                      <X size={14} />
+                      <X size={18} />
                     </button>
                   )}
                   {/* D3b EndScreen — only when the <video> has fired onEnded. */}
-                  {ended && !isPip && video?.id && (
+                  {ended && video?.id && (
                     <EndScreen
                       stats={{
                         watchSeconds: Math.round(videoRef.current?.currentTime ?? 0),
@@ -1088,14 +1116,15 @@ export default function WatchPage() {
               ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
                 <>
                   <div ref={ytContainerRef} className="h-full w-full" />
-                  {isPip && (
+                  {/* #30：YouTube 回退路径同样吃贴顶常驻，退出跟随的出口与 HTML5 那条一致 */}
+                  {isMobile && isStuck && (
                     <button
                       type="button"
                       onClick={dismiss}
-                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-surface-dark text-on-dark shadow hover:bg-surface-dark/80"
+                      className="absolute top-14 left-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white shadow backdrop-blur-sm transition-colors hover:bg-black/65"
                       aria-label="关闭小窗播放"
                     >
-                      <X size={14} />
+                      <X size={18} />
                     </button>
                   )}
                 </>
@@ -1108,10 +1137,9 @@ export default function WatchPage() {
                 </div>
               )}
             </div>
-            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看（mini-player 时隐藏） */}
-            {!isPip && (
-              <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
-            )}
+            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看。
+                #30：贴顶常驻时画面没缩，它照旧渲染。 */}
+            <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
           </div>
 
           {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}

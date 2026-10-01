@@ -110,10 +110,15 @@ test.describe("移动端入画字幕与控制条点出（#28 乙，375×812）",
     ).toBeLessThan(2);
   });
 
-  // 上面那条修复必须只掐掉「首屏误判」：真滚走了还得收成迷你窗，否则等于把 #30 的
-  // 迷你窗关掉。滚动容器是壳里的 main#main-scroll（window.scrollY 恒 0）。
-  test("向下滚动把画框滚出视口顶部 → 仍然收成迷你窗", async ({ page, request }) => {
-    await enterWatch(page, request, { dismissPip: false });
+  // 上面那条修复必须只掐掉「首屏误判」：真滚走了**仍然要进跟随态**，否则等于把跟随关掉。
+  // #30 定的跟随形态是「画面贴顶常驻」——不缩、不飞、不消失（旧的右下角 160×90 迷你窗已取消），
+  // 所以这条断言量的是「仍满宽 + 仍贴壳顶」，不再是「缩到 ≤200px」。
+  // 滚动容器是壳里的 main#main-scroll（window.scrollY 恒 0）。
+  test("向下滚动把画框滚出视口顶部 → 仍进跟随态（贴顶常驻，不再是迷你窗）", async ({
+    page,
+    request,
+  }) => {
+    const first = await enterWatch(page, request, { dismissPip: false });
 
     await page.evaluate(() => {
       const main = document.querySelector("main#main-scroll");
@@ -123,8 +128,13 @@ test.describe("移动端入画字幕与控制条点出（#28 乙，375×812）",
     await page.waitForTimeout(600);
 
     await expect(page.locator('[aria-label="关闭小窗播放"]')).toBeVisible({ timeout: 5000 });
-    const mini = await boxOf(page, "video");
-    expect(mini.width, "迷你窗是缩小的（不是内联那一块）").toBeLessThanOrEqual(200);
+    const stuck = await boxOf(page, "video");
+    expect(stuck.width, "画面一个像素没缩（贴顶常驻，不是迷你窗）").toBeCloseTo(first.width, 0);
+    expect(stuck.height, "画面高不变").toBeCloseTo(first.height, 0);
+    const shellTop = await page.evaluate(
+      () => document.querySelector("main#main-scroll")!.getBoundingClientRect().top
+    );
+    expect(stuck.y, "画面贴住壳顶").toBeCloseTo(shellTop, 0);
   });
 
   test("字幕贴画框下沿、常驻 3px 进度线、点画面浮起控制条 3s 自收", async ({ page, request }) => {

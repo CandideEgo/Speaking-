@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>SeeWord · #30 —— 滚动行为与迷你窗（三形态一页可点）</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  /* #30 的「可变量」全部写在这里：壳（顶栏高度 / 顶栏是否让位 / 迷你窗落点）
+     与播放器块的粘滞模型。三态共用同一份 DOM 与同一份演示数据，
+     切换只改 .app 上的一个类 —— 差别因此是设计选择，不是手误。
+
+     基准版面（与 app 现状逐项对齐，见 mobile-player-shell.spec.ts 实测）：
+       顶栏 64px（`--topbar-h`）· 画框 375×210.9（16:9 出血满宽，顶边贴壳顶）
+       · 入画字幕 82.1px 贴画框下沿 · 3px 细进度 · 底部导航 45px（in-flow 收尾行）
+  */
+
+  /* ── 顶栏：本票要裁决「与 44px 常驻顶栏的关系」，所以它按档位变高 ── */
+  .topbar .icon-btn { width: 44px; height: 44px; }
+  .app[data-bar="compact"] { --topbar-h: 44px; }
+  .topbar .tb-ttl { font-size: 12.5px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+  .topbar .tb-sub { font-size: 9.5px; color: var(--muted-soft); letter-spacing: .02em; }
+
+  /* ── 入画字幕的版式 = #24 乙 / #28 的**原样**（16px/12.5px、中英双语、折行不封顶）。
+     本票只碰它的**去向**（跟着画面缩 / 退回伴侣条 / 出画），版式一个字不动 ——
+     版式若一起变，三态之间就分不清差别是「形态」带来的还是「排版」带来的。
+     规则抄自 _wordtap.css 的 `.wt .burn*`（那边挂在 .wt 作用域下，这里自己带一份）。── */
+  .burn {
+    position: absolute; left: 0; right: 0; bottom: 3px;
+    padding: 4px 10px 8px; text-align: left; color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, .94) 0%, rgba(0, 0, 0, .78) 55%, rgba(0, 0, 0, 0) 100%);
+    pointer-events: none;
+  }
+  .burn-en { font-size: 16px; line-height: 22px; font-weight: 600; letter-spacing: -.01em; }
+  .burn-zh { font-size: 12.5px; line-height: 17px; color: rgba(250, 250, 250, .88); margin-top: 2px; }
+  .burn .word {
+    position: relative; display: inline; margin: 0; padding: 0 1px; border: 0; border-bottom: 0;
+    background: transparent; color: inherit; font: inherit; cursor: pointer;
+    pointer-events: auto;
+  }
+  .burn .word::after { content: ""; position: absolute; inset: -4px -1px; }
+  .burn .word.now { color: var(--brand-200); }
+
+  /* ── 控制条（#28 乙 的「点出」态）与原型的 3px 细进度。
+     _base.css 里 `.ctl .bar` 是**进度条**（4px），和下面这条 3px 细线不是同一个东西 ——
+     _sub.css 的 `.thinbar` 又依赖 _wordtap.css。所以这几条自己带一份，不引那两个文件。── */
+  .player .ctl { padding: 6px 10px 6px; }
+  .player .ctl .bar { margin-bottom: 5px; }
+  .player .ctl .row { height: 44px; gap: 8px; font-size: 11px; }
+  .player .ctl button { height: 44px; min-width: 44px; padding: 0 6px; font-size: 11px; }
+  .player .ctl button.on { background: rgba(255, 90, 31, .28); font-weight: 700; }
+  .player .ctl.tapmode {
+    transform: translateY(100%); pointer-events: none;
+    transition: transform .18s ease-out;
+  }
+  .player .ctl.tapmode.on { transform: none; pointer-events: auto; }
+  .thinbar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 8;
+    background: rgba(255, 255, 255, .22); pointer-events: none;
+  }
+  .thinbar i { display: block; height: 3px; width: 28%; background: var(--brand-500); }
+  .ctl-hint {
+    position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%); z-index: 9;
+    background: rgba(0, 0, 0, .55); color: #fff; font-size: 10.5px; font-weight: 600;
+    border-radius: var(--radius-pill); padding: 4px 10px; pointer-events: none;
+    opacity: 0; transition: opacity .2s;
+  }
+  .ctl-hint.on { opacity: 1; }
+
+  /* ── 滚动容器：真机上是壳里的 `main#main-scroll`（scroll 不冒泡、window.scrollY 恒 0）── */
+  .main { position: relative; scroll-behavior: auto; }
+
+  /* ── 播放器块：粘滞的**就是它**（不是 <video>，video 永不换父 → 进度不丢）──
+     粘滞元素必须是滚动容器的**直接子元素**（在 `.player` 里面再套一层是错的：
+     它会被 .player 的盒子高度夹住，滚出去照样跟着走）。 */
+  .player { position: sticky; top: 0; z-index: 20; background: var(--surface-dark); }
+  .stickywrap { position: relative; }
+  .player .ctl { z-index: 6; }
+
+  /* A · 贴顶常驻：控制条留 44px，画框原尺寸（211px）粘在它下面。
+     `top: 0` 是相对**滚动容器的 scrollport**（不是视口）—— 壳的顶栏在滚动容器之外，
+     所以 0 就等于「顶栏下沿」。这里若写 var(--topbar-h) 会多让出 64px（write 一次量错过）。
+     「只保留一个」那一档就落在这里 —— 顶栏不让位，88px 的目标被画框自己吃掉了。 */
+  .app[data-mode="a"] .player { top: 0; }
+
+  /* B · 缩成条：顶栏让位（它自己也吸顶，见 .topbar），播放器整块缩成一条粘在顶栏下沿。
+     顶栏由 64 变 44：相对 scrollport 要往上 20px 才落在顶栏下沿（44 − 64）。
+     画框由 16:9 的 211px 变成定高条 —— 所以「缩成条」的代价要在这里量：
+     条内还剩多少可见画面、入画字幕还塞不塞得下、点词热区还在不在。 */
+  .app[data-mode="b"] .player { top: -20px; max-height: 132px; overflow: hidden; }
+  .app[data-mode="b"] .frame { height: 104px; aspect-ratio: auto; display: flex; flex-direction: column; justify-content: flex-end; }
+  .app[data-mode="b"] .burn { position: static; padding: 1px 10px 3px; }
+  .app[data-mode="b"] .burn-en { font-size: 13.5px; line-height: 18px; }
+  .app[data-mode="b"] .burn-zh { font-size: 11px; line-height: 15px; margin-top: 1px; }
+  .app[data-mode="b"] .burn { max-height: 62px; padding: 1px 10px 4px; }
+  .app[data-mode="b"] .titlecard { padding: 5px 12px 0; gap: 0; justify-content: flex-start; }
+  .app[data-mode="b"] .titlecard .ttl { font-size: 12px; max-width: 26ch; line-height: 1.2; }
+  .app[data-mode="b"] .titlecard .kicker { font-size: 9px; }
+  .app[data-mode="b"] .backdot { width: 32px; height: 32px; }
+  .app[data-mode="b"] .play-badge { display: none; }
+
+  /* A2 · 贴顶常驻的「只保留一个」档：顶栏不让位、画面不常驻 ——
+     常驻的只有一条 56px 的标题条（标题 + 频道 + 3px 细进度）。
+     这是票面第 2 问那句「合并成一条 88px？」真正对应的形态：
+     44 顶栏 + 56 条 = 100px，比 88 多 12px，因为那条细进度要占 3px、标题要两行才装得下。 */
+  .app[data-mode="a2"] .player { top: 0; }
+  .app[data-mode="a2"] .frame { display: none; }          /* 画面整体出画，只剩条 */
+  .app[data-mode="a2"] .minibar {
+    display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 12px;
+    background: var(--surface-dark); color: var(--on-dark); position: relative;
+  }
+  .app[data-mode="a2"] .minibar .mb-ttl { font-size: 12.5px; font-weight: 700; line-height: 1.25; min-width: 0; }
+  .app[data-mode="a2"] .minibar .mb-sub { font-size: 9.5px; color: var(--on-dark-soft); margin-top: 1px; }
+
+  /* C · 右下角 160×90（现状）：滚动流里的那一块**不粘**（现有行为就是滚走），
+     滚走之后由下面那条 fixed 规则把它钉到右下角。 */
+  .app[data-mode="c"] .player { position: static; }
+  /* `fixed` 锚的是 **layout viewport**。iOS Safari 上 layout viewport = 100lvh（地址栏收起时的高度），
+     地址栏一展开可视区只剩 100dvh（−40px），于是这个窗口比可视区底边低 40px。
+     原型里用 `--vvshrink` 模拟那 40px（真机读数见 baseline/README.md）。*/
+  .app[data-mode="c"] .minipip {
+    position: fixed; right: 16px; bottom: calc(var(--tabbar-h) + 12px + var(--vvshrink, 0px));
+    z-index: 45; width: 160px; height: 90px; border-radius: var(--radius);
+    background: var(--surface-dark); overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  }
+  /* 小窗里的画框要显式定尺寸：`.frame` 自己的 width:100% + aspect-ratio:16/9 会算成 160×90，
+     但 `height: 100%` 在 `height: 90px` 的父级上才成立 —— 不写就对不上。 */
+  .app[data-mode="c"] .minipip .stickywrap { height: 90px; }
+  .app[data-mode="c"] .minipip .frame { width: 160px; height: 90px; aspect-ratio: auto; }
+  /* minipip 里的入画字幕与控制条：160×90 装不下，只能让它们出画 */
+  .app[data-mode="c"] .minipip .burn,
+  .app[data-mode="c"] .minipip .ctl,
+  .app[data-mode="c"] .minipip .titlecard,
+  .app[data-mode="c"] .minipip .play-badge { display: none; }
+  .app[data-mode="c"] .minipip .thinbar { height: 3px; }
+  .app[data-mode="c"] .minipip .thinbar i { height: 3px; }
+
+  /* 关闭热区：现状 24×24（49 票基线实测），三档都改成 44px 才可比 */
+  .pip-x {
+    position: absolute; z-index: 6; border: 0; cursor: pointer;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(10, 10, 10, .72); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1;
+  }
+  .app[data-mode="c"] .pip-x { top: 0; right: 0; border-radius: 0 var(--radius) 0 var(--radius); }
+
+  /* A/B 的粘滞块里，关闭（＝退出常驻、让画面回滚动流）落在右上角 */
+  .stick-x { top: 4px; right: 4px; }
+  .app[data-mode="b"] .stick-x { top: 2px; right: 2px; width: 40px; height: 40px; }
+
+  /* 顶栏里的进度：B 档「合并成一条」的那一半（顶栏让位 + 画面缩成条） */
+  .tb-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--hairline); }
+  .tb-prog i { display: block; height: 100%; width: 28%; background: var(--brand-500); }
+
+  /* ── 变体说明 / 量尺 ── */
+  .vnote { margin: 10px 16px 0; padding: 10px 12px; border: 1px dashed var(--brand-200); background: var(--brand-50);
+           border-radius: var(--radius); font-size: 11.5px; line-height: 1.6; color: var(--body); }
+  .vnote b { color: var(--brand-700); }
+  .switchbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 90; display: flex; gap: 6px;
+               padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+               background: rgba(9, 9, 11, .93); box-shadow: 0 -6px 18px rgba(0, 0, 0, .3); }
+  .switchbar button { flex: 1; min-height: 40px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,.2);
+               background: transparent; color: #fafafa; font: inherit; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+  .switchbar button.on { background: var(--brand-500); border-color: var(--brand-500); color: #fff; }
+  /* 切换条自己占 52px，不许它改写被测版面：给 .app 补一块等高的下内边距 */
+  .app { padding-bottom: 52px; }
+
+  .mtable { position: absolute; left: 8px; right: 8px; top: 60px; z-index: 88;
+            background: rgba(9, 9, 11, .95); color: #fafafa; border-radius: var(--radius);
+            padding: 8px 10px; font-size: 10px; line-height: 1.45; display: none;
+            max-height: 78%; overflow: auto; }
+  .mtable.on { display: block; }
+  .mtable table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  .mtable th, .mtable td { border-bottom: 1px solid rgba(255,255,255,.12); padding: 2px 3px; text-align: right; }
+  .mtable th:first-child, .mtable td:first-child { text-align: left; }
+  .mtable thead th { color: var(--brand-200); font-size: 9.5px; }
+  .mtable .bad { color: #fca5a5; }
+  .mtable .good { color: #86efac; }
+  .mtable .hd { font-weight: 800; color: var(--brand-200); margin-bottom: 5px; font-size: 10px; letter-spacing: .04em; }
+  .mtable .foot { margin-top: 6px; color: rgba(250,250,250,.6); font-size: 9.5px; line-height: 1.5; }
+  .mbtn { position: absolute; right: 8px; top: calc(var(--topbar-h) + 8px); z-index: 89;
+          border: 0; border-radius: var(--radius-pill); background: rgba(0,0,0,.6); color: #fff;
+          font: inherit; font-size: 10.5px; font-weight: 700; padding: 6px 10px; cursor: pointer; opacity: .6; }
+  .mbtn:hover { opacity: 1; }
+</style>
+<script src="_demo.js"></script>
+</head>
+<body>
+<div class="stage"><div class="app" id="app" data-mode="a" data-bar="compact">
+
+  <!-- 顶栏 —— 本票第 2 问的载体：`data-bar` 决定它 64px 还是 44px -->
+  <header class="topbar" id="topbar">
+    <button class="icon-btn" aria-label="返回" style="font-size:18px">‹</button>
+    <div style="min-width:0;flex:1">
+      <div class="tb-ttl" id="tbTtl">How to make discipline so fun it's hard to skip</div>
+      <div class="tb-sub" id="tbSub">CNBC Make It · 四级</div>
+    </div>
+    <button class="icon-btn" aria-label="更多">⋯</button>
+    <div class="tb-prog" id="tbProg"><i></i></div>
+  </header>
+
+  <!-- 滚动容器（＝壳里的 main#main-scroll） -->
+  <div class="main" id="main">
+
+    <!-- 播放器块：粘滞对象。内层 #stageHost 里放 <video> 的占位，切换形态时**不重建** -->
+    <div class="player" id="player">
+      <div class="stickywrap" id="stickywrap">
+        <!-- A2 档专用：画面整体出画，常驻的只有这条标题 + 细进度（「只保留一个」那一档） -->
+        <div class="minibar" id="minibar" style="display:none">
+          <div style="min-width:0;flex:1">
+            <div class="mb-ttl line-clamp-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">How to make discipline so fun it's hard to skip</div>
+            <div class="mb-sub">CNBC Make It · 四级 · 0:22 / 8:10</div>
+          </div>
+          <button style="min-width:44px;height:44px;border:0;background:transparent;color:var(--on-dark);font:inherit;cursor:pointer" aria-label="播放">▶</button>
+          <button class="pip-x stick-x" id="xBar" style="position:static;width:44px;height:44px" aria-label="退出常驻条">✕</button>
+        </div>
+        <div class="frame" id="frame">
+          <div class="titlecard" style="padding:8px 12px;justify-content:flex-start;gap:2px">
+            <span class="kicker" id="tcKicker">CNBC Make IT · 四级</span>
+            <div class="ttl" id="tcTtl">How to make discipline so fun it's hard to skip</div>
+          </div>
+          <button class="backdot icon-btn" aria-label="返回"
+                  style="position:absolute;left:6px;top:6px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;z-index:5">‹</button>
+          <button class="play-badge" aria-label="播放" id="playBadge">▶</button>
+
+          <!-- 当前句的**唯一**渲染（INV-021）：三态都在这里，从不复制第二份 -->
+          <div class="burn" id="burn">
+            <div class="burn-en" id="burnEn"></div>
+            <div class="burn-zh" id="burnZh"></div>
+          </div>
+          <div class="thinbar"><i id="thinFill"></i></div>
+          <div class="ctl-hint" id="ctlHint">点画面出控制条</div>
+
+          <div class="ctl" id="ctl">
+            <div class="bar"><i></i><b></b></div>
+            <div class="row">
+              <button aria-label="播放" id="ctlPlay">▶</button>
+              <span id="ctlTime">0:22 / 8:10</span>
+              <span class="sp"></span>
+              <button class="on" aria-label="画面内字幕已开">字幕</button>
+              <button aria-label="倍速">1.0×</button>
+              <button aria-label="全屏">⛶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- C 档的右下角小窗落点（fixed，锚 layout viewport） -->
+      <button class="pip-x" id="xMini" aria-label="关闭小窗播放" style="display:none">✕</button>
+    </div>
+
+    <div class="subbar pad" id="subbar">
+      <span class="cnt">95 / 187</span>
+      <div class="pbar"><i></i></div>
+      <button class="btn" id="btnShadow">逐句跟读</button>
+      <button class="btn mic" id="btnMic">录音</button>
+    </div>
+
+    <div class="listwrap" id="listwrap">
+      <ol class="script pad" id="script"></ol>
+    </div>
+
+    <div class="vnote" id="vnote"></div>
+  </div>
+
+  <nav class="tabbar" id="tabbar" style="padding-bottom:env(safe-area-inset-bottom,0px)">
+    <button class="tab">✦<span>首页</span></button>
+    <button class="tab">◎<span>频道</span></button>
+    <button class="tab">🎓<span>练习</span></button>
+    <button class="tab">📖<span>单词训练</span></button>
+    <button class="tab">👤<span>我的</span></button>
+  </nav>
+
+  <button class="mbtn" id="mbtn">量给我看</button>
+  <div class="mtable" id="mtable"></div>
+  <div class="switchbar" id="switchbar">
+    <button data-mode="a">A 画面贴顶常驻</button>
+    <button data-mode="a2">A2 只留一条</button>
+    <button data-mode="b">B 画面缩成条</button>
+    <button data-mode="c">C 右下角 160×90</button>
+  </div>
+</div></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   #30 三形态的接线。三条硬规则：
+     ① 同一份 DOM —— 切形态只改 .app 上的 data-mode / data-bar，**不重建**播放器节点。
+        「切内联/迷你态不能丢播放进度」在 app 里是靠「只切 CSS 类、不 re-parent」实现的，
+        原型若靠重建节点来切形态，量出来的读数就不代表那个实现。
+     ② 一切数字来自 getBoundingClientRect()（热区用 elementFromPoint 逐像素探）。
+     ③ 入画字幕全页只有一份（INV-021）—— 形态再变也不复制第二份。
+   ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  var D = window.DEMO;
+  var app = document.getElementById("app");
+  var main = document.getElementById("main");
+  var frame = document.getElementById("frame");
+  var burn = document.getElementById("burn");
+  var burnEn = document.getElementById("burnEn");
+  var burnZh = document.getElementById("burnZh");
+  var player = document.getElementById("player");
+  var stickywrap = document.getElementById("stickywrap");
+  var topbar = document.getElementById("topbar");
+  var tabbar = document.getElementById("tabbar");
+  var subbar = document.getElementById("subbar");
+  var listwrap = document.getElementById("listwrap");
+  var script = document.getElementById("script");
+  var mode = "a";
+
+  /* ── 演示数据：与 #27/#28 原型同一份（内容不参与本票裁决） ── */
+  var CUR = 2;
+  var st = { pinned: false, ctlOn: false, vv: false /* 地址栏展开（Safari 少 40px） */ };
+  function words(t) {
+    return t.split(/\s+/).filter(Boolean).map(function (w) {
+      return '<button class="word now">' + w + "</button>";
+    }).join(" ");
+  }
+  function renderBurn() {
+    var row = D.script[CUR];
+    burnEn.innerHTML = words(row.en);
+    burnZh.textContent = row.zh;
+  }
+  function renderList() {
+    /* 内容必须比屏高长：本票量的是「滚走之后」，列表只有 10 行就滚不动，
+       量出来的是首屏而不是收缩态。行数按壳高的 12 倍铺（真机上是 190 句 / 1417px 内容高）。 */
+    var rows = [], n = 120;
+    for (var i = 0; i < n; i++) {
+      var r = D.script[i % D.script.length];
+      rows.push('<li class="' + (i % D.script.length === CUR ? "on" : "") + '">' +
+        '<span class="ts">' + r.t + "</span>" +
+        '<div style="min-width:0"><div class="en">' + r.en + "</div>" +
+        '<div class="zh">' + r.zh + "</div></div></li>");
+    }
+    script.innerHTML = rows.join("");
+  }
+
+  /* ── 粘滞触发：判据与 INV-023 一致 —— 画框**真的**跑出视口顶部（bottom ≤ 0） ──
+     app 里由 useStickyPip 测量；原型里同一条判据，这样「什么时候收」三态可比。 */
+  var raf = 0;
+  function measureSticky() {
+    var mt = main.getBoundingClientRect().top;
+    st.pinned = frame.getBoundingClientRect().bottom <= mt + 0.5;
+    render();
+  }
+  function schedule() {
+    if (raf) return;
+    raf = requestAnimationFrame(function () { raf = 0; measureSticky(); });
+  }
+  main.addEventListener("scroll", schedule, true);
+  window.addEventListener("resize", schedule);
+
+  /* ── 渲染：形态切换只改属性 / 类，不动 DOM 树 ── */
+  function render() {
+    app.setAttribute("data-mode", mode);
+    /* 顶栏高：B 档 44px（让位给条），其余档 64px（现行 full） */
+    app.setAttribute("data-bar", mode === "b" ? "compact" : "full");
+    document.getElementById("minibar").style.display = mode === "a2" ? "flex" : "none";
+    /* C 档：小窗只在「滚走了」之后出现；A/A2/B 是常驻，滚动不改变它们的存在 */
+    var mini = document.getElementById("xMini");
+    if (mode === "c") {
+      player.classList.toggle("minipip", st.pinned);
+      mini.style.display = st.pinned ? "flex" : "none";
+    } else {
+      player.classList.remove("minipip");
+      mini.style.display = "none";
+    }
+    var ctl = document.getElementById("ctl");
+    ctl.classList.add("tapmode");                       /* #28 乙：常驻的只有那条 3px 细进度 */
+    ctl.classList.toggle("on", st.ctlOn);
+    document.getElementById("ctlHint").classList.toggle("on", false);
+    app.style.setProperty("--vvshrink", st.vv ? "40px" : "0px");
+    document.getElementById("vnote").innerHTML = NOTES[mode]();
+    if (document.getElementById("mtable").classList.contains("on")) table();
+  }
+
+  /* ── 量尺 ── */
+  function box(el) { return el.getBoundingClientRect(); }
+  function r1(v) { return Math.round(v * 10) / 10; }
+  /* 热区：从元素中心向外逐像素探，判定是「该元素还在不在命中链里」。
+     `elementsFromPoint` 会跳过 `pointer-events:none` 的东西，所以这套探法量的正是
+     **可点**高度（app 里句子的 `.burn` 层就是 pointer-events:none，按钮自己是 auto）。 */
+  function hit(el) {
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    var cx = Math.round(r.left + r.width / 2), mid = r.top + r.height / 2;
+    function at(y, x) {
+      var s = document.elementsFromPoint(x === undefined ? cx : x, y);
+      return s.indexOf(el) >= 0;
+    }
+    if (!at(mid)) return { w: 0, h: 0, tappable: false };
+    var lo = mid, hi = mid, l = cx, rr = cx, i;
+    for (i = 0; i < 40 && lo > r.top - 26; i++) { if (!at(lo - 1)) break; lo--; }
+    for (i = 0; i < 40 && hi < r.bottom + 26; i++) { if (!at(hi + 1)) break; hi++; }
+    for (i = 0; i < 200 && l > r.left - 4; i++) { if (!at(mid, l - 1)) break; l--; }
+    for (i = 0; i < 200 && rr < r.right + 4; i++) { if (!at(mid, rr + 1)) break; rr++; }
+    return { w: Math.round(rr - l), h: Math.round(hi - lo), tappable: true };
+  }
+  function overlap(a, b) {
+    var ra = box(a), rb = box(b);
+    if (!ra.height || !rb.height) return 0;
+    return Math.max(0, Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top));
+  }
+  /* 自由屏高：屏高 − 顶栏 − 底部导航 −（C 档的 fixed 小窗）；B 档还要减掉那条。
+     这是「常驻件吃掉多少」的单一数字，三态同口径。 */
+  var PIP_W = 160, PIP_H = 90;
+  function pipOn() { return mode === "c" && player.classList.contains("minipip"); }
+  /* 常驻件合计：顶栏 + 粘滞块（A/A2/B 是常驻；C 的 0 表示顶上不常驻，代价挪到右下角的小窗） */
+  function permanentH() {
+    var bar = Math.round(box(topbar).height);
+    if (mode === "c") return bar;
+    return bar + Math.round(box(player).height);
+  }
+  function freeH() {
+    var a = box(app);
+    var h = a.height - box(topbar).height - box(tabbar).height;
+    if (pipOn()) h -= PIP_H;
+    return Math.round(h);
+  }
+  /* 文稿列表**实际能看见**多少：常驻块（顶栏 + 粘滞块 / 右下角小窗）与底栏把它夹住，
+     所以要比「列表自己的高度」与「没被盖住的那条带」取小。这是「常驻件吃掉多少」的真账。 */
+  function listVisibleH() {
+    var lb = box(listwrap), mb = box(main);
+    var top = Math.max(lb.top, mb.top);
+    if (mode !== "c") top = Math.max(top, box(player).bottom);   /* A/A2/B：粘滞块盖住列表顶部 */
+    var bot = Math.min(lb.bottom, mb.bottom);
+    if (pipOn()) bot = Math.min(bot, box(player).top);           /* C：小窗盖住列表底部 */
+    return Math.max(0, Math.round(bot - top));
+  }
+  function listH() {
+    var lb = box(listwrap), mb = box(main);
+    var top = Math.max(lb.top, mb.top), bot = Math.min(lb.bottom, mb.bottom);
+    return Math.max(0, Math.round(bot - top));
+  }
+  function pipOverList() {
+    if (!pipOn()) return 0;
+    return Math.round(overlap(player, listwrap));
+  }
+  /* 可见画面：画框顶到「入画字幕上沿」之间的净空 —— 与 #28 决议同一个量法 */
+  function visiblePicture() {
+    if (!burn.offsetParent) return 0;        /* 字幕整体出画（C 档的小窗里就是这一态） */
+    var f = box(frame);
+    var b = box(burn);
+    if (!b.height) return Math.round(f.height - 3);
+    return Math.max(0, Math.round(b.top - f.top));
+  }
+  function wordHits() {
+    var ws = burn.querySelectorAll(".word");
+    if (!ws.length) return { n: 0, min: 0, max: 0, inView: 0, tappable: 0 };
+    var mn = 1e9, mx = 0, inView = 0, tap = 0;
+    var fr = box(frame);
+    Array.prototype.forEach.call(ws, function (w) {
+      var hh = hit(w);
+      if (hh && hh.tappable && hh.h > 0) { mn = Math.min(mn, hh.h); mx = Math.max(mx, hh.h); tap++; }
+      var r = w.getBoundingClientRect();
+      if (r.height && r.top >= fr.top - 1 && r.bottom <= fr.bottom + 1) inView++;
+    });
+    return { n: ws.length, min: mn === 1e9 ? 0 : mn, max: mx, inView: inView, tappable: tap };
+  }
+
+  function snapshot() {
+    var fr = box(frame), mb = box(main);
+    var w = wordHits();
+    var bb = box(burn);
+    /* 字幕被画框切掉多少：burn 底边对齐画框下沿，所以溢出的部分从**上沿**被切 */
+    var clip = Math.max(0, Math.round(fr.top - bb.top));
+    return {
+      mode: mode,
+      bar: mode === "b" ? 44 : 64,
+      permanent: permanentH(),
+      pinned: st.pinned,
+      pip: pipOn(),
+      free: freeH(),
+      list: listH(),
+      listVisible: listVisibleH(),
+      pipOverList: pipOverList(),
+      vp: visiblePicture(),
+      frameTop: r1(fr.top), frameH: Math.round(fr.height),
+      frameX: r1(fr.x), frameW: Math.round(fr.width),
+      burnH: Math.round(bb.height) || 0,
+      burnClip: clip,
+      burnInFrame: !!burn.offsetParent && overlap(frame, burn) > 20,
+      thin: Math.round(box(document.querySelector(".thinbar")).height) || document.querySelector(".thinbar").offsetHeight,
+      ctl: Math.round(box(document.getElementById("ctl")).height),
+      wordN: w.n, wordMin: w.min, wordMax: w.max, wordInView: w.inView, wordTap: w.tappable,
+      // 「当前句」全页出现次数：入画字幕是唯一一份，再数一遍列表里的高亮行
+      burnCount: document.querySelectorAll(".burn").length,
+      burnTextInList: script.innerHTML.split(D.script[CUR].en).length - 1,
+      fixedBottom: countFixedBottom()
+    };
+  }
+  /* 有几个 `fixed` 且贴底的常驻件 —— INV-019 说底栏绝不能是其中一个 */
+  function countFixedBottom() {
+    var n = 0;
+    Array.prototype.forEach.call(document.querySelectorAll("body *"), function (el) {
+      var cs = getComputedStyle(el);
+      if (cs.position === "fixed" && /px$/.test(cs.bottom) && parseFloat(cs.bottom) < 200) n++;
+    });
+    return n;
+  }
+
+  var MODES = ["a", "a2", "b", "c"];
+  var MODE_LABEL = { a: "A 画面贴顶常驻", a2: "A2 只留一条", b: "B 画面缩成条", c: "C 右下角 160×90" };
+
+  function table() {
+    var rows = [
+      ["常驻件合计（顶栏+粘滞块）", "permanent", "px", function (s) { return s.permanent; }],
+      ["自由屏高（屏高−顶栏−底栏−常驻）", "free", "px", function (s) { return s.free; }],
+      ["文稿列表可视高度（净）", "lv", "px", function (s) { return s.listVisible; }],
+      ["小窗/条压住文稿列表", "pol", "px", function (s) { return s.pipOverList; }],
+      ["可见画面（画框顶→字幕上沿）", "vp", "px", function (s) { return s.vp; }],
+      ["画框", "fr", "", function (s) { return s.frameW + "×" + s.frameH; }],
+      ["入画字幕块", "burnH", "px", function (s) { return s.burnH; }],
+      ["字幕被画框切掉（从顶切）", "clip", "px", function (s) { return s.burnClip; }],
+      ["当前句是否还在画面内", "bif", "", function (s) { return s.burnInFrame ? "是" : "否"; }],
+      ["画面内当前句份数（INV-021）", "bc", "", function (s) { return s.burnCount; }],
+      ["画面内可点词数", "wn", "个", function (s) { return s.wordTap + " / " + s.wordN; }],
+      ["画面内词热区", "wh", "px", function (s) { return s.wordTap ? s.wordMin + "–" + s.wordMax : "不可点"; }],
+      ["贴底 fixed 常驻件（INV-019）", "fb", "个", function (s) { return s.fixedBottom; }]
+    ];
+    var snaps = MODES.map(function (m) { var old = mode; mode = m; var s = snapshot(); mode = old; return s; });
+    var html = '<div class="hd">四态读数（375×812 · 画框已滚出视口顶部 = 收缩态）' +
+      (st.vv ? " · 地址栏展开：layout viewport 不变，可视区 −40px" : "") + "</div>" +
+      "<table><thead><tr><th>项</th>" +
+      MODES.map(function (m) { return "<th>" + MODE_LABEL[m] + "</th>"; }).join("") +
+      "</tr></thead><tbody>";
+    rows.forEach(function (row) {
+      html += "<tr><td>" + row[0] + "</td>";
+      snaps.forEach(function (s) {
+        var v = row[3](s);
+        var tone = "";
+        if (row[1] === "wh") tone = s.wordTap && s.wordMax >= 44 ? "good" : "bad";
+        if (row[1] === "bif") tone = s.burnInFrame ? "good" : "bad";
+        if (row[1] === "bc") tone = s.burnCount === 1 ? "good" : "bad";
+        if (row[1] === "free") tone = s.free >= 300 ? "good" : "bad";
+        if (row[1] === "list") tone = s.list >= 200 ? "good" : "bad";
+        if (row[1] === "permanent") tone = s.permanent >= 300 ? "bad" : "";
+        if (row[1] === "clip") tone = s.burnClip > 0 ? "bad" : "good";
+        html += '<td class="' + tone + '">' + v + "</td>";
+      });
+      html += "</tr>";
+    });
+    html += "</tbody></table>" +
+      '<div class="foot">量法：全部 getBoundingClientRect()；热区用 elementFromPoint 逐像素探（读矩形会把被压掉的部分算进去）。' +
+      "「自由屏高」= 壳高 − 顶栏 − 底栏 − 常驻件，是「常驻件吃掉多少」的单一数字。" +
+      "C 档在真机上还要再减 40px：<code>fixed</code> 锚 layout viewport，地址栏展开时它比可视区底边低 40px。</div>";
+    document.getElementById("mtable").innerHTML = html;
+  }
+
+  /* ── 形态切换（只改属性，不重建节点） ── */
+  document.getElementById("switchbar").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-mode]");
+    if (!b) return;
+    mode = b.getAttribute("data-mode");
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function (x) {
+      x.classList.toggle("on", x === b);
+    });
+    player.classList.remove("minipip");
+    measureSticky();
+    table();
+  });
+  document.getElementById("mbtn").addEventListener("click", function () {
+    var t = document.getElementById("mtable");
+    t.classList.toggle("on");
+    this.textContent = t.classList.contains("on") ? "收起读数" : "量给我看";
+    if (t.classList.contains("on")) { main.scrollTop = 420; table(); }
+    else { main.scrollTop = 0; }
+  });
+  /* 模拟地址栏收放：给 .app 加 --vvshrink=40px，C 档的小窗当场比可视区底边低 40px。
+     真机读数（iPhone 11 / Safari）见 docs/design/mobile/baseline/README.md。 */
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "v" || e.key === "V") { st.vv = !st.vv; render(); }
+  });
+
+  /* 画面点击＝呼出控制条（与 app 的移动端一致；C 档小窗里控制条整体出画） */
+  frame.addEventListener("click", function (e) {
+    if (e.target.closest(".word") || e.target.closest(".ctl") || e.target.closest("button")) return;
+    st.ctlOn = !st.ctlOn;
+    render();
+    if (st.ctlOn) setTimeout(function () { st.ctlOn = false; render(); }, 3000);
+  });
+  document.getElementById("xMini").addEventListener("click", function () {
+    st.pinned = false; main.scrollTop = 0; render();
+  });
+  document.getElementById("btnMic").addEventListener("click", function () { alert("录音（原型示意）"); });
+
+  var NOTES = {
+    a: function () { return "<b>A · 画面贴顶常驻 —— 64px 顶栏 + 原尺寸画框（211px）粘在它下面。</b><br>" +
+      "这道形态顺带回答了第 2 问：顶栏**不让位**，两者叠成 <b>275px 常驻</b>（不是 88px —— " +
+      "88px 那个数字默认了画面也缩，那是 A2/B）。收益是画面内那句字幕与点词热区<b>永远在</b>；" +
+      "代价写在读数里：自由屏高与文稿列表可视高度。"; },
+    a2: function () { return "<b>A2 · 只留一条 —— 顶栏不让位、画面整体出画，常驻的只有一条 56px 的标题条。</b><br>" +
+      "这是票面第 2 问「合并成一个（顶栏里嵌进度）？」对应的形态：44 + 56 = <b>100px</b> 常驻。" +
+      "代价最直白：<b>入画字幕连同点词热区一起出画</b> —— #27「点词只在画面内那句上可用」滚动之后没有锚点。"; },
+    b: function () { return "<b>B · 画面缩成条 —— 顶栏让位（44px 吸顶）+ 播放器整块缩成一条粘在顶栏下沿。</b><br>" +
+      "画框由 16:9 的 211px 变成定高条，所以「缩成条」的代价要逐项看：" +
+      "条内还剩多少可见画面、入画字幕塞不塞得下（下沿贴 3px 细进度）、点词热区还在不在 44px 线上。" +
+      "把当前句换成生产库的最长句再量一遍 —— 那才是这条形态真正的压力测试。"; },
+    c: function () { return "<b>C · 右下角 160×90（现状）。</b><br>" +
+      "滚走之后画面缩到右下角，顶上只剩 64px 顶栏 —— 自由屏高最大。" +
+      "代价三条：① 160×90 装不下入画字幕，那句唯一的当前句<b>连同点词热区一起出画</b>（INV-021 的锚点消失，实测 burnCount=0）；" +
+      "② 小窗压住文稿列表；③ <code>fixed</code> 锚 layout viewport，" +
+      "iOS Safari 地址栏展开时它比可视区底边低 <b>40px</b> —— 按 <b>V</b> 键模拟那一档。"; }
+  };
+
+  /* 形态切换（只改属性，不重建节点）。
+     **不**伪造 st.pinned：「什么时候收」的判据归 useStickyPip（INV-023），
+     量尺若自己设一个状态，读出来的就不是那套规则给出的结果。 */
+  function setMode(m) { mode = m; render(); measureSticky(); }
+
+  /* ── 起手 ── */
+  renderBurn();
+  renderList();
+  render();
+  /* 起手滚到收缩态：本票量的是**滚走之后**的形态，不是首屏 */
+  requestAnimationFrame(function () { main.scrollTop = 600; measureSticky(); table(); });
+  window.__S = {
+    get: function () { return snapshot(); },
+    all: function () {
+      return MODES.map(function (m) { var o = mode; mode = m; var s = snapshot(); mode = o; return s; });
+    },
+    setMode: function (m) { setMode(m); },
+    state: st,
+    hit: hit
+  };
+})();
+</script>
+</body>
+</html>
