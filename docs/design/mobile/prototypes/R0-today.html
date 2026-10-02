@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R0 · 现状基线（2026-10-02 线上那一套）</title>
+<link rel="stylesheet" href="_reading.css">
+</head>
+<body>
+<div class="phone">
+  <header class="topbar" data-shell="top"></header>
+
+  <main class="scroll">
+    <div class="frame"><img src="_asset-frame.png" alt="视频画面"></div>
+
+    <!-- 当前句卡：mt-3 断层 + 出血满宽 + 直角 + 1px 全边框（INV-021/024） -->
+    <div class="card-today">
+      <span class="counter">1 / 190</span>
+      <p class="now-en">But I think you're coming at it from the wrong perspective.</p>
+      <p class="now-zh">但我认为你是从错误的角度看待这件事。</p>
+    </div>
+
+    <!-- 文稿面板：再一次内缩 16px + 圆角 22px + 1px 边框；头部是 chip 行 + 折叠按钮 -->
+    <section class="aside-today">
+      <div class="tabs">
+        <button class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>双语</button>
+        <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>英语</button>
+        <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>中文</button>
+        <button class="collapse" aria-label="收起为字幕轨"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></svg></button>
+      </div>
+      <ul class="list" data-shell="list"></ul>
+    </section>
+
+    <div class="tail">本视频暂不出试卷 · 去真题练习 →</div>
+  </main>
+
+  <nav class="bottombar" data-shell="bottom"></nav>
+</div>
+<script src="_reading.js"></script>
+<script>mount({ current: 0 });</script>
+</body>
+</html>

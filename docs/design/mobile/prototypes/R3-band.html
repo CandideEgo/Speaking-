@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 · 字幕带（当前句归画面，文稿另起一张卡）</title>
+<link rel="stylesheet" href="_reading.css">
+</head>
+<body>
+<div class="phone">
+  <header class="topbar" data-shell="top"></header>
+
+  <main class="scroll">
+    <!-- 「播放器块」＝画面 + 紧贴其下的字幕带（深底白字，不压画面；不是入画字幕） -->
+    <div class="player">
+      <div class="frame"><img src="_asset-frame.png" alt="视频画面"></div>
+      <div class="band">
+        <p class="en">But I think you're coming at it from the wrong perspective.</p>
+        <p class="zh">但我认为你是从错误的角度看待这件事。</p>
+      </div>
+    </div>
+
+    <!-- 文稿另起一张卡：内缩 16px、圆角 22px，头部就是模式分段控件 + 计数 -->
+    <section class="sheet sheet--gap">
+      <div class="sheet-head">
+        <div data-shell="seg"></div>
+        <span class="counter">1 / 190</span>
+      </div>
+      <ul class="list" data-shell="list"></ul>
+    </section>
+
+    <div class="tail">本视频暂不出试卷 · 去真题练习 →</div>
+  </main>
+
+  <nav class="bottombar" data-shell="bottom"></nav>
+</div>
+<script src="_reading.js"></script>
+<script>mount({ current: 0 });</script>
+</body>
+</html>

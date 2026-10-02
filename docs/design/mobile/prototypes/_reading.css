@@ -1,0 +1,158 @@
+/* ---------------------------------------------------------------------------
+ * _reading.css — 「画框 → 当前句 → 文稿」这一段的版式原型（2026-10-02）
+ *
+ * 只画 414×896 这一屏，壳与底栏按线上实测尺寸复刻：
+ *   顶栏 44px / 画框 414×232.9（16:9 出血）/ 底栏 101px（44px 进度热区 + 56px 按键行 + 1px 上边框）
+ * 颜色取 globals.css 的 light theme token，一个都不改：
+ *   canvas #fff · surface-soft #fafafa · surface-card #f4f4f5 · ink #0a0a0a
+ *   muted #71717a · muted-soft #a1a1aa · hairline #ededed
+ *   brand-500 #ff5a1f · brand-50 #fff1eb · brand-100 #ffe0d3 · brand-700 #c33c0c
+ *   surface-dark #0a0a0a
+ * 字号：当前句 17/14（medium 档），文稿 14/12（与 SubtitleModeTabs 的 13px 同源）
+ * ------------------------------------------------------------------------- */
+:root {
+  --canvas: #fff;
+  --soft: #fafafa;
+  --card: #f4f4f5;
+  --ink: #0a0a0a;
+  --body: #27272a;
+  --muted: #71717a;
+  --muted-soft: #a1a1aa;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f5;
+  --brand: #ff5a1f;
+  --brand-50: #fff1eb;
+  --brand-100: #ffe0d3;
+  --brand-700: #c33c0c;
+  --dark: #0a0a0a;
+  --r-lg: 16px;
+  --r-xl: 22px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #e4e4e7; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+}
+
+/* ── 手机壳：414×896，一屏，不外溢 ───────────────────────────────────── */
+.phone {
+  position: relative; width: 414px; height: 896px; margin: 0 auto;
+  background: var(--canvas); display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── 顶栏 44px（WatchTopBar 实测） ──────────────────────────────────── */
+.topbar {
+  height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 6px;
+  padding: 0 6px; border-bottom: 1px solid var(--hairline); background: var(--canvas);
+}
+.topbar .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink); }
+.topbar .titles { flex: 1; min-width: 0; }
+.topbar .t { font-size: 15px; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .s { font-size: 10.5px; color: var(--muted); line-height: 1.2; }
+.pill {
+  height: 26px; padding: 0 10px; border-radius: 999px; background: var(--card);
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--body);
+}
+.pill i { width: 8px; height: 8px; border-radius: 999px; background: #3b82f6; display: block; }
+
+/* ── 画框：出血满宽，16:9 ───────────────────────────────────────────── */
+.frame { position: relative; width: 414px; height: 232.9px; background: var(--dark); overflow: hidden; flex: 0 0 auto; }
+.frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── 中段滚动容器 ───────────────────────────────────────────────────── */
+.scroll { flex: 1 1 auto; overflow: hidden; }
+
+/* ── 底栏 101px（WatchBottomBar 实测） ─────────────────────────────── */
+.bottombar { flex: 0 0 101px; border-top: 1px solid var(--hairline); background: var(--canvas); }
+.bar-progress { height: 44px; position: relative; }
+.bar-progress .rail { position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--hairline); }
+.bar-progress .fill { position: absolute; inset: 0 auto 0 0; width: 6%; background: var(--brand); }
+.bar-keys { height: 56px; display: flex; }
+.bar-keys button {
+  flex: 1; border: 0; background: none; display: flex; align-items: center; justify-content: center;
+  gap: 6px; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.bar-keys button.play { color: var(--ink); }
+.bar-keys svg { width: 19px; height: 19px; }
+
+/* ── 文稿面（本条原型的主角） ───────────────────────────────────────── */
+.sheet { background: var(--canvas); }
+/* 贴合档：上搭 14px 压进画面，圆角切进画面，形成「从画面下沿长出来」的一张面 */
+.sheet--flush {
+  margin: -14px 10px 0; border-radius: 20px 20px 0 0;
+  border: 1px solid var(--hairline); border-bottom: 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .18);
+  min-height: 300px;
+}
+/* 分离档：12px 留白 + 内缩 16px + 全圆角（与桌面 aside 同一套卡片语言） */
+.sheet--gap {
+  margin: 12px 16px 0; border: 1px solid var(--hairline); border-radius: var(--r-xl);
+  overflow: hidden;
+}
+/* 最小改动档：当前句仍是出血的一条带，只是去掉了边框与底色 */
+.sheet--band { margin: 12px 0 0; }
+
+/* 面头：模式分段控件 + 计数（44px，触控基线） */
+.sheet-head {
+  height: 44px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 10px 0 8px; border-bottom: 1px solid var(--hairline);
+}
+.seg { display: flex; gap: 2px; background: var(--card); border-radius: 10px; padding: 3px; }
+.seg button {
+  border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted);
+  height: 32px; padding: 0 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px;
+}
+.seg button.on { background: var(--canvas); color: var(--brand); box-shadow: 0 1px 2px rgba(0, 0, 0, .07); }
+.seg svg { width: 13px; height: 13px; }
+.counter { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* 当前句 */
+.now { padding: 8px 14px 10px; }
+.now-en { margin: 0; font-size: 17px; line-height: 32px; color: var(--ink); }
+.now-zh { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+.now-sep { height: 1px; background: var(--hairline); margin: 0 14px; }
+
+/* 文稿列表 */
+.list { margin: 0; padding: 6px 6px 18px; list-style: none; }
+.item { padding: 10px 12px; border-left: 3px solid transparent; border-radius: 10px; }
+.item .en { font-size: 14px; line-height: 1.6; color: var(--ink); font-weight: 500; }
+.item .zh { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.item.on { background: var(--brand-50); border-left-color: var(--brand); }
+.item.on .en { color: var(--brand); }
+
+/* 字幕带档：当前句成为画面的一部分（深底白字，不压画面） */
+.player { flex: 0 0 auto; background: var(--dark); }
+.band { padding: 10px 14px 12px; background: var(--dark); }
+.band .en { margin: 0; font-size: 17px; line-height: 26px; color: #fafafa; }
+.band .zh { margin: 3px 0 0; font-size: 14px; color: rgba(250, 250, 250, .66); }
+
+/* 页面尾部：证明文稿面之后还有内容（练习卡） */
+.tail { margin: 16px 16px 24px; border: 1px dashed #d4d4d8; border-radius: var(--r-lg); padding: 14px 16px; color: var(--muted); font-size: 13px; }
+
+/* ── 现状基线（R0）：就是线上那一套，用来当参照物 ───────────────────── */
+.card-today {
+  margin-top: 12px;               /* mt-3 */
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas); padding: 10px 14px; position: relative;
+}
+.card-today .counter { position: absolute; right: 12px; top: 8px; }
+.aside-today {
+  margin: 0 16px; border: 1px solid var(--hairline); border-radius: var(--r-xl);
+  background: var(--canvas); overflow: hidden;
+}
+.tabs { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--hairline); }
+.tabs .tab {
+  border: 0; background: none; font: inherit; font-size: 13px; font-weight: 500; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px;
+}
+.tabs .tab.on { background: rgba(255, 90, 31, .10); color: var(--brand); box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+.tabs .tab svg { width: 14px; height: 14px; }
+.tabs .collapse { margin-left: auto; width: 36px; height: 36px; display: grid; place-items: center; color: var(--muted); border: 0; background: none; }
+.tabs .collapse svg { width: 16px; height: 16px; }
+
+/* 批注（原型用，不进产品） */
+.tag { position: absolute; right: 8px; top: 50px; background: rgba(10,10,10,.82); color: #fff; font-size: 11px; padding: 3px 7px; border-radius: 6px; }

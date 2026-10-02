@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R1 · 贴合文稿面（开关在面头）</title>
+<link rel="stylesheet" href="_reading.css">
+</head>
+<body>
+<div class="phone">
+  <header class="topbar" data-shell="top"></header>
+
+  <main class="scroll">
+    <div class="frame"><img src="_asset-frame.png" alt="视频画面"></div>
+
+    <!-- 一张面从画面下沿长出来：上搭 14px 压进画面、圆角 20px、只剩一条外边界 -->
+    <section class="sheet sheet--flush">
+      <!-- 面头 44px：模式分段控件（触控基线）+ 计数。语义＝「这一面的文字怎么显示」 -->
+      <div class="sheet-head">
+        <div data-shell="seg"></div>
+        <span class="counter">1 / 190</span>
+      </div>
+
+      <!-- 当前句：紧跟面头，与文稿只隔一条发丝线 -->
+      <div class="now">
+        <p class="now-en">But I think you're coming at it from the wrong perspective.</p>
+        <p class="now-zh">但我认为你是从错误的角度看待这件事。</p>
+      </div>
+      <div class="now-sep"></div>
+
+      <ul class="list" data-shell="list"></ul>
+    </section>
+
+    <div class="tail">本视频暂不出试卷 · 去真题练习 →</div>
+  </main>
+
+  <nav class="bottombar" data-shell="bottom"></nav>
+</div>
+<script src="_reading.js"></script>
+<script>mount({ current: 0 });</script>
+</body>
+</html>

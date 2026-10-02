@@ -74,5 +74,6 @@
 | DEC-067 | 2026-09-29 | 取消知识层的字节上限与目标，改为一套分层标准（修订 DEC-062） | — | active |
 | DEC-068 | 2026-10-02 | 范围升级要显式：优化类任务不走 wayfinder 地图（关闭 #20，挂起 #25/#29） | — | active |
 | DEC-069 | 2026-10-02 | 推翻「乙·字幕入画」：观看控制搬进壳的顶栏与底栏（真机证据） | — | active |
+| DEC-070 | 2026-10-02 | 移动端播放页 R5「齐平字幕带」：字幕与画框齐平、模式行归文稿卡头；句导航闭包与 dev 指示器修复 | — | active |
 
 Retired 6 — DEC-003, DEC-005, DEC-013, DEC-016, DEC-024, DEC-047 — superseded or never implemented; bodies and stubs stay in `decisions.md`.

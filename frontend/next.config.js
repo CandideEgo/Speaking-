@@ -19,6 +19,14 @@ const nextConfig = {
   // ——不是白屏报错。默认放行 192.168.x.x，其他网段用 DEV_ALLOWED_ORIGINS
   // （逗号分隔，支持 `*` 通配段）覆盖。
   allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS || "192.168.*.*").split(","),
+  // dev 指示器：**整个关掉**，不是挪到右下角。
+  // 默认 `bottom-left` 的 36×36 指示器正好压在观看页底栏「上一句」的中心点上（实测
+  // `elementFromPoint(52, 868)` = `NEXTJS-PORTAL`），真机联调与本地自动化都会被它吞掉点击。
+  // 挪 `bottom-right` 只是把同一个问题搬给「跟读」那一格 —— 实测 414 档底栏四等分后右下角
+  // 正是 `watch-shadowing` 的中心，命中测试照样红。底栏是铺满整宽的四个键，四角没有一个
+  // 位置不压按钮，所以唯一能同时保住真机可点性与自动化判据的取值是 `false`。
+  // 编译/运行时错误浮层不受影响（Next 仍会显示）。
+  devIndicators: false,
   experimental: {
     // Rewrite barrel-file imports (recharts, lucide-react) into direct,
     // tree-shakeable imports to keep unused chart/icon code out of bundles.

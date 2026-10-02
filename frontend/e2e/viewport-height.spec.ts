@@ -103,20 +103,27 @@ test.describe("Viewport height - app shell", () => {
 
   /**
    * 底栏上沿 == 滚动区下沿、底栏不 fixed —— 与上面那条同款，抽出来给短视口档复用。
-   * （上面那条留着原样，免得把它的读数证据改掉。）
+   * 观看页（`/watch/*`）的最后一行是 `WatchBottomBar`（DEC-069 / #31），其他路由是 5 Tab；
+   * 所以选择器走**链**：先找 `[data-shell-bottom-bar="watch"]`，没有再退回 `nav.md:hidden`。
+   * 返回读数，调用方可以断言命中的是哪一个。
    */
   async function assertTabBarClosesTheShell(page: import("@playwright/test").Page, label: string) {
     const m = await page.evaluate(() => {
-      const el = document.querySelector("nav.md\\:hidden") as HTMLElement | null;
+      const el =
+        (document.querySelector('[data-shell-bottom-bar="watch"]') as HTMLElement | null) ??
+        (document.querySelector("nav.md\\:hidden") as HTMLElement | null);
       const main = document.querySelector("main") as HTMLElement | null;
       if (!el || !main) return null;
       const barRect = el.getBoundingClientRect();
+      const shell = document.querySelector("div.h-dvh") as HTMLElement | null;
       return {
+        which: el.getAttribute("data-shell-bottom-bar") === "watch" ? "watch" : "tabs",
         position: getComputedStyle(el).position,
         barTop: Math.round(barRect.top),
         barBottom: Math.round(barRect.bottom),
         barHeight: Math.round(barRect.height),
         mainBottom: Math.round(main.getBoundingClientRect().bottom),
+        shellBottom: shell ? Math.round(shell.getBoundingClientRect().bottom) : null,
         innerHeight: window.innerHeight,
       };
     });
@@ -128,6 +135,7 @@ test.describe("Viewport height - app shell", () => {
       `${label} 底栏贴可视区底边`
     ).toBeLessThanOrEqual(1);
     expect(Math.abs(m!.barTop - m!.mainBottom), `${label} 底栏贴滚动区下沿`).toBeLessThanOrEqual(1);
+    return m;
   }
 
   /**
@@ -135,8 +143,11 @@ test.describe("Viewport height - app shell", () => {
    * 与贴顶常驻的路由，而上面那份清单只列了 `/ /browse /vocabulary /practice /history /profile`
    * —— 播放页恰恰是最可能把壳撑破的那一页，不能不在里面。
    * 不需要能播的视频：壳与滚动容器先于媒体渲染，拿不到 id 才 skip。
+   *
+   * DEC-069 追加：这一页的收尾行是 **`WatchBottomBar`**（`data-shell-bottom-bar="watch"`），
+   * 不再是 5 Tab —— 它同样不许 `fixed`、同样要贴住可视区底边（INV-019 补的那一句）。
    */
-  test("/watch/<id> 也在壳层清单里：壳高 == 可视高、文档无溢出、底栏收尾", async ({
+  test("/watch/<id> 也在壳层清单里：壳高 == 可视高、文档无溢出、观看页底栏收尾且非 fixed", async ({
     page,
     request,
   }) => {
@@ -149,7 +160,37 @@ test.describe("Viewport height - app shell", () => {
     const m = await shellMetrics(page);
     expect(m.shellHeight, "/watch 壳高度").toBe(`${m.innerHeight}px`);
     expect(m.docOverflow, "/watch 文档溢出").toBeLessThanOrEqual(1);
-    await assertTabBarClosesTheShell(page, "/watch");
+
+    const bar = await assertTabBarClosesTheShell(page, "/watch");
+    expect(bar!.which, "/watch 的收尾行是 WatchBottomBar，不是 5 Tab").toBe("watch");
+
+    // 显式那半条：`WatchBottomBar` 非 fixed + 贴可视区底边 + 就是壳的最后一行。
+    const explicit = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="watch-bottom-bar"]') as HTMLElement | null;
+      const shell = document.querySelector("div.h-dvh") as HTMLElement | null;
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        position: getComputedStyle(el).position,
+        bottom: Math.round(r.bottom),
+        height: Math.round(r.height),
+        shellBottom: shell ? Math.round(shell.getBoundingClientRect().bottom) : null,
+        innerHeight: window.innerHeight,
+      };
+    });
+    expect(explicit, "观看页底栏（data-testid=watch-bottom-bar）在").not.toBeNull();
+    expect(explicit!.position, "观看页底栏非 fixed（壳内常规流）").not.toBe("fixed");
+    expect(
+      Math.abs(explicit!.bottom - explicit!.innerHeight),
+      "观看页底栏贴可视区底边"
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(explicit!.bottom - (explicit!.shellBottom ?? -1)),
+      "观看页底栏就是壳的最后一行"
+    ).toBeLessThanOrEqual(1);
+    // 只断言「不是塌成一条线」：具体高度（实测 101 = 44 进度热区 + 56 按键行 + 1 边框，
+    // 与 `WATCH_BOTTOM_BAR_HEIGHT` 同步）由移动端 spec 按实测矩形读，不在这里钉常量。
+    expect(explicit!.height, "观看页底栏有实际高度").toBeGreaterThanOrEqual(44);
   });
 
   /**

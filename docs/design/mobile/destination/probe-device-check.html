@@ -70,15 +70,17 @@
   }
 
   /* ================= 复刻台（把 app 的移动端版式数值搬到这里量） =================
+     DEC-069 之后 /watch/* 走壳的两个栏，这里按落地后的形态复刻。
      数值来源（frontend/src，不在本页复制实现，只复制几何）：
-       · 壳          app/(main)/MainLayoutInner.tsx:63-69   flex column h-dvh + env() 安全区 padding
-       · 底栏        components/layout/MobileTabBar.tsx:64-93  常规流收尾行（非 fixed），min-h 44px
-       · 画框        (main)/watch/[id]/page.tsx:928-937  w-screen aspect-video，顶边贴壳顶
-       · 入画字幕    components/watch/VideoControls.tsx:200-207  absolute inset-x-0 bottom-[3px]
-       · 细进度      components/watch/VideoControls.tsx:210-218  absolute bottom-0 h-[3px]
-       · 标题 overlay (main)/watch/[id]/page.tsx:1003-1025  返回键 44px + 标题画在画面内
-       · 词卡        components/watch/WordCardSheet.tsx:59-60   top=max(8,min(frameBottom, tabTop-240))
-       · 跟读抽屉    components/watch/ShadowingDrawer.tsx:105-106 top=max(8,max(tabTop-400, frameBottom))
+       · 壳           app/(main)/MainLayoutInner.tsx   flex column h-dvh + env() 安全区 padding
+       · 顶栏 44px    components/layout/WatchTopBar.tsx   h-11（WATCH_TOP_BAR_HEIGHT = 44），返回与 ⋯ 各 44×44
+       · 画框         (main)/watch/[id]/page.tsx   w-screen aspect-video 出血满宽；**画面内零文字零覆盖物**
+       · 当前句卡     components/watch/CurrentSentenceCard.tsx   mt-3 出血满宽；正文 max-h-[92px]；行高 32px
+       · 底栏 101px   components/watch/WatchBottomBar.tsx   h-11 进度热区 + h-14 键行 + 1px 上边框
+       · 词卡         components/watch/WordCardSheet.tsx   top=max(8,min(frameBottom, barTop-240))
+       · 跟读抽屉     components/watch/ShadowingDrawer.tsx top=max(8,max(barTop-400, frameBottom))
+     两个栏都是壳里的**常规流行**（`shrink-0`，不是 `fixed`），所以这张台子量出来的「贴不贴底」
+     与 app 同一条因果，不是近似。
   */
   .stage {
     /* 出血满宽：靠负外边距吃掉 body 的 12px padding（不用 100vw —— 它会把滚动条宽度算进去）。 */
@@ -88,30 +90,31 @@
     display: flex; flex-direction: column;
   }
   .stage .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #1b2430; flex: none; }
-  .stage .burn {
-    position: absolute; left: 0; right: 0; bottom: 3px;
-    background: linear-gradient(to top, rgba(0,0,0,.9), rgba(0,0,0,.7), rgba(0,0,0,0));
-    padding: 6px 12px 10px; text-align: left; font-size: 16px; line-height: 1.35; font-weight: 600; color: #fff;
-    user-select: none; -webkit-user-select: none;      /* 与 VideoControls 根节点 select-none 一致 */
+  /* 画面里零覆盖物：这里只有一层「画面本体的占位」——与 app 的 <video> 同尺寸，不写任何字。 */
+  .stage .frame .vid { position: absolute; inset: 0; background: linear-gradient(135deg, #1d2a3a, #101821 60%, #0b0f14); }
+  /* 当前句卡（CurrentSentenceCard）：mt-3 出血满宽；正文上限 max-h-[92px]；行高 32px（leading-8）。 */
+  .stage .sentence { flex: none; margin-top: 12px; border-top: 1px solid #2a3342; border-bottom: 1px solid #2a3342; background: #101318; padding: 10px 12px 11px; }
+  .stage .sentence .inner { max-height: 92px; overflow: hidden; }
+  .stage .sentence .en { font-size: 17px; line-height: 32px; font-weight: 600; color: #e8ecf2; }
+  .stage .sentence .zh { font-size: 14px; line-height: 1.5; color: #93a3b8; margin-top: 2px; }
+  /* 行内词热区：`inline-block -mb-1 pb-1` —— 盒子 32+4，负外边距抵消，行距仍是 32px、行与行不重叠。 */
+  .stage .sentence .w { display: inline-block; padding-bottom: 4px; margin-bottom: -4px; cursor: pointer; }
+  .stage .topbar {
+    flex: none; height: 44px; display: flex; align-items: center; gap: 4px;
+    padding: 0 4px; border-bottom: 1px solid #2a3342; background: #141a24;
   }
-  /* globals.css:615-617 .burn-sub-zh：mt-0.5 leading-[1.3] */
-  .stage .burn .zh { font-size: 12.5px; line-height: 1.3; font-weight: 400; color: rgba(255,255,255,.85); margin-top: 2px; }
-  /* globals.css:618-628 .burn-sub-word + ::after{inset:-4px -1px} —— 热区向外扩 4px，排版不动。 */
-  .stage .burn .w { position: relative; pointer-events: auto; touch-action: manipulation; padding: 0 1px; }
-  .stage .burn .w::after { content: ""; position: absolute; inset: -4px -1px; }
-  .stage .thin { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.25); }
-  .stage .thin i { display: block; height: 100%; width: 37%; background: #e8562f; }
-  .stage .titleov { position: absolute; left: 0; right: 0; top: 0; padding: 8px 8px 32px;
-    background: linear-gradient(to bottom, rgba(0,0,0,.6), rgba(0,0,0,.25), rgba(0,0,0,0));
-    display: flex; gap: 8px; align-items: flex-start; }
-  .stage .back { width: 44px; height: 44px; border-radius: 999px; background: rgba(0,0,0,.35); flex: none; }
-  .stage .ttl { font-size: 13px; font-weight: 700; color: #fff; padding-top: 6px; }
+  .stage .topbar .back, .stage .topbar .more { width: 44px; height: 44px; border-radius: 999px; background: #273040; flex: none; }
+  .stage .topbar .mid { min-width: 0; flex: 1; overflow: hidden; }
+  .stage .topbar .ttl { font-size: 15px; font-weight: 600; color: #e8ecf2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stage .topbar .lvl { font-size: 10px; line-height: 1.25; color: #93a3b8; }
+  /* 观看页底栏（WatchBottomBar）：h-11 进度热区（2px 视觉线钉在热区顶）+ h-14 四键行 + 1px 上边框。 */
+  .stage .bottombar { flex: none; border-top: 1px solid #2a3342; background: #101318; }
+  .stage .bottombar .rail { position: relative; height: 44px; touch-action: none; }
+  .stage .bottombar .rail .line { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: #2a3342; }
+  .stage .bottombar .rail .line i { position: absolute; inset: 0 auto 0 0; width: 37%; background: #e8562f; }
+  .stage .bottombar .keys { display: flex; height: 56px; align-items: center; }
+  .stage .bottombar .keys span { flex: 1; text-align: center; font-size: 12px; font-weight: 600; color: #93a3b8; }
   .stage .filler { flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; color: #6f8098; font-size: 12px; }
-  .stage .tabbar {
-    flex: none; min-height: 44px; border-top: 1px solid #2a3342; background: #101318;
-    display: flex; align-items: center; justify-content: space-around; font-size: 10px; color: #93a3b8;
-  }
-  .stage .tabbar span { flex: 1; text-align: center; }
   .stage .card, .stage .drawer {
     position: absolute; left: 0; right: 0; background: #101318; border-top: 1px solid #2a3342;
     border-radius: 16px 16px 0 0; padding: 8px 12px; font-size: 12px; color: #9fb3cd;
@@ -155,10 +158,15 @@
   <li>上滑让地址栏收起 → 「记 A」；下拉露出地址栏 → 「记 B」</li>
   <li>点「量复刻版式」→ 得到 <code>[复刻]</code> 段（本页把 app 的移动端几何按同一套数值搭出来量）</li>
   <li>点「测伪全屏几何」→ 屏幕闪一层橙色覆盖层，得到 <code>[伪全屏 #25 P6]</code> 段</li>
-  <li>（可选，最有用）C 段载入真实播放页，量真实 DOM：首屏 → 滚走 → 点词 → 开抽屉，各点一次「量一次」</li>
+  <li>（可选，最有用）C 段载入真实播放页，量真实 DOM：<b>首屏 → 滚到画面贴顶 → 点一个词（开词卡）→ 点底栏「跟读」（开抽屉）→ 开 ⋯ 面板</b>，每做完一步回来点一次「量一次」，报告里多一段 <code>[app#n]</code></li>
   <li>D 段按提示做手势（双击 / 长按 / 单击 / 纵向拖），E 段是只有人眼能判的项</li>
   <li>滚到底 → 「选中报告」→ <b>长按文本框 → 全选 → 拷贝</b> → 贴回给 Lead（原文逐字存盘，见 device-acceptance.md）</li>
 </ol>
+<p class="note">
+  <b>B 段与 C 段的区别</b>：B 段是本页按 app 的数值**复刻**的一台版式（不需登录、不需能播的视频），量的是设备行为与本机像素下的关系；
+  C 段在同一源 iframe 里载入**真实播放页**，量的是 app 自己的 DOM。两段的读数都想要；B 段过不了就别急着看 C 段。
+  B 段现在量的是 <code>/watch/*</code> 的**壳层控制条形态**：44px 顶栏 / 画面零文字 / 当前句卡与词热区 / 常规流 101px 底栏（44px 进度热区 + 56px 键行）/ 贴顶常驻的钉住位置。
+</p>
 <p class="note">
   <b>读数会自动存在本机</b>（localStorage）：切到别的 App、Safari 重载、甚至误触下拉刷新，回来都还在；
   想从头再来就点「清空全部读数，重来」。
@@ -196,32 +204,41 @@
 
 <h2>B · 复刻版式（按 app 的数值在真机上量）</h2>
 <p class="note">
-  下面是<b>复刻台</b>：它把 app 移动端播放页的几何按同一套数值搭出来（壳 <code>h-dvh</code> + 常规流底栏、画框 <code>aspect-video</code> 顶到壳顶、
-  入画字幕 <code>bottom:3px</code>、3px 细进度、标题 overlay、词卡与抽屉的卡口公式），现场量给你看。
-  它<b>不是</b> app 本身 —— app 的 DOM 在 C 段量。<b>真实 fixed 4px 橙条</b>钉在页面底：它是 <code>fixed bottom:0</code> 的落点，用来对照底栏（常规流）贴不贴底。
+  下面是<b>复刻台</b>：它把 <code>/watch/*</code> 移动端现在的几何按同一套数值搭出来（壳 <code>h-dvh</code> + 44px 顶栏 + <code>aspect-video</code> 出血画框
+  + 画面正下方的当前句卡 + 常规流 101px 底栏 + 词卡与抽屉的卡口公式），现场量给你看。
+  它<b>不是</b> app 本身 —— app 的 DOM 在 C 段量。<b>三条判据</b>在这一段里各自有对应行：画框子树里的非空文本节点必须为 0、
+  首屏不滚动就能看到完整底栏与完整当前句卡、底栏必须是常规流（非 <code>fixed</code>）且贴住 <code>dvh</code> 底边。
+  <b>真实 fixed 4px 橙条</b>钉在页面底：它是 <code>fixed bottom:0</code> 的落点，用来对照底栏（常规流）贴不贴底。
 </p>
 <div class="row"><button id="btnReplica">量复刻版式</button></div>
 <pre class="out" id="replicaout">（还没量）</pre>
 
 <div class="stage" id="stage">
-  <div class="frame" id="stFrame">
-    <div class="titleov"><div class="back"></div><div class="ttl">标题画在画面里（overlay，不占首屏高度）</div></div>
-    <div class="burn" id="stBurn">
-      <div><span class="w" id="stWord">welcome</span> to the real device acceptance probe for the mobile watch page</div>
-      <div class="zh">真机验收探针：这是按 app 数值复刻的入画字幕</div>
-    </div>
-    <div class="thin" id="stThin"><i></i></div>
+  <div class="topbar" id="stTop">
+    <div class="back"></div>
+    <div class="mid"><div class="ttl">标题搬进壳顶栏（一行 truncate，不再画在画面里）</div><div class="lvl">SeeWord · B2·≈六级</div></div>
+    <div class="more" id="stMore"></div>
   </div>
-  <div class="filler">复刻台内容区（app 这里是字幕卡 + 文稿列表）<br>长按 / 双击上面的单词，D 段会记录结果。</div>
-  <div class="tabbar" id="stTab"><span>首页</span><span>频道</span><span>练习</span><span>单词训练</span><span>我的</span></div>
-  <div class="card" id="stCard">
+  <div class="frame" id="stFrame"><div class="vid"></div></div>
+  <div class="sentence" id="stCard">
+    <div class="inner">
+      <div class="en" id="stEn"><span class="w" id="stWord">welcome</span> to the real device acceptance probe for the mobile watch page</div>
+      <div class="zh">真机验收探针：当前句卡在画面正下方（画面里一个字都没有）</div>
+    </div>
+  </div>
+  <div class="filler">复刻台内容区（app 这里是文稿列表）<br>长按 / 双击上面的单词，D 段会记录结果。</div>
+  <div class="bottombar" id="stBottom">
+    <div class="rail" id="stRail"><div class="line" id="stLine"><i></i></div></div>
+    <div class="keys" id="stKeys"><span>上一句</span><span>播放</span><span>下一句</span><span>跟读</span></div>
+  </div>
+  <div class="card" id="stWordCard">
     <div class="grab"></div>
-    复刻词卡（#27：顶边 = 画面下沿，高度随内容，底边不越底栏上沿）
+    复刻词卡（顶边 = 画框下沿，高度随内容，底边不越底栏上沿）
     <div style="height:300px"></div>
   </div>
   <div class="drawer" id="stDrawer">
     <div class="grab"></div>
-    复刻跟读抽屉（#26：底边贴底栏上沿，顶边 = max(底栏顶 − 400, 画框下沿)）
+    复刻跟读抽屉（底边贴底栏上沿，顶边 = max(底栏顶 − 400, 画框下沿)）
     <div style="height:380px"></div>
   </div>
 </div>
@@ -229,7 +246,7 @@
 <h2>C · 真实播放页（同源 iframe，量真实 DOM）</h2>
 <p class="note">
   <b>前提</b>：本页必须与 app <b>同源</b>（即从 <code>frontend/public/</code> 用 :3000 打开），且这台手机已登录。
-  在下面这块里操作 app：<b>首屏 → 上滑把画面滚出视口顶部（收成迷你窗）→ 点画面里的词（开词卡）→ 点「录音」（开抽屉）</b>，
+  在下面这块里操作 app：<b>首屏 → 上滑把画面滚出视口顶部（贴顶常驻）→ 点当前句卡里的词（开词卡）→ 点底栏「跟读」（开抽屉）→ 点顶栏 ⋯（开面板）</b>，
   每做完一步回来点一次「量一次」，报告里就会多一段 <code>[app#n]</code>。
   iframe 里没有地址栏（上面的 A 段才是地址栏的真读数），但元素之间的几何是 app 自己的。
 </p>
@@ -278,8 +295,9 @@
 
 <h3>D5 画框上纵向拖会不会滚页（#29 的 P8）</h3>
 <p class="note">
-  先点「① 记当前位置」，然后<b>在复刻台的画面区纵向拖 100px</b>（手指按住画面往上/下拖），再点「② 读结果」。
+  先点「① 记当前位置」，然后<b>在复刻台的画面区纵向拖 100px</b>（手指按住画面往上/下拖 —— 画面里现在一个字都没有，这也是 app 的画框），再点「② 读结果」。
   这条决定画面上能不能用 <code>touch-action:none</code>：若纵向拖动本来就不滚页，关掉缩放的代价为零。
+  画框是出血贴壳顶的，它是**最常用的滚动起点**，所以这条对「画面要不要吃掉纵向手势」是决定性的。
 </p>
 <div class="row"><button id="btnDragMark">① 记当前位置</button><button id="btnDragRead">② 拖完后读</button></div>
 <pre class="out" id="dragout">（还没测）</pre>
@@ -289,11 +307,11 @@
 
 <h2>E · 只有人眼能判的（本页量不出来）</h2>
 <ul class="note">
-  <li><b>V9 字幕同步</b>：画面上那句与听到的语音是否对得上（视频 / 文稿列表点句跳转后各看一次）</li>
-  <li><b>V8 滚动形态</b>：滚过画面之后是什么形态（贴顶常驻 / 小窗）、退出键好不好按、会不会压底栏</li>
-  <li><b>V15 全屏</b>：全屏后入画字幕与点词还在不在、怎么退出</li>
-  <li><b>V16 首帧闪烁</b>：进页面第一帧有没有闪一下桌面控制条</li>
-  <li><b>V12 旋转</b>：横过来再竖回去，词卡 / 抽屉 / 画面是否重算</li>
+  <li><b>V9 字幕同步</b>：当前句卡里那句与听到的语音是否对得上（视频 / 文稿列表点句跳转后各看一次）</li>
+  <li><b>V8 滚动形态</b>：滚过画面之后画面是否贴住 44px 顶栏常驻、尺寸有没有缩、会不会压住当前句卡与文稿（退出 X 已删 —— 滚回顶部自然解除）</li>
+  <li><b>V15 全屏</b>：全屏后当前句卡与点词还在不在、怎么退出（iPhone 上大概率落到原生播放器，那一进去页面 DOM 就全不在了）</li>
+  <li><b>V16 首帧闪烁</b>：进页面第一帧有没有闪一下桌面控制条（桌面 controls-bar 现在在 ≤1023px 根本不渲染）</li>
+  <li><b>V12 旋转</b>：横过来再竖回去，词卡 / 抽屉 / 当前句卡 / 画面是否重算</li>
   <li>还有麦克风录音本身（V7）—— http 下做不了，见文档的「关键风险」</li>
 </ul>
 <p class="note">每一条的编号、做法、通过标准在 <code>docs/design/mobile/destination/device-acceptance.md</code>；回传模板也在那份文档里。</p>
@@ -418,6 +436,10 @@
   var appSnaps = [];   // [app#n]
   var appNote = null;  // C 段说明
   var fs = null;       // [伪全屏] #25 P6
+  var appTapResult = null;  // 判据 ③：C 段里点一次底栏播放键的结果（不是「量一次」点出来的，是你在 iframe 里点出来的）
+  var appTapAt = 0;         // 你最后一次在 iframe 底栏上按下的时刻（「量一次」用它决定要不要顺手复核一次）
+  var tapProbeBusy = false; // 上面那次复核是异步的，别叠着跑
+  var appTapPending = false; // 「真实点击」那条判定还在等结果（1.5s 窗口）时，不让程序化复核插进来抢状态
   var gest = { dbl: null, dbl2: null, lp: null, tap: null, mic: null, scroll: null, drag: null };
 
   /* ---------- 读数持久化：手机上切 App / Safari 重载 / 下拉刷新都不该丢读数 ---------- */
@@ -425,7 +447,8 @@
   function save() {
     try {
       localStorage.setItem(SKEY, JSON.stringify({
-        v: 1, dev: dev, A: A, B: B, replica: replica, appSnaps: appSnaps, appNote: appNote, gest: gest, fs: fs
+        v: 1, dev: dev, A: A, B: B, replica: replica, appSnaps: appSnaps, appNote: appNote, gest: gest, fs: fs,
+        appTapResult: appTapResult
       }));
     } catch (e) { /* 隐私模式等：静默 */ }
   }
@@ -436,6 +459,7 @@
       dev = s.dev || null; A = s.A || null; B = s.B || null;
       replica = s.replica || null; appSnaps = s.appSnaps || []; appNote = s.appNote || null;
       fs = s.fs || null;
+      appTapResult = s.appTapResult || null;
       if (s.gest) { for (var k in s.gest) { if (s.gest[k]) gest[k] = s.gest[k]; } }
       if (replica) $("replicaout").textContent = replica.rows.map(function (r) { return "  " + r; }).join("\n");
       if (appSnaps.length) {
@@ -491,44 +515,78 @@
   function rectOf(el) { var r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right }; }
 
   function measureReplica() {
-    var stage = $("stage"), frame = $("stFrame"), burn = $("stBurn"), thin = $("stThin");
-    var tab = $("stTab"), card = $("stCard"), drawer = $("stDrawer"), word = $("stWord");
+    var stage = $("stage"), top = $("stTop"), frame = $("stFrame");
+    var sentence = $("stCard"), bottom = $("stBottom"), drawer = $("stDrawer");
+    var wordCard = $("stWordCard"), rail = $("stRail"), keys = $("stKeys"), word = $("stWord");
     var strip = $("fixedstrip");
     var v = vv();
 
     var stageH = stage.offsetHeight;
+    var stageR = stage.getBoundingClientRect();
+    var topR = top.getBoundingClientRect();
     var frameR = frame.getBoundingClientRect();
     var frameBottom = frameR.bottom;                                  // 视口坐标
-    var tabR = tab.getBoundingClientRect();
-    var tabTop = tabR.top, tabH = tabR.height;
-    var stageR = stage.getBoundingClientRect();
+    var senR = sentence.getBoundingClientRect();
+    var botR = bottom.getBoundingClientRect();
+    var botTop = botR.top, botH = botR.height;
+    var railR = rail.getBoundingClientRect();
+    var keysR = keys.getBoundingClientRect();
     var frameW = Math.round(frameR.width);
+    var visBottom = v ? r1(v.offsetTop + v.height) : null;
 
-    // 词卡：top = max(8, min(frameBottom, tabTop - 240))，maxHeight = max(240, tabTop - top)
-    var cardTop = Math.max(8, Math.min(frameBottom, tabTop - 240));
-    var cardMaxH = Math.max(240, tabTop - cardTop);
-    // 内容 300px → 卡高 = min(300, maxHeight)（WordCardSheet 是高度随内容）
-    var cardH = Math.min(300, cardMaxH);
-    // 抽屉：top = max(8, max(tabTop - 400, frameBottom))，height = max(120, tabTop - top)
-    var drawerTop = Math.max(8, Math.max(tabTop - 400, frameBottom));
-    var drawerH = Math.max(120, tabTop - drawerTop);
+    // 画面零文字：frame 子树里所有非空文本节点并成一块，看它是否与画框相交。
+    var walker = document.createTreeWalker(frame, NodeFilter.SHOW_TEXT, null, false);
+    var textNodes = 0, textArea = 0, inside = 0, tn;
+    while ((tn = walker.nextNode())) {
+      var s = String(tn.nodeValue || "").replace(/\s+/g, " ");
+      if (!s.replace(/ /g, "")) continue;
+      textNodes++;
+      var rg = document.createRange();
+      rg.selectNodeContents(tn);
+      var rr = rg.getBoundingClientRect();
+      textArea += rr.width * rr.height;
+      var ix = Math.max(0, Math.min(rr.right, frameR.right) - Math.max(rr.left, frameR.left));
+      var iy = Math.max(0, Math.min(rr.bottom, frameR.bottom) - Math.max(rr.top, frameR.top));
+      inside += ix * iy;
+    }
 
-    card.style.top = (cardTop - stageR.top) + "px"; card.style.height = cardH + "px";
-    drawer.style.top = (drawerTop - stageR.top) + "px"; drawer.style.height = drawerH + "px";
-
-    var burnR = burn.getBoundingClientRect();
-    var burnTopInFrame = burnR.top - frameR.top;
-
-    // 行内词热区：排版高 + ::after 外扩后的**有效命中高**（用 elementFromPoint 上下探）。
+    // 词热区：词的相邻兄弟盒都算「词那一行」，量它的行带；命中高用 elementFromPoint 上下探。
     var wR = word.getBoundingClientRect();
-    var cx = wR.left + wR.width / 2, hitTop = wR.top, hitBottom = wR.bottom;
+    var lineR = wR;
+    var sib = word.nextElementSibling;
+    while (sib) { var sr = sib.getBoundingClientRect(); if (sr.width * sr.height > 0) lineR = lineR === wR ? sr : { top: Math.min(lineR.top, sr.top), bottom: Math.max(lineR.bottom, sr.bottom) }; sib = sib.nextElementSibling; }
+    var words = frame.parentNode.querySelectorAll(".stage .sentence .w");
+    var minGap = null, prevRight = null;
+    for (var i = 0; i < words.length; i++) {
+      var wr2 = words[i].getBoundingClientRect();
+      if (prevRight !== null) { var g = wr2.left - prevRight; if (minGap === null || g < minGap) minGap = g; }
+      prevRight = wr2.right;
+    }
+    // 把当前句卡滚到视口中间，再探点（页面滚到顶时卡在首屏下半部，elementFromPoint 在视口外会返回 null）。
+    sentence.scrollIntoView({ block: "center" });
+    var wcx = wR.left + wR.width / 2, hitTop = wR.top, hitBottom = wR.bottom;
     for (var y = wR.top - 12; y <= wR.bottom + 12; y += 1) {
-      var hit = document.elementFromPoint(cx, y);
+      var hit = document.elementFromPoint(wcx, y);
       if (hit === word || (hit && hit.parentNode === word)) {
         if (y < hitTop) hitTop = y;
         if (y > hitBottom) hitBottom = y;
       }
     }
+
+    // 词卡：top = max(8, min(frameBottom, barTop - 240))，maxHeight = max(240, barTop - top)
+    var cardTop = Math.max(8, Math.min(frameBottom, botTop - 240));
+    var cardMaxH = Math.max(240, botTop - cardTop);
+    // 内容 300px → 卡高 = min(300, maxHeight)（WordCardSheet 是高度随内容）
+    var cardH = Math.min(300, cardMaxH);
+    // 抽屉：top = max(8, max(barTop - 400, frameBottom))，height = max(120, barTop - top)
+    var drawerTop = Math.max(8, Math.max(botTop - 400, frameBottom));
+    var drawerH = Math.max(120, botTop - drawerTop);
+
+    wordCard.style.top = (cardTop - stageR.top) + "px"; wordCard.style.height = cardH + "px";
+    drawer.style.top = (drawerTop - stageR.top) + "px"; drawer.style.height = drawerH + "px";
+
+    // 键行四等分：每格就是它的命中盒。
+    var keyW = fmt(Math.floor((keysR.width / 4) * 10) / 10);
 
     var rows = [];
     rows.push("本页自身横向可滚量 = " + (document.documentElement.scrollWidth - window.innerWidth) +
@@ -536,22 +594,49 @@
     rows.push("复刻台宽 " + frameW + "（clientWidth " + document.documentElement.clientWidth +
       "，innerWidth " + window.innerWidth + "）· 台高 " + fmt(stageH) +
       "（100dvh = " + fmt(boxH("100dvh")) + "，可视高 = " + fmt(v ? v.height : "n/a") + "）");
-    rows.push("画框 x/w/h = 0 / " + frameW + " / " + fmt(frameR.height) + "（aspect-video 16:9，顶边贴壳顶 = 台顶）");
-    rows.push("露出画面（入画字幕顶 − 画框顶） = " + fmt(burnTopInFrame) + "   ← #28 的可见画面地板 67 → 129px 就该看这个数（复刻字幕字号/行高与 app 一致，差几 px 正常）");
-    rows.push("入画字幕底边 + 3px 细进度 − 画框底 = " + fmt(burnR.bottom + 3 - frameR.bottom) + "   ← 应为 0（INV-021）");
-    rows.push("细进度高 = " + fmt(thin.offsetHeight) + "（应为 3）");
-    rows.push("底栏高 = " + fmt(tabH) + "（≥44）· 底栏底边 − 台底 = " + fmt(stageR.bottom - tabR.bottom) +
-      "（0 = 常规流收尾行贴住 dvh 底边；参照物是壳底 = 可视区底）");
-    rows.push("词卡顶边 − 画框下沿 = " + fmt(cardTop - frameBottom) + "（0 = #27 的卡口；>0 说明底栏顶被 240px 最小高顶下去了）· 卡高 " + fmt(cardH) +
-      " · 卡底 − 底栏顶 = " + fmt(tabTop - cardTop - cardH));
-    rows.push("抽屉底边 − 底栏顶 = " + fmt(tabTop - drawerTop - drawerH) + "（0 = INV-022）· 抽屉顶边 − 画框下沿 = " + fmt(drawerTop - frameBottom) +
-      "（≥0 = 不压画面）· 抽屉高 " + fmt(drawerH) + "（≤400 半屏档）");
-    rows.push("行内单词：排版高 = " + fmt(wR.height) + " · 有效命中高（含 ::after 外扩）= " + fmt(hitBottom - hitTop) +
-      "（app 是 16px 字号 → 21.6px 行高 + 上下各 4px；44px 在行内做不出，见 #27）");
-    rows.push("复刻底栏 vs 真实 fixed 条：fixed 4px 条底边 " + fmt(strip.getBoundingClientRect().bottom) +
-      "，可视区底边 " + fmt(v ? r1(v.offsetTop + v.height) : "n/a") +
-      " → 差 " + fmt(v ? r1(strip.getBoundingClientRect().bottom - v.offsetTop - v.height) : "n/a") +
-      "（非 0 = fixed 层被地址栏拽出可视区，INV-019 的病历）");
+    rows.push("顶栏高 = " + fmt(topR.height) + "（应为 44）· 顶栏顶边 = " + fmt(topR.top) +
+      "（壳的 env() padding 生效时会 >0，那是安全区）");
+    rows.push("画框 x/w/h = 0 / " + frameW + " / " + fmt(frameR.height) + "（aspect-video 16:9）· 画框顶边 − 顶栏底边 = " +
+      fmt(frameR.top - topR.bottom) + "（0 = 画面紧贴 44px 顶栏下沿，中间不留空）");
+    rows.push("★ 画面零文字：画框子树里的非空文本节点 = " + textNodes + " 个 · 总面积 = " + fmt(textArea) +
+      " · 与画框相交 = " + fmt(inside) + " px²（应为 0 个 / 0 px²；有字就是「入画字幕」又回来了）");
+    rows.push("当前句卡高 = " + fmt(senR.height) + "（414 档实测 108，本机宽度不同会差几 px）· 卡顶边 − 画框下沿 = " +
+      fmt(senR.top - frameBottom) + "（12 = mt-3 的间距；出血形态下卡片顶边与画框下沿之间就是这一条 12px 缝）· 卡底边 − 底栏顶 = " +
+      fmt(botTop - senR.bottom) + "（文稿区的起点）");
+    rows.push("当前句卡正文 max-h-[92px]：内部滚动高 = " + function () {
+      var inner = sentence.querySelector(".inner");
+      return inner ? fmt(inner.scrollHeight) + " / 裁切高 " + fmt(inner.clientHeight) : "—";
+    }() + "（超长句被截断是**故意**的：宁可不撑高卡片，也不把文稿挤出首屏）");
+    rows.push("底栏高 = " + fmt(botH) + "（实测 101 = 44px 进度热区 + 56px 键行 + 1px 上边框）· position = " +
+      getComputedStyle(bottom).position + "（**不许 fixed**，它必须是常规流收尾行）· 底栏底边 − 台底 = " + fmt(stageR.bottom - botR.bottom) +
+      "（0 = 贴住 dvh 底边 = 可视区底边）");
+    rows.push("进度条热区高 = " + fmt(railR.height) + "（44）· 2px 视觉线钉在热区顶（线高 = " +
+      getComputedStyle($("stLine")).height + "，线的底边 − 热区顶 = " + getComputedStyle($("stLine")).top + "）");
+    rows.push("★ 键行四键：行高 = " + fmt(keysR.height) + "（56 = h-14）· 每格宽 = " + keyW +
+      " → 四键各 " + keyW + "×" + fmt(keysR.height) + "（两维都 ≥44）");
+    rows.push("★ 词热区：排版行高 = " + fmt(wR.height) + "（inline-block + pb-1 − mb-1 = 32+4）· 行距 = " + fmt(lineR.bottom - lineR.top) +
+      " · 词间空隙 = " + fmt(minGap) + "px（line 里那个真实空格，约 4px；它同时意味着**相邻词不挨着**）");
+    rows.push("★ 词命中高（在行带里上下探）= " + fmt(hitBottom - hitTop) + " · 词「那一行」整条带的高 = " + fmt(lineR.height) +
+      "（最宽的那个词带着行带；44px 在正文行内做不出 —— 做得到就意味着两行热区互相重叠）");
+    rows.push("词卡顶边 − 画框下沿 = " + fmt(cardTop - frameBottom) + "（0 = 卡口；>0 说明底栏顶被 240px 最小高顶下去了）· 卡高 " + fmt(cardH) +
+      " · 卡底 − 底栏顶 = " + fmt(botTop - cardTop - cardH));
+    rows.push("抽屉底边 − 底栏顶 = " + fmt(botTop - drawerTop - drawerH) + "（0 = INV-022）· 抽屉顶边 − 画框下沿 = " + fmt(drawerTop - frameBottom) +
+      "（≥0 = 不压画面）· 抽屉高 = " + fmt(drawerH) + "（≤400 半屏档）");
+    rows.push("壳底栏 vs 真实 fixed 条：fixed 4px 条底边 " + fmt(strip.getBoundingClientRect().bottom) +
+      "，可视区底边 " + fmt(visBottom) +
+      " → 差 " + fmt(visBottom === null ? "n/a" : r1(strip.getBoundingClientRect().bottom - visBottom)) +
+      "（非 0 = fixed 层被地址栏拽出可视区；这就是底栏必须是常规流的原因，INV-019）");
+
+    var verdicts = [];
+    if (Math.abs(topR.height - 44) > 1) verdicts.push("顶栏不是 44");
+    if (textNodes > 0 || inside > 0.5) verdicts.push("画面里有文字");
+    if (getComputedStyle(bottom).position === "fixed") verdicts.push("底栏是 fixed");
+    if (Math.abs(botR.bottom - stageR.bottom) > 1) verdicts.push("底栏没贴住 dvh 底边");
+    if (Math.abs(botH - 101) > 2) verdicts.push("底栏高不是 101（本页数值，差几 px 看本机）");
+    if (Math.abs(railR.height - 44) > 1) verdicts.push("进度热区不是 44");
+    if (keysR.height < 44) verdicts.push("键行高 < 44");
+    rows.push("★ 判据速览：" + (verdicts.length ? verdicts.join("；") : "顶栏 44 / 画面零文字 / 底栏常规流且贴底 / 101 高 / 进度热区 44 / 键行 ≥44 —— 全部成立"));
+    rows.push("★ 露出画面（画框顶 → 画框底）= " + fmt(frameR.height) + "px（画面零覆盖物之后，画框从上到下全是画面）");
 
     replica = { t: nowIso(), rows: rows };
     var out = rows.map(function (s) { return "  " + s; }).join("\n");
@@ -601,14 +686,41 @@
     if (p.charAt(0) !== "/") p = "/" + p;
     appNote = "载入 " + p + " …（Next dev 首次编译可能要 20–60s）";
     $("appout").textContent = appNote;
-    appSnaps = [];
+    appSnaps = []; appTapResult = null; appTapAt = 0; appTapPending = false;
     IF.src = p;
     var tries = 0;
     (function wait() {
       tries++;
       var ok = false;
       try { ok = !!(IF.contentDocument && IF.contentDocument.querySelector("video")); } catch (e) { ok = false; }
-      if (ok) { appNote = "已载入 " + p + "（" + tries * 500 + "ms 内出现 <video>）；在该块里操作 app，然后点「量一次」"; $("appout").textContent = appNote; measureApp("首屏"); render(); return; }
+      if (ok) {
+        appNote = "已载入 " + p + "（" + tries * 500 + "ms 内出现 <video>）；在该块里操作 app，然后点「量一次」。在里面点一次底栏的「播放」键 → 再点「量一次」，顺手把判据 ③ 也验了";
+        $("appout").textContent = appNote;
+        // 记「你在 iframe 里按了什么」——判据 ③（一次点击开播）只能用真实点击来判。
+        try {
+          IF.contentDocument.addEventListener("pointerdown", function (e) {
+            var t = e.target, sel = null;
+            try {
+              sel = t.closest && t.closest('[data-testid="watch-toggle-play"], [data-testid="watch-prev"], [data-testid="watch-shadowing"]');
+            } catch (e2) { sel = null; }
+            if (!sel) return;
+            appTapAt = Date.now();
+            appTapPending = true;
+            var v = IF.contentDocument.querySelector("video");
+            if (v) { try { v.pause(); } catch (e3) {} }
+            setTimeout(function () {
+              var v2 = IF.contentDocument ? IF.contentDocument.querySelector("video") : null;
+              appTapPending = false;
+              appTapResult = (v2 && !v2.paused ? "是" : "否") + "（真实点击 " + (sel.getAttribute("data-testid") || "?") +
+                " 后 1.5s，video.paused = " + (v2 && !v2.paused ? "false → 开播了" : "true → 没开播") + "）";
+              render();
+            }, 1500);
+          }, true);
+        } catch (e4) { /* 跨源或还没就绪：忽略 */ }
+        measureApp("首屏");
+        render();
+        return;
+      }
       if (tries > 90) { appNote = "载入超时：iframe 里没出现 <video>（没登录？路径不对？视频不存在？跨源？）"; $("appout").textContent = appNote; render(); return; }
       setTimeout(wait, 500);
     })();
@@ -623,18 +735,94 @@
 
       var main = iframeBox("main#main-scroll");
       var video = iframeBox("video");
-      var burn = iframeBox('[data-testid="burn-subtitle"]');
-      var burnEn = iframeBox('[data-testid="burn-subtitle-en"]');
-      var thin = iframeBox('[data-testid="thin-progress"]');
-      var bar = iframeBox('[data-testid="controls-bar"]');
-      var tab = iframeBox('[data-testid="mobile-tab-bar"]');
-      var title = iframeBox('[data-testid="frame-title"]');
-      var actions = iframeBox('[data-testid="mobile-actions"]');
+      var frame = iframeBox('[data-testid="video-frame"]');
+      var topBar = iframeBox('[data-testid="watch-top-bar"]');
+      var backBtn = iframeBox('[data-testid="watch-top-back"]');
+      var moreBtn = iframeBox('[data-testid="watch-more-button"]');
+      var levelSel = iframeBox('[data-testid="level-selector"]');
+      var bottomBar = iframeBox('[data-testid="watch-bottom-bar"]');
+      var rail = iframeBox('[data-testid="watch-progress"]');
+      var fill = iframeBox('[data-testid="watch-progress-fill"]');
+      var prevBtn = iframeBox('[data-testid="watch-prev"]');
+      var playBtn = iframeBox('[data-testid="watch-toggle-play"]');
+      var nextBtn = iframeBox('[data-testid="watch-next"]');
+      var shadowBtn = iframeBox('[data-testid="watch-shadowing"]');
+      var senCard = iframeBox('[data-testid="current-sentence-card"]');
+      var counter = iframeBox('[data-testid="subtitle-counter"]');
+      var moreSheet = iframeBox('[data-testid="watch-more-sheet"]');
+      var controls = iframeBox('[data-testid="controls-bar"]');
+      var tabBar = iframeBox('[data-testid="mobile-tab-bar"]');
       var card = iframeBox('[data-testid="word-tooltip"][data-variant="sheet"]');
       var drawer = iframeBox('[data-testid="shadowing-drawer"]');
-      var pipClose = iframeBox('[aria-label="关闭小窗播放"]');
       var grab = iframeBox('[data-testid="shadowing-drawer-grab"]');
       var h1 = d.querySelector("h1");
+
+      function cssPosition(sel) {
+        try { var el = d.querySelector(sel); return el ? String(w.getComputedStyle(el).position) : "—"; } catch (e) { return "n/a"; }
+      }
+      // 删除项全在这张表里：每一项都该是「0 个」（该 testid 已从移动端播放页删除）。
+      function countOf(sel) { try { return d.querySelectorAll(sel).length; } catch (e) { return "n/a"; } }
+      // 画面零文字：画框子树里所有非空文本节点并成一块。
+      function frameText() {
+        try {
+          var walker = d.createTreeWalker(frameEl, NodeFilter.SHOW_TEXT, null, false);
+          var nodes = 0, area = 0, inside = 0, tn;
+          while ((tn = walker.nextNode())) {
+            if (!String(tn.nodeValue || "").replace(/\s+/g, "")) continue;
+            nodes++;
+            var rg = d.createRange();
+            rg.selectNodeContents(tn);
+            var rr = rg.getBoundingClientRect();
+            area += rr.width * rr.height;
+            var ix = Math.max(0, Math.min(rr.right, fr.right) - Math.max(rr.left, fr.left));
+            var iy = Math.max(0, Math.min(rr.bottom, fr.bottom) - Math.max(rr.top, fr.top));
+            inside += ix * iy;
+          }
+          return { nodes: nodes, area: area, inside: inside };
+        } catch (e) { return null; }
+      }
+      // 底栏四键里能真的点到的那个：优先播放键，其次上一句，最后跟读。
+      function targetDown(box) {
+        try { return d.elementFromPoint(box.x + box.w / 2, box.y + box.h / 2); } catch (e) { return null; }
+      }
+      function descendTo(el) {
+        while (el && el.firstElementChild) el = el.firstElementChild;
+        return el;
+      }
+      function describe(el) {
+        if (!el) return "—";
+        var s = el.tagName.toLowerCase();
+        if (el.getAttribute) {
+          var t = el.getAttribute("data-testid") || el.getAttribute("aria-label");
+          if (t) s += "[" + t + "]";
+        }
+        return s;
+      }
+      // 点一下底栏播放键，看 1.2s 内播放状态有没有翻过来。按下时先 place playback = paused，
+      // 这样「按下去就开播」与「按下去没反应」区分得开（只暂停不改变 paused=false 的起点）。
+      function tapToPlay() {
+        var el = targetDown(playBtn) || targetDown(prevBtn) || targetDown(shadowBtn);
+        if (!el) { return "—（底栏没渲染）"; }
+        var v = d.querySelector("video");
+        var t0 = performance.now();
+        return new Promise(function (resolve) {
+          var settled = false;
+          function finish(ok, detail) { if (settled) return; settled = true; try { el.removeEventListener("click", finishClick, true); } catch (e) {} resolve(ok + "（" + detail + " · " + Math.round(performance.now() - t0) + "ms）"); }
+          function finishClick() { if (v && !v.paused) { finish("是", "click 事件到达 " + describe(el)); } else finish("否", "click 事件到达但 video.paused 仍为 true"); }
+          try { v.pause(); } catch (e) {}
+          el.addEventListener("click", finishClick, true);
+          var evs = ["pointerdown", "pointerup", "mousedown", "mouseup", "touchstart", "touchend"];
+          for (var i = 0; i < evs.length; i++) {
+            try {
+              d.dispatchEvent(new w.Event(evs[i], { bubbles: true, cancelable: true }));
+            } catch (e) {}
+          }
+          setTimeout(function () { if (v && !v.paused) finish("是", "play() 后 video.paused = false"); else finish("否", describe(el) + " 上按下后 1.2s 内 video 仍在暂停"); }, 1200);
+        });
+      }
+
+      var frameEl = frame ? d.querySelector('[data-testid="video-frame"]') : null;
+      var fr = frameEl ? frameEl.getBoundingClientRect() : null;
 
       rows.push("iframe " + fmt(IF.clientWidth) + "×" + fmt(IF.clientHeight) +
         " · app innerHeight " + fmt(w.innerHeight) +
@@ -650,48 +838,111 @@
           } catch (e) { return "n/a"; }
         })());
       rows.push("壳顶（main#main-scroll top） = " + (main ? fmt(main.y) : "—") +
-        " · 画框 x/y/w/h = " + (video ? fmt(video.x) + " / " + fmt(video.y) + " / " + fmt(video.w) + " / " + fmt(video.h) : "—") +
-        (video && video.w < 220 ? "   ← 迷你窗形态（宽 < 220）" : ""));
-      rows.push("标题 overlay y/h = " + (title ? fmt(title.y) + " / " + fmt(title.h) : "—（未渲染）") +
-        " · 桌面页头 h1 可见 = " + (h1 ? "是" : "否") +
-        " · 动作行 y/h = " + (actions ? fmt(actions.y) + " / " + fmt(actions.h) : "—（未渲染）"));
-      rows.push("入画字幕 x/w/y/h = " + (burn ? fmt(burn.x) + " / " + fmt(burn.w) + " / " + fmt(burn.y) + " / " + fmt(burn.h) : "—（未渲染）") +
-        " · 英文字号 = " + (burnEn ? fmt(parseFloat(w.getComputedStyle(d.querySelector('[data-testid="burn-subtitle-en"]')).fontSize)) : "—"));
-      // 行内词热区：排版高 + ::after 外扩后的有效命中高（同源，可在 iframe 内探点）。
-      var hitLine = "—";
-      if (d.querySelector(".burn-sub-word")) {
-        var wd = d.querySelector(".burn-sub-word");
-        var wr = wd.getBoundingClientRect();
-        var wcx = wr.left + wr.width / 2, wtop = wr.top, wbot = wr.bottom;
-        for (var yy = wr.top - 14; yy <= wr.bottom + 14; yy += 1) {
+        " · 画框 x/y/w/h = " + (frame ? fmt(frame.x) + " / " + fmt(frame.y) + " / " + fmt(frame.w) + " / " + fmt(frame.h) : "—（未渲染）") +
+        (frame && Math.abs(frame.w - IF.clientWidth) <= 1 ? "（出血满宽 ✓）" : ""));
+      rows.push("★ 移动端壳：顶栏 h = " + (topBar ? fmt(topBar.h) : "—（未渲染）") + "（应为 44）· 返回 " +
+        (backBtn ? fmt(backBtn.w) + "×" + fmt(backBtn.h) : "—") + " · ⋯ " + (moreBtn ? fmt(moreBtn.w) + "×" + fmt(moreBtn.h) : "—") +
+        " · 级别选择器 " + (levelSel ? fmt(levelSel.w) + "×" + fmt(levelSel.h) : "—（未渲染）") +
+        " · 桌面页头 h1 可见 = " + (h1 ? "是" : "否"));
+      rows.push("★ 移动端底栏：h = " + (bottomBar ? fmt(bottomBar.h) : "—（未渲染）") + "（实测 101 = 44 进度热区 + 56 键行 + 1px 边框）· 底栏顶边 = " +
+        (bottomBar ? fmt(bottomBar.y) : "—") + " · position = " + cssPosition('[data-testid="watch-bottom-bar"]') + "（**不许 fixed**）· 底栏底边 − app 可视高 = " +
+        (bottomBar ? fmt(bottomBar.bottom - w.innerHeight) : "—") + "（0 = 常规流收尾行贴住可视区底边）");
+      rows.push("进度热区 h = " + (rail ? fmt(rail.h) : "—（未渲染）") + "（44）· 进度条视觉线 = 热区顶那条 2px（`watch-progress-fill` 的 style.width 由 rAF 直写，不进 React）· 已播宽 = " +
+        (fill ? fmt(fill.w) + " / 热区宽 " + (rail ? fmt(rail.w) : "—") : "—（未渲染）"));
+      var fourKeys = [];
+      [["上一句", prevBtn], ["播放/暂停", playBtn], ["下一句", nextBtn], ["跟读", shadowBtn]].forEach(function (p) {
+        if (!p[1]) { fourKeys.push(p[0] + "：未渲染"); return; }
+        var ok = p[1].w >= 44 && p[1].h >= 44;
+        fourKeys.push(p[0] + " " + fmt(p[1].w) + "×" + fmt(p[1].h) + (ok ? " ✓" : " ✗(<44)"));
+      });
+      rows.push("★ 底栏四键（各 ≥44×44）：" + fourKeys.join(" · "));
+      rows.push("—— 操作提示：在 iframe 里**点一下底栏的「播放」键**，再回来点「量一次」；这条直接回答判据 ③（一次点击开播）——");
+      rows.push("★ 一次点击开播 = " + (appTapResult || "（还没在 iframe 里点过底栏播放键）"));
+      // 你在 iframe 里刚点过底栏播放键的话，这里顺带把「一次点击到底开没开播」验掉（异步，1.2s 内回来）。
+      if (appTapAt && Date.now() - appTapAt < 60000 && !tapProbeBusy && !appTapPending) {
+        tapProbeBusy = true;
+        tapToPlay().then(function (r) {
+          tapProbeBusy = false;
+          appTapResult = r + "（iframe 内程序化 tap；你的真实点击是另一条更强证据）";
+          appTapAt = null;
+          render();
+        });
+      }
+      if (frame && fr) {
+        var ft = frameText();
+        rows.push("★ 画面零文字：画框子树非空文本节点 = " + (ft ? ft.nodes + " 个" : "n/a") + " · 与画框相交 = " +
+          (ft ? fmt(ft.inside) + " px²" : "n/a") + "（判据 ①：两个都应为 0）");
+        rows.push("   画面内覆盖物计数（每个都应为 0）：burn-subtitle " + countOf('[data-testid="burn-subtitle"]') +
+          " · frame-title " + countOf('[data-testid="frame-title"]') +
+          " · frame-back " + countOf('[data-testid="frame-back"]') +
+          " · thin-progress " + countOf('[data-testid="thin-progress"]') +
+          " · mobile-actions " + countOf('[data-testid="mobile-actions"]') +
+          " · controls-bar " + countOf('[data-testid="controls-bar"]') +
+          " · 关闭小窗播放 " + countOf('[aria-label="关闭小窗播放"]') +
+          " · mobile-tab-bar " + countOf('[data-testid="mobile-tab-bar"]') +
+          " · level-selector 在画面内 = " + (levelSel && fr ? (levelSel.y < fr.bottom && levelSel.bottom > fr.top ? "是（异常）" : "否") : "—"));
+      }
+      if (senCard && frame) {
+        rows.push("★ 当前句卡：顶边 − 画框下沿 = " + fmt(senCard.y - frame.bottom) + "（12 = mt-3）· 高 = " + fmt(senCard.h) +
+          "（414 档实测 108，本机宽度不同会差几 px）· 卡底边 − 底栏顶边 = " + (bottomBar ? fmt(bottomBar.y - senCard.bottom) : "—") +
+          " · 卡与画框同宽 = " + (Math.abs(senCard.w - frame.w) <= 1 ? "是" : "否（差 " + fmt(senCard.w - frame.w) + "）") +
+          " · 计数 = " + iframeText('[data-testid="subtitle-counter"]'));
+      }
+      // 词热区：在当前句卡里找一个非空词，量排版高 + 有效命中高（同源，可在 iframe 内探点）。
+      var wordEls = [];
+      try { wordEls = Array.prototype.slice.call(d.querySelectorAll('[data-testid="current-sentence-card"] .now-sub-word')); } catch (e) {}
+      if (wordEls.length) {
+        var wd = wordEls[0];
+        var wdr = wd.getBoundingClientRect();
+        var lineR = wdr, sib = wd.nextElementSibling;
+        while (sib) {
+          var sr2 = sib.getBoundingClientRect();
+          if (sr2.width * sr2.height > 0) lineR = { top: Math.min(lineR.top, sr2.top), bottom: Math.max(lineR.bottom, sr2.bottom) };
+          sib = sib.nextElementSibling;
+        }
+        var minGap = null, prevRight = null;
+        wordEls.forEach(function (el2) {
+          var r2 = el2.getBoundingClientRect();
+          if (r2.width * r2.height <= 0) return;
+          if (prevRight !== null) { var g = r2.left - prevRight; if (minGap === null || g < minGap) minGap = g; }
+          prevRight = r2.right;
+        });
+        var wcx = wdr.left + wdr.width / 2, wtop = wdr.top, wbot = wdr.bottom;
+        for (var yy = lineR.top - 14; yy <= lineR.bottom + 14; yy += 1) {
           var hh = d.elementFromPoint(wcx, yy);
           if (hh === wd || (hh && hh.parentNode === wd)) {
             if (yy < wtop) wtop = yy;
             if (yy > wbot) wbot = yy;
           }
         }
-        hitLine = "排版高 " + fmt(wr.height) + " · 有效命中高 " + fmt(wbot - wtop);
+        rows.push("★ 词热区（app 真实 DOM，卡里的 `.now-sub-word`）= 排版高 " + fmt(wdr.height) +
+          "（inline-block + pb-1 − mb-1 = 32+4）· 词那一行整条带 = " + fmt(lineR.height) +
+          " · 点词命中高 = " + fmt(wbot - wtop) + " · 词间空隙 = " + fmt(minGap) + "px（相邻词不挨着）· 词数 = " + wordEls.length +
+          " —— 44px 在正文行内做不出，这是已知代价");
+      } else {
+        rows.push("★ 词热区：这一帧没有 `[data-testid=\"current-sentence-card\"] .now-sub-word`（没字幕 / 当前句为空 / 面板挡着）");
       }
-      rows.push("行内词热区（app 真实 DOM）= " + hitLine);
-      rows.push("细进度高 = " + (thin ? fmt(thin.h) : "—") +
-        " · 控制条 y = " + (bar ? fmt(bar.y) : "—（未渲染）") +
-        " · 控制条是否沉到画框外 = " + (bar && video ? (bar.y >= video.bottom - 2 ? "是（静息）" : "否（浮起中）") : "—"));
-      rows.push("底栏 top/h/position = " + (tab ? fmt(tab.y) + " / " + fmt(tab.h) + " / " + String(w.getComputedStyle(d.querySelector('[data-testid="mobile-tab-bar"]')).position) : "—（未渲染）") +
-        " · 底栏底边 − app 可视高 = " + (tab ? fmt(tab.bottom - w.innerHeight) : "—"));
-      if (video && burn) rows.push("★ 入画字幕底边 + 3 − 画框下沿 = " + fmt(burn.bottom + 3 - video.bottom) + "（0 = INV-021 成立）");
-      if (video && card) rows.push("★ 词卡顶边 − 画框下沿 = " + fmt(card.y - video.bottom) + " · 卡高 " + fmt(card.h) +
-        " · 卡底 − 底栏顶 = " + (tab ? fmt(tab.y - card.bottom) : "—"));
-      if (drawer) rows.push("★ 抽屉顶边 − 画框下沿 = " + (video ? fmt(drawer.y - video.bottom) : "—") +
-        " · 抽屉底边 − 底栏顶 = " + (tab ? fmt(tab.y - drawer.bottom) : "—") + " · 抽屉高 " + fmt(drawer.h) +
+      rows.push("★ 贴顶常驻：滚动容器 scrollTop = " + (function () {
+        try { return fmt((d.querySelector("main#main-scroll") || {}).scrollTop || 0); } catch (e) { return "n/a"; }
+      })() + " · 画框顶边 − 可视区顶 = " + (frame ? fmt(frame.y) : "—") +
+        "（滚走之后应为 44 = 顶栏下沿，也就是贴住 44px 顶栏；**尺寸一像素不缩** —— 与 `[app#1 · 首屏]` 的 w/h 逐像素比；退出 X 已删，滚回顶部自然解除）");
+      if (card && frame) rows.push("★ 词卡顶边 − 画框下沿 = " + fmt(card.y - frame.bottom) + " · 卡高 " + fmt(card.h) +
+        " · 卡底 − 底栏顶 = " + (bottomBar ? fmt(bottomBar.y - card.bottom) : "—") + "（已知代价：词卡会盖住当前句卡）");
+      if (drawer) rows.push("★ 抽屉顶边 − 画框下沿 = " + (frame ? fmt(drawer.y - frame.bottom) : "—") +
+        " · 抽屉底边 − 底栏顶 = " + (bottomBar ? fmt(bottomBar.y - drawer.bottom) : "—") + " · 抽屉高 " + fmt(drawer.h) +
         " · 把手高 " + (grab ? fmt(grab.h) : "—") + " · 计时 = " + iframeText('[data-testid="recording-timer"]'));
-      if (pipClose && pipClose.w > 0) rows.push("迷你窗关闭按钮 w×h = " + fmt(pipClose.w) + "×" + fmt(pipClose.h) + "（44px 基线下这是缺口）");
+      if (moreSheet) rows.push("★ ⋯ 面板 watch-more-sheet：顶边 = " + fmt(moreSheet.y) + " · 高 = " + fmt(moreSheet.h) +
+        "（上限 80dvh = " + fmt(0.8 * w.innerHeight) + "）· 开面板时底栏" +
+        (bottomBar ? "仍在（异常）" : "按设计让位（底栏 = null）") + " · 面板底边 − 可视高 = " + fmt(moreSheet.bottom - w.innerHeight));
       rows.push("横向溢出：doc.scrollWidth − clientWidth = " + (function () {
         try { return fmt(d.documentElement.scrollWidth - d.documentElement.clientWidth); } catch (e) { return "n/a"; }
-      })() + " · 滚动容器 scrollTop = " + (function () {
-        try { return fmt((d.querySelector("main#main-scroll") || {}).scrollTop || 0); } catch (e) { return "n/a"; }
-      })());
-      if (!burn) notes.push("入画字幕未渲染 —— 该视频没有字幕，或当前句为空（本地 dev 的 CI 种子视频 subtitles=0 就是这种）");
-      if (!video) notes.push("没找到 <video> 元素");
+      })() + " · 桌面控制条 controls-bar = " + (controls ? "在（≤1023px 下异常）" : "不在 ✓") +
+        " · 5 Tab mobile-tab-bar = " + (tabBar ? "在（/watch/* 下异常）" : "不在 ✓"));
+      if (!frame) notes.push("没找到 video-frame（画框都没渲染的话，下面的几何都无意义）");
+      if (!topBar) notes.push("顶栏 watch-top-bar 未渲染 —— 桌面端（≥1024px）才会这样；移动端这多半意味着你用的是桌面版式");
+      if (!senCard) notes.push("当前句卡未渲染 —— 该 video 没有字幕，或当前句为空（本地 dev 的 CI 种子视频 subtitles=0 就是这种）");
+      if (!bottomBar) notes.push("底栏 watch-bottom-bar 未渲染 —— 要么在桌面端，要么 ⋯ 面板正开着（开面板时底栏按设计让位）");
+      if (video && video.w < 220) notes.push("画框宽 < 220 —— 这不是「迷你窗」，那个形态已经没有了；倒可能是测量时页面的响应式状态不对");
     } catch (e) {
       notes.push("跳过：" + (e && e.message ? e.message : String(e)));
     }
@@ -926,7 +1177,7 @@
     if (g.mic) { g.mic.forEach(function (l) { L.push("  " + l); }); } else { L.push("  （没测）"); }
     L.push("");
     L.push("[人眼确认项]（本页量不出来，按 device-acceptance.md 逐条填）");
-    L.push("  V9 字幕同步 = ____    V8 滚动后形态/退出键/压不压底栏 = ____    V15 全屏后字幕点词还在吗 = ____");
+    L.push("  V9 字幕同步 = ____    V8 滚动后是否贴 44px 顶栏常驻/尺寸缩没缩/压不压当前句卡 = ____    V15 全屏后当前句卡与点词还在吗 = ____");
     L.push("  V16 首帧闪不闪桌面控制条 = ____    V12 旋转后重算 = ____    V7 录音（http 下做不了） = ____");
     L.push("");
     L.push("[备注] 想补什么写这里：____");
@@ -971,6 +1222,7 @@
   $("btnReset").onclick = function () {
     try { localStorage.removeItem(SKEY); } catch (e) {}
     dev = null; A = null; B = null; replica = null; appSnaps = []; appNote = null; fs = null;
+    appTapResult = null; appTapAt = 0;
     gest = { dbl: null, dbl2: null, lp: null, tap: null, mic: null, scroll: null, drag: null };
     $("replicaout").textContent = "（还没量）";
     $("appout").textContent = "（还没载入）";

@@ -52,40 +52,47 @@ export default function SubtitleModeTabs({
   }
 
   return (
-    <div
-      className="flex items-center gap-1 px-3 py-2 overflow-x-auto scrollbar-hide shrink-0"
-      role="tablist"
-      aria-label="字幕模式"
-      onKeyDown={handleKeyDown}
-    >
-      {modes.map((m, i) => (
-        <button
-          key={m.key}
-          ref={(el) => {
-            tabRefs.current[i] = el;
-          }}
-          onClick={() => setSubtitleMode(m.key)}
-          role="tab"
-          aria-selected={subtitleMode === m.key}
-          tabIndex={subtitleMode === m.key ? 0 : -1}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 cursor-pointer",
-            compact && "px-2",
-            subtitleMode === m.key
-              ? "bg-brand-500/10 text-brand-500 shadow-sm"
-              : "text-muted hover:text-ink hover:bg-surface-soft"
-          )}
-          title={compact ? m.label : undefined}
-        >
-          {m.icon}
-          {!compact && m.label}
-        </button>
-      ))}
+    // R5（DEC-070）：模式行归文稿卡的**卡头** —— 外层是 48px 高的工具栏，里面那个
+    // 分段容器才是 `tablist`（ARIA 上 tab 必须由 tablist 直接拥有，所以 role 从外层行
+    // 搬到分段容器上）。三段各 ≥44px 高，补上原来 32px chip 行欠的触控基线。
+    <div className="flex h-12 items-center gap-1 px-2 overflow-x-auto scrollbar-hide shrink-0">
+      <div
+        className="flex items-center gap-0.5 rounded-xl bg-surface-card p-0.5"
+        role="tablist"
+        aria-label="字幕模式"
+        onKeyDown={handleKeyDown}
+      >
+        {modes.map((m, i) => (
+          <button
+            key={m.key}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
+            onClick={() => setSubtitleMode(m.key)}
+            role="tab"
+            aria-selected={subtitleMode === m.key}
+            tabIndex={subtitleMode === m.key ? 0 : -1}
+            className={cn(
+              "flex h-11 min-w-[72px] items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer",
+              compact && "px-2",
+              subtitleMode === m.key
+                ? "bg-canvas text-brand-500 shadow-sm"
+                : "text-muted hover:text-ink"
+            )}
+            title={compact ? m.label : undefined}
+          >
+            {m.icon}
+            {!compact && m.label}
+          </button>
+        ))}
+      </div>
 
       {onToggleCollapse && (
         <button
           onClick={onToggleCollapse}
-          className="ml-auto flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
+          // 折叠键在移动端没有对象（≤1023px 折出的竖轨并不真的让出一列），只在桌面渲染
+          // —— `hidden lg:flex`，与 `isMobile` 同一档断点（DEC-070 T4b）。
+          className="hidden lg:flex ml-auto items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
           title={collapsed ? "展开字幕面板" : "收起为字幕轨"}
           aria-label={collapsed ? "展开字幕面板" : "收起为字幕轨"}
         >

@@ -10,6 +10,9 @@ __pycache__/
 *.pyc
 # IDE planning artifacts (local agent session outputs)
 .qoder/
+# 一次性诊断脚本与截图（只读探针、量具产物）：`knowledge/plans/*诊断*` 明确要求它们不入库，
+# 但目录里没有 `.gitignore` 时 `git add -A` 会把 20 个探针文件一起带进提交（10-02 实测）。
+.tmp-diag/
 # Environment files (whitelist: only *.env.example may be committed)
 *.env*
 !*.env.example

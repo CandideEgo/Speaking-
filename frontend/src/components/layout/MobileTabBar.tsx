@@ -55,6 +55,11 @@ export function MobileTabBar() {
 
   if (isExamFlow) return null;
 
+  // DEC-069 / #31：观看页的底栏槽位让给 `WatchBottomBar`（进度 + 上一句/播放/下一句/跟读），
+  // 5 Tab 在观看时零用途 —— 与 `isExamFlow` 同一个先例：壳按路由换掉这一行，
+  // 两个底栏不会叠加（壳在 `/watch/*` 上根本不渲染这个组件，这里再挡一道）。
+  if (pathname.startsWith("/watch/")) return null;
+
   // 底栏是壳里的常规流元素，**不是** `fixed bottom-0`：
   // iOS Safari 上 fixed 锚的是 layout viewport（= 工具栏收起时的高度 100lvh），
   // 地址栏一出来可视区只剩 100dvh（少 40px），底栏就比可视区底边低 40px、压在地址栏上。

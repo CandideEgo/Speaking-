@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R4 · 最小改动（结构不动，只去盒、换控件）</title>
+<link rel="stylesheet" href="_reading.css">
+<style>
+  /* R4 的两处改动：① 当前句卡去边框去底色（仍是出血的一条带）；② chip 行换成分段控件、去掉折叠键 */
+  .sheet--min .now { padding: 12px 14px 12px; }
+  .sheet--min .card-min { margin-top: 12px; background: var(--canvas); }
+</style>
+</head>
+<body>
+<div class="phone">
+  <header class="topbar" data-shell="top"></header>
+
+  <main class="scroll">
+    <div class="frame"><img src="_asset-frame.png" alt="视频画面"></div>
+
+    <section class="sheet sheet--min">
+      <!-- 当前句：不再是「盒子」，只是画面下方的一条文字带 -->
+      <div class="card-min">
+        <div class="now" style="position:relative">
+          <span class="counter" style="position:absolute;right:12px;top:14px">1 / 190</span>
+          <p class="now-en">But I think you're coming at it from the wrong perspective.</p>
+          <p class="now-zh">但我认为你是从错误的角度看待这件事。</p>
+        </div>
+      </div>
+
+      <!-- 文稿面板保持自己的卡片与内缩，但头部换成分段控件（无折叠键、44px 触控行） -->
+      <section class="aside-today">
+        <div class="sheet-head">
+          <div data-shell="seg"></div>
+          <span class="counter">44px 触控行</span>
+        </div>
+        <ul class="list" data-shell="list"></ul>
+      </section>
+    </section>
+
+    <div class="tail">本视频暂不出试卷 · 去真题练习 →</div>
+  </main>
+
+  <nav class="bottombar" data-shell="bottom"></nav>
+</div>
+<script src="_reading.js"></script>
+<script>mount({ current: 0 });</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>#32 画框 → 当前句 → 文稿：这一段的版式（七条路线）</title>
+<style>
+  :root {
+    --bg: #18181b; --card: #232327; --line: #35353a; --ink: #fafafa;
+    --dim: #a1a1aa; --brand: #ff5a1f; --ok: #4ade80; --warn: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Inter, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.6; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 40px 24px 96px; }
+  h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 46px 0 12px; letter-spacing: -.01em; }
+  h3 { font-size: 15px; margin: 0 0 4px; }
+  .lede { color: var(--dim); font-size: 15px; max-width: 88ch; margin: 0; }
+  .lede b, li b { color: var(--ink); }
+  a { color: var(--brand); }
+  code { background: #2a2a2f; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin: 8px 0 0; }
+  th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: #1f1f23; font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.pick td { background: rgba(74, 222, 128, .08); }
+  tr.alt td { background: rgba(96, 165, 250, .07); }
+  tr.meh td { background: rgba(250, 204, 21, .05); }
+  .bad { color: #fca5a5; } .good { color: var(--ok); } .mid { color: var(--warn); }
+
+  .phones { display: flex; gap: 20px; margin-top: 14px; flex-wrap: wrap; }
+  .phone { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 13px; flex: 0 0 auto; width: 440px; }
+  .phone.pick { border-color: rgba(74, 222, 128, .55); }
+  .phone.alt { border-color: rgba(96, 165, 250, .45); }
+  .phone .bet { color: var(--dim); font-size: 12.5px; min-height: 96px; margin: 0 0 10px; }
+  .phone img { width: 414px; border-radius: 14px; border: 1px solid var(--line); display: block; background: #fff; }
+  .phone .go { display: inline-block; margin-top: 10px; font-size: 13px; }
+  .phone .m { font-size: 11.5px; color: var(--dim); margin: 8px 0 0; line-height: 1.75; }
+  .note { background: #1f1f23; border-left: 3px solid var(--brand); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; color: var(--dim); margin-top: 12px; }
+  .note b { color: var(--ink); }
+  ol.q { font-size: 14px; color: var(--dim); }
+  ol.q b { color: var(--ink); }
+  ul.s { font-size: 13.5px; color: var(--dim); }
+  ul.s b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#32 画框 → 当前句 → 文稿：这一段的版式（七条路线）</h1>
+  <p class="lede">
+    两个抱怨：<b>① 画框与当前句卡的边界很突兀</b>（用户确认指这两者）；<b>②「双语 / 英语 / 中文 + 折叠键」那一行割裂上下文</b> ——
+    从画面下面的字幕到整段字幕稿，中间像被切了一刀。<br>
+    七屏都按 <b>414×896</b> 渲染（@2x），壳与底栏按线上实测尺寸复刻（顶栏 44 · 画框 414×232.9 · 底栏 101 = 44+56+1）；
+    数据是本地库里那条视频的<b>真实前 5 句</b>，画面是从 <code>app-shots/14-414-first-screen.png</code> 裁下来的真实帧。
+    每个数字都来自 <code>getBoundingClientRect()</code>（<code>_reading-shots.js</code>）。
+  </p>
+
+  <h2>先看机器在盯什么：六条硬约束（不看清这个，版式会白设计）</h2>
+  <table>
+    <thead><tr><th style="width:250px">约束</th><th>原文（摘）</th><th>它钉住什么</th></tr></thead>
+    <tbody>
+      <tr><td><b>卡与画框左右同槽</b><br><code>mobile-current-sentence-card.spec.ts:152-156</code></td>
+        <td><code>|card.x − frame.x| ≤ 2</code>、<code>|card.width − frame.width| ≤ 2</code></td>
+        <td>当前句卡必须与画框<b>同 x、同宽</b>（出血）：内缩或加外边距就红</td></tr>
+      <tr><td><b>卡顶贴画框下沿</b><br><code>mobile-inline-subtitle.spec.ts:113-114</code> + <code>mobile-current-sentence-card:157-162</code></td>
+        <td><code>card.y ≥ frameBottom − 1</code>、<code>card.y ≤ frameBottom + 16</code>（另一条给到 +24）</td>
+        <td>卡顶与画框下沿的间距只能 <b>0…16px</b>：齐平可以，被包进一张更靠下的面（＋31px）就红</td></tr>
+      <tr><td><b>露出画面 ≥120px</b><br><code>mobile-player-shell.spec.ts:169</code></td>
+        <td><code>card.y − frame.y ≥ 120</code></td>
+        <td>画框之上不许再加东西（首屏预算）</td></tr>
+      <tr><td><b>卡内下 1/5 不许放控件</b><br><code>mobile-current-sentence-card.spec.ts:232</code></td>
+        <td>点卡内 <code>(75%, 80%)</code> 那个点：不是词热区、不弹词卡，只有「播放/暂停」</td>
+        <td>把模式行<b>塞进卡里</b>会正好压在这个点上 → 红</td></tr>
+      <tr><td><b>计数在卡里且全页唯一</b><br><code>mobile-current-sentence-card:173</code> · <code>mobile-inline-subtitle:171</code> · <code>watch.spec.ts:106-116</code></td>
+        <td><code>${CARD} [data-testid="subtitle-counter"]</code> 可见；<code>getByTestId</code> 严格模式；文本 <code>n / total</code></td>
+        <td><code>1 / 190</code> 必须留在当前句卡内，且全页只有一份</td></tr>
+      <tr><td><b>模式行仍是 tablist</b><br><code>watch.spec.ts:45,78-90</code>（1280 与手机档都跑）</td>
+        <td><code>[role="tablist"]</code> 可见；三个 <code>[role="tab"]</code> 标签「双语 / 英语 / 中文」；<code>aria-selected</code></td>
+        <td>模式控件可以换样式，但<b>角色与标签不能换</b>（可以顺带从 32px 补到 44px 触控）</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:8px">
+    另有两条只跑桌面：折叠键 <code>aria-label="收起为字幕轨"</code>（<code>repro-stage1.spec.ts:95-109</code>）与 5 Tab 底栏的守卫 ——
+    所以<b>折叠键在移动端删掉是安全的</b>（移动端的窄轨态本来就没有任何 spec，而且它在 ≤1023px 下折成的竖轨并不能真的让出一列）。
+  </p>
+
+  <h2>七条路线：形态 × 实测 × spec 代价</h2>
+  <table>
+    <thead>
+      <tr><th style="width:132px">路线</th><th>形态</th><th>画框下沿 276.9</th><th>当前句</th><th>模式开关在哪</th><th>文稿</th><th style="width:150px">spec 代价</th></tr>
+    </thead>
+    <tbody>
+      <tr class="meh">
+        <td><b>R0 · 现状</b></td>
+        <td>12px 断层 + 出血直角带（上下两条 1px 边）+ 内缩圆角卡</td>
+        <td class="n">断层 12px</td>
+        <td class="n">276.9–396.9<br>出血直角 + 全边框</td>
+        <td class="n">396.9 起，卡内<br><span class="bad">3 chip + 折叠键，32px 高</span></td>
+        <td class="n">396.9 起 · x=16 · r=22</td>
+        <td>—（基线）</td>
+      </tr>
+      <tr class="pick">
+        <td><b>R5 · 齐平字幕带</b><br><span class="good">★ 推荐</span></td>
+        <td><b>当前句与画框齐平</b>（0 断层、无外框、无底色差）；文稿另起一张卡，卡头就是模式行</td>
+        <td class="n"><b>0</b>（齐平）</td>
+        <td class="n">276.9–378.9<br>x=0 w=414（= 画框）</td>
+        <td class="n">文稿卡头 390.9<br><b>44px 分段控件</b> + 计数</td>
+        <td class="n">435.9 起 · x=16 · r=22<br>首屏 4 条</td>
+        <td class="good"><b>0 条</b></td>
+      </tr>
+      <tr class="alt">
+        <td><b>R3 · 字幕带</b><br><span class="mid">备选</span></td>
+        <td>当前句归画面：<b>深底白字</b>字幕带紧贴画框下沿；文稿卡同 R5</td>
+        <td class="n">0（同底色，无接缝）</td>
+        <td class="n">276.9–384.9<br>白字压深底</td>
+        <td class="n">文稿卡头 385.9<br>44px 分段控件 + 计数</td>
+        <td class="n">429.9 起 · x=16 · r=22<br>首屏 4 条</td>
+        <td class="good"><b>0 条</b>（代价在配色，不在断言）</td>
+      </tr>
+      <tr>
+        <td><b>R4 · 最小改动</b></td>
+        <td>结构不动：当前句卡去边框去底色（仍 12px 断层），chip 行换 44px 分段控件、删折叠键</td>
+        <td class="n">断层 12px</td>
+        <td class="n">288.9–397.9</td>
+        <td class="n">卡头 398.9 · 44px</td>
+        <td class="n">442.9 起 · x=16 · r=22</td>
+        <td class="good"><b>0 条</b>（但两个盒子与断层都还在）</td>
+      </tr>
+      <tr class="meh">
+        <td><b>R6 · 模式行入字幕带</b></td>
+        <td>在 R5 上把模式行搬进字幕带内部，文稿卡变纯列表</td>
+        <td class="n">0（齐平）</td>
+        <td class="n">276.9–409.9（含模式行）</td>
+        <td class="n">卡内 365.9 · 40px</td>
+        <td class="n">421.9 起（卡纯列表）</td>
+        <td class="bad">破 1 条：卡内 (75%,80%) 落在模式行上</td>
+      </tr>
+      <tr class="meh">
+        <td><b>R1 · 贴合文稿面</b></td>
+        <td>「当前句 + 文稿」并成<b>一张面</b>，从画面下沿长出来（上搭 14px、圆角 20px），模式行做面头</td>
+        <td class="n">面 262.9 起<br>（压进画面 14px）</td>
+        <td class="n">307.9<br><span class="bad">离画框 31px</span></td>
+        <td class="n">面头 263.9 · 44px</td>
+        <td class="n">411.9 起（同面）</td>
+        <td class="bad">破 2 条 + INV-021 措辞</td>
+      </tr>
+      <tr class="meh">
+        <td><b>R2 · 同面·句在前</b></td>
+        <td>与 R1 同面，只把顺序换成「当前句 → 模式行 → 文稿」（对照屏）</td>
+        <td class="n">面 262.9 起</td>
+        <td class="n">263.9<br><span class="bad">越到画框下沿之上</span></td>
+        <td class="n">366.9（仍夹在句子与文稿之间）</td>
+        <td class="n">410.9 起（同面）</td>
+        <td class="bad">破 2 条 + INV-021 措辞</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>七屏并排</h2>
+  <div class="phones">
+
+    <div class="phone">
+      <h3>R0 · 现状（基线）</h3>
+      <p class="bet">截图里那一套。三个盒子三套语言：出血直角白带（上下两条 1px 边）+ 内缩圆角卡，中间是 3 个 chip 加一个移动端没有对象的折叠键。</p>
+      <img src="shots/R0.png" alt="R0 现状">
+      <p class="m">当前句带 276.9–396.9 → 文稿卡 396.9 起：<b>两条边界线落在同一个 y</b>。</p>
+      <a class="go" href="R0-today.html">单独打开 →</a>
+    </div>
+
+    <div class="phone pick">
+      <h3>R5 · 齐平字幕带 ★ 推荐</h3>
+      <p class="bet">当前句与画框<b>齐平</b>、去掉外框：画框与字幕之间不再有「第二条边」，字幕回到「画面这一块」；模式行成为文稿卡的卡头，文稿卡里是纯内容。<b>零 spec 改动</b>。</p>
+      <img src="shots/R5.png" alt="R5 齐平字幕带">
+      <p class="m">字幕带 276.9–378.9（x=0 w=414 = 画框，0 断层）· 文稿卡 390.9 起（12px 留白）· 卡头 44px 分段控件 + 计数 · 文稿 435.9 起，<b>首屏 4 条</b>。</p>
+      <a class="go" href="R5-flush.html">单独打开 →</a>
+    </div>
+
+    <div class="phone alt">
+      <h3>R3 · 字幕带（备选）</h3>
+      <p class="bet">换心智模型：当前句<b>属于画面</b>（深底白字，读作播放器字幕条），接缝彻底消失（同底色）；文稿卡同 R5。代价是把 <code>surface-dark</code> 变成了文字面，点词高亮的浅色底要在深色上重新校一遍。</p>
+      <img src="shots/R3.png" alt="R3 字幕带">
+      <p class="m">播放器块 44–384.9（画框 + 108px 字幕带）· 文稿卡 384.9 起 · 首屏 4 条。<b>零 spec 改动。</b></p>
+      <a class="go" href="R3-band.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>R4 · 最小改动</h3>
+      <p class="bet">结构一动不动：只把当前句卡去边框去底色、chip 行换 44px 分段控件、删折叠键。比 R0 干净，但断层与两个盒子都还在。</p>
+      <img src="shots/R4.png" alt="R4 最小改动">
+      <p class="m">当前句带 288.9–397.9（无边框）· 卡头 398.9 · 文稿 442.9。<b>零 spec 改动。</b></p>
+      <a class="go" href="R4-min.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>R6 · 模式行入字幕带</h3>
+      <p class="bet">在 R5 上再推一步：模式行搬进字幕带（与计数同一行），文稿卡变成纯列表 —— 句子与文稿之间再也没有控件。代价是卡内下 1/5 出现了控件，正好压住那条断言。</p>
+      <img src="shots/R6.png" alt="R6 模式行入字幕带">
+      <p class="m">字幕块 276.9–409.9（含 40px 模式行）· 纯列表卡 421.9 起。<b>破 1 条断言</b>（改断言即可，改法写在下面）。</p>
+      <a class="go" href="R6-band-meta.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>R1 · 贴合文稿面</h3>
+      <p class="bet">「当前句 + 文稿」并成<b>一张面</b>，从画面下沿长出来（圆角切进画面 14px），模式行做面头。视觉上最整体，但要动两条硬断言与 INV-021 的措辞。</p>
+      <img src="shots/R1.png" alt="R1 贴合文稿面">
+      <p class="m">面 262.9 起（x=10, r=20）· 面头 263.9 · 当前句 307.9（<b>离画框 31px</b>）· 文稿 411.9 起。</p>
+      <a class="go" href="R1-sheet-head.html">单独打开 →</a>
+    </div>
+
+    <div class="phone">
+      <h3>R2 · 同面·句在前（对照）</h3>
+      <p class="bet">与 R1 同面，只换顺序。用来单独验证一件事：开关夹在句子与文稿之间时割裂感还在不在。</p>
+      <img src="shots/R2.png" alt="R2 句在前">
+      <p class="m">当前句 263.9（<b>越到画框下沿之上</b>）· 模式行 366.9 · 文稿 410.9。<b>这一屏是 R1 的对照，不是候选。</b></p>
+      <a class="go" href="R2-sheet-now.html">单独打开 →</a>
+    </div>
+
+  </div>
+
+  <h2>为什么推荐 R5</h2>
+  <ul class="s">
+    <li><b>② 的答案：字幕不再是「一个盒子」。</b>R0 里画框与当前句之间有 12px 白缝、再一条上下都封边的白带 —— 白底上凭空多出两条线；R5 把字幕带与画框<b>齐平</b>并去掉外框，画框下沿就是唯一的边，字幕回到「画面这一块」。</li>
+    <li><b>② 的答案：模式行有了归属。</b>它管的是「这一面的文字怎么显示」。放进文稿卡的卡头（带两条发丝线的工具栏）之后，它是<b>文稿这个容器的工具条</b>，而不是夹在两块内容中间的一行 chip；用户不再看到「字幕 → 一行 chip → 字幕稿」这种三段式。</li>
+    <li><b>顺手修两个真问题：</b>① 折叠键在移动端没有对象（<code>panelCollapsed</code> 折出的竖轨并不真的让出一列，而且 ≤1023px 下没有任何 spec 依赖它）；② 现在的 chip 行只有 32px 高、不到 44px 触控基线，换成分段控件正好补上。</li>
+    <li><b>代价是 0 条断言。</b>卡与画框同 x 同宽、卡顶 = 画框下沿（0 ≤ 16）、露出画面 233px（≥120）、计数仍在卡内且唯一、模式行仍是 <code>role=tablist</code> —— 六条硬约束一条都不碰；而且比现状少 12px，首屏文稿从 4 条起。</li>
+  </ul>
+
+  <div class="note">
+    <b>R5 需要拍板的三件事：</b><br>
+    ① <b>0 断层</b>：字幕紧贴画框下沿（现在是 12px）。规格允许 0…16px，所以零风险；但视觉上比现在紧 —— 若觉得挤，改成 6–8px 也一样过（区间内自由）。<br>
+    ② <b>重复</b>：当前句与文稿第一行是同一句话（现状也重复，只是被 chip 行隔开）。三个处理：(a) 接受；(b) 文稿里的当前项降级为「淡底 + 左侧竖线 + ink 文字」，橙色只留给当前句；(c) 取消字幕带，直接以文稿当前项为唯一渲染（要重写 INV-021，不建议）。<br>
+    ③ <b>⋯ 面板里那份「语言」留不留</b>：我倾向留（设置面板里重复一个设置是正常的，面里这份是快捷方式）。
+  </div>
+  <div class="note">
+    <b>如果想让字幕更像播放器的一部分 → 选 R3</b>（深底白字，零 spec 改动，代价在配色）。<br>
+    <b>如果更想要「一张面」的整体感 → R1</b>，但要接受：卡顶离画框 31px（破 <code>mobile-inline-subtitle:114</code>）、卡与画框不同宽（破 <code>mobile-current-sentence-card:152-156</code>）、INV-021「直接位于画框之下」的措辞要改，并且按仓库规矩走一次 <code>/decision-support</code> 落 DEC。<br>
+    <b>R6</b> 只差一条断言（卡内下 1/5 不放控件）—— 要选它就同步把 <code>mobile-current-sentence-card:232</code> 的取样点改成「模式行之上」，说清楚「卡内允许有一条工具行」。
+  </div>
+
+  <h2>复现</h2>
+  <p class="lede">
+    静态图由 <code>_reading-shots.js</code> 生成（Playwright chromium，414×896 @2x，<code>file://</code> 直开）：
+    <code>cd docs/design/mobile/prototypes &amp;&amp; node _reading-shots.js</code>。
+    七个变体共用 <code>_reading.css</code> / <code>_reading.js</code>（壳、底栏、真实前 5 句都在这里），
+    差异只在各自的 HTML 结构 —— 横向差异只可能来自版式本身。
+  </p>
+
+</div>
+</body>
+</html>

@@ -14,7 +14,7 @@ import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { useShadowing, type ShadowingAttempt } from "@/hooks/useShadowing";
 import { useSentenceShadowing } from "@/hooks/useSentenceShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
-import { useVideoPlayer, bestVideoUrl, youtubeId } from "@/hooks/useVideoPlayer";
+import { useVideoPlayer, bestVideoUrl, youtubeId, PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { api, mediaUrl } from "@/lib/api";
@@ -31,6 +31,9 @@ import { WordCardSheet } from "@/components/watch/WordCardSheet";
 import { ShadowingDrawer } from "@/components/watch/ShadowingDrawer";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
+import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
+import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
+import { useWatchChrome, type WatchChromeState } from "@/components/watch/WatchChromeProvider";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
@@ -59,17 +62,8 @@ import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { STEP_LABELS } from "@/lib/videoStatus";
 
-// D1：字幕字号档位 → 像素（英文行/中文行分别映射）。
-const SUBTITLE_FONT_EN: Record<SubtitleFontSize, string> = {
-  small: "14px",
-  medium: "17px",
-  large: "20px",
-};
-const SUBTITLE_FONT_ZH: Record<SubtitleFontSize, string> = {
-  small: "12px",
-  medium: "14px",
-  large: "16px",
-};
+// D1：字幕字号档位 → 像素的映射已随当前句卡搬到
+// `components/watch/CurrentSentenceCard.tsx`（当前句现在只有那一份渲染）。
 
 /**
  * 返回出口：带上 `?from=` 标记就回来源页，回到那个页面的 URL 状态；
@@ -241,6 +235,9 @@ export default function WatchPage() {
   // 当前句已上传录音的 attempt id —— 「满意」按钮靠它 PATCH 持久化。
   const [lastAttemptId, setLastAttemptId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
+  // ⋯ 面板（DEC-069 / #31）：来源/版权/语言/字号/倍速/动作行全收进这里，首屏那 355px
+  // 次要信息归零。面板由页面渲染（在滚动容器里），开关状态经壳顶栏的 ⋯ 来回。
+  const [moreOpen, setMoreOpen] = useState(false);
   // #26 乙：移动端练习区搬进底部抽屉；桌面端仍在字幕卡里就地展开（本轮不动桌面）。
   const [practiceOpen, setPracticeOpen] = useState(false);
 
@@ -299,6 +296,8 @@ export default function WatchPage() {
     isYtMode,
     isPlaying,
     play,
+    togglePlayPause,
+    navigateSubtitle,
     seekTo,
     retry,
     rate,
@@ -424,7 +423,10 @@ export default function WatchPage() {
   // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 1023px)");
-  const { isStuck, dismiss } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
+  // #30：移动端滚过画框之后画面贴顶常驻；DEC-069 之后钉住位置从壳顶变成**顶栏下沿**
+  // （`main` 上沿，顶栏是 main 之上的常规流行）。`dismiss` 已随画面内的退出 X 一起删除
+  // —— 退出跟随 = 滚回顶部（`useStickyPip` 的 `!out → setDismissed(false)` 本来就这么做）。
+  const { isStuck } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
   useEffect(() => {
     const container = subtitleListRef.current;
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
@@ -492,6 +494,7 @@ export default function WatchPage() {
   }, [playbackMode, video, searchParams]);
 
   const subtitleMode = useWatchStore((s) => s.subtitleMode);
+  const setSubtitleMode = useWatchStore((s) => s.setSubtitleMode);
   const panelCollapsed = useWatchStore((s) => s.panelCollapsed);
   const setPanelCollapsed = useWatchStore((s) => s.setPanelCollapsed);
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
@@ -646,6 +649,15 @@ export default function WatchPage() {
     }
   }
 
+  // onNext 必须与 onPrev 对称：store 里只放**稳定引用**，闭包经 ref 镜像读最新状态。
+  // （第一版把 handleNextSubtitle 直接塞进 store：它闭包里的 currentSubtitleIndex 冻结在
+  //  memo 上次重算的那一刻，实测「下一句」会往回跳，然后彻底不动。见 INV-025。）
+  const nextRef = useRef(handleNextSubtitle);
+  useEffect(() => {
+    nextRef.current = handleNextSubtitle;
+  });
+  const onNextStable = useCallback(() => nextRef.current(), []);
+
   /** 重录：除录音钩子自身重置外，同步清掉上传/满意标记 ——
    * 否则重录后的新录音因 shadowingSaved 仍为 true 而永不上传。 */
   function handleReRecord() {
@@ -690,6 +702,83 @@ export default function WatchPage() {
     if (!selectedWord) return false;
     return selectedWord === cleanToken(word);
   }
+
+  // ---- 页面 → 壳：顶栏内容 + 底栏句柄（DEC-069 / #31）----------------------------
+  // **必须放在下面那些 early return 之前**：hook 一旦在某个分支被跳过，React 直接抛
+  // 「Rendered fewer hooks than expected」并把整棵页面树卸载 —— 实测表现是只剩壳、
+  // 页面内容整块消失（这个坑真踩过）。
+  //
+  // 只放**低频**事实：`currentTime` 每秒跳 4 次，进 store 会让整个壳每秒重渲染 4 次。
+  // 进度条由 `WatchBottomBar` 自己 rAF 直读 `videoRef`（见该文件顶部注释）。
+  // 上一句没有现成的页面函数，直接用 hook 的 `navigateSubtitle(-1)`（桌面端本来就有）。
+  const chromeTimer = useCallback(() => setMoreOpen((v) => !v), []);
+  // `<video>` 的 ref 落点：`videoRef` 与底栏共用同一个元素，但底栏还需要「元素接上了」这次
+  // 通知（`aria-valuemax` 必须重渲染才能改）。写法与 `nextRef` 同理 —— 把这次通知变成一次
+  // **低频** state 变化（只在挂载/卸载时），而不是让整个壳跟着每次渲染重算（INV-025）。
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    // `useVideoPlayer` 的 ref 声明成 `RefObject<HTMLVideoElement>`（`useRef(null!)`）；
+    // 元素卸载时 React 会用 null 调回调 ref，所以这里按可空写入 —— 与它的初值同性质。
+    videoRef.current = el as HTMLVideoElement;
+    setVideoEl(el);
+    // videoRef 是 useRef 的固定对象，故意不进依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const chromeShadowing = useCallback(() => {
+    if (practiceOpen) closePractice();
+    else setPracticeOpen(true);
+    // closePractice 是每次渲染新建的普通函数，故意不进依赖（它只碰 ref 与稳定 setter）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practiceOpen]);
+
+  const chrome: WatchChromeState = useMemo(
+    () => ({
+      title: video?.title ?? "",
+      levelText: `${video?.channel_name || "SeeWord"} · ${cefrWithExamHint(
+        video?.difficulty_level || "B2"
+      )}`,
+      levelSelector: (
+        <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
+      ),
+      onBack: back.go,
+      onMore: chromeTimer,
+      moreOpen,
+      videoRef,
+      attachVideo,
+      duration: video?.duration ?? null,
+      isPlaying,
+      onTogglePlay: togglePlayPause,
+      onPrev: () => navigateSubtitle(-1),
+      // onPrev 稳定（`navigateSubtitle` 是 useCallback + ref 读值），onNext 也必须稳定 ——
+      // 见上面 `nextRef` / `onNextStable`。**别**把 `handleNextSubtitle` 或
+      // `currentSubtitleIndex` 加进依赖表：那会让壳每句重渲染 4 次（INV-025）。
+      onNext: onNextStable,
+      sentenceNavDisabled: isYtMode,
+      onShadowing: chromeShadowing,
+      shadowingActive: practiceOpen,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      video,
+      selectedExamLevel,
+      back.go,
+      chromeTimer,
+      moreOpen,
+      isPlaying,
+      togglePlayPause,
+      navigateSubtitle,
+      isYtMode,
+      chromeShadowing,
+      practiceOpen,
+      onNextStable,
+      attachVideo,
+      // `attachVideo` 是稳定 useCallback；`videoEl` 只用来给「元素接上了」这次低频变化
+      // 触发一次重算，它本身不参与 chrome 的值（所以上面对象里没引用它）。
+      videoEl,
+    ]
+  );
+  useWatchChrome(chrome);
 
   // --- Keyboard shortcuts: 页面层不再持有快捷键 —— D1 后统一由
   // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；「下一句」由录音展开态按钮承担。
@@ -774,56 +863,50 @@ export default function WatchPage() {
 
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
 
-  // #24 乙 / #28 决议：移动端当前句入画，落在画框最下沿，版式沿用现有字号档位。
-  // 桌面端不渲染它（下方字幕卡原样保留），两处永远只有一处显示当前句。
-  // #30：贴顶常驻那一态**不**收起它 —— 画面一个像素没缩，字幕就还在原位。
-  const mobileSubtitle =
-    isMobile && currentSubtitle && subtitleMode !== "hidden" ? (
-      <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pt-1.5 pb-2.5 text-left">
-        {subtitleMode !== "chinese" && (
-          <div
-            data-testid="burn-subtitle-en"
-            className="burn-sub-en font-semibold"
-            style={{ fontSize: SUBTITLE_FONT_EN[subtitleFontSize] }}
-          >
-            {currentSubtitle.text_en.split(" ").map((word, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "burn-sub-word",
-                  levelClassFor(word, currentSubtitle.word_levels),
-                  isSelectedWord(word) && "burn-sub-word-hl"
-                )}
-                onClick={(e) => {
-                  // 点词与「点画面出控制条」错开：词自己吞掉这次点击。
-                  e.stopPropagation();
-                  handleWordClick(word);
-                }}
-              >
-                {word}{" "}
-              </span>
-            ))}
-          </div>
-        )}
-        {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-          currentSubtitle.text_zh && (
-            <div className="burn-sub-zh" style={{ fontSize: SUBTITLE_FONT_ZH[subtitleFontSize] }}>
-              {currentSubtitle.text_zh}
-            </div>
-          )}
+  /**
+   * 学习笔记面板。抽出来是因为它现在有两个落点（DEC-069 第 6 条把移动端的笔记入口
+   * 收进了 ⋯ 面板）：桌面端仍在页头原位，移动端由 `WatchMoreSheet` 的 `extra` 渲染。
+   */
+  const notesPanel = noteOpen ? (
+    <div className="mt-3 bg-canvas border border-hairline rounded-lg p-4 animate-fade-in">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-sm font-semibold">学习笔记</span>
+        <button
+          onClick={() => setNoteOpen(false)}
+          className="text-muted hover:text-ink"
+          aria-label="关闭笔记"
+        >
+          <X size={16} />
+        </button>
       </div>
-    ) : null;
+      <Textarea
+        value={noteDraft}
+        onChange={(e) => setNoteDraft(e.target.value)}
+        placeholder="记录重点句型、生词或心得..."
+        rows={3}
+        className="resize-none mb-3"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={clearNote}>
+          清空
+        </Button>
+        <Button size="sm" onClick={saveNote}>
+          保存
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
     // max-w-[1280px] 居中容器（对齐原型 05-watch.html）：在 125%/150% 缩放倍率下
     // 保持视频与字幕面板的最佳比例，避免宽屏下视频列过度拉伸。
     <div className="mx-auto max-w-[1280px] px-4 sm:px-7 pt-6 pb-16">
-      {/* 移动端页头整块让位给画面（#24/#28 乙）：标题画进画面里，动作行搬到字幕卡下面，
-          所以只有「笔记」打开时才需要这块壳；桌面端原样保留。 */}
-      <div className={cn(isMobile && !noteOpen ? "hidden" : "mb-4")}>
+      {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
+          动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
+      <div className={cn("mb-4", isMobile && "hidden")}>
         {/* 顶部细行：返回 + 标题 + 操作图标 */}
-        <div className={cn("flex items-center gap-3", isMobile && "hidden")}>
+        <div className="flex items-center gap-3">
           <button
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
             onClick={back.go}
@@ -852,12 +935,7 @@ export default function WatchPage() {
         </div>
 
         {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
-        <div
-          className={cn(
-            "flex items-center gap-2 text-[12px] text-muted mt-2",
-            isMobile && "hidden"
-          )}
-        >
+        <div className="mt-2 flex items-center gap-2 text-[12px] text-muted">
           {video.channel_name ? (
             video.channel_slug ? (
               <Link
@@ -881,35 +959,7 @@ export default function WatchPage() {
         </div>
 
         {/* 笔记抽屉 */}
-        {noteOpen && (
-          <div className="bg-canvas border border-hairline rounded-lg p-4 mt-3 animate-fade-in">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-sm font-semibold">学习笔记</span>
-              <button
-                onClick={() => setNoteOpen(false)}
-                className="text-muted hover:text-ink"
-                aria-label="关闭笔记"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <Textarea
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="记录重点句型、生词或心得..."
-              rows={3}
-              className="resize-none mb-3"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={clearNote}>
-                清空
-              </Button>
-              <Button size="sm" onClick={saveNote}>
-                保存
-              </Button>
-            </div>
-          </div>
-        )}
+        {notesPanel}
       </div>
 
       {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
@@ -942,6 +992,7 @@ export default function WatchPage() {
               w=375 顶部 y=壳顶高）：-mx-4/-mt-6 抵消容器的 px-4/pt-6，桌面端不加。 */}
           <div
             ref={slotRef}
+            data-testid="video-frame"
             className={cn(
               "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
               // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
@@ -950,6 +1001,7 @@ export default function WatchPage() {
               isMobile && !noteOpen && "-mt-6",
               // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
               // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
+              // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
               isMobile && isStuck && "sticky top-0 z-40"
             )}
           >
@@ -963,7 +1015,7 @@ export default function WatchPage() {
               {playbackMode === "ready" && bestVideoUrl(video) ? (
                 <>
                   <video
-                    ref={videoRef}
+                    ref={chrome.attachVideo ?? videoRef}
                     // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
                     // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
                     playsInline
@@ -1011,77 +1063,26 @@ export default function WatchPage() {
                       ]);
                     }}
                   />
-                  {/* #24 乙：移动端标题画进画面里（原型 .titlecard 的落点），页头因此
-                      不占首屏一像素；返回键也浮在画面左上，桌面端不渲染。
-                      #30：贴顶常驻时它照旧渲染 —— 画面没缩，标题当然还在画面里。
-                      `z-20` 不是随手写的：`VideoControls` 的面层（`VideoControls.tsx:194`）
-                      也是 `z-10` 且整块 `inset-0` 接指针，而它在 DOM 里更靠后 —— 同层靠后者胜，
-                      返回键会被整块吞掉（实测点它 URL 不变、控制条被点出来，Playwright 的
-                      click 直接超时）。所以这一层必须比面层高一级；层内其余部分是
-                      `pointer-events-none`，点画面出控制条照旧。 */}
-                  {isMobile && (
-                    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-2 bg-gradient-to-b from-black/60 via-black/25 to-transparent px-2 pt-2 pb-8">
-                      <button
-                        type="button"
-                        onClick={back.go}
-                        data-testid="frame-back"
-                        aria-label={back.label}
-                        className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/35 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/55 cursor-pointer"
-                      >
-                        <ArrowLeft size={18} />
-                      </button>
-                      <div className="min-w-0 pt-1.5">
-                        <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/70">
-                          {video.channel_name || "SeeWord"} ·{" "}
-                          {cefrWithExamHint(video.difficulty_level || "B2")}
-                        </div>
-                        <div
-                          data-testid="frame-title"
-                          className="line-clamp-2 text-[13px] font-bold leading-tight text-white"
-                        >
-                          {video.title}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {/* D1 自定义控制条（含移动端入画字幕）。#30 之后没有「小窗」那一态，
-                      控制条在贴顶常驻时照旧渲染 —— 画面一个像素没缩。 */}
-                  <VideoControls
-                    videoRef={videoRef}
-                    isPlaying={isPlaying}
-                    duration={video.duration}
-                    rate={rate}
-                    setRate={setRate}
-                    muted={muted}
-                    toggleMute={toggleMute}
-                    setVolume={setVolume}
-                    subtitleMode={subtitleMode}
-                    onCycleSubtitleMode={cycleSubtitleMode}
-                    subtitleFontSize={subtitleFontSize}
-                    onFontSizeChange={handleFontSizeChange}
-                    toggleFullscreen={toggleFullscreen}
-                    isMobile={isMobile}
-                    mobileSubtitle={mobileSubtitle}
-                    markers={shadowMarkers}
-                  />
-                  {/* #30：贴顶常驻时给一个「别再跟了」的出口。
-                      热区 44×44（旧小窗那个关闭按钮实测只有 24×24）。
-                      落点：**返回键正下方**（`top-14 left-2`）。四个角都被占了 ——
-                      左上返回键、右上 `ExamLevelSelector` 药丸（z-20，叠上去点不中）、
-                      下沿是入画字幕（左对齐、从 x=12 起，实测 `bottom-3 left-2` 会盖住
-                      最后一行头三个字符）、右下是控制条与 3px 细进度。
-                      而标题文字从 x=60 起（返回键 44 + gap 8 + px-2），所以返回键下方
-                      这条 x=8..52 的竖带是画面里唯一与任何文字都不相交的位置。
-                      老 `aria-label` 原样保留，成对 e2e 继续认它。 */}
-                  {isMobile && isStuck && (
-                    <button
-                      type="button"
-                      onClick={dismiss}
-                      className="absolute top-14 left-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white shadow backdrop-blur-sm transition-colors hover:bg-black/65"
-                      aria-label="关闭小窗播放"
-                    >
-                      <X size={18} />
-                    </button>
+                  {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
+                      全部搬走（标题与返回进壳顶栏、级别进壳顶栏、字幕进画面正下方的当前句卡）。
+                      桌面端只有 D1 控制条这一层，移动端连它也不在画面里（底栏接管）。 */}
+                  {!isMobile && (
+                    <VideoControls
+                      videoRef={videoRef}
+                      isPlaying={isPlaying}
+                      duration={video.duration}
+                      rate={rate}
+                      setRate={setRate}
+                      muted={muted}
+                      toggleMute={toggleMute}
+                      setVolume={setVolume}
+                      subtitleMode={subtitleMode}
+                      onCycleSubtitleMode={cycleSubtitleMode}
+                      subtitleFontSize={subtitleFontSize}
+                      onFontSizeChange={handleFontSizeChange}
+                      toggleFullscreen={toggleFullscreen}
+                      markers={shadowMarkers}
+                    />
                   )}
                   {/* D3b EndScreen — only when the <video> has fired onEnded. */}
                   {ended && video?.id && (
@@ -1114,20 +1115,7 @@ export default function WatchPage() {
                   )}
                 </>
               ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
-                <>
-                  <div ref={ytContainerRef} className="h-full w-full" />
-                  {/* #30：YouTube 回退路径同样吃贴顶常驻，退出跟随的出口与 HTML5 那条一致 */}
-                  {isMobile && isStuck && (
-                    <button
-                      type="button"
-                      onClick={dismiss}
-                      className="absolute top-14 left-2 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white shadow backdrop-blur-sm transition-colors hover:bg-black/65"
-                      aria-label="关闭小窗播放"
-                    >
-                      <X size={18} />
-                    </button>
-                  )}
-                </>
+                <div ref={ytContainerRef} className="h-full w-full" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <div className="text-center">
@@ -1137,75 +1125,48 @@ export default function WatchPage() {
                 </div>
               )}
             </div>
-            {/* 考试目标层级选择器：右上角收起药丸，不干扰观看。
-                #30：贴顶常驻时画面没缩，它照旧渲染。 */}
-            <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
+            {/* DEC-069：级别药丸搬进壳顶栏（移动端）；画面里不再有任何可点覆盖物 */}
           </div>
 
-          {/* 字幕卡：紧贴视频正下方，录音按钮行内（次要操作，按需展开） */}
+          {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
+              点词 → 词卡；点卡片空白 → 播放/暂停；卡内不放按钮（跟读在底栏 / 桌面字幕卡）。
+              R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
+              （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
+              （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
+              基类的 `mt-3 / border / rounded-xl`。 */}
           {currentSubtitle && (
+            <CurrentSentenceCard
+              // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
+              // 卡跟着出血；桌面端两者都留在容器内）。
+              className={cn(isMobile && "-mx-4 sm:-mx-7 mt-0 rounded-none border-0")}
+              textEn={currentSubtitle.text_en}
+              textZh={currentSubtitle.text_zh ?? null}
+              wordLevels={currentSubtitle.word_levels ?? null}
+              subtitleMode={subtitleMode}
+              fontSize={subtitleFontSize}
+              isSelected={isSelectedWord}
+              levelClassFor={levelClassFor}
+              onWordClick={handleWordClick}
+              onTogglePlay={togglePlayPause}
+              counter={`${currentSubtitleIndex + 1} / ${video.subtitles.length}`}
+            />
+          )}
+
+          {/* 字幕卡：桌面端的跟读/录音就地展开；DEC-069 之后当前句不再在这里重复一遍，
+              移动端连这张卡都不渲染（跟读入口在壳底栏）。 */}
+          {currentSubtitle && !isMobile && (
             <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
-              {/* 字幕进度指示 */}
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className="text-[11px] font-mono text-muted-soft"
-                  data-testid="subtitle-counter"
-                >
-                  {currentSubtitleIndex + 1} / {video.subtitles.length}
-                </span>
-                <div className="flex-1 mx-3 h-0.5 rounded-full bg-surface-card">
-                  <div
-                    className="h-full rounded-full bg-brand-500 transition-all duration-300"
-                    style={{
-                      width: `${((currentSubtitleIndex + 1) / video.subtitles.length) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  {/* 移动端当前句已入画（画框最下沿），卡片里就不重复一遍 */}
-                  {!isMobile && subtitleMode !== "chinese" && subtitleMode !== "hidden" && (
-                    <div
-                      className="now-sub-en text-left leading-[1.7]"
-                      style={{ fontSize: SUBTITLE_FONT_EN[subtitleFontSize] }}
-                    >
-                      {currentSubtitle.text_en.split(" ").map((word, i) => (
-                        <span
-                          key={i}
-                          className={cn(
-                            "now-sub-word",
-                            levelClassFor(word, currentSubtitle.word_levels),
-                            isSelectedWord(word) && "now-sub-word-hl"
-                          )}
-                          onClick={() => handleWordClick(word)}
-                        >
-                          {word}{" "}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   {subtitleMode === "hidden" && (
                     <p className="text-[12px] text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
                   )}
-                  {!isMobile &&
-                    (subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-                    currentSubtitle.text_zh && (
-                      <div
-                        className="now-sub-zh"
-                        style={{ fontSize: SUBTITLE_FONT_ZH[subtitleFontSize] }}
-                      >
-                        {currentSubtitle.text_zh}
-                      </div>
-                    )}
                 </div>
 
                 {/* D10 逐句跟读模式开关（YouTube 源不可控时序，置灰） */}
-                {/* 入口保持伴侣条原位（#26 决议）：只有展开容器换了 —— 移动端进抽屉。 */}
-                <div
-                  data-coach={isMobile ? "practice" : undefined}
-                  className="shrink-0 flex items-center gap-4"
-                >
+                {/* 这张卡现在只在桌面端渲染（DEC-069）：移动端的跟读入口在壳底栏，
+                    容器是 `ShadowingDrawer`。 */}
+                <div data-coach="practice" className="shrink-0 flex items-center gap-4">
                   <button
                     className={cn(
                       "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors",
@@ -1218,9 +1179,7 @@ export default function WatchPage() {
                       if (isYtMode) return;
                       if (sentenceShadow.active) {
                         sentenceShadow.exit();
-                        if (isMobile) setPracticeOpen(false);
                       } else {
-                        if (isMobile) setPracticeOpen(true);
                         sentenceShadow.start();
                       }
                     }}
@@ -1232,7 +1191,7 @@ export default function WatchPage() {
                     {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
                   </button>
 
-                  {/* 录音：移动端点开的是跟读抽屉；桌面端仍在卡片里就地展开 */}
+                  {/* 录音：桌面端在卡片里就地展开；移动端的容器是跟读抽屉 */}
                   <button
                     className={cn(
                       "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
@@ -1243,9 +1202,7 @@ export default function WatchPage() {
                     onClick={() => {
                       if (speakingActive) {
                         stopSpeaking();
-                        if (isMobile) setPracticeOpen(false);
                       } else {
-                        if (isMobile) setPracticeOpen(true);
                         startRecording();
                       }
                     }}
@@ -1257,7 +1214,7 @@ export default function WatchPage() {
               </div>
 
               {/* D10 逐句模式状态行（播放中/录音中/回放引导）—— 移动端这条搬进抽屉 */}
-              {!isMobile && sentenceShadow.active && (
+              {sentenceShadow.active && (
                 <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
                   <Repeat size={13} className="shrink-0" />
                   <span className="font-medium">
@@ -1271,7 +1228,7 @@ export default function WatchPage() {
               )}
 
               {/* 录音展开态：录音 / 回放 / 下一句 —— 桌面端；移动端搬进跟读抽屉 */}
-              {!isMobile && speakingActive && (
+              {speakingActive && (
                 <div className="mt-4 pt-4 border-t border-hairline">
                   {speakingState === "idle" && (
                     <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
@@ -1372,70 +1329,22 @@ export default function WatchPage() {
               )}
 
               {/* Shadowing history: recent attempts for this video（移动端在抽屉里） */}
-              {!isMobile && (
-                <div data-coach="practice">
-                  <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 移动端动作行（#24/#28 乙）：页头让位给画面之后，点赞/收藏/加入学习/单词训练/
-              笔记落到字幕卡下面，44px 触控目标；桌面端仍在页头。 */}
-          {isMobile && (
-            <div className="mt-3 flex items-center gap-2" data-testid="mobile-actions">
-              <VideoActions
-                compact
-                isLiked={isLiked}
-                likeCount={likeCount}
-                isFavorited={isFavorited}
-                vocabSet={vocabSet}
-                addingVocabSet={addingVocabSet}
-                noteOpen={noteOpen}
-                onToggleLike={toggleLike}
-                onToggleFavorite={toggleFavorite}
-                onVocabSet={handleVocabSetClick}
-                onNotes={() => setNoteOpen((v) => !v)}
-                onDrill={() => router.push("/vocabulary")}
-              />
-              <span className="ml-auto text-[11px] text-muted-soft">
-                {formatDuration(video.duration)}
-              </span>
-            </div>
-          )}
-
-          {/* 来源声明（ICP 合规）：原视频来源 + 版权声明 */}
-          {video.source_url && (
-            <div className="mt-4">
-              <div className="flex items-center gap-2.5 bg-canvas border border-hairline rounded-lg px-3.5 py-2.5">
-                <span className="w-5 h-5 rounded-[5px] bg-[#ff0000] flex items-center justify-center shrink-0">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </span>
-                <span className="text-[13px] text-muted">
-                  原视频来源：YouTube ·{" "}
-                  <a
-                    href={video.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-brand-600 font-medium hover:underline"
-                  >
-                    {video.source_url.replace(/^https?:\/\//, "")}
-                  </a>
-                </span>
+              <div data-coach="practice">
+                <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
               </div>
-              <p className="text-[11px] text-muted-soft leading-relaxed mt-2">
-                本视频内容转载自 YouTube
-                平台，仅供学习交流使用，版权归原作者所有。如有侵权请联系我们删除。
-              </p>
             </div>
           )}
+
+          {/* 移动端动作行（#24/#28 乙）已并入 ⋯ 面板（DEC-069 第 6 条）：首屏不再有它。 */}
+          {/* 来源声明（ICP 合规）也已并入 ⋯ 面板：原视频来源 + 版权声明。 */}
         </div>
 
         {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
         <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-4 overflow-hidden min-w-0">
-          {panelCollapsed ? (
+          {/* 折叠态在移动端到不了：折叠键已 `hidden lg:flex`（移动端不渲染）、
+              `panelCollapsed` 也不持久化 —— 这个守卫只是把「到不了的状态」堵死，
+              免得将来有人把折叠键放回移动端时，页面直接落进窄轨分支（DEC-070 T4d）。 */}
+          {panelCollapsed && !isMobile ? (
             // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
             <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
           ) : (
@@ -1470,16 +1379,14 @@ export default function WatchPage() {
                         }}
                         className={cn(
                           "w-full text-left rounded-lg border-l-[3px] border-transparent cursor-pointer transition-colors duration-100 hover:bg-surface-soft p-3",
-                          i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
+                          // R5（DEC-070 定案②）：文稿里的当前项**降级**为淡底 + 保留 3px 橙色左
+                          // 竖线，文字回到 ink —— 「正在读的那一句」的唯一橙色锚点留给字幕带。
+                          i === currentSubtitleIndex && "bg-surface-soft border-l-brand-500"
                         )}
                       >
                         {subtitleMode !== "chinese" && (
-                          <div
-                            className={cn(
-                              "font-medium text-sm leading-relaxed",
-                              i === currentSubtitleIndex ? "text-brand-500" : "text-ink"
-                            )}
-                          >
+                          // 橙色只留给字幕带：当前项不再染 `text-brand-500`（DEC-070 定案②）。
+                          <div className="font-medium text-sm leading-relaxed text-ink">
                             {sub.text_en.split(" ").map((word, wi) => (
                               <span key={wi} className={levelClassFor(word, sub.word_levels)}>
                                 {word}{" "}
@@ -1549,7 +1456,39 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* 跟读抽屉（#26 决议乙）：移动端练习区，入口仍在字幕卡原位 */}
+      {/* ⋯ 面板（DEC-069 第 6 条）：来源 / 版权 / 语言 / 字号 / 倍速 / 动作行全部搬进来。
+          入口是壳顶栏的 ⋯（44×44），开关状态经 `WatchChromeStore` 来回。 */}
+      <WatchMoreSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        subtitleMode={subtitleMode}
+        onSubtitleModeChange={setSubtitleMode}
+        fontSize={subtitleFontSize}
+        onFontSizeChange={handleFontSizeChange}
+        rates={PLAYBACK_RATES}
+        rate={rate}
+        onRateChange={setRate}
+        sourceUrl={video.source_url ?? null}
+        actions={
+          <VideoActions
+            compact
+            isLiked={isLiked}
+            likeCount={likeCount}
+            isFavorited={isFavorited}
+            vocabSet={vocabSet}
+            addingVocabSet={addingVocabSet}
+            noteOpen={noteOpen}
+            onToggleLike={toggleLike}
+            onToggleFavorite={toggleFavorite}
+            onVocabSet={handleVocabSetClick}
+            onNotes={() => setNoteOpen((v) => !v)}
+            onDrill={() => router.push("/vocabulary")}
+          />
+        }
+        extra={noteOpen ? notesPanel : null}
+      />
+
+      {/* 跟读抽屉（#26 决议乙）：移动端练习区，入口搬到了壳底栏的「跟读」 */}
       {isMobile && practiceOpen && currentSubtitle && (
         <ShadowingDrawer
           anchorRef={slotRef}

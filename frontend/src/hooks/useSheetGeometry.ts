@@ -3,12 +3,18 @@
 import { useEffect, useState, type RefObject } from "react";
 
 export interface SheetGeometry {
-  /** 画框下沿（视口坐标）—— 浮层顶边的天然上限：越过它就压住入画字幕。 */
+  /** 画框下沿（视口坐标）—— 浮层顶边的天然上限：越过它就压住当前句卡。 */
   frameBottom: number;
-  /** 移动底栏上沿（视口坐标）—— 浮层底边。 */
+  /** 壳最后一行常规流底栏的上沿（视口坐标）—— 浮层底边。 */
   bottom: number;
 }
 
+/**
+ * 底栏的选择器链：观看页（`/watch/*`）的最后一行是 `WatchBottomBar`（DEC-069 / #31），
+ * 其他路由才是 5 Tab 的 `MobileTabBar`；两个都在时以观看页底栏为准。
+ * 桌面端两个都不渲染 → `bar` 为 null，退回把可视区底边当底栏上沿。
+ */
+const WATCH_BAR_SELECTOR = '[data-shell-bottom-bar="watch"]';
 const TAB_BAR_SELECTOR = '[data-testid="mobile-tab-bar"]';
 /** 画框量不到时的兜底顶边（视口底往上 400px ≈ 半屏，见 #26 决议的默认档）。 */
 const FALLBACK_HEIGHT = 400;
@@ -18,8 +24,9 @@ const MIN_SHEET_HEIGHT = 120;
 /**
  * 移动端浮层锚点 —— #27（词卡贴画面下沿）与 #26（跟读底部抽屉）共用同一条线。
  *
- * 底边钉在移动底栏上沿：底栏是壳的常规流收尾行，天然贴住可视区底边（INV-019），
- * 所以浮层不会压住底栏，也不会被 iOS 地址栏拽出可视区。
+ * 底边钉在**壳的最后一行常规流底栏**上沿：底栏是壳的常规流收尾行，天然贴住可视区底边
+ * （INV-019），所以浮层不会压住底栏，也不会被 iOS 地址栏拽出可视区。观看页的那个收尾行
+ * 是 `WatchBottomBar`（`data-shell-bottom-bar="watch"`），别的路由是 `MobileTabBar`。
  * 顶边由调用方按「画框下沿」或「屏高」给，本钩子只负责这两个读数本身。
  *
  * 滚动监听必须走捕获阶段：播放页滚的是壳里的 <main>，scroll 事件不冒泡。
@@ -39,7 +46,8 @@ export function useSheetGeometry(
     let raf = 0;
 
     const measure = () => {
-      const bar = document.querySelector(TAB_BAR_SELECTOR);
+      const bar =
+        document.querySelector(WATCH_BAR_SELECTOR) ?? document.querySelector(TAB_BAR_SELECTOR);
       const viewportBottom = window.innerHeight;
       const barTop = bar ? bar.getBoundingClientRect().top : viewportBottom;
       // 底栏可能被安全区推高；夹一下，别让浮层底边跑到可视区外。

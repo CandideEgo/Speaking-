@@ -3,11 +3,14 @@
 /**
  * VideoControls — 自定义播放器控制条（D1，产品设计规划 §D1）。
  *
+ * **桌面端专属**（≥1024px）。移动端（≤1023px）的观看控制由壳承载：
+ * 顶栏 44px + `WatchBottomBar`（进度与上一句/播放/下一句/跟读），页面内不再渲染本组件
+ * （DEC-069：入画字幕、点出式控制条、3s 自收一并删除）。
+ *
  * 仅用于 HTML5 本地播放（YouTube IFrame 保留原生控件）。覆盖在 <video> 上：
  *  - 播放/暂停、进度条、时间、音量（滑杆+静音）、倍速菜单、字幕模式循环、
  *    字幕字号、全屏
- *  - 播放中闲置 3s 自动隐藏（移动端一致）；暂停/交互时显示
- *  - 移动端收纳：倍速/字幕/字号收进「更多」弹层，桌面端倍速/字幕内联
+ *  - 播放中闲置 3s 自动隐藏（opacity 淡出）；暂停/弹层打开/交互时显示
  * 快捷键由 useVideoPlayer 统一注册（空格/←→/↑↓/M/F/C/S），此处只做点击面。
  */
 
@@ -52,12 +55,6 @@ interface VideoControlsProps {
   subtitleFontSize: SubtitleFontSize;
   onFontSizeChange: (size: SubtitleFontSize) => void;
   toggleFullscreen: () => void;
-  isMobile: boolean;
-  /**
-   * 移动端入画字幕（#24 乙 / #28 决议）：由调用方构造，本组件只负责它的落位与点击穿透
-   * —— 字幕贴画框最下沿，落在控制条之下；点词由字幕自己 stopPropagation。
-   */
-  mobileSubtitle?: React.ReactNode;
   /** PiP 小窗时不渲染控制条（由调用方决定）。 */
   /** D10 跟读时间线：绿点标记已跟读句子的位置（秒），点击回到对应句。 */
   markers?: { position: number; onClick: () => void }[];
@@ -77,8 +74,6 @@ export function VideoControls({
   subtitleFontSize,
   onFontSizeChange,
   toggleFullscreen,
-  isMobile,
-  mobileSubtitle,
   markers,
 }: VideoControlsProps) {
   const [currentTime, setCurrentTime] = useState(0);
@@ -107,7 +102,7 @@ export function VideoControls({
     };
   }, [videoRef]);
 
-  // 播放中闲置 3s 自动隐藏；暂停或弹层打开时常驻。
+  // 播放中闲置 3s 自动隐藏（opacity 淡出）；暂停或弹层打开时常驻。
   const scheduleHide = useCallback(() => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => {
@@ -130,12 +125,6 @@ export function VideoControls({
     };
   }, [isPlaying, menu, scheduleHide]);
 
-  // #28 乙：移动端控制条不再常驻 —— 静息只剩画框底部那条 3px 细进度；
-  // 点画面浮起、3s 后由 scheduleHide 自收。桌面端保持原样（opacity 淡入淡出）。
-  useEffect(() => {
-    if (isMobile) setVisible(false);
-  }, [isMobile]);
-
   function handleActivity() {
     setVisible(true);
     if (isPlaying) scheduleHide();
@@ -149,22 +138,13 @@ export function VideoControls({
     handleActivity();
   }
 
-  /** 覆盖层点击：移动端点出/收起控制条，桌面端播放/暂停。 */
+  /** 覆盖层点击：桌面端播放/暂停（弹层打开时先收弹层）。 */
   function handleSurfaceClick() {
     if (menu) {
       setMenu(null);
       return;
     }
-    if (isMobile) {
-      if (visible) {
-        setVisible(false);
-      } else {
-        setVisible(true);
-        scheduleHide();
-      }
-    } else {
-      togglePlayPause();
-    }
+    togglePlayPause();
   }
 
   function handleSeek(value: number) {
@@ -187,49 +167,19 @@ export function VideoControls({
     handleActivity();
   };
 
-  const progressPct = total > 0 ? Math.min(100, (currentTime / total) * 100) : 0;
-
   return (
     <div
       className="absolute inset-0 z-10 select-none"
-      // 移动端只有「点」才算交互：pointermove 会在滑动时把控制条顶起来，与「点出」冲突。
-      onPointerMove={isMobile ? undefined : handleActivity}
+      onPointerMove={handleActivity}
       onClick={handleSurfaceClick}
     >
-      {/* 移动端入画字幕 —— 贴画框最下沿（3px 细进度之上），在控制条之下 */}
-      {isMobile && mobileSubtitle && (
-        <div
-          data-testid="burn-subtitle"
-          className="pointer-events-none absolute inset-x-0 bottom-[3px]"
-        >
-          {mobileSubtitle}
-        </div>
-      )}
-
-      {/* 常驻的只剩这条 3px 细进度（#28 乙）——纯展示，拖动要先把控制条点出来 */}
-      {isMobile && (
-        <div
-          data-testid="thin-progress"
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[3px] bg-white/25"
-        >
-          <div className="h-full bg-brand-500" style={{ width: `${progressPct}%` }} />
-        </div>
-      )}
-
       {/* 底部控制条 */}
       <div
         data-testid="controls-bar"
         className={cn(
           "absolute inset-x-0 bottom-0 px-3 pb-2 pt-8 bg-gradient-to-t from-black/75 via-black/35 to-transparent",
-          "transition-[opacity,transform] duration-200",
-          isMobile
-            ? visible
-              ? "translate-y-0"
-              : "translate-y-full pointer-events-none"
-            : visible
-              ? "opacity-100"
-              : "opacity-0 pointer-events-none"
+          "transition-opacity duration-200",
+          visible ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -284,80 +234,74 @@ export function VideoControls({
             {formatDuration(currentTime)} / {formatDuration(total)}
           </span>
 
-          {/* 桌面端：音量内联 */}
-          {!isMobile && (
-            <div className="flex items-center gap-1.5 ml-1">
-              <button
-                type="button"
-                onClick={() => {
-                  toggleMute();
-                  handleActivity();
-                }}
-                aria-label={muted ? "取消静音（M）" : "静音（M）"}
-                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
-              >
-                {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-              <input
-                type="range"
-                aria-label="音量（↑/↓）"
-                min={0}
-                max={1}
-                step={0.05}
-                value={muted ? 0 : volume}
-                onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                className="w-16 h-1 cursor-pointer accent-white"
-              />
-            </div>
-          )}
+          {/* 音量（滑杆+静音） */}
+          <div className="flex items-center gap-1.5 ml-1">
+            <button
+              type="button"
+              onClick={() => {
+                toggleMute();
+                handleActivity();
+              }}
+              aria-label={muted ? "取消静音（M）" : "静音（M）"}
+              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
+            >
+              {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <input
+              type="range"
+              aria-label="音量（↑/↓）"
+              min={0}
+              max={1}
+              step={0.05}
+              value={muted ? 0 : volume}
+              onChange={(e) => handleVolumeChange(Number(e.target.value))}
+              className="w-16 h-1 cursor-pointer accent-white"
+            />
+          </div>
 
           <div className="flex-1" />
 
-          {/* 桌面端：倍速 + 字幕模式内联 */}
-          {!isMobile && (
-            <>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMenu(menu === "rate" ? null : "rate")}
-                  aria-label="倍速（C）"
-                  className="px-2 h-8 rounded-lg text-[12px] font-semibold font-mono hover:bg-white/15 transition-colors cursor-pointer"
-                >
-                  {rate}x
-                </button>
-                {menu === "rate" && (
-                  <div className="absolute bottom-10 right-0 bg-black/85 backdrop-blur rounded-lg py-1 min-w-[72px]">
-                    {PLAYBACK_RATES.map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => {
-                          setRate(r);
-                          setMenu(null);
-                        }}
-                        className={cn(
-                          "w-full px-3 py-1.5 text-[12px] font-mono text-left flex items-center justify-between hover:bg-white/15 cursor-pointer",
-                          r === rate ? "text-brand-400" : "text-white/85"
-                        )}
-                      >
-                        {r}x{r === rate && <Check size={12} />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          {/* 倍速 + 字幕模式内联 */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenu(menu === "rate" ? null : "rate")}
+              aria-label="倍速（C）"
+              className="px-2 h-8 rounded-lg text-[12px] font-semibold font-mono hover:bg-white/15 transition-colors cursor-pointer"
+            >
+              {rate}x
+            </button>
+            {menu === "rate" && (
+              <div className="absolute bottom-10 right-0 bg-black/85 backdrop-blur rounded-lg py-1 min-w-[72px]">
+                {PLAYBACK_RATES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setRate(r);
+                      setMenu(null);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-[12px] font-mono text-left flex items-center justify-between hover:bg-white/15 cursor-pointer",
+                      r === rate ? "text-brand-400" : "text-white/85"
+                    )}
+                  >
+                    {r}x{r === rate && <Check size={12} />}
+                  </button>
+                ))}
               </div>
-              <button
-                type="button"
-                onClick={cycleSubtitle}
-                aria-label={`字幕：${SUBTITLE_MODE_LABEL[subtitleMode]}（S）`}
-                className="px-2 h-8 rounded-lg text-[12px] font-medium hover:bg-white/15 transition-colors cursor-pointer"
-              >
-                字幕·{SUBTITLE_MODE_LABEL[subtitleMode]}
-              </button>
-            </>
-          )}
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={cycleSubtitle}
+            aria-label={`字幕：${SUBTITLE_MODE_LABEL[subtitleMode]}（S）`}
+            className="px-2 h-8 rounded-lg text-[12px] font-medium hover:bg-white/15 transition-colors cursor-pointer"
+          >
+            字幕·{SUBTITLE_MODE_LABEL[subtitleMode]}
+          </button>
 
-          {/* 「更多」弹层：字号常驻；移动端再收进倍速/字幕/全屏 */}
+          {/* 「更多」弹层：字号 */}
           <div className="relative">
             <button
               type="button"
@@ -392,70 +336,22 @@ export function VideoControls({
                     ))}
                   </div>
                 </div>
-                {isMobile && (
-                  <>
-                    <div>
-                      <p className="text-[11px] text-white/55 mb-1">倍速</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {PLAYBACK_RATES.map((r) => (
-                          <button
-                            key={r}
-                            type="button"
-                            onClick={() => {
-                              setRate(r);
-                              setMenu(null);
-                            }}
-                            className={cn(
-                              "px-2 py-1 rounded text-[12px] font-mono transition-colors cursor-pointer",
-                              r === rate
-                                ? "bg-brand-500 text-white"
-                                : "bg-white/10 text-white/80 hover:bg-white/20"
-                            )}
-                          >
-                            {r}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        cycleSubtitle();
-                      }}
-                      className="w-full py-1 rounded text-[12px] bg-white/10 text-white/80 hover:bg-white/20 transition-colors cursor-pointer"
-                    >
-                      字幕·{SUBTITLE_MODE_LABEL[subtitleMode]}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toggleFullscreen();
-                        setMenu(null);
-                      }}
-                      className="w-full py-1 rounded text-[12px] bg-white/10 text-white/80 hover:bg-white/20 transition-colors cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <Maximize size={12} /> 全屏
-                    </button>
-                  </>
-                )}
               </div>
             )}
           </div>
 
-          {/* 桌面端：全屏内联 */}
-          {!isMobile && (
-            <button
-              type="button"
-              onClick={() => {
-                toggleFullscreen();
-                handleActivity();
-              }}
-              aria-label="全屏（F）"
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
-            >
-              <Maximize size={16} />
-            </button>
-          )}
+          {/* 全屏内联 */}
+          <button
+            type="button"
+            onClick={() => {
+              toggleFullscreen();
+              handleActivity();
+            }}
+            aria-label="全屏（F）"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
+          >
+            <Maximize size={16} />
+          </button>
         </div>
       </div>
     </div>

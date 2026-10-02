@@ -81,26 +81,26 @@ const SHORT_VIEWPORT = { width: 375, height: 700 };
  */
 const CRITICAL_CONTAINERS = [
   "header",
+  // 观看页（DEC-069 / #31）在 `/watch/*` 换掉壳的两栏：44px 顶栏 + 常规流底栏。
+  // 这两个是移动端播放页现在唯一常驻的控件面。
+  '[data-testid="watch-top-bar"]',
+  '[data-testid="watch-bottom-bar"]',
+  // 其他路由仍是 5 Tab 底栏。
   '[data-testid="mobile-tab-bar"]',
-  '[data-testid="burn-subtitle"]',
+  // 播放页交互面：画框（移动端零覆盖物，点它只切播放/暂停）、当前句卡（点词锚点）、
+  // 两个浮层。桌面专属的 `controls-bar` 也留着 —— 375 档量不到，但量具同一份跑 1280 时要用。
+  '[data-testid="video-frame"]',
+  '[data-testid="current-sentence-card"]',
   '[data-testid="controls-bar"]',
-  '[data-testid="thin-progress"]',
-  // 画框内那行 overlay：`frame-title` 只是标题那一段，同一行里还有「返回」键
-  // （page.tsx:1004-1025），所以要连 overlay 的壳一起算 —— 少了它，返回键会被判成
-  // 「不在关键路径」，而它恰恰是播放页唯一的出口。
-  '[data-testid="frame-title"]',
-  // 画框内那行 overlay 的壳： `frame-title` 只标了标题那一段，同一行里还有「返回」键
-  // （page.tsx:1004-1025 → overlay > div.min-w-0 > div[data-testid=frame-title]）。
-  // 必须写成「隔两层的直接子代」——用 `div:has([data-testid="frame-title"])` 这种后代匹配，
-  // 最外层那些包住整页的 div 全部命中，所有目标都会被判成关键路径。
-  'div:has(> div > [data-testid="frame-title"])',
-  '[data-testid="mobile-actions"]',
   '[data-testid="word-tooltip"]',
+  '[data-testid="watch-more-sheet"]',
   '[data-testid="shadowing-drawer"]',
 ];
 
 /** 量具版本：口径/判据一改就 +1，写进 JSON 的 meta，便于判断两份读数能不能比。 */
-const SCRIPT_REVISION = 5;
+// rev6（2026-10-02，DEC-069）：关键路径容器与枚举目标改成壳层两栏 —— 旧读数（rev5 及以前）
+// 量的是入画字幕 / 画框内覆盖物 / 5 Tab 底栏，与现在的 DOM 不是同一批目标，**不可直接比较**。
+const SCRIPT_REVISION = 6;
 
 // ---------------------------------------------------------------- 路由与状态
 
@@ -122,12 +122,12 @@ function routePlan(videoId) {
       anonymous: true,
       allCritical: true,
     },
-    { route: watch, state: "base", label: "播放页·静息（3px 细进度 + 入画字幕）" },
+    { route: watch, state: "base", label: "播放页·静息（画面零文字、当前句卡、壳底栏四键）" },
     {
       route: watch,
-      state: "overlay-controls",
-      label: "播放页·控制条点出（#28 乙）",
-      prepare: "liftControls",
+      state: "overlay-more-sheet",
+      label: "播放页·⋯ 面板（语言/字号/倍速/来源版权/动作行；DEC-069 之后移动端唯一抽屉）",
+      prepare: "openMoreSheet",
     },
     {
       route: watch,
@@ -305,7 +305,7 @@ function collectInPage(opts) {
     if (tag === "summary") return "summary";
     if (tag === "label") return "label";
     if (tag === "video") return "video";
-    if (el.classList.contains("burn-sub-word")) return "inline-word";
+    if (el.classList.contains("now-sub-word")) return "inline-word";
     const role = el.getAttribute("role");
     if (role) return `role-${role}`;
     if (el.hasAttribute("onclick")) return "onclick";
@@ -353,10 +353,11 @@ function collectInPage(opts) {
     "label[for]",
     "[contenteditable=true]",
     "[draggable=true]",
-    ".burn-sub-word",
+    ".now-sub-word",
     '[data-testid$="-grab"]',
-    // 播放器覆盖面（自定义控件）：VideoControls 的根，点它 = 点出/收起控制条。
-    // 这一条不是标签语义能表达的，写死 Tailwind 类名（INV-004：v4 CSS-first，类名就是源码里的字面量）。
+    // 播放页覆盖面：移动端是当前句卡（点空白 = 播放/暂停，点词 = 词卡），
+    // 桌面端还有 `VideoControls` 的根（点它 = 播放/暂停或点出控制条）。
+    // 这两条不是标签语义能表达的，写死源码里的字面量（INV-004：v4 CSS-first，类名就是源码）。
     "div.absolute.inset-0.z-10",
   ];
   const explicitSet = new Set();
@@ -411,7 +412,7 @@ function collectInPage(opts) {
     }
   }
 
-  // ---- 有效命中区：元素盒 ≠ 目标区。`burn-sub-word::after{inset:-4px -1px}` 这类伪元素外扩
+  // ---- 有效命中区：元素盒 ≠ 目标区。`::after{inset:-4px -1px}` 这类伪元素外扩真的接指针
   //      真的接指针（WCAG 的 target 定义是「会接受指针动作的显示区域」），相邻元素的 ::after
   //      又会互相压。所以对「两边有一边 < 48」的目标，从中心线向外逐像素用 elementFromPoint
   //      探到连续可命中的范围，作为 effective 盒；原始 rect 照留。只探小目标：探针是 O(pixels)。
@@ -469,8 +470,8 @@ function collectInPage(opts) {
     const right = scan(1, 0);
     // 有效命中区 = 元素盒 ∪ 从中心向四个方向探到的可达范围。
     // 取并集而不是取探到的矩形：探针从中心出发，元素自身边界那半像素会先被相邻元素接走
-    // （44×44 会被量成 43×43），拿它当"目标变小了"是假阳性。伪元素外扩（.burn-sub-word::after
-    // inset:-4px）是真的按到了盒子外面，并集捕得到 —— 探到的四个方向原样留在 hitProbe.probe 里。
+    // （44×44 会被量成 43×43），拿它当"目标变小了"是假阳性。伪元素 / 负外边距外扩（例：词的
+    // 热区用 `-mb-1 pb-1` 往下多接 4px）是真的按到了盒子外面，并集捕得到 —— 探到的四个方向
     const top = Math.min(r.top, cy - up);
     const bottom = Math.max(r.bottom, cy + down);
     const l = Math.min(r.left, cx - left);
@@ -659,17 +660,17 @@ function collectInPage(opts) {
       clientWidth: document.documentElement.clientWidth,
     },
     frame: box("video"),
-    frameSlot: box('[data-testid="frame-title"]'),
-    burnSubtitle: box('[data-testid="burn-subtitle"]'),
-    burnSubtitleEn: box('[data-testid="burn-subtitle-en"]'),
-    thinProgress: box('[data-testid="thin-progress"]'),
+    videoFrame: box('[data-testid="video-frame"]'),
+    watchTopBar: box('[data-testid="watch-top-bar"]'),
+    watchBottomBar: box('[data-testid="watch-bottom-bar"]'),
+    watchProgress: box('[data-testid="watch-progress"]'),
+    currentSentenceCard: box('[data-testid="current-sentence-card"]'),
+    moreSheet: box('[data-testid="watch-more-sheet"]'),
     controlsBar: box('[data-testid="controls-bar"]'),
     tabBar: box('[data-testid="mobile-tab-bar"]'),
     header: box("header"),
-    mobileActions: box('[data-testid="mobile-actions"]'),
     wordCard: box('[data-testid="word-tooltip"][data-variant="sheet"]'),
     drawer: box('[data-testid="shadowing-drawer"]'),
-    pip: box('[aria-label="关闭小窗播放"]'),
     videoPaused: video ? video.paused : null,
     videoReadyState: video ? video.readyState : null,
     videoCurrentTime: video ? +video.currentTime.toFixed(2) : null,
@@ -681,8 +682,11 @@ function collectInPage(opts) {
   };
 
   const notes = [];
-  if (!document.querySelector('[data-testid="burn-subtitle"]') && location.pathname.startsWith("/watch")) {
-    notes.push("no burn-subtitle in this state");
+  if (
+    location.pathname.startsWith("/watch") &&
+    !document.querySelector('[data-testid="watch-bottom-bar"]')
+  ) {
+    notes.push("no watch-bottom-bar in this state (desktop width? see route plan)");
   }
   return { targets, geometry, notes };
 }
@@ -705,7 +709,7 @@ async function watchBoot(page, notes) {
   await page.evaluate(() => {
     const v = document.querySelector("video");
     if (v) {
-      // 回到 0 秒再暂停：入画字幕的**当前句**由播放位置决定，不钉住它两次跑的字词集合就不一样。
+      // 回到 0 秒再暂停：当前句由播放位置决定，不钉住它两次跑的字词集合就不一样。
       try {
         v.currentTime = 0;
       } catch {
@@ -715,47 +719,34 @@ async function watchBoot(page, notes) {
     }
   });
 
-  // 迷你窗（useStickyPip）：若出现就按真人做法关掉，读数针对内联播放器。
-  const pipClose = page.locator('[aria-label="关闭小窗播放"]');
-  if (await pipClose.isVisible({ timeout: 800 }).catch(() => false)) {
-    notes.push("pip visible on load → dismissed");
-    await pipClose.click();
-    await settle(page, 400);
-  } else {
-    notes.push("pip not visible on load");
-  }
-
-  // 回到静息态（控制条收起 = #28 乙 的默认）。点画面会 toggle，所以要检查当前是否浮起。
-  const lifted = await page.evaluate(() => {
-    const bar = document.querySelector('[data-testid="controls-bar"]');
-    const frame = document.querySelector("video");
-    if (!bar || !frame) return null;
-    const b = bar.getBoundingClientRect();
-    const f = frame.getBoundingClientRect();
-    return b.top < f.bottom - 1; // 控制条有一部分落在画框内 → 浮起
+  // 贴顶常驻（useStickyPip）：读数针对**首屏内联**形态，所以先把滚动容器归零 ——
+  // DEC-069 之后跟随态没有出口键了（那个 X 删了），滚回顶部就是解除办法。
+  const scrolled = await page.evaluate(() => {
+    const main = document.querySelector("main#main-scroll");
+    const before = main ? main.scrollTop : window.scrollY;
+    if (main) main.scrollTop = 0;
+    else window.scrollTo(0, 0);
+    return before;
   });
-  if (lifted) {
-    const f = await page.locator("video").boundingBox();
-    await page.mouse.click(f.x + f.width / 2, f.y + f.height * 0.35);
-    await settle(page, 400);
-  }
-  notes.push(`controls bar lifted before normalise: ${lifted}`);
+  notes.push(scrolled > 0 ? `scrolled to top (was ${scrolled})` : "already at top");
+  await settle(page, 400);
 }
 
 const PREPARERS = {
-  async liftControls(page, notes) {
-    const f = await page.locator("video").boundingBox();
-    await page.mouse.click(f.x + f.width / 2, f.y + f.height * 0.35);
-    await settle(page, 450);
-    const bar = await page.locator('[data-testid="controls-bar"]').boundingBox();
-    const frame = await page.locator("video").boundingBox();
+  async openMoreSheet(page, notes) {
+    await page.locator('[data-testid="watch-more-button"]').click();
+    await page.waitForSelector('[data-testid="watch-more-sheet"]', { timeout: 6000 });
+    await settle(page, 500);
+    const bar = await page.locator('[data-testid="watch-bottom-bar"]').count();
     notes.push(
-      `controls bar after lift: y=${bar?.y} h=${bar?.height} (frame bottom=${(frame.y + frame.height).toFixed(1)})`
+      bar === 0
+        ? "⋯ 面板打开时底栏让位（count 0）—— 这是设计，不是缺陷"
+        : `⋯ 面板打开时底栏仍在（count ${bar}），与设计不符`
     );
   },
 
   async openWordCard(page, notes) {
-    await page.locator('[data-testid="burn-subtitle"] .burn-sub-word').first().click();
+    await page.locator('[data-testid="current-sentence-card"] .now-sub-word').first().click();
     await page.waitForSelector('[data-testid="word-tooltip"][data-variant="sheet"]', {
       timeout: 6000,
     });
@@ -774,17 +765,18 @@ const PREPARERS = {
   },
 
   async openDrawer(page, notes) {
-    // 移动端入口只有一个：「录音」（page.tsx:1208-1227 → setPracticeOpen(true) + startRecording()）。
-    // 所以点开就是录音态，没有独立的 idle 档（另一入口「逐句跟读」先播原句、播完自动开录，
-    // 状态会在测量窗口里自己跳，读数不可复现，故不单独量）。
-    await page.getByRole("button", { name: "录音", exact: true }).click();
+    // DEC-069 之后移动端入口只有壳底栏那个键；点开先落在抽屉的 idle 档，
+    // 由 `drawerRecord` 再点「开始跟读本句」进录音态。
+    await page.locator('[data-testid="watch-shadowing"]').click();
     await page.waitForSelector('[data-testid="shadowing-drawer"]', { timeout: 6000 });
-    await page.waitForSelector('[data-testid="recording-timer"]', { timeout: 8000 });
     await settle(page, 600);
   },
 
   async drawerRecord(page, notes, ctx) {
     await PREPARERS.openDrawer(page, notes, ctx);
+    await page.getByRole("button", { name: "开始跟读本句" }).click();
+    await page.waitForSelector('[data-testid="recording-timer"]', { timeout: 8000 });
+    await settle(page, 600);
   },
 
   async drawerReview(page, notes, ctx) {
@@ -911,11 +903,12 @@ async function run() {
       await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {
         notes.push("networkidle timeout (dev overlay / HMR socket keeps it busy)");
       });
-      // 壳层或登录表单出现即视为渲染完成
+      // 壳层 / 观看页两栏 / 登录表单出现即视为渲染完成
       await page
-        .waitForSelector('main#main-scroll, form, [data-testid="mobile-tab-bar"]', {
-          timeout: 20000,
-        })
+        .waitForSelector(
+          'main#main-scroll, form, [data-testid="watch-bottom-bar"], [data-testid="mobile-tab-bar"]',
+          { timeout: 20000 }
+        )
         .catch(() => notes.push("no shell/form anchor found"));
       await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
       await settle(page, 700);
@@ -1106,15 +1099,19 @@ function emitMarkdown(jsonPath) {
   // ---------- 0 表头读数 ----------
   p(`### 0 · 每状态的壳层与浮层几何（同一份量具顺带量，供交叉核对）`);
   p();
-  p(`| 状态 | 视口 | 画框 x/y/w/h | 入画字幕 y/h | 控制条 y/h | 底栏 y/h | 词卡 y/h | 抽屉 y/h |`);
-  p(`|---|---|---|---|---|---|---|---|`);
+  p(
+    `| 状态 | 视口 | 画框 x/y/w/h | 顶栏 y/h | 底栏 y/h | 当前句卡 y/h | 控制条 y/h（桌面） | 5 Tab y/h | 词卡 y/h | 抽屉 y/h |`,
+  );
+  p(`|---|---|---|---|---|---|---|---|---|---|`);
   for (const s of ok) {
     const g = s.geometry;
     const f = (b) => (b ? `${b.y} / ${b.h}` : "—");
     p(
       `| ${s.state} | ${s.viewport.width}×${s.viewport.height} | ${g.frame ? `${g.frame.x}/${g.frame.y}/${g.frame.w}/${g.frame.h}` : "—"} | ${f(
-        g.burnSubtitle
-      )} | ${f(g.controlsBar)} | ${f(g.tabBar)} | ${f(g.wordCard)} | ${f(g.drawer)} |`
+        g.watchTopBar
+      )} | ${f(g.watchBottomBar)} | ${f(g.currentSentenceCard)} | ${f(g.controlsBar)} | ${f(
+        g.tabBar
+      )} | ${f(g.wordCard)} | ${f(g.drawer)} |`
     );
   }
   p();

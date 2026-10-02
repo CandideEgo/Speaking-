@@ -1,15 +1,21 @@
 /**
- * 移动端播放页的滚动形态 —— wayfinder #30 决议（**画面贴顶常驻**）的毕业物验收。
+ * 移动端播放页的滚动形态 —— wayfinder #30 决议（**画面贴顶常驻**）+ DEC-069 / #31
+ * （钉住位置 64 → 44）的毕业物验收。
  *
- * 定稿的形态：滚过画框之后，画面**不缩、不飞、不消失** —— 它与整张字幕卡一起
- * 贴到壳顶常驻（`sticky`，活动范围是左列那层 grid item），`<video>` 节点不换父，
- * 所以内联 ↔ 常驻切换不丢播放进度。被否的三条与它们的读数代价在
+ * 定稿的形态：滚过画框之后，画面**不缩、不飞、不消失** —— 它贴住 `main#main-scroll`
+ * 上沿（= 壳顶栏下沿）常驻（`sticky`，活动范围是左列那层 grid item），`<video>` 节点
+ * 不换父，所以内联 ↔ 常驻切换不丢播放进度。被否的三条与它们的读数代价在
  * `docs/design/mobile/prototypes/S-scroll.md`：
- *   · A2「只留一条」—— 入画字幕与点词热区整体出画（#27 的锚点在滚动后失效）
+ *   · A2「只留一条」—— 当前句与点词热区整体出画（#27 的锚点在滚动后失效）
  *   · B「画面缩成条」—— 长句被画框切掉（216 字符句：条内只看得见 62/107px）
- *   · C「右下角 160×90」—— 入画字幕份数归零（INV-021 的锚点消失）+ iOS 地址栏 40px
+ *   · C「右下角 160×90」—— 当前句份数归零（INV-021 的锚点消失）+ iOS 地址栏 40px
  *
- * 断言的数字全部来自 `getBoundingClientRect()`；热区用 `elementFromPoint` 逐像素探。
+ * DEC-069 改的两处：
+ *   · 钉住位置从 64（全局顶栏）变成 **44**（观看页顶栏）—— 断言按 44 写，不再写死 64；
+ *   · 画面里的入画字幕与「退出小窗播放」的 X 全删 —— 贴顶态由**滚回顶部**自然解除，
+ *     所以「退出口 44×44」那条用例换成「常驻是可逆的」。
+ *
+ * 断言的数字全部来自 `getBoundingClientRect()`；词热区用 `elementFromPoint` 逐像素探。
  *
  * 需要本地库里有**真能播**的视频（CI seed 的 `/media/<id>.mp4` 是占位 URL 404）→ skip。
  *
@@ -25,6 +31,9 @@ let token = "";
 test.beforeAll(async ({ request }) => {
   ({ token } = await registerUserViaApi(request, uniquePhone()));
 });
+
+const FRAME = '[data-testid="video-frame"]';
+const CARD = '[data-testid="current-sentence-card"]';
 
 async function boxOf(page: Page, selector: string) {
   const box = await page.locator(selector).first().boundingBox();
@@ -43,9 +52,9 @@ async function scrollTo(page: Page, top: number) {
 
 /**
  * 登录 → 打开第一条 ready 视频 → 跳过教程浮层 → 等到真能播。
- * **不**退出常驻态：本票量的就是常驻态本身（旧的「进页面即迷你窗」那层 workaround 不需要了）。
+ * **不**退出常驻态：本票量的就是常驻态本身。`mobile=false` 时不等壳底栏（桌面渲染 null）。
  */
-async function enterWatch(page: Page, request: APIRequestContext) {
+async function enterWatch(page: Page, request: APIRequestContext, { mobile = true } = {}) {
   await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
   await loginViaToken(page, token);
 
@@ -70,104 +79,132 @@ async function enterWatch(page: Page, request: APIRequestContext) {
     .catch(() => false);
   test.skip(!playable, "no playable media in local DB (the CI seed writes a placeholder URL)");
 
-  await expect(page.locator('[data-testid="controls-bar"]')).toHaveCount(1);
+  await expect(page.locator(CARD)).toBeVisible({ timeout: 5000 });
+  if (mobile) {
+    await expect(page.locator('[data-testid="watch-bottom-bar"]')).toBeVisible({ timeout: 5000 });
+  }
 }
 
 /**
  * 贴顶常驻的对象 = **画框自己**：移动端左列是 `display: contents`，画框直接成为 grid item，
- * 包含块是整个网格容器（余量 ≈900px > 滚动上限 707px），所以滚动全程都钉得住。
+ * 包含块是整个网格容器（余量 > 滚动上限），所以滚动全程都钉得住。
  * 别再量左列：它没有盒子（rect 恒 0×0、`position` 恒 static），量它只会量到空气。
  */
-async function columnOf(page: Page) {
+async function frameState(page: Page) {
+  return page.evaluate((sel) => {
+    const f = document.querySelector(sel) as HTMLElement | null;
+    if (!f) return null;
+    const r = f.getBoundingClientRect();
+    return { y: r.y, height: r.height, position: getComputedStyle(f).position };
+  }, FRAME);
+}
+
+/** 壳顶（`main#main-scroll` 上沿）与观看页顶栏下沿 —— DEC-069 之后这两个数必须相等。 */
+async function shellEdges(page: Page) {
   return page.evaluate(() => {
-    const v = document.querySelector("video");
-    const frame = v?.parentElement?.parentElement as HTMLElement | undefined;
-    if (!frame) return null;
-    const r = frame.getBoundingClientRect();
-    return { y: r.y, height: r.height, position: getComputedStyle(frame).position };
+    const main = document.querySelector("main#main-scroll");
+    const topBar = document.querySelector('[data-testid="watch-top-bar"]');
+    return {
+      shellTop: main ? main.getBoundingClientRect().top : null,
+      topBarBottom: topBar ? topBar.getBoundingClientRect().bottom : null,
+    };
   });
+}
+
+/**
+ * 量一个词 span 的**可点带**：从它的垂直中心往上/下探，直到 `elementsFromPoint` 不再命中它。
+ *
+ * 量的是 span 自己的**行内盒**（17px 字号 ≈ 20px），不是方案里那个 32px 的行高 ——
+ * 行高管的是「行与行不重叠」，命中区仍然是词自己。
+ */
+async function wordHitBand(page: Page, selector: string) {
+  return page.evaluate((sel) => {
+    const w = document.querySelector(sel) as HTMLElement | null;
+    if (!w) return null;
+    const r = w.getBoundingClientRect();
+    const cx = Math.round(r.left + r.width / 2);
+    const mid = r.top + r.height / 2;
+    const at = (y: number) => document.elementsFromPoint(cx, y).indexOf(w) >= 0;
+    if (!at(mid)) return { h: 0, tappable: false };
+    let lo = mid,
+      hi = mid;
+    for (let i = 0; i < 40 && lo > r.top - 26; i++) {
+      if (!at(lo - 1)) break;
+      lo--;
+    }
+    for (let i = 0; i < 40 && hi < r.bottom + 26; i++) {
+      if (!at(hi + 1)) break;
+      hi++;
+    }
+    return { h: Math.round(hi - lo), tappable: true };
+  }, selector);
 }
 
 test.use({ viewport: { width: 375, height: 812 } });
 
-test.describe("移动端滚动形态：画面贴顶常驻（#30，375×812）", () => {
-  test("首屏不受影响：画框顶 = 壳顶、不常驻、入画字幕贴画框下沿", async ({ page, request }) => {
-    await enterWatch(page, request);
-
-    const frame = await boxOf(page, "video");
-    const shellTop = await page.evaluate(
-      () => document.querySelector("main#main-scroll")!.getBoundingClientRect().top
-    );
-    const col = await columnOf(page);
-
-    expect(frame.y, "首屏画框顶贴壳顶（INV-024）").toBeCloseTo(shellTop, 0);
-    expect(col?.position, "首屏不贴顶常驻").not.toBe("sticky");
-    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
-    await expect(page.locator('[aria-label="关闭小窗播放"]')).toHaveCount(0);
-  });
-
-  test("滚过画框 → 画面贴顶常驻：画框顶仍 = 壳顶、尺寸一像素没缩、字幕还在画面内", async ({
+test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812）", () => {
+  test("首屏不受影响：画框顶 = 壳顶 = 顶栏下沿、不常驻；当前句卡在画面正下方且词可点", async ({
     page,
     request,
   }) => {
     await enterWatch(page, request);
-    const before = await boxOf(page, "video");
+
+    const frame = await boxOf(page, FRAME);
+    const edges = await shellEdges(page);
+    const st = await frameState(page);
+
+    expect(edges.topBarBottom, "观看页顶栏下沿 = 44px").toBeCloseTo(44, 0);
+    expect(edges.shellTop, "壳顶 = 顶栏下沿").toBeCloseTo(edges.topBarBottom!, 0);
+    expect(frame.y, "首屏画框顶贴壳顶（INV-024）").toBeCloseTo(edges.shellTop!, 0);
+    expect(st?.position, "首屏不贴顶常驻").not.toBe("sticky");
+
+    // 画面内零文字；当前句在画面正下方的卡里（唯一锚点）。
+    expect((await page.locator(FRAME).innerText()).trim(), "画框内零文字").toBe("");
+    const card = await boxOf(page, CARD);
+    expect(card.y, "当前句卡在画框下沿之下").toBeGreaterThanOrEqual(frame.y + frame.height - 1);
+
+    // 词热区仍在，且不是一条 1px 细缝（锚点从「入画字幕」搬到当前句卡）。
+    const hit = await wordHitBand(page, `${CARD} .now-sub-word`);
+    expect(hit?.tappable, "首屏画面下方的词仍可点").toBe(true);
+    expect(hit!.h, "词热区是词自己的行内盒（17px 字号 ≈ 20px）").toBeGreaterThanOrEqual(18);
+    console.log(`[#27] 375×812 当前句卡词热区实测 ${hit!.h}px`);
+  });
+
+  test("滚过画框 → 画面贴顶常驻：画框顶 = 壳顶 = 顶栏下沿(44)、尺寸一像素没缩、画面里仍零文字", async ({
+    page,
+    request,
+  }) => {
+    await enterWatch(page, request);
+    const before = await boxOf(page, FRAME);
 
     await scrollTo(page, 400);
 
-    const col = await columnOf(page);
-    const frame = await boxOf(page, "video");
-    const shellTop = await page.evaluate(
-      () => document.querySelector("main#main-scroll")!.getBoundingClientRect().top
-    );
+    const st = await frameState(page);
+    const frame = await boxOf(page, FRAME);
+    const edges = await shellEdges(page);
 
     // ① 真的粘住了：滚过画框下沿之后画框顶仍在壳顶。
-    // 注意滚动上限是 707px 不是 1200（`scrollTop=1200` 会被夹住）——上限那条另有 ①′ 单独断言。
-    expect(col?.position, "滚过之后画框是 sticky").toBe("sticky");
-    expect(frame.y, "常驻时画框顶 = 壳顶").toBeCloseTo(shellTop, 0);
+    // 注意滚动上限不是 1200（`scrollTop=1200` 会被夹住）——上限那条另有 ①′ 单独断言。
+    expect(st?.position, "滚过之后画框是 sticky").toBe("sticky");
+    expect(edges.topBarBottom, "顶栏下沿 = 44px（DEC-069 把钉住位置从 64 改到 44）").toBeCloseTo(
+      44,
+      0
+    );
+    expect(
+      frame.y,
+      "常驻时画框顶 = 顶栏下沿（`top-0` 贴的是 main 上沿，而 main 上沿 = 顶栏下沿）"
+    ).toBeCloseTo(edges.shellTop!, 0);
 
     // ② 尺寸一像素没缩（这就是「不缩成小窗」的硬证据）
     expect(frame.width, "常驻时画框仍满宽").toBeCloseTo(before.width, 0);
     expect(frame.height, "常驻时画框高不变").toBeCloseTo(before.height, 0);
     expect(frame.height, "画框是 16:9 全宽（不是 160×90）").toBeGreaterThan(200);
 
-    // ③ 入画字幕跟着画面一起留下（INV-021：当前句全页仍只有一份）
-    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
-    const burn = await boxOf(page, '[data-testid="burn-subtitle"]');
-    expect(burn.y, "字幕顶还在画框内").toBeGreaterThanOrEqual(frame.y);
-    expect(burn.y + burn.height, "字幕底不越出画框").toBeLessThanOrEqual(
-      frame.y + frame.height + 1
+    // ③ 画面里零文字（入画字幕已删，常驻时也不会冒出来）；当前句仍只有卡里那一份。
+    expect((await page.locator(FRAME).innerText()).trim(), "常驻态画框内零文字").toBe("");
+    expect(await page.locator(`${CARD} .now-sub-word`).count(), "当前句仍只有一份").toBeGreaterThan(
+      0
     );
-    expect(
-      Math.abs(burn.y + burn.height + 3 - (frame.y + frame.height)),
-      "字幕底边仍贴画框下沿（其下是 3px 细进度）"
-    ).toBeLessThan(2);
-
-    // ④ 点词热区还在画面里且没变矮（#27 的锚点没丢）
-    const hit = await page.evaluate(() => {
-      const w = document.querySelector(
-        '[data-testid="burn-subtitle"] .burn-sub-word'
-      ) as HTMLElement;
-      if (!w) return null;
-      const r = w.getBoundingClientRect();
-      const cx = Math.round(r.left + r.width / 2);
-      const mid = r.top + r.height / 2;
-      const at = (y: number) => document.elementsFromPoint(cx, y).indexOf(w) >= 0;
-      if (!at(mid)) return { h: 0, tappable: false };
-      let lo = mid,
-        hi = mid;
-      for (let i = 0; i < 40 && lo > r.top - 26; i++) {
-        if (!at(lo - 1)) break;
-        lo--;
-      }
-      for (let i = 0; i < 40 && hi < r.bottom + 26; i++) {
-        if (!at(hi + 1)) break;
-        hi++;
-      }
-      return { h: Math.round(hi - lo), tappable: true };
-    });
-    expect(hit?.tappable, "常驻时画面内的词仍可点").toBe(true);
-    expect(hit!.h, "词热区与 #28 实测同档（22px 行距 + 外扩）").toBeGreaterThanOrEqual(21);
 
     // ①′ 一路滚到**滚动上限**仍然钉得住 —— 这是旧实现翻车的地方，单独留一条回归：
     // sticky 的活动范围是它的包含块。旧实现把它挂在 490px 高的左列上（包含块余量 635px
@@ -178,7 +215,7 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30，375×812）", 
       Math.round(document.querySelector("main#main-scroll")!.scrollTop)
     );
     expect(atMax, "确实滚到了上限（上限不是 1200，别被 scrollTo(1200) 骗了）").toBeGreaterThan(400);
-    expect((await boxOf(page, "video")).y, "滚到上限画框顶仍 = 壳顶").toBeCloseTo(shellTop, 0);
+    expect((await boxOf(page, FRAME)).y, "滚到上限画框顶仍 = 壳顶").toBeCloseTo(edges.shellTop!, 0);
   });
 
   test("常驻不丢播放进度：切进常驻前后 currentTime 连续", async ({ page, request }) => {
@@ -212,25 +249,22 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30，375×812）", 
     ).toBe(false);
   });
 
-  test("常驻时的退出出口：44×44 热区，点了就落回常规流", async ({ page, request }) => {
+  /**
+   * DEC-069 删掉了画面里的「关闭小窗播放」X（`aria-label="关闭小窗播放"`）：常驻态不再有
+   * 退出口，**滚回顶部自然解除**。这条替代原来的「退出出口 44×44」用例 ——
+   * 贴顶常驻仍是「跟 / 不跟」的可逆状态，只是切换方式换成了滚动位置。
+   */
+  test("贴顶常驻可逆：滚回顶部自动解除，再滚下去重新武装（X 已删）", async ({ page, request }) => {
     await enterWatch(page, request);
+
     await scrollTo(page, 1200);
+    expect((await frameState(page))?.position, "滚下去 → 常驻").toBe("sticky");
 
-    const close = page.locator('[aria-label="关闭小窗播放"]');
-    await expect(close, "常驻态给得出退出出口").toBeVisible({ timeout: 5000 });
-    const box = (await close.boundingBox())!;
-    expect(box.width, "退出按钮宽 ≥44px（旧小窗实测 24px）").toBeGreaterThanOrEqual(44);
-    expect(box.height, "退出按钮高 ≥44px").toBeGreaterThanOrEqual(44);
-
-    await close.click();
-    await page.waitForTimeout(400);
-    const col = await columnOf(page);
-    expect(col?.position, "点过之后不再贴顶常驻").not.toBe("sticky");
-
-    // 回到原位重新武装：贴顶常驻是「跟/不跟」的可逆状态，不是一次性的
     await scrollTo(page, 0);
+    expect((await frameState(page))?.position, "滚回顶部 → 解除常驻").not.toBe("sticky");
+
     await scrollTo(page, 1200);
-    expect((await columnOf(page))?.position, "回到原位后重新武装").toBe("sticky");
+    expect((await frameState(page))?.position, "再滚下去 → 重新武装").toBe("sticky");
   });
 
   test("不压底栏、不引入横向溢出；四态里没有第二个贴底 fixed（INV-019）", async ({
@@ -240,11 +274,10 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30，375×812）", 
     await enterWatch(page, request);
     await scrollTo(page, 1200);
 
-    const tabBar = await boxOf(page, '[data-testid="mobile-tab-bar"]');
-    const frame = await boxOf(page, "video");
-    expect(frame.y + frame.height, "常驻的画框不越到移动底栏上沿以下").toBeLessThanOrEqual(
-      tabBar.y + 1
-    );
+    // INV-019 的另一半：观看页的最后一行是 `WatchBottomBar`（不是 5 Tab），同样非 fixed。
+    const bar = await boxOf(page, '[data-testid="watch-bottom-bar"]');
+    const frame = await boxOf(page, FRAME);
+    expect(frame.y + frame.height, "常驻的画框不越到壳底栏上沿以下").toBeLessThanOrEqual(bar.y + 1);
 
     const probe = await page.evaluate(() => {
       const fixedBottom: string[] = [];
@@ -254,18 +287,24 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30，375×812）", 
           fixedBottom.push(el.tagName + "." + String(el.className).slice(0, 40));
         }
       });
+      const barEl = document.querySelector('[data-shell-bottom-bar="watch"]') as HTMLElement | null;
       return {
         fixedBottom,
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
         burnCount: document.querySelectorAll('[data-testid="burn-subtitle"]').length,
         burnWords: document.querySelectorAll(".burn-sub-word").length,
+        cardWords: document.querySelectorAll('[data-testid="current-sentence-card"] .now-sub-word')
+          .length,
+        barPosition: barEl ? getComputedStyle(barEl).position : null,
       };
     });
     expect(probe.fixedBottom, "底栏之外不许再有贴底 fixed 常驻件（INV-019）").toEqual([]);
+    expect(probe.barPosition, "观看页底栏是常规流收尾行，不是 fixed").not.toBe("fixed");
     expect(probe.scrollWidth, "无横向溢出").toBeLessThanOrEqual(probe.clientWidth + 2);
-    expect(probe.burnCount, "当前句在画面里只有一份（INV-021）").toBe(1);
-    expect(probe.burnWords, "画面内点词热区还在").toBeGreaterThan(0);
+    expect(probe.burnCount, "画面内不再有入画字幕（INV-021 换了锚点）").toBe(0);
+    expect(probe.burnWords, "画面内不再有点词热区").toBe(0);
+    expect(probe.cardWords, "当前句卡里的点词热区还在").toBeGreaterThan(0);
   });
 });
 
@@ -274,41 +313,46 @@ test.describe("390 / 414 两档复算（#30 的常驻形态在别的主流宽度
     test.skip(!token, "no session");
     await page.setViewportSize({ width: 390, height: 812 });
     await enterWatch(page, request);
-    const before = await boxOf(page, "video");
+    const before = await boxOf(page, FRAME);
     await scrollTo(page, 1200);
-    const frame = await boxOf(page, "video");
-    const col = await columnOf(page);
-    expect(col?.position, "滚过之后是 sticky").toBe("sticky");
-    expect(frame.y, "画框顶仍贴壳顶").toBeLessThanOrEqual(before.y + 1);
+    const frame = await boxOf(page, FRAME);
+    const st = await frameState(page);
+    const edges = await shellEdges(page);
+    expect(st?.position, "滚过之后是 sticky").toBe("sticky");
+    expect(frame.y, "画框顶仍贴壳顶").toBeCloseTo(edges.shellTop!, 0);
     expect(frame.height, "画框高不变").toBeCloseTo(before.height, 0);
     expect(frame.width, "画框仍满宽").toBeCloseTo(390, 0);
-    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
+    expect((await page.locator(FRAME).innerText()).trim(), "画框内零文字").toBe("");
   });
 
   test("414×812", async ({ page, request }) => {
     test.skip(!token, "no session");
     await page.setViewportSize({ width: 414, height: 812 });
     await enterWatch(page, request);
-    const before = await boxOf(page, "video");
+    const before = await boxOf(page, FRAME);
     await scrollTo(page, 1200);
-    const frame = await boxOf(page, "video");
-    const col = await columnOf(page);
-    expect(col?.position, "滚过之后是 sticky").toBe("sticky");
-    expect(frame.y, "画框顶仍贴壳顶").toBeLessThanOrEqual(before.y + 1);
+    const frame = await boxOf(page, FRAME);
+    const st = await frameState(page);
+    const edges = await shellEdges(page);
+    expect(st?.position, "滚过之后是 sticky").toBe("sticky");
+    expect(frame.y, "画框顶仍贴壳顶").toBeCloseTo(edges.shellTop!, 0);
     expect(frame.height, "画框高不变").toBeCloseTo(before.height, 0);
     expect(frame.width, "画框仍满宽").toBeCloseTo(414, 0);
-    await expect(page.locator('[data-testid="burn-subtitle"]')).toHaveCount(1);
+    expect((await page.locator(FRAME).innerText()).trim(), "画框内零文字").toBe("");
   });
 });
 
-test.describe("桌面端不受影响（#30 只动 ≤1023px）", () => {
+test.describe("桌面端不受影响（#30/#31 只动 ≤1023px）", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("1280：滚过画框之后不出现贴顶常驻，也没有退出按钮", async ({ page, request }) => {
-    await enterWatch(page, request);
+  test("1280：滚过画框之后不出现贴顶常驻，也没有壳观看页两栏", async ({ page, request }) => {
+    await enterWatch(page, request, { mobile: false });
     await scrollTo(page, 1200);
-    const col = await columnOf(page);
-    expect(col?.position, "桌面端不走移动端的常驻分支").not.toBe("sticky");
-    await expect(page.locator('[aria-label="关闭小窗播放"]')).toHaveCount(0);
+    const st = await frameState(page);
+    expect(st?.position, "桌面端不走移动端的常驻分支").not.toBe("sticky");
+    await expect(page.locator('[data-testid="watch-top-bar"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="watch-bottom-bar"]')).toHaveCount(0);
+    const frame = await boxOf(page, FRAME);
+    expect(frame.x, "桌面画框有左内边距（不出血）").toBeGreaterThan(8);
   });
 });

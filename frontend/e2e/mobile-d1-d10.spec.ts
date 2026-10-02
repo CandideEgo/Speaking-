@@ -1,18 +1,49 @@
 /**
- * Mobile 真机验收 (D1 + D10) — iPhone X viewport (375x812)。
- * 覆盖规划 §4-D1 移动端验收项 + D10 窄屏呈现。
- * 运行：npx playwright test e2e/mobile-d1-d10.spec.ts
+ * D1 + D10 移动端验收（iPhone X 375×812）—— DEC-069 / #31 换壳之后的版本。
  *
- * 视口由本文件自己 `test.use` 钉住，所以不再依赖 `--project=mobile-iphone`
- * （那个项目的 `testMatch` 匹配不到 `mobile-d1-d10.spec.ts`，之前这个命令
- * 收集到 0 个测试，而 chromium 会以 1280 宽收集它、撞上这里写死的 375 断言）。
- * 另外需要本地库里有**真的能播**的视频：CI 的 seed 是占位 URL，会跳过。
+ * 方案：`knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md`
+ * （§2 第 1/5 条、§4 目标形态、§7 三条判据）。
+ *
+ * 老文件写的是被删掉的那套移动端 UI（点出式控制条 + 3s 自收 + 入画字幕 + 画面内
+ * 标题/返回键/退出 X）。DEC-069 之后移动端的观看控制由**壳的两个栏**承载，
+ * 画面里的 `VideoControls` 在 ≤1023px **根本不渲染**（只有 ≥1024px 才渲染），
+ * 所以「点画面浮起控制条」这一态在移动端已不存在。本文件按新形态重写，
+ * 每条用例保护的东西写在它自己的注释里。
+ *
+ * 覆盖：
+ *   ① 壳两栏 + 当前句卡在位；无横向溢出；进入观看页即可播（底栏播放键）
+ *   ② D1：控制条**不再自收**（常驻、可点）—— 老文件量的就是这条，只是形态反了
+ *   ③ 底栏进度条是常驻可拖的（老文件里移动端只剩一条 3px 纯展示线，不可拖）
+ *   ④ D10：跟读入口在底栏、抽屉仍「不压画面、不越底栏上沿」
+ *   ⑤ 登录页无横向溢出（与本轮改动无关，原样保留）
+ *
+ * 视口由本文件自己 `test.use` 钉住（chromium 项目默认 1280 宽，断言里全是 375 的几何）。
+ * 需要本地库里有**真的能播**的视频：CI 的 seed 写的是占位 URL（404），那种情况 skip。
+ *
+ * 运行：npx playwright test e2e/mobile-d1-d10.spec.ts --project=chromium
  */
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
-import { registerUserViaApi, loginViaToken } from "./helpers";
+import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 
 const SCREENSHOT_DIR = "test-results/mobile-d1-d10";
+
+const TOP_BAR = '[data-testid="watch-top-bar"]';
+const BOTTOM_BAR = '[data-testid="watch-bottom-bar"]';
+const FRAME = '[data-testid="video-frame"]';
+const CARD = '[data-testid="current-sentence-card"]';
+const DRAWER = '[data-testid="shadowing-drawer"]';
+
+const PHONE = uniquePhone();
+let token = "";
+
+// 一次注册：/auth/sms/register 是 3/minute（按 IP），老文件每条用例各注册一个用户，
+// 第 4 条就会 429。串行 + beforeAll 与其余移动端 spec 同策。
+test.describe.configure({ mode: "serial" });
+
+test.beforeAll(async ({ request }) => {
+  ({ token } = await registerUserViaApi(request, PHONE));
+});
 
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {
   const res = await request.get("/api/v1/videos/public?page=1&page_size=1");
@@ -37,124 +68,251 @@ async function assertNoHorizontalOverflow(page: Page, label: string): Promise<vo
   }
 }
 
+/**
+ * 登录 → 打开第一条 ready 视频 → 等到真能播 → 断言新壳在位。返回画框几何。
+ *
+ * 教程浮层用 app 自己的「看过了」标记关掉（与其余移动端 spec 同法），不再走
+ * 「点跳过教程 / 连点下一步」那条路。
+ */
+async function enterWatch(page: Page, request: APIRequestContext) {
+  await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
+  await loginViaToken(page, token);
+
+  const videoId = await openFirstReadyVideo(request);
+  test.skip(!videoId, "no ready video in local DB; seed first");
+
+  await page.goto(`/watch/${videoId}`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(1500);
+
+  const playable = await page
+    .waitForFunction(
+      () => {
+        const v = document.querySelector("video");
+        return !!v && v.readyState >= 2;
+      },
+      null,
+      { timeout: 8000 }
+    )
+    .then(() => true)
+    .catch(() => false);
+  test.skip(!playable, "no playable media in local DB (the CI seed writes a placeholder URL)");
+
+  // 新形态：壳的两栏 + 画面正下方的当前句卡（画面里零覆盖物）。
+  await expect(page.locator(TOP_BAR)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(BOTTOM_BAR)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(CARD)).toBeVisible({ timeout: 5000 });
+
+  const frame = await page.locator(FRAME).boundingBox();
+  if (!frame) throw new Error(`no bounding box for ${FRAME}`);
+  return frame;
+}
+
+/**
+ * 底栏播放键：点一次 → 等它变成「暂停」（`isPlaying` 的 UI 事实源）。
+ * 老文件点的是画面中央的播放按钮 + Space 兜底，那两个在移动端都没有了。
+ */
+async function startPlayback(page: Page): Promise<void> {
+  const toggle = page.locator('[data-testid="watch-toggle-play"]');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-label", "暂停", { timeout: 8000 });
+}
+
+/** 底栏进度条已播比例（`watch-progress-fill` 的 inline width，rAF 直写）。 */
+async function playedWidth(page: Page): Promise<number> {
+  const style =
+    (await page.locator('[data-testid="watch-progress-fill"]').getAttribute("style")) ?? "";
+  const m = /width:\s*([\d.]+)%/.exec(style);
+  return m ? Number(m[1]) : 0;
+}
+
 // 这组断言写的是 iPhone X 的几何（375 + 2），所以视口必须由文件自己钉住：
 // 桌面项目（chromium）默认 1280 宽，之前靠空库 skip 掩盖了这处不匹配。
 test.use({ viewport: { width: 375, height: 812 } });
 
 test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
-  test("watch page: no overflow, controls auto-hide, sentence button reachable", async ({
+  test("watch page: 新壳两栏在位、无溢出、进页面即可播（底栏播放键）", async ({
     page,
     request,
   }) => {
-    const phone = `139${Date.now().toString().slice(-6)}88`.slice(0, 11);
-    const { token } = await registerUserViaApi(request, phone);
-    await loginViaToken(page, token);
-
-    const videoId = await openFirstReadyVideo(request);
-    test.skip(!videoId, "no ready video in local DB; seed first");
-
-    await page.goto(`/watch/${videoId}`);
-    await page.waitForLoadState("networkidle", { timeout: 20000 });
-    await page.waitForTimeout(1500);
-
-    // 有视频行不等于有可播媒体：CI 的 scripts/seed_e2e.py 只写占位
-    // `/media/<id>.mp4`（404），播放永远不开始，控件也就永不自动隐藏。
-    // 这套断言需要真正能播的本地视频，所以在没有可播媒体时跳过，
-    // 而不是在 4 秒后的 opacity 断言上失败。
-    const playable = await page
-      .waitForFunction(
-        () => {
-          const v = document.querySelector("video");
-          return !!v && v.readyState >= 2;
-        },
-        null,
-        { timeout: 5000 }
-      )
-      .then(() => true)
-      .catch(() => false);
-    test.skip(!playable, "no playable media in local DB (the CI seed writes a placeholder URL)");
-
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/01-loaded.png` });
+    await enterWatch(page, request);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/01-mobile-shell.png` });
     await assertNoHorizontalOverflow(page, "loaded");
 
-    const sentenceBtn = page.getByRole("button", { name: /逐句跟读|退出逐句/ });
-    await expect(sentenceBtn).toBeVisible({ timeout: 10000 });
-    const box = await sentenceBtn.boundingBox();
-    expect(box, "sentence button bounding box").not.toBeNull();
-    if (!box) return;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(375 + 2);
-    expect(box.height).toBeGreaterThanOrEqual(36);
+    // ① 顶栏 44px（§2 第 3 条）：老文件没量过，新形态下这条是「首屏还给画面」的根。
+    const topBar = await page.locator(TOP_BAR).boundingBox();
+    expect(topBar, "顶栏有盒子").not.toBeNull();
+    expect(Math.round(topBar!.height), "顶栏高 44px（不再吃 64px）").toBe(44);
 
-    // 3. D1 controls auto-hide: first exit PiP if present, then start playback
-    // and idle for 4s. The hide timer only fires while !paused
-    // (see VideoControls.tsx:111).
-    // New users may hit the D2 coach-mark modal first; dismiss via the
-    // "跳过教程" / "知道了" / close X (aria-label="关闭") button.
-    const skipCoach = page.getByText(/跳过教程/).first();
-    if (await skipCoach.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await skipCoach.click({ force: true });
-      await page.waitForTimeout(400);
-    } else {
-      const nextBtn = page.getByRole("button", { name: /^(知道了|下一步)/ });
-      for (let i = 0; i < 4; i++) {
-        if (await nextBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-          await nextBtn.click({ force: true });
-          await page.waitForTimeout(200);
-        } else {
-          break;
-        }
-      }
-    }
-    const exitPip = page.getByRole("button", { name: /关闭小窗播放|退出小窗/ });
-    if (await exitPip.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await exitPip.click();
-      await page.waitForTimeout(500);
-    }
-    const centerPlay = page.getByRole("button", { name: /^(播放|Play|暂停|Pause)$/ }).first();
-    if (await centerPlay.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await centerPlay.click({ force: true });
-    } else {
-      // Fallback: press Space (the global play/pause shortcut).
-      await page.keyboard.press("Space");
-    }
-    await page.waitForTimeout(1500); // let playback begin + first hide schedule
+    // ② 底栏在位、在视口内 —— 老断言量的是 `mobile-actions` 行的 x/宽/高，
+    //    那行已经进 ⋯ 面板（§2 第 6 条），换成量壳底栏。
+    const bottomBar = await page.locator(BOTTOM_BAR).boundingBox();
+    expect(bottomBar, "底栏有盒子").not.toBeNull();
+    expect(bottomBar!.x).toBeGreaterThanOrEqual(0);
+    expect(bottomBar!.x + bottomBar!.width).toBeLessThanOrEqual(375 + 2);
+    expect(bottomBar!.y + bottomBar!.height).toBeLessThanOrEqual(812 + 2);
+    expect(bottomBar!.height, "底栏有实际高度（2px 进度 + 56px 按键行）").toBeGreaterThanOrEqual(
+      44
+    );
+
+    // ③ 老断言里的「逐句跟读按钮」现在由底栏的「跟读」承担；D10 完整流程在最后一条用例。
+    const shadowing = page.locator('[data-testid="watch-shadowing"]');
+    await expect(shadowing).toBeVisible({ timeout: 10000 });
+    const box = await shadowing.boundingBox();
+    expect(box, "跟读键 bounding box").not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375 + 2);
+    expect(box!.height, "跟读键 ≥44 触控基线").toBeGreaterThanOrEqual(44);
+
+    // ④ D1：进入观看页即可播 = 一次点击（§7 判据 3）。
+    const pausedBefore = await page
+      .locator("video")
+      .first()
+      .evaluate((v) => (v as HTMLVideoElement).paused);
+    expect(pausedBefore, "进入页面时还没播（等这一次点击）").toBe(true);
+    await startPlayback(page);
+
+    // ⑤ 底栏进度是活的：播到 rAF 写出正比例。
+    await expect.poll(() => playedWidth(page), { timeout: 10000 }).toBeGreaterThan(0);
+  });
+
+  /**
+   * D1 —— 控制条**不再自收**。
+   *
+   * 老文件保护的是「播放中闲置 4s 后控制条收起」（当时移动端是「点出式 + 3s 自收」）。
+   * DEC-069 把这条**反过来**（§2 第 5 条：控制条常驻，删「点画面浮起 + 3s 自收」），
+   * 所以换成正面断言：闲置后底栏仍在视口内、仍在原位，且**依然能点**（暂停 → 播放）。
+   * 这一反一正保护的是同一件事：用户不该为了暂停而在画面上先点一下。
+   */
+  test("D1: 播放中闲置 4s 后底栏常驻可点（不再有 3s 自收）", async ({ page, request }) => {
+    await enterWatch(page, request);
+    await startPlayback(page);
+
+    // 老文件在这里先点「关闭小窗播放」退出迷你窗 —— 那个出口随 #30/DEC-069 一起删了，
+    // 现在改为正面断言它不存在（跟随时画面贴顶常驻，没有「小窗」那一态）。
+    await expect(page.locator('[aria-label="关闭小窗播放"]')).toHaveCount(0);
+
+    // 把指针挪出画面、闲置 4s：老的隐藏计时器只在 !paused 时开火，这里是它该开火的条件。
     await page.mouse.move(187, 350);
     await page.waitForTimeout(4000);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/02-after-3s-idle.png` });
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/02-after-4s-idle.png` });
 
-    // Inspect the controls container (data-testid, 不绑 class 串).
-    // 桌面端收起 = opacity 0 + pointer-events:none；
-    // 移动端（#28 乙）收起 = 整条 translate-y-full 沉到画框外，也不可点。
-    const controlsState = await page.evaluate(() => {
-      const root = document.querySelector('[data-testid="controls-bar"]') as HTMLElement | null;
-      if (!root) return { found: false as const };
-      const cs = window.getComputedStyle(root);
-      const r = root.getBoundingClientRect();
-      const frame = document.querySelector("video")?.getBoundingClientRect() ?? null;
-      return {
-        found: true as const,
-        className: root.className,
-        opacity: parseFloat(cs.opacity),
-        pointerEvents: cs.pointerEvents,
-        belowFrame: frame ? r.top >= frame.bottom - 2 : null,
-      };
-    });
-    console.log("[D1] controls state after 4s idle (while playing):", controlsState);
-    expect(controlsState.found, "D1 controls container must be present").toBe(true);
-    if (controlsState.found) {
-      expect(controlsState.pointerEvents).toBe("none");
-      expect(
-        controlsState.belowFrame === true || controlsState.opacity < 0.5,
-        `controls must be retracted (belowFrame=${controlsState.belowFrame}, opacity=${controlsState.opacity})`
-      ).toBe(true);
+    const bottomBar = await page.locator(BOTTOM_BAR).boundingBox();
+    expect(bottomBar, "闲置后底栏仍在").not.toBeNull();
+    expect(bottomBar!.x).toBeGreaterThanOrEqual(0);
+    expect(
+      bottomBar!.y,
+      "闲置后底栏没有被挪出视口（移动端没有 translate-y-full 那一档）"
+    ).toBeLessThan(812);
+    expect(bottomBar!.y + bottomBar!.height, "闲置后底栏仍贴住可视区底边").toBeLessThanOrEqual(
+      812 + 2
+    );
+
+    // ≤1023px 下页面里那份 `VideoControls` 根本不渲染（桌面 ≥1024px 才有）。
+    await expect(page.locator('[data-testid="controls-bar"]')).toHaveCount(0);
+
+    // 「可点」才是「常驻」的证据：等 4s 之后再点一次暂停，仍应生效。
+    const toggle = page.locator('[data-testid="watch-toggle-play"]');
+    await expect(toggle).toHaveAttribute("aria-label", "暂停", { timeout: 5000 });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-label", "播放", { timeout: 5000 });
+    await assertNoHorizontalOverflow(page, "after-idle");
+  });
+
+  /**
+   * 底栏进度条：老文件那套（点画面浮起控制条再去拖进度）已随 DEC-069 删除；
+   * 现在的契约是「2px 细线 + 44px 透明热区，点/拖都在这一条上」（§4 底栏），
+   * 也就是**常驻可拖**。这里量热区几何 + 点一下真的换播放头（进度条不是装饰）。
+   */
+  test("底栏进度：44px 热区常驻可点，点一下真的换播放头", async ({ page, request }) => {
+    await enterWatch(page, request);
+    await startPlayback(page);
+    await page.locator('[data-testid="watch-toggle-play"]').click(); // 暂停：播放头不许自己漂
+    await expect(page.locator('[data-testid="watch-toggle-play"]')).toHaveAttribute(
+      "aria-label",
+      "播放",
+      { timeout: 5000 }
+    );
+
+    const rail = await page.locator('[data-testid="watch-progress"]').boundingBox();
+    expect(rail, "进度热区有盒子").not.toBeNull();
+    expect(Math.round(rail!.height), "热区高 44px（不是那条 2px 线）").toBe(44);
+    expect(rail!.x).toBeGreaterThanOrEqual(0);
+    expect(rail!.x + rail!.width).toBeLessThanOrEqual(375 + 2);
+
+    // 点热区正中 = 跳到总时长的一半（不是「只要动了就算过」）。
+    const [before, total] = await page
+      .locator("video")
+      .first()
+      .evaluate((v) => {
+        const el = v as HTMLVideoElement;
+        return [el.currentTime, el.duration] as const;
+      });
+    expect(Number.isFinite(total) && total > 0, `视频总时长可读：${total}`).toBe(true);
+    await page.mouse.click(rail!.x + rail!.width * 0.5, rail!.y + rail!.height / 2);
+    await expect
+      .poll(
+        () =>
+          page
+            .locator("video")
+            .first()
+            .evaluate((v) => (v as HTMLVideoElement).currentTime),
+        { timeout: 5000 }
+      )
+      .toBeGreaterThan(Math.min(before + 1, total - 1));
+    const after = await page
+      .locator("video")
+      .first()
+      .evaluate((v) => (v as HTMLVideoElement).currentTime);
+    expect(
+      Math.abs(after - total / 2),
+      `点到热区正中后播放头应在 50%（before=${before.toFixed(1)} total=${total.toFixed(1)} after=${after.toFixed(1)}）`
+    ).toBeLessThan(total * 0.1);
+    await expect.poll(() => playedWidth(page), { timeout: 5000 }).toBeGreaterThan(0);
+  });
+
+  /**
+   * D10 —— 跟读抽屉仍「不压画面、不越底栏上沿」。
+   *
+   * 老文件里这一块是死代码：波形文案只在**录音回放态**出现，而移动端的练习 UI 早已
+   * 搬进抽屉，「录音」按钮又埋在字幕卡里 —— 移动端从来不渲染那张卡，所以那个
+   * `if (isVisible)` 永远走 else，什么都没量到。新形态的入口是底栏的「跟读」，
+   * 这条用例真的把抽屉打开，量的是老文件想量却没量到的两件事：抽屉不盖画面，
+   * 也不越底栏上沿；波形文案若在，仍不横向溢出。
+   */
+  test("D10: 底栏「跟读」打开抽屉，抽屉不压画面也不越底栏、无横向溢出", async ({
+    page,
+    request,
+  }) => {
+    await enterWatch(page, request);
+    const frameBox = (await page.locator(FRAME).boundingBox())!;
+    const frameBottom = frameBox.y + frameBox.height;
+
+    const shadowing = page.locator('[data-testid="watch-shadowing"]');
+    test.skip(
+      await shadowing.isDisabled(),
+      "YouTube 源时序不可控，移动底栏的跟读入口置灰（沿用现有 title 文案）"
+    );
+    await shadowing.click();
+    await expect(page.locator(DRAWER)).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(400); // 顶边/高度是一次性布局，等过渡落定
+
+    const bottomBar = await page.locator(BOTTOM_BAR).boundingBox();
+    const drawer = (await page.locator(DRAWER).boundingBox())!;
+    expect(drawer.x).toBeGreaterThanOrEqual(0);
+    expect(drawer.x + drawer.width).toBeLessThanOrEqual(375 + 2);
+    expect(drawer.y, "抽屉顶边不高于画框下沿（不压画面）").toBeGreaterThanOrEqual(
+      frameBottom - 1.5
+    );
+    if (bottomBar) {
+      expect(drawer.y + drawer.height, "抽屉底边不越底栏上沿").toBeLessThanOrEqual(bottomBar.y + 2);
     }
+    expect(drawer.height, "抽屉有实际高度").toBeGreaterThan(120);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-shadowing-drawer.png` });
+    await assertNoHorizontalOverflow(page, "shadowing-drawer");
 
-    await page.mouse.click(187, 350);
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-after-tap.png` });
-    await assertNoHorizontalOverflow(page, "after-tap");
-
+    // 波形文案（WaveformCompare 的底注）只在录音回放态出现 —— 与老文件同样保持 best-effort，
+    // 但「若在则不溢出」这条现在是在抽屉真的打开的前提下量的。
     const waveformLabel = page.locator("text=波形仅供对比参考，不做评分").first();
     if (await waveformLabel.isVisible({ timeout: 2000 }).catch(() => false)) {
       const wfBox = await waveformLabel.boundingBox();
@@ -165,11 +323,12 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
         await assertNoHorizontalOverflow(page, "waveform");
       }
     } else {
-      console.log("[D10] waveform not visible (likely YouTube mode or no recording yet)");
+      console.log("[D10] waveform not visible (idle 抽屉：要录完音进回放态才出波形)");
     }
   });
 
   test("login page renders without horizontal overflow on iPhone X", async ({ page }) => {
+    // 与本轮壳层改动无关，原样保留。
     await page.goto("/login");
     await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
     await assertNoHorizontalOverflow(page, "login");

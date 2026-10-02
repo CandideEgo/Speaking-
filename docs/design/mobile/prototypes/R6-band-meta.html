@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R6 · 字幕带带模式行（文稿卡纯列表）</title>
+<link rel="stylesheet" href="_reading.css">
+<style>
+  /* R6：在 R5 的基础上，把模式行搬进「字幕带」内部 —— 文稿卡变成纯列表，中间再无开关 */
+  .band-flush { margin: 0; padding: 9px 14px 4px; background: var(--canvas); }
+  .band-flush .now-en { font-size: 17px; line-height: 30px; }
+  .band-flush .now-zh { font-size: 14px; margin-top: 1px; }
+  .band-meta { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 2px 0 0; }
+  .band-meta .seg { padding: 2px; }
+  .band-meta .seg button { height: 30px; padding: 0 11px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <header class="topbar" data-shell="top"></header>
+
+  <main class="scroll">
+    <div class="frame"><img src="_asset-frame.png" alt="视频画面"></div>
+
+    <!-- 字幕块（含模式行）：与画框齐平，属于「画面这一块」 -->
+    <div class="band-flush">
+      <p class="now-en">But I think you're coming at it from the wrong perspective.</p>
+      <p class="now-zh">但我认为你是从错误的角度看待这件事。</p>
+      <div class="band-meta">
+        <div data-shell="seg"></div>
+        <span class="counter">1 / 190</span>
+      </div>
+    </div>
+
+    <!-- 文稿：纯列表的一张卡，中间没有任何控件 -->
+    <section class="sheet sheet--gap">
+      <ul class="list" data-shell="list" style="padding-top:12px"></ul>
+    </section>
+
+    <div class="tail">本视频暂不出试卷 · 去真题练习 →</div>
+  </main>
+
+  <nav class="bottombar" data-shell="bottom"></nav>
+</div>
+<script src="_reading.js"></script>
+<script>mount({ current: 0 });</script>
+</body>
+</html>
