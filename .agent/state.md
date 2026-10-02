@@ -8,7 +8,7 @@ Last Updated: 2026-10-02
 
 ## Current Focus
 
-- **移动端播放页优化：已收口（10-02，DEC-068）** —— wayfinder 地图 [#20](https://github.com/CandideEgo/Speaking-/issues/20) 关闭归档；#25（全屏与方向）、#29（手势集）**挂起**（属新增能力、不是优化，复议条件写在票面）。**已落进 app**：四条「乙」零件（入画字幕 / 词卡贴画面下沿 / 跟读底部抽屉 / 控制条点出）、壳层出血贴壳顶 + 标题入画、滚过画框后画面贴顶常驻；规则在 INV-021/022/023/024，回归是四份 spec **26 条 e2e**。**唯一在飞项 = 一次真机验收轮次**：`docs/design/mobile/destination/device-acceptance.md` 的 V1–V18 + 量具页 `probe-device-check.html`（内联播放 / 滚动常驻 / 字幕同步 / 跟读录音两路走法见该文 §2）。
+- **移动端播放页：真机复看已做，判据推翻「乙·字幕入画」→ 重构待实施（10-02，DEC-069）** —— 用户 iPhone 414×896 实测：入画字幕盖住说话人的脸；首屏 776px 里 画面 233 / 次要信息 355 / **文稿只剩 76**。已拍板：入画字幕全删、当前句改到画面正下方的卡；**底栏在 `/watch/*` 换成播放控制**（进度 + 上一句/播放/下一句/跟读，5 Tab 退场）；**顶栏 64 → 44** 承载 返回/标题/级别/⋯；控制条常驻（删「点出 + 3s 自收」）；来源/版权/语言/字号/倍速/动作行全进 ⋯ 面板；贴顶常驻保留、钉住位置改 44。**执行方案（含逐文件改动、e2e 反转清单、三条验收判据）：`knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md`** —— 下一个会话按它执行，桌面与其他路由零改动。真机证据：`docs/design/mobile/app-shots/12-device-414-scrolled-sticky.jpg`、`13-device-414-first-screen.jpg`。
 - **移动端视口收尾（09-30，wayfinder #22）**：底栏从 `fixed bottom-0` 改成壳 `h-dvh` 的常规流收尾行、安全区收归壳独占、全仓 `vh → dvh`，回归在 `frontend/e2e/viewport-height.spec.ts`（INV-019/020）。真机读数已齐：Safari 地址栏收放差 40px（`100vh` 恒 790 / 可视区 750↔790）、夸克不受影响、`cover` 在 Safari 浏览器模式下不生效（insets 恒 0，所以壳的 `env()` padding 在那里是 no-op，只在 standalone / 有 cutout 的 Android 上生效（standalone 那份未实测：项目无 manifest / `apple-mobile-web-app-capable`，别当死代码删）。**真机复测通过（09-30）**：改动落地后用户在真机上确认「地址栏展开时底栏贴住可视区底边」，不再被地址栏压住。**已知缺口**：非 shell 路由（login / onboarding / legal / admin）没有安全区归属，等哪天 insets 真的非 0 才会暴露
 - **附录 B 全仓扫描收尾（09-28，DEC-059/060/061）**：235 个文件 1308 条 finding；critical/high 153 条已逐条核实（53 成立 / 75 降级 / 24 证伪），128 项修复落地
 - **知识层分层重构（09-29，DEC-066/067）**：冷仓收敛为一个目录 `knowledge/`（99 个文件搬动、521 处路径引用重写），热层只余 `AGENTS.md` / `CONTEXT.md` / `.agent/` 的 README+state+invariants+owners；`knowledge/INDEX.md` 双向检查上线；字节上限与目标全删，改为只报不判的 `--size-report`；检查器改配置驱动（`scripts/check-knowledge/paths.json`，配置里的路径不存在即失败）。仍未机器化：热层行形状（S2）、stale 命中承重模块升级为失败（S6）
@@ -16,7 +16,7 @@ Last Updated: 2026-10-02
 
 ## Next Steps
 
-1. **移动端播放页的 e2e 补测点：已落地（10-02）** —— `viewport-height` +2、`mobile-inline-subtitle` +2、`mobile-player-shell` +2、`mobile-wordcard-drawer` +6，四个文件 26 条全绿；逐条的落地修正记在 `docs/design/mobile/destination/device-acceptance.md` §7。原先排队的 #12 横屏版式断言与 #13 控制条 44px 口径**随 #25 挂起，不做**。
+1. **移动端播放页重构（DEC-069，issue [#31](https://github.com/CandideEgo/Speaking-/issues/31)）：待实施** —— 按 `knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md` 的 §9 顺序做（接口层 → 画面清空+当前句卡 → ⋯ 面板 → 删 VideoControls 移动端分支 → 不变量改写+e2e 反转 → 真机复看）。验收三条：**画面零覆盖 / 首屏不滚动可见完整底栏+当前句+≥3 条文稿 / 进页面到播放 1 次点击**；桌面与其他路由必须零 diff。
 2. **词卡落档支与 INV-022 的冲突：冻结（原归 #25）** —— 只在视口高 < ~560px 激活的那一档保持现状（375×480 会抬进画面 79.9px）；`⑥b` 只锁当前行为，**按 INV-022 改会红是有意为之**。要动它先开一张新票，别再挂在地图上。
 3. **触控基线 §6 的 AA 真缺陷：挂起** —— 控制条进度条 `input[type=range]` 2.5.8 fail，属可达性整改、不在本轮优化范围；量具 `frontend/scripts/audit-touch-targets.mjs` 可随时复跑，`touch-targets.md` 的快照声明仍点名它过时。
 4. **审计残留：medium/low 未逐条核实**（674 + 481，连同降级/证伪项共约 1100 条原始 finding 未验证）——引用前先对代码求证，筛查问法见 `knowledge/wiki/problems/audit-verification-failure-modes.md`
