@@ -23,14 +23,15 @@ repos:
 
       # Knowledge-layer integrity: broken links and ADR references, wiki frontmatter
       # schema, the module vocabulary, the cold store's index, forbidden and missing
-      # paths, the top-level layout, captures and tickets. Cross-file by nature, so
+      # paths, the top-level layout, the cognition layer's wiring (aoci.txt + the volumes
+      # + the AGENTS.md instruction block), captures and tickets. Cross-file by nature, so
       # it ignores the passed filename list and rescans the whole layer.
       - id: knowledge-check
         name: knowledge layer integrity
         entry: python scripts/check-knowledge/check_knowledge.py
         language: system
         pass_filenames: false
-        files: ^(AGENTS\.md|CLAUDE\.md|CONTEXT\.md|README\.md|CONTRIBUTING\.md|\.agent/|knowledge/|docs/|scripts/check-knowledge/|\.claude/skills/)
+        files: ^(AGENTS\.md|CLAUDE\.md|CONTEXT\.md|README\.md|CONTRIBUTING\.md|\.agent/|knowledge/|docs/|scripts/check-knowledge/|\.claude/skills/|aoci\.(txt|meta\.txt|code\.txt)$|\.aoci/)
 
       # The advisory half: has code changed under a module some knowledge/wiki/ document
       # describes? Always runs and always prints, because pre-commit hides the output

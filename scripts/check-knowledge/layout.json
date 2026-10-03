@@ -1,5 +1,5 @@
 {
-  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: hot | settled | material | code | tooling | runtime | entry | deploy. Two layers hold knowledge (DEC-066): `hot` is read every session and must be true now, `settled` is on-disk history under knowledge/ and is read on demand. The doctrine behind this table is knowledge/wiki/guides/repository-layout.md.",
+  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: cognition | hot | settled | material | code | tooling | runtime | entry | deploy. Three layers hold knowledge (DEC-072): `cognition` is the machine-authored object layer -- the AOCI volumes and their state, read through the AOCI tools; `hot` is read every session and must be true now; `settled` is on-disk history under knowledge/ and is read on demand. The doctrine behind this table is knowledge/wiki/guides/repository-layout.md.",
   "entries": {
     ".agent": {
       "kind": "dir",
@@ -133,18 +133,23 @@
     },
     "aoci.txt": {
       "kind": "file",
-      "layer": "tooling",
-      "purpose": "AOCI 认知层根清单：声明 meta/code 两个认知卷的 id、路径与依赖"
+      "layer": "cognition",
+      "purpose": "AOCI 认知层根清单（L0）：声明 meta/code 两个认知卷的 id、路径与依赖；卷的路径只写在这一处"
     },
     "aoci.meta.txt": {
       "kind": "file",
-      "layer": "tooling",
-      "purpose": "AOCI 元卷：对象协议、FRAS 纪律、S 准入与标签字典"
+      "layer": "cognition",
+      "purpose": "AOCI 元卷（L0）：对象协议、FRAS 纪律、S 准入与标签字典"
     },
     "aoci.code.txt": {
       "kind": "file",
-      "layer": "tooling",
-      "purpose": "AOCI 对象卷：受管理对象的 FRAS 认知条目（模型生成、模型读取）"
+      "layer": "cognition",
+      "purpose": "AOCI 对象卷（L0）：每个受管理对象一条 FRAS 认知条目（模型创作语义、工具写入）"
+    },
+    ".aoci": {
+      "kind": "dir",
+      "layer": "cognition",
+      "purpose": "AOCI 机器状态：托管范围、预算与交付配置、源码字节 Baseline；.aoci/.gitignore 白名单放行 config/baseline，账本与事务留在本机"
     }
   }
 }

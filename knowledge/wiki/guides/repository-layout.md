@@ -6,7 +6,7 @@ confidence: verified
 related_code: []
 related: [knowledge/wiki/guides/setup.md, knowledge/wiki/guides/release-checklist.md]
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-03
 ---
 
 # Where a file belongs
@@ -17,17 +17,23 @@ rules, not from taste:
 1. **Reading frequency sets the price.** What every session must read is hot (`.agent/`, `AGENTS.md`,
    `CONTEXT.md`); everything that records the past is cold (`knowledge/`), read on demand through
    `knowledge/INDEX.md`; what nobody reads in order to decide anything is material, not knowledge.
+   Object cognition — one file or table's job, relations, contracts and constraints — is machine
+   written and read through the AOCI tools, in its own layer (`aoci.*`, `.aoci/`).
 2. **A fact has one home.** If a fact already lives somewhere, link to it instead of writing it into
    a second directory. `.agent/README.md` owns the fact → file table; this page owns the
-   file → directory one.
+   file → directory one. `.agent/README.md`'s seam test decides which layer a fact belongs to:
+   **can it be written as a property of exactly one managed object?** Yes → the cognition layer.
 
-## Two layers, one table
+## Three layers, one table
 
-The knowledge layer is two layers (DEC-066). **Hot** is read every session and must be true *now*;
-**cold** is everything that records the past, read on demand and entered through `knowledge/INDEX.md`.
-`.agent/README.md` is the standard for both, including the three admission tests a hot fact must pass —
-every session reads it whatever the task, it describes the present rather than the past, and reading it
-changes the next action. This page decides only *where* an entry lives.
+The knowledge layer is three layers (DEC-072, extending DEC-066). **Cognition** is the machine-authored
+object layer — the AOCI volumes and their state — whose objects answer "what is this file or table, how
+does it relate, what must I not break"; the session reads it through the AOCI tools, and the model
+authors its semantics while the tool writes them. **Hot** is read every session and must be true *now*:
+rules, the session contract, current state. **Cold** is everything that records the past, read on demand
+and entered through `knowledge/INDEX.md`. `.agent/README.md` is the standard for all three, including
+the three admission tests a hot fact must pass and the seam test that routes a fact between cognition and
+prose. This page decides only *where* an entry lives.
 
 `scripts/check-knowledge/layout.json` is the machine-checked version of the table below — same keys,
 same layers — and the `layout` check fails when the two disagree in either direction, so they are
@@ -61,14 +67,16 @@ edited together.
 | `nginx.conf` | deploy | the dev / default nginx site | production runs it at this path |
 | `nginx.ssl.conf` | deploy | production nginx (TLS, security headers, log redaction) | production runs it at this path |
 | `promtail.yml` | deploy | log collection | production runs it at this path |
-| `aoci.txt` | tooling | the AOCI cognition root manifest: the meta/code volumes and their ids, paths and dependencies | the AOCI tool reads it at the repository root |
-| `aoci.meta.txt` | tooling | the AOCI meta volume: object protocol, FRAS discipline, S admission and the tag dictionaries | it defines how every entry in `aoci.code.txt` is written |
-| `aoci.code.txt` | tooling | the AOCI object volume: one FRAS entry per managed object | a managed object is added, removed or re-scoped |
+| `aoci.txt` | cognition | the AOCI cognition root manifest: the meta/code volumes and their ids, paths and dependencies | the AOCI tool reads it at the repository root |
+| `aoci.meta.txt` | cognition | the AOCI meta volume: object protocol, FRAS discipline, S admission and the tag dictionaries | it defines how every entry in `aoci.code.txt` is written |
+| `aoci.code.txt` | cognition | the AOCI object volume: one FRAS entry per managed object | a managed object is added, removed or re-scoped |
+| `.aoci/` | cognition | the cognition layer's machine state: managed scope and budgets, overview delivery, and the source-byte baseline | the tool writes it; only the governance subset is tracked (`.aoci/.gitignore` whitelists `config.json` and `baseline.json`, because the baseline is what makes drift detection reproducible on a fresh clone) |
 
-Every `Layer` value comes from the closed vocabulary the `layout` check enforces: `hot`, `settled`,
-`input`, `material`, `code`, `tooling`, `runtime`, `entry`, `deploy`. `input` and `material` are valid
-but unused at the top level today — `knowledge/inbox/` and `docs/design/` sit *inside* `settled` and
-`tooling`. Seventeen of the entries are files: six `entry`, three `tooling` config, eight `deploy`.
+Every `Layer` value comes from the closed vocabulary the `layout` check enforces: `cognition`, `hot`,
+`settled`, `input`, `material`, `code`, `tooling`, `runtime`, `entry`, `deploy`. `input` and `material`
+are valid but unused at the top level today — `knowledge/inbox/` and `docs/design/` sit *inside* `settled`
+and `tooling`. Twenty of the entries are files: six `entry`, three `tooling` config, eight `deploy`,
+three `cognition` volumes.
 
 ## What `docs/` holds now
 

@@ -2,7 +2,7 @@
   "_comment": "The knowledge layer's paths, in one place. check_knowledge.py resolves every location it scans, skips or reports from the keys below, so moving the layer (wiki/ -> knowledge/wiki/, docs/adr/ -> knowledge/adr/, .agent/decisions.md -> knowledge/decisions.md, ...) is a few value edits here instead of twenty silent no-ops in the code. This file is the anchor that makes such a move loud: the `paths` check fails on a `required` entry that is not on disk.",
   "_rule": "Values are paths relative to the repository root. A gate builds its startswith() prefix from `kind`, never from the value as written: a `dir` gains the trailing slash, a `file` is matched exactly. `required: true` means the path must exist, and a run that finds it missing fails with the config key and the path -- so renaming a knowledge path without updating this file fails, and never passes quietly. `required: false` is only for a path whose absence is legitimate, and only where the gate that reads it fails loudly in its own right.",
   "_list_rule": "The list sections name `paths` keys, never paths: one key holds one value, so a path cannot be updated in one place and forgotten in another. A list naming a key that `paths` does not have is a hard error, not a skip.",
-  "_layering": "Two layers, one directory each (DEC-066). Hot = read every session; it must be true *now*, not a record of the past. Cold = read on demand, all of it under `knowledge_root`, entered through `index`, and never read end to end.",
+  "_layering": "Three layers (DEC-072). Cognition (L0) = the AOCI volumes and their state: object facts, machine-authored, read through the AOCI tools. Hot (L1) = read every session; it must be true *now*, not a record of the past. Cold (L2) = read on demand, all of it under `knowledge_root`, entered through `index`, and never read end to end.",
   "paths": {
     "hot_layer": {"path": ".agent", "kind": "dir", "required": true, "note": "the facts a session reads before it knows the task; `ownership` scans this and the cold store"},
     "knowledge_root": {"path": "knowledge", "kind": "dir", "required": true, "note": "the cold store: everything that records the past, entered through `index`"},
@@ -27,7 +27,13 @@
     "state": {"path": ".agent/state.md", "kind": "file", "required": true, "note": "hot: in-flight work and next steps"},
     "invariants": {"path": ".agent/invariants.md", "kind": "file", "required": true, "note": "hot: hard constraints, read before touching code"},
     "owners": {"path": ".agent/owners.md", "kind": "file", "required": true, "note": "hot: slices, tickets and the parallel-work rules"},
-    "system_map": {"path": "knowledge/system-map.md", "kind": "file", "required": true, "note": "how the modules connect; read before changing code, but not at session start -- so it is cold, routed from AGENTS.md"}
+    "system_map": {"path": "knowledge/system-map.md", "kind": "file", "required": true, "note": "how the modules connect; read before changing code, but not at session start -- so it is cold, routed from AGENTS.md"},
+    "aoci_root": {"path": "aoci.txt", "kind": "file", "required": true, "note": "L0 cognition: the root manifest, the one place each volume's path is written down"},
+    "aoci_meta": {"path": "aoci.meta.txt", "kind": "file", "required": true, "note": "L0 cognition: the meta volume -- object protocol, FRAS discipline, S admission, tag dictionaries"},
+    "aoci_code": {"path": "aoci.code.txt", "kind": "file", "required": true, "note": "L0 cognition: the object volume -- one FRAS entry per managed object; authored by the model, written by the tool"},
+    "aoci_state": {"path": ".aoci", "kind": "dir", "required": true, "note": "the cognition layer's machine state; .aoci/.gitignore whitelists the governance subset (config/baseline) and keeps ledgers and transactions machine-local"},
+    "aoci_config": {"path": ".aoci/config.json", "kind": "file", "required": true, "note": "cognition configuration: managed scope, budgets, overview delivery, automation mode"},
+    "aoci_baseline": {"path": ".aoci/baseline.json", "kind": "file", "required": true, "note": "the source-byte baseline the tool compares against; versioning it is what makes drift detection reproducible on a fresh clone"}
   },
   "hash_allowed_prefixes": [
     "decisions",

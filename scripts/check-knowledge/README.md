@@ -1,8 +1,10 @@
 # check-knowledge
 
-Deterministic integrity checks for the repository knowledge layer — the hot layer (`AGENTS.md`,
-`CONTEXT.md`, `.agent/`) and the cold store (`knowledge/`, entered through `knowledge/INDEX.md`).
-No LLM, no network, standard library only.
+Deterministic integrity checks for the repository knowledge layer — three layers now (DEC-072):
+the cognition layer (`aoci.txt`, `aoci.meta.txt`, `aoci.code.txt`, `.aoci/`, whose *semantics* are
+AOCI's own business), the hot layer (`AGENTS.md`, `CONTEXT.md`, `.agent/`), and the cold store
+(`knowledge/`, entered through `knowledge/INDEX.md`). No LLM, no network, standard library only, and
+no dependency on the AOCI binary: this checker asserts the layers' *wiring*, never their content.
 
 The point is to stop the knowledge layer from drifting silently. Prose rules like "keep the docs in
 sync" decay; a check that fails a build does not.
@@ -27,6 +29,7 @@ Exit code 0 = clean, 1 = a violation not recorded in `knowledge-baseline.json`.
 | `index` | `knowledge/decisions-index.md` and `knowledge/decisions.md` disagree: a row's ID is out of sequence or duplicated, a row's date or title differs from its entry, or the entry set is not covered by the rows plus the `Retired N — …` line |
 | `paths` | A file that `invariants.json` declares forbidden exists, a required one is missing, or a knowledge path that `paths.json` marks `required` is not on disk |
 | `layout` | A top-level entry git tracks at depth 1 is missing from `layout.json`, or an entry in it has nothing tracked there any more (a removed file, an empty directory) |
+| `cognition` | The cognition layer is unwired: `AGENTS.md` no longer carries exactly one tool-owned instruction block, `aoci.txt` declares no volume or declares one that is missing / truncated / not an AOCI volume, `.aoci/config.json` or `.aoci/baseline.json` does not parse, or one of the cognition assets is filed under a layer other than `cognition` in `layout.json` |
 | `captures` | A capture's content changed after it was sealed, its cut markers are not `S01..Sn` in order, a segment has no row in `triage.md` or a disposition outside the closed vocabulary, an `<id>#Sxx` citation anywhere in the repo names no real segment, or `captures.json` and `knowledge/inbox/` disagree about which captures exist |
 | `stale` | (advisory, never fails on its own) Code under a module some `knowledge/wiki/` document declares changed since that document was last verified — see below |
 
@@ -88,9 +91,39 @@ a segment that does not exist. And a seal may not outlive the directory it froze
 `--capture-seal <id>` is the only writer of `captures.json`, and it refuses to re-seal content that
 changed: that refusal is the mechanism working, not an obstacle to route around.
 
+## The cognition layer (the `cognition` check)
+
+The third layer is machine-authored (DEC-072): `aoci.txt` names the volumes, each volume holds one FRAS
+entry per managed object, and `.aoci/` holds the scope policy, budgets and the source-byte baseline.
+The model authors every entry's semantics and the tool writes them; neither is this checker's business.
+
+What this gate does is keep the wiring from coming apart silently:
+
+- `AGENTS.md` carries exactly one `<!-- aoci:begin -->` … `<!-- aoci:end -->` block, on lines of its
+  own. The block is installed by the tool and overwritten on the next install, so a hand-edit is the
+  one change that is guaranteed to be lost — a duplicated or mangled block means two copies have
+  diverged. Prose may *mention* the markers (the rules in `AGENTS.md` do); only whole-line markers count.
+- `aoci.txt` declares at least one volume, and every declared `path=` exists and starts with an
+  `#AOCI-` header. A truncated volume otherwise parses as a shorter index, and a shorter index looks
+  like a smaller repository rather than a broken file.
+- `.aoci/config.json` and `.aoci/baseline.json`, when present, parse as JSON. `.aoci/.gitignore`
+  whitelists exactly those two plus the ignore file: the rest (ledgers, transactions, drafts, verify
+  history) is machine-local, and the baseline is tracked because drift detection on a fresh clone is
+  impossible without it.
+- The four cognition assets are filed under the `cognition` layer in `layout.json`, so the core cannot
+  be quietly re-filed as tooling config again.
+
+**Why it does not run the tool.** `aoci check` answers a different question — whether the entries still
+match the source bytes — and the only repair for a mismatch is a model reading each affected object and
+authoring its entry, which the tool then writes in one governed transaction (`aoci_maintain` →
+`aoci_update_entry`). That is session work, not a build step: a gate that failed on it would go red on
+every commit and stay red until someone authors every stale object. The session reads the state at the
+start (`AGENTS.md`, 开场三件事) and records the machine's batch identity and blockers in
+`.agent/state.md`; drift whose only repair is model authorship belongs there, not in a build.
+
 ## The one advisory check: `stale`
 
-The seven checks above decide pass or fail, and `stale` is the eighth: the one wholly advisory part of
+The eight checks above decide pass or fail, and `stale` is the ninth: the one wholly advisory part of
 the run. It only reminds, because to re-read prose you need a person, and a reminder that blocks a
 commit buys silence rather than accuracy.
 
@@ -153,8 +186,8 @@ inside them were written for their pre-move location in `.agent/`.
 The split, in one place:
 
 - **Fails a commit**: dead links and `ADR-00xx` references, `index` drift in both of its contracts, a
-  knowledge path that moved without `paths.json` being updated, the `invariants.json` paths, and a capture whose
-  words changed after sealing.
+  knowledge path that moved without `paths.json` being updated, the `invariants.json` paths, a capture whose
+  words changed after sealing, and the cognition layer's wiring (the `cognition` check above).
 - **Prints only**: `--size-report` and the `stale` reminders. `--strict` turns the reminders into
   failures for whoever wants the gate instead.
 - **No byte number decides what may be written** (DEC-067). Nothing in the checker measures a file

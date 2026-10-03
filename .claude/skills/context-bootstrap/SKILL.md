@@ -1,328 +1,78 @@
 ---
 name: context-bootstrap
-description: Help an agent understand an unfamiliar project and create a lightweight long-term context layer. Use when entering a new project, when project context is missing, or when the agent needs a deeper understanding of the system.
+description: Establish or restore an agent's understanding of a project. Use when entering an unfamiliar project, when the repository has no cognition layer yet, or when context is missing. In a repository that already has AOCI, loading cognition replaces this skill entirely.
 ---
 
 # Project Context Bootstrap
 
-## Purpose
+## 这个技能现在的职责
 
-This skill helps establish a project mental model.
+系统的**对象认知**（某个文件/表是什么、与谁有关系、契约、非显然约束）由 AOCI 提供，不由本技能
+从零写出来。本技能只剩两件事：
 
-It does not generate traditional documentation.
+1. **没有 AOCI 索引的仓**：先按 AOCI 的 Guide 建立认知层，再决定 prose 残余；
+2. **已有认知层的仓**：不做本技能——按 `AGENTS.md` 的「开场三件事」取认知，然后就去做任务。
 
-It creates a compressed understanding of the project that helps future agents make better decisions.
+## 先判断：这个仓有没有认知层
 
-The goal is:
-
-Better context, not more documents.
-
----
-
-# Core Principles
-
-## Code is the source of truth
-
-The repository is the actual system.
-
-Context files are only a representation of understanding.
-
-Never assume documentation is correct without checking code.
-
-## Do not document everything
-
-Avoid creating:
-
-- complete file lists
-- API references
-- function descriptions
-- duplicated README content
-
-Only capture information that affects future engineering decisions.
-
-## Implicit Knowledge Filter
-
-Before recording any knowledge, apply these three filters:
-
-1. **Is this hidden from code?** — If code directly expresses it, don't record it.
-2. **Will future changes benefit?** — If no decision impact, don't record it.
-3. **Does it explain why, not what?** — If only description, don't record it.
-
-Only knowledge passing all three filters should be recorded.
-
----
-
-# When to Use
-
-Use this skill when:
-
-- The project is unfamiliar
-- No project context exists
-- Major architectural understanding is needed
-- A new agent joins the project
-
-Do not use for:
-
-- Small fixes
-- Simple changes
-- Normal coding tasks
-
----
-
-# If Context Already Exists
-
-If `.agent/` files already exist, do NOT recreate them from scratch.
-
-Instead:
-1. Read `.agent/README.md` first — it is the ownership table, and it says which file holds which fact
-2. Read the files it routes to, and identify sections that may be outdated (check `state.md` `## Last Updated`)
-3. Spot-check outdated sections against current code
-4. Update only the sections that have drifted
-5. Preserve knowledge that is still accurate
-
-Context bootstrap is for creating NEW context or REFRESHING stale context,
-not for replacing working context.
-
----
-
-# Process
-
-## Pre-check
-
-Before exploring, check:
-- Does `.agent/` exist with the layer's files — `README.md`, `invariants.md`, `system-map.md`,
-  `context.md`, `state.md`, `decisions-index.md`, `decisions.md`, `archive/`?
-- Is `state.md` `## Last Updated` within 14 days?
-- Does `.agent/README.md` name the file that owns each kind of fact?
-- If `scripts/check-knowledge/check_knowledge.py` exists, run it — it is the deterministic gate over
-  the layer, and it also tells you which files are expected
-
-If the layer is present and fresh → read it instead of re-exploring.
-If not → proceed with exploration, but preserve any existing knowledge that is still accurate.
-
-## Exploration
-
-Explore the project naturally.
-
-Use available tools to understand:
-
-- project purpose
-- architecture
-- important workflows
-- key components
-- technical constraints
-- historical decisions if available
-
-Decide what information will be valuable for future development.
-
----
-
-# Relationship with Existing Documentation
-
-If the project already has these documents, **extract from them, do not duplicate**:
-
-| Existing Document | How to Handle |
+| 现状 | 动作 |
 |---|---|
-| `AGENTS.md` / `CLAUDE.md` | Already contains project info — context.md should complement, not copy |
-| `CONTEXT.md` | Already contains domain terms — context.md should add architecture understanding |
-| `knowledge/adr/` | Already contains decisions — decisions.md should reference, not repeat |
-| `README.md` | Already contains project intro — context.md should add deeper understanding |
-| `knowledge/operations/` | Already holds runbooks — link to it for operational knowledge instead of restating it |
+| 有 `aoci.txt` + 可用的正式索引 | **不要 bootstrap**。`aoci_rules` → `aoci_overview`（`continuation_required` 时跟随 `next_cursor` 到 `completed`），再读 `.agent/state.md` |
+| 只有骨架 / Header 不完整 / Entries 未完成 | 先 `aoci_rules`，然后进入当前 AOCI Guide；由 Guide 依据仓库真实状态决定下一阶段。不要自行重建索引状态机 |
+| 完全没有认知层 | 按下面的顺序建：**认知层 → 热层 → 冷仓** |
 
----
+New Volume 布局的初始化、Header 与 Entries 的生成、Curation 与人工评审，一律按当前 Guide 与
+`--help` 返回的指令执行；本技能不复制这些专项流程，也不硬编码它们的阶段。
 
-# Create Context
+## 建认知层（L0）
 
-Create only what is missing:
+- 语义只能来自模型对真实证据的理解：对象源码、测试、配置、数据库结构。路径、文件名、扩展名、
+  AST、符号列表、依赖扫描、正则与模板只能辅助定位、传递、校验与写入，**不得**用来推导、预填、
+  拼接或改写标签与 F/R/A/S。
+- 证据不足时不要猜写：用工具支持的登记路径记下来，而不是套模板消除待办。
+- 受管理范围（哪些路径进索引、哪些只观察、哪些排除）是仓库级决定，走工具自己的 scope 流程。
 
-.agent/README.md
+## 建 prose 残余（L1 / L2）
 
-.agent/invariants.md
+只在**对象认知之外**还有事实时才写。判据一句话：**这条事实能不能写成「恰好一个受管理对象」的
+属性？** 能 → 它属于 AOCI，不要写进 prose。
 
-knowledge/system-map.md
+| 事实 | 落在 |
+|---|---|
+| 必须持续成立的规则；被移除、不得复活的功能 | `.agent/invariants.md` |
+| 产品是什么；领域词汇 | `CONTEXT.md` |
+| 跨对象的组合视图（模块如何拼起来、数据怎么流） | `knowledge/system-map.md` |
+| 为什么这么定、备选与代价 | `knowledge/decisions.md` + `knowledge/decisions-index.md` |
+| 现在在飞什么、下一步、什么坏了 | `.agent/state.md` |
+| 某个子系统的设计意图、可复用的失败模式 | `knowledge/wiki/architecture/`、`wiki/problems/`（带 frontmatter） |
+| 怎么跑、怎么测、怎么发 | `knowledge/wiki/guides/` |
+| 怎么操作这套部署 | `knowledge/operations/` |
 
-CONTEXT.md
+热层的三条准入测试（全部成立才留）：每会话都读；说的是现在而不是过去；读了会改变下一步动作。
+冷仓的唯一入口是 `knowledge/INDEX.md`：一个文件一行，两个方向都由 `index` 门检查。
 
-.agent/state.md
+写任何一层之前先读 `.agent/README.md`——那是分层标准的正文，本技能只做路由。
 
-knowledge/decisions-index.md
+## 已有文档：抽取，不要重复
 
-knowledge/decisions.md
+| 已有文件 | 怎么处理 |
+|---|---|
+| `AGENTS.md` / `CLAUDE.md` | 已经是入口与规则，不要复制；缺什么补什么 |
+| `CONTEXT.md` | 已有词汇表，不要重写；只补它没有的领域词 |
+| `knowledge/adr/`、`knowledge/decisions.md` | 已记录决定，引用而不是复述 |
+| `README.md` | 已有项目简介，不要再抄一遍 |
+| `knowledge/operations/` | 已有 runbook，指向它 |
+| `aoci.code.txt` | 已有对象认知，**永远不要**用本技能重写它 |
 
-knowledge/archive/
+## 三关过滤器（写之前）
 
-Wiki documents are a separate, long-form layer under `knowledge/wiki/` (`architecture/`, `problems/`,
-`guides/`). Create them only when there is knowledge worth a document, and always with the
-frontmatter that `scripts/check-knowledge/check_knowledge.py` enforces.
+1. 代码藏不住它？（代码直接表达的，不写）
+2. 将来的改动会受益？（不影响决定的，不写）
+3. 它解释的是 **why** 而不是 **what**？（只描述 what 的，不写）
 
-## README.md — Suggested structure
+三关全过才写。不写完整文件清单、不写 API 参考、不写函数说明。
 
-The routing file: which file owns which kind of fact, the read order, and the rules.
+## 质量判据
 
-```markdown
-# The Knowledge Layer
-
-| File | Holds | Read when |
-|------|-------|-----------|
-| `context.md` | what the product is; domain vocabulary | the task needs domain language |
-| `system-map.md` | modules, dependencies, critical paths | before changing code |
-| `invariants.md` | rules that must keep holding; removed features | before changing code |
-| `decisions-index.md` | ID → date → title → ADR → status | always, before opening an entry |
-| `decisions.md` | the full reasoning of each decision | you need one decision's reasoning |
-| `state.md` | what is in flight, what is next, what is broken | session start |
-| `archive/` | frozen point-in-time records | archaeology |
-
-## Rules
-- Never edit or reorder an existing decision entry. Append a new one and mark the old
-  `superseded by DEC-0NN` in the index.
-- No commit hashes in stable knowledge files — point at the decision ID instead.
-- `archive/` is exempt from the checks.
-```
-
-## invariants.md — Suggested structure
-
-```markdown
-# Invariants
-
-> Rules that must keep holding, and features that must not come back.
-
-| ID | Rule | Why | Enforced by |
-|----|------|-----|-------------|
-| INV-001 | [what must be true] | [what breaks otherwise] | check / test / review |
-```
-
-## system-map.md — Suggested structure
-
-```markdown
-# System Map
-
-## Module Overview
-List key modules and their responsibility (one line each).
-
-## Dependencies
-How modules depend on each other.
-Focus on non-obvious dependencies that code alone doesn't make clear.
-
-## Data Flow
-How data moves through the system.
-Only critical paths, not every function call.
-
-## External Boundaries
-What the system connects to (APIs, databases, services).
-What protocols and contracts are used.
-```
-
-system-map.md answers: **"How do the pieces connect?"**
-
-While context.md answers "What is this system?",
-system-map.md answers how the parts relate to each other.
-For large projects, this is essential — context alone doesn't reveal
-cross-module relationships and hidden dependencies.
-
-Rules that must always hold live in `invariants.md`, not here — a map that doubles as a rulebook
-stops being readable as a map.
-
-## context.md — Suggested structure
-
-```markdown
-# Project Context
-
-## Purpose
-What problem does this project solve?
-
-## System Understanding
-How does the system currently work?
-
-## Important Flows
-Describe critical business or technical flows.
-
-## Domain Terms
-What the vocabulary means, and where it comes from.
-
-## Constraints
-Things future changes should be careful about.
-
-## Known Issues
-Important limitations.
-```
-
-## decisions-index.md — Suggested structure
-
-The only navigation into `decisions.md`.
-
-```markdown
-| ID | Date | Title | ADR | Status |
-|----|------|-------|-----|--------|
-| DEC-001 | YYYY-MM-DD | [title, verbatim from the entry heading] | ADR-0001 | active / superseded by DEC-0NN |
-```
-
-IDs are assigned in file order, which is append order. A new decision requires both the entry at the
-end of `decisions.md` and a row here — the `index` check fails when the two disagree on count, order,
-date or title.
-
-## decisions.md — Suggested structure
-
-Append-only. Each entry starts with a heading the `index` check can parse:
-
-```markdown
-## YYYY-MM-DD — Title
-
-**Problem**: Why this choice was needed
-**Decision**: What was chosen
-**Reason**: Why this option
-**Alternatives**: What was considered but not chosen, and why
-```
-
-Never edit or reorder an existing entry; to change course, append a new one at the END and mark the
-old row superseded in the index.
-
-Only record decisions with genuine tradeoffs. Not obvious choices.
-
-## state.md — Suggested structure
-
-Forward-looking only. Exactly these five sections:
-
-```markdown
-# Project State
-
-## Last Updated
-
-Date: YYYY-MM-DD
-
-- [a few bullets on what changed]
-
-## Recently Completed
-
-- [newest first, one line each, cite the decision ID]
-
-## Current Focus
-
-- [what is being worked on now]
-
-## Next Steps
-
-1. [what comes next]
-
-## Known Issues
-
-- [important known problems]
-```
-
-Completed work is recorded in `decisions-index.md`, `knowledge/CHANGELOG.md` or `archive/`, not accumulated
-here — `state.md` is read every session and is size-capped.
-
----
-
-# Quality Criteria
-
-Good context:
-
-- explains why things exist
-- helps future decisions
-- reduces repeated exploration
-
-Bad context:
-
-- copies source code
-- duplicates documentation
-- records meaningless details
+好的上下文：解释东西为什么存在、帮后来的决定、减少重复探索。
+坏的上下文：抄源码、重复文档、记录无意义的细节。

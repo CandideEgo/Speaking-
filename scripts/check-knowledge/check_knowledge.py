@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Seven violation checks, one advisory check and an on-demand size report, all
-deterministic (no LLM, no network):
+Eight violation checks, one advisory check and an on-demand size report, all
+deterministic (no LLM, no network, no dependency on the AOCI binary):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
   frontmatter  knowledge/wiki/ documents carry a valid schema, and every `related_code`
@@ -18,6 +18,10 @@ deterministic (no LLM, no network):
   layout       Every top-level entry git tracks is registered in layout.json with
                the layer that owns it, and every registered entry still has
                something tracked there. The doctrine is knowledge/wiki/guides/repository-layout.md.
+  cognition    The cognition layer (L0) is wired the way .agent/README.md says: the root
+               manifest declares its volumes, each volume is on disk with its format
+               header, AGENTS.md carries exactly one tool-owned instruction block, and
+               the machine state parses.
   captures     The user's dictated words stay exactly as captured, and every segment of
                them carries a disposition. The doctrine is knowledge/inbox/README.md.
   stale        (advisory) Code changed under a module some knowledge/wiki/ document describes,
@@ -667,8 +671,10 @@ def check_paths() -> list[Violation]:
 LAYOUT_FILE = SCRIPT_DIR / "layout.json"
 # The layer a top-level entry is assigned to. The doctrine behind the table is
 # knowledge/wiki/guides/repository-layout.md; this is only the vocabulary, so a typo fails.
+# `cognition` is the machine-authored layer (L0): the AOCI volumes and their state, whose
+# objects answer "what is this file/table, how does it relate, what must I not break".
 LAYOUT_LAYERS = frozenset(
-    {"hot", "settled", "input", "material", "code", "tooling", "runtime", "entry", "deploy"}
+    {"cognition", "hot", "settled", "input", "material", "code", "tooling", "runtime", "entry", "deploy"}
 )
 
 
@@ -746,6 +752,139 @@ def check_layout() -> list[Violation]:
         purpose = spec.get("purpose")
         if not isinstance(purpose, str) or not purpose.strip():
             violations.append(Violation("layout", name, "purpose must be a non-empty string"))
+
+    return sorted(violations, key=lambda violation: (violation.location, violation.message))
+
+
+# ---------------------------------------------------------------------- cognition
+
+AOCI_BLOCK_BEGIN = "<!-- aoci:begin -->"
+AOCI_BLOCK_END = "<!-- aoci:end -->"
+# A marker occupies a line of its own; prose is allowed to *mention* both markers (the rules
+# in AGENTS.md do), and a substring count would read those mentions as two extra blocks.
+AOCI_BLOCK_BEGIN_RE = re.compile(r"^" + re.escape(AOCI_BLOCK_BEGIN) + r"[ \t]*$", re.MULTILINE)
+AOCI_BLOCK_END_RE = re.compile(r"^" + re.escape(AOCI_BLOCK_END) + r"[ \t]*$", re.MULTILINE)
+AOCI_MIN_BLOCK_CHARS = 200
+ROOT_MANIFEST_HEADER = "#AOCI-ROOT-MANIFEST:"
+VOLUME_LINE_RE = re.compile(r"^#Volume:\s*(.+)$", re.MULTILINE)
+VOLUME_FIELD_RE = re.compile(r"([A-Za-z_]+)=(\S+)")
+VOLUME_HEADER_RE = re.compile(r"\A#AOCI-")
+# The cognition layer's assets, by paths.json key. Their layout layer is asserted below so
+# the core cannot be quietly re-filed as tooling again.
+COGNITION_KEYS = ("aoci_root", "aoci_meta", "aoci_code", "aoci_state")
+COGNITION_STATE_KEYS = ("aoci_config", "aoci_baseline")
+
+
+def check_cognition() -> list[Violation]:
+    """The cognition layer (L0) is wired the way `.agent/README.md` says.
+
+    Structure only, never semantics, and never a subprocess: which volumes the root manifest
+    declares, whether each one is on disk carrying its format header, whether `AGENTS.md`
+    still carries exactly one tool-owned instruction block, and whether the machine state
+    parses. Whether the entries still match the source bytes is AOCI's own question
+    (`aoci check` / `aoci verify`) and is deliberately not asked here: on a layout whose
+    write path is unavailable that state has no repair path, so turning it into a failing
+    gate would buy a permanently red CI rather than accuracy. The session reports it
+    (`.agent/README.md`, "L0 怎么用、怎么维护") and `.agent/state.md` records it.
+    """
+    violations: list[Violation] = []
+
+    agents = REPO_ROOT / _cfg("agents")
+    if agents.is_file():
+        text = agents.read_text(encoding="utf-8", errors="replace")
+        begins = list(AOCI_BLOCK_BEGIN_RE.finditer(text))
+        ends = list(AOCI_BLOCK_END_RE.finditer(text))
+        if len(begins) != 1 or len(ends) != 1:
+            violations.append(
+                Violation(
+                    "cognition",
+                    _cfg("agents"),
+                    f"must carry exactly one instruction block ({AOCI_BLOCK_BEGIN} … "
+                    f"{AOCI_BLOCK_END}) on lines of their own; found {len(begins)} begin marker(s) "
+                    "and "
+                    f"{len(ends)} end marker(s). The block is installed by the AOCI tool and a "
+                    "hand-edit is overwritten on the next install, so a mangled or duplicated "
+                    "block means the two copies have diverged",
+                )
+            )
+        elif begins[0].start() > ends[0].start():
+            violations.append(
+                Violation("cognition", _cfg("agents"), "the AOCI block's end marker precedes its begin marker")
+            )
+        else:
+            block = text[begins[0].end(): ends[0].start()]
+            if len(block.strip()) < AOCI_MIN_BLOCK_CHARS:
+                violations.append(
+                    Violation(
+                        "cognition",
+                        _cfg("agents"),
+                        "the AOCI instruction block is (near) empty; re-run the tool's agent install "
+                        "instead of writing it by hand",
+                    )
+                )
+
+    root = REPO_ROOT / _cfg("aoci_root")
+    if root.is_file():
+        text = root.read_text(encoding="utf-8", errors="replace")
+        if not text.startswith(ROOT_MANIFEST_HEADER):
+            violations.append(
+                Violation("cognition", _cfg("aoci_root"), f"must start with the '{ROOT_MANIFEST_HEADER}' header")
+            )
+        volumes = VOLUME_LINE_RE.findall(text)
+        if not volumes:
+            violations.append(
+                Violation(
+                    "cognition",
+                    _cfg("aoci_root"),
+                    "declares no '#Volume:' line; the manifest is the one place a volume's path is "
+                    "written down, so an empty manifest hides every volume at once",
+                )
+            )
+        for line in volumes:
+            fields = dict(VOLUME_FIELD_RE.findall(line))
+            path = fields.get("path")
+            if not path:
+                violations.append(
+                    Violation("cognition", _cfg("aoci_root"), f"#Volume: line without a path= field: {line.strip()}")
+                )
+                continue
+            volume = REPO_ROOT / path
+            if not volume.is_file():
+                violations.append(Violation("cognition", path, "declared by the root manifest but not on disk"))
+                continue
+            head = volume.read_text(encoding="utf-8", errors="replace")[:200]
+            if not VOLUME_HEADER_RE.match(head):
+                violations.append(
+                    Violation(
+                        "cognition",
+                        path,
+                        "does not start with an '#AOCI-' format header; the volume is truncated or is not "
+                        "one, and a truncated volume parses as a shorter index rather than as an error",
+                    )
+                )
+
+    for key in COGNITION_STATE_KEYS:
+        path = REPO_ROOT / _cfg(key)
+        if not path.is_file():
+            continue
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            violations.append(Violation("cognition", _cfg(key), f"does not parse as JSON: {exc}"))
+
+    layout = load_json(LAYOUT_FILE).get("entries", {})
+    for key in COGNITION_KEYS:
+        spec = layout.get(_cfg(key))
+        if spec is None or spec.get("layer") == "cognition":
+            continue
+        violations.append(
+            Violation(
+                "cognition",
+                f"{rel(LAYOUT_FILE)}#{_cfg(key)}",
+                f"layer is '{spec.get('layer')}' (want 'cognition'): the cognition layer's assets "
+                "answer object questions and are read through the AOCI tools, not as tooling config",
+            )
+        )
 
     return sorted(violations, key=lambda violation: (violation.location, violation.message))
 
@@ -1208,7 +1347,7 @@ def refresh_stamps(only: list[str]) -> int:
 
 # -------------------------------------------------------------------------- main
 
-CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "captures")
+CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "cognition", "captures")
 ADVISORY = ("stale",)
 SELECTABLE = CHECKS + ADVISORY
 
@@ -1229,6 +1368,8 @@ def run_checks(selected: list[str]) -> list[Violation]:
         violations += check_paths()
     if "layout" in selected:
         violations += check_layout()
+    if "cognition" in selected:
+        violations += check_cognition()
     if "captures" in selected:
         violations += check_captures(files)
     return violations

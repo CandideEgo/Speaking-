@@ -10,114 +10,117 @@ but to maintain an accurate understanding of the system.
 ## Principles
 
 Code is the source of truth.
-
-Documentation represents understanding,
-not implementation.
-
-Skills provide capabilities,
-not workflows.
+AOCI 是**对象认知**的唯一权威；prose 是规则、历史与程序的权威。
+Documentation represents understanding, not implementation.
+Skills provide capabilities, not workflows.
 
 ## Start Here
 
 Read this file every session. It routes; it deliberately holds no knowledge of its own.
 
-| When | Read |
-|------|------|
-| Every session | this file |
-| Before changing code | `.agent/invariants.md` + `knowledge/system-map.md` |
-| You need a decision's reasoning | `knowledge/decisions-index.md`, then that one entry |
-| You need past knowledge you cannot name | `knowledge/INDEX.md` — every cold file, one line each |
-| The task needs domain vocabulary | `CONTEXT.md` |
-| Resuming work | `.agent/state.md` |
-| Debugging something that feels familiar | `knowledge/wiki/problems/` |
-| Operating a deployment | `knowledge/operations/` |
-| Deciding where a file belongs, or adding a top-level directory | `knowledge/wiki/guides/repository-layout.md` |
-| The user dictated a wall of ideas to place | `knowledge/inbox/README.md`, then `/intake` |
+### 开场三件事（每次会话，进入任务之前）
 
-Never read `knowledge/decisions.md` end to end — it is the largest file in the layer and only grows.
-`.agent/README.md` is the layering standard: which fact belongs in which layer, and how to add one.
+1. **取认知**：`aoci_rules` 一次 → `aoci_overview`。返回 `continuation_required=true` 时原样跟随
+   `next_cursor` 直到 `completed`，中途不询问用户、不下阶段性结论、不开始业务任务。同一 run 内已可靠
+   持有该认知时直接复用；发生上下文压缩后按合同重载。
+2. **看对齐状态**：`aoci check` 的 `governance_aligned` 与 findings。Dirty / Stale / blocked 时认知
+   **仍可读**（交付的 scope 与状态是显式的），但不得声称索引描述今天的代码，并把机器事实写进
+   `.agent/state.md`。
+3. **看当前状态**：`.agent/state.md` —— 在飞的事、下一步、已知问题。
 
-### Task → document map
+### 按问题类型找权威
 
-| Touching | Read as well |
+| 你要回答的问题 | 权威 | 入口 |
+|---|---|---|
+| 某个文件 / 表是什么、和谁有关系、契约是什么、改它要注意什么 | **AOCI 认知层** | `aoci_search` / `aoci_get_entries`（开场已取 overview） |
+| 哪条约束必须持续成立 | `.agent/invariants.md` | 改代码之前 |
+| 为什么这么定、代价是什么、哪些方案被否 | `knowledge/decisions-index.md` → 那一条 | **永不整篇读** `decisions.md` |
+| 某个子系统为什么这样设计、有什么陷阱 | `knowledge/wiki/architecture/`、`wiki/problems/` | 经 `knowledge/INDEX.md` |
+| 怎么跑、怎么测、怎么发、怎么操作线上 | `knowledge/wiki/guides/`、`knowledge/operations/` | 经 `knowledge/INDEX.md` |
+| 现在在飞什么、下一步、什么坏了 | `.agent/state.md` | 每会话 |
+| 这个领域词在本仓指什么 | `CONTEXT.md` | 任务需要领域语言时 |
+| 用户原话说过什么 | `knowledge/inbox/` | 经 `knowledge/INDEX.md` |
+
+`knowledge/INDEX.md` 是冷仓唯一入口：冷仓每个文件一行，按需打开。`knowledge/decisions.md` 只追加、
+永不整篇读（只读 `decisions-index.md` 指到的那一条）。
+
+### 代码域 → 该读的冷仓叙述
+
+对象认知在 AOCI；下面这张表只在**要理解为什么、要碰阈值或陷阱**时才走。
+
+| 触碰 | 加读 |
 |---|---|
-| `tasks/video_processing.py`, `services/transcription`, `services/translation` | [video-pipeline](knowledge/wiki/architecture/video-pipeline.md) · [translation safety net](knowledge/wiki/architecture/translation-quality-safety-net.md) |
-| `services/ai_service.py`, `services/word_notes.py`, `api/v1/words.py`, `services/ecdict.py` | [exam vocabulary](knowledge/wiki/architecture/exam-vocabulary.md) |
-| `api/v1/media.py`, `services/video_access.py`, `services/video_cache.py` | [cache & media-gate blindspots](knowledge/wiki/problems/cache-invalidation-and-media-gate-blindspots.md) |
-| `api/dependencies.py`, `core/security.py`, `frontend/src/stores/` | [auth system](knowledge/wiki/architecture/auth-system.md) |
-| `frontend/src/app/`, `components/`, `lib/` | [frontend architecture](knowledge/wiki/architecture/frontend-architecture.md) |
-| any other backend service or task | [backend services](knowledge/wiki/architecture/backend-services.md) |
-| scoring, recommendations, rankings | [backend services](knowledge/wiki/architecture/backend-services.md) |
-| ECDICT gloss or exam annotation behaving oddly | [ASR / annotation diagnosis](knowledge/wiki/problems/asr-annotation-quality-diagnosis.md) |
-| a review-fix round repeating an old mistake | [review/fix failure modes](knowledge/wiki/problems/review-fix-failure-modes.md) |
-| servers, media topology, credentials | [runbook](knowledge/operations/RUNBOOK.md) · [media topology](knowledge/operations/MEDIA-TOPOLOGY.md) |
-| local setup, running tests, pushing | [setup](knowledge/wiki/guides/setup.md) · [testing](knowledge/wiki/guides/testing.md) · [release checklist](knowledge/wiki/guides/release-checklist.md) |
-| splitting one task across multiple agents | [module owners](.agent/owners.md) |
+| `tasks/video_processing.py`、`services/transcription`、`services/translation` | [video-pipeline](knowledge/wiki/architecture/video-pipeline.md) · [translation safety net](knowledge/wiki/architecture/translation-quality-safety-net.md) |
+| `services/ai_service.py`、`services/word_notes.py`、`api/v1/words.py`、`services/ecdict.py` | [exam vocabulary](knowledge/wiki/architecture/exam-vocabulary.md) |
+| `api/v1/media.py`、`services/video_access.py`、`services/video_cache.py` | [cache & media-gate blindspots](knowledge/wiki/problems/cache-invalidation-and-media-gate-blindspots.md) |
+| `api/dependencies.py`、`core/security.py`、`frontend/src/stores/` | [auth system](knowledge/wiki/architecture/auth-system.md) |
+| `frontend/src/app/`、`components/`、`lib/` | [frontend architecture](knowledge/wiki/architecture/frontend-architecture.md) |
+| 其它后端 service 或任务、评分 / 推荐 / 排名 | [backend services](knowledge/wiki/architecture/backend-services.md) |
+| ECDICT 释义或考试标注行为异常 | [ASR / annotation diagnosis](knowledge/wiki/problems/asr-annotation-quality-diagnosis.md) |
+| 一轮 review-fix 又犯了老毛病 | [review/fix failure modes](knowledge/wiki/problems/review-fix-failure-modes.md) |
+| 部署、服务器、媒体拓扑、凭据 | [runbook](knowledge/operations/RUNBOOK.md) · [media topology](knowledge/operations/MEDIA-TOPOLOGY.md) |
+| 本地环境、跑测试、发布前 | [setup](knowledge/wiki/guides/setup.md) · [testing](knowledge/wiki/guides/testing.md) · [release checklist](knowledge/wiki/guides/release-checklist.md) |
+| 跨 agent 拆一个任务 | [module owners](.agent/owners.md) |
+| 要新增一条知识、或决定它该写哪儿 | `.agent/README.md`（三条准入测试 + 缝判据） |
 
-## Knowledge Layers
+### 一条缝（写之前先读）
 
-Two layers, one directory each. The standard — which fact belongs where, and how to add one — is
-`.agent/README.md`; this table is only the routing summary.
+**能写成「恰好一个受管理对象」的属性 → AOCI；否则 → prose。** 判据、三条边界条款与收尾纪律的
+正文在 `.agent/README.md`。写错层是这套系统唯一会累积的坏账。
 
-| Layer | Where | What belongs | Does NOT belong |
-|-------|-------|--------------|-----------------|
-| **Hot** | `AGENTS.md`, `CONTEXT.md`, `.agent/` | What a session must know before it knows the task, and what is true **now** | Anything in the past tense: history, "used to", "was fixed by" |
-| **Cold** | `knowledge/`, entered through `knowledge/INDEX.md` | Everything that records the past: decisions, plans, ADRs, progress, operations, archives | Anything needed to decide today's next action |
-| **Code** | The codebase itself | What exists; what functions do | Why it was designed this way; non-obvious constraints |
+## MUST (强制执行)
 
-**One fact, one home.** A hot file states the conclusion and points at the cold file that explains it;
-neither restates the other. Byte sizes are reported (`--size-report`) and never capped, because a byte
-wall at the moment of writing buys shorter sentences rather than fewer facts (DEC-067). What keeps the
-cold store usable is not its size but its index: every file under `knowledge/` is listed there exactly
-once, and every listed path exists — both machine-checked.
-
-Older skill versions route operational knowledge to a user-level `memory/` directory. That layer was
-never instantiated in this project and is not used; operational knowledge lives in `.agent/state.md`
-and `knowledge/operations/`.
-
-## Knowledge Management Rules
-
-### Enforced by machine
-
-`scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the `Knowledge` CI workflow.
-It fails on: broken links, `ADR-00xx` with no file, invalid `knowledge/wiki/` frontmatter, unknown or dead
-`related_code` modules, commit hashes in stable knowledge files, index/entry drift, a tracked
-top-level entry missing from `scripts/check-knowledge/layout.json`, a capture whose content changed
-after it was sealed or whose segments lost their disposition, and a configured knowledge path that is
-not on disk. An eighth check,
-`stale`, names the `knowledge/wiki/` pages whose code changed since they were verified — a reminder,
-not a failure. Run it directly with `pre-commit run knowledge-check --all-files`.
-
-### MUST (强制执行)
-
-- 跨模块变更后（改动了 ≥2 个 service/模块的接口或行为），MUST 执行 `/knowledge-maintain` 再提交
-- 引入新功能/改架构/选技术/不可逆变更前，MUST 执行 `/decision-support`
-- 新增决策时，MUST 在 `knowledge/decisions.md` **末尾追加**条目，并在 `knowledge/decisions-index.md` 补一行（检查会校验二者的数量、顺序、日期与标题一致）
-- 删除代码后，MUST 清理引用它的 `related_code` 模块与文档（检查会因模块匹配不到文件而失败）
+- 建立或重载系统认知时，MUST 先 `aoci_rules` 再 `aoci_overview`；`continuation_required=true` 时
+  MUST 原样提交 `next_cursor` 直到 `completed`，不得询问用户、不得开始业务任务或给出阶段性系统结论
+- 跨模块变更后（改动了 ≥2 个 service/模块的接口或行为），MUST 执行 `/knowledge-maintain`，并在任务
+  最终稳定状态完成一次 AOCI 收尾（`aoci verify` → `aoci_maintain`）
+- 受管理对象发生变化时，MUST 在收尾处理 AOCI；机器签发候选时按批次**一次提交整批**，不得截取、
+  不得因单请求上限缩减 Managed Scope
+- 引入新功能 / 改架构 / 选技术 / 不可逆变更前，MUST 执行 `/decision-support`
+- 新增决策时，MUST 在 `knowledge/decisions.md` **末尾追加**条目，并在 `knowledge/decisions-index.md`
+  补一行（检查会校验二者的数量、顺序、日期与标题一致）
+- 对象事实 MUST 写在 AOCI：新增、删除或改名的受管理对象，不得只在 prose 里补一段描述
+- 删除代码后，MUST 清理引用它的 `related_code` 模块与文档（检查会因模块匹配不到文件而失败），
+  并在 AOCI 收尾时处理孤儿条目
 - 冷仓新增、搬动或删除文件后，MUST 同步 `knowledge/INDEX.md`（检查会因漏登记或死链而失败）
+- 机器签发的语义批次无法在本次 run 内完成时，MUST 把机器事实写进 `.agent/state.md`（批次身份、
+  `total_targets` / `remaining`、阻塞原因、工具给出的 `next_commands`）：**写不进去允许，不报告不允许**。
+  在 Volumes v1 上 `aoci_report`、`remove-entry` 与 CLI 的旧维护子命令一律报 `volume_read_only`，
+  唯一可写的路径是 `aoci_maintain` → 按它返回的 candidate / batch 用 `aoci_update_entry` 提交
+- 修改本文件时 MUST 保留 `<!-- aoci:begin -->` 与 `<!-- aoci:end -->` 区块**原样**（该区块由 AOCI
+  工具维护，手改会在下次接入时被覆盖）
 
-### SHOULD (强烈建议)
+## SHOULD (强烈建议)
 
-- 新会话首次进入项目时，SHOULD 按上面的 Start Here 表取用（而非执行 `/context-bootstrap`）
+- 新会话首次进入项目时，SHOULD 按上面「开场三件事」取用（而非执行 `/context-bootstrap`）
+- 跨 agent 拆任务时 SHOULD 先读 `.agent/owners.md`
 - `.agent/state.md` 的 Last Updated 超过 14 天时，SHOULD 执行 `/knowledge-verify`
+- 只需要某个对象的确切认知时，SHOULD 用 `aoci_get_entries` 定向取，不重传 Whole-Index
+- 进入真正的主要阶段时 SHOULD 声明 `phase_transition`；稳定检查点可用 `aoci_overview check_only`
+  取机器语义计数
 
-### NEVER
+## NEVER
 
 - NEVER 修改或重排 `knowledge/decisions.md` 里已存在的条目。改变主意 = 追加新条目 + 在索引里把旧条目标为 `superseded by DEC-0xx`
 - NEVER 把 git 提交哈希写进热层或 `knowledge/wiki/` 的稳定文件；历史属于决策记录与 `knowledge/CHANGELOG.md`
 - NEVER 给知识层设字节上限或字节目标（DEC-067）。体积只被报告、不被判定；要收敛的是「放对层了吗」，不是「写短一点」
-- NEVER 在 `memory/` 中重复记录热层或 `knowledge/wiki/` 已覆盖的架构知识
+- NEVER 在 prose 里复述某个对象的契约、约束或行为（那是 L0 的正文）；prose 只准**指认**对象或指向它
+- NEVER 手改 `aoci.txt` / `aoci.meta.txt` / `aoci.code.txt` / `.aoci/` 白名单资产来「修」漂移；一律走 AOCI 自己的 Plan 与 Transaction
 - NEVER 修改 `knowledge/inbox/*/raw.md` 的正文。原话只增不改：改一个字封存摘要就失败，`--capture-seal` 也会拒绝重签。要修订 = 另起一张 capture，旧的 `triage.md` 指过去
+- NEVER 在 `memory/` 中重复记录热层或 AOCI 已覆盖的架构知识
 
 ### Implicit Knowledge Filter
 
-Record only knowledge that passes all three gates:
+只记录同时通过三关的知识：代码藏不住它？将来的改动会受益？它解释 **why** 而不是 **what**？
+三关不全过的事实不写；只描述 `what` 的文档应当删除而不是更新；简单改动不写文档。
 
-1. Is it hidden from code? (If code directly expresses it, don't document it)
-2. Will future changes benefit? (If no decision impact, don't record)
-3. Does it explain why, not what? (If only description, don't record)
+## 认知系统在哪
 
-Do not create documentation for simple changes.
+- 三层、缝判据、L0 的用法与收尾纪律：`.agent/README.md`
+- 冷仓索引：`knowledge/INDEX.md`；目录归属：`knowledge/wiki/guides/repository-layout.md`
+- 机器强制：`scripts/check-knowledge/check_knowledge.py`（九项检查）在 pre-commit 与 `Knowledge` CI
+  运行，管 prose 层与认知层的**接线**；L0 的内容绑定由 `aoci check` / `aoci verify` 看管。两套检查
+  各管一层，互不替代
 
 ## Development
 
@@ -144,6 +147,7 @@ Five canonical roles map 1:1 to label strings of the same name (`needs-triage`, 
 ### Domain docs
 
 Single-context: one `CONTEXT.md` (includes domain terms) + `knowledge/adr/` at the repo root. See `docs/agents/domain.md`.
+
 
 <!-- aoci:begin -->
 ## AOCI 仓库认知

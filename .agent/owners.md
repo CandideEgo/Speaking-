@@ -6,6 +6,10 @@
 > Knowledge facts still belong to the files listed in `README.md` — this table only
 > decides *which* of them an agent loads. State transfer between agents goes through the
 > work item (a GitHub issue, DEC-065) and `.agent/state.md`, not through chat history.
+>
+> **对象认知不走这张表。** 某个文件或表是什么、与谁有关系、契约与约束，由 AOCI 按对象回答：
+> 用 `aoci_get_entries`（`paths` 或 `object_refs`）定向取本行文件域里的对象，不要重传 Whole-Index，
+> 也不要在 prose 里重述它（`.agent/README.md` 的缝判据）。
 
 ## Contract files
 

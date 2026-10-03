@@ -1,6 +1,6 @@
 ---
 name: knowledge-maintain
-description: Maintain long-term project knowledge after meaningful development changes. Use when completed work changes architecture, decisions, workflows, or reusable engineering knowledge.
+description: Maintain project knowledge after meaningful development changes. Use when completed work changed architecture, decisions, workflows, or reusable engineering knowledge. Routes object facts to AOCI and the residue (why, history, procedure) to prose.
 ---
 
 # Project Knowledge Maintenance
@@ -9,417 +9,163 @@ description: Maintain long-term project knowledge after meaningful development c
 
 Convert important development experience into future project understanding.
 
-This is not a changelog.
-This is not a task diary.
+This is not a changelog. This is not a task diary.
 
-Only preserve knowledge that improves future decisions.
-
----
-
-# The Knowledge Layer
-
-`.agent/README.md` is the ownership table: which file owns which kind of fact, and the rules for
-adding to them. Read it before writing anything.
-
-| File | Owns |
-|------|------|
-| `.agent/README.md` | Which file owns which fact; the rules for adding to them |
-| `.agent/invariants.md` | Rules that must keep holding; features that must not come back |
-| `knowledge/system-map.md` | Modules, non-obvious dependencies, critical paths, external boundaries |
-| `CONTEXT.md` | What the product is; domain vocabulary |
-| `.agent/state.md` | Forward-looking state only |
-| `knowledge/decisions-index.md` | ID → date → title → ADR → status |
-| `knowledge/decisions.md` | The full reasoning of each decision; append-only |
-| `knowledge/archive/` | Frozen point-in-time records |
-| `knowledge/wiki/` | Long-form knowledge — `architecture/`, `problems/`, `guides/` |
-
-Operational and environment knowledge belongs in `knowledge/operations/` and `.agent/state.md`.
-There is no `memory/` layer in this project; do not route knowledge to one.
+**本技能管 prose 那一半。** 对象事实（某个文件/表是什么、与谁有关系、契约、非显然约束）的正文在
+AOCI，由 AOCI 自己的收尾动作维护（`AGENTS.md` 的 MUST + `.agent/README.md`）。本技能做两件事：
+把残余事实写对家，以及判断哪些「看起来值得写」的东西其实**不该写**。
 
 ---
 
-# Implicit Knowledge Filter
+# 第一步：分流（缝判据）
 
-Before recording any knowledge, pass it through these three filters:
+判据一句话，全文在 `.agent/README.md`：
 
-**Filter 1: Is this information hidden from code?**
+> **这条事实能不能写成「恰好一个受管理对象」的属性？** 能 → AOCI；不能 → prose。
 
-If you can read it directly from the source code, do not record it.
-Code already tells you what exists, what functions do, what types are used.
-Only record what code cannot tell you:
-- why something was designed this way
-- what constraints exist that are not expressed in code
-- what failure modes have been discovered
-- what non-obvious interactions exist between components
+- **能 → 不要在这里写。** 对象事实走 AOCI 收尾（`aoci verify` → `aoci_maintain` → 按批次提交条目）。
+  在 prose 里补一段对象描述，是这套系统唯一会累积的坏账：两份正文，只有一份会被更新。
+- **不能 → 继续往下走**，过三关过滤器，再按路由表落位。
 
-**Filter 2: Will future changes benefit from knowing this?**
-
-If no future developer (human or agent) would make a different decision
-because of this knowledge, do not record it.
-Trivia that does not affect decisions is noise.
-
-**Filter 3: Does it explain why, not what?**
-
-If it only describes what changed ("added Redis caching"), do not record it.
-If it explains why ("added Redis caching because DB latency was the bottleneck
-and read-heavy patterns made caching high-value"), record it.
-
-Only knowledge that passes ALL THREE filters should be recorded.
+三条边界条款记住：规则永远在 `.agent/invariants.md` 有唯一正文；代码表达不出的数字留在拥有该决定的
+冷仓文档；**为什么**永远不进 AOCI。
 
 ---
 
-# After Significant Changes
+# 三关过滤器（是闸门，不是建议）
 
-Ask:
+1. **Is this information hidden from code?** 代码直接表达的不写。只有这些过关：为什么这样设计、
+   代码里没写出来的约束、已发现的失败模式、非显然的组件间相互作用。
+2. **Will future changes benefit from knowing this?** 没有任何后来者会因此改变决定的，不写。
+3. **Does it explain why, not what?** 只描述「加了 Redis 缓存」不写；「因为 DB 延迟是瓶颈、读多写少
+   所以缓存收益高」才写。
 
-Did this change affect:
-
-- system understanding?
-- architecture?
-- important decisions?
-- future development?
-
-If no: do not create documentation.
-
-If yes: apply the Implicit Knowledge Filter as a **gate**, not a suggestion.
-
-For each piece of knowledge the agent considers recording:
-
-1. Apply all three filter gates
-2. If the knowledge FAILS any gate → output "Knowledge does not pass filter — not recorded" and stop
-3. If the knowledge PASSES all gates → determine which file owns it (see Layer Routing below), then record
-
-Do not record knowledge that fails the filter, even if it seems useful.
-The filter exists to prevent knowledge bloat — the system's worst enemy is not missing knowledge, but noise.
+三关全过才写。任关不过 → 说一句「不过滤，不记录」并停止。宁可缺一条，不要噪声。
 
 ---
 
-# Knowledge Categories
+# 路由表（残余事实归哪）
 
-## Project Understanding
+| 事实 | 落在 | 说明 |
+|---|---|---|
+| 必须持续成立的规则；被移除、不得复活的功能 | `.agent/invariants.md` | 一行规则 + 为什么 + 强制方式；叙述与实测留在 decisions / `wiki/problems/`，行内只留指针 |
+| 为什么这么定、备选方案与代价 | `knowledge/decisions.md` 正文 + `knowledge/decisions-index.md` 一行 | 只追加，见下 |
+| 某个子系统的设计意图与被否方案 | `knowledge/wiki/architecture/` | 长文，必须带 frontmatter |
+| 可复用的失败模式与陷阱 | `knowledge/wiki/problems/` | 长文，必须带 frontmatter |
+| 在本仓怎么做事（跑、测、发、排障） | `knowledge/wiki/guides/`、`knowledge/operations/` | 程序性知识；guides 可以不带 `related_code` |
+| 跨对象的组合视图（模块如何拼起来） | `knowledge/system-map.md` | 单对象的职责不写这里（那是 AOCI） |
+| 这个领域词在本仓指什么 | `CONTEXT.md` | 词汇表本身，不是指针 |
+| 现在在飞什么、下一步、什么坏了 | `.agent/state.md` | 只写前瞻，见下 |
+| 用户的原话 | `knowledge/inbox/`（`/intake`） | 封存，不可编辑 |
+| 某段时间发生了什么 | `knowledge/progress/`、`knowledge/CHANGELOG.md` | 历史，不是理解 |
 
-Update:
+落位前先问：这条事实是不是已经有家？有就更新那一个，或指过去——**不要开第二个家**。
 
-CONTEXT.md — when the product, its domain language, or a critical flow changes
-
-knowledge/system-map.md — when modules, their connections, or a boundary changes
-
-.agent/invariants.md — when a rule that must keep holding is discovered, or a feature is removed
-
-When:
-
-- architecture changes
-- major workflow changes
-- important constraints change
+没有 `memory/` 层，也不要把知识路由到那里（`.agent/README.md` 是分层标准的正文）。
 
 ---
 
-## Engineering Decisions
+# 决策只追加
 
-Update:
+`knowledge/decisions.md` 是不可变历史。
 
-knowledge/decisions.md, plus one row in knowledge/decisions-index.md
+- **永不修改或重排已存在的条目**，包括纠错、更新、合并。
+- 改变主意 = 在文件**末尾**追加新条目 + 在 `knowledge/decisions-index.md` 把旧行标成
+  `superseded by DEC-0NN`。
+- 一条新决策要**两样都写**：文末条目 + 索引一行。`index` 门校验数量、顺序、日期、标题一致，
+  条目标题必须形如 `## YYYY-MM-DD — Title`。
+- 只记真有取舍的决定；显而易见的、没被否过的选项不记。
+- **永不整篇读** `decisions.md`：先开 `decisions-index.md`，再看需要的那一条。
 
-When:
+---
 
-- choosing between approaches
-- changing architecture direction
-- introducing important technology
+# state.md 的真实形状
 
-Record:
+只写前瞻。**当前**形状（四个段，`Last Updated` 是一行，不是标题段）：
 
-```
-## YYYY-MM-DD — Title
+```markdown
+# Project State
 
-Problem:
-Options:
-Decision:
-Reason:
-Tradeoffs:
+> （一句说明：已完成的属于 decisions-index / CHANGELOG / archive）
+
+Last Updated: YYYY-MM-DD
+
+## Current Focus
+
+- [在飞的事：做到了哪儿、还欠什么、判据是什么]
+
+## Next Steps
+
+1. [下一步]
+
+## Known Issues
+
+- [已知问题]
 ```
 
-## Invariants
-
-Update:
-
-.agent/invariants.md
-
-One line per rule: what must keep holding, why, and what enforces it
-(a check, a test suite, or `review` where nothing does yet).
-
-When:
-
-- a rule that must keep holding is discovered
-- a feature is removed and must not come back
+- 已完成的工作不在这里堆积：属于 `knowledge/decisions-index.md`、`knowledge/CHANGELOG.md` 或
+  `knowledge/archive/`。
+- `Last Updated` 是新鲜度信号：超过 14 天就该跑 `/knowledge-verify`。
+- 它每会话都读，所以只写会影响下一步动作的事实。没有字节上限（DEC-067）：觉得太长时问的是
+  「这条事实该不该在这一层」，不是「怎么把话说短」。
 
 ---
 
-## Reusable Lessons
-
-Create:
-
-knowledge/wiki/problems/
-
-When:
-
-- difficult bugs
-- deployment issues
-- performance discoveries
-- environment problems
-
-Capture:
-
-```
-Problem:
-Cause:
-Solution:
-Future Prevention:
-```
-
----
-
-# Layer Routing
-
-After knowledge passes the filter, determine where to record it:
-
-| Knowledge type | Record in | Reason |
-|---------------|-----------|--------|
-| Rule that must keep holding | `.agent/invariants.md` | Read before any code change; names what enforces it |
-| Why a decision was made | `knowledge/decisions.md` + a row in `knowledge/decisions-index.md` | Referenced before future changes |
-| How two modules relate | `knowledge/system-map.md` | Non-obvious dependencies and boundaries |
-| What a domain word means | `CONTEXT.md` | Product vocabulary |
-| Current project state | `.agent/state.md` | Always update after significant changes |
-| Reusable problem/solution pattern | `knowledge/wiki/problems/` | Structured long-term reference |
-| How a subsystem is designed, in depth | `knowledge/wiki/architecture/` | Long-form, with frontmatter |
-| Operational failure mode or environment trap | `knowledge/operations/` and `.agent/state.md` | Environment-specific, not architectural |
-| Dated record of what happened | `knowledge/progress/`, `knowledge/CHANGELOG.md` | History, not understanding |
-
-**Before adding anything, check**: does another `.agent/` or `knowledge/wiki/` document already own this fact?
-If yes, update that document or link to it — do not create a duplicate.
-
----
-
-# Decisions Are Append-Only
-
-`knowledge/decisions.md` is immutable history.
-
-- **Never edit or reorder an existing entry.** Not to correct it, not to update it, not to merge it.
-- To change course: append a new entry at the **END** of `knowledge/decisions.md`, then mark the old row
-  `superseded by DEC-0NN` in `knowledge/decisions-index.md`.
-- A new decision requires **both**: the appended entry and a new row in the index.
-- IDs are assigned in file order (`DEC-001` upward) and are never reassigned. The `index` check
-  fails when the table and the file disagree on count, order, date or title, and it parses entry
-  headings as `## YYYY-MM-DD — Title`.
-- Never read `decisions.md` end to end. Open `decisions-index.md` first, then the one entry you need.
-
----
-
-# Concision Check
-
-When updating an existing knowledge document, check:
-- Does this document contain "what" content that code already expresses?
-- If yes, remove the "what" and keep only the "why"
-- A document should shrink over time, not grow
-
-Knowledge documents are compressed understanding, not growing archives.
-
----
-
-# Wiki Document Format
-
-If creating wiki documents, use this frontmatter:
+# 新建 wiki 文档的格式
 
 ```markdown
 ---
 title: [title]
-tags: [tags from unified system]
+tags: [domain/layer/concern/type 四类，见下]
 status: active
 confidence: verified
-related_code: [module IDs from scripts/check-knowledge/modules.json]
-related: [repo-relative paths that exist]
+related_code: [scripts/check-knowledge/modules.json 里的模块 ID，不是路径]
+related: [仓库相对路径，必须存在]
 created: [ISO date]
 updated: [ISO date]
 ---
 ```
 
-The `frontmatter` check enforces this schema on `knowledge/wiki/**/*.md`:
-
-- All eight keys are required. `status` is `active`/`deprecated`/`archived`;
-  `confidence` is `verified`/`assumed`/`unverified`; `created` and `updated` are ISO dates and
-  `updated` may not precede `created`.
-- `related_code` takes module IDs, **not file paths**, and `scripts/check-knowledge/modules.json`
-  is the only vocabulary. An ID that is not in that file fails the check, and a module whose globs
-  match no real file fails it too — that is how deleting code surfaces as documentation drift. If a
-  new area needs to be referenceable, add the module to `modules.json` first.
-- `knowledge/wiki/architecture/**` and `knowledge/wiki/problems/**` must declare at least one module; `knowledge/wiki/guides/**`
-  may declare none, because guides describe process rather than code.
-- `related` entries are repo-relative paths, and every one of them must exist.
-
-## Dual Metadata: Status + Confidence
-
-Knowledge documents carry two independent dimensions:
-
-### Status (Knowledge Lifecycle)
-
-| Status | Meaning | When |
-|--------|---------|------|
-| `active` | Document describes current reality | Created based on code analysis |
-| `deprecated` | Knowledge superseded by new implementation | knowledge-verify detected drift |
-| `archived` | Records past decisions, no longer current | Decision no longer active but explains why things are |
-
-### Confidence (Knowledge Trustworthiness)
-
-| Confidence | Meaning | When |
-|------------|---------|------|
-| `verified` | Document checked against current code | Created from code analysis, or verified by knowledge-verify |
-| `assumed` | Document written from partial understanding | Agent inferred without full code review |
-| `unverified` | Document not yet checked against code | Imported from external source, or stale |
-
-These are orthogonal. Example:
-- An `archived` decision can still be `verified` (it was true, just no longer active)
-- An `active` document can be `assumed` (we think it's right but haven't verified)
-
-Default for AI-written docs: `status: active`, `confidence: verified`.
-
-## Unified Tags
-
-Do not create arbitrary tags. Use only:
-
-| Category | Tags |
-|----------|------|
-| Domain | video, audio, text, image, ai, data |
-| Layer | backend, frontend, database, infrastructure |
-| Concern | architecture, performance, security, bug, decision |
-| Type | feature, workflow, pattern, anti-pattern |
+- 八个键全要；`status ∈ active/deprecated/archived`，`confidence ∈ verified/assumed/unverified`；
+  `updated` 不得早于 `created`。`scripts/check-knowledge/README.md` 是这套 schema 的正文。
+- `related_code` 只收 `modules.json` 的模块 ID；`architecture/` 与 `problems/` 下不得为空。
+  新区域要先加模块，见 `modules.json` 的说明。
+- 标签只用四类：Domain（video/audio/text/image/ai/data）、Layer（backend/frontend/database/
+  infrastructure）、Concern（architecture/performance/security/bug/decision）、Type
+  （feature/workflow/pattern/anti-pattern）。不自造标签。
+- `status` 与 `confidence` 相互独立：`archived` 的文档仍可以是 `verified`，`active` 的也可以只是
+  `assumed`。
 
 ---
 
-# Always Update
+# 机器检查（九项）
 
-Regardless of knowledge value, always update:
-
-.agent/state.md
-
-It is forward-looking only, and it has exactly these five sections:
-
-```markdown
-# Project State
-
-## Last Updated
-
-Date: YYYY-MM-DD
-
-- [what changed in the layer's understanding of the state]
-
-## Recently Completed
-
-- [newest first, one line each, cite the decision ID]
-
-## Current Focus
-
-- [what is being worked on now]
-
-## Next Steps
-
-1. [what comes next]
-
-## Known Issues
-
-- [add or remove issues]
-```
-
-- Completed work does not accumulate here. It belongs in `knowledge/decisions-index.md`,
-  `knowledge/CHANGELOG.md` or `knowledge/archive/`; `## Recently Completed` holds a short tail, newest first.
-- `## Last Updated` holds a `Date: YYYY-MM-DD` line plus a few bullets. It is the staleness signal:
-  once it is more than 14 days old, run `/knowledge-verify`.
-- Keep the file small — it is read every session. There is no size target to hit: sizes are reported
-  (`--size-report`) and never gated (DEC-067). When the file feels too big, the question is whether
-  each fact belongs in this layer at all, not how to say it more briefly.
-
----
-
-# Avoid
-
-Do not record:
-
-- every commit
-- every file modification
-- temporary debugging
-
-The goal is knowledge compression.
-
----
-
-# Task Reflection
-
-After completing a task that involved significant changes, consider:
-
-Did this work produce any of the following?
-
-- [ ] New architectural constraint
-- [ ] New failure mode discovered
-- [ ] New design trade-off that was not obvious
-- [ ] Reusable engineering experience
-
-If any box is checked, pass the knowledge through the Implicit Knowledge Filter.
-If it passes all three filters, create or update the appropriate knowledge document.
-If none, only update .agent/state.md.
-
-**When to trigger this reflection:**
-- Modified 3+ files in a single task
-- Changes crossed module boundaries
-- Modified interfaces, APIs, or public contracts
-- Changed configuration that affects behavior
-
-Do not trigger for trivial changes (typo fixes, formatting, etc.).
-
-This reflection is the seed of semi-automatic knowledge extraction (Phase 3).
-It does not automatically write knowledge — it prompts the agent to consider
-whether knowledge is worth recording.
-
----
-
-# Mechanical Drift vs Judgement Drift
-
-`scripts/check-knowledge/check_knowledge.py` runs in pre-commit and in the CI `Knowledge` workflow.
-Eight checks — the seven that fail, `refs`, `frontmatter`, `ownership`, `index`, `paths`, `layout`,
-`captures`, plus the advisory `stale` — already catch, deterministically:
-
-1. A markdown link that no longer resolves, or an ADR reference with no file in `knowledge/adr/`
-2. Invalid `knowledge/wiki/` frontmatter, an unknown `related_code` module, or a module whose code was deleted
-3. A commit hash in a stable knowledge file (`.agent/*.md`, `knowledge/wiki/*.md`) — point at the decision ID instead
-4. `knowledge/decisions-index.md` drifting from `knowledge/decisions.md` in count, order, date or title,
-   or a cold-store file missing from `knowledge/INDEX.md` (or listed there twice)
-5. A tracked top-level entry missing from `scripts/check-knowledge/layout.json`, an entry with
-   nothing tracked at it, or a layer outside the vocabulary — the folder doctrine is
-   `knowledge/wiki/guides/repository-layout.md`
-6. A forbidden path that exists, a required `invariants.json` path that is missing, or a knowledge
-   path `scripts/check-knowledge/paths.json` marks `required` that is not on disk
-7. A capture in `knowledge/inbox/` whose words changed after sealing, or whose segments lost a disposition
-8. Code changed under a module some `knowledge/wiki/` page declares, since that page was verified — `stale`
-   prints which pages to re-read, and fails only when its own coverage has a hole
-
-Do not hand-check those. What no check can read is prose that no longer matches reality — that
-is what `/knowledge-verify` is for.
-
-Run it directly:
+`scripts/check-knowledge/check_knowledge.py` 在 pre-commit 与 `Knowledge` CI 里跑九项：
+`refs`、`frontmatter`、`ownership`、`index`、`paths`、`layout`、`captures`、`cognition` 判定，
+`stale` 只提醒。各门管什么、`paths.json` 怎么配置，正文在 `scripts/check-knowledge/README.md`；
+runbook 是：
 
 ```bash
 python scripts/check-knowledge/check_knowledge.py
 ```
 
-Fix your own violations. The checker, `knowledge-baseline.json` and `knowledge-stamps.json` are not
-edited to make a change pass. `knowledge/archive/` is exempt — frozen records are not held to today's
-links or schema.
+- **自己的违规自己修**；不要为了让改动过门而编辑检查器、`knowledge-baseline.json` 或
+  `knowledge-stamps.json`。
+- `knowledge/archive/` 豁免：冻结记录不按今天的链接与 schema 要求。
+- `/knowledge-verify` 清过一页之后，用
+  `python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>` 让提醒安静下来
+  ——它声明「这一页仍然描述代码」，不是清提醒的快捷方式。
 
-After `/knowledge-verify` has cleared a page, acknowledge it so the reminder goes quiet:
+---
 
-```bash
-python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <module>
-```
+# 不要做
 
-**If the file you must add to feels too big**, ask the layering question first: does this fact belong
-in this layer at all? A fact that stopped being current moves out — entry bodies that no longer
-constrain the code move verbatim into `knowledge/archive/decisions-YYYY-MM.md` and their headings stay
-behind as stubs (the procedure is in `scripts/check-knowledge/README.md`). Retiring follows status,
-not size (DEC-062), and there is no number left to raise (DEC-067).
+- 不要记录每一次提交、每一次文件改动、临时调试过程。
+- 不要在 prose 里复述对象的契约或约束（那是 AOCI 的正文）。
+- 不要手改 `aoci.txt` / `aoci.meta.txt` / `aoci.code.txt` / `.aoci/` 白名单资产来「修」漂移。
+- 不要给知识层设字节上限或目标（DEC-067）。
+- 不要在热层写 commit hash（`ownership` 门会失败）。
+- 不要修改 `knowledge/inbox/*/raw.md`。
+
+**触发本技能的门槛**：一次任务改了 3 个以上文件 / 跨模块 / 改了接口、API 或公共契约 / 改了会影响
+行为的配置。错别字与格式化不触发；那时只更新 `.agent/state.md`（如果连状态都没变，什么都不做）。
