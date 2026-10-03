@@ -20,6 +20,20 @@ Last Updated: 2026-10-04
   已删。**独立验证**：另一 agent 在镜像里对上一轮「零引用死代码删除」触及的 13 个后端文件做 sha256 与本地
   HEAD 逐字节比对（13/13 相同）、并在新前端镜像里找到 16 个本轮移动端改动新增的 test-id（旧镜像 0 个）、
   线上返回的 chunk 字节与新镜像内文件 sha256 相同（旧构建独有的 chunk 现在 404）。
+- **CI 红 → 修好 → 前端二次部署（10-04）** —— 首次 push 后 CI 的 `e2e` job 红在
+  `repro-stage1.spec.ts`：「收起字幕面板 → 词卡停右下」实测 `cardBox.x+width = 424 ≤ 640`。
+  根因不是本轮新写的代码：`WordTooltipInline` 的 `panelCollapsed` **自加入起从没被传过**
+  （call site 只传 word/gloss/onClose/onPronounce/onSave），所以恒为默认 false；这个缺陷
+  一直存在但被掩盖 —— 该 spec 的守卫用了 `isVisible({ timeout })`（此 API 已废弃、选项被忽略），
+  于是每次都在未水合时判定「无视频」而 skip，上一轮修好守卫后断言才第一次真跑。修法两处：
+  ① 页面补 `panelCollapsed={panelCollapsed}` 一行；② spec 按 `mobile-player-shell.spec.ts`
+  的口径用 `seeword_coach_done=true` 跳过首访教程浮层（新注册用户进观看页时
+  `新手引导` 的 `fixed inset-0 z-[100]` dialog 会拦截折叠键 click，实测 60s 超时 —— 这是
+  本地绿/红翻转的原因，与版式无关）。**本地判据**：改前 1 failed（与 CI 同一断言）→ 改后
+  连跑 4 次 3 passed。**已二次部署**：只重建并替换 frontend（`75818b6c994f`，BUILD_ID
+  `GX5r9orOcBlFkqDyQiSSz`），backend/celery/celery-beat 未动；`speaking-frontend:pre-deploy`
+  现为 `d1cad0a46011`（**注意**：那个中间版本从未上过生产，真正回退一档等于 09-28 的
+  `45c85b6f92af`）。
 - **认知系统 v2：AOCI 为核心（10-03，DEC-072）** —— 规则文档与知识系统按「三层 + 一条缝 + 一个收尾动作」重写：**L0 认知层** = AOCI（对象事实的唯一权威：某个文件/表是什么、与谁有关系、契约、改它的非显然约束）、**L1 热层** = `AGENTS.md` + `CONTEXT.md` + `.agent/`（规则与会话契约）、**L2 冷仓** = `knowledge/`（为什么、历史、操作程序）。缝判据落在 `.agent/README.md`：**能写成「恰好一个受管理对象」的属性 → AOCI，否则 → prose**；prose 只准指认对象，不准复述其契约。落地清单：`AGENTS.md` 改为「开场三件事 + 按问题类型找权威」并把 AOCI 收尾写进 MUST；`.agent/invariants.md` 的 INV-019~025 压回「规则 + 为什么 + 强制方式」（叙述与实测指向 DEC-069/070）；`/knowledge-maintain`、`/knowledge-verify`、`/context-bootstrap` 改为 AOCI 优先；`check_knowledge.py` 新增第九项 `cognition` 门（结构与接线）；`layout.json` 新增 `cognition` 层并登记 `.aoci`；DEC-072 记录决定与备选方案。**收尾**：在最终稳定状态调用了一次 `aoci_maintain`，机器给出 37 条待创作的签名批次（零写入），详见 Known Issues 与 Next Steps 第 10 条 —— 漂移已登记、未被静默，也**未**用手工或 `scan --force` 洗白。
 - **移动端播放页：句导航 + R5「齐平字幕带」已落地、待真机复看（10-02，DEC-070）** —— 本轮四件事全落：① `devIndicators` **整关**（原计划的 `bottom-right` 实测把「跟读」那一格吃掉，底栏是铺满整宽的四个键、四角没有一个位置不压按钮，见 `next.config.js` 注释）；② 「下一句」过期闭包改「稳定引用 + ref 读最新值」（`onNextStable`，新增 INV-025）；③ R5 版式（当前句卡 ≤1023px 与画框**齐平 0 断层**、无外框无圆角；模式行 48px / 每段 44px 分段控件并成为文稿卡卡头、移动端不渲染折叠键；文稿当前项降级为淡底 + 橙左竖线 + ink；`panelCollapsed` 加 `!isMobile` 守卫）；④ 进度条总时长以**媒体真实时长**为准（`aria-valuemax` 实测 612 → 720）。**本地实测**：卡 `x=0 y=276.9 w=414`（= 画框下沿）、四键中心全部命中自己、模式行 48px + 三段各 44px、`npx tsc --noEmit` 0、`npm run lint` 0 error、新 spec `mobile-sentence-nav.spec.ts` 4 条绿（红→绿逐条验过：A「9 → 2」、C「nextjs-portal 压住 watch-prev」、D「612 ≠ 720」）。**还欠一次真机复看**（判据只能靠真机）：(a) 底栏左下角不再有黑「N」、四键都好按；(b) 0 断层的观感（嫌挤就改 6–8px，仍在合法窗口内，改完重看）；(c) 三段 44px 是否好按、切换后字幕带与文稿是否同步换语言。**本轮唯一与方案预期不符的一条**：§4 判据 6 写「首屏 ≥4 条文稿」，实测 **3 条**（判据本身只要 ≥3，判据 1–3 全绿）；差的是 R5 把模式行从 32px chip 行换成 48px 卡头（+16px），而四个锁定值（段 44 / 容器 46 / 行 48 / 底线）都已在最小值上，凑第 4 条要再省 20px ⇒ 只能动已定案的模式行。若你要 4 条，说一声即可（那是新决议）。**已提交（10-03）**。方案：`knowledge/plans/移动端播放页-句导航与R5版式-执行方案-2026-10.md`。
 - **移动端播放页重构：已实施、待真机复看（10-02，DEC-069，issue [#31](https://github.com/CandideEgo/Speaking-/issues/31)）** —— `/watch/*`（≤1023px）现在整页跑在壳里：新件 `components/layout/WatchTopBar.tsx`（44px：返回 / 标题 / `channel · cefrWithExamHint` / `ExamLevelSelector` / ⋯）、`components/watch/WatchBottomBar.tsx`（进度条 `requestAnimationFrame` 直读 `videoRef` 不进 state + 上一句/播放/下一句/跟读，替换 5 Tab）、`components/watch/CurrentSentenceCard.tsx`（画面正下方的**唯一**一份当前句，移动与桌面同一张）、`components/watch/WatchMoreSheet.tsx`（语言/字号/倍速/来源版权/动作行/笔记）、`components/watch/WatchChromeProvider.tsx`（页面 ↔ 壳的模块级 store）；画面里零文字零覆盖物、`VideoControls` 收成桌面专属。三条验收判据（本地已过：`npx tsc --noEmit` 0、`npm run lint` 0 error，Playwright chromium 43 passed）：**画面内零文字 / 首屏不滚动可见完整底栏 + 当前句卡 + ≥3 条文稿（Chromium 414×896 实测 4 条）/ 进页面到播放 1 次点击**；桌面与其它路由零 diff 有守卫。**还欠一次真机轮次确认两件事**：(a) iPhone 414×896 上的真实首屏（Chromium 视口 896 ≠ 真机 Safari 可视 776，「4 条文稿」是模拟读数）；(b) 词卡盖住当前句卡在手里是否可接受（INV-022 记的新代价）。**已提交（10-03）**。方案与差异清单：`knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md`。
