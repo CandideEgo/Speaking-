@@ -46,6 +46,14 @@ async function openFirstWatch(page: Page): Promise<boolean> {
 }
 
 test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
+  // 教程浮层是 `fixed inset-0 z-[100]`，注册后立刻进观看页时它会盖住折叠键
+  // （实测 click 被 `新手引导` dialog 的关闭热区拦截 → 60s 超时）。本 spec 考的是
+  // 版式，不是首访教程，所以按 `mobile-player-shell.spec.ts` 的口径跳过它；
+  // `addInitScript` 在每次导航前生效，`openFirstWatch` 里会导航多次。
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
+  });
+
   test("desktop: renders subtitle panel + current subtitle card, no errors", async ({ page }) => {
     test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
 

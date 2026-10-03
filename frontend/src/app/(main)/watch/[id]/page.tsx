@@ -1451,6 +1451,7 @@ export default function WatchPage() {
               onClose={clearWord}
               onPronounce={() => speakWord(selectedWord)}
               onSave={saveToVocabulary}
+              panelCollapsed={panelCollapsed}
             />
           )}
         </div>
