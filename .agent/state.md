@@ -4,10 +4,22 @@
 > `knowledge/decisions-index.md`, `knowledge/CHANGELOG.md` or `knowledge/archive/`. Nothing in the
 > knowledge layer is size-capped: sizes are reported (`--size-report`) and never gated (DEC-067).
 
-Last Updated: 2026-10-03
+Last Updated: 2026-10-04
 
 ## Current Focus
 
+- **生产部署已完成（10-04）** —— 本地 `master` 领先 `origin/master` 的 8 个提交已 push（CI 在跑），并按
+  RUNBOOK §1.1「异地构建 + 传镜像」部署到 `47.122.109.52`（DNS 指向确认、`.env` 的 `ENV=production`、
+  compose/nginx/promtail 三份配置哈希与仓库逐字节一致，故未同步配置）。**线上现跑镜像**：
+  `speaking-backend/celery/celery-beat` = `0831fc629212`、`speaking-frontend` = `d1cad0a46011`；
+  回滚标签 `speaking-*:pre-deploy` = 上一版 `c7b1af6595cf` / `45c85b6f92af`。**部署前四道门**：
+  backend pytest 995 passed / 12 skipped、ruff 干净、mypy 51 对 = 基线 51（零新增）、frontend
+  format+tsc+vitest(109)+lint 全绿、`check_knowledge.py` rc=0。**线上核验**：容器全部 Up/healthy、
+  alembic `k6l7m8n9o0p1`(head)、celery `ping`→pong、`/health` 200、`/login` 200、前端 `BUILD_ID`
+  在容器内为 `o3Mzw7N37_6fWntBTLlrp`（新）而 `/_next/static/chunks/*` 走的是新构建。`/root/images.tar`
+  已删。**独立验证**：另一 agent 在镜像里对上一轮「零引用死代码删除」触及的 13 个后端文件做 sha256 与本地
+  HEAD 逐字节比对（13/13 相同）、并在新前端镜像里找到 16 个本轮移动端改动新增的 test-id（旧镜像 0 个）、
+  线上返回的 chunk 字节与新镜像内文件 sha256 相同（旧构建独有的 chunk 现在 404）。
 - **认知系统 v2：AOCI 为核心（10-03，DEC-072）** —— 规则文档与知识系统按「三层 + 一条缝 + 一个收尾动作」重写：**L0 认知层** = AOCI（对象事实的唯一权威：某个文件/表是什么、与谁有关系、契约、改它的非显然约束）、**L1 热层** = `AGENTS.md` + `CONTEXT.md` + `.agent/`（规则与会话契约）、**L2 冷仓** = `knowledge/`（为什么、历史、操作程序）。缝判据落在 `.agent/README.md`：**能写成「恰好一个受管理对象」的属性 → AOCI，否则 → prose**；prose 只准指认对象，不准复述其契约。落地清单：`AGENTS.md` 改为「开场三件事 + 按问题类型找权威」并把 AOCI 收尾写进 MUST；`.agent/invariants.md` 的 INV-019~025 压回「规则 + 为什么 + 强制方式」（叙述与实测指向 DEC-069/070）；`/knowledge-maintain`、`/knowledge-verify`、`/context-bootstrap` 改为 AOCI 优先；`check_knowledge.py` 新增第九项 `cognition` 门（结构与接线）；`layout.json` 新增 `cognition` 层并登记 `.aoci`；DEC-072 记录决定与备选方案。**收尾**：在最终稳定状态调用了一次 `aoci_maintain`，机器给出 37 条待创作的签名批次（零写入），详见 Known Issues 与 Next Steps 第 10 条 —— 漂移已登记、未被静默，也**未**用手工或 `scan --force` 洗白。
 - **移动端播放页：句导航 + R5「齐平字幕带」已落地、待真机复看（10-02，DEC-070）** —— 本轮四件事全落：① `devIndicators` **整关**（原计划的 `bottom-right` 实测把「跟读」那一格吃掉，底栏是铺满整宽的四个键、四角没有一个位置不压按钮，见 `next.config.js` 注释）；② 「下一句」过期闭包改「稳定引用 + ref 读最新值」（`onNextStable`，新增 INV-025）；③ R5 版式（当前句卡 ≤1023px 与画框**齐平 0 断层**、无外框无圆角；模式行 48px / 每段 44px 分段控件并成为文稿卡卡头、移动端不渲染折叠键；文稿当前项降级为淡底 + 橙左竖线 + ink；`panelCollapsed` 加 `!isMobile` 守卫）；④ 进度条总时长以**媒体真实时长**为准（`aria-valuemax` 实测 612 → 720）。**本地实测**：卡 `x=0 y=276.9 w=414`（= 画框下沿）、四键中心全部命中自己、模式行 48px + 三段各 44px、`npx tsc --noEmit` 0、`npm run lint` 0 error、新 spec `mobile-sentence-nav.spec.ts` 4 条绿（红→绿逐条验过：A「9 → 2」、C「nextjs-portal 压住 watch-prev」、D「612 ≠ 720」）。**还欠一次真机复看**（判据只能靠真机）：(a) 底栏左下角不再有黑「N」、四键都好按；(b) 0 断层的观感（嫌挤就改 6–8px，仍在合法窗口内，改完重看）；(c) 三段 44px 是否好按、切换后字幕带与文稿是否同步换语言。**本轮唯一与方案预期不符的一条**：§4 判据 6 写「首屏 ≥4 条文稿」，实测 **3 条**（判据本身只要 ≥3，判据 1–3 全绿）；差的是 R5 把模式行从 32px chip 行换成 48px 卡头（+16px），而四个锁定值（段 44 / 容器 46 / 行 48 / 底线）都已在最小值上，凑第 4 条要再省 20px ⇒ 只能动已定案的模式行。若你要 4 条，说一声即可（那是新决议）。**已提交（10-03）**。方案：`knowledge/plans/移动端播放页-句导航与R5版式-执行方案-2026-10.md`。
 - **移动端播放页重构：已实施、待真机复看（10-02，DEC-069，issue [#31](https://github.com/CandideEgo/Speaking-/issues/31)）** —— `/watch/*`（≤1023px）现在整页跑在壳里：新件 `components/layout/WatchTopBar.tsx`（44px：返回 / 标题 / `channel · cefrWithExamHint` / `ExamLevelSelector` / ⋯）、`components/watch/WatchBottomBar.tsx`（进度条 `requestAnimationFrame` 直读 `videoRef` 不进 state + 上一句/播放/下一句/跟读，替换 5 Tab）、`components/watch/CurrentSentenceCard.tsx`（画面正下方的**唯一**一份当前句，移动与桌面同一张）、`components/watch/WatchMoreSheet.tsx`（语言/字号/倍速/来源版权/动作行/笔记）、`components/watch/WatchChromeProvider.tsx`（页面 ↔ 壳的模块级 store）；画面里零文字零覆盖物、`VideoControls` 收成桌面专属。三条验收判据（本地已过：`npx tsc --noEmit` 0、`npm run lint` 0 error，Playwright chromium 43 passed）：**画面内零文字 / 首屏不滚动可见完整底栏 + 当前句卡 + ≥3 条文稿（Chromium 414×896 实测 4 条）/ 进页面到播放 1 次点击**；桌面与其它路由零 diff 有守卫。**还欠一次真机轮次确认两件事**：(a) iPhone 414×896 上的真实首屏（Chromium 视口 896 ≠ 真机 Safari 可视 776，「4 条文稿」是模拟读数）；(b) 词卡盖住当前句卡在手里是否可接受（INV-022 记的新代价）。**已提交（10-03）**。方案与差异清单：`knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md`。
@@ -31,7 +43,24 @@ Last Updated: 2026-10-03
 
 ## Known Issues
 
-- **AOCI 收尾未完成：机器已签发创作批次，正式卷与 Baseline 漂移（10-03）**：在最终稳定状态调用了一次 `aoci_maintain`，返回 `status=stopped` / `result=blocked`，**零写入**（`semantic_generated=false`，write 集为空），并给出一份机器签名的创作批次：`batch_identity=575453c079610a89d7766e9a61aaa02d2f98745e0702ede65ee31977601bc4d2`、`total_targets=37`、`remaining=37`、`next_action=author_complete_current_machine_batch`。37 条 = 本轮改过的 9 份规则/技能/配置 + 4 份知识文档 + 上一轮瘦身提交改过的代码文件（`code_drift.stale` 在响应里截断到 20 条，总数 37）。同时 `scope` 操作被拒：`managed_scope_formal_volume_baseline_drift: aoci.code.txt` —— 正式卷在 Baseline 建立后被手工裁掉 61 条孤儿条目（508632 B → 473200 B），于是 `scope status` / `scope acknowledge` 失败，3 条 observe 待复核无法前移；机器给的 `next_commands` 是 `scope status --json` 与 `scope acknowledge --reviewed-by {agent} --json`。**可写路径只有一条**：`aoci_maintain` → 按返回批次用 `aoci_update_entry` 提交；`aoci_report`、`remove-entry` 与 CLI 的 `index update` / `score` / `agent plan` / `status --deep` 在本仓一律报 `volume_read_only`（rc17 的 CLI 维护面只服务旧布局）。**禁止**用 `aoci scan --force` 洗白：那会把手工裁剪与 37 条未创作的 stale 一起写进新 Baseline，`code_stale` 归零而条目仍描述已删除的代码。**批次已过期**：它绑定的是调用时的 preimage，而收尾之后又改过 4 个受管理对象（`.agent/state.md`、`knowledge/decisions.md`、`AGENTS.md`、`scripts/check-knowledge/README.md`），所以下一轮应先重新 `aoci_maintain` 取一份当前批次，不要直接提交这一份。当前 `aoci check`：`code_stale` 37 条、`governance_aligned=false`。
+- **AOCI 收尾未完成：机器已签发创作批次，正式卷与 Baseline 漂移（10-03）**：在最终稳定状态调用了一次 `aoci_maintain`，返回 `status=stopped` / `result=blocked`，**零写入**（`semantic_generated=false`，write 集为空），并给出一份机器签名的创作批次：`batch_identity=575453c079610a89d7766e9a61aaa02d2f98745e0702ede65ee31977601bc4d2`、`total_targets=37`、`remaining=37`、`next_action=author_complete_current_machine_batch`。37 条 = 本轮改过的 9 份规则/技能/配置 + 4 份知识文档 + 上一轮瘦身提交改过的代码文件（`code_drift.stale` 在响应里截断到 20 条，总数 37）。同时 `scope` 操作被拒：`managed_scope_formal_volume_baseline_drift: aoci.code.txt` —— 正式卷在 Baseline 建立后被手工裁掉 61 条孤儿条目（508632 B → 473200 B），于是 `scope status` / `scope acknowledge` 失败，3 条 observe 待复核无法前移；机器给的 `next_commands` 是 `scope status --json` 与 `scope acknowledge --reviewed-by {agent} --json`。**可写路径只有一条**：`aoci_maintain` → 按返回批次用 `aoci_update_entry` 提交；`aoci_report`、`remove-entry` 与 CLI 的 `index update` / `score` / `agent plan` / `status --deep` 在本仓一律报 `volume_read_only`（rc17 的 CLI 维护面只服务旧布局）。**禁止**用 `aoci scan --force` 洗白：那会把手工裁剪与 37 条未创作的 stale 一起写进新 Baseline，`code_stale` 归零而条目仍描述已删除的代码。**批次已过期**：它绑定的是调用时的 preimage，而收尾之后又改过 4 个受管理对象（`.agent/state.md`、`knowledge/decisions.md`、`AGENTS.md`、`scripts/check-knowledge/README.md`），所以下一轮应先重新 `aoci_maintain` 取一份当前批次，不要直接提交这一份。**当前 `aoci check`**：`code_stale` 37 条、`governance_aligned=false`。**10-04 复核**：本次会话的
+  harness **没有接入 AOCI MCP**（`.mcp.json` 只配置在 Claude Code 侧，本会话工具表里没有
+  `aoci_rules` / `aoci_overview` / `aoci_maintain` / `aoci_update_entry`），CLI（`C:/Users/Administrator/Tools/aoci/aoci.exe`）
+  的子命令只有 ai/baseline/capabilities/check/cognition/completion/config/database/doctor/help/index/init/mcp/remove-entry/scan/source/status/ui/update-entry/verify ——
+  **没有 `maintain`**（实测 `aoci maintain` → `command_failed`）。因此本轮**无法**取得创作批次也无法提交：
+  AOCI 收尾是**被工具可达性阻塞**，不是被语义阻塞；下一次必须在能调 MCP 的会话里做
+  （开场 `aoci_rules` → `aoci_overview`，收尾 `aoci_maintain` → `aoci_update_entry`）。当日 `aoci verify`
+  的机器事实：`code_stale` 42 条 + `code_missing` 2 条（这两个是本次会话的临时文件，已删）+ `code_volume_unbaselined`
+  （`aoci.code.txt`）、`managed_scope.aligned=true`、`observed_pending_review=3`、`read_only_candidate=true`。
+  另：本轮新增的两个部署工具 `scripts/prod_ssh.py`、`scripts/prod_upload_parallel.py`（+ `scripts/build_prod_images.ps1`）
+  是**未跟踪**文件，尚未纳入基线。
+- **`.dockerignore` 的嵌套文件漏过（10-04 部署时由独立验证发现，非本次提交引入）**：`backend/.dockerignore`
+  里 `__pycache__`、`*.log` 等模式**只匹配顶层**（Docker 的 ignore 模式不跨 `/`），所以 `app/**/__pycache__/*.pyc`
+  与嵌套目录下的 `*.log` 照样进镜像。本次新镜像里因此带着 `/app/.dev-logs/probe-uvicorn.log`（353 KB）与
+  `uvicorn-mobile-verify.log`（92 KB），其中含**已签发的媒体访问 JWT + 用户 UUID**（本次抽样解码的
+  `exp` 是 2026-09-30，已过期，故不是活跃凭据泄露；旧镜像 09-28 就带后者）。另外 `docs/`、`scripts/`、
+  `transcripts/`、`reprocess_export/`、`.agent/`、`.coverage`、`.mypy_cache` 等也一并进镜像（体积问题）。
+  修法：把这些模式改成 `**/` 前缀（或去掉不需要的目录），**改完必须重建 backend 镜像并重新部署**才生效。
 - **线上 `ENV` 无法从仓库自证**（DEC-051 残留）：`env` 默认 development，漏配即 dev 形态运行（支付签名旁路 + mock 支付路由 + 无 HSTS/CSP）
 - **catalog 并发 promote 的窄窗**（DEC-049 残留）：共享同一 `source_url` 的两个条目并发 promote 仍各播一次
 - **非有限浮点的读路径未设防**（H24 残留）：写入侧已拦，已落库的值 / 裸 dict 响应 / 无 schema 的 JSONB 仍可能把 `nan` 交给 `json.dumps(allow_nan=False)`
