@@ -63,9 +63,3 @@ class UserPreferences(Base):
 
     # relationships
     user = relationship("User", back_populates="preferences")
-
-    def get_notification_pref(self, notification_type: str) -> bool:
-        """Check if a notification type is opted-in. Defaults to True if not set."""
-        if self.notification_preferences is None:
-            return True
-        return self.notification_preferences.get(notification_type, True)

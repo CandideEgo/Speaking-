@@ -49,7 +49,9 @@ INV-003's test covers the route-level part of this list.
   video comments · Live AI word-card definitions (per-request LLM cost, see INV-007) — DEC-025
 - Pro paywall UI (`/upgrade`, `/pricing`, `/redeem`, `/checkout`) — DEC-037
 
-Dormant-but-present, do not extend: `ai_service.py`'s 5 dead methods, the `GET /vocabulary/{id}/enrich`
+Dormant-but-present, do not extend: `ai_service.py`'s `generate_practice_questions` (the other four dead
+methods — `grammar_analyze_batch` / `evaluate_difficulty` / `generate_quiz` / `extract_difficulty_words` —
+were deleted once this file stopped matching the code), the `GET /vocabulary/{id}/enrich`
 endpoint with no frontend entry point, `learning_plan.py`'s 410 endpoints, the `RedeemCode` / `plan`
 tables, and Video's UGC columns (`forked_from`, `auto_publish`, `review_status`).
 

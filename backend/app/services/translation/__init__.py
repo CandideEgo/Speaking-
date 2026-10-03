@@ -411,10 +411,3 @@ def get_translation_service() -> TranslationService:
             if _translation_service is None:
                 _translation_service = TranslationService()
     return _translation_service
-
-
-def reset_translation_service() -> None:
-    """Reset the singleton (for testing or config hot-reload)."""
-    global _translation_service
-    with _singleton_lock:
-        _translation_service = None

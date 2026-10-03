@@ -87,11 +87,3 @@ class CatalogSummaryResponse(BaseModel):
     total: int
     by_status: dict[str, int]
     by_source: dict[str, int]
-
-
-class CatalogImportResult(BaseModel):
-    source: str
-    imported: int
-    updated: int
-    skipped: int
-    total: int

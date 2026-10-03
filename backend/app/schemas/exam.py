@@ -1,7 +1,5 @@
 """Pydantic schemas for the 真题测试 (past-paper exam) feature."""
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
@@ -19,24 +17,6 @@ class ExamQuestionPublic(BaseModel):
     passage: str | None = None
     question: str | None = None
     options: dict[str, str] | None = None
-
-    model_config = {"from_attributes": True}
-
-
-class ExamPaperListItem(BaseModel):
-    id: str
-    level: str
-    year: int
-    month: int
-    set_no: int
-    title: str
-    source: str | None = None
-    total_questions: int
-    # Latest attempt info for the current user (null when never attempted).
-    last_score: float | None = None
-    last_submitted_at: datetime | None = None
-    attempt_count: int = 0
-    best_score: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -101,53 +81,9 @@ class ExamSubmitResponse(BaseModel):
     results: list[ExamQuestionResult]
 
 
-class ExamAttemptListItem(BaseModel):
-    id: str
-    mode: str
-    exam_level: str | None = None
-    paper_id: str | None = None
-    paper_title: str | None = None
-    question_count: int
-    score: float | None = None
-    correct_count: int | None = None
-    duration_sec: int = 0
-    started_at: datetime
-    submitted_at: datetime | None = None
-
-    model_config = {"from_attributes": True}
-
-
-# ---------------------------------------------------------------------------
-# Daily check
-# ---------------------------------------------------------------------------
-
-
-class ExamDailyStartResponse(ExamAttemptCreateResponse):
-    pass
-
-
 # ---------------------------------------------------------------------------
 # Wrong book
 # ---------------------------------------------------------------------------
-
-
-class WrongQuestionItem(BaseModel):
-    """One aggregated wrong question (deduped by question, latest wrong kept)."""
-
-    question_id: str
-    number: int | None = None
-    section: str | None = None
-    question_type: str | None = None
-    passage: str | None = None
-    question: str | None = None
-    options: dict[str, str] | None = None
-    wrong_count: int = 1
-    last_wrong_at: datetime | None = None
-    paper_id: str | None = None
-    paper_title: str | None = None
-    level: str | None = None
-    year: int | None = None
-    month: int | None = None
 
 
 class WrongRedoRequest(BaseModel):

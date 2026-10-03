@@ -11,7 +11,6 @@ Rows are append-only on purpose: re-triggers leave a new row so the admin can
 see quality trends over re-runs, and so resume logic never has to mutate history.
 """
 
-import enum
 import uuid
 from datetime import UTC, datetime
 
@@ -19,11 +18,6 @@ from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Intege
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-
-
-class QualityStage(str, enum.Enum):
-    transcription = "transcription"
-    translation = "translation"
 
 
 class VideoQualityReport(Base):

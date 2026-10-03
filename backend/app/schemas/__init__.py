@@ -2,14 +2,6 @@
 # 按领域分组, 方便外部 from app.schemas import Xxx
 
 # ── 用户与认证 ──
-# ── 评论 ──
-from app.schemas.comment import (
-    CommentCreate,
-    CommentResponse,
-    CommentStatsResponse,
-    CommentUpdate,
-    VideoWithCommentScoreResponse,
-)
 
 # ── 通用 ──
 from app.schemas.common import UserProfileBrief

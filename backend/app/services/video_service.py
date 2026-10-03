@@ -599,8 +599,6 @@ def _delete_media_files(video_id: str) -> None:
 
 
 # ── 内容三态：下线（需求 §5.3） ────────────────────────────────────────────
-STORAGE_LOCAL = "local"
-STORAGE_PROXY = "proxy"
 STORAGE_OFFLINE = "offline"
 
 

@@ -65,7 +65,6 @@ ITEM_LEARNING = "learning"
 ITEM_GRADUATED = "graduated"
 
 KIND_DAILY = "daily"
-KIND_EXTRA = "extra"
 
 # 加练取词时，排除「近 N 天的轮次里已经排过的词」。主机制其实是答过的词会离开
 # mastery_level = new 池；这层排除只为兜住「作答请求失败、词没被更新」的情况，

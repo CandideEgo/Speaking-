@@ -322,20 +322,6 @@ class SubtitleCreate(BaseModel):
         return self
 
 
-class ProposalCreate(BaseModel):
-    """Payload to submit a subtitle change proposal (PR) from a fork to the standard."""
-
-    title: str
-    body: str | None = None
-    subtitle_ids: list[str]
-
-
-class ProposalReject(BaseModel):
-    """Payload to reject a proposal with a reason."""
-
-    reason: str
-
-
 class WordLevelsUpdate(BaseModel):
     """Manual override of one subtitle's word-level annotations.
 

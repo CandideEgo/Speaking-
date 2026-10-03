@@ -22,18 +22,6 @@ class AIServiceError(Exception):
     """Raised when an LLM call fails after all retries are exhausted."""
 
 
-def _normalize_sentence(s: str) -> str:
-    """Lowercase, strip sentence-ending punctuation, and collapse whitespace.
-
-    Used to grade sentence_building answers structurally: the user's reordered
-    tokens should match the expected sentence once punctuation/case are ignored.
-    """
-    s = (s or "").lower().strip()
-    # Strip leading/trailing sentence punctuation (. ! ? , ; :) and quotes.
-    s = re.sub(r"^[.\,!?:;\"'` ]+|[.\,!?:;\"'` ]+$", "", s)
-    return re.sub(r"\s+", " ", s)
-
-
 class AIService:
     def __init__(self):
         # Don't construct the client when no key is configured — this keeps
@@ -118,65 +106,6 @@ class AIService:
         except Exception as e:
             logger.error(f"Unexpected AI error: {e}")
             raise AIServiceError(f"AI service error: {e!s}") from e
-
-    async def grammar_analyze_batch(self, texts: list[str]) -> list[str | None]:
-        if not texts:
-            return []
-
-        payload = json.dumps(texts, ensure_ascii=False)
-        system = (
-            "You are an English grammar teacher for Chinese learners. For each sentence, "
-            "identify ONE most noteworthy grammar point worth explaining (in Chinese). "
-            "Skip trivial sentences. Return JSON array of strings (or null for no note)."
-        )
-        user = f"Analyze:\n{payload}\nReturn JSON array only."
-
-        result = await self._chat(system, user)
-        try:
-            return json.loads(self._extract_json(result))
-        except json.JSONDecodeError:
-            return [None] * len(texts)
-
-    async def evaluate_difficulty(self, full_text: str) -> str:
-        system = (
-            "You are an English proficiency evaluator. Read the text and assign a CEFR level: "
-            "A1, A2, B1, B2, C1, or C2. Consider vocabulary, sentence complexity, and speech speed "
-            "indicators. Return ONLY the level code, nothing else."
-        )
-        result = await self._chat(system, full_text[:3000])
-        level = result.strip().upper()
-        if level in ("A1", "A2", "B1", "B2", "C1", "C2"):
-            return level
-        return "B1"
-
-    async def generate_quiz(self, text: str) -> list[dict]:
-        system = (
-            "You are an English test generator. Based on the video transcript provided, "
-            "generate 3 questions: 1 comprehension multiple-choice, 1 fill-in-the-blank "
-            "(listening gap-fill), 1 dictation sentence. "
-            "Return JSON array with fields: type (comprehension/fill_blank/dictation), "
-            "question (string), options (array of 4 for comprehension), answer (string)."
-        )
-        result = await self._chat(system, text[:4000])
-        try:
-            return json.loads(self._extract_json(result))
-        except json.JSONDecodeError as e:
-            raise AIServiceError("AI 返回测验格式无效") from e
-
-    async def extract_difficulty_words(self, sentence: str) -> list[str]:
-        """Extract 0-3 challenging words from a sentence for Chinese learners."""
-        system = (
-            "You are an English teacher specializing in Chinese learners (B1 level). "
-            "From the given sentence, extract 0-3 words that are most challenging. "
-            "Consider vocabulary rarity, idioms, phrasal verbs. "
-            "Return a JSON array of strings. If no challenging words, return []."
-        )
-        result = await self._chat(system, sentence)
-        try:
-            parsed = json.loads(self._extract_json(result))
-            return parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError as e:
-            raise AIServiceError("AI 返回难词列表格式无效") from e
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from LLM response, handling markdown code fences."""

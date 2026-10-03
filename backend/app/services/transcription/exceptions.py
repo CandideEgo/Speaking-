@@ -13,12 +13,6 @@ class AudioExtractionError(TranscriptionError):
     pass
 
 
-class ModelLoadError(TranscriptionError):
-    """Failed to load Whisper model."""
-
-    pass
-
-
 class UnsupportedPlatformError(TranscriptionError):
     """Platform is not supported for transcription."""
 
