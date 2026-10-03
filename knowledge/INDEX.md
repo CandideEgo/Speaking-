@@ -92,8 +92,6 @@
 ## 进度：某段时间发生了什么
 
 - [全站综合审查报告（2026-08-14）](progress/REVIEW-2026-08-14.md) — 2026-08-14
-- [交接说明 — 2026-06-27 会话](progress/HANDOFF-2026-06-27.md) — 2026-06-27
-- [交接说明 — 2026-06-27 晚间会话（接 HANDOFF-2026-06-27.md）](progress/HANDOFF-2026-06-27-evening.md) — 2026-06-27
 - [SeeWord 视频处理全链路实战深度报告](progress/video-pipeline-deep-dive-2026-08.md)
 - [SeeWord 全项目 AI 代码审计报告](progress/open-code-review-全项目审计报告-2026-09.md)
 - [SeeWord](progress/PROGRESS.md)

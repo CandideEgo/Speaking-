@@ -72,8 +72,9 @@
 | DEC-065 | 2026-09-29 | 技能层采用 mattpocock/skills，仓库按其 setup 初始化（不采用自建编排层） | — | active |
 | DEC-066 | 2026-09-29 | 知识层分层：冷仓单目录、热层瘦身、索引层（99 个文件一次搬迁） | — | active |
 | DEC-067 | 2026-09-29 | 取消知识层的字节上限与目标，改为一套分层标准（修订 DEC-062） | — | active |
-| DEC-068 | 2026-10-02 | 范围升级要显式：优化类任务不走 wayfinder 地图（关闭 #20，挂起 #25/#29） | — | active |
+| DEC-068 | 2026-10-02 | 范围升级要显式：优化类任务不走 wayfinder 地图（关闭 #20，挂起 #25/#29） | ④ superseded by DEC-071（物料改为按零引用删除） | active |
 | DEC-069 | 2026-10-02 | 推翻「乙·字幕入画」：观看控制搬进壳的顶栏与底栏（真机证据） | — | active |
 | DEC-070 | 2026-10-02 | 移动端播放页 R5「齐平字幕带」：字幕与画框齐平、模式行归文稿卡头；句导航闭包与 dev 指示器修复 | — | active |
+| DEC-071 | 2026-10-03 | 仓库瘦身：删零引用物料与死代码，修一条永不执行的 e2e（部分取代 DEC-068 ④） | — | active |
 
 Retired 6 — DEC-003, DEC-005, DEC-013, DEC-016, DEC-024, DEC-047 — superseded or never implemented; bodies and stubs stay in `decisions.md`.
