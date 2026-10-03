@@ -345,7 +345,6 @@ export function TopBar() {
               isLoading={isSearching}
               query={searchQuery}
               onSelect={handleSelect}
-              onClose={() => setShowDropdown(false)}
             />
           )}
         </div>

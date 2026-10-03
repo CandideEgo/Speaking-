@@ -3,16 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Bell,
-  ChevronDown,
-  ClipboardList,
-  ExternalLink,
-  LogOut,
-  Search,
-  ShieldCheck,
-  User,
-} from "lucide-react";
+import { Bell, ChevronDown, ClipboardList, ExternalLink, LogOut, ShieldCheck } from "lucide-react";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
 import { getUgcPendingCount } from "@/lib/adminData";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";

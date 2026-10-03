@@ -17,19 +17,16 @@ export function useVideoPolling(
   patchVideo: (id: string, patch: Partial<VideoAdmin>) => void,
   onReady?: () => void
 ) {
-  const fetchStatus = useCallback(
-    async (id: string) => {
-      const st = await getVideoStatus(id);
-      return {
-        status: st.status as string,
-        processing_step: st.processing_step,
-        video_url_720p: st.video_url_720p ?? undefined,
-        processing_progress: st.processing_progress,
-        error_message: st.error_message,
-      };
-    },
-    [videoId]
-  );
+  const fetchStatus = useCallback(async (id: string) => {
+    const st = await getVideoStatus(id);
+    return {
+      status: st.status as string,
+      processing_step: st.processing_step,
+      video_url_720p: st.video_url_720p ?? undefined,
+      processing_progress: st.processing_progress,
+      error_message: st.error_message,
+    };
+  }, []);
 
   useVideoStatusPolling(videoId, status, {
     fetchStatus,

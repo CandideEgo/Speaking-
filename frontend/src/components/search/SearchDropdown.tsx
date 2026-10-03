@@ -34,7 +34,6 @@ interface SearchDropdownProps {
   isLoading: boolean;
   query: string;
   onSelect: (videoId: string) => void;
-  onClose: () => void;
 }
 
 /** Format seconds to M:SS */
@@ -50,7 +49,6 @@ export function SearchDropdown({
   isLoading,
   query,
   onSelect,
-  onClose,
 }: SearchDropdownProps) {
   const router = useRouter();
 

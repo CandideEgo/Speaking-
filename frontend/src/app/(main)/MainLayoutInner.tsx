@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -16,7 +16,6 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
-  const [checkedOnboarding, setCheckedOnboarding] = useState(false);
 
   // DEC-069 / #31：`/watch/*` 换掉壳的两个栏 —— 底栏槽位给播放控制（替换 5 Tab），
   // 顶栏（仅 ≤1023px，由 WatchTopBar 自己判定）收成 44px 观看页形态。
@@ -32,30 +31,21 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   // Non-blocking: render the shell immediately, redirect in background.
   useEffect(() => {
     if (isLoading || !isAuthenticated) {
-      setCheckedOnboarding(true);
       return;
     }
-
-    let cancelled = false;
 
     async function checkOnboarding() {
       try {
         const user = await api<{ onboarding_completed?: boolean }>("/api/v1/users/me");
-        if (!cancelled && user.onboarding_completed === false) {
+        if (user.onboarding_completed === false) {
           router.replace("/onboarding");
         }
       } catch {
         // If API fails, don't block the user
-      } finally {
-        if (!cancelled) setCheckedOnboarding(true);
       }
     }
 
     checkOnboarding();
-
-    return () => {
-      cancelled = true;
-    };
   }, [isAuthenticated, isLoading, router]);
 
   // Skeleton while auth state is initializing (replaces jarring FullPageSpinner)

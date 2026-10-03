@@ -23,22 +23,31 @@ async function openFirstWatch(page: Page): Promise<boolean> {
   await page.waitForURL((u) => u.pathname === "/", { timeout: 15000 });
   await page.goto("/");
   const videoLink = page.locator('a[href*="/watch/"]').first();
-  const hasVideos = await videoLink.isVisible({ timeout: 5000 }).catch(() => false);
-  if (!hasVideos) return false;
-  const href = (await videoLink.getAttribute("href"))!;
+  // `isVisible({ timeout })` ignores the option (deprecated on this API) and
+  // returns immediately, so it judged the pre-hydration page and skipped every
+  // run. `waitFor` actually waits; a timeout means "no video seeded", which is
+  // the real skip condition.
+  try {
+    await videoLink.waitFor({ state: "visible", timeout: 15000 });
+  } catch {
+    return false;
+  }
+  const href = await videoLink.getAttribute("href");
+  if (!href) return false;
   await page.goto(href);
   // Subtitle mode tabs render once the video metadata is loaded - confirms the
   // page mounted without a black-screen / crashed layout.
-  return page
-    .locator("[role='tablist']")
-    .first()
-    .isVisible({ timeout: 15000 })
-    .catch(() => false);
+  try {
+    await page.locator("[role='tablist']").first().waitFor({ state: "visible", timeout: 15000 });
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
   test("desktop: renders subtitle panel + current subtitle card, no errors", async ({ page }) => {
-    if (!(await openFirstWatch(page))) test.skip();
+    test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
 
     // Capture app-level JS errors only. Browser-level "Failed to load resource"
     // network noise (e.g. analytics keepalive preflight in dev) is filtered out
@@ -62,7 +71,7 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
   });
 
   test("desktop: word card defaults to bottom-LEFT when panel expanded", async ({ page }) => {
-    if (!(await openFirstWatch(page))) test.skip();
+    test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
     await page.locator(".now-sub-en .now-sub-word").first().click({ timeout: 8000 });
     const card = page.locator("[data-testid='word-tooltip']");
     await expect(card).toBeVisible({ timeout: 5000 });
@@ -79,7 +88,7 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
   test("desktop: collapse panel -> video wrapper constrained + word card to bottom-RIGHT", async ({
     page,
   }) => {
-    if (!(await openFirstWatch(page))) test.skip();
+    test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
     await page.locator(".now-sub-en .now-sub-word").first().click({ timeout: 8000 });
     const card = page.locator("[data-testid='word-tooltip']");
     await expect(card).toBeVisible({ timeout: 5000 });
