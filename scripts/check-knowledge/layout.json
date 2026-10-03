@@ -130,6 +130,21 @@
       "kind": "file",
       "layer": "deploy",
       "purpose": "日志采集"
+    },
+    "aoci.txt": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "AOCI 认知层根清单：声明 meta/code 两个认知卷的 id、路径与依赖"
+    },
+    "aoci.meta.txt": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "AOCI 元卷：对象协议、FRAS 纪律、S 准入与标签字典"
+    },
+    "aoci.code.txt": {
+      "kind": "file",
+      "layer": "tooling",
+      "purpose": "AOCI 对象卷：受管理对象的 FRAS 认知条目（模型生成、模型读取）"
     }
   }
 }

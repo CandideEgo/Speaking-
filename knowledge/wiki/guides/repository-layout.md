@@ -61,6 +61,9 @@ edited together.
 | `nginx.conf` | deploy | the dev / default nginx site | production runs it at this path |
 | `nginx.ssl.conf` | deploy | production nginx (TLS, security headers, log redaction) | production runs it at this path |
 | `promtail.yml` | deploy | log collection | production runs it at this path |
+| `aoci.txt` | tooling | the AOCI cognition root manifest: the meta/code volumes and their ids, paths and dependencies | the AOCI tool reads it at the repository root |
+| `aoci.meta.txt` | tooling | the AOCI meta volume: object protocol, FRAS discipline, S admission and the tag dictionaries | it defines how every entry in `aoci.code.txt` is written |
+| `aoci.code.txt` | tooling | the AOCI object volume: one FRAS entry per managed object | a managed object is added, removed or re-scoped |
 
 Every `Layer` value comes from the closed vocabulary the `layout` check enforces: `hot`, `settled`,
 `input`, `material`, `code`, `tooling`, `runtime`, `entry`, `deploy`. `input` and `material` are valid

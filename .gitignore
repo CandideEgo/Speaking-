@@ -132,3 +132,7 @@ backend/watch-current.png
 
 # Project planning notes (not code) — moved to knowledge/plans/
 # 后续开发项目.txt
+
+# AOCI agent host integration (machine-bound; do not commit)
+.mcp.json
+.mcp.json.backup.*
