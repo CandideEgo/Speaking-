@@ -15,7 +15,6 @@ app/core/logging.py:assignment
 app/core/logging.py:list-item
 app/core/logging.py:no-any-return
 app/main.py:arg-type
-app/models/preferences.py:no-any-return
 app/services/admin_service.py:misc
 app/services/admin_service.py:no-any-return
 app/services/ai_service.py:index
