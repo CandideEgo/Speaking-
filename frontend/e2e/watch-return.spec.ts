@@ -25,6 +25,10 @@ test.describe("Watch Page - Return to source", () => {
     request,
   }) => {
     const { token } = await registerUserViaApi(request, uniquePhone());
+    // D2 教程浮层：观看页 ready 后 600ms 淡入（`fixed inset-0 z-[100]`），会把
+    // 「返回首页」的点击整段拦掉（2026-10-09 全套随机复现，60s 超时）。本 spec 考的
+    // 是返回流程，用 app 自己的「看过了」标记跳过它 —— 与其余观看页 spec 同策。
+    await page.addInitScript(() => window.localStorage.setItem("seeword_coach_done", "true"));
     await loginViaToken(page, token);
 
     await page.goto("/");
