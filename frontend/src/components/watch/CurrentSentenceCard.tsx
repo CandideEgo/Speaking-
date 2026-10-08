@@ -81,11 +81,20 @@ export function CurrentSentenceCard({
         // 上限按「英文两行（`leading-8` = 32px × 2）+ 中文一行 + 间距」给，正常句子不触发；
         // 只有超长句（3 行英文）才会截断，此时宁可不撑高卡片 —— 首屏预算里文稿那 353px 是
         // 这一票要还给用户的东西（§4 首屏预算表）。
-        <div className="max-h-[92px] overflow-hidden">
+        //
+        // 被牺牲的**不是**中文行（BUG-02）：块级流里溢出从末尾裁，而中文排在英文之后，
+        // 于是「英文 3 行 = 96px > 92px」把整块中文切掉了 —— 英文看得见、译文看不见，
+        // 恰好裁反。现在把上限下放到英文块自己（`line-clamp-2`），中文 `shrink-0` 兜底：
+        // 超长句的代价变成「英文第 3 行起被裁」（它的词热区也随之不可点，是已知代价），
+        // 中文行永远在。`flex flex-col` 是把「谁被牺牲」写成显式的弹性分配，而不是
+        // 依赖文档流顺序的巧合。
+        <div className="max-h-[92px] overflow-hidden flex flex-col">
           {showEn && (
             <div
               data-testid="current-sentence-en"
-              className="now-sub-en leading-8"
+              // `line-clamp-2`：超长句只露两行。它的 `-webkit-box` 不改词热区的行内盒
+              // 几何（词仍是 `inline-block`，行与行不重叠那条不变），只把第 3 行起裁掉。
+              className="now-sub-en leading-8 line-clamp-2"
               style={{ fontSize: SUBTITLE_FONT_EN[fontSize] }}
             >
               {textEn.split(" ").map((word, i) => (
@@ -119,7 +128,13 @@ export function CurrentSentenceCard({
           {showZh && (
             <div
               data-testid="current-sentence-zh"
-              className="now-sub-zh mt-0.5"
+              // `line-clamp-1` + `shrink-0`：中文行**恒为一行**。这一条不是美观，是预算：
+              // 中文一旦占两行，内容就变成 64 + 2 + 40 = 106px > 92px，flex 会把英文块压到
+              // 50px —— 而 50 不是 `leading-8`(32px) 的整数倍，英文第二行会被**横向切掉
+              // 一半字形**（实测：真实量级 en 91 / zh 33 时英文只剩 1.56 行）。夹到一行后
+              // 内容是恒定的 64 + 2 + 20 = 86px ≤ 92px，压缩永不触发，卡片在任何输入下
+              // 都是「英文 2 行 + 中文 1 行」。代价（已拍板接受）：长译文被省略号截断。
+              className="now-sub-zh mt-0.5 shrink-0 line-clamp-1"
               style={{ fontSize: SUBTITLE_FONT_ZH[fontSize] }}
             >
               {textZh}
