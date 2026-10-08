@@ -148,6 +148,14 @@
      -mx-4 sm:-mx-7 精确抵消 gutter 实现全出血，padding 一改 640–1023px 档就错位。 */
   --max-width-wide: 2400px;
 
+  /* --- Watch stage guard (S4) ---
+     播放页「画框 + 当前句卡」的高度护栏常量（px）：画框顶 166 + 句卡
+     mt-3 12 + 卡高 76 = 254，即「画框之外必须占用的垂直空间」。
+     **2026-10-08 实测校准值**：C=290 时三个生效档（1280×720 / 1366×768 /
+     2560×1080）slack 全为 36.0 → T = C − slack = 254。生效档 slack≈0，
+     卡底恰好贴视口底；窄视口自然高度本就够，护栏不提前介入。 */
+  --watch-stage-chrome: 254px;
+
   /* --- Letter spacing --- */
   --tracking-display-xl: -0.035em;
   --tracking-display-lg: -0.03em;
@@ -574,6 +582,16 @@
      两边才严格对齐（顶栏自己不再写 padding —— 那会与类里的 gutter 叠加）。 */
   .container-wide {
     @apply max-w-wide mx-auto px-4 sm:px-7;
+  }
+
+  /* === Watch stage cap (S4) ===
+     桌面端把「画框 + 当前句卡」夹在首屏内：16:9 画框宽高联动，夹住宽度即夹住
+     高度（不引入父级高度链，塌缩黑屏那条不变量不受影响）。max-width 只作用在
+     包装层上，上限同时包住句卡，两者左右边界才重合（桌面档 spec 断言同宽）。
+     移动端不挂这个类（包装层用 display:contents 消盒），出血与贴顶几何零变化。 */
+  .watch-stage-cap {
+    max-width: calc((100dvh - var(--watch-stage-chrome) - env(safe-area-inset-top, 0px)) * 16 / 9);
+    margin-inline: auto;
   }
 
   /* === Display headings (营销页大标题，替代 !font-extrabold 覆盖) === */

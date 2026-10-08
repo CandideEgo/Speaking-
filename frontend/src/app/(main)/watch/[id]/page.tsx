@@ -969,7 +969,12 @@ export default function WatchPage() {
           // #30：移动端左列用 `display: contents` 消掉自己的盒子（见下），
           // 画框因此成为 grid item —— 列内间距由各自 margin 负责，这里不能再叠 gap。
           isMobile ? "gap-0" : "gap-5",
-          panelCollapsed ? "lg:grid-cols-[1fr_56px]" : "lg:grid-cols-[2fr_1fr]"
+          // S4：展开态右栏不再是 1fr —— S2 放宽容器后它在宽屏被拉成 600px+。
+          // 固定区间 360–420：下界低于 360 会让 1024–1700 主流宽度上右栏反而变窄
+          // （1280 屏实测 401 → 写 320 就是 320），字幕行换行更多。折叠态不动。
+          panelCollapsed
+            ? "lg:grid-cols-[1fr_56px]"
+            : "lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]"
         )}
       >
         {/* ========== LEFT COLUMN ========== */}
@@ -986,171 +991,177 @@ export default function WatchPage() {
                 元素跟着一起滚走（实测滚 600px 时画框顶 y=-232.8，等于没粘）。
             `top-0`：画框的 `-mt-6` 已经把它拎到壳顶（INV-024 实测 y=64），贴顶位就是滚动容器上沿。 */}
         <div className={cn(isMobile ? "contents" : "min-w-0")}>
-          {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
+          {/* S4 高度护栏：桌面端把「画框 + 当前句卡」包进 .watch-stage-cap
+              （夹宽 → 16:9 联动夹高 → 句卡留在首屏）；移动端这层 `contents` 消盒，
+              画框仍是 grid item，出血与贴顶几何零变化。只包这两件 —— 桌面字幕卡
+              （下方 mt-3 那张）不在护栏内，S5 会把它整体搬进句卡。 */}
+          <div className={cn(isMobile ? "contents" : "watch-stage-cap")}>
+            {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
               `<video>` 节点不换父，所以内联 ↔ 贴顶常驻切换不丢播放进度。
               移动端**出血满宽 + 顶到壳顶**（#24/#28 乙，原型 B2-tap 实测：画框 x=0
               w=375 顶部 y=壳顶高）：-mx-4/-mt-6 抵消容器的 px-4/pt-6，桌面端不加。 */}
-          <div
-            ref={slotRef}
-            data-testid="video-frame"
-            className={cn(
-              "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
-              // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
-              // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
-              isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-xl",
-              isMobile && !noteOpen && "-mt-6",
-              // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
-              // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
-              // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
-              isMobile && isStuck && "sticky top-0 z-40"
-            )}
-          >
             <div
-              ref={(el) => {
-                // D1：F 全屏的目标容器（播放器外壳）。
-                fullscreenElRef.current = el;
-              }}
-              className="absolute inset-0 transition-all duration-300"
+              ref={slotRef}
+              data-testid="video-frame"
+              className={cn(
+                "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
+                // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
+                // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
+                isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-xl",
+                isMobile && !noteOpen && "-mt-6",
+                // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
+                // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
+                // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
+                isMobile && isStuck && "sticky top-0 z-40"
+              )}
             >
-              {playbackMode === "ready" && bestVideoUrl(video) ? (
-                <>
-                  <video
-                    ref={chrome.attachVideo ?? videoRef}
-                    // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
-                    // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
-                    playsInline
-                    webkit-playsinline="true"
-                    x5-playsinline="true"
-                    src={mediaUrl(bestVideoUrl(video)!, {
-                      // /media 需要可识别的观看者，<video> 无法带 Authorization
-                      // 头，统一用 ?token= 携带。
-                      withToken: true,
-                    })}
-                    className="h-full w-full object-contain"
-                    onTimeUpdate={(e) =>
-                      // 统一走 handleTimeTick（字幕同步 + 观看时长 + D10 句尾检测）；
-                      // 此前内联实现漏接逐句跟读句尾回调，自动录音永不触发。
-                      handleTimeTick(e.currentTarget.currentTime)
-                    }
-                    onPlay={() =>
-                      track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onPause={() =>
-                      track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onSeeked={() =>
-                      track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                    }
-                    onEnded={() => {
-                      track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id);
-                      // D3b: trigger the EndScreen. Fetch this video's vocab
-                      // count + top-3 shadowing sentences in parallel; both
-                      // are best-effort — failures are silent.
-                      setEnded(true);
-                      const vid = video?.id;
-                      if (!vid) return;
-                      Promise.all([
-                        api<{ total?: number }>(
-                          `/api/v1/videos/${vid}/vocabulary?page=1&page_size=1`
-                        )
-                          .then((d) => setVideoVocabCount(d.total ?? 0))
-                          .catch(() => {}),
-                        api<ShadowingSentence[]>(
-                          `/api/v1/videos/${vid}/shadowing-sentences?limit=3`
-                        )
-                          .then(setShadowingSentences)
-                          .catch(() => {}),
-                      ]);
-                    }}
-                  />
-                  {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
+              <div
+                ref={(el) => {
+                  // D1：F 全屏的目标容器（播放器外壳）。
+                  fullscreenElRef.current = el;
+                }}
+                className="absolute inset-0 transition-all duration-300"
+              >
+                {playbackMode === "ready" && bestVideoUrl(video) ? (
+                  <>
+                    <video
+                      ref={chrome.attachVideo ?? videoRef}
+                      // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
+                      // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
+                      playsInline
+                      webkit-playsinline="true"
+                      x5-playsinline="true"
+                      src={mediaUrl(bestVideoUrl(video)!, {
+                        // /media 需要可识别的观看者，<video> 无法带 Authorization
+                        // 头，统一用 ?token= 携带。
+                        withToken: true,
+                      })}
+                      className="h-full w-full object-contain"
+                      onTimeUpdate={(e) =>
+                        // 统一走 handleTimeTick（字幕同步 + 观看时长 + D10 句尾检测）；
+                        // 此前内联实现漏接逐句跟读句尾回调，自动录音永不触发。
+                        handleTimeTick(e.currentTarget.currentTime)
+                      }
+                      onPlay={() =>
+                        track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onPause={() =>
+                        track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onSeeked={() =>
+                        track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                      }
+                      onEnded={() => {
+                        track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id);
+                        // D3b: trigger the EndScreen. Fetch this video's vocab
+                        // count + top-3 shadowing sentences in parallel; both
+                        // are best-effort — failures are silent.
+                        setEnded(true);
+                        const vid = video?.id;
+                        if (!vid) return;
+                        Promise.all([
+                          api<{ total?: number }>(
+                            `/api/v1/videos/${vid}/vocabulary?page=1&page_size=1`
+                          )
+                            .then((d) => setVideoVocabCount(d.total ?? 0))
+                            .catch(() => {}),
+                          api<ShadowingSentence[]>(
+                            `/api/v1/videos/${vid}/shadowing-sentences?limit=3`
+                          )
+                            .then(setShadowingSentences)
+                            .catch(() => {}),
+                        ]);
+                      }}
+                    />
+                    {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
                       全部搬走（标题与返回进壳顶栏、级别进壳顶栏、字幕进画面正下方的当前句卡）。
                       桌面端只有 D1 控制条这一层，移动端连它也不在画面里（底栏接管）。 */}
-                  {!isMobile && (
-                    <VideoControls
-                      videoRef={videoRef}
-                      isPlaying={isPlaying}
-                      duration={video.duration}
-                      rate={rate}
-                      setRate={setRate}
-                      muted={muted}
-                      toggleMute={toggleMute}
-                      setVolume={setVolume}
-                      subtitleMode={subtitleMode}
-                      onCycleSubtitleMode={cycleSubtitleMode}
-                      subtitleFontSize={subtitleFontSize}
-                      onFontSizeChange={handleFontSizeChange}
-                      toggleFullscreen={toggleFullscreen}
-                      markers={shadowMarkers}
-                    />
-                  )}
-                  {/* D3b EndScreen — only when the <video> has fired onEnded. */}
-                  {ended && video?.id && (
-                    <EndScreen
-                      stats={{
-                        watchSeconds: Math.round(videoRef.current?.currentTime ?? 0),
-                        wordsLookedUp: sessionLookupsRef.current,
-                        wordsAdded: sessionAddsRef.current,
-                      }}
-                      videoVocabCount={videoVocabCount}
-                      shadowingSentences={shadowingSentences}
-                      onReplay={() => {
-                        setEnded(false);
-                        videoRef.current?.play().catch(() => {});
-                      }}
-                      onReviewVocab={() => router.push(`/vocabulary/drill?video_id=${video.id}`)}
-                      onShadowing={() => {
-                        // Jump back to the first shadowing sentence and resume
-                        // playback so the user can immediately start shadowing.
-                        if (shadowingSentences[0]) {
-                          if (videoRef.current && shadowingSentences[0]) {
-                            videoRef.current.currentTime = shadowingSentences[0].start_time;
-                          }
+                    {!isMobile && (
+                      <VideoControls
+                        videoRef={videoRef}
+                        isPlaying={isPlaying}
+                        duration={video.duration}
+                        rate={rate}
+                        setRate={setRate}
+                        muted={muted}
+                        toggleMute={toggleMute}
+                        setVolume={setVolume}
+                        subtitleMode={subtitleMode}
+                        onCycleSubtitleMode={cycleSubtitleMode}
+                        subtitleFontSize={subtitleFontSize}
+                        onFontSizeChange={handleFontSizeChange}
+                        toggleFullscreen={toggleFullscreen}
+                        markers={shadowMarkers}
+                      />
+                    )}
+                    {/* D3b EndScreen — only when the <video> has fired onEnded. */}
+                    {ended && video?.id && (
+                      <EndScreen
+                        stats={{
+                          watchSeconds: Math.round(videoRef.current?.currentTime ?? 0),
+                          wordsLookedUp: sessionLookupsRef.current,
+                          wordsAdded: sessionAddsRef.current,
+                        }}
+                        videoVocabCount={videoVocabCount}
+                        shadowingSentences={shadowingSentences}
+                        onReplay={() => {
                           setEnded(false);
                           videoRef.current?.play().catch(() => {});
-                        }
-                      }}
-                      onGoHome={() => router.push("/")}
-                    />
-                  )}
-                </>
-              ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
-                <div ref={ytContainerRef} className="h-full w-full" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <div className="text-center">
-                    <Play size={40} className="mx-auto text-white/30" />
-                    <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                        }}
+                        onReviewVocab={() => router.push(`/vocabulary/drill?video_id=${video.id}`)}
+                        onShadowing={() => {
+                          // Jump back to the first shadowing sentence and resume
+                          // playback so the user can immediately start shadowing.
+                          if (shadowingSentences[0]) {
+                            if (videoRef.current && shadowingSentences[0]) {
+                              videoRef.current.currentTime = shadowingSentences[0].start_time;
+                            }
+                            setEnded(false);
+                            videoRef.current?.play().catch(() => {});
+                          }
+                        }}
+                        onGoHome={() => router.push("/")}
+                      />
+                    )}
+                  </>
+                ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
+                  <div ref={ytContainerRef} className="h-full w-full" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <div className="text-center">
+                      <Play size={40} className="mx-auto text-white/30" />
+                      <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              {/* DEC-069：级别药丸搬进壳顶栏（移动端）；画面里不再有任何可点覆盖物 */}
             </div>
-            {/* DEC-069：级别药丸搬进壳顶栏（移动端）；画面里不再有任何可点覆盖物 */}
-          </div>
 
-          {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
+            {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
               点词 → 词卡；点卡片空白 → 播放/暂停；卡内不放按钮（跟读在底栏 / 桌面字幕卡）。
               R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
               （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
               （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
               基类的 `mt-3 / border / rounded-xl`。 */}
-          {currentSubtitle && (
-            <CurrentSentenceCard
-              // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
-              // 卡跟着出血；桌面端两者都留在容器内）。
-              className={cn(isMobile && "-mx-4 sm:-mx-7 mt-0 rounded-none border-0")}
-              textEn={currentSubtitle.text_en}
-              textZh={currentSubtitle.text_zh ?? null}
-              wordLevels={currentSubtitle.word_levels ?? null}
-              subtitleMode={subtitleMode}
-              fontSize={subtitleFontSize}
-              isSelected={isSelectedWord}
-              levelClassFor={levelClassFor}
-              onWordClick={handleWordClick}
-              onTogglePlay={togglePlayPause}
-              counter={`${currentSubtitleIndex + 1} / ${video.subtitles.length}`}
-            />
-          )}
+            {currentSubtitle && (
+              <CurrentSentenceCard
+                // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
+                // 卡跟着出血；桌面端两者都留在容器内）。
+                className={cn(isMobile && "-mx-4 sm:-mx-7 mt-0 rounded-none border-0")}
+                textEn={currentSubtitle.text_en}
+                textZh={currentSubtitle.text_zh ?? null}
+                wordLevels={currentSubtitle.word_levels ?? null}
+                subtitleMode={subtitleMode}
+                fontSize={subtitleFontSize}
+                isSelected={isSelectedWord}
+                levelClassFor={levelClassFor}
+                onWordClick={handleWordClick}
+                onTogglePlay={togglePlayPause}
+                counter={`${currentSubtitleIndex + 1} / ${video.subtitles.length}`}
+              />
+            )}
+          </div>
 
           {/* 字幕卡：桌面端的跟读/录音就地展开；DEC-069 之后当前句不再在这里重复一遍，
               移动端连这张卡都不渲染（跟读入口在壳底栏）。 */}
