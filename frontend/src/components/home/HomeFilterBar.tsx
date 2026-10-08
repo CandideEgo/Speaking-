@@ -142,13 +142,20 @@ function CategoryDropdown({
 }
 
 /** 排序：原「排行」块的下榜单开关，改为对整个视频网格排序。 */
-function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: FeedSort) => void }) {
-  const current = SORT_OPTIONS[sort];
+function SortDropdown({
+  effectiveSort,
+  onChange,
+}: {
+  /** 实际生效的排序：首页有筛选时后端按 latest 排，URL 上的 sort 却仍是 recommended。 */
+  effectiveSort: FeedSort;
+  onChange: (sort: FeedSort) => void;
+}) {
+  const current = SORT_OPTIONS[effectiveSort];
   return (
     <DropdownButton
       label={current.label}
       icon={current.icon}
-      active={sort !== "recommended"}
+      active={effectiveSort !== "recommended"}
       ariaLabel="排序方式"
       panelClassName="w-[15.5rem]"
       panel={(close) => (
@@ -164,7 +171,9 @@ function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: Fee
                 }}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors cursor-pointer",
-                  key === sort ? "bg-brand-50 text-brand-600" : "text-ink hover:bg-surface-soft"
+                  key === effectiveSort
+                    ? "bg-brand-50 text-brand-600"
+                    : "text-ink hover:bg-surface-soft"
                 )}
               >
                 <opt.icon size={15} className="flex-shrink-0" />
@@ -172,7 +181,7 @@ function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: Fee
                   <span
                     className={cn(
                       "block text-[13px] font-semibold",
-                      key === sort && "text-brand-600"
+                      key === effectiveSort && "text-brand-600"
                     )}
                   >
                     {opt.label}
@@ -180,7 +189,7 @@ function SortDropdown({ sort, onChange }: { sort: FeedSort; onChange: (sort: Fee
                   <span
                     className={cn(
                       "block text-xs",
-                      key === sort ? "text-brand-600/70" : "text-muted"
+                      key === effectiveSort ? "text-brand-600/70" : "text-muted"
                     )}
                   >
                     {opt.hint}
@@ -209,7 +218,7 @@ export function HomeFilterBar({
   categories,
   activeCategory,
   onCategoryChange,
-  sort,
+  effectiveSort,
   onSortChange,
   activeLevel,
   onLevelChange,
@@ -218,7 +227,8 @@ export function HomeFilterBar({
   categories: Category[];
   activeCategory: string;
   onCategoryChange: (id: string) => void;
-  sort: FeedSort;
+  /** 生效中的排序（见 usePlatformFeed 的 effectiveSort）；onSortChange 写的是 URL。 */
+  effectiveSort: FeedSort;
   onSortChange: (sort: FeedSort) => void;
   activeLevel: string;
   onLevelChange: (id: string) => void;
@@ -234,7 +244,7 @@ export function HomeFilterBar({
             active={activeCategory}
             onChange={onCategoryChange}
           />
-          <SortDropdown sort={sort} onChange={onSortChange} />
+          <SortDropdown effectiveSort={effectiveSort} onChange={onSortChange} />
         </div>
         {/* Separator */}
         <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />

@@ -122,7 +122,7 @@ function HomeFeed() {
     setActiveCategory,
     activeLevel,
     setActiveLevel,
-    sort,
+    effectiveSort,
     setSort,
     videos,
     loading,
@@ -141,7 +141,7 @@ function HomeFeed() {
         categories={categories}
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
-        sort={sort}
+        effectiveSort={effectiveSort}
         onSortChange={setSort}
         activeLevel={activeLevel}
         onLevelChange={setActiveLevel}

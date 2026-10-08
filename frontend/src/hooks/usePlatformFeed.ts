@@ -112,6 +112,21 @@ export function usePlatformFeed({
   const activeLevel = searchParams.get("level") ?? initialLevel;
   const sort: FeedSort = isFeedSort(sortParam) ? sortParam : defaultSort;
 
+  // 首页默认视图（推荐 + 全部 + 全等级）才走个性化推荐流；一旦动了分类或难度就切到
+  // /browse/feed，而那条路没有 "recommended"（browse.py 的 Literal 只有四种），后端
+  // 回落到 latest。URL 里的 sort=recommended 要保留（清回「全部」得回到个性化流），
+  // 所以「实际在按什么排」是另一个派生值，展示层用它。
+  const isHomeDefault =
+    platform === "home" &&
+    sort === "recommended" &&
+    activeCategory === "all" &&
+    activeLevel === "all";
+  const effectiveSort: FeedSort = isHomeDefault
+    ? "recommended"
+    : sort === "recommended"
+      ? "latest"
+      : sort;
+
   const query = searchParams.toString();
   // 已请求写入的 query。首页「清除筛选」会连续调用三个 setter，而 replace 落地的
   // searchParams 要等下一次 render 才更新 —— 没有这个 ref，三次调用会各自基于同一个
@@ -164,12 +179,6 @@ export function usePlatformFeed({
       // Home default view (推荐 + 全部级别): personalized 40/30/20/10 mix.
       // Any filter active on home: fall back to browse/feed (supports category+level+sort).
       // Browse: always /browse/feed.
-      const isHomeDefault =
-        platform === "home" &&
-        sort === "recommended" &&
-        activeCategory === "all" &&
-        activeLevel === "all";
-
       if (isHomeDefault) {
         const data = await api<Paginated<Video>>(
           `/api/v1/recommendations/home?page=${pg}&page_size=${PAGE_SIZE}`
@@ -255,6 +264,7 @@ export function usePlatformFeed({
     activeLevel,
     setActiveLevel,
     sort,
+    effectiveSort,
     setSort,
     videos,
     loading,
