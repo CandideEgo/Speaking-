@@ -143,6 +143,10 @@
 
   /* --- Max width --- */
   --max-width-page: 1320px;
+  /* 宽屏内容面（首页 / 频道 / 浏览 / 搜索 / 排行榜 / 播放页）。gutter 与
+     container-page 完全一致，只放宽上限：播放页的画框与当前句卡靠
+     -mx-4 sm:-mx-7 精确抵消 gutter 实现全出血，padding 一改 640–1023px 档就错位。 */
+  --max-width-wide: 2400px;
 
   /* --- Letter spacing --- */
   --tracking-display-xl: -0.035em;
@@ -565,6 +569,11 @@
   /* === Container === */
   .container-page {
     @apply max-w-page mx-auto px-4 sm:px-7;
+  }
+  /* 与 .container-page 同 gutter、只放宽上限。顶栏的内容也套这一个类，
+     两边才严格对齐（顶栏自己不再写 padding —— 那会与类里的 gutter 叠加）。 */
+  .container-wide {
+    @apply max-w-wide mx-auto px-4 sm:px-7;
   }
 
   /* === Display headings (营销页大标题，替代 !font-extrabold 覆盖) === */

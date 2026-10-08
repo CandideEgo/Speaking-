@@ -899,9 +899,9 @@ export default function WatchPage() {
 
   return (
     // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
-    // max-w-[1280px] 居中容器（对齐原型 05-watch.html）：在 125%/150% 缩放倍率下
-    // 保持视频与字幕面板的最佳比例，避免宽屏下视频列过度拉伸。
-    <div className="mx-auto max-w-[1280px] px-4 sm:px-7 pt-6 pb-16">
+    // 容器走 container-wide（上限 2400、gutter 与首页/频道一致）。原先的 1280 封顶是为了
+    // 宽屏不把视频列拉过头，那件事现在交给画框的高度护栏（S4 的 .watch-stage-cap）。
+    <div className="container-wide pt-6 pb-16">
       {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
           动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
       <div className={cn("mb-4", isMobile && "hidden")}>

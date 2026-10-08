@@ -60,7 +60,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-7 pb-24">
+      <main className="container-wide py-7 pb-24">
         {/* ── 问候区 ── */}
         <div className="mb-7">
           <h1 className="text-2xl font-bold text-ink tracking-tight">

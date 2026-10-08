@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
@@ -291,7 +291,7 @@ export default function SearchPage() {
     <main className="min-h-full bg-canvas">
       {/* Search header */}
       <div className="sticky top-0 z-30 bg-canvas border-b border-hairline">
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="container-wide flex items-center gap-3 py-3">
           <Button variant="ghost" size="icon" onClick={() => router.back()} aria-label="返回">
             <ArrowLeft size={20} />
           </Button>
@@ -349,7 +349,7 @@ export default function SearchPage() {
       </div>
 
       {/* Results */}
-      <div className="container-page py-4">
+      <div className="container-wide py-4">
         {/* Loading */}
         {isSearching && (
           <div className="flex items-center justify-center gap-2 py-12">

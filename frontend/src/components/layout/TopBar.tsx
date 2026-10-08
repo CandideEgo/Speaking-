@@ -272,132 +272,143 @@ export function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-topbar-bg/85 backdrop-blur-[10px] flex items-center gap-3 sm:gap-5 px-4 sm:px-7">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-2.5 flex-shrink-0" aria-label="SeeWord 首页">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 shadow-brand">
-          <span className="text-[17px] font-extrabold text-white">S</span>
-        </div>
-        <span className="hidden sm:inline text-[18px] font-extrabold tracking-tight text-ink">
-          See<span className="text-brand-500">Word</span>
-        </span>
-      </Link>
+    <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-topbar-bg/85 backdrop-blur-[10px]">
+      {/* 内容套与页面同一个容器：顶栏与内容左右边界才对得齐。padding 只由类里的 gutter
+          提供 —— header 自己再写一份会叠加。 */}
+      <div className="container-wide flex items-center gap-3 sm:gap-5 h-full">
+        {/* Logo */}
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 flex-shrink-0"
+          aria-label="SeeWord 首页"
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 shadow-brand">
+            <span className="text-[17px] font-extrabold text-white">S</span>
+          </div>
+          <span className="hidden sm:inline text-[18px] font-extrabold tracking-tight text-ink">
+            See<span className="text-brand-500">Word</span>
+          </span>
+        </Link>
 
-      {/* Desktop horizontal nav-links */}
-      <nav className="hidden md:flex items-center gap-0.5 flex-shrink-0">
-        {NAV.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "relative text-sm font-medium rounded-lg px-3.5 py-2 transition-colors duration-150",
-                active ? "bg-ink text-canvas" : "text-muted hover:bg-surface-card hover:text-ink"
-              )}
-            >
-              {item.label}
-              {/* 单词训练 due badge */}
-              {item.href === "/vocabulary" && dueCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[11px] font-semibold bg-brand-500 text-on-primary rounded-pill">
-                  {dueCount > 99 ? "99+" : dueCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+        {/* Desktop horizontal nav-links */}
+        <nav className="hidden md:flex items-center gap-0.5 flex-shrink-0">
+          {NAV.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative text-sm font-medium rounded-lg px-3.5 py-2 transition-colors duration-150",
+                  active ? "bg-ink text-canvas" : "text-muted hover:bg-surface-card hover:text-ink"
+                )}
+              >
+                {item.label}
+                {/* 单词训练 due badge */}
+                {item.href === "/vocabulary" && dueCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[11px] font-semibold bg-brand-500 text-on-primary rounded-pill">
+                    {dueCount > 99 ? "99+" : dueCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Search - centered */}
-      <div className="flex flex-1 justify-center max-w-[520px] mx-auto">
-        {/* Mobile: search icon button */}
-        <div className="md:hidden flex items-center">
-          <LinkButton href="/search" variant="ghost" size="icon" aria-label="搜索">
-            <Search size={17} />
-          </LinkButton>
-        </div>
-        {/* Desktop: search input */}
-        <div ref={searchContainerRef} className="hidden md:block relative w-full">
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="搜索视频、字幕、单词…"
-            value={searchQuery}
-            onChange={(e) => handleSearchInput(e.target.value)}
-            onFocus={() => {
-              if (searchResults.length > 0) setShowDropdown(true);
-            }}
-            onKeyDown={handleSearchKeyDown}
-            className="w-full h-10 pl-10 pr-12 rounded-md bg-surface-card border border-transparent
+        {/* Search - centered */}
+        <div className="flex flex-1 justify-center max-w-[520px] mx-auto">
+          {/* Mobile: search icon button */}
+          <div className="md:hidden flex items-center">
+            <LinkButton href="/search" variant="ghost" size="icon" aria-label="搜索">
+              <Search size={17} />
+            </LinkButton>
+          </div>
+          {/* Desktop: search input */}
+          <div ref={searchContainerRef} className="hidden md:block relative w-full">
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="搜索视频、字幕、单词…"
+              value={searchQuery}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              onFocus={() => {
+                if (searchResults.length > 0) setShowDropdown(true);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              className="w-full h-10 pl-10 pr-12 rounded-md bg-surface-card border border-transparent
                        text-sm text-ink placeholder:text-muted-soft
                        focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                        transition-colors duration-150"
-          />
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft" />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-soft bg-canvas border border-hairline px-1.5 py-0.5 rounded-md font-mono">
-            ⌘K
-          </kbd>
-          {showDropdown && (
-            <SearchDropdown
-              results={searchResults}
-              subtitleResults={subtitleResults}
-              isLoading={isSearching}
-              query={searchQuery}
-              onSelect={handleSelect}
             />
-          )}
-        </div>
-      </div>
-
-      {/* Right actions */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {/* Theme toggle (migrated from Sidebar) */}
-        {mounted && (
-          <Button
-            onClick={toggleTheme}
-            variant="ghost"
-            size="icon"
-            aria-label="切换主题"
-            title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </Button>
-        )}
-
-        {/* Notification */}
-        <div className="relative">
-          <Button
-            onClick={() => setShowNotifications((prev) => !prev)}
-            variant="ghost"
-            size="icon"
-            aria-label="通知"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
+            <Search
+              size={17}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
+            />
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-soft bg-canvas border border-hairline px-1.5 py-0.5 rounded-md font-mono">
+              ⌘K
+            </kbd>
+            {showDropdown && (
+              <SearchDropdown
+                results={searchResults}
+                subtitleResults={subtitleResults}
+                isLoading={isSearching}
+                query={searchQuery}
+                onSelect={handleSelect}
+              />
             )}
-          </Button>
-          {showNotifications && (
-            <NotificationDropdown
-              onClose={() => setShowNotifications(false)}
-              onUnreadCountChange={setUnreadCount}
-            />
-          )}
+          </div>
         </div>
 
-        {/* Avatar with dropdown menu */}
-        <div ref={avatarWrapRef} className="relative ml-1.5">
-          <button
-            onClick={() => setShowAvatarMenu((v) => !v)}
-            aria-label="账号菜单"
-            className="rounded-full transition-transform duration-150 hover:scale-105"
-          >
-            <Avatar src={me?.url} name={user} seed={user?.sub} gender={me?.gender} size="md" />
-          </button>
-          {showAvatarMenu && (
-            <AvatarMenu userName={userName} onClose={() => setShowAvatarMenu(false)} />
+        {/* Right actions */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Theme toggle (migrated from Sidebar) */}
+          {mounted && (
+            <Button
+              onClick={toggleTheme}
+              variant="ghost"
+              size="icon"
+              aria-label="切换主题"
+              title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </Button>
           )}
+
+          {/* Notification */}
+          <div className="relative">
+            <Button
+              onClick={() => setShowNotifications((prev) => !prev)}
+              variant="ghost"
+              size="icon"
+              aria-label="通知"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-brand-500 border-2 border-canvas" />
+              )}
+            </Button>
+            {showNotifications && (
+              <NotificationDropdown
+                onClose={() => setShowNotifications(false)}
+                onUnreadCountChange={setUnreadCount}
+              />
+            )}
+          </div>
+
+          {/* Avatar with dropdown menu */}
+          <div ref={avatarWrapRef} className="relative ml-1.5">
+            <button
+              onClick={() => setShowAvatarMenu((v) => !v)}
+              aria-label="账号菜单"
+              className="rounded-full transition-transform duration-150 hover:scale-105"
+            >
+              <Avatar src={me?.url} name={user} seed={user?.sub} gender={me?.gender} size="md" />
+            </button>
+            {showAvatarMenu && (
+              <AvatarMenu userName={userName} onClose={() => setShowAvatarMenu(false)} />
+            )}
+          </div>
         </div>
       </div>
     </header>

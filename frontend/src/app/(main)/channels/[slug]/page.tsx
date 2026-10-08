@@ -86,7 +86,7 @@ export default function ChannelDetailPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-10">
+      <main className="container-wide py-6 sm:py-10">
         <Link
           href="/channels"
           className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors mb-4"

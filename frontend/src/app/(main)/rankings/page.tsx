@@ -43,7 +43,7 @@ export default function RankingsPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-10">
+      <main className="container-wide py-6 sm:py-10">
         <header className="mb-6">
           <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-500">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-500 shadow-[0_0_8px_#ff5a1f]" />

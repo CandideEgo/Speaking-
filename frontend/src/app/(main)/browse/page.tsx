@@ -29,7 +29,7 @@ const DIFFICULTY_LEVELS = [
 export default function BrowsePage() {
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-10">
+      <main className="container-wide py-6 sm:py-10">
         {/* Page header */}
         <PageHeader crumb="频道" title="浏览视频" />
 
