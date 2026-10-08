@@ -39,7 +39,7 @@ export default function BrowsePage() {
         {/* 筛选 + 网格（筛选由 URL 派生 → useSearchParams 需要 Suspense 边界） */}
         <Suspense
           fallback={
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
               {Array.from({ length: 8 }).map((_, i) => (
                 <VideoCardSkeleton key={i} />
               ))}
@@ -122,7 +122,7 @@ function BrowseFeed() {
 
       {/* Video grid */}
       {!error && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
           {videos.map((video) => (
             <VideoCard
               key={video.id || video.video_id}
@@ -136,7 +136,7 @@ function BrowseFeed() {
 
       {/* Loading skeleton */}
       {loading && videos.length === 0 && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
           {Array.from({ length: 8 }).map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}

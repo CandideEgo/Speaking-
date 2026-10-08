@@ -1,6 +1,6 @@
 export default function RankingsLoading() {
   return (
-    <main className="container-page py-6 sm:py-10">
+    <main className="container-wide py-6 sm:py-10">
       <div className="mb-6">
         <div className="h-8 w-32 rounded-sm skeleton-shimmer bg-surface-soft" />
         <div className="mt-3 h-4 w-64 rounded-sm skeleton-shimmer bg-surface-soft" />

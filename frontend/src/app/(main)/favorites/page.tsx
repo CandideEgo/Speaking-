@@ -117,7 +117,7 @@ export default function FavoritesPage() {
         />
 
         {loading && items.length === 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
             {Array.from({ length: 4 }).map((_, i) => (
               <VideoCardSkeleton key={i} />
             ))}
@@ -138,7 +138,7 @@ export default function FavoritesPage() {
           />
         ) : (
           <>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
               {visible.map((v) => (
                 <div key={v.id} className="relative group">
                   <VideoCard

@@ -98,7 +98,7 @@ export default function ChannelDetailPage() {
         {error && <ErrorState title={error} onRetry={() => load(1, false)} className="py-8" />}
 
         {!error && loading && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
             {Array.from({ length: 8 }).map((_, i) => (
               <VideoCardSkeleton key={i} />
             ))}
@@ -173,7 +173,7 @@ export default function ChannelDetailPage() {
             {videos.length === 0 ? (
               <EmptyState icon={Radio} title="该频道暂无视频" description="稍后再来看看吧" />
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
                 {videos.map((video) => (
                   <VideoCard
                     key={video.id || video.video_id}
