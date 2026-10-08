@@ -506,7 +506,10 @@ test("§7-11 词卡把手：下拉 >64px 关掉，<64px 不关", async ({ page, 
 test.describe("桌面端不受影响", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("1280 宽：词卡仍是可拖动浮动卡，跟读仍在字幕卡里就地展开", async ({ page, request }) => {
+  test("1280 宽：词卡仍是可拖动浮动卡；跟读入口在句卡内、不开抽屉（S5）", async ({
+    page,
+    request,
+  }) => {
     await enterWatch(page, request);
 
     // 桌面端当前句在画面正下方的当前句卡里（INV-021：两端同一份），点词出的是浮动卡。
@@ -518,7 +521,7 @@ test.describe("桌面端不受影响", () => {
     );
     await expect(page.locator(WORD_SHEET)).toHaveCount(0);
 
-    // 桌面端没有跟读抽屉（入口在字幕卡的「录音」按钮里）。
+    // 桌面端没有跟读抽屉（S5 后入口在句卡内动作带的「录音本句」）。
     await expect(page.locator('[data-testid="shadowing-drawer"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="watch-bottom-bar"]')).toHaveCount(0);
   });

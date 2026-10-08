@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { SubtitleFontSize } from "@/components/watch/VideoControls";
 
@@ -33,7 +33,8 @@ const SUBTITLE_FONT_ZH: Record<SubtitleFontSize, string> = {
  *   · 所以相邻行之间量到的热区是 21–29px 量级，**做不到 44px** —— 做得到就意味着两行
  *     的热区互相重叠、点上面一行会命中下面一行。触控基线那 44px 是按键的标准，不是正文。
  *
- * 卡内不放按钮（跟读在底栏/桌面字幕卡）；点卡片空白 = 播放/暂停。
+ * 卡内不放按钮（移动端跟读在底栏/抽屉）——例外是 S5 的桌面动作带（`desktopActions`，
+ * 在 92px 字幕区之外）；点卡片空白 = 播放/暂停。
  */
 export function CurrentSentenceCard({
   textEn,
@@ -47,6 +48,7 @@ export function CurrentSentenceCard({
   onTogglePlay,
   counter,
   className,
+  desktopActions,
 }: {
   textEn: string;
   textZh: string | null;
@@ -62,6 +64,14 @@ export function CurrentSentenceCard({
   /** 右下角的 `n / 总数`（可省）。 */
   counter?: string;
   className?: string;
+  /**
+   * S5：桌面动作带（跟读/录音/历史），整块塞进卡片下方，消掉「画面下一个框、
+   * 跟读又一个框」。**移动端不传 → 渲染零变化**；容器上的 `hidden lg:flex` 是
+   * 第二条保险（误传也不在移动端显示——移动端的跟读入口在壳底栏的跟读抽屉）。
+   * 注意它在 `max-h-[92px]` 容器**之外**：动作带不参与「英文 2 行 + 中文 1 行」
+   * 的高度预算，否则会被 92px 裁掉。
+   */
+  desktopActions?: ReactNode;
 }) {
   const showEn = subtitleMode !== "chinese" && subtitleMode !== "hidden";
   const showZh = (subtitleMode === "bilingual" || subtitleMode === "chinese") && !!textZh;
@@ -149,6 +159,13 @@ export function CurrentSentenceCard({
         >
           {counter}
         </span>
+      )}
+      {/* S5：桌面动作带 —— 在 `max-h-[92px]` 容器外（不占字幕高度预算）。
+          分隔线 + 上边距是「同一张卡里的一段」，不是又一个盒子。 */}
+      {desktopActions && (
+        <div className="hidden lg:flex flex-col border-t border-hairline mt-2 pt-2">
+          {desktopActions}
+        </div>
       )}
     </div>
   );

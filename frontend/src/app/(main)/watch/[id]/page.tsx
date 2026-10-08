@@ -1139,7 +1139,8 @@ export default function WatchPage() {
             </div>
 
             {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
-              点词 → 词卡；点卡片空白 → 播放/暂停；卡内不放按钮（跟读在底栏 / 桌面字幕卡）。
+              点词 → 词卡；点卡片空白 → 播放/暂停。S5 起桌面端的跟读动作带也住进卡内
+              （`desktopActions`，移动端不传——移动端跟读仍在底栏/抽屉）。
               R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
               （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
               （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
@@ -1159,192 +1160,200 @@ export default function WatchPage() {
                 onWordClick={handleWordClick}
                 onTogglePlay={togglePlayPause}
                 counter={`${currentSubtitleIndex + 1} / ${video.subtitles.length}`}
+                desktopActions={
+                  isMobile ? undefined : (
+                    <>
+                      {/* S5：桌面动作带——原来「画面下的第二张卡」整块搬进句卡自身。
+                          `isMobile ? undefined` 保证移动端**不传**、DOM 零变化
+                          （`hidden lg:flex` 是第二条保险）。状态与回调逐字沿用原卡。 */}
+
+                      {/* 动作带：整宽 2 段（TabPills 视觉语言）。逐句跟读与手动录音
+                          互斥：进逐句前若手动录音在跑，先收掉（同一支麦克风）。 */}
+                      <div
+                        data-coach="practice"
+                        className="grid grid-cols-2 gap-1 rounded-pill bg-surface-card p-1"
+                      >
+                        <button
+                          className={cn(
+                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-[13px] font-semibold transition-colors duration-150 cursor-pointer",
+                            sentenceShadow.active
+                              ? "bg-success text-white"
+                              : "text-muted hover:text-ink",
+                            isYtMode && "opacity-50 cursor-not-allowed hover:text-muted"
+                          )}
+                          onClick={() => {
+                            if (isYtMode) return;
+                            if (sentenceShadow.active) {
+                              sentenceShadow.exit();
+                            } else {
+                              if (speakingActive) stopSpeaking();
+                              sentenceShadow.start();
+                            }
+                          }}
+                          disabled={isYtMode}
+                          title={
+                            isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"
+                          }
+                          aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
+                        >
+                          <Repeat size={15} />
+                          {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
+                        </button>
+
+                        <button
+                          className={cn(
+                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-[13px] font-semibold transition-colors duration-150 cursor-pointer",
+                            speakingActive ? "bg-brand-500 text-white" : "text-muted hover:text-ink"
+                          )}
+                          onClick={() => {
+                            if (speakingActive) {
+                              stopSpeaking();
+                            } else {
+                              startRecording();
+                            }
+                          }}
+                          aria-label={speakingActive ? "停止录音" : "录音本句"}
+                        >
+                          <Mic size={15} />
+                          {speakingActive ? "停止" : "录音本句"}
+                        </button>
+                      </div>
+
+                      {/* D10 逐句模式状态行（播放中/录音中/回放引导） */}
+                      {sentenceShadow.active && (
+                        <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
+                          <Repeat size={13} className="shrink-0" />
+                          <span className="font-medium">
+                            {sentenceShadow.phase === "playing"
+                              ? "正在播放本句，播完自动开始录音"
+                              : sentenceShadow.phase === "recording"
+                                ? "正在录音，读完后点击上方停止"
+                                : "录音完成，回放后点「下一句」继续"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 录音展开态：录音 / 回放 / 下一句 */}
+                      {speakingActive && (
+                        <div className="mt-4 pt-4 border-t border-hairline">
+                          {speakingState === "idle" && (
+                            <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
+                              <button
+                                className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
+                                onClick={startRecording}
+                                aria-label="开始录音"
+                              >
+                                <Mic size={20} />
+                              </button>
+                              <div className="flex-1">
+                                <p className="text-[13px] font-semibold text-ink">
+                                  点击麦克风开始录音
+                                </p>
+                                <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {speakingState === "listening" && (
+                            <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
+                              <button
+                                className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
+                                onClick={stopRecording}
+                                aria-label="停止录音"
+                              >
+                                <Mic size={20} />
+                              </button>
+                              <div className="flex-1">
+                                <p className="text-[13px] font-semibold text-ink">录音中…</p>
+                                <div className="mt-1">
+                                  <AudioWaveform stream={recordingStream} barCount={24} />
+                                </div>
+                              </div>
+                              <button
+                                className="text-[13px] font-semibold text-muted hover:text-ink cursor-pointer"
+                                onClick={stopSpeaking}
+                              >
+                                取消
+                              </button>
+                            </div>
+                          )}
+
+                          {speakingState === "reviewing" && (
+                            <div className="bg-surface-soft rounded-lg p-3 space-y-3">
+                              {/* Status row */}
+                              <div className="flex items-center gap-2 text-[13px]">
+                                {uploading ? (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin text-brand-500" />
+                                    <span className="text-muted">正在保存跟读录音…</span>
+                                  </>
+                                ) : shadowingSaved ? (
+                                  <>
+                                    <Check size={14} className="text-success" />
+                                    <span className="text-success font-medium">已保存</span>
+                                  </>
+                                ) : (
+                                  <span className="text-muted">录音完成，回放听自己的发音</span>
+                                )}
+                              </div>
+
+                              {/* D10 波形对比（原声/录音），自带播放按钮 */}
+                              <WaveformCompare
+                                recordingBlob={audioBlob}
+                                recordingUrl={audioUrl}
+                                originalUrl={originalSourceUrl}
+                                originalClip={originalClip}
+                                onPlayOriginal={playOriginal}
+                              />
+
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={handleReRecord}>
+                                  重录
+                                </Button>
+                                <Button
+                                  variant={shadowingSatisfied ? "primary" : "outline"}
+                                  size="sm"
+                                  onClick={handleToggleSatisfied}
+                                  disabled={uploading || !lastAttemptId}
+                                  title={
+                                    uploading || !lastAttemptId ? "录音保存后可标记" : undefined
+                                  }
+                                  className={
+                                    shadowingSatisfied
+                                      ? "bg-success hover:bg-success/90 shadow-none"
+                                      : ""
+                                  }
+                                >
+                                  <Check size={13} className="mr-1" />
+                                  满意
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={
+                                    sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle
+                                  }
+                                >
+                                  下一句
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 最近跟读（紧凑 chips，最多 3 条；0 条时不渲染） */}
+                      <ShadowingHistory
+                        variant="chips"
+                        attempts={attempts}
+                        onDelete={deleteAttempt}
+                      />
+                    </>
+                  )
+                }
               />
             )}
           </div>
-
-          {/* 字幕卡：桌面端的跟读/录音就地展开；DEC-069 之后当前句不再在这里重复一遍，
-              移动端连这张卡都不渲染（跟读入口在壳底栏）。 */}
-          {currentSubtitle && !isMobile && (
-            <div className="mt-3 bg-canvas border border-hairline rounded-xl p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  {subtitleMode === "hidden" && (
-                    <p className="text-[12px] text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
-                  )}
-                </div>
-
-                {/* D10 逐句跟读模式开关（YouTube 源不可控时序，置灰） */}
-                {/* 这张卡现在只在桌面端渲染（DEC-069）：移动端的跟读入口在壳底栏，
-                    容器是 `ShadowingDrawer`。 */}
-                <div data-coach="practice" className="shrink-0 flex items-center gap-4">
-                  <button
-                    className={cn(
-                      "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors",
-                      sentenceShadow.active
-                        ? "bg-success text-white shadow-brand cursor-pointer"
-                        : "text-muted bg-surface-soft hover:bg-hairline cursor-pointer",
-                      isYtMode && "opacity-50 cursor-not-allowed hover:bg-surface-soft"
-                    )}
-                    onClick={() => {
-                      if (isYtMode) return;
-                      if (sentenceShadow.active) {
-                        sentenceShadow.exit();
-                      } else {
-                        sentenceShadow.start();
-                      }
-                    }}
-                    disabled={isYtMode}
-                    title={isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"}
-                    aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
-                  >
-                    <Repeat size={15} />
-                    {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
-                  </button>
-
-                  {/* 录音：桌面端在卡片里就地展开；移动端的容器是跟读抽屉 */}
-                  <button
-                    className={cn(
-                      "shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-colors cursor-pointer",
-                      speakingActive
-                        ? "bg-brand-500 text-white shadow-brand"
-                        : "text-brand-500 bg-brand-50 hover:bg-brand-100"
-                    )}
-                    onClick={() => {
-                      if (speakingActive) {
-                        stopSpeaking();
-                      } else {
-                        startRecording();
-                      }
-                    }}
-                  >
-                    <Mic size={15} />
-                    录音
-                  </button>
-                </div>
-              </div>
-
-              {/* D10 逐句模式状态行（播放中/录音中/回放引导）—— 移动端这条搬进抽屉 */}
-              {sentenceShadow.active && (
-                <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
-                  <Repeat size={13} className="shrink-0" />
-                  <span className="font-medium">
-                    {sentenceShadow.phase === "playing"
-                      ? "正在播放本句，播完自动开始录音"
-                      : sentenceShadow.phase === "recording"
-                        ? "正在录音，读完后点击上方停止"
-                        : "录音完成，回放后点「下一句」继续"}
-                  </span>
-                </div>
-              )}
-
-              {/* 录音展开态：录音 / 回放 / 下一句 —— 桌面端；移动端搬进跟读抽屉 */}
-              {speakingActive && (
-                <div className="mt-4 pt-4 border-t border-hairline">
-                  {speakingState === "idle" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <button
-                        className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
-                        onClick={startRecording}
-                        aria-label="开始录音"
-                      >
-                        <Mic size={20} />
-                      </button>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">点击麦克风开始录音</p>
-                        <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {speakingState === "listening" && (
-                    <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                      <button
-                        className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
-                        onClick={stopRecording}
-                        aria-label="停止录音"
-                      >
-                        <Mic size={20} />
-                      </button>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-ink">录音中…</p>
-                        <div className="mt-1">
-                          <AudioWaveform stream={recordingStream} barCount={24} />
-                        </div>
-                      </div>
-                      <button
-                        className="text-[13px] font-semibold text-muted hover:text-ink cursor-pointer"
-                        onClick={stopSpeaking}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-
-                  {speakingState === "reviewing" && (
-                    <div className="bg-surface-soft rounded-lg p-3 space-y-3">
-                      {/* Status row */}
-                      <div className="flex items-center gap-2 text-[13px]">
-                        {uploading ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin text-brand-500" />
-                            <span className="text-muted">正在保存跟读录音…</span>
-                          </>
-                        ) : shadowingSaved ? (
-                          <>
-                            <Check size={14} className="text-success" />
-                            <span className="text-success font-medium">已保存</span>
-                          </>
-                        ) : (
-                          <span className="text-muted">录音完成，回放听自己的发音</span>
-                        )}
-                      </div>
-
-                      {/* D10 波形对比（原声/录音），自带播放按钮 */}
-                      <WaveformCompare
-                        recordingBlob={audioBlob}
-                        recordingUrl={audioUrl}
-                        originalUrl={originalSourceUrl}
-                        originalClip={originalClip}
-                        onPlayOriginal={playOriginal}
-                      />
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={handleReRecord}>
-                          重录
-                        </Button>
-                        <Button
-                          variant={shadowingSatisfied ? "primary" : "outline"}
-                          size="sm"
-                          onClick={handleToggleSatisfied}
-                          disabled={uploading || !lastAttemptId}
-                          title={uploading || !lastAttemptId ? "录音保存后可标记" : undefined}
-                          className={
-                            shadowingSatisfied ? "bg-success hover:bg-success/90 shadow-none" : ""
-                          }
-                        >
-                          <Check size={13} className="mr-1" />
-                          满意
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle}
-                        >
-                          下一句
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Shadowing history: recent attempts for this video（移动端在抽屉里） */}
-              <div data-coach="practice">
-                <ShadowingHistory attempts={attempts.slice(0, 5)} onDelete={deleteAttempt} />
-              </div>
-            </div>
-          )}
 
           {/* 移动端动作行（#24/#28 乙）已并入 ⋯ 面板（DEC-069 第 6 条）：首屏不再有它。 */}
           {/* 来源声明（ICP 合规）也已并入 ⋯ 面板：原视频来源 + 版权声明。 */}
