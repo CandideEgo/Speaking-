@@ -8,6 +8,12 @@ import {
   loginViaUi,
 } from "./helpers";
 
+// 串行（同族先例：viewport-height / mobile-wordcard-drawer / mobile-d1-d10）：
+// fullyParallel 下同一文件可被拆成多段调度，同一 worker 拿到第二批时会重跑文件级
+// beforeAll，而模块缓存里的 SHARED_PHONE 不重算 —— 同号二次注册必 409、其前
+// send-code 必 429。serial 钉成单 worker 单段，beforeAll 恰好一次。
+test.describe.configure({ mode: "serial" });
+
 // A shared, onboarding-completed user for the login / logout tests.
 const SHARED_PHONE = uniquePhone();
 
