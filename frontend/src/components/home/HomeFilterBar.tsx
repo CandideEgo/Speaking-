@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { cefrWithExamHint } from "@/lib/cefrLevels";
 import { TabPills } from "@/components/ui/TabPills";
 import type { FeedSort } from "@/hooks/usePlatformFeed";
 import type { Category } from "@/types/platform";
@@ -153,7 +154,8 @@ function SortDropdown({
   const current = SORT_OPTIONS[effectiveSort];
   return (
     <DropdownButton
-      label={current.label}
+      // 「排序：」限定词：与「分类 ▾」并排时，光秃秃的「推荐 ▾」会被连读成分类名。
+      label={`排序：${current.label}`}
       icon={current.icon}
       active={effectiveSort !== "recommended"}
       ariaLabel="排序方式"
@@ -248,10 +250,13 @@ export function HomeFilterBar({
         </div>
         {/* Separator */}
         <div className="hidden md:block w-px h-5 bg-hairline flex-shrink-0" />
-        {/* Difficulty pills */}
+        {/* Difficulty pills —— CEFR 档位附考试体系对照（与 browse 页、引导/高亮统一走 cefrLevels 映射） */}
         <div className="flex gap-1.5 overflow-x-auto items-center scrollbar-none">
           <TabPills
-            tabs={DIFFICULTY_LEVELS.map((lv) => ({ key: lv.id, label: lv.label }))}
+            tabs={DIFFICULTY_LEVELS.map((lv) => ({
+              key: lv.id,
+              label: lv.id === "all" ? lv.label : cefrWithExamHint(lv.label),
+            }))}
             activeKey={activeLevel}
             onChange={onLevelChange}
             variant="ghost"
