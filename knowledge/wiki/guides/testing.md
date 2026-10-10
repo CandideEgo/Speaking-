@@ -6,7 +6,7 @@ confidence: verified
 related_code: [pytest-suite, pre-commit, ci-workflows]
 related: [knowledge/wiki/guides/setup.md]
 created: 2026-07-21
-updated: 2026-09-28
+updated: 2026-10-11
 ---
 
 # Backend Tests
@@ -42,6 +42,24 @@ affects local Windows runs.
 cd frontend && npx tsc --noEmit && npm run lint && npm run build
 cd frontend && npm run check   # typecheck + lint + format:check
 ```
+
+# E2E（Playwright）
+
+本地门禁跑**全部三个项目**（chromium / firefox / mobile-chrome，`mobile-iphone` 只匹配 `mobile.spec.ts`）：
+
+```bash
+cd frontend && npm run test:e2e -- <spec 名...>   # 不指定项目 = 全项目
+```
+
+**不要照抄 CI 的项目范围**：`ci.yml` 的 e2e job 只装/只跑 chromium（省时间），而只看 chromium 会漏掉移动形态的整类回归——`watch-return` 的移动壳返回键曾在 mobile-chrome 恒红 8 天而历轮「全套 chromium」全绿（10-11 修，见 CHANGELOG）。并行负载下仍有低概率单点 flake（每轮至多 1 个、spec 随机、隔离恒绿）：先隔离复跑，失败证据要**立刻**读 `test-results/*/error-context.md`（下一轮会把上一轮冲掉）。
+
+**桌面专属断言不要按项目名过滤**：在 describe 里 `test.use({ viewport: { width: 1280, height: 900 } })` 强制桌面视口，让它们在每个项目里都真跑（先例：`repro-stage1` / `mobile-current-sentence-card` / `mobile-wordcard-drawer` 的「桌面端」describe、`watch.spec` 的文件级）。移动壳（≤1023px，DEC-069）下词卡是通栏 sheet、折叠键 `hidden lg:flex`，不强制视口就必红。
+
+**读报告：serial 文件会级联**：`test.describe.configure({ mode: "serial" })` 的文件里一条失败，其后用例标为 `did not run`——不是失踪也不是 skip，统计时算回失败文件的后续段。
+
+**守卫写 `waitFor` 不写 `isVisible({ timeout })`**：后者在这套 API 上忽略 timeout、未水合即返回 false——曾让 `repro-stage1`（10-02 发现）与 `watch.spec`（同轮发现）的「无视频就 skip」守卫在任何环境静默 skip，断言长期无人看（两处修复记于 CHANGELOG 10-11）。
+
+**登录墙（D0）后的用例必须登录**：未登录 `goto("/")` 被 302 到 `/login`，断言就静默退化成对登录页的检查（`watch.spec` 4 条恒 skip、`video.spec` 2 条空转；修复记于 CHANGELOG 10-11）。两条合法路径：真注册 + `loginViaToken` / `loginViaUi`（`helpers.ts`）；或本地铸票 + abort `/api/**`（`container-align` / `home-sort-truth` 的 `mintToken` —— proxy 只查 cookie 存在且非空，不解 JWT）。
 
 # CI
 
