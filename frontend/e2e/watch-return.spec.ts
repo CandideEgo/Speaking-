@@ -55,9 +55,17 @@ test.describe("Watch Page - Return to source", () => {
     const backButton = page.getByRole("button", { name: /^返回/ }).first();
     await expect(backButton).toBeVisible({ timeout: 15000 });
 
-    // 3. 返回：回到带筛选的首页，网格还在
-    await backButton.click();
-    await expect(page).not.toHaveURL(/\/watch\//);
+    // 3. 返回：回到带筛选的首页，网格还在。
+    // 点击带重试（toPass）：返回键由壳渲染、挂载即可见，但回调（chrome.onBack）
+    // 要等页面注水后才发布——刚导航过来就点会命中「按钮在、回调还没接上」的空点
+    //（2026-10-11 门禁：并行负载下 URL 5s 未变；单跑数据快、恒绿）。
+    // 重试前先看 URL：若慢导航其实已生效，直接断言、不重复点。
+    await expect(async () => {
+      if (page.url().includes("/watch/")) {
+        await backButton.click({ timeout: 2000 });
+      }
+      await expect(page).not.toHaveURL(/\/watch\//, { timeout: 2000 });
+    }).toPass({ timeout: 20000 });
     await expect(page).toHaveURL(/sort=hot/);
     await expect(page.locator('a[href*="/watch/"]').first()).toBeVisible({ timeout: 10000 });
 
