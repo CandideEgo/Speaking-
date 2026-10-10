@@ -50,11 +50,27 @@ export function ExamLevelSelector({
         onClick={toggle}
         data-testid="level-selector"
         aria-expanded={open ? true : false}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-black/55 backdrop-blur text-white text-xs font-medium hover:bg-black/70 transition-colors cursor-pointer"
+        // DEC-073：`inline`（壳顶栏里）不再是"压画面"的半透明黑底 —— 那套样式搬到白底顶栏后
+        // 就成了一块灰疙瘩。现在视觉是浅色描边药丸（32px 高），热区外扩到 44×44。
+        // `pill`（画面内/桌面）保持原样，一个字不改。
+        className={cn(
+          "inline-flex items-center justify-center rounded-full transition-colors cursor-pointer",
+          inline
+            ? "h-11 px-1"
+            : "gap-1.5 px-2.5 py-1.5 bg-black/55 backdrop-blur text-white text-xs font-medium hover:bg-black/70"
+        )}
       >
-        <span className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))} />
-        {current.label}
-        <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5",
+            inline &&
+              "h-8 rounded-full border border-hairline bg-surface-card/70 px-2.5 text-xs font-medium text-ink hover:bg-surface-card"
+          )}
+        >
+          <span className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))} />
+          {current.label}
+          <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
+        </span>
       </button>
       {open && (
         <>

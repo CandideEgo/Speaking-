@@ -513,10 +513,11 @@ export default function SearchPage() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-ink line-clamp-1">
+                        {/* DEC-073：搜索结果标题与字幕命中都是"可读正文"，移动端不低于 14px */}
+                        <p className="text-sm font-medium text-ink line-clamp-1">
                           {result.video.title}
                         </p>
-                        <p className="text-xs text-muted line-clamp-1 mt-0.5">
+                        <p className="text-[13px] text-muted line-clamp-1 mt-0.5">
                           <span className="text-muted font-mono mr-1.5">
                             {formatTime(sub.start_time)}
                           </span>

@@ -49,7 +49,8 @@ export function WatchTopBar({ chrome = {} }: { chrome?: WatchChromeState }) {
         </div>
         <div
           data-testid="watch-top-level"
-          className="-mt-0.5 truncate text-[10px] font-medium leading-tight text-muted"
+          // DEC-073：元信息行 11px（移动端基线里 11px 只给角标/元信息）。
+          className="-mt-0.5 truncate text-[11px] font-medium leading-[1.3] text-muted"
         >
           {levelText ?? ""}
         </div>

@@ -93,6 +93,32 @@ const WORD_COLOR_CLASSES: Record<string, string> = {
   rose: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300 underline decoration-rose-400 decoration-dotted underline-offset-2",
 };
 
+// DEC-073：未掌握词只给一档极浅底色（bg-*-50），已掌握词连底色都不要、只留虚线下划线。
+// 两套都写成静态字面类，理由同上（Tailwind JIT 只扫字面量）。
+const WORD_SOFT_COLOR_CLASSES: Record<string, string> = {
+  slate:
+    "bg-slate-50 text-slate-700 dark:bg-slate-900/60 dark:text-slate-300 underline decoration-slate-400 decoration-dotted underline-offset-2",
+  green:
+    "bg-green-50 text-green-700 dark:bg-green-900/60 dark:text-green-300 underline decoration-green-400 decoration-dotted underline-offset-2",
+  blue: "bg-blue-50 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 underline decoration-blue-400 decoration-dotted underline-offset-2",
+  purple:
+    "bg-purple-50 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 underline decoration-purple-400 decoration-dotted underline-offset-2",
+  orange:
+    "bg-orange-50 text-orange-700 dark:bg-orange-900/60 dark:text-orange-300 underline decoration-orange-400 decoration-dotted underline-offset-2",
+  red: "bg-red-50 text-red-700 dark:bg-red-900/60 dark:text-red-300 underline decoration-red-400 decoration-dotted underline-offset-2",
+  rose: "bg-rose-50 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 underline decoration-rose-400 decoration-dotted underline-offset-2",
+};
+
+const WORD_UNDERLINE_ONLY_CLASSES: Record<string, string> = {
+  slate: "underline decoration-slate-400 decoration-dotted underline-offset-2",
+  green: "underline decoration-green-400 decoration-dotted underline-offset-2",
+  blue: "underline decoration-blue-400 decoration-dotted underline-offset-2",
+  purple: "underline decoration-purple-400 decoration-dotted underline-offset-2",
+  orange: "underline decoration-orange-400 decoration-dotted underline-offset-2",
+  red: "underline decoration-red-400 decoration-dotted underline-offset-2",
+  rose: "underline decoration-rose-400 decoration-dotted underline-offset-2",
+};
+
 const DOT_COLOR_CLASSES: Record<string, string> = {
   slate: "bg-slate-400",
   green: "bg-green-500",
@@ -103,10 +129,24 @@ const DOT_COLOR_CLASSES: Record<string, string> = {
   rose: "bg-rose-500",
 };
 
-/** Tailwind classes for a highlighted word given its exam levels. */
-export function wordHighlightClass(levels: string[], targetLevel?: string | null): string {
+/**
+ * Tailwind classes for a highlighted word given its exam levels.
+ *
+ * DEC-073 的四档里，本函数负责"命中目标级别"这一侧的两档：
+ *   · 默认（未掌握的未收录词）= 浅底 + 虚线（soft）
+ *   · `only: true`（已掌握/已收录的词）= 只留虚线下划线，不上任何底色
+ * 正在学/复习中那一档（品牌实底）由页面自己的 `levelClassFor` 先判，不走这里。
+ */
+export function wordHighlightClass(
+  levels: string[],
+  targetLevel?: string | null,
+  opts?: { soft?: boolean; only?: boolean }
+): string {
   const meta = displayLevel(levels, targetLevel);
-  return meta ? (WORD_COLOR_CLASSES[meta.color] ?? "") : "";
+  if (!meta) return "";
+  if (opts?.only) return WORD_UNDERLINE_ONLY_CLASSES[meta.color] ?? "";
+  if (opts?.soft === false) return WORD_COLOR_CLASSES[meta.color] ?? "";
+  return WORD_SOFT_COLOR_CLASSES[meta.color] ?? "";
 }
 
 /** Small dot class for the level selector chip / badges. */

@@ -22,6 +22,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn } from "@/lib/watchEntry";
+import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import type { VideoWithSubtitles, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -416,21 +417,57 @@ export default function WatchPage() {
   const sessionLookupsRef = useRef(0);
   const sessionAddsRef = useRef(0);
 
-  // 字幕自动居中：只滚动右侧内层字幕列表，绝不触碰整页 <main>。
-  // 用 scrollIntoView 会连带 <main> 一起拽回顶部，导致停在底部练习区时页面被拽走白屏。
+  // 字幕跟随（DEC-073）分成两条路：
+  //   · 桌面：只滚右侧内层字幕列表、把当前句居中，**绝不触碰整页 <main>**
+  //     （用 scrollIntoView 会连带 <main> 一起拽回顶部，停在底部练习区时页面被拽走白屏）。
+  //   · 移动端：文稿已是页级滚动（卡内不再有 max-h / 内部滚动条），跟随就把壳滚动容器
+  //     `main#main-scroll` 滚到「当前句条目顶边 = 画框下沿 + 8px」，且**只在画框已贴顶常驻
+  //     时**才跟 —— 页面还在顶部时画框与字幕带都在视野里，没有任何理由把页面拽走。
+  //     用户手动滚一下（touch/wheel）即暂停跟随，等下一次句子导航（上一句/下一句/点文稿行）
+  //     才恢复；否则播放中的每一句都会把用户刚滚到的位置抢回去。
   const subtitleListRef = useRef<HTMLDivElement>(null);
   // #30 决议：移动端滚过画框之后，画面**贴顶常驻**（不是缩成右下角小窗）。
   // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 1023px)");
+  const followPausedRef = useRef(false);
+  /** 显式句导航（上一句/下一句/点文稿行/深链落点）会恢复跟随。 */
+  const resumeFollow = useCallback(() => {
+    followPausedRef.current = false;
+  }, []);
   // #30：移动端滚过画框之后画面贴顶常驻；DEC-069 之后钉住位置从壳顶变成**顶栏下沿**
   // （`main` 上沿，顶栏是 main 之上的常规流行）。`dismiss` 已随画面内的退出 X 一起删除
   // —— 退出跟随 = 滚回顶部（`useStickyPip` 的 `!out → setDismissed(false)` 本来就这么做）。
   const { isStuck } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
+  // 手动滚动 = 暂停跟随。只监听用户输入事件，程序自己的 scrollBy 不会触发这两个。
   useEffect(() => {
-    const container = subtitleListRef.current;
+    if (!isMobile) return;
+    const scroller = document.getElementById(SCROLL_CONTAINER_ID);
+    if (!scroller) return;
+    const pauseFollow = () => {
+      followPausedRef.current = true;
+    };
+    scroller.addEventListener("touchstart", pauseFollow, { passive: true });
+    scroller.addEventListener("wheel", pauseFollow, { passive: true });
+    return () => {
+      scroller.removeEventListener("touchstart", pauseFollow);
+      scroller.removeEventListener("wheel", pauseFollow);
+    };
+  }, [isMobile]);
+  useEffect(() => {
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
-    if (!container || !el) return;
+    if (!el) return;
+    if (isMobile) {
+      const scroller = document.getElementById(SCROLL_CONTAINER_ID);
+      const frame = slotRef.current;
+      if (!scroller || !frame || !isStuck || followPausedRef.current) return;
+      const delta = el.getBoundingClientRect().top - (frame.getBoundingClientRect().bottom + 8);
+      // 只在本句偏离目标位置超过一行时才滚，避免每次 timeUpdate 都抖动。
+      if (Math.abs(delta) > 24) scroller.scrollBy({ top: delta, behavior: "smooth" });
+      return;
+    }
+    const container = subtitleListRef.current;
+    if (!container) return;
     const elTop = el.getBoundingClientRect().top;
     const cTop = container.getBoundingClientRect().top;
     const offset = elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
@@ -438,7 +475,7 @@ export default function WatchPage() {
     if (Math.abs(offset) > el.clientHeight / 2) {
       container.scrollBy({ top: offset, behavior: "smooth" });
     }
-  }, [currentSubtitleIndex]);
+  }, [currentSubtitleIndex, isMobile, isStuck]);
 
   const {
     isFavorited,
@@ -479,7 +516,8 @@ export default function WatchPage() {
     if (sub) {
       const idx = subs.findIndex((s) => s.id === sub);
       if (idx !== -1) {
-        setCurrentSubtitleIndex(idx); // 句高亮 + 字幕列表自动居中联动
+        resumeFollow(); // 深链落点算一次显式导航：把跟随拉回来
+        setCurrentSubtitleIndex(idx); // 句高亮 + 字幕跟随联动
         seconds = subs[idx].start_time;
       }
     }
@@ -544,6 +582,25 @@ export default function WatchPage() {
         if (!cancelled) setVocabWords(new Set(res.words));
       } catch {
         // non-fatal: vocab highlight simply won't show
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  // DEC-073：高亮四档里的「已掌握」那一档要单独一次查询 —— 同一个端点按 mastery 过滤、
+  // 只回词串，learning/reviewing 与 mastered 必须能区分开才谈得上降底色。
+  const [masteredWords, setMasteredWords] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ words: string[] }>("/api/v1/vocabulary/words?mastery=mastered");
+        if (!cancelled) setMasteredWords(new Set(res.words));
+      } catch {
+        // non-fatal: 拿不到已掌握词表就退化成「未掌握」那一档，只是底色略多，不挡播放。
       }
     })();
     return () => {
@@ -644,6 +701,7 @@ export default function WatchPage() {
       setShadowingSaved(false);
       setShadowingSatisfied(false);
       setLastAttemptId(null);
+      resumeFollow(); // 显式「下一句」= 恢复跟随
       setCurrentSubtitleIndex(currentSubtitleIndex + 1);
       seekTo(next.start_time);
     }
@@ -682,17 +740,25 @@ export default function WatchPage() {
     play();
   }
 
-  // Exam-level word highlight: returns tailwind class if the word should be
-  // highlighted for the user's selected target level, else "".
+  // 考试词高亮 —— DEC-073 的四档，从强到弱：
+  //   ① learning/reviewing（正在学）→ 品牌实底 + 实线（Sprint 3 语义不变，最强档）
+  //   ② 未收录、且命中目标级别 → 极浅底 + 虚线（`wordHighlightClass` 的 soft 档）
+  //   ③ 已掌握 → 只留虚线下划线，不给底色
+  //   ④ 其余 → 无样式
+  // `shouldDisplay` 的「目标级别及以上」语义**不变**，本轮只降视觉重量：一屏十来处底色把
+  // 英文正文的连续阅读打断，也让「当前句」的橙色锚点被稀释。
   function levelClassFor(word: string, wordLevels: Record<string, string[]> | null): string {
     const token = cleanToken(word);
-    // Sprint 3: vocab recurrence highlight takes priority over exam-level highlight.
     if (vocabWords.has(token)) {
       return "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 rounded px-0.5";
     }
     if (!wordLevels || !selectedExamLevel) return "";
     const levels = wordLevels[token];
     if (!levels || !shouldDisplay(levels, selectedExamLevel)) return "";
+    // 已掌握的词只留形状（虚线下划线），不再吃底色。
+    if (masteredWords.has(token)) {
+      return wordHighlightClass(levels, selectedExamLevel, { only: true });
+    }
     // 目标分级优先取色：词属于所选分级时用该分级颜色（如选四级 → 蓝色），
     // 否则回退词自身的最高分级颜色。见 lib/examLevels.ts displayLevel。
     return wordHighlightClass(levels, selectedExamLevel);
@@ -749,7 +815,12 @@ export default function WatchPage() {
       duration: video?.duration ?? null,
       isPlaying,
       onTogglePlay: togglePlayPause,
-      onPrev: () => navigateSubtitle(-1),
+      // 显式「上一句」也算一次句导航：先恢复跟随，再走 hook 的上一句（顺序不能反 ——
+      // `navigateSubtitle` 会同步改 `currentSubtitleIndex`，跟随 effect 就在那之后跑）。
+      onPrev: () => {
+        resumeFollow();
+        navigateSubtitle(-1);
+      },
       // onPrev 稳定（`navigateSubtitle` 是 useCallback + ref 读值），onNext 也必须稳定 ——
       // 见上面 `nextRef` / `onNextStable`。**别**把 `handleNextSubtitle` 或
       // `currentSubtitleIndex` 加进依赖表：那会让壳每句重渲染 4 次（INV-025）。
@@ -768,6 +839,7 @@ export default function WatchPage() {
       isPlaying,
       togglePlayPause,
       navigateSubtitle,
+      resumeFollow,
       isYtMode,
       chromeShadowing,
       practiceOpen,
@@ -1012,7 +1084,9 @@ export default function WatchPage() {
                 // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
                 // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
                 // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
-                isMobile && isStuck && "sticky top-0 z-40"
+                // DEC-073：贴顶时补一条下边线 —— 文稿文字是从画框下沿**穿过**去的，
+                // 没有这条边，被遮住的那半行字读起来就像"被切掉了"（真机截图实测）。
+                isMobile && isStuck && "sticky top-0 z-40 border-b border-hairline"
               )}
             >
               <div
@@ -1147,6 +1221,9 @@ export default function WatchPage() {
               基类的 `mt-3 / border / rounded-xl`。 */}
             {currentSubtitle && (
               <CurrentSentenceCard
+                // DEC-074：移动端是齐平字幕带（无外框、计数与展开开关进元信息行），
+                // 桌面端仍是卡片（12px 间距 + 圆角 + 边框、计数在右上角）。
+                variant={isMobile ? "band" : "card"}
                 // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
                 // 卡跟着出血；桌面端两者都留在容器内）。
                 className={cn(isMobile && "-mx-4 sm:-mx-7 mt-0 rounded-none border-0")}
@@ -1386,7 +1463,14 @@ export default function WatchPage() {
                 <div
                   ref={subtitleListRef}
                   data-coach="subtitles"
-                  className="max-h-[560px] overflow-y-auto subtitle-scroll p-1.5"
+                  // DEC-073：移动端文稿**页级滚动**（去掉 max-h + 内部滚动条）——
+                  // 卡内再套一层滚动会让"滚到底了吗"不可知，列表顶部还常留半截行。
+                  // 桌面端保持卡内滚动：右栏本身就是 sticky 的，内部滚动才是对的。
+                  // 顶部 4px 让被画框下沿压住的第一行不至于贴着切边。
+                  className={cn(
+                    "subtitle-scroll",
+                    isMobile ? "pt-1" : "max-h-[560px] overflow-y-auto p-1.5"
+                  )}
                 >
                   <div className="flex flex-col gap-0.5">
                     {video.subtitles.map((sub, i) => (
@@ -1394,6 +1478,7 @@ export default function WatchPage() {
                         key={sub.id}
                         id={`subtitle-${i}`}
                         onClick={() => {
+                          resumeFollow(); // 点文稿行是显式导航：恢复跟随
                           setCurrentSubtitleIndex(i);
                           seekTo(sub.start_time);
                         }}

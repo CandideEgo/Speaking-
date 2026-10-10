@@ -198,7 +198,7 @@ export default function ProfilePage() {
                 内测免费
               </span>
             </div>
-            <div className="text-[13px] text-muted mt-1 flex items-center gap-2 flex-wrap">
+            <div className="text-sm text-muted mt-1 flex items-center gap-2 flex-wrap">
               {user.phone && <span>{maskPhone(user.phone)}</span>}
               {targetLabel(preferences) && (
                 <>
@@ -285,7 +285,7 @@ export default function ProfilePage() {
                     </span>
                   ))}
                 </div>
-                <p className="mt-3 text-[13px] text-muted">
+                <p className="mt-3 text-sm text-muted">
                   一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
                   <span className="font-semibold text-ink">
                     {learningProfile?.weekly_cycles_completed ?? 0}

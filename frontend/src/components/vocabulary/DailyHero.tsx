@@ -91,7 +91,7 @@ export function DailyHero({
           </span>
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-extrabold tracking-tight text-ink">词库还是空的</h2>
-            <p className="text-[13px] text-muted mt-1.5">
+            <p className="text-sm text-muted mt-1.5">
               去频道看视频，点字幕里的生词加入词库，这里就会出现今日训练。
             </p>
           </div>
@@ -127,7 +127,7 @@ export function DailyHero({
               <InlineSpinner />
             </div>
           ) : allDone ? (
-            <p className="text-[13px] text-muted mt-1.5">
+            <p className="text-sm text-muted mt-1.5">
               <span className="inline-flex items-center gap-1 text-success font-semibold">
                 <CheckCircle2 size={14} />
                 今天的词都练完了
@@ -135,11 +135,11 @@ export function DailyHero({
               ，保持节奏，明天继续
             </p>
           ) : (
-            <p className="text-[13px] text-muted mt-1.5">
+            <p className="text-sm text-muted mt-1.5">
               待学新词 <span className="font-bold text-ink">{newTotal}</span>
               <span className="mx-1.5 text-muted-soft">·</span>
               待复习 <span className="font-bold text-ink">{dueTotal}</span>
-              <span className="block text-xs text-muted-soft mt-1">
+              <span className="block text-[13px] text-muted-soft mt-1">
                 每日 {newTarget} 新词 + {reviewTarget} 复习，按错误次数安排复习
               </span>
             </p>

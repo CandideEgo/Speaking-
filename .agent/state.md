@@ -8,6 +8,21 @@ Last Updated: 2026-10-11
 
 ## Current Focus
 
+- **移动端设计优化：已实施、待真机复看与真媒体 e2e（10-11，DEC-073/074）** —— 起因是用户两张真机截图
+  （线上 `seeword.top`，`/watch/[id]`）。六条定位：当前句带只有英文（中文被 WebKit 的 flex + `max-h` 折叠挤出
+  可视区）、贴顶画框压住文稿半截字、文稿是卡内第二层滚动、壳顶栏级别药丸仍是"压画面"的黑色半透明样式（~26px 高）、
+  考试词底色过密（含已掌握词）、真题交卷栏仍 `fixed bottom-0`。**本轮落地**：① 移动端设计基线写进
+  `globals.css`（英文 17 / 译文 14 / 次要正文 14 / 标签元信息 12 / 角标 11；行高 1.5/1.5/1.3）；② 当前句带改三行
+  （英文 ≤2 行 + 中文恒 1 行 + 24px 元信息行：计数 + 长句展开开关 44×24），字号与行高只由行内 style 给
+  （`.now-sub-en` 只剩 weight/color）；③ 高亮四档（learning/reviewing 实底 → 未掌握命中 `bg-*-50` 浅底+虚线 →
+  已掌握只留虚线 → 其余无），watch 页多拉一次 `/vocabulary/words?mastery=mastered`；④ 移动端文稿与真题文章框改
+  页级滚动，跟随改滚 `main`（画框贴顶才跟、手动滚即暂停、显式句导航恢复），贴顶画框补 1px 下边线；
+  ⑤ 顶栏药丸改浅色描边（热区 44×44）；⑥ 交卷栏 `fixed` → `sticky`。**验证**：tsc 0 / eslint 0 error /
+  prettier 全过 / vitest 110 全过 / `next build --webpack` 成功 / `check_knowledge.py` rc=0（默认 Turbopack
+  构建在本沙箱因无法派生 node 子进程失败，属环境限制）。**还欠**：(a) 真机复看 5 条（中文恒在 / 药丸好按 /
+  文稿单层滚动 / 贴顶不切字 / 长句展开可读）；(b) 在放了真 mp4 的机器上跑一次 `mobile-transcript-scroll.spec.ts`
+  与 `mobile-current-sentence-card.spec.ts`（本地与 CI 的媒体都是 7 字节占位，会整条 skip）；(c) `audit-touch-targets.mjs`
+  的 rev7 基线还没重出。方案与逐文件改动：`knowledge/plans/移动端设计优化-2026-10.md`。
 - **生产部署已完成（10-04）** —— 本地 `master` 领先 `origin/master` 的 8 个提交已 push（CI 在跑），并按
   RUNBOOK §1.1「异地构建 + 传镜像」部署到 `47.122.109.52`（DNS 指向确认、`.env` 的 `ENV=production`、
   compose/nginx/promtail 三份配置哈希与仓库逐字节一致，故未同步配置）。**线上现跑镜像**：
@@ -54,6 +69,10 @@ Last Updated: 2026-10-11
 8. Recommendation 深度个性化 P2（ADR-0011）；ICP 解封后项：payment、前端单测、e2e
 9. **词汇训练线收尾（DEC-053/056/057）**：T1 回填 09-28 生产已跑，0 候选（存量词行连 `context_sentence` 都没有）；追票：续轮次序精确化（`wrong_in_round` 改计数）、ECDICT 干扰项兜底、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
 10. **AOCI 收尾（未完成；被工具支持面阻塞——见 Known Issues 10-11 复核）**：当前 maintain `blocked` 且 `included=0`，**scope 阻塞解除前机器不签发可提交候选**，所以第一步是解 scope 阻塞：换支持本仓 `profile=production` 的 `baseline_scope_refresh` 工具版本（>rc17），或向工具维护方（github.com/aoci-spec/aoci-code）求证"手工裁剪 61 条"的受治理处理方式。阻塞解除后：重新 `aoci_maintain` 取批次 → **逐条真读** 58 个对象（54 stale + 4 missing；含本轮改动的 `AGENTS.md`、`knowledge/INDEX.md`、新建的 `code-review-principles.md`——不得凭印象写语义）→ 创作完整 F/R/A/S → `aoci_update_entry` **一次提交整批**（`max_entries=50`，58 条需两轮 50+8；不得截取、不得缩减 scope）→ 复核后 `scope acknowledge` 12 条 observe。**不要**用 `aoci scan --force`，也不要手工改卷/基线。另两处结构性缺口：托管范围不含 `backend/tests/**` 与 `frontend/e2e/*.spec.ts`（25 条 INV 的强制目标在 AOCI 里不可见），数据库认知为空（`database_cognition.state=absent`，而 Postgres 是本系统的核心存储）
+11. **移动端设计优化的三个收尾动作（DEC-073/074）**：① 放真 mp4 后跑 `mobile-transcript-scroll.spec.ts` 与
+    `mobile-current-sentence-card.spec.ts`（本地与 CI 的 `backend/media/*.mp4` 都是 7 字节占位，会整条 skip），
+    跑法见 Known Issues「本地要跑『播放中』类 e2e」；② 真机复看 5 条并把读数按 `device-acceptance.md` 的格式落
+    `docs/design/mobile/destination/`；③ 重出 `audit-touch-targets.mjs` 的 rev7 基线（口径已改，rev6 读数不可比）。
 
 ## Known Issues
 
@@ -70,6 +89,21 @@ Last Updated: 2026-10-11
   是**未跟踪**文件，尚未纳入基线。
   **10-11 复核（知识层改动会话）**：按 Next Steps #10 先重新 `aoci_maintain`——仍 `stopped/blocked`、**零写入**（`semantic_generated=false`），当前机器批次 `batch_identity=58c569ea5bdad0b13f2a13351150ce09c7e8279fece4a2ad400d34da14cc6b68`（logical_plan `d11fbfefa154c527b294a136f3a23f219aef33eb1d4d7f0444cbb1282bb8ff35`、composite `d8d3f926d82fe9f4bc4ab92751b1ba35db9cde1321d005c9e98fbe9f5194532e`）、`total_targets=58`（54 stale + 4 missing）、`included=0`、`remaining=58`、`candidates=[]`、`orphan_remove_candidates=[]`（无孤儿）；顶层 `next_action=explicit_orphan_remove_or_resolve_blocker`。58 = 54 条 stale（`.agent/*`、`.claude/skills/*`、`AGENTS.md`、`knowledge/INDEX.md`、`knowledge/decisions.md`、`knowledge/decisions-index.md`、`knowledge/wiki/guides/repository-layout.md`、backend/frontend 代码；10-03 时 37 → 10-04 复核 42 → 今 54，纯存量累积）+ 4 条 missing/unbaselined（3 份 10-05 前端方案 + 10-11 新建 `knowledge/wiki/guides/code-review-principles.md`）；`observed_pending_review=12`（4 新 / 6 改 / 2 删，全部 `frontend/e2e/*.spec.ts`）。**解阻塞路径全部实测失败（10-11）**：① `scope status --json` → rc=2 `managed_scope_invalid: managed_scope_formal_volume_baseline_drift: aoci.code.txt`（10-03 同根因，复测复现）；② `scope acknowledge --reviewed-by claude --json` → 同一错误；③ 10-03 指名的"受治理路径" `aoci baseline scope plan`（--json 与人读均试）→ `baseline_scope_managed_scope_unsupported`，`baseline scope status` → `command_failed`——**该处方作废**；`capabilities` 声明有 `baseline_scope_refresh` 能力，本仓 managed_scope 报 unsupported（原因未证，疑与 `profile=production` 支持面有关，需向维护方确认）。`check`/`verify`：`structure_valid=true`、`governance_aligned=false`、`read_only_candidate=true`、skipped 144（二进制等，正常）；无孤儿、无待恢复事务、无第三方冲突。**结论**：收尾被**工具支持面**阻塞（非语义、非可达性）：scope 子系统整体拒绝且修复路径对本仓不支持；下一步是换支持本 profile 的工具版本（>rc17；工具仓 github.com/aoci-spec/aoci-code，构建信息可用 `aoci capabilities` 复得）或向维护方求证"手工裁剪 61 条"的受治理处理方式；仍**禁止** `scan --force` 与手工改卷。
   **10-11 收尾复跑（同日追加改动后）**：AGENTS.md 路由行、`.agent/invariants.md`「审查改动 — 六个必问」节、`knowledge/INDEX.md` 事实更正（三个→四个）落地并达最终稳定态后，复跑 `aoci verify`（候选结构有效）+ `aoci_maintain`：结果与上段**逐项一致**——`blocked`、零写入、批次身份与目标数不变（不重复抄录）、`observed_pending_review=12`、无孤儿/无待恢复事务/无第三方冲突；`next_commands` 仍是两条已实测失败的 scope 命令。**观察**：批次身份不随源字节改动而变化（两次复跑之间改过多个受管理对象，身份不变；逐文件 `source_sha256` 的绑定时机未直接观察，`included=0` 时无候选）。上段机器事实在本次收尾后**仍然有效**。
+  **10-11 收尾（移动端设计优化会话，另一次 `aoci_maintain`）**：仍是 `stopped` / `result=blocked`、**零写入**
+  （`semantic_generated=false`、`candidates=[]`、`orphan_remove_candidates=[]`）；机器签发批次
+  `batch_identity=0a21b459385a0ce7a91c843d4ac5017bc92984eae7f344b664cdfe23eb834ad2`、
+  `logical_plan=59aefaef61325e4cbc8c638452bbd9cbba90b95607e6ae2984341046dd923faf`、
+  `composite=d8d3f926d82fe9f4bc4ab92751b1ba35db9cde1321d005c9e98fbe9f5194532e`、
+  `total_targets=84`（`included=0` / `remaining=84`）、`max_entries=50`、
+  `next_action=explicit_orphan_remove_or_resolve_blocker`。**与上两段不同的一点**：这次 `managed_scope.aligned=true`
+  （10-03 与 10-11 早间那两次的 `managed_scope_formal_volume_baseline_drift` 没有再出现）、
+  `policy_identity == active_policy_identity`、`observed_pending_review=18`；`structure_valid=true`、
+  `governance_aligned=false`、无孤儿、无待恢复事务、无第三方冲突。`code_drift` 规模：`stale=72`、`missing=12`
+  （含本轮新建的 `knowledge/plans/移动端设计优化-2026-10.md`）、`skipped=144`、`findings=242`（响应里 findings
+  截断到 20 条）。`next_commands` 仍是 `scope status --json` 与 `scope acknowledge --reviewed-by {agent} --json`
+  （10-11 早间实测这两条均报 `managed_scope_invalid`，与本次 `aligned=true` 口径不一致——**如实记录，未据此推进**）。
+  合同上本轮也不该提交：`included=0` 没有可提交的完整候选集合，且 84 个目标里绝大多数是本会话没有真读过的对象。
+  `aoci verify`（CLI）同日复跑：`Volumes v1候选结构有效`、rc=1（非零退出与"结构有效"并存，未做进一步解读）。
 - **`.dockerignore` 的嵌套文件漏过（10-04 部署时由独立验证发现，非本次提交引入）**：`backend/.dockerignore`
   里 `__pycache__`、`*.log` 等模式**只匹配顶层**（Docker 的 ignore 模式不跨 `/`），所以 `app/**/__pycache__/*.pyc`
   与嵌套目录下的 `*.log` 照样进镜像。本次新镜像里因此带着 `/app/.dev-logs/probe-uvicorn.log`（353 KB）与
@@ -87,6 +121,10 @@ Last Updated: 2026-10-11
 - **本地要跑「播放中」类 e2e，`backend/media/<id>.mp4` 得是真文件**：CI seed 只写占位 SQL 行 + 假 URL（`/media/<id>.mp4` 404），`mobile-*.spec.ts` 里需要真播放的用例（`mobile-d1-d10`、`mobile-inline-subtitle`、`mobile-current-sentence-card`、`mobile-watch-chrome` …）会整条 skip。本地补法是往 `backend/media/` 放一个同名真 mp4（该目录已 gitignore）
 - **本地 e2e 容易被限流打脸**：`/auth/sms/register` 是 3/minute（按 IP），一个 spec 文件注册几个用户就 429，看到 `API registration failed: 429` 先清 `LIMITS:LIMITER/127.0.0.1//api/v1/auth/sms/{register,send-code}*` 再跑
 - **本地 dev SMS 发送 502**：待 `.venv`/镜像重装 Dypnsapi SDK 后复测；无凭据环境回退 dev-fake 码
+- **DEC-073/074 的 e2e 还没在真有媒体的机器上跑过（10-11）**：新写的 `mobile-transcript-scroll.spec.ts` 与改过的
+  `mobile-current-sentence-card.spec.ts` 都需要「真能播」的媒体 —— 本地与 CI 的 `backend/media/*.mp4` 都是 7 字节
+  占位，断言会**整条 skip**（只报 skip、不报红），所以「新断言绿」目前只是写好了、没有机器证据。
+  `audit-touch-targets.mjs` 的 `SCRIPT_REVISION` 已升到 7（播放页可点目标集合变了），**rev6 的基线 JSON 不可再当对照**。
 - **CI e2e 只跑 chromium，移动形态回归隐形（10-11，待决）**：全量 mobile-chrome（103 条）此前从未系统性跑过；10-11 首跑 + 收尾共揪出多条存量（`watch-return` 移动壳返回键恒红 8 天、`repro-stage1` 桌面断言按 393 必红、`watch.spec` / `video.spec` 6 条被登录墙静默 skip / 空转——10-02 复核留档），全部修复后 **102 passed / 1 skipped、0 failed（103 条，1.3m）全绿**。**待决**：是否给 `ci.yml` e2e 加 `--project=mobile-chrome`（chromium 内核、零新装浏览器、+~1.3m）——加则移动形态回归进 CI 门禁。
 - **E2E coverage 不完整**：词汇复习 / 词表（`/practice`、`/vocabulary`）只有壳层与截图矩阵覆盖，没有功能级 e2e；桌面播放的深流程（全屏 / 字幕模式 / 倍速）也没测。播放页与考试流程已有 spec（`watch.spec.ts` / `watch-return.spec.ts`、7 份 `mobile-*.spec.ts`；`exam.spec.ts`）。`mobile-d1-d10.spec.ts` 的隐藏控件断言需真能播的视频，CI 会 skip
 - **ICP compliance**：等个体营业执照才能全量部署（payment 保持禁用）

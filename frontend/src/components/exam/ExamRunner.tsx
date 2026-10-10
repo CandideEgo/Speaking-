@@ -182,7 +182,11 @@ export default function ExamRunner({
   };
 
   return (
-    <div className="min-h-full bg-surface-soft">
+    // DEC-073：整页改成「min-h-full 的纵向 flex」——底部交卷栏从 `fixed bottom-0` 换成
+    // 常规流里的 `sticky bottom-0`（INV-019 的同类风险：iOS Safari 的 fixed 锚的是
+    // 布局视口 100lvh，地址栏展开时整条会落到可视区外 40px）。内容短时由 flex-1 把栏顶到
+    // 底部，内容长时栏贴住滚动容器下沿、滚到底又回到内容之后。
+    <div className="flex min-h-full flex-col bg-surface-soft">
       {/* Sticky header: quit / accent / timer / progress / submit */}
       <div className="sticky top-0 z-30 bg-canvas/92 backdrop-blur border-b border-hairline">
         <div className="max-w-[880px] mx-auto flex items-center gap-3.5 px-4 py-3">
@@ -230,7 +234,7 @@ export default function ExamRunner({
         </div>
       </div>
 
-      <div className="max-w-[880px] mx-auto px-4 py-8 pb-24 space-y-8">
+      <div className="max-w-[880px] mx-auto w-full flex-1 px-4 py-8 pb-8 space-y-8">
         {error && (
           <div className="rounded-lg bg-error-50 text-error-600 text-[13px] px-4 py-3 border border-error-200">
             {error}
@@ -250,7 +254,8 @@ export default function ExamRunner({
                   <div key={q.id} className="bg-canvas border border-hairline rounded-xl p-5">
                     {q.passage ? (
                       derived?.kind === "matching" ? (
-                        <div className="max-h-72 overflow-y-auto custom-scrollbar rounded-lg border border-hairline-soft bg-surface-soft px-4 py-3 mb-4">
+                        // DEC-073：移动端文章框不再自己滚（页级滚动）——桌面仍是卡内滚动。
+                        <div className="custom-scrollbar rounded-lg border border-hairline-soft bg-surface-soft px-4 py-3 mb-4 md:max-h-72 md:overflow-y-auto">
                           <p className="text-[13px] leading-relaxed text-muted whitespace-pre-wrap">
                             {q.passage}
                           </p>
@@ -310,8 +315,8 @@ export default function ExamRunner({
         ))}
       </div>
 
-      {/* 移动端底部提交栏（原型 06 exam-foot） */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-canvas/92 backdrop-blur border-t border-hairline px-4 py-3">
+      {/* 移动端底部提交栏（原型 06 exam-foot；DEC-073 起是常规流里的 sticky，不是 fixed） */}
+      <div className="md:hidden sticky bottom-0 z-40 bg-canvas/92 backdrop-blur border-t border-hairline px-4 py-3">
         <div className="max-w-[880px] mx-auto flex items-center gap-3">
           <span className="flex-1 text-xs text-muted">
             已答 <strong className="text-ink">{answered}</strong>/{questions.length}

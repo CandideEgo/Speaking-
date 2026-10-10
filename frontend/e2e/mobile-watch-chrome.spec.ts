@@ -145,19 +145,17 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
           const r = el.getBoundingClientRect();
           return { id: el.id, top: r.top, bottom: r.bottom, height: r.height };
         });
-        // 诊断：卡片内部那个 `max-h-[92px] overflow-hidden` 容器有没有把中文行切掉
-        // （只打印，不做断言 —— 中文行是否必须在首屏完整可见是版式决议，见交付说明）。
-        const en = document.querySelector('[data-testid="current-sentence-en"]');
+        // DEC-073：带上不再有 `max-h-[92px] overflow-hidden` 裁切容器（它在 WebKit 的 flex
+        // 子项里不生效，实测把中文行整条顶出可视区）。这里量的是「中文行在不在、有没有被
+        // 卡的下沿切掉」——旧版只是打印诊断，现在改成断言（判据 1）。
         const zh = document.querySelector('[data-testid="current-sentence-zh"]');
-        const clip = en?.parentElement ?? null;
-        const inner = clip
-          ? {
-              scrollHeight: clip.scrollHeight,
-              clientHeight: clip.clientHeight,
-              zhBottom: zh ? zh.getBoundingClientRect().bottom : null,
-              clipBottom: clip.getBoundingClientRect().bottom,
-            }
-          : null;
+        const cardEl = document.querySelector(cardSel);
+        const zhInfo = {
+          present: !!zh,
+          height: zh ? zh.getBoundingClientRect().height : 0,
+          bottom: zh ? zh.getBoundingClientRect().bottom : null,
+          cardBottom: cardEl ? cardEl.getBoundingClientRect().bottom : null,
+        };
         return {
           innerHeight: window.innerHeight,
           scrollTop: main ? main.scrollTop : null,
@@ -170,7 +168,7 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
           counter: (
             document.querySelector('[data-testid="subtitle-counter"]')?.textContent ?? ""
           ).trim(),
-          inner,
+          zhInfo,
           clipTop,
           clipBottom,
           lineCount: lines.length,
@@ -206,7 +204,8 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(subRes.ok(), `取字幕失败：${subRes.status()}`).toBe(true);
-    const subs: { text_en: string }[] = (await subRes.json())?.subtitles ?? [];
+    const subs: { text_en: string; text_zh: string | null }[] =
+      (await subRes.json())?.subtitles ?? [];
     const idx = Number(/^(\d+)\s*\/\s*\d+$/.exec(m.counter)?.[1] ?? "0") - 1;
     expect(idx, `字幕计数「${m.counter}」读得出当前句序号`).toBeGreaterThanOrEqual(0);
     expect(subs[idx], `第 ${idx + 1} 句在字幕表里`).toBeTruthy();
@@ -214,16 +213,19 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
       subs[idx].text_en.replace(/\s+/g, " ").trim()
     );
 
-    // 诊断（不断言）：卡片内部 `max-h-[92px] overflow-hidden` 有没有切掉内容。
-    if (m.inner) {
-      const clipped = m.inner.scrollHeight > m.inner.clientHeight + 1;
-      const zhCut = m.inner.zhBottom !== null && m.inner.zhBottom > m.inner.clipBottom + 1;
-      console.log(
-        `[#31 判据 2 诊断] 卡内滚动内容 ${m.inner.scrollHeight.toFixed(0)}px / 可见 ${m.inner.clientHeight.toFixed(0)}px ` +
-          `⇒ ${clipped ? "有裁切" : "无裁切"}；中文行底 ${m.inner.zhBottom?.toFixed(0) ?? "--"} / 裁切底 ${m.inner.clipBottom.toFixed(0)} ` +
-          `⇒ 中文行${zhCut ? "被切" : "完整"}`
-      );
+    // DEC-073 判据 1：这一句有译文时，中文行**必须在**带上，且没有被卡的边界切掉。
+    if (subs[idx]?.text_zh) {
+      expect(m.zhInfo.present, "当前句有中文译文 ⇒ 带上必须有中文行").toBe(true);
+      expect(m.zhInfo.height, "中文行有真实行高（不是被压成 0）").toBeGreaterThanOrEqual(16);
+      expect(
+        m.zhInfo.bottom!,
+        `中文行底 ${m.zhInfo.bottom?.toFixed(0)} 不得越出卡底 ${m.zhInfo.cardBottom?.toFixed(0)}`
+      ).toBeLessThanOrEqual(m.zhInfo.cardBottom! + 1);
     }
+    console.log(
+      `[DEC-073 判据 1] 中文行 present=${m.zhInfo.present} 高 ${m.zhInfo.height.toFixed(0)}px ` +
+        `底 ${m.zhInfo.bottom?.toFixed(0) ?? "--"} / 卡底 ${m.zhInfo.cardBottom?.toFixed(0) ?? "--"}`
+    );
 
     // ≥3 条文稿完整落在可视区里。
     console.log(

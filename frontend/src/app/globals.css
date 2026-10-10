@@ -629,9 +629,16 @@
     background: color-mix(in oklab, var(--canvas) 92%, transparent);
   }
 
-  /* === Current subtitle display === */
+  /* === Current subtitle display ===
+     移动端设计基线（DEC-073）——字号/行高刻度，移动端（≤1023px）正文不得小于 14px：
+       句子英文 17px / 行高 1.5，译文 14px / 行高 1.5，次要正文 14px / 1.5，
+       标签与元信息 12px / 1.3，角标 11px / 1.2。
+     本类**只留颜色与字重**：字号与行高由 CurrentSentenceCard 的行内 style 给。
+     原因是一个实测过的坑——`@layer components` 里的 `leading-*` 会被 utilities 层的同名类
+     盖掉（层序 theme < base < components < utilities），写在组件类里等于没写；同一个元素上
+     再挂 `leading-8` 就是两份真相。行内 style 是唯一不会被层序翻转的写法。 */
   .now-sub-en {
-    @apply text-lg font-semibold text-ink leading-relaxed;
+    @apply font-semibold text-ink;
   }
   .now-sub-word {
     @apply cursor-pointer rounded transition-colors duration-100
@@ -641,7 +648,7 @@
     @apply bg-brand-50 text-brand-500;
   }
   .now-sub-zh {
-    @apply text-sm text-muted mt-1.5;
+    @apply text-muted;
   }
 
   /* === 移动端入画字幕（#24 乙 / #28 决议）===

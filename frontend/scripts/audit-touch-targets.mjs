@@ -91,6 +91,8 @@ const CRITICAL_CONTAINERS = [
   // 两个浮层。桌面专属的 `controls-bar` 也留着 —— 375 档量不到，但量具同一份跑 1280 时要用。
   '[data-testid="video-frame"]',
   '[data-testid="current-sentence-card"]',
+  // DEC-073：当前句带内新增的展开开关（44×24，只有超预算长句才出现）。
+  '[data-testid="current-sentence-expand"]',
   '[data-testid="controls-bar"]',
   '[data-testid="word-tooltip"]',
   '[data-testid="watch-more-sheet"]',
@@ -100,7 +102,10 @@ const CRITICAL_CONTAINERS = [
 /** 量具版本：口径/判据一改就 +1，写进 JSON 的 meta，便于判断两份读数能不能比。 */
 // rev6（2026-10-02，DEC-069）：关键路径容器与枚举目标改成壳层两栏 —— 旧读数（rev5 及以前）
 // 量的是入画字幕 / 画框内覆盖物 / 5 Tab 底栏，与现在的 DOM 不是同一批目标，**不可直接比较**。
-const SCRIPT_REVISION = 6;
+// rev7（2026-10-11，DEC-073）：移动端当前句带改成三行（计数与展开开关进元信息行）、文稿改页级
+// 滚动、壳顶栏级别药丸改浅色 —— 播放页的可点目标集合变了，rev6 读数不可直接对比。
+// 行内词热区（`.now-sub-word`）的 Inline 豁免仍在（见 EXPLICIT 与 inlineConstrained）。
+const SCRIPT_REVISION = 7;
 
 // ---------------------------------------------------------------- 路由与状态
 

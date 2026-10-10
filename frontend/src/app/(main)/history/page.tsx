@@ -209,7 +209,7 @@ function RecordCard({ record }: { record: LearningRecord }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-ink truncate">{record.video?.title || "未知视频"}</p>
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted flex-wrap">
+        <div className="flex items-center gap-3 mt-1 text-[13px] text-muted flex-wrap">
           <span>{record.words_learned} 个生词</span>
           {record.time_spent_seconds > 0 && (
             <span>{formatTimeSpent(record.time_spent_seconds)}</span>

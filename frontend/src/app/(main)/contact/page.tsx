@@ -123,7 +123,7 @@ export default function ContactPage() {
             </div>
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-ink">开发者联系方式</h2>
-              <p className="text-xs text-muted mt-1 leading-relaxed">
+              <p className="text-sm text-muted mt-1 leading-relaxed">
                 有任何问题或建议，欢迎通过下方反馈表单留言，或直接联系开发者邮箱：
               </p>
               <p className="text-sm font-mono text-ink mt-2 select-all">1841666301@qq.com</p>
@@ -151,7 +151,7 @@ export default function ContactPage() {
                       </span>
                     </div>
                     {a.message && (
-                      <p className="text-xs text-body leading-relaxed whitespace-pre-wrap">
+                      <p className="text-sm text-body leading-relaxed whitespace-pre-wrap">
                         {a.message}
                       </p>
                     )}
@@ -207,7 +207,7 @@ export default function ContactPage() {
             </Card>
           ) : (
             <Card padding={5} className="text-center">
-              <p className="text-xs text-muted leading-relaxed">
+              <p className="text-sm text-muted leading-relaxed">
                 登录后可以直接提交反馈，我们会尽快查看并回复。
               </p>
               <Link
@@ -243,7 +243,7 @@ export default function ContactPage() {
                         <CheckCircle2 size={14} className="text-success shrink-0 mt-0.5" />
                         <div>
                           <p className="text-[11px] text-muted mb-0.5">开发者回复</p>
-                          <p className="text-xs text-ink leading-relaxed whitespace-pre-wrap">
+                          <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
                             {f.admin_reply}
                           </p>
                         </div>

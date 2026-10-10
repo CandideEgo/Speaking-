@@ -42,17 +42,28 @@ describe("displayLevel target priority", () => {
   });
 });
 
-describe("wordHighlightClass target priority", () => {
-  const BLUE = "bg-blue-100";
-  const RED = "bg-red-100";
+describe("wordHighlightClass 的四档（DEC-073）", () => {
+  const BLUE_SOFT = "bg-blue-50";
+  const RED_SOFT = "bg-red-50";
+  const BLUE_STRONG = "bg-blue-100";
+  const RED_STRONG = "bg-red-100";
 
-  it("uses the target level color when the word belongs to it", () => {
-    expect(wordHighlightClass(["cet4", "ielts"], "cet4")).toContain(BLUE);
+  it("默认走浅底档（未收录、未掌握），且取色仍是目标分级优先", () => {
+    // 选四级：词属于四级 → 蓝；只属于更高档 → 回退最高档的红。
+    expect(wordHighlightClass(["cet4", "ielts"], "cet4")).toContain(BLUE_SOFT);
+    expect(wordHighlightClass(["cet6", "ielts"], "cet4")).toContain(RED_SOFT);
+    expect(wordHighlightClass(["cet4", "ielts"])).toContain(RED_SOFT);
   });
 
-  it("falls back to the highest level color otherwise", () => {
-    expect(wordHighlightClass(["cet6", "ielts"], "cet4")).toContain(RED);
-    expect(wordHighlightClass(["cet4", "ielts"])).toContain(RED);
+  it("only:true（已掌握）只留虚线下划线、一个底色都不给", () => {
+    const cls = wordHighlightClass(["cet4", "ielts"], "cet4", { only: true });
+    expect(cls).toContain("decoration-dotted");
+    expect(cls).not.toMatch(/bg-(slate|green|blue|purple|orange|red|rose)-\d/);
+  });
+
+  it("soft:false 仍是要实底档的旧行为（留给需要最强档的调用方）", () => {
+    expect(wordHighlightClass(["cet4", "ielts"], "cet4", { soft: false })).toContain(BLUE_STRONG);
+    expect(wordHighlightClass(["cet6", "ielts"], "cet4", { soft: false })).toContain(RED_STRONG);
   });
 
   it("returns an empty string for unleveled words", () => {

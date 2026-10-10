@@ -33,7 +33,8 @@ const WORD = `${CARD} .now-sub-word`;
 const SHEET = '[data-testid="word-tooltip"][data-variant="sheet"]';
 
 // 串行 + 一次注册：/auth/sms/register 是 3/minute（按 IP），每条用例各注册一个用户
-// 会在第 4 条上 429（本文件正好 4 条 + 1 条桌面）。与 mobile-inline-subtitle.spec.ts 同策。
+// 会在第 4 条上 429（本文件 5 条移动 + 1 条桌面，共用一个 beforeAll 注册的用户）。
+// 与 mobile-inline-subtitle.spec.ts 同策。
 test.describe.configure({ mode: "serial" });
 let token = "";
 
@@ -104,14 +105,17 @@ async function firstWordText(page: Page): Promise<string> {
 /**
  * 卡里「空白」的点击坐标。
  *
- * 取卡底部 20% 的高度带：卡的绝对定位计数器在 `top-2 right-3`，英文行只占上部
- * （`leading-8` 两行 + `max-h-[72px]`），这一带只剩中文行或纯背景。横向取 75%，
- * 与 `right-3` 的计数器也不相交。中文行没有词热区，点了只会冒泡到整卡。
+ * DEC-074 起卡底下多了一行 24px 的元信息行（计数 + 展开开关），所以**不能**再取底部
+ * 20% —— 那里可能正好落在展开开关上（它自己吞掉点击，专门不切播放/暂停）。
+ * 现在直接点中文行本身的中心：中文行没有词热区、没有 onClick，点了只会冒泡到整卡。
  */
 async function blankPoint(page: Page) {
+  const zh = await page.locator(`${CARD} [data-testid="current-sentence-zh"]`).boundingBox();
+  if (zh) return { x: zh.x + zh.width * 0.5, y: zh.y + zh.height * 0.5 };
+  // 英/中模式下没有中文行：退回卡的右下角（避开元信息行那一带）。
   const box = await page.locator(CARD).boundingBox();
   if (!box) throw new Error(`no bounding box for ${CARD}`);
-  return { x: box.x + box.width * 0.75, y: box.y + box.height * 0.8 };
+  return { x: box.x + box.width * 0.9, y: box.y + box.height * 0.55 };
 }
 
 /** 文稿列表：卡必须在它之前。移动/桌面两条壳路径里找同一个祖先。 */
@@ -171,6 +175,80 @@ test.describe("当前句卡（414×896 移动端）", () => {
     await expect(page.locator(`${CARD} [data-testid="current-sentence-en"]`)).toBeVisible();
     expect(await page.locator(WORD).count(), "卡里有词热区").toBeGreaterThan(0);
     await expect(page.locator(`${CARD} [data-testid="subtitle-counter"]`)).toBeVisible();
+
+    // DEC-074：计数从右上角搬进底部元信息行 —— 它不再压在英文第一行上（旧版实测会被长句压住）。
+    const enBox = (await page
+      .locator(`${CARD} [data-testid="current-sentence-en"]`)
+      .boundingBox())!;
+    const counterBox = (await page
+      .locator(`${CARD} [data-testid="subtitle-counter"]`)
+      .boundingBox())!;
+    expect(
+      counterBox.y,
+      `计数顶 ${counterBox.y.toFixed(0)} 必须在英文块下沿 ${(enBox.y + enBox.height).toFixed(0)} 之下`
+    ).toBeGreaterThanOrEqual(enBox.y + enBox.height - 1);
+  });
+
+  test("长句：英文夹两行、出现展开开关；展开读到完整英文、点它不切播放", async ({
+    page,
+    request,
+  }) => {
+    const videoId = await enterWatch(page, request);
+    const subs = await getSubtitles(request, videoId);
+    test.skip(subs.length === 0, "本地这条视频没有字幕，测不了长句");
+
+    // 取最长的一句：折叠态（两行）必然超预算。
+    let idx = 0;
+    for (let i = 1; i < subs.length; i++) {
+      if ((subs[i].text_en ?? "").length > (subs[idx].text_en ?? "").length) idx = i;
+    }
+    const longest = subs[idx];
+    test.skip(
+      (longest.text_en ?? "").length < 90,
+      `本地最长句只有 ${(longest.text_en ?? "").length} 字符，够不到两行预算`
+    );
+
+    // 直接 seek（不走点文稿行）：贴顶画框会盖住列表行，点击可能被它拦下。
+    await page
+      .locator("video")
+      .first()
+      .evaluate((v, t) => {
+        const el = v as HTMLVideoElement;
+        el.pause();
+        el.currentTime = t + 0.05;
+      }, longest.start_time);
+    await page.waitForTimeout(900);
+
+    const en = page.locator(`${CARD} [data-testid="current-sentence-en"]`);
+    await expect(en).toContainText((longest.text_en ?? "").split(" ")[0]);
+    const before = (await en.boundingBox())!;
+
+    const toggle = page.locator('[data-testid="current-sentence-expand"]');
+    await expect(toggle, "超预算长句要出现展开开关").toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    const pausedBefore = await page
+      .locator("video")
+      .first()
+      .evaluate((v) => (v as HTMLVideoElement).paused);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const after = (await en.boundingBox())!;
+    expect(after.height, "展开后英文块变高（多出被裁掉的行）").toBeGreaterThan(before.height);
+    await expect(page.locator(`${CARD} [data-testid="current-sentence-zh"]`)).toBeVisible();
+    expect(
+      await page
+        .locator("video")
+        .first()
+        .evaluate((v) => (v as HTMLVideoElement).paused),
+      "点展开开关不该顺带切播放/暂停（它自己吞掉这次点击）"
+    ).toBe(pausedBefore);
+
+    // 收回去：高度回到折叠态量级。
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const collapsed = (await en.boundingBox())!;
+    expect(collapsed.height).toBeLessThan(after.height);
   });
 
   test("画框里一个非空文本节点都没有（入画字幕/标题 overlay 已删净）", async ({

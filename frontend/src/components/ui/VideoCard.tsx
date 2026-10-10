@@ -171,7 +171,8 @@ export function VideoCard({
         </p>
         {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
         {video.description && (
-          <p className="text-xs leading-relaxed text-muted line-clamp-2 mb-2">
+          // DEC-073：卡片摘要跟着移动端基线走 13px（卡内嵌摘要允许 11–13px，正文才要求 ≥14px）
+          <p className="text-[13px] leading-relaxed text-muted line-clamp-2 mb-2">
             {video.description}
           </p>
         )}

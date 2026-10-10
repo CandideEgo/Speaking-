@@ -31,10 +31,10 @@ function QuestionCard({
   return (
     <div className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3 animate-fade-in">
       <div className="font-semibold text-ink">{prompt}</div>
-      {hint && <div className="text-xs text-muted">{hint}</div>}
+      {hint && <div className="text-[13px] text-muted leading-relaxed">{hint}</div>}
       {children}
       {grading && (
-        <div className="flex items-center gap-1.5 text-xs text-muted">
+        <div className="flex items-center gap-1.5 text-[13px] text-muted">
           <Loader2 size={12} className="animate-spin" /> 判分中…
         </div>
       )}
@@ -261,7 +261,7 @@ function RecordAndEvaluate({ onResult }: { onResult: (correct: boolean) => void 
       {hasRecorded && audioUrl && (
         <div className="space-y-2">
           <audio controls src={audioUrl} className="h-8 w-full" />
-          <div className="text-xs text-muted mb-1">回放你的录音，然后自评：</div>
+          <div className="text-[13px] text-muted mb-1">回放你的录音，然后自评：</div>
           <SelfEvaluateButtons onCorrect={() => onResult(true)} onWrong={() => onResult(false)} />
         </div>
       )}
