@@ -25,14 +25,29 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
  */
 const GRID_SELECTOR = 'main.container-wide [class*="auto-fill"]';
 
-/** 读实际轨道数与首轨宽度（px）。元素可见性无关紧要：空网格高度为 0 也算数。 */
+/**
+ * 读实际轨道数与首轨宽度（px）。元素可见性无关紧要：空网格高度为 0 也算数。
+ *
+ * 轮询在**页面内**原子完成（querySelectorAll + getComputedStyle 同一 tick）。
+ * 早先用 locator.evaluate：Suspense 回退网格 → 真网格换装瞬间若抓到正被摘除的
+ * 节点，getComputedStyle 对游离节点全返空串 → 轨道数读成 0（2026-10-11 门禁：
+ * 并行负载下 /browse 偶发 0，隔离单跑恒绿）。两个守卫跳过不可读候选：未布局
+ * （display !== grid，含样式未应用）与未解析值（display:none 时 computed 是
+ * 指定值、含 "repeat("）。
+ */
 async function readTracks(page: Page): Promise<{ count: number; first: number }> {
-  const grid = page.locator(GRID_SELECTOR).first();
-  await expect(grid).toBeAttached();
-  return grid.evaluate((el) => {
-    const parts = getComputedStyle(el).gridTemplateColumns.split(/\s+/).filter(Boolean);
-    return { count: parts.length, first: parseFloat(parts[0]) };
-  });
+  const handle = await page.waitForFunction((sel: string) => {
+    for (const el of document.querySelectorAll(sel)) {
+      const cs = getComputedStyle(el);
+      if (cs.display !== "grid") continue;
+      if (cs.gridTemplateColumns.includes("repeat(")) continue;
+      const parts = cs.gridTemplateColumns.split(/\s+/).filter(Boolean);
+      if (!parts.length) continue;
+      return { count: parts.length, first: parseFloat(parts[0]) };
+    }
+    return null;
+  }, GRID_SELECTOR);
+  return handle.jsonValue() as Promise<{ count: number; first: number }>;
 }
 
 const VIEWPORTS = [
