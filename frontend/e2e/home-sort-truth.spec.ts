@@ -65,8 +65,12 @@ test("有筛选时，排序控件显示的是后端实际用的排序", async ({
   await backReq;
   await expect(trigger).toContainText("推荐");
 
-  // 难度与分类是同一个条件：选了档位同样切流、同样不说「推荐」
-  const levelReq = page.waitForRequest((r) => r.url().includes("/api/v1/browse/feed"));
+  // 难度与分类是同一个条件：选了档位同样切流、同样不说「推荐」。
+  // 谓词带上 level：并行负载下可能有更早状态的在途 browse/feed 请求串进来
+  //（2026-10-11 门禁 flake：兑现 waiter 的请求无 level，断言收到 null）。
+  const levelReq = page.waitForRequest(
+    (r) => r.url().includes("/api/v1/browse/feed") && new URL(r.url()).searchParams.has("level")
+  );
   await page.getByRole("button", { name: /^A1/ }).click();
   const levelUrl = new URL((await levelReq).url());
   expect(levelUrl.searchParams.get("level")).toBe("A1");
