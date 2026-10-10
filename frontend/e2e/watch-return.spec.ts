@@ -47,8 +47,12 @@ test.describe("Watch Page - Return to source", () => {
     await expect(firstCard).toBeVisible({ timeout: 10000 });
     await firstCard.click();
     await expect(page).toHaveURL(/\/watch\//);
+    // 来源标记走 URL 断言：返回键两种形态（DEC-069）——桌面是页头渲染的 back.label
+    //（from=home →「返回首页」），移动端整页进壳、顶栏 aria-label 固定「返回」。
+    // 放宽定位器后，「点击卡片时带上了 from=home」这个信号就由这条断言承担。
+    await expect(page).toHaveURL(/from=home/);
 
-    const backButton = page.getByRole("button", { name: "返回首页" }).first();
+    const backButton = page.getByRole("button", { name: /^返回/ }).first();
     await expect(backButton).toBeVisible({ timeout: 15000 });
 
     // 3. 返回：回到带筛选的首页，网格还在
