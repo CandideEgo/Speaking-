@@ -1428,15 +1428,10 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* ===== 练习区占位：视频试卷已砍，引导到真题练习 ===== */}
+      {/* ===== 练习区：视频试卷已砍（S8-5 撤「暂停开发」徽标），引导到真题练习 ===== */}
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3.5 flex-wrap gap-3">
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
-            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
-              暂停开发
-            </span>
-          </div>
+          <h2 className="text-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
         </div>
         <div className="flex items-center gap-3 p-5 bg-canvas border border-dashed border-hairline-strong rounded-xl">
           <span className="w-9 h-9 rounded-lg bg-surface-soft flex items-center justify-center text-brand-500 flex-shrink-0">

@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Layers, BookOpen, FileText, ArrowRight, Sparkles, RotateCcw, Flame } from "lucide-react";
+import { BookOpen, FileText, ArrowRight, Sparkles, RotateCcw, Flame } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePlan } from "@/hooks/usePlan";
+import { EmptyState } from "@/components/common/EmptyState";
 
 /**
  * 练习专题 —— 真题试卷 / 每日水平检测 / 错题本已上线（阅读客观题，服务端自动判分）。
- * 视频试卷仍为占位（视频试卷已砍，聚焦真题实战）。
+ * 视频试卷已砍：不再保留「暂停开发」占位卡（S8-5），正向引导由真题试卷卡承担。
  */
 
 const LIVE_SECTIONS = [
@@ -19,16 +20,6 @@ const LIVE_SECTIONS = [
     desc: "四六级历年真题阅读部分（选词填空 / 段落匹配 / 仔细阅读），交卷自动判分 + 错题解析。",
     href: "/practice/exams",
     cta: "去刷真题",
-  },
-];
-
-const PLACEHOLDER_SECTIONS = [
-  {
-    key: "video",
-    title: "视频试卷",
-    icon: Layers,
-    desc: "聚焦真题实战，视频试卷暂停开发。",
-    status: "暂停开发",
   },
 ];
 
@@ -129,7 +120,9 @@ export default function PracticePage() {
             <h2 className="text-[22px] font-extrabold tracking-tight mt-3 mb-1.5 text-canvas">
               今天，直接来一套卷子
             </h2>
-            <p className="text-[13px] text-on-dark/70 leading-relaxed max-w-[42ch]">
+            {/* 描述与右列一律用 canvas 系（随主题翻转）：卡底是 bg-ink，
+                暗色下整卡翻成浅色，静态 on-dark 文字会与浅底撞成隐形（S8 深色验证）。 */}
+            <p className="text-[13px] text-canvas/70 leading-relaxed max-w-[42ch]">
               不看视频，直接做题。系统从真题题库随机抽 10 题，提交后给出对错、解析与得分——每天打开
               App 的第一件事，检验学习成果。
             </p>
@@ -138,8 +131,8 @@ export default function PracticePage() {
               <ArrowRight size={14} />
             </span>
           </div>
-          <div className="flex flex-col justify-center gap-3.5 px-6 py-5 border-t sm:border-t-0 sm:border-l border-white/10 bg-white/[0.03]">
-            <div className="flex items-center justify-between text-[13px] text-on-dark/60">
+          <div className="flex flex-col justify-center gap-3.5 px-6 py-5 border-t sm:border-t-0 sm:border-l border-canvas/10 bg-canvas/[0.03]">
+            <div className="flex items-center justify-between text-[13px] text-canvas/60">
               <span>上次成绩</span>
               <strong className="text-base font-bold text-canvas font-mono">
                 {stats?.last_daily_score != null
@@ -147,13 +140,13 @@ export default function PracticePage() {
                   : "--"}
               </strong>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-on-dark/60">
+            <div className="flex items-center justify-between text-[13px] text-canvas/60">
               <span>本周检测</span>
               <strong className="text-base font-bold text-canvas font-mono">
                 {stats?.week_daily_count ?? 0} 次
               </strong>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-on-dark/60">
+            <div className="flex items-center justify-between text-[13px] text-canvas/60">
               <span>连续打卡</span>
               <span className="inline-flex items-center gap-1.5">
                 <Flame size={16} className="text-brand-400" />
@@ -183,16 +176,19 @@ export default function PracticePage() {
             )}
           </div>
           {wrongTotal === 0 ? (
-            <div className="bg-canvas border border-dashed border-hairline-strong rounded-xl p-6 flex flex-col items-center gap-3 text-center">
-              <p className="text-[13px] text-muted">还没有错题，继续保持！</p>
-              <Link
-                href="/practice/exams"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-500 hover:underline"
-              >
-                去做真题
-                <ArrowRight size={14} />
-              </Link>
-            </div>
+            <EmptyState
+              title="还没有错题，继续保持！"
+              className="rounded-xl border border-dashed border-hairline-strong bg-canvas py-6"
+              action={
+                <Link
+                  href="/practice/exams"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-500 hover:underline"
+                >
+                  去做真题
+                  <ArrowRight size={14} />
+                </Link>
+              }
+            />
           ) : (
             <div className="flex flex-col gap-2">
               {wrongs.map((w) => (
@@ -259,29 +255,6 @@ export default function PracticePage() {
                 <ArrowRight size={14} />
               </span>
             </Link>
-          ))}
-        </div>
-
-        {/* 占位区块 */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
-          {PLACEHOLDER_SECTIONS.map((s) => (
-            <div
-              key={s.key}
-              className="flex flex-col gap-3 bg-canvas border border-dashed border-hairline-strong rounded-xl p-6"
-            >
-              <div className="flex items-center justify-between">
-                <span className="w-10 h-10 rounded-lg bg-surface-soft flex items-center justify-center text-brand-500">
-                  <s.icon size={18} />
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-pill bg-surface-card text-muted">
-                  {s.status}
-                </span>
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-ink">{s.title}</h2>
-                <p className="text-[13px] text-muted leading-relaxed mt-1.5">{s.desc}</p>
-              </div>
-            </div>
           ))}
         </div>
 

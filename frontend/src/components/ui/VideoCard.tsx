@@ -115,12 +115,13 @@ export function VideoCard({
             </div>
           }
         />
+        {/* 等级徽标：S8-1 起走中性 token（自带不透明底），不再内联白色背景——
+            深色模式下白底会与暗色卡片脱节，且内联色违反 INV-017。 */}
         {video.difficulty_level && (
           <DifficultyBadge
             level={video.difficulty_level}
             size="sm"
-            className="absolute left-2 top-2 backdrop-blur-sm"
-            style={{ background: "rgba(255, 255, 255, 0.92)" }}
+            className="absolute left-2 top-2"
           />
         )}
         {/* Duration badge */}
@@ -207,7 +208,9 @@ export function VideoCard({
                 {video.channel_title || "SeeWord"}
               </span>
             ) : (
-              <span>{video.channel_title || "SeeWord"}</span>
+              <span className="truncate max-w-[9rem]" title={video.channel_title}>
+                {video.channel_title || "SeeWord"}
+              </span>
             )}
             <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
             <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">

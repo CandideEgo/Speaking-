@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Trophy } from "lucide-react";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
+import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import {
   RANKING_METRIC_LABELS,
@@ -69,7 +71,7 @@ export default function RankingsPage() {
         ) : error ? (
           <ErrorState title={error} onRetry={retry} className="py-10" />
         ) : items.length === 0 ? (
-          <p className="py-20 text-center text-sm text-muted">暂无数据</p>
+          <EmptyState icon={Trophy} title="暂无数据" />
         ) : (
           <div key={scope} className="stagger-container mt-4 grid gap-4">
             <TopPodium items={items.slice(0, 3)} mode={mode} metricLabel={metricLabel} />

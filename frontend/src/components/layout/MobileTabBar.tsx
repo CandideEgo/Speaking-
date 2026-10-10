@@ -85,8 +85,9 @@ export function MobileTabBar() {
             >
               <div className="relative">
                 <tab.icon size={20} />
+                {/* 计数徽标走主色（S8-1）：与 TopBar 到期词徽标同一语言；error 红只留给真错误态 */}
                 {tab.showBadge && mounted && dueCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-error text-on-primary text-[9px] font-bold leading-none">
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-brand-500 text-on-primary text-[9px] font-bold leading-none">
                     {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}

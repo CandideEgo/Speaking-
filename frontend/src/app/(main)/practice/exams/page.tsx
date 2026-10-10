@@ -6,6 +6,7 @@ import { ArrowLeft, FileText, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ErrorState } from "@/components/common/ErrorState";
+import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 
 interface PaperListItem {
@@ -113,7 +114,7 @@ export default function ExamPapersPage() {
         ) : error ? (
           <ErrorState title={error} onRetry={() => setReloadKey((k) => k + 1)} className="py-10" />
         ) : papers.length === 0 ? (
-          <div className="py-20 text-center text-sm text-muted">暂无真题，敬请期待</div>
+          <EmptyState icon={FileText} title="暂无真题，敬请期待" />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {papers.map((p) => (
