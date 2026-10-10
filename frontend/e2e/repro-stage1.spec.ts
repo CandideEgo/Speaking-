@@ -52,6 +52,14 @@ async function openFirstWatch(page: Page): Promise<boolean> {
 }
 
 test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
+  // 三条都标 desktop:——断言的是桌面版式（面板 / 折叠键 / 词卡锚位）。移动壳
+  // （≤1023px，DEC-069）下词卡是通栏 sheet、折叠键 `hidden lg:flex`（DEC-070），
+  // 按 393 视口跑必红（:87 词卡右缘 393 > vw*0.62；:102 折叠键不可见 → 60s 超时；
+  // 2026-10-11 全量 mobile-chrome 发现）。同族先例：mobile-current-sentence-card /
+  // mobile-wordcard-drawer 的「桌面端」describe 都用 test.use 强制 1280×900，
+  // 让桌面档在每个项目里都真跑，而不是静默 skip。
+  test.use({ viewport: { width: 1280, height: 900 } });
+
   // 教程浮层是 `fixed inset-0 z-[100]`，注册后立刻进观看页时它会盖住折叠键
   // （实测 click 被 `新手引导` dialog 的关闭热区拦截 → 60s 超时）。本 spec 考的是
   // 版式，不是首访教程，所以按 `mobile-player-shell.spec.ts` 的口径跳过它；
