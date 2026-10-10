@@ -50,6 +50,21 @@ the components named below.
 | INV-024 | **`≤1023px`: the first screen is the frame.** The frame bleeds full width (`w-screen`, x=0) with its top edge flush with `main#main-scroll`'s top edge — the page header does not occupy a single pixel above the player. The title lives in the shell's top bar (`WatchTopBar`, 44px: back / title / level / ⋯); the old header row and the action row are not in the frame (mobile actions were deleted, then moved into the ⋯ sheet). The layer-order lesson about `z-20` is **void** — it was written for in-frame overlays, and the frame now holds none | `w-full` computes from the column width, so negative margins only move it: full bleed needs an explicit `w-screen`. The earlier failure mode was a mobile layout rendered with desktop numbers — 375×812 put the frame at y=166 with only 107.9px of picture visible (prototype `B2-tap.html`: x=0, y=166→frame top at the shell, 128.9px visible) | test — [mobile-player-shell.spec.ts](../frontend/e2e/mobile-player-shell.spec.ts): at 375 the frame is x≈0 / width ≈ viewport / top edge == `main#main-scroll` top edge (== the 44px bar's bottom), the bar carries title and level selector, the frame holds zero text and zero overlays, `mobile-actions` is absent, ≥120px of picture is exposed, no horizontal overflow, and the new back button `[data-testid="watch-top-back"]` is 44×44, centre-hits itself, and leaves the page; recomputed at 390/414/700, and at 1280 the `h1` is back, the frame does not bleed, and there is no two-column watch layout |
 | INV-025 | **The watch chrome store (`WatchChromeProvider`) carries only stable references or ref-read values.** Anything whose closure reads component state (`currentSubtitleIndex` and friends) must be mirrored into a ref **before** entering the store | the first `onNext` passed a per-render closure reading `currentSubtitleIndex` while the chrome memo's dependency list held neither the closure nor the index, so the shallow compare saw "unchanged" forever and a **stale closure stayed resident** (measured: at 10/190 one press jumped back to 2/190, then stopped responding). The test is "does this function change with component state", not "is it a function". **Counter-example**: adding `currentSubtitleIndex` to the memo's deps also fixes it, but re-renders the shell four times per sentence, against the store's low-frequency contract | test — [mobile-sentence-nav.spec.ts](../frontend/e2e/mobile-sentence-nav.spec.ts) case A presses "next" three times and asserts `after > before` each time; case B is the symmetric control. Before the fix the run stopped at sentence 9 and one press jumped **back to sentence 2** (9 → 2). Discrimination comes from the **first** press reading the mount-time closure (no dependency changed up to it), not from avoiding playback toggles mid-run — the interference to avoid is opening the ⋯ sheet, switching level, or shadowing |
 
+## 审查改动 — 六个必问
+
+改代码之前自审、或审别人的 diff / PR 时，逐条过这六个问题；每条命中都要求改动给出答案。
+本节是审查动作清单（review-enforced），不占 INV 编号。为什么是这六条、每条的本仓案例与
+完整论证在 [审查改动时的六个必问](../knowledge/wiki/guides/code-review-principles.md)。
+
+| # | 必问 | 命中后，改动必须能回答 |
+|---|---|---|
+| 1 | 枚举行为变化，不只找 bug | 改前能工作的输入改后照旧；被删或收窄的每个分支「以前谁在走、现在他们去哪」 |
+| 2 | 默认翻转 / 行为移除：点名损失 + 给逃生口 | 谁失去了什么、逃生口或维护者签字在哪、哪条测试钉住旧行为 |
+| 3 | Prompt 文本即行为 | 谁收到这段文本、它原来在强制什么、现在由什么强制 |
+| 4 | 契约文件是绊线（API / DB schema / 环境变量 / AOCI 条目） | 消费者是谁、旧客户端怎么继续工作 |
+| 5 | 移植 / 重构带上旧路径的功能清单 | 旧路径做过的每件事在新路径里的新家，逐项指认 |
+| 6 | 静默失败比崩溃更严重 | 这条失败路径有没有人会发现（配置被忽略、静默放行或跳过、丢数据） |
+
 ## Removed features — do not reintroduce
 
 Each was removed for a reason; the reasoning lives in the cited ADR / `decisions.md` entry.

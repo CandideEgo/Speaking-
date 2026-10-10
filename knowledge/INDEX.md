@@ -40,7 +40,7 @@
 - [缓存失效与媒体门控的两个隐形失效模式](wiki/problems/cache-invalidation-and-media-gate-blindspots.md) — fail-open 吞异常使失效静默失效 / 门控靠文件名正则，命名不符即整段跳过 · active · 2026-09-28
 - [审计验证的两个失效模式](wiki/problems/audit-verification-failure-modes.md) — 静态分析基线把「已接受的债」读成无害，掩盖线上 /videos/search 500 / 高召回 LLM 审查 critical/high 档近 1/3 误报，须逐条对代码求证 · active · 2026-09-28
 - [ASR / 标注质量诊断](wiki/problems/asr-annotation-quality-diagnosis.md) — ECDICT exchange 反向索引 bug 根因与修复验证（good→best 等误报） · active · 2026-09-28
-- [审查修复中的三个可复用失败模式](wiki/problems/review-fix-failure-modes.md) — Dypnsapi 依赖漂移 / SQLite BigInteger PK / 死依赖误判（react-is） · active · 2026-09-25
+- [审查修复中的四个可复用失败模式](wiki/problems/review-fix-failure-modes.md) — Dypnsapi 依赖漂移 / SQLite BigInteger PK / 死依赖误判（react-is） / 外部 AI 审查的论证不可信 · active · 2026-09-25
 - [部署链路的三个失效模式](wiki/problems/deploy-failure-modes.md) — 三容器并发迁移撞唯一约束 / backend 缺席使 nginx 崩溃循环并连带停 db / 长命令被 SSH 读超时截断 · active · 2026-09-20
 
 ## 指南：怎么在这个仓里做事
@@ -50,6 +50,7 @@
 - [Development Setup](wiki/guides/setup.md) — Local dev, infrastructure, environment, production deploy, video seeding · active · 2026-09-28
 - [Release / Pre-Push Checklist](wiki/guides/release-checklist.md) — The four local gates, known CI traps, migration checks before pushing · active · 2026-09-28
 - [Image Handling in Agent Sessions](wiki/guides/agent-image-handling.md) — Why pasting images corrupts agent sessions, and how to recover · active · 2026-09-25
+- [审查改动时的六个必问](wiki/guides/code-review-principles.md) — 行为枚举 / 默认翻转点名损失 / prompt 即行为 / 契约是绊线 / 移植带清单 / 静默失败最重 · active · 2026-10-11
 
 ## 架构决策记录（点时刻，不可改）
 

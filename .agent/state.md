@@ -4,7 +4,7 @@
 > `knowledge/decisions-index.md`, `knowledge/CHANGELOG.md` or `knowledge/archive/`. Nothing in the
 > knowledge layer is size-capped: sizes are reported (`--size-report`) and never gated (DEC-067).
 
-Last Updated: 2026-10-04
+Last Updated: 2026-10-11
 
 ## Current Focus
 
@@ -53,7 +53,7 @@ Last Updated: 2026-10-04
 7. 集成测试 / e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
 8. Recommendation 深度个性化 P2（ADR-0011）；ICP 解封后项：payment、前端单测、e2e
 9. **词汇训练线收尾（DEC-053/056/057）**：T1 回填 09-28 生产已跑，0 候选（存量词行连 `context_sentence` 都没有）；追票：续轮次序精确化（`wrong_in_round` 改计数）、ECDICT 干扰项兜底、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
-10. **AOCI 收尾（机器已签发批次，未完成；恢复后第一件事）**：**先重新 `aoci_maintain` 取当前批次**（上一份被本次收尾后的编辑作废），再**逐条真读**受影响对象（其中 24 个代码文件本轮没有读过——不得凭印象写语义），创作完整 F/R/A/S 后用 `aoci_update_entry` **一次提交整批**（`max_entries=50` 容得下 37 条，不得截取、不得缩减 scope）；随后走受治理路径（`aoci baseline scope plan/preview/apply`）解决 `managed_scope_formal_volume_baseline_drift`，再 `scope acknowledge` 那 3 条 observe。**不要**用 `aoci scan --force`。另两处结构性缺口：托管范围不含 `backend/tests/**` 与 `frontend/e2e/*.spec.ts`（25 条 INV 的强制目标在 AOCI 里不可见），数据库认知为空（`database_cognition.state=absent`，而 Postgres 是本系统的核心存储）
+10. **AOCI 收尾（未完成；被工具支持面阻塞——见 Known Issues 10-11 复核）**：当前 maintain `blocked` 且 `included=0`，**scope 阻塞解除前机器不签发可提交候选**，所以第一步是解 scope 阻塞：换支持本仓 `profile=production` 的 `baseline_scope_refresh` 工具版本（>rc17），或向工具维护方（github.com/aoci-spec/aoci-code）求证"手工裁剪 61 条"的受治理处理方式。阻塞解除后：重新 `aoci_maintain` 取批次 → **逐条真读** 58 个对象（54 stale + 4 missing；含本轮改动的 `AGENTS.md`、`knowledge/INDEX.md`、新建的 `code-review-principles.md`——不得凭印象写语义）→ 创作完整 F/R/A/S → `aoci_update_entry` **一次提交整批**（`max_entries=50`，58 条需两轮 50+8；不得截取、不得缩减 scope）→ 复核后 `scope acknowledge` 12 条 observe。**不要**用 `aoci scan --force`，也不要手工改卷/基线。另两处结构性缺口：托管范围不含 `backend/tests/**` 与 `frontend/e2e/*.spec.ts`（25 条 INV 的强制目标在 AOCI 里不可见），数据库认知为空（`database_cognition.state=absent`，而 Postgres 是本系统的核心存储）
 
 ## Known Issues
 
@@ -68,6 +68,8 @@ Last Updated: 2026-10-04
   （`aoci.code.txt`）、`managed_scope.aligned=true`、`observed_pending_review=3`、`read_only_candidate=true`。
   另：本轮新增的两个部署工具 `scripts/prod_ssh.py`、`scripts/prod_upload_parallel.py`（+ `scripts/build_prod_images.ps1`）
   是**未跟踪**文件，尚未纳入基线。
+  **10-11 复核（知识层改动会话）**：按 Next Steps #10 先重新 `aoci_maintain`——仍 `stopped/blocked`、**零写入**（`semantic_generated=false`），当前机器批次 `batch_identity=58c569ea5bdad0b13f2a13351150ce09c7e8279fece4a2ad400d34da14cc6b68`（logical_plan `d11fbfefa154c527b294a136f3a23f219aef33eb1d4d7f0444cbb1282bb8ff35`、composite `d8d3f926d82fe9f4bc4ab92751b1ba35db9cde1321d005c9e98fbe9f5194532e`）、`total_targets=58`（54 stale + 4 missing）、`included=0`、`remaining=58`、`candidates=[]`、`orphan_remove_candidates=[]`（无孤儿）；顶层 `next_action=explicit_orphan_remove_or_resolve_blocker`。58 = 54 条 stale（`.agent/*`、`.claude/skills/*`、`AGENTS.md`、`knowledge/INDEX.md`、`knowledge/decisions.md`、`knowledge/decisions-index.md`、`knowledge/wiki/guides/repository-layout.md`、backend/frontend 代码；10-03 时 37 → 10-04 复核 42 → 今 54，纯存量累积）+ 4 条 missing/unbaselined（3 份 10-05 前端方案 + 10-11 新建 `knowledge/wiki/guides/code-review-principles.md`）；`observed_pending_review=12`（4 新 / 6 改 / 2 删，全部 `frontend/e2e/*.spec.ts`）。**解阻塞路径全部实测失败（10-11）**：① `scope status --json` → rc=2 `managed_scope_invalid: managed_scope_formal_volume_baseline_drift: aoci.code.txt`（10-03 同根因，复测复现）；② `scope acknowledge --reviewed-by claude --json` → 同一错误；③ 10-03 指名的"受治理路径" `aoci baseline scope plan`（--json 与人读均试）→ `baseline_scope_managed_scope_unsupported`，`baseline scope status` → `command_failed`——**该处方作废**；`capabilities` 声明有 `baseline_scope_refresh` 能力，本仓 managed_scope 报 unsupported（原因未证，疑与 `profile=production` 支持面有关，需向维护方确认）。`check`/`verify`：`structure_valid=true`、`governance_aligned=false`、`read_only_candidate=true`、skipped 144（二进制等，正常）；无孤儿、无待恢复事务、无第三方冲突。**结论**：收尾被**工具支持面**阻塞（非语义、非可达性）：scope 子系统整体拒绝且修复路径对本仓不支持；下一步是换支持本 profile 的工具版本（>rc17；工具仓 github.com/aoci-spec/aoci-code，构建信息可用 `aoci capabilities` 复得）或向维护方求证"手工裁剪 61 条"的受治理处理方式；仍**禁止** `scan --force` 与手工改卷。
+  **10-11 收尾复跑（同日追加改动后）**：AGENTS.md 路由行、`.agent/invariants.md`「审查改动 — 六个必问」节、`knowledge/INDEX.md` 事实更正（三个→四个）落地并达最终稳定态后，复跑 `aoci verify`（候选结构有效）+ `aoci_maintain`：结果与上段**逐项一致**——`blocked`、零写入、批次身份与目标数不变（不重复抄录）、`observed_pending_review=12`、无孤儿/无待恢复事务/无第三方冲突；`next_commands` 仍是两条已实测失败的 scope 命令。**观察**：批次身份不随源字节改动而变化（两次复跑之间改过多个受管理对象，身份不变；逐文件 `source_sha256` 的绑定时机未直接观察，`included=0` 时无候选）。上段机器事实在本次收尾后**仍然有效**。
 - **`.dockerignore` 的嵌套文件漏过（10-04 部署时由独立验证发现，非本次提交引入）**：`backend/.dockerignore`
   里 `__pycache__`、`*.log` 等模式**只匹配顶层**（Docker 的 ignore 模式不跨 `/`），所以 `app/**/__pycache__/*.pyc`
   与嵌套目录下的 `*.log` 照样进镜像。本次新镜像里因此带着 `/app/.dev-logs/probe-uvicorn.log`（353 KB）与

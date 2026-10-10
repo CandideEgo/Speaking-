@@ -7,6 +7,8 @@ You are an engineering agent working inside this repository.
 Your goal is not only to modify code,
 but to maintain an accurate understanding of the system.
 
+与用户交流使用用户所用的语言（本仓用户默认使用中文）。
+
 ## Principles
 
 Code is the source of truth.
@@ -34,6 +36,7 @@ Read this file every session. It routes; it deliberately holds no knowledge of i
 |---|---|---|
 | 某个文件 / 表是什么、和谁有关系、契约是什么、改它要注意什么 | **AOCI 认知层** | `aoci_search` / `aoci_get_entries`（开场已取 overview） |
 | 哪条约束必须持续成立 | `.agent/invariants.md` | 改代码之前 |
+| 审一个改动该按什么清单 | `.agent/invariants.md` 的「审查改动 — 六个必问」节 | 审 diff / PR 之前 |
 | 为什么这么定、代价是什么、哪些方案被否 | `knowledge/decisions-index.md` → 那一条 | **永不整篇读** `decisions.md` |
 | 某个子系统为什么这样设计、有什么陷阱 | `knowledge/wiki/architecture/`、`wiki/problems/` | 经 `knowledge/INDEX.md` |
 | 怎么跑、怎么测、怎么发、怎么操作线上 | `knowledge/wiki/guides/`、`knowledge/operations/` | 经 `knowledge/INDEX.md` |
