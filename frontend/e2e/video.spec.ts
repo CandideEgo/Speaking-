@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
 
 test.describe("Home Page", () => {
   test("unauthenticated visit redirects to the login wall", async ({ page }) => {
@@ -8,7 +9,11 @@ test.describe("Home Page", () => {
     expect(page.url()).toContain("/login");
   });
 
-  test("home page loads within 5 seconds", async ({ page }) => {
+  test("home page loads within 5 seconds", async ({ page, request }) => {
+    // 登录墙（proxy.ts）：未登录 goto("/") 会被 302 到 /login —— 不登录测到的
+    // 就是登录页的加载速度（2026-10-11 修）。
+    const { token } = await registerUserViaApi(request, uniquePhone());
+    await loginViaToken(page, token);
     const start = Date.now();
     await page.goto("/");
     const loadTime = Date.now() - start;
@@ -17,9 +22,19 @@ test.describe("Home Page", () => {
 });
 
 test.describe("Watch Page", () => {
-  test("invalid video ID does not white-screen", async ({ page }) => {
+  test("invalid video ID does not white-screen", async ({ page, request }) => {
+    // /watch/* 在登录墙后（proxy.ts）：未登录 goto 会被 302 到 /login，
+    // 「不白屏」的断言就退化成对登录页的检查（2026-10-11 修）。
+    const { token } = await registerUserViaApi(request, uniquePhone());
+    await loginViaToken(page, token);
     await page.goto("/watch/nonexistent-video-id-12345");
-    await page.waitForTimeout(3000);
+    // 加载中显示 spinner；404 解析后显示「加载视频失败」错误态。两者其一即可 ——
+    // 关键是不白屏。本文件按项目默认视口跑（mobile-chrome 上即覆盖移动端错误态；
+    // 桌面档由 watch.spec.ts 的同名用例覆盖）。
+    const meaningful = page
+      .locator(".animate-spin")
+      .or(page.locator("text=/加载视频失败|处理失败|未知错误/i"));
+    await expect(meaningful.first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator("body")).toBeVisible();
   });
 });

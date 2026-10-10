@@ -8,8 +8,9 @@ import { uniquePhone, registerUserViaApi, loginViaUi } from "./helpers";
  *    subtitle panel), bottom-RIGHT when collapsed
  *  - A5 collapsing the panel constrains the video wrapper max-width
  *
- * CI starts with an empty DB, so the video-dependent tests skip when no video
- * link is present on the home page (same pattern as watch.spec.ts).
+ * CI seeds one official ready video (backend/scripts/seed_e2e.py), so the
+ * video-dependent tests run for real there; with an empty local DB they skip
+ * when no video link is present on the home page (same pattern as watch.spec.ts).
  */
 
 // 串行（同族先例：viewport-height / mobile-wordcard-drawer / mobile-d1-d10）：
