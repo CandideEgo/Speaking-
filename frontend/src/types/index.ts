@@ -620,6 +620,10 @@ export interface LearningProfile {
   milestones?: Milestone[];
   /** 今日累计已学词数（含加练）——DEC-053 起由词汇训练事件驱动。 */
   today_words_learned?: number;
+  /** 用户本地日期（YYYY-MM-DD）与本地小时，按学习时区由后端下发（BUG-05）：
+   *  首页问候与日期标签用它，不再用浏览器时区自己算「今天」。 */
+  local_date?: string;
+  local_hour?: number;
 }
 
 // ---------------------------------------------------------------------------

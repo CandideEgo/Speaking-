@@ -14,9 +14,11 @@ Three reminder families, all delivered as in-app notifications via
 - ``send_pro_expiring_reminders``: daily sweep for Pro (incl. trial) that
   expires in 3 / 1 days.
 
-Timezone handling mirrors ``stats_weekly`` / ``learning_event_service``:
-the user's ``reminder_timezone`` preference (default ``Asia/Shanghai``)
-converts the sweep instant into local wall-clock time.
+Timezone handling comes from the single authority in
+``app.services.local_time`` (BUG-16 / DEC-079): the user's
+``reminder_timezone`` preference, defaulting to ``Asia/Shanghai`` — the same
+basis the daily counters and rounds use, so 「昨天」means the same thing here
+as it does in the streak/profile numbers.
 
 Deduplication: a per-user per-day Redis key (``SET NX EX 86400``) blocks
 re-sends within the same local day. Redis outage is fail-open — the send
@@ -26,28 +28,22 @@ test seam; beat always invokes them with no arguments.
 """
 
 from datetime import UTC, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 import structlog
 
+from app.services.local_time import resolve_user_timezone
 from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger()
 
-_DEFAULT_TZ = "Asia/Shanghai"
 _STREAK_WARNING_HOUR = 21
 _STREAK_MIN = 2
 
 
 def _to_local(now_utc: datetime, tz_name: str | None) -> datetime:
     """Convert aware UTC to the user's local wall-clock time."""
-    if tz_name:
-        try:
-            return now_utc.astimezone(ZoneInfo(tz_name))
-        except Exception:
-            pass
-    return now_utc.astimezone(ZoneInfo(_DEFAULT_TZ))
+    return now_utc.astimezone(resolve_user_timezone(tz_name))
 
 
 def _merged_prefs(prefs) -> dict:

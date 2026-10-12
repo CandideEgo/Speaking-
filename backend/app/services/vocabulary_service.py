@@ -5,8 +5,7 @@ and practice_service.submit_practice_results.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta, tzinfo
-from zoneinfo import ZoneInfo
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +14,7 @@ from app.core.database import commit_refresh
 from app.models.learning import Vocabulary
 from app.models.preferences import UserPreferences
 from app.services.ai_service import get_ai_service
+from app.services.local_time import resolve_user_timezone
 from app.services.sr_service import calculate_review_interval
 
 logger = logging.getLogger(__name__)
@@ -59,19 +59,14 @@ def _mastery_from_review_count(review_count: int) -> str:
 async def _utc_window_of_local_yesterday(db: AsyncSession, user_id: str) -> tuple[datetime, datetime]:
     """UTC bounds of *yesterday* on the user's local calendar.
 
-    Same timezone source as ``learning_event_service.get_user_local_date``
-    (``UserPreferences.reminder_timezone``, UTC fallback), so the queue's
-    "昨天错过的优先" shares the day boundary with rounds and daily counters.
+    Day boundary from the single authority in ``app.services.local_time``
+    (BUG-16 / DEC-079) — same basis as rounds and daily counters, so the
+    queue's "昨天错过的优先" cannot drift from them.
     """
     tz_name = (
         await db.execute(select(UserPreferences.reminder_timezone).where(UserPreferences.user_id == user_id))
     ).scalar_one_or_none()
-    tz: tzinfo = UTC
-    if tz_name:
-        try:
-            tz = ZoneInfo(tz_name)
-        except Exception:
-            tz = UTC
+    tz = resolve_user_timezone(tz_name)
     now_local = datetime.now(tz)
     today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday_start = today_start - timedelta(days=1)

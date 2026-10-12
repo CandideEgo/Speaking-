@@ -11,6 +11,7 @@ from httpx import AsyncClient
 
 from app.models.learning import Vocabulary
 from app.models.study_session import StudySession, StudySessionItem
+from app.services.local_time import get_user_local_date
 from tests.conftest import TestSessionLocal
 
 
@@ -172,20 +173,20 @@ class TestRoundResume:
         await _seed_new_words(user_id, 30)
         started = await _start(client, auth_headers)
 
-        # Backdate the round: 今日训练 is a per-day dose. The service computes
-        # "today" via get_user_local_date, whose fallback (no reminder_timezone
-        # on this user) is the UTC date — backdating with host-local date.today()
-        # collides with it when the suite runs between 00:00-08:00 Beijing, so
-        # anchor to the same basis the service uses.
+        # Backdate the round: 今日训练 is a per-day dose keyed on the user's local
+        # date. Anchor with the same helper the service uses (BUG-16 / DEC-079
+        # give it one basis, default Asia/Shanghai) — a host-local ``date.today()``
+        # or a hardcoded UTC date drifts from it by a day around local midnight.
         async with TestSessionLocal() as db:
             session = (
                 await db.execute(StudySession.__table__.select().where(StudySession.id == started["session"]["id"]))
             ).one()
             assert session.status == "active"
+            yesterday = (await get_user_local_date(db, user_id)) - timedelta(days=1)
             await db.execute(
                 StudySession.__table__.update()
                 .where(StudySession.id == started["session"]["id"])
-                .values(local_date=datetime.now(UTC).date() - timedelta(days=1))
+                .values(local_date=yesterday)
             )
             await db.commit()
 

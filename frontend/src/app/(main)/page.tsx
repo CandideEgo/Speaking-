@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Trophy, X, Compass } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -17,16 +17,31 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { getMilestoneLabel } from "@/components/profile/MilestoneBadge";
 
+/** 把后端下发的 YYYY-MM-DD 渲染成「1月2日 星期五」。
+ *
+ * 用显式年月日构造本地 Date，而不是 `new Date("YYYY-MM-DD")`——后者按 UTC
+ * 午夜解析，在东八会回退成前一天。 */
+function formatLocalDateLabel(localDate: string): string {
+  const [y, m, d] = localDate.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Date(y, m - 1, d).toLocaleDateString("zh-CN", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
+}
+
 export default function HomePage() {
   const { user } = useAuthStore();
   const userName = user?.name || "学习者";
 
-  // Time-based greeting：时钟只在客户端读取，首帧用固定占位，
-  // 否则服务端渲染的时区/小时与浏览器不同会造成 hydration 不一致。
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => setNow(new Date()), []);
+  // Learning profile（也供里程碑横幅使用）。
+  const { profile } = usePlan();
 
-  const hour = now?.getHours() ?? null;
+  // 问候与日期都按**学习时区**算：小时与本地日由后端 profile 下发（BUG-05），
+  // 早先用浏览器 `new Date()` 自己算「今天」，与连续天数所在的学习时区可能差一天。
+  // profile 未到位时退回中性问候 + 空占位，不猜一个看起来像真值的数字。
+  const hour = profile?.local_hour ?? null;
   const greeting =
     hour === null
       ? "你好"
@@ -37,12 +52,7 @@ export default function HomePage() {
           : hour < 18
             ? "下午好"
             : "晚上好";
-  const dateLabel = now
-    ? now.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })
-    : "";
-
-  // Learning profile (for milestone banner).
-  const { profile } = usePlan();
+  const dateLabel = profile?.local_date ? formatLocalDateLabel(profile.local_date) : "";
 
   const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
 

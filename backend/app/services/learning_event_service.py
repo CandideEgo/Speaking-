@@ -12,7 +12,7 @@ disrupted by event emission issues.
 """
 
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.preferences import UserPreferences
+from app.services.local_time import get_user_local_date
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ async def emit_event(
         # update or raise PendingRollbackError.
         async with db.begin_nested():
             # Determine user's local date for daily aggregation
-            today = await _get_user_local_date(db, user_id)
+            today = await get_user_local_date(db, user_id)
 
             # Insert event row
             event = LearningEvent(
@@ -136,34 +137,9 @@ async def _get_or_create_profile(db: AsyncSession, user_id: str) -> UserLearning
     return profile
 
 
-async def _get_user_local_date(db: AsyncSession, user_id: str) -> date:
-    """Determine the user's local date from their timezone preference.
-
-    Falls back to UTC if no timezone is set.
-    """
-    result = await db.execute(select(UserPreferences.reminder_timezone).where(UserPreferences.user_id == user_id))
-    tz_name = result.scalar_one_or_none()
-
-    if tz_name:
-        try:
-            from zoneinfo import ZoneInfo
-
-            tz = ZoneInfo(tz_name)
-            return datetime.now(tz).date()
-        except Exception:
-            pass
-
-    return datetime.now(UTC).date()
-
-
-async def get_user_local_date(db: AsyncSession, user_id: str) -> date:
-    """Public form of the local-date helper.
-
-    Study rounds need the *same* day boundary as the daily counters they feed
-    (DEC-053): if a round rolled over on UTC while ``today_words_learned``
-    rolled over on the user's timezone, the 今日 tab would disagree with itself.
-    """
-    return await _get_user_local_date(db, user_id)
+# 「用户本地日」的唯一正文在 app.services.local_time（BUG-16 / DEC-079），本模块
+# 只从那里导入 get_user_local_date：学习事件、每日计数与复习轮次共用同一个回退基准，
+# 早先「这里回退 UTC、提醒任务回退东八」的分歧不再存在。
 
 
 async def _update_daily_progress(
@@ -238,7 +214,7 @@ async def get_weekly_cycle_count(db: AsyncSession, user_id: str) -> dict:
 
     Returns {"cycles_completed": N, "week_start": date, "days_active": N}
     """
-    today = await _get_user_local_date(db, user_id)
+    today = await get_user_local_date(db, user_id)
     # Week starts on Monday
     week_start = today - timedelta(days=today.weekday())
 
@@ -285,7 +261,7 @@ async def get_today_progress(db: AsyncSession, user_id: str) -> dict:
     cache is stale or missing.
     """
     profile = await _get_or_create_profile(db, user_id)
-    today = await _get_user_local_date(db, user_id)
+    today = await get_user_local_date(db, user_id)
 
     # Reset if new day (in case no events were emitted today yet)
     if profile.today_date != today:

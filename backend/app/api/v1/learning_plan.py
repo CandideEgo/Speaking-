@@ -32,6 +32,7 @@ from app.schemas.learning_plan import (
     MilestoneResponse,
 )
 from app.services import milestone_service, profile_service, study_session_service
+from app.services.local_time import get_user_local_now
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 
@@ -87,6 +88,8 @@ async def get_learning_profile(
     # two can never disagree (the counter is per-user-local-date, and a stale
     # profile row means zero rather than yesterday's number).
     today = await study_session_service.get_today_summary(db, current_user.id)
+    # 首页问候与日期标签的基准（BUG-05）：与今日计数、连续天数同一个用户本地日。
+    local_now = await get_user_local_now(db, current_user.id)
     return LearningProfileResponse(
         estimated_level=profile.estimated_level,
         current_streak=profile.current_streak,
@@ -97,6 +100,8 @@ async def get_learning_profile(
         weaknesses=profile.weaknesses,
         milestones=[MilestoneResponse(**m) for m in milestones],
         today_words_learned=today["words_learned"],
+        local_date=local_now.date().isoformat(),
+        local_hour=local_now.hour,
     )
 
 
@@ -113,7 +118,13 @@ async def refresh_learning_profile(
     # them (it is incremented by events), so it is filled in here to keep this
     # response identical in shape to GET /plan/profile.
     today = await study_session_service.get_today_summary(db, current_user.id)
-    return LearningProfileResponse(**profile_dict, today_words_learned=today["words_learned"])
+    local_now = await get_user_local_now(db, current_user.id)
+    return LearningProfileResponse(
+        **profile_dict,
+        today_words_learned=today["words_learned"],
+        local_date=local_now.date().isoformat(),
+        local_hour=local_now.hour,
+    )
 
 
 @router.get("/mastery-trend", response_model=MasteryTrendResponse)
