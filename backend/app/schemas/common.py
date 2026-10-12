@@ -34,6 +34,9 @@ class VideoBrief(BaseModel):
     duration: float | None = None
     difficulty_level: str | None = None
     video_url_720p: str | None = None
+    # BUG-20：Video.channel_name 是实际列，from_attributes 自动带出；
+    # 首页「继续观看」条需要频道名，此前 schema 未下发。
+    channel_name: str | None = None
 
     model_config = {"from_attributes": True}
 

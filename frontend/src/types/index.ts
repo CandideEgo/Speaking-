@@ -197,6 +197,10 @@ export interface LearningRecord {
   video: {
     title: string;
     thumbnail_url: string | null;
+    /** BUG-20：后端 VideoBrief 一直下发这两个字段，此前前端类型漏声明。
+     *  duration 是「继续观看」进度分母的权威值（DB `videos.duration`）。 */
+    duration: number | null;
+    channel_name: string | null;
   } | null;
 }
 
