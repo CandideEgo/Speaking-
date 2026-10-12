@@ -21,6 +21,11 @@ function loadPersistedSubtitleMode(): SubtitleMode {
 interface WatchStore {
   subtitleMode: SubtitleMode;
   setSubtitleMode: (mode: SubtitleMode) => void;
+  /** 挂载后从 localStorage 恢复字幕模式（BUG-13）。
+   *
+   *  模块初始化时读会在「服务端无 storage、首帧用默认值 / 客户端读到已存值」
+   *  之间产生 hydration 不一致；改为首帧恒为 bilingual，由挂载 effect 补一次。 */
+  hydrateSubtitleMode: () => void;
   /** 右侧字幕面板是否折叠为窄轨（按需展开） */
   panelCollapsed: boolean;
   setPanelCollapsed: (collapsed: boolean) => void;
@@ -46,7 +51,7 @@ const INITIAL_STATE = {
 
 export const useWatchStore = create<WatchStore>((set) => ({
   ...INITIAL_STATE,
-  subtitleMode: loadPersistedSubtitleMode(),
+  hydrateSubtitleMode: () => set({ subtitleMode: loadPersistedSubtitleMode() }),
   setSubtitleMode: (mode) => {
     if (typeof window !== "undefined") {
       try {

@@ -538,6 +538,13 @@ export default function WatchPage() {
   const setPanelCollapsed = useWatchStore((s) => s.setPanelCollapsed);
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
+  const hydrateSubtitleMode = useWatchStore((s) => s.hydrateSubtitleMode);
+
+  // 字幕模式首帧用默认值，挂载后再补一次本地存储值（BUG-13）——模块初始化时读
+  // localStorage 会让服务端渲染与客户端首帧不一致。
+  useEffect(() => {
+    hydrateSubtitleMode();
+  }, [hydrateSubtitleMode]);
 
   // D1：字幕字号（小/中/大）持久化到用户偏好。
   const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>("medium");
@@ -1112,11 +1119,9 @@ export default function WatchPage() {
                         withToken: true,
                       })}
                       className="h-full w-full object-contain"
-                      onTimeUpdate={(e) =>
-                        // 统一走 handleTimeTick（字幕同步 + 观看时长 + D10 句尾检测）；
-                        // 此前内联实现漏接逐句跟读句尾回调，自动录音永不触发。
-                        handleTimeTick(e.currentTarget.currentTime)
-                      }
+                      // 不再挂 onTimeUpdate（BUG-14）：250ms 轮询已是唯一 tick 源，
+                      // 两条路径各跑一遍二分查找属冗余。轮询同时负责 iOS 的
+                      // isPlaying 校正，摘掉原生事件不会丢同步或播放态。
                       onPlay={() =>
                         track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
                       }
