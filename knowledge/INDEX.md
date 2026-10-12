@@ -55,6 +55,7 @@
 ## 架构决策记录（点时刻，不可改）
 
 - [Architecture Decision Records](adr/README.md)
+- [ADR-0021: 规则层降本 —— AOCI 降为按需检索、规则就近分层](adr/0021-agent-rule-layer-restructure.md)
 - [ADR-0020: 内容存储三态与半自动下线](adr/0020-storage-modes-and-takedown.md)
 - [ADR-0019: 词汇学习闭环 — 视频集合 + 快速过筛（三态状态机）](adr/0019-vocab-set-quick-sieve-loop.md)
 - [ADR-0018: 翻译引擎统一为火山引擎 ARK（ark-code-latest）](adr/0018-ark-cody-translation-engine.md)
@@ -75,6 +76,10 @@
 
 ## 方案：已成形、已落地或未采用的计划
 
+- [规则层重构 B：分片落地序列（2026-10-12，R0–R5 待执行，DEC-076 / ADR-0021）](plans/规则层重构-B-落地序列-2026-10.md)
+- [前端视觉统一：全站单一容器 + 收敛 token / 页头 / 卡片（2026-10-12，P1–P6 待执行，DEC-075）](plans/前端视觉统一-2026-10.md)
+- [AGENTS.md 重写草案：参考 Kimi Code 的仓库级 Agent 指南（2026-10-12，待拍板）](plans/AGENTS-精简规则-2026-10.md)
+- [AGENTS.md 同构格式版草案：逐节对齐 Kimi 的根 AGENTS.md（2026-10-12，待拍板）](plans/AGENTS-Kimi同构格式-2026-10.md)
 - [前端布局与信息架构：分步执行方案（2026-10，S1–S8，待执行）](plans/前端布局与信息架构-执行方案-2026-10.md)
 - [前端布局与信息架构：优化方案（2026-10，草案 v2 · 已过评审 · 已拍板）](plans/前端布局与信息架构-优化方案-2026-10.md)
 - [前端缺陷清单（2026-10-05，v2 已过评审，待修复）](plans/前端缺陷清单-2026-10.md)

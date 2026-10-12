@@ -6,6 +6,11 @@
       "layer": "hot",
       "purpose": "热层：每会话必读的事实（README 分层标准 / state / invariants / owners）"
     },
+    ".agents": {
+      "kind": "dir",
+      "layer": "tooling",
+      "purpose": "项目级 agent skills 的 agent 标准路径（Codex 侧），与 .claude/skills/ 同源的六份 SKILL.md"
+    },
     ".claude": {
       "kind": "dir",
       "layer": "tooling",

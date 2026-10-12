@@ -24,6 +24,7 @@ Each ADR is a one-time, immutable decision: Title, Status, Context, Decision, Co
 | [0018](0018-ark-cody-translation-engine.md) | 翻译引擎统一为火山引擎 ARK（ark-code-latest）— 替代 agnes/qwen/hy_mt2/glm | Accepted |
 | [0019](0019-vocab-set-quick-sieve-loop.md) | 词汇学习闭环 — 视频集合 + 快速过筛（三态状态机） | Accepted |
 | [0020](0020-storage-modes-and-takedown.md) | 内容存储三态与半自动下线（local / proxy / offline） | Accepted |
+| [0021](0021-agent-rule-layer-restructure.md) | 规则层降本 —— AOCI 降为按需检索、规则就近分层 | Accepted |
 
 ## Companion docs
 

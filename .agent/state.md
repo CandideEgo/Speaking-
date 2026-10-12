@@ -4,10 +4,20 @@
 > `knowledge/decisions-index.md`, `knowledge/CHANGELOG.md` or `knowledge/archive/`. Nothing in the
 > knowledge layer is size-capped: sizes are reported (`--size-report`) and never gated (DEC-067).
 
-Last Updated: 2026-10-11
+Last Updated: 2026-10-12
 
 ## Current Focus
 
+- **前端视觉统一：方案与 DEC 已落盘，P1–P6 待执行（10-12，DEC-075）** —— 起因是用户启动本地
+  `master` 后看版式判「东一块西一块」。诊断是**四处尺度各自为政**：内容宽度四级（2400 / 1320 /
+  880 / 768，而 `TopBar` 只在 2400 那一级与内容对齐）、页头 6 套（15/18/24/26/28/34px）、圆角 token
+  档位顺序是坏的（`md 10 < 默认 12`）且 9 个圆角类在 354 处混用、品牌橙有 4 个名字指向同一个值、
+  字号 19 档、104 处原始调色板、`ui/Card` 被绕过（`bg-surface-card` 105 处）、`ui/Eyebrow` 与
+  `ui/Grid` 零引用。**用户拍板 A：全站单容器 1320**（依据：线上本就是 1320、四级宽度本身是症状、
+  单容器让顶栏对齐成为构造结果）。方案 `knowledge/plans/前端视觉统一-2026-10.md` 拆 P1–P6 六片，
+  **分会话串行执行**（片间同改 `globals.css` 与同一批 `page.tsx`，不得并行）；P6 是新加的
+  `check-design-system.mjs` 门禁 —— ADR-0005 那次统一没带检查所以八个月后复发。**代价照账接受**：
+  S2 的 2400 与 S6 的 8 列归零，2560 屏两侧各留 ~620px。**待办**：开 P1 的会话。
 - **移动端设计优化：已实施、待真机复看与真媒体 e2e（10-11，DEC-073/074）** —— 起因是用户两张真机截图
   （线上 `seeword.top`，`/watch/[id]`）。六条定位：当前句带只有英文（中文被 WebKit 的 flex + `max-h` 折叠挤出
   可视区）、贴顶画框压住文稿半截字、文稿是卡内第二层滚动、壳顶栏级别药丸仍是"压画面"的黑色半透明样式（~26px 高）、
@@ -49,7 +59,7 @@ Last Updated: 2026-10-11
   `GX5r9orOcBlFkqDyQiSSz`），backend/celery/celery-beat 未动；`speaking-frontend:pre-deploy`
   现为 `d1cad0a46011`（**注意**：那个中间版本从未上过生产，真正回退一档等于 09-28 的
   `45c85b6f92af`）。
-- **认知系统 v2：AOCI 为核心（10-03，DEC-072）** —— 规则文档与知识系统按「三层 + 一条缝 + 一个收尾动作」重写：**L0 认知层** = AOCI（对象事实的唯一权威：某个文件/表是什么、与谁有关系、契约、改它的非显然约束）、**L1 热层** = `AGENTS.md` + `CONTEXT.md` + `.agent/`（规则与会话契约）、**L2 冷仓** = `knowledge/`（为什么、历史、操作程序）。缝判据落在 `.agent/README.md`：**能写成「恰好一个受管理对象」的属性 → AOCI，否则 → prose**；prose 只准指认对象，不准复述其契约。落地清单：`AGENTS.md` 改为「开场三件事 + 按问题类型找权威」并把 AOCI 收尾写进 MUST；`.agent/invariants.md` 的 INV-019~025 压回「规则 + 为什么 + 强制方式」（叙述与实测指向 DEC-069/070）；`/knowledge-maintain`、`/knowledge-verify`、`/context-bootstrap` 改为 AOCI 优先；`check_knowledge.py` 新增第九项 `cognition` 门（结构与接线）；`layout.json` 新增 `cognition` 层并登记 `.aoci`；DEC-072 记录决定与备选方案。**收尾**：在最终稳定状态调用了一次 `aoci_maintain`，机器给出 37 条待创作的签名批次（零写入），详见 Known Issues 与 Next Steps 第 10 条 —— 漂移已登记、未被静默，也**未**用手工或 `scan --force` 洗白。
+- **认知系统 v2：AOCI 为核心（10-03，DEC-072）** —— 规则文档与知识系统按「三层 + 一条缝 + 一个收尾动作」重写：**L0 认知层** = AOCI（对象事实的唯一权威：某个文件/表是什么、与谁有关系、契约、改它的非显然约束）、**L1 热层** = `AGENTS.md` + `CONTEXT.md` + `.agent/`（规则与会话契约）、**L2 冷仓** = `knowledge/`（为什么、历史、操作程序）。缝判据落在 `.agent/README.md`：**能写成「恰好一个受管理对象」的属性 → AOCI，否则 → prose**；prose 只准指认对象，不准复述其契约。落地清单：`AGENTS.md` 改为「开场三件事 + 按问题类型找权威」并把 AOCI 收尾写进 MUST；`.agent/invariants.md` 的 INV-019~025 压回「规则 + 为什么 + 强制方式」（叙述与实测指向 DEC-069/070）；`/knowledge-maintain`、`/knowledge-verify`、`/context-bootstrap` 改为 AOCI 优先；`check_knowledge.py` 新增第九项 `cognition` 门（结构与接线）；`layout.json` 新增 `cognition` 层并登记 `.aoci`；DEC-072 记录决定与备选方案。**收尾已完成（10-11）**：drift 已根治，见 Next Steps #10 与 Known Issues 的 AOCI 收尾条目。
 - **移动端播放页：句导航 + R5「齐平字幕带」已落地、待真机复看（10-02，DEC-070）** —— 本轮四件事全落：① `devIndicators` **整关**（原计划的 `bottom-right` 实测把「跟读」那一格吃掉，底栏是铺满整宽的四个键、四角没有一个位置不压按钮，见 `next.config.js` 注释）；② 「下一句」过期闭包改「稳定引用 + ref 读最新值」（`onNextStable`，新增 INV-025）；③ R5 版式（当前句卡 ≤1023px 与画框**齐平 0 断层**、无外框无圆角；模式行 48px / 每段 44px 分段控件并成为文稿卡卡头、移动端不渲染折叠键；文稿当前项降级为淡底 + 橙左竖线 + ink；`panelCollapsed` 加 `!isMobile` 守卫）；④ 进度条总时长以**媒体真实时长**为准（`aria-valuemax` 实测 612 → 720）。**本地实测**：卡 `x=0 y=276.9 w=414`（= 画框下沿）、四键中心全部命中自己、模式行 48px + 三段各 44px、`npx tsc --noEmit` 0、`npm run lint` 0 error、新 spec `mobile-sentence-nav.spec.ts` 4 条绿（红→绿逐条验过：A「9 → 2」、C「nextjs-portal 压住 watch-prev」、D「612 ≠ 720」）。**还欠一次真机复看**（判据只能靠真机）：(a) 底栏左下角不再有黑「N」、四键都好按；(b) 0 断层的观感（嫌挤就改 6–8px，仍在合法窗口内，改完重看）；(c) 三段 44px 是否好按、切换后字幕带与文稿是否同步换语言。**本轮唯一与方案预期不符的一条**：§4 判据 6 写「首屏 ≥4 条文稿」，实测 **3 条**（判据本身只要 ≥3，判据 1–3 全绿）；差的是 R5 把模式行从 32px chip 行换成 48px 卡头（+16px），而四个锁定值（段 44 / 容器 46 / 行 48 / 底线）都已在最小值上，凑第 4 条要再省 20px ⇒ 只能动已定案的模式行。若你要 4 条，说一声即可（那是新决议）。**已提交（10-03）**。方案：`knowledge/plans/移动端播放页-句导航与R5版式-执行方案-2026-10.md`。
 - **移动端播放页重构：已实施、待真机复看（10-02，DEC-069，issue [#31](https://github.com/CandideEgo/Speaking-/issues/31)）** —— `/watch/*`（≤1023px）现在整页跑在壳里：新件 `components/layout/WatchTopBar.tsx`（44px：返回 / 标题 / `channel · cefrWithExamHint` / `ExamLevelSelector` / ⋯）、`components/watch/WatchBottomBar.tsx`（进度条 `requestAnimationFrame` 直读 `videoRef` 不进 state + 上一句/播放/下一句/跟读，替换 5 Tab）、`components/watch/CurrentSentenceCard.tsx`（画面正下方的**唯一**一份当前句，移动与桌面同一张）、`components/watch/WatchMoreSheet.tsx`（语言/字号/倍速/来源版权/动作行/笔记）、`components/watch/WatchChromeProvider.tsx`（页面 ↔ 壳的模块级 store）；画面里零文字零覆盖物、`VideoControls` 收成桌面专属。三条验收判据（本地已过：`npx tsc --noEmit` 0、`npm run lint` 0 error，Playwright chromium 43 passed）：**画面内零文字 / 首屏不滚动可见完整底栏 + 当前句卡 + ≥3 条文稿（Chromium 414×896 实测 4 条）/ 进页面到播放 1 次点击**；桌面与其它路由零 diff 有守卫。**还欠一次真机轮次确认两件事**：(a) iPhone 414×896 上的真实首屏（Chromium 视口 896 ≠ 真机 Safari 可视 776，「4 条文稿」是模拟读数）；(b) 词卡盖住当前句卡在手里是否可接受（INV-022 记的新代价）。**已提交（10-03）**。方案与差异清单：`knowledge/plans/移动端播放页-壳层控制条-落地方案-2026-10.md`。
 - **移动端视口收尾（09-30，wayfinder #22）**：底栏从 `fixed bottom-0` 改成壳 `h-dvh` 的常规流收尾行、安全区收归壳独占、全仓 `vh → dvh`，回归在 `frontend/e2e/viewport-height.spec.ts`（INV-019/020）。真机读数已齐：Safari 地址栏收放差 40px（`100vh` 恒 790 / 可视区 750↔790）、夸克不受影响、`cover` 在 Safari 浏览器模式下不生效（insets 恒 0，所以壳的 `env()` padding 在那里是 no-op，只在 standalone / 有 cutout 的 Android 上生效（standalone 那份未实测：项目无 manifest / `apple-mobile-web-app-capable`，别当死代码删）。**真机复测通过（09-30）**：改动落地后用户在真机上确认「地址栏展开时底栏贴住可视区底边」，不再被地址栏压住。**已知缺口**：非 shell 路由（login / onboarding / legal / admin）没有安全区归属，等哪天 insets 真的非 0 才会暴露
@@ -68,42 +78,40 @@ Last Updated: 2026-10-11
 7. 集成测试 / e2e 覆盖新页面（/weekly-report、收藏、CoachMark、ShareCard、drill 选择题循环、集合详情两栏）
 8. Recommendation 深度个性化 P2（ADR-0011）；ICP 解封后项：payment、前端单测、e2e
 9. **词汇训练线收尾（DEC-053/056/057）**：T1 回填 09-28 生产已跑，0 候选（存量词行连 `context_sentence` 都没有）；追票：续轮次序精确化（`wrong_in_round` 改计数）、ECDICT 干扰项兜底、「全部单词」词行级 unmark；SM-2 旧文案清扫（`layout.tsx:7`、`practice/page.tsx:296`、`AuthCard.tsx:7`）
-10. **AOCI 收尾（未完成；被工具支持面阻塞——见 Known Issues 10-11 复核）**：当前 maintain `blocked` 且 `included=0`，**scope 阻塞解除前机器不签发可提交候选**，所以第一步是解 scope 阻塞：换支持本仓 `profile=production` 的 `baseline_scope_refresh` 工具版本（>rc17），或向工具维护方（github.com/aoci-spec/aoci-code）求证"手工裁剪 61 条"的受治理处理方式。阻塞解除后：重新 `aoci_maintain` 取批次 → **逐条真读** 58 个对象（54 stale + 4 missing；含本轮改动的 `AGENTS.md`、`knowledge/INDEX.md`、新建的 `code-review-principles.md`——不得凭印象写语义）→ 创作完整 F/R/A/S → `aoci_update_entry` **一次提交整批**（`max_entries=50`，58 条需两轮 50+8；不得截取、不得缩减 scope）→ 复核后 `scope acknowledge` 12 条 observe。**不要**用 `aoci scan --force`，也不要手工改卷/基线。另两处结构性缺口：托管范围不含 `backend/tests/**` 与 `frontend/e2e/*.spec.ts`（25 条 INV 的强制目标在 AOCI 里不可见），数据库认知为空（`database_cognition.state=absent`，而 Postgres 是本系统的核心存储）
+10. **AOCI 收尾已完成（10-11）**：升级 rc20 后，drift 通过四批 `aoci_maintain` → 真读源码 → `aoci_update_entry` 整批提交根治（27+25+28+3 = 83 条，全部 `status=applied`）；`aoci verify` / `aoci check` 均 `governance_aligned=true`（`ok=true`、`structure_valid=true`），guide `complete=true / next_action=none`。**遗留的结构性缺口（未阻塞对齐）**：① 托管范围不含 `backend/tests/**` 与 `frontend/e2e/*.spec.ts`（25 条 INV 的强制目标在 AOCI 里不可见）；② 数据库认知为空（`database_cognition.state=absent`，而 Postgres 是本系统的核心存储）；③ `aoci check` 的 `e_scale` 有 7 条标签末位与文件行数分档不符的软性 mismatch（不进 findings、不影响对齐，下次动这些文件时顺手改标签）；④ `scripts/prod_ssh.py`、`scripts/prod_upload_parallel.py`、`scripts/build_prod_images.ps1` 仍是未跟踪文件（跟踪后会成为新受管理对象，需走正常收尾）。
 11. **移动端设计优化的三个收尾动作（DEC-073/074）**：① 放真 mp4 后跑 `mobile-transcript-scroll.spec.ts` 与
     `mobile-current-sentence-card.spec.ts`（本地与 CI 的 `backend/media/*.mp4` 都是 7 字节占位，会整条 skip），
     跑法见 Known Issues「本地要跑『播放中』类 e2e」；② 真机复看 5 条并把读数按 `device-acceptance.md` 的格式落
     `docs/design/mobile/destination/`；③ 重出 `audit-touch-targets.mjs` 的 rev7 基线（口径已改，rev6 读数不可比）。
+12. **规则层重构 B 待执行（10-12，DEC-076 / ADR-0021）** —— 决议是「保留 AOCI 的 742 条对象语义，
+   换掉围绕它的仪式与层次」：会话开场从「每会话全量读」降为按需检索、规则就近分层
+   （新建 `backend/AGENTS.md`）、`ci.yml` 三 job 各加 `paths`、6 个技能补停止信号、
+   新增复盘回填清单。执行序列：`knowledge/plans/规则层重构-B-落地序列-2026-10.md`（R0–R5）。
+   **本轮只落决策，未动 `AGENTS.md`**：R1/R2/R3 都改这份宪法级文件且必须串行，改前须保留
+   `aoci:begin`/`aoci:end` 区块原样并做一次 AOCI 收尾；R2/R5 的验证需要能跑 `check_knowledge.py`
+   的环境（本机沙箱无可用 Python 解释器）。**对标结论**：kimi-code 的轻门禁靠 1003 个测试文件加
+   21 个契约文件接住「对象事实」，本仓没有替代物，故不撤认知层。
 
 ## Known Issues
 
-- **AOCI 收尾未完成：机器已签发创作批次，正式卷与 Baseline 漂移（10-03）**：在最终稳定状态调用了一次 `aoci_maintain`，返回 `status=stopped` / `result=blocked`，**零写入**（`semantic_generated=false`，write 集为空），并给出一份机器签名的创作批次：`batch_identity=575453c079610a89d7766e9a61aaa02d2f98745e0702ede65ee31977601bc4d2`、`total_targets=37`、`remaining=37`、`next_action=author_complete_current_machine_batch`。37 条 = 本轮改过的 9 份规则/技能/配置 + 4 份知识文档 + 上一轮瘦身提交改过的代码文件（`code_drift.stale` 在响应里截断到 20 条，总数 37）。同时 `scope` 操作被拒：`managed_scope_formal_volume_baseline_drift: aoci.code.txt` —— 正式卷在 Baseline 建立后被手工裁掉 61 条孤儿条目（508632 B → 473200 B），于是 `scope status` / `scope acknowledge` 失败，3 条 observe 待复核无法前移；机器给的 `next_commands` 是 `scope status --json` 与 `scope acknowledge --reviewed-by {agent} --json`。**可写路径只有一条**：`aoci_maintain` → 按返回批次用 `aoci_update_entry` 提交；`aoci_report`、`remove-entry` 与 CLI 的 `index update` / `score` / `agent plan` / `status --deep` 在本仓一律报 `volume_read_only`（rc17 的 CLI 维护面只服务旧布局）。**禁止**用 `aoci scan --force` 洗白：那会把手工裁剪与 37 条未创作的 stale 一起写进新 Baseline，`code_stale` 归零而条目仍描述已删除的代码。**批次已过期**：它绑定的是调用时的 preimage，而收尾之后又改过 4 个受管理对象（`.agent/state.md`、`knowledge/decisions.md`、`AGENTS.md`、`scripts/check-knowledge/README.md`），所以下一轮应先重新 `aoci_maintain` 取一份当前批次，不要直接提交这一份。**当前 `aoci check`**：`code_stale` 37 条、`governance_aligned=false`。**10-04 复核**：本次会话的
-  harness **没有接入 AOCI MCP**（`.mcp.json` 只配置在 Claude Code 侧，本会话工具表里没有
-  `aoci_rules` / `aoci_overview` / `aoci_maintain` / `aoci_update_entry`），CLI（`C:/Users/Administrator/Tools/aoci/aoci.exe`）
-  的子命令只有 ai/baseline/capabilities/check/cognition/completion/config/database/doctor/help/index/init/mcp/remove-entry/scan/source/status/ui/update-entry/verify ——
-  **没有 `maintain`**（实测 `aoci maintain` → `command_failed`）。因此本轮**无法**取得创作批次也无法提交：
-  AOCI 收尾是**被工具可达性阻塞**，不是被语义阻塞；下一次必须在能调 MCP 的会话里做
-  （开场 `aoci_rules` → `aoci_overview`，收尾 `aoci_maintain` → `aoci_update_entry`）。当日 `aoci verify`
-  的机器事实：`code_stale` 42 条 + `code_missing` 2 条（这两个是本次会话的临时文件，已删）+ `code_volume_unbaselined`
-  （`aoci.code.txt`）、`managed_scope.aligned=true`、`observed_pending_review=3`、`read_only_candidate=true`。
-  另：本轮新增的两个部署工具 `scripts/prod_ssh.py`、`scripts/prod_upload_parallel.py`（+ `scripts/build_prod_images.ps1`）
-  是**未跟踪**文件，尚未纳入基线。
-  **10-11 复核（知识层改动会话）**：按 Next Steps #10 先重新 `aoci_maintain`——仍 `stopped/blocked`、**零写入**（`semantic_generated=false`），当前机器批次 `batch_identity=58c569ea5bdad0b13f2a13351150ce09c7e8279fece4a2ad400d34da14cc6b68`（logical_plan `d11fbfefa154c527b294a136f3a23f219aef33eb1d4d7f0444cbb1282bb8ff35`、composite `d8d3f926d82fe9f4bc4ab92751b1ba35db9cde1321d005c9e98fbe9f5194532e`）、`total_targets=58`（54 stale + 4 missing）、`included=0`、`remaining=58`、`candidates=[]`、`orphan_remove_candidates=[]`（无孤儿）；顶层 `next_action=explicit_orphan_remove_or_resolve_blocker`。58 = 54 条 stale（`.agent/*`、`.claude/skills/*`、`AGENTS.md`、`knowledge/INDEX.md`、`knowledge/decisions.md`、`knowledge/decisions-index.md`、`knowledge/wiki/guides/repository-layout.md`、backend/frontend 代码；10-03 时 37 → 10-04 复核 42 → 今 54，纯存量累积）+ 4 条 missing/unbaselined（3 份 10-05 前端方案 + 10-11 新建 `knowledge/wiki/guides/code-review-principles.md`）；`observed_pending_review=12`（4 新 / 6 改 / 2 删，全部 `frontend/e2e/*.spec.ts`）。**解阻塞路径全部实测失败（10-11）**：① `scope status --json` → rc=2 `managed_scope_invalid: managed_scope_formal_volume_baseline_drift: aoci.code.txt`（10-03 同根因，复测复现）；② `scope acknowledge --reviewed-by claude --json` → 同一错误；③ 10-03 指名的"受治理路径" `aoci baseline scope plan`（--json 与人读均试）→ `baseline_scope_managed_scope_unsupported`，`baseline scope status` → `command_failed`——**该处方作废**；`capabilities` 声明有 `baseline_scope_refresh` 能力，本仓 managed_scope 报 unsupported（原因未证，疑与 `profile=production` 支持面有关，需向维护方确认）。`check`/`verify`：`structure_valid=true`、`governance_aligned=false`、`read_only_candidate=true`、skipped 144（二进制等，正常）；无孤儿、无待恢复事务、无第三方冲突。**结论**：收尾被**工具支持面**阻塞（非语义、非可达性）：scope 子系统整体拒绝且修复路径对本仓不支持；下一步是换支持本 profile 的工具版本（>rc17；工具仓 github.com/aoci-spec/aoci-code，构建信息可用 `aoci capabilities` 复得）或向维护方求证"手工裁剪 61 条"的受治理处理方式；仍**禁止** `scan --force` 与手工改卷。
-  **10-11 收尾复跑（同日追加改动后）**：AGENTS.md 路由行、`.agent/invariants.md`「审查改动 — 六个必问」节、`knowledge/INDEX.md` 事实更正（三个→四个）落地并达最终稳定态后，复跑 `aoci verify`（候选结构有效）+ `aoci_maintain`：结果与上段**逐项一致**——`blocked`、零写入、批次身份与目标数不变（不重复抄录）、`observed_pending_review=12`、无孤儿/无待恢复事务/无第三方冲突；`next_commands` 仍是两条已实测失败的 scope 命令。**观察**：批次身份不随源字节改动而变化（两次复跑之间改过多个受管理对象，身份不变；逐文件 `source_sha256` 的绑定时机未直接观察，`included=0` 时无候选）。上段机器事实在本次收尾后**仍然有效**。
-  **10-11 收尾（移动端设计优化会话，另一次 `aoci_maintain`）**：仍是 `stopped` / `result=blocked`、**零写入**
-  （`semantic_generated=false`、`candidates=[]`、`orphan_remove_candidates=[]`）；机器签发批次
-  `batch_identity=0a21b459385a0ce7a91c843d4ac5017bc92984eae7f344b664cdfe23eb834ad2`、
-  `logical_plan=59aefaef61325e4cbc8c638452bbd9cbba90b95607e6ae2984341046dd923faf`、
-  `composite=d8d3f926d82fe9f4bc4ab92751b1ba35db9cde1321d005c9e98fbe9f5194532e`、
-  `total_targets=84`（`included=0` / `remaining=84`）、`max_entries=50`、
-  `next_action=explicit_orphan_remove_or_resolve_blocker`。**与上两段不同的一点**：这次 `managed_scope.aligned=true`
-  （10-03 与 10-11 早间那两次的 `managed_scope_formal_volume_baseline_drift` 没有再出现）、
-  `policy_identity == active_policy_identity`、`observed_pending_review=18`；`structure_valid=true`、
-  `governance_aligned=false`、无孤儿、无待恢复事务、无第三方冲突。`code_drift` 规模：`stale=72`、`missing=12`
-  （含本轮新建的 `knowledge/plans/移动端设计优化-2026-10.md`）、`skipped=144`、`findings=242`（响应里 findings
-  截断到 20 条）。`next_commands` 仍是 `scope status --json` 与 `scope acknowledge --reviewed-by {agent} --json`
-  （10-11 早间实测这两条均报 `managed_scope_invalid`，与本次 `aligned=true` 口径不一致——**如实记录，未据此推进**）。
-  合同上本轮也不该提交：`included=0` 没有可提交的完整候选集合，且 84 个目标里绝大多数是本会话没有真读过的对象。
-  `aoci verify`（CLI）同日复跑：`Volumes v1候选结构有效`、rc=1（非零退出与"结构有效"并存，未做进一步解读）。
+- **AOCI 两个入口的结论已一致（10-12 复核，此前的「相反结论」不再复现）** —— 早前记录过的
+  `aoci check`（CLI）与 `aoci_maintain`（MCP）互斥结论已消失：10-12 收尾后 CLI
+  `aoci verify` 报 `result=aligned` / `next_required_action=none` / `code_drift` 全空，
+  `aoci check --json` 报 `ok=true` / `governance_aligned=true` / `exit_code=0` / 非 `code_skipped`
+  findings 为 0，`aoci index agent guide --agent codex` 报 `complete=true` / `next_action=none`。
+  **教训保留**：三者不一致时以 `aoci check` 为准并记录，`guide.complete=false` 与
+  `maintain.aligned=true` 都不能覆盖它；不得为对齐手改 `.aoci` 白名单、合成 candidate 或用
+  `scan --force` 洗白。另两条仍在：`update_entry` 的 S 字段按 UTF-8 字节/3 计 token（C1-4≤40、
+  C5-7≤80、C8≤140、C9≤200），超额要重写语义而不是机械截断；`e_scale` 有 7 条分档软性不符
+  （不进 findings，见 Next Steps #10）。复跑命令：`aoci verify --json`、`aoci check --json`、
+  `aoci index agent guide --agent codex --json`。
+- **AOCI 认知层曾在 10-11 全量对齐（10-03 起的漂移根治；现状以上一条为准）**：rc20 之后 `aoci_maintain` 恢复签发候选，四批
+  27+25+28+3 = 83 条条目由模型真读源码/diff 后经 `aoci_update_entry` 整批提交（全部 `applied`，未用
+  `scan --force`、未手工改卷）；终态 `aoci verify` 与 `aoci check` 均 `governance_aligned=true`、
+  guide `complete=true / next_action=none`。**历史记录留档**：10-03~10-11 期间曾因正式卷被手工裁剪 61 条
+  叠加 rc17 的 `baseline_scope_refresh` 不支持本仓 profile 而长期 `blocked`；若同类漂移复发，路径仍是
+  maintain → 真读 → 整批 update_entry，不是洗白。剩余软性读数：`e_scale` 7 条标签分档不符（不进 findings），
+  `backend/tests/**` 与 `frontend/e2e/*.spec.ts` 不在托管范围、数据库认知 absent —— 见 Next Steps #10。
 - **`.dockerignore` 的嵌套文件漏过（10-04 部署时由独立验证发现，非本次提交引入）**：`backend/.dockerignore`
   里 `__pycache__`、`*.log` 等模式**只匹配顶层**（Docker 的 ignore 模式不跨 `/`），所以 `app/**/__pycache__/*.pyc`
   与嵌套目录下的 `*.log` 照样进镜像。本次新镜像里因此带着 `/app/.dev-logs/probe-uvicorn.log`（353 KB）与

@@ -42,6 +42,7 @@ edited together.
 | Entry | Layer | Holds | Add here when… |
 |---|---|---|---|
 | `.agent/` | hot | the facts every session loads: `README.md` (the layering standard), `state`, `invariants`, `owners` | the fact changes what the next session does before it knows the task |
+| `.agents/` | tooling | project-level agent skills at the agent-standard path — the same six skills as `.claude/skills/` | a tool looks for skills at this fixed path |
 | `.claude/` | tooling | project-level agent config and skills (`intake`, `knowledge-maintain`, `knowledge-verify`, `speaking-dev`, …) | a skill or a tool reads it at this fixed path |
 | `.github/` | tooling | CI/CD workflows and dependabot | GitHub reads it at this fixed path |
 | `backend/` | code | the FastAPI application (`app/`, `migrations/`, `tests/`, `scripts/`) | it is code, or a config the code reads |
