@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { SheetHandle, SHEET_CLOSE_DRAG_PX } from "@/components/watch/SheetHandle";
 import type { SubtitleFontSize } from "@/components/watch/VideoControls";
 import { type SubtitleMode } from "@/stores/watchStore";
+import { SUBTITLE_MODE_LABEL, SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
 
 /**
  * WatchMoreSheet — 移动端的 ⋯ 面板：把首屏那 355px 次要信息收进一张底部抽屉
@@ -14,7 +15,7 @@ import { type SubtitleMode } from "@/stores/watchStore";
  *
  *     ┌───────────────────────────────────────────┐
  *     │                  ▁▁▁▁                     │ 下拉 >64px 关
- *     │  语言   [双语] [英语] [中文]              │
+ *     │  语言   [双语] [英文] [中文] [关闭]       │
  *     │  字幕字号  [小] [中] [大]                 │
  *     │  播放倍速  [0.5x] [0.75x] [1x] …          │
  *     │  出处 + 版权声明                          │
@@ -78,19 +79,13 @@ export function WatchMoreSheet({
         />
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pt-1">
           <Row label="语言">
-            {(
-              [
-                ["bilingual", "双语"],
-                ["english", "英语"],
-                ["chinese", "中文"],
-              ] as [SubtitleMode, string][]
-            ).map(([key, label]) => (
+            {SUBTITLE_MODE_ORDER.map((key) => (
               <Chip
                 key={key}
                 active={subtitleMode === key}
                 onClick={() => onSubtitleModeChange(key)}
               >
-                {label}
+                {SUBTITLE_MODE_LABEL[key]}
               </Chip>
             ))}
           </Row>

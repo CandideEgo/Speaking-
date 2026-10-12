@@ -138,7 +138,7 @@ export function CurrentSentenceCard({
       )}
     >
       {subtitleMode === "hidden" ? (
-        <p className="text-meta text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
+        <p className="text-meta text-muted-soft">字幕已关闭 —— 按 S 键切换显示</p>
       ) : (
         // 内容**不再**放进 `flex flex-col` + `max-h` 容器里：上一版靠 flex 压缩决定
         // 「谁被牺牲」，可 `-webkit-line-clamp` 在 flex 子项里于 WebKit 不生效，长句照样

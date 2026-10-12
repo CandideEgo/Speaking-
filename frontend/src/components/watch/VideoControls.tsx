@@ -20,15 +20,9 @@ import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format";
 import { PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
 import type { SubtitleMode } from "@/stores/watchStore";
+import { SUBTITLE_MODE_LABEL } from "@/lib/subtitleModes";
 
 export type SubtitleFontSize = "small" | "medium" | "large";
-
-const SUBTITLE_MODE_LABEL: Record<SubtitleMode, string> = {
-  bilingual: "双语",
-  english: "英",
-  chinese: "中",
-  hidden: "关",
-};
 
 const FONT_SIZE_LABEL: Record<SubtitleFontSize, string> = {
   small: "小",

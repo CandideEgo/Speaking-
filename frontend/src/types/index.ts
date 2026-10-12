@@ -144,9 +144,6 @@ export interface Subtitle {
   text_zh: string | null;
   sentence_index: number;
   grammar_note: string | null;
-  /** Legacy AI-extracted difficulty words — not in API response, but used
-   *  locally by SubtitleList. Always null from the backend. */
-  difficulty_words?: string | null;
   /** Exam-level word annotations: lowercased surface token -> exam level keys.
    * Computed once at ingest from ECDICT; see lib/examLevels.ts. */
   word_levels: Record<string, string[]> | null;

@@ -97,17 +97,19 @@ test.describe("Watch Page - Valid Video", () => {
 });
 
 test.describe("Watch Page - Subtitle Mode Tabs", () => {
-  test("subtitle mode tabs render bilingual / english / chinese labels", async ({
-    page,
-    request,
-  }) => {
+  // 模式词表是 `lib/subtitleModes` 的单一来源：`hidden` 档的用户可见名是「关闭」，
+  // 不是「隐藏」；定位收进 aria-label="字幕模式" 的 tablist，避免与别的控件撞词。
+  const modeTab = (page: Page, label: string) =>
+    page.locator(`[role="tablist"][aria-label="字幕模式"] [role="tab"]:has-text("${label}")`);
+
+  test("subtitle mode tabs render 双语 / 英文 / 中文 / 关闭 labels", async ({ page, request }) => {
     const { token } = await registerUserViaApi(request, uniquePhone());
     if (!(await openFirstVideo(page, token))) {
       test.skip();
       return;
     }
-    for (const label of ["双语", "英语", "中文"]) {
-      await expect(page.locator(`[role="tab"]:has-text("${label}")`)).toBeVisible();
+    for (const label of ["双语", "英文", "中文", "关闭"]) {
+      await expect(modeTab(page, label)).toBeVisible();
     }
   });
 
@@ -117,9 +119,27 @@ test.describe("Watch Page - Subtitle Mode Tabs", () => {
       test.skip();
       return;
     }
-    const tab = page.locator('[role="tab"]:has-text("英语")');
+    const tab = modeTab(page, "英文");
     await tab.click();
     await expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+
+  // BUG-03：S 键能切到「关闭」档，但面板里原来看不到回来的 tab —— 切过去就回不来。
+  test("『关闭』档在面板里有 tab，且能切回双语", async ({ page, request }) => {
+    const { token } = await registerUserViaApi(request, uniquePhone());
+    if (!(await openFirstVideo(page, token))) {
+      test.skip();
+      return;
+    }
+    const close = modeTab(page, "关闭");
+    await close.click();
+    await expect(close).toHaveAttribute("aria-selected", "true");
+    // 隐藏档在桌面同时命中当前句卡与文稿面板两处提示，取第一个即可。
+    await expect(page.getByText("字幕已关闭").first()).toBeVisible();
+
+    const bilingual = modeTab(page, "双语");
+    await bilingual.click();
+    await expect(bilingual).toHaveAttribute("aria-selected", "true");
   });
 });
 

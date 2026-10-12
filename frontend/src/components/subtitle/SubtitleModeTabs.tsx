@@ -3,13 +3,31 @@
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
-import { Languages, BookOpen, FileText, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { SUBTITLE_MODE_LABEL, SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
+import {
+  Languages,
+  BookOpen,
+  FileText,
+  EyeOff,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
 
-const modes: { key: SubtitleMode; label: string; icon: React.ReactNode }[] = [
-  { key: "bilingual", label: "双语", icon: <Languages size={14} /> },
-  { key: "english", label: "英语", icon: <BookOpen size={14} /> },
-  { key: "chinese", label: "中文", icon: <FileText size={14} /> },
-];
+const MODE_ICON: Record<SubtitleMode, React.ReactNode> = {
+  bilingual: <Languages size={14} />,
+  english: <BookOpen size={14} />,
+  chinese: <FileText size={14} />,
+  hidden: <EyeOff size={14} />,
+};
+
+// 词表与顺序来自 lib/subtitleModes：S 键循环、tablist、⋯ 面板三处必须同源，
+// 否则切到「关闭」档后在面板里找不到回来的 tab（BUG-03）。
+const modes: { key: SubtitleMode; label: string; icon: React.ReactNode }[] =
+  SUBTITLE_MODE_ORDER.map((key) => ({
+    key,
+    label: SUBTITLE_MODE_LABEL[key],
+    icon: MODE_ICON[key],
+  }));
 
 interface SubtitleModeTabsProps {
   /** 折叠状态；传入后渲染右侧折叠/展开按钮，常驻头部不随模式切换跳位 */

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
+import { SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
+import { useWatchStore } from "@/stores/watchStore";
 import type { VideoWithSubtitles } from "@/types";
 
 export type PlaybackMode = "ready" | "processing" | "loading" | "error" | "offline";
@@ -11,9 +12,6 @@ export type PlaybackMode = "ready" | "processing" | "loading" | "error" | "offli
 // D1 播放器控制条：倍速档位与持久化（产品设计规划 §D1）。
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const RATE_STORAGE_KEY = "seeword_playback_rate";
-
-/** 字幕显示模式循环顺序（S 键）：双语 → 英 → 中 → 隐藏。 */
-const SUBTITLE_MODE_CYCLE: SubtitleMode[] = ["bilingual", "english", "chinese", "hidden"];
 
 function loadPersistedRate(): number {
   if (typeof window === "undefined") return 1;
@@ -572,8 +570,9 @@ export function useVideoPlayer({
 
   const cycleSubtitleMode = useCallback(() => {
     const { subtitleMode, setSubtitleMode } = useWatchStore.getState();
-    const idx = SUBTITLE_MODE_CYCLE.indexOf(subtitleMode);
-    const next = SUBTITLE_MODE_CYCLE[(idx + 1) % SUBTITLE_MODE_CYCLE.length];
+    // S 键循环顺序与模式行、⋯ 面板同源（lib/subtitleModes）：双语 → 英文 → 中文 → 关闭。
+    const idx = SUBTITLE_MODE_ORDER.indexOf(subtitleMode);
+    const next = SUBTITLE_MODE_ORDER[(idx + 1) % SUBTITLE_MODE_ORDER.length];
     setSubtitleMode(next);
   }, []);
 

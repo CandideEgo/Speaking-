@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-/** 字幕显示模式：双语 / 英语 / 中文 / 隐藏（D1：S 键循环，含隐藏档）。 */
+/** 字幕显示模式：双语 / 英文 / 中文 / 关闭（D1：S 键循环，含隐藏档；用户可见名见 lib/subtitleModes）。 */
 export type SubtitleMode = "bilingual" | "english" | "chinese" | "hidden";
 
 /** localStorage key：字幕模式跨会话保持（产品设计规划 §D1）。 */
