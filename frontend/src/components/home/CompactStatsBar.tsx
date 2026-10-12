@@ -41,7 +41,9 @@ export function CompactStatsBar() {
     };
   }, []);
 
-  const streak = profile?.current_streak ?? 0;
+  // 统计未到位时不猜：三项都显示 `–`，只有拿到真值才显示 0（BUG-04 ——
+  // 原先 `?? 0` 让「没加载出来」和「真的 0 天连续」长得一模一样）。
+  const streak = profile ? profile.current_streak : null;
   const dueCount = vocabStats?.due_count ?? 0;
 
   return (
@@ -52,8 +54,8 @@ export function CompactStatsBar() {
           className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
           title="连续学习天数"
         >
-          <Flame size={15} className={streak > 0 ? "text-brand-500" : "text-muted-soft"} />
-          {streak} 天连续
+          <Flame size={15} className={(streak ?? 0) > 0 ? "text-brand-500" : "text-muted-soft"} />
+          {streak !== null ? `${streak} 天连续` : "–"}
         </Link>
         <Link
           href="/vocabulary"
