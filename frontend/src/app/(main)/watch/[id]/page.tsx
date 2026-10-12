@@ -1458,7 +1458,7 @@ export default function WatchPage() {
               {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
               {subtitleMode === "hidden" ? (
                 <div className="p-8 text-center text-meta text-muted">
-                  字幕已隐藏，按 S 键或控制条切换显示模式
+                  字幕已关闭，按 S 键或控制条切换显示模式
                 </div>
               ) : (
                 <div
