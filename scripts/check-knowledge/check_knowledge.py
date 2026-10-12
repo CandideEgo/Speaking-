@@ -20,8 +20,8 @@ deterministic (no LLM, no network, no dependency on the AOCI binary):
                something tracked there. The doctrine is knowledge/wiki/guides/repository-layout.md.
   cognition    The cognition layer (L0) is wired the way .agent/README.md says: the root
                manifest declares its volumes, each volume is on disk with its format
-               header, AGENTS.md carries exactly one tool-owned instruction block, and
-               the machine state parses.
+               header, the on-demand cognition skill exists identically for both agent
+               hosts, hot rules do not embed its protocol, and the machine state parses.
   captures     The user's dictated words stay exactly as captured, and every segment of
                them carries a disposition. The doctrine is knowledge/inbox/README.md.
   stale        (advisory) Code changed under a module some knowledge/wiki/ document describes,
@@ -758,13 +758,18 @@ def check_layout() -> list[Violation]:
 
 # ---------------------------------------------------------------------- cognition
 
+# The project deliberately keeps the object-cognition protocol out of always-loaded rule
+# files. A marker is enough to catch a tool installer re-adding its old block; command and
+# tool names then catch a hand-written copy without relying on the installer marker.
 AOCI_BLOCK_BEGIN = "<!-- aoci:begin -->"
 AOCI_BLOCK_END = "<!-- aoci:end -->"
-# A marker occupies a line of its own; prose is allowed to *mention* both markers (the rules
-# in AGENTS.md do), and a substring count would read those mentions as two extra blocks.
-AOCI_BLOCK_BEGIN_RE = re.compile(r"^" + re.escape(AOCI_BLOCK_BEGIN) + r"[ \t]*$", re.MULTILINE)
-AOCI_BLOCK_END_RE = re.compile(r"^" + re.escape(AOCI_BLOCK_END) + r"[ \t]*$", re.MULTILINE)
-AOCI_MIN_BLOCK_CHARS = 200
+AOCI_BLOCK_MARKER_RE = re.compile(r"<!--\s*aoci:(?:begin|end)\s*-->")
+HOT_PROTOCOL_PATTERNS = (
+    re.compile(r"(?i)\bAOCI\b"),
+    re.compile(r"(?i)\baoci_(?:rules|overview|maintain|update_entry|search|get_entries|report)\b"),
+    re.compile(r"(?i)`aoci\s+(?:check|verify|doctor|index|maintain)\b"),
+)
+COGNITION_SKILL_KEYS = ("cognition_skill_agents", "cognition_skill_claude")
 ROOT_MANIFEST_HEADER = "#AOCI-ROOT-MANIFEST:"
 VOLUME_LINE_RE = re.compile(r"^#Volume:\s*(.+)$", re.MULTILINE)
 VOLUME_FIELD_RE = re.compile(r"([A-Za-z_]+)=(\S+)")
@@ -779,49 +784,77 @@ def check_cognition() -> list[Violation]:
     """The cognition layer (L0) is wired the way `.agent/README.md` says.
 
     Structure only, never semantics, and never a subprocess: which volumes the root manifest
-    declares, whether each one is on disk carrying its format header, whether `AGENTS.md`
-    still carries exactly one tool-owned instruction block, and whether the machine state
-    parses. Whether the entries still match the source bytes is AOCI's own question
-    (`aoci check` / `aoci verify`) and is deliberately not asked here: on a layout whose
-    write path is unavailable that state has no repair path, so turning it into a failing
-    gate would buy a permanently red CI rather than accuracy. The session reports it
-    (`.agent/README.md`, "L0 怎么用、怎么维护") and `.agent/state.md` records it.
+    declares, whether each one is on disk carrying its format header, whether the protocol
+    exists as one on-demand skill mirrored for both agent hosts, whether always-loaded hot
+    rules have stayed protocol-free, and whether the machine state parses. Whether entries
+    still match source bytes is the cognition tool's own question and is deliberately not
+    asked here: on a layout whose write path is unavailable that state has no repair path,
+    so turning it into a failing gate would buy a permanently red CI rather than accuracy.
     """
     violations: list[Violation] = []
 
-    agents = REPO_ROOT / _cfg("agents")
-    if agents.is_file():
-        text = agents.read_text(encoding="utf-8", errors="replace")
-        begins = list(AOCI_BLOCK_BEGIN_RE.finditer(text))
-        ends = list(AOCI_BLOCK_END_RE.finditer(text))
-        if len(begins) != 1 or len(ends) != 1:
+    hot_protocol_files = ("agents", "readme", "state", "invariants", "owners")
+    for key in hot_protocol_files:
+        path = REPO_ROOT / _cfg(key)
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for marker in AOCI_BLOCK_MARKER_RE.finditer(text):
             violations.append(
                 Violation(
                     "cognition",
-                    _cfg("agents"),
-                    f"must carry exactly one instruction block ({AOCI_BLOCK_BEGIN} … "
-                    f"{AOCI_BLOCK_END}) on lines of their own; found {len(begins)} begin marker(s) "
-                    "and "
-                    f"{len(ends)} end marker(s). The block is installed by the AOCI tool and a "
-                    "hand-edit is overwritten on the next install, so a mangled or duplicated "
-                    "block means the two copies have diverged",
+                    _cfg(key),
+                    f"contains tool-owned protocol marker {marker.group(0)!r}; hot rules must route to "
+                    "the on-demand cognition skill, not embed its block",
                 )
             )
-        elif begins[0].start() > ends[0].start():
-            violations.append(
-                Violation("cognition", _cfg("agents"), "the AOCI block's end marker precedes its begin marker")
-            )
-        else:
-            block = text[begins[0].end(): ends[0].start()]
-            if len(block.strip()) < AOCI_MIN_BLOCK_CHARS:
+        for pattern in HOT_PROTOCOL_PATTERNS:
+            match = pattern.search(text)
+            if match:
                 violations.append(
                     Violation(
                         "cognition",
-                        _cfg("agents"),
-                        "the AOCI instruction block is (near) empty; re-run the tool's agent install "
-                        "instead of writing it by hand",
+                        _cfg(key),
+                        f"contains cognition command/tool {match.group(0)!r}; the protocol belongs in "
+                        "the project aoci skill, not in an always-loaded rule file",
                     )
                 )
+
+    skill_paths: list[Path] = []
+    for key in COGNITION_SKILL_KEYS:
+        skill_path = REPO_ROOT / _cfg(key)
+        if not skill_path.is_file():
+            violations.append(
+                Violation(
+                    "cognition",
+                    f"{rel(PATHS_FILE)}#{key}",
+                    "required project cognition skill is missing; object cognition must be available "
+                    "on demand without copying its protocol into hot rules",
+                )
+            )
+            continue
+        skill_paths.append(skill_path)
+
+    if len(skill_paths) == len(COGNITION_SKILL_KEYS):
+        skill_bytes = [path.read_bytes() for path in skill_paths]
+        if skill_bytes[0] != skill_bytes[1]:
+            violations.append(
+                Violation(
+                    "cognition",
+                    _cfg(COGNITION_SKILL_KEYS[0]),
+                    "the .agents and .claude cognition skills differ; keep one protocol body and "
+                    "mirror it byte-for-byte so agent hosts cannot drift",
+                )
+            )
+        skill_text = skill_bytes[0].decode("utf-8", errors="replace")
+        if not skill_text.startswith("---\n") or "\n---\n" not in skill_text[4:]:
+            violations.append(
+                Violation("cognition", _cfg(COGNITION_SKILL_KEYS[0]), "skill must begin with YAML frontmatter")
+            )
+        if "name: aoci" not in skill_text.split("---", 2)[1]:
+            violations.append(
+                Violation("cognition", _cfg(COGNITION_SKILL_KEYS[0]), "frontmatter must declare `name: aoci`")
+            )
 
     root = REPO_ROOT / _cfg("aoci_root")
     if root.is_file():

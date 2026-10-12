@@ -1,5 +1,5 @@
 {
-  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: cognition | hot | settled | material | code | tooling | runtime | entry | deploy. Three layers hold knowledge (DEC-072): `cognition` is the machine-authored object layer -- the AOCI volumes and their state, read through the AOCI tools; `hot` is read every session and must be true now; `settled` is on-disk history under knowledge/ and is read on demand. The doctrine behind this table is knowledge/wiki/guides/repository-layout.md.",
+  "_comment": "Top-level entries of the repository and the layer that owns each one. Keys are the names exactly as git reports them at depth 1 (directories without a trailing slash). Layer vocabulary: cognition | hot | settled | material | code | tooling | runtime | entry | deploy. Three layers hold knowledge (DEC-072): `cognition` is the machine object layer, while its operating protocol lives in an on-demand project skill; `hot` is read every session and must route rather than embed skill protocols; `settled` is on-disk history under knowledge/ and is read on demand. The doctrine behind this table is knowledge/wiki/guides/repository-layout.md.",
   "entries": {
     ".agent": {
       "kind": "dir",
@@ -9,7 +9,7 @@
     ".agents": {
       "kind": "dir",
       "layer": "tooling",
-      "purpose": "项目级 agent skills 的 agent 标准路径（Codex 侧），与 .claude/skills/ 同源的六份 SKILL.md"
+      "purpose": "项目级 agent skills 的 agent 标准路径，与 .claude/skills/ 同源；包含按需对象认知 skill"
     },
     ".claude": {
       "kind": "dir",

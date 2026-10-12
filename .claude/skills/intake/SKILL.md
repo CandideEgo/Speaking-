@@ -84,3 +84,13 @@ The frontmatter is not sealed; the body is.
 - Leave a segment without a row, or invent an eighth disposition.
 - Restate the disposition table here — it lives in `knowledge/inbox/README.md`.
 - Turn this into a gate that runs every session: it runs when there is dictation to place.
+
+## Stop Signals
+
+Stop and return to the user:
+
+- The dictated segment is ambiguous about which disposition it gets — a wrong disposition is worse
+  than an unplaced one, because the check happily passes it.
+- You are about to edit a sealed `raw.md`, or to re-seal content that already changed (the seal
+  refusing is the mechanism working, not an obstacle).
+- The segment would need a disposition outside the seven in `knowledge/inbox/README.md`.

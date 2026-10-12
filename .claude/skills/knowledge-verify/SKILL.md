@@ -11,7 +11,7 @@ description: Verify prose knowledge against code reality. Use when context may b
 
 | 层 | 漂移由谁验 | 怎么验 |
 |---|---|---|
-| **L0 AOCI（对象认知）** | AOCI 自己 | `aoci check` / `aoci verify` / `aoci doctor`；语义维护走 `aoci_maintain`（`AGENTS.md` 的收尾动作）。**不要**在 prose 里补一段对象描述来「修」它，也不要手改 `aoci.*` 或 `.aoci/` |
+| **L0 对象认知** | 项目的 `aoci` skill | 需要读取、核验或维护对象认知时调用该技能；不要在 prose 里补一段对象描述来「修」它，也不要手改机器认知卷或其状态目录 |
 | **L1/L2 prose（规则、为什么、程序）** | 本技能 + `check_knowledge.py` | 先跑九项机器检查，再逐条对代码求证本技能负责的断言 |
 
 `stale` 只提醒「某个模块的代码在你上次确认之后动过」，它是**起点不是判决**：代码动过不等于页面错了。
@@ -40,6 +40,7 @@ python scripts/check-knowledge/check_knowledge.py
 按 `.agent/README.md` 的分层标准：`.agent/README.md`、`.agent/invariants.md`、`.agent/state.md`、
 `CONTEXT.md`、`knowledge/system-map.md`、`knowledge/wiki/**`（除 `INDEX.md`），以及
 `knowledge/decisions-index.md` 指到的那几条决策——**永不整篇读** `decisions.md`。
+对象事实不在本次 prose 核验中展开；需要时调用 `aoci` skill。
 `knowledge/archive/` 是冻结记录，只在考古时打开。
 
 记下每页的 `status`、`confidence`、`related_code`、`updated`。`.agent/*.md` 没有 frontmatter，
@@ -71,7 +72,7 @@ Archived:              [已冻结、只解释历史的记录]
 - **一事实一家**：这条断言是不是已经有家（`.agent/README.md` 的路由表）？是的话这一版有没有
   新增价值？没有 → 建议改成指向那个家的交叉引用。
 - **只描述 what 的文档**：代码已经表达的，应当删除而不是更新。
-- **对象事实混进 prose**：如果某段在复述单个对象的契约或约束，它的家是 AOCI——搬走，prose 只留指认。
+- **对象事实混进 prose**：如果某段在复述单个对象的契约或约束，调用 `aoci` skill 处理，prose 只留指认。
 
 ### 5. 修或标注
 
@@ -110,3 +111,13 @@ python scripts/check-knowledge/check_knowledge.py --stamp-refresh --module <modu
 
 更新文档时同样过闸：代码藏不住它？将来改动会受益？解释的是 **why** 而不是 **what**？
 核验可能得出的结论是**这份文档本就不该存在**——那样就删除，而不是更新。
+
+## Stop Signals
+
+停下并回到用户，不要自己决定：
+
+- 结论是「这份文档本就不该存在」，而它已被别处引用 —— 删它要连引用一起改，属仓库决定。
+- 你想靠刷 `--stamp-refresh` 让提醒消失（刷新声明的是「文档仍描述代码」，不是清提醒的手段）。
+- 文档与代码的差异看起来是**产品意图**变了，而不是文档旧了 —— 那要走 `/decision-support`。
+- 文档声明了不在 `modules.json` 里的模块，或 `related_code` 匹配不到文件 —— 那是模块词汇表
+  要改，不是文档要改。

@@ -170,3 +170,15 @@ If the project has a `knowledge/adr/` system, create an ADR as well.
 - Decisions that are obvious or low-impact → do not record (fails Implicit Knowledge Filter gate 2)
 
 Operational knowledge is not a decision: it belongs in `knowledge/operations/` or `.agent/state.md`.
+
+## Stop Signals
+
+Stop and return to the user instead of deciding alone:
+
+- The decision would remove or narrow behaviour someone already depends on, and no escape hatch
+  exists — that needs an explicit owner sign-off, not an ADR you write on your own.
+- It is a version bump, a default flip, or a compatibility break (the "named loss + escape hatch"
+  test in [code-review-principles](../../../knowledge/wiki/guides/code-review-principles.md)).
+- The record would have to edit or reorder an existing `knowledge/decisions.md` entry — that file is
+  append-only; changed mind = a new entry plus a `superseded by DEC-0xx` note in the index.
+- The decision rests on facts you have not verified against the code.

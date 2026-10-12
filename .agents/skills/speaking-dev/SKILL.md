@@ -148,3 +148,17 @@ This is a full-stack English speaking practice app with 4 runtime services:
 - The venv Python is at `backend/.venv/Scripts/python.exe` (has whisperx + torch+CUDA — GPU worker uses the same venv)
 - If frontend starts on 3001 instead of 3000, it means port 3000 is still occupied — the step-1 verify should have caught this; re-run the kill step.
 - **`PYTHONUTF8=1` on every Python service (backend, celery, gpu)** — Windows Python defaults to the OS locale codec (GBK on a Chinese Windows) for `open()` calls that don't pass an explicit encoding. The app assumes UTF-8 (it runs on Linux in prod). Without `PYTHONUTF8=1` the backend crashes at startup: slowapi's `Limiter` reads `.env` via starlette `Config` with the locale codec and hits `UnicodeDecodeError: 'gbk' codec` on the UTF-8 em-dash in a comment and the Chinese `ALIYUN_SMS_SIGN_NAME` value. `PYTHONUTF8=1` (Python UTF-8 mode) makes `open()` default to UTF-8, matching Linux — the comprehensive fix. Celery/GPU don't crash (they don't import `app.core.limiter`) but it's set on all three for consistency and to guard against latent locale-encoding bugs in tasks.
+
+## Stop Signals
+
+Stop and ask the user instead of pressing on:
+
+- The port-kill step would kill processes you did not start — the `taskkill //F //IM python.exe`
+  fallback is broad, so confirm first when other Python work may be running.
+- A service fails for a reason that is **not** one of the known Windows traps (locale codec, port
+  conflict, zombie `--reload` reloader) — report the real error instead of restarting until it
+  merely looks fine.
+- You are about to touch production (the deploy scripts, the remote host) — that is not a local-dev
+  action and needs explicit authorization.
+- Irreversible steps: dropping tables, deleting media, or deleting the `_raw` masters (with no OSS
+  configured, `_raw` is the only copy), or changing file permissions.

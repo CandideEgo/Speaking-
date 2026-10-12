@@ -11,8 +11,8 @@ Convert important development experience into future project understanding.
 
 This is not a changelog. This is not a task diary.
 
-**本技能管 prose 那一半。** 对象事实（某个文件/表是什么、与谁有关系、契约、非显然约束）的正文在
-AOCI，由 AOCI 自己的收尾动作维护（`AGENTS.md` 的 MUST + `.agent/README.md`）。本技能做两件事：
+**本技能管 prose 那一半。** 对象事实（某个文件/表是什么、与谁有关系、契约、非显然约束）由
+项目的 `aoci` skill 按需处理。本技能做两件事：
 把残余事实写对家，以及判断哪些「看起来值得写」的东西其实**不该写**。
 
 ---
@@ -23,7 +23,7 @@ AOCI，由 AOCI 自己的收尾动作维护（`AGENTS.md` 的 MUST + `.agent/REA
 
 > **这条事实能不能写成「恰好一个受管理对象」的属性？** 能 → AOCI；不能 → prose。
 
-- **能 → 不要在这里写。** 对象事实走 AOCI 收尾（`aoci verify` → `aoci_maintain` → 按批次提交条目）。
+- **能 → 不要在这里写。** 调用 `aoci` skill，按它的协议查询或收尾。
   在 prose 里补一段对象描述，是这套系统唯一会累积的坏账：两份正文，只有一份会被更新。
 - **不能 → 继续往下走**，过三关过滤器，再按路由表落位。
 
@@ -169,3 +169,14 @@ python scripts/check-knowledge/check_knowledge.py
 
 **触发本技能的门槛**：一次任务改了 3 个以上文件 / 跨模块 / 改了接口、API 或公共契约 / 改了会影响
 行为的配置。错别字与格式化不触发；那时只更新 `.agent/state.md`（如果连状态都没变，什么都不做）。
+
+## Stop Signals
+
+停下并回到用户，不要自己决定：
+
+- 你准备修改机器认知卷或它的状态目录；切换到 `aoci` skill，并停在它的安全边界。
+- 对象认知工具报告未收敛或仍有待处理目标，却有人要宣称已经完全对齐。
+- 要改 `knowledge/inbox/*/raw.md` 的正文，或修改 `knowledge/decisions.md` 里已存在的条目。
+- 用户只授权了业务文件范围，而你正准备写 AOCI 托管资产（MUST：以用户限制为准，如实报告剩余不一致）。
+- 要动不可逆操作，或触及支付 / 认证路径（`backend/app/core/security.py`、
+  `backend/app/api/v1/payments.py`、`backend/app/api/dependencies.py`）。

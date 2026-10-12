@@ -51,6 +51,7 @@
 - [Release / Pre-Push Checklist](wiki/guides/release-checklist.md) — The four local gates, known CI traps, migration checks before pushing · active · 2026-09-28
 - [Image Handling in Agent Sessions](wiki/guides/agent-image-handling.md) — Why pasting images corrupts agent sessions, and how to recover · active · 2026-09-25
 - [审查改动时的六个必问](wiki/guides/code-review-principles.md) — 行为枚举 / 默认翻转点名损失 / prompt 即行为 / 契约是绊线 / 移植带清单 / 静默失败最重 · active · 2026-10-11
+- [审查改动时的「问谁」清单](wiki/guides/review-surfaces.md) — 谁在依赖现有行为 / 绊线清单 / 九篇 problems 按等级回填 · active · 2026-10-12
 
 ## 架构决策记录（点时刻，不可改）
 

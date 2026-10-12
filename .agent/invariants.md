@@ -4,7 +4,7 @@
 > code. If a change breaks one of these, the change is wrong — not the invariant.
 >
 > **本文件是规则的唯一正文**（`.agent/README.md` 的边界条款 1）。每条 INV 写「规则 + 为什么 + 强制方式」，
-> 只留一行能定位的指针：后果在 AOCI 对应对象的 S 字段，事故经过、实测读数与被否方案在
+> 只留一行能定位的指针：后果在对象认知对应条目的约束字段，事故经过、实测读数与被否方案在
 > `knowledge/decisions.md`（DEC-xxx）或 `knowledge/wiki/problems/`。**不要**把叙述搬回这里。
 
 **Enforcement coverage: 2 machine checks, 12 test suites, 1 known gap, 11 review-only.** The
@@ -37,7 +37,7 @@
 ## Mobile watch page — the shell owns geometry, the frame owns attention
 
 Rules for `≤1023px` on `/watch/*`. Why they exist, the measured evidence and the rejected
-alternatives are DEC-069 / DEC-070; each rule's object-level consequence is in the AOCI entries for
+alternatives are DEC-069 / DEC-070; each rule's object-level consequence is in the object-cognition entries for
 the components named below.
 
 | ID | Rule | Why | Enforced by |
@@ -61,7 +61,7 @@ the components named below.
 | 1 | 枚举行为变化，不只找 bug | 改前能工作的输入改后照旧；被删或收窄的每个分支「以前谁在走、现在他们去哪」 |
 | 2 | 默认翻转 / 行为移除：点名损失 + 给逃生口 | 谁失去了什么、逃生口或维护者签字在哪、哪条测试钉住旧行为 |
 | 3 | Prompt 文本即行为 | 谁收到这段文本、它原来在强制什么、现在由什么强制 |
-| 4 | 契约文件是绊线（API / DB schema / 环境变量 / AOCI 条目） | 消费者是谁、旧客户端怎么继续工作 |
+| 4 | 契约文件是绊线（API / DB schema / 环境变量 / 对象认知条目） | 消费者是谁、旧客户端怎么继续工作 |
 | 5 | 移植 / 重构带上旧路径的功能清单 | 旧路径做过的每件事在新路径里的新家，逐项指认 |
 | 6 | 静默失败比崩溃更严重 | 这条失败路径有没有人会发现（配置被忽略、静默放行或跳过、丢数据） |
 

@@ -67,3 +67,8 @@ updated: 2026-10-11
 [silent-composition-failures](../problems/silent-composition-failures.md)、
 [cache-invalidation](../problems/cache-invalidation-and-media-gate-blindspots.md)、
 [error-path-blindspots](../problems/error-path-blindspots.md)。
+
+## 问完「怎么问」，再问「问谁」
+
+本篇是「怎么问」。至于「谁在依赖这条行为、他失去什么」——人群清单、绊线清单，以及九篇
+`wiki/problems/` 按等级回填的历史案例，在 [review-surfaces](review-surfaces.md)。
