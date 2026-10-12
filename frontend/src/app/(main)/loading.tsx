@@ -2,7 +2,7 @@ import { SkeletonCardGrid } from "@/components/common/SkeletonCard";
 
 export default function MainLoading() {
   return (
-    <main className="container-wide py-16 sm:py-24">
+    <main className="py-16 sm:py-24">
       <div className="mb-8">
         <div className="h-8 w-48 skeleton-shimmer rounded-sm bg-surface-soft" />
         <div className="mt-3 h-4 w-72 skeleton-shimmer rounded-sm bg-surface-soft" />

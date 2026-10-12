@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { EmptyState } from "@/components/common/EmptyState";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import { relativeTime } from "@/lib/date";
 
 const STATUS_TABS = [
@@ -125,14 +126,11 @@ export default function AdminFeedbackPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">反馈与公告</h1>
-        <p className="text-sm text-muted mt-1">查看用户反馈、回复、向全体用户发送公告</p>
-      </div>
+      <AdminPageHeader title="反馈与公告" description="查看用户反馈、回复、向全体用户发送公告" />
 
       {/* Broadcast announcement */}
       <Card as="form" padding={5} className="space-y-3" onSubmit={handleBroadcast}>
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <h2 className="flex items-center gap-2 text-copy font-semibold">
           <Megaphone size={16} className="text-brand-500" />
           发送公告
         </h2>
@@ -162,7 +160,7 @@ export default function AdminFeedbackPage() {
       {/* Feedback list */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-semibold">用户反馈</h2>
+          <h2 className="text-copy font-semibold">用户反馈</h2>
           <div className="flex gap-1 ml-auto">
             {STATUS_TABS.map((t) => (
               <button
@@ -170,7 +168,7 @@ export default function AdminFeedbackPage() {
                 type="button"
                 onClick={() => setStatusFilter(t.key)}
                 className={
-                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer " +
+                  "px-2.5 py-1 rounded-md text-meta font-medium transition-colors cursor-pointer " +
                   (statusFilter === t.key
                     ? "bg-brand-500 text-white"
                     : "bg-surface-soft text-muted hover:text-ink")
@@ -197,8 +195,8 @@ export default function AdminFeedbackPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Badge tone={st.tone}>{st.text}</Badge>
-                      <span className="text-xs text-muted">{fb.user_name ?? "匿名用户"}</span>
-                      <span className="text-[11px] text-muted-soft">
+                      <span className="text-meta text-muted">{fb.user_name ?? "匿名用户"}</span>
+                      <span className="text-caption text-muted-soft">
                         {relativeTime(fb.created_at)}
                       </span>
                     </div>
@@ -206,21 +204,21 @@ export default function AdminFeedbackPage() {
                       value={fb.status}
                       onChange={(e) => handleStatusChange(fb, e.target.value)}
                       disabled={savingId === fb.id}
-                      className="text-xs rounded-md border border-hairline bg-canvas px-2 py-1 text-ink"
+                      className="text-meta rounded-md border border-hairline bg-canvas px-2 py-1 text-ink"
                     >
                       <option value="open">待处理</option>
                       <option value="in_progress">处理中</option>
                       <option value="resolved">已解决</option>
                     </select>
                   </div>
-                  <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                  <p className="text-copy text-ink leading-relaxed whitespace-pre-wrap">
                     {fb.content}
                   </p>
-                  {fb.contact && <p className="text-xs text-muted">联系方式：{fb.contact}</p>}
+                  {fb.contact && <p className="text-meta text-muted">联系方式：{fb.contact}</p>}
                   {fb.admin_reply && (
                     <div className="pt-2 border-t border-hairline">
-                      <p className="text-[11px] text-muted mb-0.5">已回复</p>
-                      <p className="text-xs text-ink leading-relaxed whitespace-pre-wrap">
+                      <p className="text-caption text-muted mb-0.5">已回复</p>
+                      <p className="text-meta text-ink leading-relaxed whitespace-pre-wrap">
                         {fb.admin_reply}
                       </p>
                     </div>

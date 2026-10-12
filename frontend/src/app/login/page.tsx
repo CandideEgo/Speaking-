@@ -71,10 +71,10 @@ function LoginForm() {
     <AuthCard title="欢迎回来" subtitle="登录账号，继续今天的学习。">
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-ink">手机号</label>
+          <label className="block text-copy font-medium text-ink">手机号</label>
           {/* +86 前缀（原型 01）：整组 focus 态由 Input 自身承担 */}
           <div className="mt-1.5 flex items-stretch">
-            <span className="inline-flex items-center px-3.5 text-sm font-medium text-body bg-surface-card border border-r-0 border-hairline rounded-l-md select-none">
+            <span className="inline-flex items-center px-3.5 text-copy font-medium text-body bg-surface-card border border-r-0 border-hairline rounded-l-md select-none">
               +86
             </span>
             <Input
@@ -92,10 +92,10 @@ function LoginForm() {
         <div>
           {/* 标签行：左标签 + 右忘记密码（原型 01 field-label 布局） */}
           <div className="flex items-baseline justify-between">
-            <label className="block text-sm font-medium text-ink">密码</label>
+            <label className="block text-copy font-medium text-ink">密码</label>
             <Link
               href="/forgot-password"
-              className="text-xs text-brand-500 hover:underline font-medium"
+              className="text-meta text-brand-500 hover:underline font-medium"
             >
               忘记密码？
             </Link>
@@ -110,7 +110,7 @@ function LoginForm() {
           />
         </div>
 
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-copy text-error">{error}</p>}
 
         <Button type="submit" fullWidth disabled={loading} className="mt-2">
           {loading ? "登录中..." : "登录"}
@@ -118,7 +118,7 @@ function LoginForm() {
       </form>
 
       {/* 次要入口 + 底部信任行（原型 01 foot） */}
-      <p className="mt-5 text-center text-[13px] text-muted">
+      <p className="mt-5 text-center text-copy text-muted">
         还没有账号？{" "}
         <Link
           href={next === "/" ? "/register" : `/register?next=${encodeURIComponent(next)}`}
@@ -128,11 +128,11 @@ function LoginForm() {
         </Link>
       </p>
       <div className="mt-8 flex flex-col items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-soft">
+        <span className="inline-flex items-center gap-1.5 text-caption text-muted-soft">
           <Lock size={11} />
           数据加密存储 · 不向第三方共享
         </span>
-        <span className="text-[11px] text-muted-soft">
+        <span className="text-caption text-muted-soft">
           <Link href="/terms" className="text-muted hover:text-ink transition-colors">
             服务条款
           </Link>

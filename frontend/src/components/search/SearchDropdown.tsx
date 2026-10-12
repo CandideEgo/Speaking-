@@ -73,8 +73,8 @@ export function SearchDropdown({
   if (isLoading) {
     return (
       <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-hairline rounded-md shadow-lg z-50 p-4 flex items-center justify-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        <span className="text-sm text-muted">搜索中...</span>
+        <Loader2 className="h-4 w-4 animate-spin text-brand-500" />
+        <span className="text-copy text-muted">搜索中...</span>
       </div>
     );
   }
@@ -84,7 +84,7 @@ export function SearchDropdown({
     return (
       <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-hairline rounded-md shadow-lg z-50 p-6 flex flex-col items-center gap-2">
         <FileSearch className="h-8 w-8 text-muted-soft" />
-        <span className="text-sm text-muted">没有找到相关视频</span>
+        <span className="text-copy text-muted">没有找到相关视频</span>
       </div>
     );
   }
@@ -94,7 +94,7 @@ export function SearchDropdown({
       {/* Video results */}
       {hasVideoResults && (
         <div>
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-muted">
             视频
           </div>
           <ul className="pb-1">
@@ -105,7 +105,7 @@ export function SearchDropdown({
                   onClick={() => handleClick(video.id)}
                   onMouseDown={(e) => e.preventDefault()}
                 >
-                  <div className="flex-shrink-0 w-20 h-12 rounded overflow-hidden">
+                  <div className="flex-shrink-0 w-20 h-12 rounded-md overflow-hidden">
                     <VideoThumbnail
                       url={video.thumbnail_url}
                       title={video.title}
@@ -114,7 +114,7 @@ export function SearchDropdown({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-ink line-clamp-1">{video.title}</p>
+                    <p className="text-copy font-medium text-ink line-clamp-1">{video.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <DifficultyBadge level={video.difficulty_level} />
                     </div>
@@ -129,7 +129,7 @@ export function SearchDropdown({
       {/* Subtitle results */}
       {hasSubtitleResults && (
         <div className={hasVideoResults ? "border-t border-hairline" : ""}>
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
+          <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
             <Subtitles size={12} />
             字幕匹配
           </div>
@@ -143,7 +143,7 @@ export function SearchDropdown({
                     onClick={() => handleClick(result.video.id, sub.start_time)}
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    <div className="flex-shrink-0 w-20 h-8 rounded overflow-hidden mt-0.5">
+                    <div className="flex-shrink-0 w-20 h-8 rounded-md overflow-hidden mt-0.5">
                       <VideoThumbnail
                         url={result.video.thumbnail_url}
                         title={result.video.title}
@@ -153,11 +153,11 @@ export function SearchDropdown({
                     </div>
                     <div className="flex-1 min-w-0">
                       {si === 0 && (
-                        <p className="text-xs font-medium text-ink line-clamp-1">
+                        <p className="text-meta font-medium text-ink line-clamp-1">
                           {result.video.title}
                         </p>
                       )}
-                      <p className="text-xs text-muted line-clamp-1 mt-0.5">
+                      <p className="text-meta text-muted line-clamp-1 mt-0.5">
                         <span className="text-muted font-mono mr-1.5">
                           {formatTime(sub.start_time)}
                         </span>

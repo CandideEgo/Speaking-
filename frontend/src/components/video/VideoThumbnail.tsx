@@ -45,12 +45,12 @@ export const VideoThumbnail = memo(function VideoThumbnail({
 
   const placeholder = (
     <div
-      className="absolute inset-0 flex flex-col items-center justify-center text-ivory/95"
+      className="absolute inset-0 flex flex-col items-center justify-center text-on-dark/95"
       style={{ background: bgStyle }}
     >
       <div className="flex flex-col items-center gap-1.5">
         <Tv size={28} className="opacity-90" strokeWidth={1.5} />
-        <span className="text-3xl font-bold tracking-tight drop-shadow-sm">
+        <span className="text-display font-bold tracking-tight drop-shadow-sm">
           {initialFromTitle(title)}
         </span>
       </div>
@@ -62,7 +62,7 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       <Image src={url} alt={title} fill fallback={placeholder} />
 
       {duration && duration > 0 && (
-        <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-surface-dark/80 px-1.5 py-0.5 text-[11px] font-medium text-ivory">
+        <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-surface-dark/80 px-1.5 py-0.5 text-caption font-medium text-on-dark">
           {formatDuration(duration)}
         </span>
       )}

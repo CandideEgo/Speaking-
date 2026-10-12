@@ -11,6 +11,7 @@ import { useVocabSetDetail } from "@/hooks/useVocabSetDetail";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
+import { Card } from "@/components/ui/Card";
 
 /**
  * 快速过筛（全屏沉浸，壳层对齐 /vocabulary/drill）：
@@ -98,7 +99,7 @@ export default function VocabSievePage() {
           >
             <X size={20} />
           </button>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-copy font-semibold text-ink flex-shrink-0">
             <span className="w-2 h-2 rounded-full bg-brand-500" />
             快速过筛
           </span>
@@ -110,7 +111,7 @@ export default function VocabSievePage() {
           </div>
           <span
             data-testid="sieve-progress"
-            className="text-xs text-muted font-mono flex-shrink-0 tabular-nums"
+            className="text-meta text-muted font-mono flex-shrink-0 tabular-nums"
           >
             {sieved}/{total}
           </span>
@@ -131,20 +132,20 @@ export default function VocabSievePage() {
             <span className="w-16 h-16 rounded-full bg-success-soft flex items-center justify-center">
               <CheckCircle2 size={32} className="text-success" />
             </span>
-            <h2 className="text-xl font-extrabold tracking-tight text-ink mt-4">本集合已学完</h2>
-            <p className="text-sm text-muted mt-1.5 tabular-nums">
+            <h2 className="text-title font-extrabold tracking-tight text-ink mt-4">本集合已学完</h2>
+            <p className="text-copy text-muted mt-1.5 tabular-nums">
               已掌握 {total}/{total} · 闭环完成
             </p>
             <div className="flex gap-3 mt-8">
               <Link
                 href={`/vocabulary/sets/${id}`}
-                className="px-5 py-2.5 rounded-sm bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
+                className="px-5 py-2.5 rounded-sm bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
               >
                 返回集合
               </Link>
               <Link
                 href="/browse"
-                className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-sm font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+                className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
               >
                 去找新视频
               </Link>
@@ -154,8 +155,8 @@ export default function VocabSievePage() {
           /* 待学清单阶段：第一遍过筛完成，剩下的「不会」词逐个学掉 */
           <>
             <div className="text-center mb-6">
-              <h2 className="text-lg font-extrabold tracking-tight text-ink">待学清单</h2>
-              <p className="text-[13px] text-muted mt-1.5 tabular-nums">
+              <h2 className="text-copy-lg font-extrabold tracking-tight text-ink">待学清单</h2>
+              <p className="text-copy text-muted mt-1.5 tabular-nums">
                 第一遍过筛完成 · 还有 {state?.unknown_count ?? 0} 个词要学，学完即闭环
               </p>
             </div>
@@ -195,7 +196,7 @@ export default function VocabSievePage() {
             <div className="mt-6 flex justify-center">
               <Link
                 href={`/vocabulary/sets/${id}`}
-                className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-sm font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+                className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
               >
                 返回集合
               </Link>
@@ -203,22 +204,22 @@ export default function VocabSievePage() {
           </>
         ) : state?.word ? (
           <>
-            {/* 当前单词卡：与训练选择题卡同款（rounded-xl + shadow-lift） */}
-            <div className="bg-canvas border border-hairline rounded-xl shadow-lift px-6 py-10 text-center">
-              <p className="text-4xl font-extrabold tracking-tight text-ink">{state.word.word}</p>
+            {/* 当前单词卡：与训练选择题卡同款（rounded-lg + shadow-lift） */}
+            <Card padding={0} className="shadow-lift px-6 py-10 text-center">
+              <p className="display-lg text-ink">{state.word.word}</p>
               {state.word.ipa && (
-                <p className="text-sm text-muted font-mono mt-2">{state.word.ipa}</p>
+                <p className="text-copy text-muted font-mono mt-2">{state.word.ipa}</p>
               )}
-              <p className="text-[15px] text-body mt-4">
+              <p className="text-copy text-body mt-4">
                 {state.word.part_of_speech && (
                   <span className="text-muted-soft italic mr-1.5">{state.word.part_of_speech}</span>
                 )}
                 {state.word.translation || state.word.definition || "—"}
               </p>
               {state.word.translation && state.word.definition && (
-                <p className="text-[13px] text-muted mt-2 line-clamp-2">{state.word.definition}</p>
+                <p className="text-copy text-muted mt-2 line-clamp-2">{state.word.definition}</p>
               )}
-            </div>
+            </Card>
 
             {/* 判定按钮：会/不会 是二选一的自评，没有对错之分，所以两边等重。
                 原来是「会」实心绿 +「不会」警告色软底，等于暗示「会」才是正确答案，
@@ -228,7 +229,7 @@ export default function VocabSievePage() {
                 data-testid="sieve-unknown"
                 onClick={() => handleJudge(false)}
                 disabled={judging}
-                className="flex-1 py-3.5 rounded-md bg-canvas border border-hairline text-ink text-[15px] font-bold hover:border-warning hover:bg-warning-soft hover:text-warning transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3.5 rounded-md bg-canvas border border-hairline text-ink text-copy-lg font-bold hover:border-warning hover:bg-warning-soft hover:text-warning transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 不会
               </button>
@@ -236,17 +237,17 @@ export default function VocabSievePage() {
                 data-testid="sieve-known"
                 onClick={() => handleJudge(true)}
                 disabled={judging}
-                className="flex-1 py-3.5 rounded-md bg-canvas border border-success/40 text-success text-[15px] font-bold hover:bg-success hover:text-on-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3.5 rounded-md bg-canvas border border-success/40 text-success text-copy-lg font-bold hover:bg-success hover:text-on-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 会
               </button>
             </div>
-            <p className="text-center text-xs text-muted-soft mt-3">
+            <p className="text-center text-meta text-muted-soft mt-3">
               按 <kbd className="font-mono">1</kbd> 标记不会 · 按 <kbd className="font-mono">2</kbd>{" "}
               标记会
             </p>
             {/* 告知 (S8)：判「会」= mastered，本就不进学习计划；把口径讲明（设计 §7.3）。 */}
-            <p className="text-center text-xs text-muted mt-4">
+            <p className="text-center text-meta text-muted mt-4">
               标为『会』的词不计入学习计划，不会再出现在训练队列里
             </p>
           </>

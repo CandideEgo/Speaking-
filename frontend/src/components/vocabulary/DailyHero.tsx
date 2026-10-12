@@ -75,7 +75,7 @@ export function DailyHero({
 
   const chipClass = (active: boolean) =>
     [
-      "px-2.5 py-1 rounded-sm text-xs font-semibold border transition-colors duration-150 disabled:opacity-50",
+      "px-2.5 py-1 rounded-sm text-meta font-semibold border transition-colors duration-150 disabled:opacity-50",
       active
         ? "bg-brand-50 text-brand-600 border-brand-100"
         : "bg-canvas text-muted border-hairline hover:border-ink hover:text-ink",
@@ -90,14 +90,14 @@ export function DailyHero({
             <BookOpen size={26} />
           </span>
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-extrabold tracking-tight text-ink">词库还是空的</h2>
-            <p className="text-sm text-muted mt-1.5">
+            <h2 className="text-title font-extrabold tracking-tight text-ink">词库还是空的</h2>
+            <p className="text-copy text-muted mt-1.5">
               去频道看视频，点字幕里的生词加入词库，这里就会出现今日训练。
             </p>
           </div>
           <Link
             href="/browse"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
           >
             去频道看视频
           </Link>
@@ -117,17 +117,17 @@ export function DailyHero({
             isMet={total > 0 && mastered >= total}
             label={`${mastered}/${total}`}
           />
-          <span className="text-[11px] text-muted">词库掌握</span>
+          <span className="text-caption text-muted">词库掌握</span>
         </div>
 
         <div className="flex-1 text-center sm:text-left min-w-0">
-          <h2 className="text-xl font-extrabold tracking-tight text-ink">今日训练</h2>
+          <h2 className="text-title font-extrabold tracking-tight text-ink">今日训练</h2>
           {loading ? (
             <div className="mt-2 flex justify-center sm:justify-start">
               <InlineSpinner />
             </div>
           ) : allDone ? (
-            <p className="text-sm text-muted mt-1.5">
+            <p className="text-copy text-muted mt-1.5">
               <span className="inline-flex items-center gap-1 text-success font-semibold">
                 <CheckCircle2 size={14} />
                 今天的词都练完了
@@ -135,11 +135,11 @@ export function DailyHero({
               ，保持节奏，明天继续
             </p>
           ) : (
-            <p className="text-sm text-muted mt-1.5">
+            <p className="text-copy text-muted mt-1.5">
               待学新词 <span className="font-bold text-ink">{newTotal}</span>
               <span className="mx-1.5 text-muted-soft">·</span>
               待复习 <span className="font-bold text-ink">{dueTotal}</span>
-              <span className="block text-[13px] text-muted-soft mt-1">
+              <span className="block text-copy text-muted-soft mt-1">
                 每日 {newTarget} 新词 + {reviewTarget} 复习，按错误次数安排复习
               </span>
             </p>
@@ -147,14 +147,14 @@ export function DailyHero({
         </div>
 
         {allDone && !loading ? (
-          <span className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-surface-card text-muted text-sm font-semibold flex-shrink-0">
+          <span className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-surface-card text-muted text-copy font-semibold flex-shrink-0">
             <CheckCircle2 size={16} />
             今日已完成
           </span>
         ) : (
           <Link
             href="/vocabulary/drill"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-sm font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
           >
             <Zap size={16} />
             开始今日训练
@@ -164,7 +164,7 @@ export function DailyHero({
 
       {!loading && (
         <div className="mt-5 pt-4 border-t border-hairline-soft flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-muted">
+          <p className="text-meta text-muted">
             今日已学 <span className="font-bold text-ink">{today.words_learned}</span> 词（含加练）
             {today.rounds > 0 && (
               <>
@@ -175,7 +175,7 @@ export function DailyHero({
           </p>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-muted mr-0.5">每日新词</span>
+            <span className="text-meta text-muted mr-0.5">每日新词</span>
             {QUOTA_PRESETS.map((value) => (
               <button
                 key={value}
@@ -197,7 +197,7 @@ export function DailyHero({
                   value={customValue}
                   onChange={(e) => setCustomValue(e.target.value)}
                   aria-label="自定义每日新词配额"
-                  className="w-20 h-7 px-2.5 rounded-sm bg-surface-card border border-transparent text-xs text-ink
+                  className="w-20 h-7 px-2.5 rounded-sm bg-surface-card border border-transparent text-meta text-ink
                     focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                     transition-colors duration-150"
                 />

@@ -68,7 +68,7 @@ export function WordCardSheet({
       style={{ top, maxHeight, transform: dy ? `translateY(${dy}px)` : undefined }}
       className={cn(
         "fixed inset-x-0 z-50 flex flex-col overflow-hidden bg-canvas",
-        "rounded-t-2xl border-t border-hairline shadow-lift",
+        "rounded-t-lg border-t border-hairline shadow-lift",
         entered ? "opacity-100" : "opacity-0",
         dy === 0 && "transition-[transform,opacity] duration-200 ease-out"
       )}

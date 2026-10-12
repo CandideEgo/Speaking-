@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 import { watchSentenceHref } from "@/lib/watchEntry";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -29,25 +30,25 @@ function QuestionCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3 animate-fade-in">
+    <Card variant="soft" padding={4} className="space-y-3 animate-fade-in">
       <div className="font-semibold text-ink">{prompt}</div>
-      {hint && <div className="text-[13px] text-muted leading-relaxed">{hint}</div>}
+      {hint && <div className="text-copy text-muted leading-relaxed">{hint}</div>}
       {children}
       {grading && (
-        <div className="flex items-center gap-1.5 text-[13px] text-muted">
+        <div className="flex items-center gap-1.5 text-copy text-muted">
           <Loader2 size={12} className="animate-spin" /> 判分中…
         </div>
       )}
       {graded && (
         <div
-          className={`text-sm font-medium animate-fade-in ${graded.correct ? "text-success" : "text-error"}`}
+          className={`text-copy font-medium animate-fade-in ${graded.correct ? "text-success" : "text-error"}`}
         >
           {graded.correct
             ? "✓ 正确"
             : `✗ 正确答案：${graded.correctAnswer ?? graded.explanation ?? ""}`}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -75,7 +76,7 @@ function OptionList({
         return (
           <label
             key={i}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-copy
               ${locked ? "cursor-default" : "hover:border-ink/30"}
               ${isCorrect ? "border-success/50 bg-success-soft text-success animate-check-pop" : ""}
               ${isWrong ? "border-error/50 bg-red-soft text-error animate-shake" : ""}
@@ -134,10 +135,10 @@ function CompletionSummary({
   submitted: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface-soft p-5 text-center space-y-3">
+    <Card variant="soft" padding={5} className="text-center space-y-3">
       <Trophy className="mx-auto text-warning animate-check-pop" size={32} />
-      <div className="text-lg font-semibold text-ink">练习完成！</div>
-      <div className="text-sm text-muted">
+      <div className="text-copy-lg font-semibold text-ink">练习完成！</div>
+      <div className="text-copy text-muted">
         {correct} / {total} 正确
         {accuracy !== null && ` (${Math.round(accuracy)}%)`}
       </div>
@@ -147,12 +148,12 @@ function CompletionSummary({
             保存学习记录
           </Button>
         )}
-        {submitted && <span className="text-xs text-success">✓ 已同步</span>}
+        {submitted && <span className="text-meta text-success">✓ 已同步</span>}
         <Button variant="outline" size="compact" onClick={onRetry} icon={RotateCcw}>
           重新练习
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -165,7 +166,7 @@ function AudioPlayButton({ onPlay, isPlaying }: { onPlay: () => void; isPlaying:
     <button
       type="button"
       onClick={onPlay}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-copy font-medium transition-colors
         ${isPlaying ? "bg-ink text-canvas" : "bg-ink/5 text-ink hover:bg-ink/10"}`}
     >
       <Volume2 size={14} />
@@ -178,7 +179,7 @@ function WordDisplay({ word, phonetic }: { word: string; phonetic?: string | nul
   return (
     <span>
       <span className="font-semibold text-ink">{word}</span>
-      {phonetic && <span className="ml-1.5 text-xs text-muted">/{phonetic}/</span>}
+      {phonetic && <span className="ml-1.5 text-meta text-muted">/{phonetic}/</span>}
     </span>
   );
 }
@@ -261,7 +262,7 @@ function RecordAndEvaluate({ onResult }: { onResult: (correct: boolean) => void 
       {hasRecorded && audioUrl && (
         <div className="space-y-2">
           <audio controls src={audioUrl} className="h-8 w-full" />
-          <div className="text-[13px] text-muted mb-1">回放你的录音，然后自评：</div>
+          <div className="text-copy text-muted mb-1">回放你的录音，然后自评：</div>
           <SelfEvaluateButtons onCorrect={() => onResult(true)} onWrong={() => onResult(false)} />
         </div>
       )}
@@ -305,7 +306,7 @@ function PracticeItemRenderer({
                 onPlay={() => audio.playWord(item.word)}
                 isPlaying={audio.playingText === item.word}
               />
-              <span className="text-sm text-muted">听发音，选择正确释义</span>
+              <span className="text-copy text-muted">听发音，选择正确释义</span>
             </div>
           }
           graded={graded}
@@ -324,7 +325,7 @@ function PracticeItemRenderer({
               }}
             />
           ) : (
-            <div className="text-sm text-muted">暂无选项</div>
+            <div className="text-copy text-muted">暂无选项</div>
           )}
         </QuestionCard>
       );
@@ -358,7 +359,7 @@ function PracticeItemRenderer({
               }}
             />
           ) : (
-            <div className="text-sm text-muted">暂无选项</div>
+            <div className="text-copy text-muted">暂无选项</div>
           )}
         </QuestionCard>
       );
@@ -396,7 +397,7 @@ function PracticeItemRenderer({
                 onPlay={() => audio.playWord(item.word)}
                 isPlaying={audio.playingText === item.word}
               />
-              <span className="text-sm text-muted">听发音，拼写单词</span>
+              <span className="text-copy text-muted">听发音，拼写单词</span>
             </div>
           }
           graded={graded}
@@ -471,7 +472,7 @@ function PracticeItemRenderer({
                 onPlay={() => audio.playSentence(item.full_sentence ?? item.word)}
                 isPlaying={audio.playingText === (item.full_sentence ?? item.word)}
               />
-              <span className="text-sm text-muted">听句子，跟读并自评</span>
+              <span className="text-copy text-muted">听句子，跟读并自评</span>
             </div>
           }
           hint={item.full_sentence ?? undefined}
@@ -559,22 +560,24 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
 
   if (session.loading) {
     return (
-      <div
-        className="rounded-xl border border-hairline bg-surface-soft p-4 space-y-3 animate-fade-in"
+      <Card
         role="status"
         aria-label="加载练习中"
+        variant="soft"
+        padding={4}
+        className="space-y-3 animate-fade-in"
       >
         <div className="skeleton-shimmer h-4 w-1/2 rounded-sm bg-surface-card" />
         <div className="skeleton-shimmer h-9 rounded-lg bg-surface-card" />
         <div className="skeleton-shimmer h-9 rounded-lg bg-surface-card" />
         <div className="skeleton-shimmer h-9 w-2/3 rounded-lg bg-surface-card" />
-      </div>
+      </Card>
     );
   }
 
   if (session.error) {
     return (
-      <div className="text-sm text-error py-4">
+      <div className="text-copy text-error py-4">
         {session.error}
         <Button variant="outline" size="compact" className="ml-2" onClick={() => session.refetch()}>
           重试
@@ -584,7 +587,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
   }
 
   if (!total) {
-    return <div className="text-sm text-muted py-4">该视频暂无目标等级词汇可供练习。</div>;
+    return <div className="text-copy text-muted py-4">该视频暂无目标等级词汇可供练习。</div>;
   }
 
   // Completion screen — show once every item has been graded.
@@ -623,12 +626,14 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-ink">练习</span>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-ink/5 text-muted">{levelLabel}</span>
-          <span className="text-xs text-muted">
+          <span className="text-meta px-1.5 py-0.5 rounded-md bg-ink/5 text-muted">
+            {levelLabel}
+          </span>
+          <span className="text-meta text-muted">
             {currentIndex + 1} / {total}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-muted">
+        <div className="flex items-center gap-3 text-copy text-muted">
           <span className="text-success">✓ {session.correctCount}</span>
           <span className="text-error">✗ {wrongCount}</span>
           <Button variant="ghost" size="compact" onClick={handleRetry} icon={RotateCcw}>
@@ -688,7 +693,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
                     { from: "drill" },
                     { subtitleId: it.subtitle_id, startTime: it.start_time, word: it.word }
                   )}
-                  className="text-xs text-brand-500 hover:underline"
+                  className="text-meta text-brand-500 hover:underline"
                 >
                   回看原句 →
                 </Link>

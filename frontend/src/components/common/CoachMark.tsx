@@ -148,7 +148,7 @@ export function CoachMark({ steps, stepIndex, onNext, onSkip, onFinish }: CoachM
 
       <div
         className={cn(
-          "absolute z-[101] max-w-[320px] bg-canvas border border-hairline rounded-xl shadow-lift p-4",
+          "absolute z-[101] max-w-[320px] bg-canvas border border-hairline rounded-lg shadow-lift p-4",
           (isFinal || isMobile || !rect) && "left-1/2 -translate-x-1/2 bottom-6"
         )}
         style={
@@ -180,20 +180,22 @@ export function CoachMark({ steps, stepIndex, onNext, onSkip, onFinish }: CoachM
       >
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-ink">{step.title}</h3>
-            {step.body && <p className="text-xs text-muted mt-1.5 leading-relaxed">{step.body}</p>}
+            <h3 className="text-copy font-semibold text-ink">{step.title}</h3>
+            {step.body && (
+              <p className="text-meta text-muted mt-1.5 leading-relaxed">{step.body}</p>
+            )}
           </div>
           <button onClick={onSkip} aria-label="关闭" className="text-muted-soft hover:text-ink">
             <X size={14} />
           </button>
         </div>
         <div className="mt-3 flex items-center justify-between">
-          <button onClick={onSkip} className="text-[11px] text-muted-soft hover:text-muted">
+          <button onClick={onSkip} className="text-caption text-muted-soft hover:text-muted">
             跳过教程
           </button>
           <button
             onClick={isLastStep ? onFinish : onNext}
-            className="text-xs font-semibold text-brand-500 hover:text-brand-600"
+            className="text-meta font-semibold text-brand-500 hover:text-brand-600"
           >
             {isLastStep ? "知道了" : "下一步 →"}
           </button>

@@ -4,12 +4,12 @@ export default function RootNotFound() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
       <div className="text-center">
-        <h1 className="text-6xl font-display font-medium text-ink">404</h1>
-        <p className="mt-4 text-lg text-muted">页面不存在</p>
-        <p className="mt-2 text-sm text-muted">你访问的页面可能已被移动或删除。</p>
+        <h1 className="display-2xl text-ink">404</h1>
+        <p className="mt-4 text-copy-lg text-muted">页面不存在</p>
+        <p className="mt-2 text-copy text-muted">你访问的页面可能已被移动或删除。</p>
         <Link
           href="/"
-          className="mt-6 inline-flex items-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-500/90 transition-colors"
+          className="mt-6 inline-flex items-center rounded-lg bg-brand-500 px-5 py-2.5 text-copy font-medium text-white hover:bg-brand-500/90 transition-colors"
         >
           返回首页
         </Link>

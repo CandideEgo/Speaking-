@@ -71,7 +71,7 @@ export function AdminDropdown({ items, trigger, align = "right", className }: Ad
                 item.onClick();
               }}
               className={cn(
-                "flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors",
+                "flex w-full items-center gap-2.5 px-3 py-2 text-copy transition-colors",
                 item.disabled
                   ? "cursor-not-allowed text-muted-soft"
                   : item.danger

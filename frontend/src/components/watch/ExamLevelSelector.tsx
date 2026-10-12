@@ -57,14 +57,14 @@ export function ExamLevelSelector({
           "inline-flex items-center justify-center rounded-full transition-colors cursor-pointer",
           inline
             ? "h-11 px-1"
-            : "gap-1.5 px-2.5 py-1.5 bg-black/55 backdrop-blur text-white text-xs font-medium hover:bg-black/70"
+            : "gap-1.5 px-2.5 py-1.5 bg-black/55 backdrop-blur text-white text-meta font-medium hover:bg-black/70"
         )}
       >
         <span
           className={cn(
             "inline-flex items-center gap-1.5",
             inline &&
-              "h-8 rounded-full border border-hairline bg-surface-card/70 px-2.5 text-xs font-medium text-ink hover:bg-surface-card"
+              "h-8 rounded-full border border-hairline bg-surface-card/70 px-2.5 text-meta font-medium text-ink hover:bg-surface-card"
           )}
         >
           <span className={cn("w-2 h-2 rounded-full", levelDotClass(current.color))} />
@@ -88,7 +88,7 @@ export function ExamLevelSelector({
                   setOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-left cursor-pointer transition-colors",
+                  "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-meta text-left cursor-pointer transition-colors",
                   opt.key === current.key
                     ? "bg-brand-50 text-brand-600 font-semibold"
                     : "text-ink hover:bg-surface-soft"

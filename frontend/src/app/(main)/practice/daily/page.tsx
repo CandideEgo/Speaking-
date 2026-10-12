@@ -46,8 +46,8 @@ export default function DailyCheckPage() {
   if (loading && !attempt) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <div className="container-page py-16 text-center">
-          <p className="text-sm text-muted">正在从真题题库抽题…</p>
+        <div className="py-16 text-center">
+          <p className="text-copy text-muted">正在从真题题库抽题…</p>
         </div>
       </main>
     );
@@ -56,11 +56,11 @@ export default function DailyCheckPage() {
   if (!attempt) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <div className="container-page py-16 text-center space-y-4">
-          <p className="text-sm text-muted">{error ?? "小测不可用"}</p>
+        <div className="py-16 text-center space-y-4">
+          <p className="text-copy text-muted">{error ?? "小测不可用"}</p>
           <button
             onClick={start}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-copy font-semibold hover:bg-brand-500 transition-colors"
           >
             <RotateCcw size={14} />
             重新生成
@@ -73,20 +73,22 @@ export default function DailyCheckPage() {
   return (
     <>
       <div className="bg-surface-soft">
-        <div className="container-page py-6 pb-2 max-w-[880px]">
+        <div className="py-6 pb-2 max-w-measure">
           <Link
             href="/practice"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors"
+            className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors"
           >
             <ArrowLeft size={14} />
             返回练习
           </Link>
           <div className="flex items-center gap-2.5 mt-3 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-brand-50 text-brand-600 text-[13px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-brand-50 text-brand-600 text-copy font-semibold">
               <Clock size={13} />
               每日小测
             </span>
-            <span className="text-xs text-muted">从四六级真题随机抽 10 题 · 完成后可查看解析</span>
+            <span className="text-meta text-muted">
+              从四六级真题随机抽 10 题 · 完成后可查看解析
+            </span>
           </div>
         </div>
       </div>

@@ -33,14 +33,14 @@ export function AuthCard({
 
         {/* Logo */}
         <div className="relative z-10">
-          <span className="font-display text-xl font-bold text-on-dark tracking-tight">
+          <span className="font-display text-title font-bold text-on-dark tracking-tight">
             {siteConfig.brandName}
           </span>
         </div>
 
         {/* Center content */}
         <div className="relative z-10 space-y-8">
-          <h2 className="text-3xl xl:text-4xl font-bold text-on-dark leading-tight tracking-tight">
+          <h2 className="display-lg text-on-dark">
             用真实视频，
             <br />
             <span className="text-brand-400">开口说英语。</span>
@@ -51,7 +51,7 @@ export function AuthCard({
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] border border-white/[0.08]">
                   <f.icon size={16} className="text-brand-400" />
                 </div>
-                <span className="text-sm text-on-dark-soft">{f.text}</span>
+                <span className="text-copy text-on-dark-soft">{f.text}</span>
               </div>
             ))}
           </div>
@@ -59,7 +59,7 @@ export function AuthCard({
 
         {/* Social proof */}
         <div className="relative z-10">
-          <p className="text-xs text-on-dark-soft/60">「看·查·懂」三位一体学习法，每天 15 分钟</p>
+          <p className="text-meta text-on-dark-soft/60">「看·查·懂」三位一体学习法，每天 15 分钟</p>
         </div>
       </div>
 
@@ -70,14 +70,14 @@ export function AuthCard({
             <Link
               href="/"
               aria-label={`${siteConfig.brandName} 首页`}
-              className="font-display text-2xl font-bold text-ink tracking-tight lg:hidden"
+              className="font-display text-display-sm font-bold text-ink tracking-tight lg:hidden"
             >
               {siteConfig.brandName}
             </Link>
-            <h1 className="mt-4 lg:mt-0 font-display text-3xl font-bold text-ink tracking-display-md">
+            <h1 className="mt-4 lg:mt-0 font-display text-display font-bold text-ink tracking-display-md">
               {title}
             </h1>
-            {subtitle && <p className="mt-2 text-sm text-muted">{subtitle}</p>}
+            {subtitle && <p className="mt-2 text-copy text-muted">{subtitle}</p>}
           </div>
           {children}
         </div>

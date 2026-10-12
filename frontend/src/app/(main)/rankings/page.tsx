@@ -14,10 +14,12 @@ import {
 } from "@/components/rankings/RankingRow";
 import { TopPodium } from "@/components/rankings/TopPodium";
 import { TabPills } from "@/components/ui/TabPills";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useRankings, type RankingScope } from "@/hooks/useRankings";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
+import { Card } from "@/components/ui/Card";
 
 const TABS: { key: RankingScope; label: string }[] = [
   { key: "latest", label: "最新" },
@@ -45,15 +47,13 @@ export default function RankingsPage() {
 
   return (
     <PageTransition>
-      <main className="container-wide py-6 sm:py-10">
-        <header className="mb-6">
-          <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-500 shadow-[0_0_8px_#ff5a1f]" />
-            Trending · 榜单
-          </p>
-          <h1 className="mt-2 text-[28px] font-extrabold tracking-display-sm text-ink">排行</h1>
-          <p className="mt-1 text-[13px] text-muted">最新上架，以及本周热播、收藏趋势</p>
-        </header>
+      <main className="py-6 sm:py-10">
+        <PageHeader
+          className="pt-0 pb-4"
+          crumb="Trending · 榜单"
+          title="排行"
+          description="最新上架，以及本周热播、收藏趋势"
+        />
         <TabPills
           tabs={TABS}
           activeKey={scope}
@@ -63,11 +63,11 @@ export default function RankingsPage() {
           size="sm"
         />
         {loading ? (
-          <div className="mt-4 divide-y divide-hairline rounded-xl border border-hairline bg-surface-card">
+          <Card variant="surface" padding={0} className="mt-4 divide-y divide-hairline">
             {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
               <RankingRowSkeleton key={i} />
             ))}
-          </div>
+          </Card>
         ) : error ? (
           <ErrorState title={error} onRetry={retry} className="py-10" />
         ) : items.length === 0 ? (
@@ -76,7 +76,7 @@ export default function RankingsPage() {
           <div key={scope} className="stagger-container mt-4 grid gap-4">
             <TopPodium items={items.slice(0, 3)} mode={mode} metricLabel={metricLabel} />
             {items.length > 3 && (
-              <div className="divide-y divide-hairline rounded-xl border border-hairline bg-surface-card">
+              <Card variant="surface" padding={0} className="divide-y divide-hairline">
                 {items.slice(3).map((video, i) => (
                   <RankingRow
                     key={video.id}
@@ -87,7 +87,7 @@ export default function RankingsPage() {
                     maxMetric={maxMetric}
                   />
                 ))}
-              </div>
+              </Card>
             )}
           </div>
         )}

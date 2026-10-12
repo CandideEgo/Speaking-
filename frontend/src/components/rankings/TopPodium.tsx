@@ -32,10 +32,10 @@ function PodiumMetric({
   if (mode === "time") {
     return (
       <div>
-        <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-brand-600">
+        <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-600">
           NEW
         </span>
-        <p className={cn("mt-1 tabular-nums text-muted", big ? "text-sm" : "text-[11px]")}>
+        <p className={cn("mt-1 tabular-nums text-muted", big ? "text-copy" : "text-caption")}>
           {relativeTime(video.published_at ?? video.created_at)}
         </p>
       </div>
@@ -43,13 +43,13 @@ function PodiumMetric({
   }
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-soft">
+      <p className="text-caption font-semibold uppercase tracking-wider text-muted-soft">
         {metricLabel}
       </p>
       <p
         className={cn(
           "font-display font-extrabold tabular-nums tracking-display-sm",
-          big ? "text-2xl sm:text-3xl" : "text-lg",
+          big ? "text-display-sm sm:text-display" : "text-copy-lg",
           accent ? "text-brand-500" : "text-ink"
         )}
       >
@@ -74,7 +74,7 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
     <Link
       href={watchHref(video.id, { from: "rankings" })}
       className={cn(
-        "group relative flex overflow-hidden rounded-xl border bg-surface-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
+        "group relative flex overflow-hidden rounded-lg border bg-surface-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift",
         featured
           ? "flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-5 sm:p-4"
           : "items-center gap-3 p-3",
@@ -103,7 +103,7 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
       <div className="relative z-10 min-w-0 flex-1">
         <p
           className={cn(
-            "font-mono text-[10px] font-semibold uppercase tracking-[0.14em]",
+            "font-mono text-caption font-semibold uppercase tracking-[0.14em]",
             rankClass(rank)
           )}
         >
@@ -112,13 +112,13 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
         <h3
           className={cn(
             "mt-1 line-clamp-2 font-bold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600",
-            featured ? "text-base tracking-display-sm sm:text-lg" : "text-sm"
+            featured ? "text-copy-lg tracking-display-sm" : "text-copy"
           )}
         >
           {video.title}
         </h3>
         {video.channel_name && (
-          <p className="mt-1 line-clamp-1 text-xs text-muted">{video.channel_name}</p>
+          <p className="mt-1 line-clamp-1 text-meta text-muted">{video.channel_name}</p>
         )}
         <div className={featured ? "mt-3" : "mt-1.5"}>
           <PodiumMetric
@@ -135,8 +135,8 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -bottom-3 right-1 select-none font-display font-extrabold leading-none text-ink/[0.05]",
-          featured ? "text-[110px] sm:text-[140px]" : "text-[88px]"
+          "pointer-events-none absolute -bottom-3 right-1 select-none text-ink/[0.05]",
+          featured ? "display-num-xl" : "display-num-lg"
         )}
       >
         {rank}

@@ -86,10 +86,10 @@ export default function ChannelDetailPage() {
 
   return (
     <PageTransition>
-      <main className="container-wide py-6 sm:py-10">
+      <main className="py-6 sm:py-10">
         <Link
           href="/channels"
-          className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors mb-4"
+          className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors mb-4"
         >
           <ArrowLeft size={14} />
           全部频道
@@ -109,13 +109,13 @@ export default function ChannelDetailPage() {
           <>
             {/* Channel header — banner 横条式（主流流媒体作者页布局，适配 16:9 兜底封面） */}
             <div className="mb-8">
-              <div className="relative h-28 sm:h-40 lg:h-48 rounded-xl overflow-hidden border border-hairline bg-surface-card">
+              <div className="relative h-28 sm:h-40 lg:h-48 rounded-lg overflow-hidden border border-hairline bg-surface-card">
                 <Image
                   src={channel.cover_url}
                   alt={channel.name}
                   fallback={
                     <div
-                      className={`absolute inset-0 flex items-center justify-center text-4xl sm:text-5xl font-bold text-white/90 ${avatarColor(channel.name)}`}
+                      className={`absolute inset-0 flex items-center justify-center display-xl text-white/90 ${avatarColor(channel.name)}`}
                     >
                       {userInitial(channel.name)}
                     </div>
@@ -135,7 +135,7 @@ export default function ChannelDetailPage() {
                     alt=""
                     fallback={
                       <div
-                        className={`absolute inset-0 flex items-center justify-center text-xl sm:text-2xl font-bold text-white ${avatarColor(channel.name)}`}
+                        className={`absolute inset-0 flex items-center justify-center text-title sm:text-display-sm font-bold text-white ${avatarColor(channel.name)}`}
                       >
                         {userInitial(channel.name)}
                       </div>
@@ -143,7 +143,7 @@ export default function ChannelDetailPage() {
                   />
                 </div>
                 <div className="min-w-0 pb-0.5">
-                  <h1 className="text-lg sm:text-2xl font-extrabold text-ink flex items-center gap-1.5">
+                  <h1 className="text-copy-lg sm:text-display-sm font-extrabold text-ink flex items-center gap-1.5">
                     <span className="truncate">{channel.name}</span>
                     {channel.is_verified && (
                       <BadgeCheck
@@ -153,7 +153,7 @@ export default function ChannelDetailPage() {
                       />
                     )}
                   </h1>
-                  <p className="text-xs sm:text-[13px] text-muted mt-0.5">
+                  <p className="text-meta sm:text-copy text-muted mt-0.5">
                     {typeof channel.follower_count === "number" && (
                       <>{formatViews(channel.follower_count)} 粉丝 · </>
                     )}
@@ -163,7 +163,7 @@ export default function ChannelDetailPage() {
               </div>
 
               {channel.description && (
-                <p className="text-[13px] text-muted mt-3 px-3 sm:px-5 leading-relaxed line-clamp-2">
+                <p className="text-copy text-muted mt-3 px-3 sm:px-5 leading-relaxed line-clamp-2">
                   {channel.description}
                 </p>
               )}
@@ -187,7 +187,7 @@ export default function ChannelDetailPage() {
             {/* Load more */}
             {hasMore && (
               <div className="flex flex-col items-center gap-2 mt-10">
-                {loadMoreError && <p className="text-xs text-error">{loadMoreError}</p>}
+                {loadMoreError && <p className="text-meta text-error">{loadMoreError}</p>}
                 <Button
                   variant="outline"
                   onClick={() => load(page + 1, true)}

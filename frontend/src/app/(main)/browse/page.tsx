@@ -29,7 +29,7 @@ const DIFFICULTY_LEVELS = [
 export default function BrowsePage() {
   return (
     <PageTransition>
-      <main className="container-wide py-6 sm:py-10">
+      <main className="py-6 sm:py-10">
         {/* Page header */}
         <PageHeader crumb="频道" title="浏览视频" />
 
@@ -111,7 +111,9 @@ function BrowseFeed() {
           {/* 结果计数 */}
           <div className="ml-auto flex items-center gap-3 flex-shrink-0">
             {total > 0 && (
-              <span className="text-xs text-muted hidden sm:block font-medium">{total} 个视频</span>
+              <span className="text-meta text-muted hidden sm:block font-medium">
+                {total} 个视频
+              </span>
             )}
           </div>
         </div>

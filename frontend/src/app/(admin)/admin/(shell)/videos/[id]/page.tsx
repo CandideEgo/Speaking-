@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import type { Subtitle, VideoWithSubtitles } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -231,18 +232,22 @@ export default function VideoEditPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={() => router.push("/admin/videos")}
-          variant="outline"
-          size="compact"
-          icon={ArrowLeft}
-        >
-          返回列表
-        </Button>
-        <h1 className="text-lg font-semibold truncate">{video.title}</h1>
-        <VideoStatusBadge status={video.status} />
-      </div>
+      <AdminPageHeader
+        title={<span className="truncate">{video.title}</span>}
+        actions={
+          <>
+            <VideoStatusBadge status={video.status} />
+            <Button
+              onClick={() => router.push("/admin/videos")}
+              variant="outline"
+              size="compact"
+              icon={ArrowLeft}
+            >
+              返回列表
+            </Button>
+          </>
+        }
+      />
 
       <MetadataForm video={video} onChanged={setVideo} />
 
@@ -355,11 +360,11 @@ function MetadataForm({
     <Card as="form" padding={4} className="space-y-4" onSubmit={handleSave}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-muted mb-1">标题</label>
+          <label className="block text-meta font-medium text-muted mb-1">标题</label>
           <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">难度</label>
+          <label className="block text-meta font-medium text-muted mb-1">难度</label>
           <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
             <option value="">未设置</option>
             {DIFFICULTY_OPTIONS.map((d) => (
@@ -370,7 +375,7 @@ function MetadataForm({
           </Select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">标签</label>
+          <label className="block text-meta font-medium text-muted mb-1">标签</label>
           <Input
             type="text"
             value={topicTags}
@@ -379,11 +384,11 @@ function MetadataForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">备注</label>
+          <label className="block text-meta font-medium text-muted mb-1">备注</label>
           <Input type="text" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">所属频道</label>
+          <label className="block text-meta font-medium text-muted mb-1">所属频道</label>
           <Select value={channelRef} onChange={(e) => setChannelRef(e.target.value)}>
             <option value="">未归属</option>
             {channelOptions.map((c) => (
@@ -395,7 +400,7 @@ function MetadataForm({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm">
+      <div className="flex flex-wrap gap-4 text-copy">
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
@@ -433,7 +438,7 @@ function MetadataForm({
           />
           已发布
           {!canPublish && !isPublished && (
-            <span className="text-xs text-muted">（需 status=ready）</span>
+            <span className="text-meta text-muted">（需 status=ready）</span>
           )}
         </label>
       </div>

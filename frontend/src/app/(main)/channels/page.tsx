@@ -11,6 +11,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import type { ChannelSummary } from "@/components/channels/ChannelStrip";
+import { Card } from "@/components/ui/Card";
 
 const PAGE_SIZE = 24;
 
@@ -60,7 +61,7 @@ export default function ChannelsPage() {
 
   return (
     <PageTransition>
-      <main className="container-wide py-6 sm:py-10">
+      <main className="py-6 sm:py-10">
         <PageHeader crumb="频道" title="视频频道" />
 
         {error && <ErrorState title={error} onRetry={() => load(1, false)} className="py-8" />}
@@ -68,16 +69,13 @@ export default function ChannelsPage() {
         {!error && loading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-hairline overflow-hidden animate-pulse"
-              >
+              <Card key={i} padding={0} className="overflow-hidden animate-pulse">
                 <div className="aspect-video bg-surface-card" />
                 <div className="p-4 space-y-2">
-                  <div className="h-4 w-1/2 rounded bg-surface-card" />
-                  <div className="h-3 w-3/4 rounded bg-surface-card" />
+                  <div className="h-4 w-1/2 rounded-md bg-surface-card" />
+                  <div className="h-3 w-3/4 rounded-md bg-surface-card" />
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -90,30 +88,32 @@ export default function ChannelsPage() {
           <>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {channels.map((ch) => (
-                <Link
+                <Card
+                  as={Link}
                   key={ch.id}
                   href={`/channels/${ch.slug}`}
-                  className="group rounded-xl border border-hairline bg-canvas overflow-hidden hover:border-hairline-strong transition-colors"
+                  padding={0}
+                  className="group overflow-hidden hover:border-hairline-strong transition-colors"
                 >
                   <div className="relative aspect-video bg-surface-card">
                     <Image src={ch.cover_url} alt={ch.name} />
                   </div>
                   <div className="p-4">
-                    <p className="text-[15px] font-bold text-ink group-hover:text-brand-500 transition-colors">
+                    <p className="text-copy-lg font-bold text-ink group-hover:text-brand-500 transition-colors">
                       {ch.name}
                     </p>
                     {ch.description && (
-                      <p className="text-[13px] text-muted mt-1 line-clamp-2">{ch.description}</p>
+                      <p className="text-copy text-muted mt-1 line-clamp-2">{ch.description}</p>
                     )}
-                    <p className="text-[11px] text-muted mt-2">{ch.video_count} 个视频</p>
+                    <p className="text-caption text-muted mt-2">{ch.video_count} 个视频</p>
                   </div>
-                </Link>
+                </Card>
               ))}
             </div>
 
             {hasMore && (
               <div className="flex flex-col items-center gap-2 mt-10">
-                {appendError && <p className="text-xs text-error">{appendError}</p>}
+                {appendError && <p className="text-meta text-error">{appendError}</p>}
                 <Button
                   variant="outline"
                   onClick={() => load(page + 1, true)}

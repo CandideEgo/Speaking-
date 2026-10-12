@@ -150,7 +150,7 @@ function WaveCanvas({ rows, className }: { rows: WaveRow[]; className?: string }
     return () => observer.disconnect();
   }, [rows]);
 
-  return <canvas ref={canvasRef} className={cn("block h-7 w-full rounded", className)} />;
+  return <canvas ref={canvasRef} className={cn("block h-7 w-full rounded-md", className)} />;
 }
 
 export function WaveformCompare({
@@ -255,7 +255,7 @@ export function WaveformCompare({
               type="button"
               aria-label="播放原声"
               onClick={onPlayOriginal}
-              className={cn(btnClass, "gap-1 px-2 text-[11px] w-auto min-w-[44px]")}
+              className={cn(btnClass, "gap-1 px-2 text-caption w-auto min-w-[44px]")}
             >
               <Play size={iconSize} className="ml-0.5" />
               原声
@@ -266,7 +266,7 @@ export function WaveformCompare({
             aria-label={playing ? "暂停我的录音" : "播放我的录音"}
             onClick={recordingUrl ? toggleRecording : undefined}
             disabled={!recordingUrl}
-            className={cn(btnClass, "gap-1 px-2 text-[11px] w-auto min-w-[44px]")}
+            className={cn(btnClass, "gap-1 px-2 text-caption w-auto min-w-[44px]")}
           >
             {playing ? <Pause size={iconSize} /> : <Play size={iconSize} className="ml-0.5" />}
             我的
@@ -316,7 +316,7 @@ export function WaveformCompare({
           className="hidden"
         />
       )}
-      <p className="text-[10px] text-muted-soft">波形仅供对比参考，不做评分</p>
+      <p className="text-caption text-muted-soft">波形仅供对比参考，不做评分</p>
     </div>
   );
 }

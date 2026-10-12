@@ -24,8 +24,8 @@ export function AdminEmptyState({
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-soft">
         {icon ?? <Inbox size={28} className="text-muted-soft" />}
       </div>
-      <p className="mt-4 text-sm font-medium text-ink">{text}</p>
-      {description && <p className="mt-1 text-xs text-muted">{description}</p>}
+      <p className="mt-4 text-copy font-medium text-ink">{text}</p>
+      {description && <p className="mt-1 text-meta text-muted">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

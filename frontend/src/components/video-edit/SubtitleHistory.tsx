@@ -88,7 +88,7 @@ export function SubtitleHistory({
       <button
         type="button"
         onClick={handleToggle}
-        className="flex items-center gap-1 text-[11px] text-muted hover:text-ink transition-colors"
+        className="flex items-center gap-1 text-caption text-muted hover:text-ink transition-colors"
       >
         <History size={12} />
         修订历史
@@ -98,14 +98,14 @@ export function SubtitleHistory({
       {open && (
         <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
           {loading ? (
-            <div className="flex items-center gap-1.5 text-[11px] text-muted">
+            <div className="flex items-center gap-1.5 text-caption text-muted">
               <Loader2 size={12} className="animate-spin" /> 加载中…
             </div>
           ) : items.length === 0 ? (
-            <p className="text-[11px] text-muted">暂无修订记录。</p>
+            <p className="text-caption text-muted">暂无修订记录。</p>
           ) : (
             items.map((rev) => (
-              <div key={rev.id} className="text-[11px] bg-surface-soft rounded p-2">
+              <div key={rev.id} className="text-caption bg-surface-soft rounded-md p-2">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-muted">
                     {new Date(rev.created_at).toLocaleString()}
@@ -142,7 +142,7 @@ export function SubtitleHistory({
             ))
           )}
           {hasMore && !loading && items.length > 0 && (
-            <p className="text-[11px] text-muted">仅显示最近 50 条。</p>
+            <p className="text-caption text-muted">仅显示最近 50 条。</p>
           )}
         </div>
       )}

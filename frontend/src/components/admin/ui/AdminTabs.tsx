@@ -25,7 +25,7 @@ export function AdminTabs({ tabs, active, onChange, className }: AdminTabsProps)
             key={tab.key}
             onClick={() => onChange(tab.key)}
             className={cn(
-              "relative px-4 py-2.5 text-sm font-medium transition-colors",
+              "relative px-4 py-2.5 text-copy font-medium transition-colors",
               "hover:text-ink",
               isActive ? "text-brand-600" : "text-muted"
             )}
@@ -35,7 +35,7 @@ export function AdminTabs({ tabs, active, onChange, className }: AdminTabsProps)
               {tab.count !== undefined && (
                 <span
                   className={cn(
-                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs",
+                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-meta",
                     isActive ? "bg-brand-100 text-brand-700" : "bg-surface-soft text-muted"
                   )}
                 >

@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Flame, BookOpen, Clapperboard, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePlan } from "@/hooks/usePlan";
+import { Card } from "@/components/ui/Card";
 
 interface VocabStats {
   total: number;
@@ -44,11 +45,11 @@ export function CompactStatsBar() {
   const dueCount = vocabStats?.due_count ?? 0;
 
   return (
-    <div className="flex items-center gap-4 bg-canvas border border-hairline rounded-xl px-5 py-3.5">
+    <Card padding={0} className="flex items-center gap-4 px-5 py-3.5">
       <div className="flex items-center gap-5 flex-1 min-w-0 overflow-x-auto scrollbar-none">
         <Link
           href="/profile"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
           title="连续学习天数"
         >
           <Flame size={15} className={streak > 0 ? "text-brand-500" : "text-muted-soft"} />
@@ -56,7 +57,7 @@ export function CompactStatsBar() {
         </Link>
         <Link
           href="/vocabulary"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
           title="词库总词数"
         >
           <BookOpen size={15} className="text-muted" />
@@ -64,7 +65,7 @@ export function CompactStatsBar() {
         </Link>
         <Link
           href="/history"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
           title="已学视频数"
         >
           <Clapperboard size={15} className="text-muted" />
@@ -76,7 +77,7 @@ export function CompactStatsBar() {
         (dueCount > 0 ? (
           <Link
             href="/vocabulary/drill"
-            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg bg-brand-500 text-white text-[13px] font-semibold hover:bg-brand-600 transition-colors"
+            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg bg-brand-500 text-white text-copy font-semibold hover:bg-brand-600 transition-colors"
           >
             开始复习
             <ArrowRight size={13} />
@@ -84,12 +85,12 @@ export function CompactStatsBar() {
         ) : (
           <Link
             href="/practice"
-            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg border border-hairline text-ink text-[13px] font-semibold hover:border-muted-soft transition-colors"
+            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg border border-hairline text-ink text-copy font-semibold hover:border-muted-soft transition-colors"
           >
             去练习
             <ArrowRight size={13} />
           </Link>
         ))}
-    </div>
+    </Card>
   );
 }

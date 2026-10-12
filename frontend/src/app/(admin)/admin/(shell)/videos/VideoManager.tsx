@@ -66,12 +66,12 @@ const QUALITY_FILTERS = [
 const QUALITY_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   quality_warning: { label: "质量警告", tone: "amber" },
   quality_blocked: { label: "质量阻断", tone: "red" },
-  low_coverage: { label: "低覆盖", tone: "orange" },
+  low_coverage: { label: "低覆盖", tone: "amber" },
 };
 
 const REVIEW_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   draft: { label: "草稿", tone: "neutral" },
-  pending_review: { label: "待审核", tone: "orange" },
+  pending_review: { label: "待审核", tone: "amber" },
   published: { label: "已发布", tone: "green" },
   rejected: { label: "已驳回", tone: "red" },
 };
@@ -296,7 +296,7 @@ export default function VideoManager() {
     <div className="space-y-6">
       {/* Pipeline health */}
       <SectionCard title="管线健康">
-        <div className="flex flex-wrap items-center gap-6 text-sm">
+        <div className="flex flex-wrap items-center gap-6 text-copy">
           <div className="flex items-center gap-2">
             <span
               className={cn("w-2.5 h-2.5 rounded-full", workerOnline ? "bg-success" : "bg-error")}
@@ -321,7 +321,7 @@ export default function VideoManager() {
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-2xl text-ink">视频管理</h2>
+            <h2 className="font-display text-display-sm text-ink">视频管理</h2>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddDialogOpen(true)}>
@@ -342,13 +342,13 @@ export default function VideoManager() {
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
-          <span className="text-xs text-muted">审核：</span>
+          <span className="text-meta text-muted">审核：</span>
           <FilterPills
             options={REVIEW_FILTERS}
             value={reviewStatusFilter}
             onChange={setReviewStatusFilter}
           />
-          <span className="text-xs text-muted">质量：</span>
+          <span className="text-meta text-muted">质量：</span>
           <FilterPills
             options={QUALITY_FILTERS}
             value={qualityFilter}
@@ -384,7 +384,7 @@ export default function VideoManager() {
           emptyText="暂无视频"
           expandedId={editingId}
           renderRow={(v, isExpanded) => (
-            <tr className="text-xs align-top hover:bg-surface-soft/40 transition-colors">
+            <tr className="text-meta align-top hover:bg-surface-soft/40 transition-colors">
               <td className="py-3 pr-4">
                 <div className="flex items-start gap-3">
                   <div className="relative h-12 w-20 rounded-sm bg-surface-soft overflow-hidden flex-shrink-0">
@@ -414,7 +414,7 @@ export default function VideoManager() {
                 {(v.status === "processing" || v.status === "ready_subtitles") &&
                   v.processing_step && (
                     <div className="mt-1 space-y-0.5">
-                      <div className="text-[10px] text-muted">
+                      <div className="text-caption text-muted">
                         {STEP_LABELS_SHORT[v.processing_step] || v.processing_step}
                         {v.processing_progress ? `（${v.processing_progress}%）` : ""}
                       </div>
@@ -432,7 +432,7 @@ export default function VideoManager() {
                   )}
                 {v.status === "error" && v.error_message && (
                   <div
-                    className="mt-1 text-[10px] text-error truncate max-w-[180px]"
+                    className="mt-1 text-caption text-error truncate max-w-[180px]"
                     title={v.error_message}
                   >
                     {v.error_message}
@@ -451,7 +451,7 @@ export default function VideoManager() {
                   )}
                   {v.score != null && (
                     <span
-                      className="text-[10px] font-mono text-muted"
+                      className="text-caption font-mono text-muted"
                       title="P1 learning_score (0-100)"
                     >
                       分 {v.score}
@@ -472,7 +472,7 @@ export default function VideoManager() {
                     </Badge>
                   )}
                   {v.is_official && !v.is_published && (
-                    <Badge tone="orange" className="w-fit">
+                    <Badge tone="amber" className="w-fit">
                       待审
                     </Badge>
                   )}
@@ -569,7 +569,7 @@ export default function VideoManager() {
           </>
         }
       >
-        <p className="text-xs text-muted">
+        <p className="text-meta text-muted">
           驳回后公开版保留上次审核通过的内容（如有），创作者可修改后重新提交。
         </p>
         <Textarea
@@ -632,7 +632,7 @@ export default function VideoManager() {
           </>
         }
       >
-        <p className="text-xs text-muted mb-3">
+        <p className="text-meta text-muted mb-3">
           粘贴视频链接（YouTube / Bilibili）。将自动转录、翻译并发布为官方视频，需 GPU Worker 在线。
         </p>
         <Input

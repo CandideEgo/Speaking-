@@ -8,6 +8,7 @@ import { useSpeech } from "@/hooks/useSpeech";
 import { watchSentenceHref } from "@/lib/watchEntry";
 import { cn } from "@/lib/utils";
 import { DRILL_KIND_LABEL, type DrillQuestion } from "@/lib/drillQuestions";
+import { Card } from "@/components/ui/Card";
 
 /**
  * 选择题卡（S5，设计文档 §4）：全程选择题取代旧的自评双按钮闪卡。
@@ -74,9 +75,9 @@ export function WordQuizCard({
 
   return (
     <div className="w-full max-w-[640px] mx-auto">
-      <div className="bg-canvas border border-hairline rounded-xl shadow-lift px-6 py-7 sm:px-8 animate-fade-in">
+      <Card padding={0} className="shadow-lift px-6 py-7 sm:px-8 animate-fade-in">
         {/* 眉标：题型 + 重听（听音题的题面就是播放钮，不重复摆一个） */}
-        <div className="flex items-center justify-between gap-3 text-[11px]">
+        <div className="flex items-center justify-between gap-3 text-caption">
           <span className="font-semibold text-brand-500">{DRILL_KIND_LABEL[question.kind]}</span>
           {question.kind !== "listen2word" && (
             <button
@@ -98,29 +99,27 @@ export function WordQuizCard({
               <button
                 type="button"
                 onClick={() => speak(word.word, { rate: 0.9 })}
-                className="flex items-center justify-center w-20 h-20 rounded-full border border-hairline text-brand-500 hover:bg-coral-soft transition-colors cursor-pointer"
+                className="flex items-center justify-center w-20 h-20 rounded-full border border-hairline text-brand-500 hover:bg-brand-50 transition-colors cursor-pointer"
                 aria-label="播放单词发音"
               >
                 <Volume2 size={32} />
               </button>
-              <p className="text-xs text-muted mt-3">听发音，选出你听到的词</p>
+              <p className="text-meta text-muted mt-3">听发音，选出你听到的词</p>
             </>
           ) : question.kind === "zh2en" ? (
-            <p className="text-xl sm:text-[26px] font-bold text-ink leading-snug text-balance max-w-[26rem]">
+            <p className="text-title sm:text-display-sm font-bold text-ink leading-snug text-balance max-w-[26rem]">
               {question.prompt}
             </p>
           ) : (
             <>
-              <p className="text-4xl sm:text-5xl font-extrabold tracking-tight text-ink">
-                {question.prompt}
-              </p>
-              {word.ipa && <p className="text-sm text-muted mt-2 font-mono">{word.ipa}</p>}
+              <p className="display-xl text-ink">{question.prompt}</p>
+              {word.ipa && <p className="text-copy text-muted mt-2 font-mono">{word.ipa}</p>}
             </>
           )}
 
           {/* 新词首次出现带原句语境（§4.3；仅英→中——原句含答案，其余题型会泄底） */}
           {question.kind === "en2zh" && word.context_sentence && (
-            <p className="text-[13px] text-muted leading-relaxed mt-5 max-w-[440px]">
+            <p className="text-copy text-muted leading-relaxed mt-5 max-w-[440px]">
               <HighlightedSentence sentence={word.context_sentence} word={word.word} />
             </p>
           )}
@@ -137,15 +136,15 @@ export function WordQuizCard({
                 disabled={answered}
                 onClick={() => handleSelect(option)}
                 className={cn(
-                  "flex items-center gap-2.5 px-3.5 py-3 rounded-md border text-[15px] transition-colors text-left",
+                  "flex items-center gap-2.5 px-3.5 py-3 rounded-md border text-copy transition-colors text-left",
                   !answered &&
-                    "border-hairline bg-canvas hover:border-brand-400 hover:bg-coral-soft cursor-pointer",
+                    "border-hairline bg-canvas hover:border-brand-400 hover:bg-brand-50 cursor-pointer",
                   answered && isAnswer && "border-success bg-success-soft text-ink",
                   answered && isPicked && !isAnswer && "border-error bg-red-soft text-ink",
                   answered && !isAnswer && !isPicked && "border-hairline opacity-50"
                 )}
               >
-                <span className="w-5 h-5 rounded-xs border border-hairline text-[11px] text-muted flex items-center justify-center flex-shrink-0 font-mono">
+                <span className="w-5 h-5 rounded-sm border border-hairline text-caption text-muted flex items-center justify-center flex-shrink-0 font-mono">
                   {i + 1}
                 </span>
                 <span className="flex-1">{option}</span>
@@ -164,7 +163,7 @@ export function WordQuizCard({
           <div className="mt-5 pt-5 border-t border-hairline text-left animate-fade-slide-in">
             <p
               className={cn(
-                "flex items-center gap-1.5 text-sm font-bold",
+                "flex items-center gap-1.5 text-copy font-bold",
                 correct ? "text-success" : "text-error"
               )}
             >
@@ -172,26 +171,26 @@ export function WordQuizCard({
               {correct ? "答对了" : "答错了，正确答案已标出"}
             </p>
             <div className="flex items-baseline gap-2 flex-wrap mt-3">
-              <span className="text-[17px] font-bold text-ink">{word.word}</span>
-              {word.ipa && <span className="text-xs text-muted font-mono">{word.ipa}</span>}
+              <span className="text-copy-lg font-bold text-ink">{word.word}</span>
+              {word.ipa && <span className="text-meta text-muted font-mono">{word.ipa}</span>}
               {word.part_of_speech && (
-                <span className="text-xs text-muted-soft italic">{word.part_of_speech}</span>
+                <span className="text-meta text-muted-soft italic">{word.part_of_speech}</span>
               )}
             </div>
-            <p className="text-[15px] text-ink font-medium leading-relaxed mt-1">
+            <p className="text-copy text-ink font-medium leading-relaxed mt-1">
               {word.translation || word.definition || "—"}
             </p>
             {word.example_sentences && word.example_sentences.length > 0 && (
               <ul className="mt-3 space-y-1">
                 {word.example_sentences.slice(0, 2).map((sentence, i) => (
-                  <li key={i} className="text-[13px] text-muted leading-relaxed">
+                  <li key={i} className="text-copy text-muted leading-relaxed">
                     · {sentence}
                   </li>
                 ))}
               </ul>
             )}
             {word.context_sentence && (
-              <p className="text-[13px] text-muted leading-relaxed mt-3">
+              <p className="text-copy text-muted leading-relaxed mt-3">
                 原句：
                 <HighlightedSentence sentence={word.context_sentence} word={word.word} />
               </p>
@@ -203,7 +202,7 @@ export function WordQuizCard({
                   { from: "drill" },
                   { subtitleId: word.subtitle_id, word: word.word }
                 )}
-                className="inline-flex items-center gap-1 mt-2 text-xs text-brand-500 hover:underline"
+                className="inline-flex items-center gap-1 mt-2 text-meta text-brand-500 hover:underline"
               >
                 <ExternalLink size={12} />
                 去原视频 →
@@ -217,8 +216,10 @@ export function WordQuizCard({
           下一个
           <ArrowRight size={16} className="ml-1" />
         </Button>
-        <p className="text-center text-[11px] text-muted-soft mt-3">键盘 1-4 选择 · Enter 下一个</p>
-      </div>
+        <p className="text-center text-caption text-muted-soft mt-3">
+          键盘 1-4 选择 · Enter 下一个
+        </p>
+      </Card>
     </div>
   );
 }
@@ -230,7 +231,7 @@ function HighlightedSentence({ sentence, word }: { sentence: string; word: strin
   return (
     <>
       {sentence.slice(0, idx)}
-      <mark className="bg-coral-soft text-brand-700 rounded px-0.5 font-semibold">
+      <mark className="bg-brand-50 text-brand-700 rounded-md px-0.5 font-semibold">
         {sentence.slice(idx, idx + word.length)}
       </mark>
       {sentence.slice(idx + word.length)}

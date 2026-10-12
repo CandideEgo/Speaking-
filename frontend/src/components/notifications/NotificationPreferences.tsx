@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { type LucideIcon, Bell, ChevronDown, Loader2, Save } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface NotificationType {
   id: string;
@@ -92,8 +93,8 @@ export function NotificationPreferences() {
         aria-expanded={expanded}
       >
         <div>
-          <p className="text-sm font-semibold text-ink">通知设置</p>
-          <p className="text-xs text-muted mt-0.5">
+          <p className="text-copy font-semibold text-ink">通知设置</p>
+          <p className="text-meta text-muted mt-0.5">
             {loading ? "加载中…" : `${NOTIFICATION_TYPES.length} 项通知已开启 ${enabledCount} 项`}
           </p>
         </div>
@@ -105,7 +106,7 @@ export function NotificationPreferences() {
 
       {expanded && (
         <div className="mt-3 space-y-3">
-          <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas">
+          <Card padding={0} className="divide-y divide-hairline">
             {NOTIFICATION_TYPES.map((type) => {
               const enabled = preferences[type.id] !== false;
               return (
@@ -115,8 +116,8 @@ export function NotificationPreferences() {
                       <type.icon className="h-3.5 w-3.5 text-brand-500" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-medium text-ink">{type.label}</div>
-                      <div className="text-xs text-muted">{type.description}</div>
+                      <div className="text-copy font-medium text-ink">{type.label}</div>
+                      <div className="text-meta text-muted">{type.description}</div>
                     </div>
                   </div>
                   <button
@@ -138,7 +139,7 @@ export function NotificationPreferences() {
                 </div>
               );
             })}
-          </div>
+          </Card>
           <div className="flex justify-end">
             <Button
               size="sm"

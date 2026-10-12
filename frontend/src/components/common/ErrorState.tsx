@@ -48,7 +48,7 @@ export function ErrorState({
     >
       <Icon size={48} className="text-muted mb-4" />
       <p className="text-ink font-medium">{title}</p>
-      {message && <p className="mt-1 text-sm text-muted">{message}</p>}
+      {message && <p className="mt-1 text-copy text-muted">{message}</p>}
       {action ? (
         <div className="mt-5">{action}</div>
       ) : onRetry ? (

@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, memo } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format";
+import { speakerColor } from "@/lib/avatar";
 import { Mic, Play, Copy, Heart, Edit3, Check } from "lucide-react";
 
 import { useWatchStore } from "@/stores/watchStore";
@@ -29,25 +30,6 @@ function parseDifficultyWords(difficultyWords: string | null | undefined): strin
   } catch {
     return [];
   }
-}
-
-/** Generate color for speaker avatar based on name */
-function getSpeakerColor(name: string): string {
-  const colors = [
-    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800",
-    "bg-green-100 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800",
-    "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-800",
-    "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-300 dark:border-orange-800",
-    "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900 dark:text-pink-300 dark:border-pink-800",
-    "bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:border-teal-800",
-    "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-800",
-    "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900 dark:text-rose-300 dark:border-rose-800",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
 }
 
 /** Get initials from speaker name */
@@ -100,7 +82,7 @@ const HighlightedText = memo(function HighlightedText({
   const words = text.split(/(\s+)/);
 
   return (
-    <span className="text-[15px] leading-relaxed text-ink/90">
+    <span className="text-copy leading-relaxed text-ink/90">
       {words.map((word, wi) => {
         if (/^\s+$/.test(word)) {
           return <span key={wi}>{word}</span>;
@@ -126,13 +108,13 @@ const HighlightedText = memo(function HighlightedText({
               }
             }}
             className={cn(
-              "cursor-pointer rounded transition-colors duration-150",
+              "cursor-pointer rounded-md transition-colors duration-150",
               isSelected
                 ? "bg-brand-500/20 text-brand-500"
                 : isVocab
                   ? "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 px-0.5"
                   : isHighlighted
-                    ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-0.5"
+                    ? "bg-red-soft text-error px-0.5"
                     : "hover:bg-brand-500/10"
             )}
             title={isVocab ? "在你的词库中" : undefined}
@@ -185,7 +167,7 @@ const SubtitleItem = memo(function SubtitleItem({
     <div
       id={`subtitle-${index}`}
       className={cn(
-        "group relative rounded-xl transition-all duration-200",
+        "group relative rounded-lg transition-all duration-200",
         isActive
           ? "bg-surface-card shadow-sm border border-brand-500/30"
           : "hover:bg-surface-soft/50"
@@ -211,12 +193,12 @@ const SubtitleItem = memo(function SubtitleItem({
 
         {/* Chinese translation */}
         {!showEnglishOnly && sub.text_zh && (
-          <p className="mt-1.5 text-sm text-muted">{sub.text_zh}</p>
+          <p className="mt-1.5 text-copy text-muted">{sub.text_zh}</p>
         )}
 
         {/* Grammar note */}
         {sub.grammar_note && (
-          <p className="mt-1.5 text-xs text-warning/80">提示：{sub.grammar_note}</p>
+          <p className="mt-1.5 text-meta text-warning/80">提示：{sub.grammar_note}</p>
         )}
       </button>
 
@@ -224,8 +206,8 @@ const SubtitleItem = memo(function SubtitleItem({
       <div className="flex items-center justify-between px-4 pb-3">
         {/* Timestamp and index */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted font-mono">{index + 1}</span>
-          <span className="text-[11px] text-muted font-mono">
+          <span className="text-caption text-muted font-mono">{index + 1}</span>
+          <span className="text-caption text-muted font-mono">
             {formatTime(sub.start_time)} - {formatTime(sub.end_time)}
           </span>
         </div>
@@ -361,7 +343,6 @@ export default function SubtitleList({
     <div className="flex flex-col gap-2 p-3">
       {groups.map((group, groupIdx) => {
         const speaker = group.speaker;
-        const speakerColor = speaker ? getSpeakerColor(speaker) : "";
 
         return (
           <div key={groupIdx} className="flex flex-col gap-1">
@@ -370,13 +351,13 @@ export default function SubtitleList({
               <div className="flex items-center gap-2 px-2 py-1">
                 <div
                   className={cn(
-                    "flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold border",
-                    speakerColor
+                    "flex items-center justify-center w-7 h-7 rounded-full text-meta font-bold border",
+                    speaker ? speakerColor(speaker) : ""
                   )}
                 >
                   {getInitials(speaker)}
                 </div>
-                <span className="text-sm font-medium text-ink/80">{speaker}</span>
+                <span className="text-copy font-medium text-ink/80">{speaker}</span>
               </div>
             )}
 

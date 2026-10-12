@@ -10,7 +10,7 @@ export function ComplianceInfo({ className = "" }: { className?: string }) {
   const { companyName, companyUscc, icpBeian, policeBeian } = siteConfig;
 
   return (
-    <div className={`text-[11px] leading-relaxed text-muted-soft ${className}`}>
+    <div className={`text-caption leading-relaxed text-muted-soft ${className}`}>
       {companyName && (
         <div>
           {companyName}

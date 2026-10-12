@@ -47,9 +47,9 @@ function UserMenu({ name }: { name: string }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-soft transition-colors"
+        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-copy hover:bg-surface-soft transition-colors"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-medium text-xs">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-medium text-meta">
           {name.slice(0, 1).toUpperCase()}
         </span>
         <span className="hidden sm:block text-ink font-medium">{name}</span>
@@ -62,8 +62,8 @@ function UserMenu({ name }: { name: string }) {
       {open && (
         <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1 shadow-lg">
           <div className="border-b border-hairline px-3 py-2">
-            <p className="text-sm font-medium text-ink">{name}</p>
-            <p className="flex items-center gap-1 text-xs text-muted">
+            <p className="text-copy font-medium text-ink">{name}</p>
+            <p className="flex items-center gap-1 text-meta text-muted">
               <ShieldCheck size={12} className="text-brand-500" />
               管理员
             </p>
@@ -71,7 +71,7 @@ function UserMenu({ name }: { name: string }) {
           <Link
             href="/"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 text-copy text-body hover:bg-surface-soft transition-colors"
           >
             <ExternalLink size={15} />
             访问用户端
@@ -81,7 +81,7 @@ function UserMenu({ name }: { name: string }) {
               setOpen(false);
               logout();
             }}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-error hover:bg-error/10 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-copy text-error hover:bg-error/10 transition-colors"
           >
             <LogOut size={15} />
             退出登录
@@ -143,12 +143,12 @@ export function AdminTopbar() {
         {pendingCount > 0 && (
           <Link
             href="/admin/videos"
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-100 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-meta font-semibold text-brand-600 hover:bg-brand-100 transition-colors"
             title="待处理 UGC 视频"
           >
             <ClipboardList size={14} />
             <span className="hidden sm:inline">待处理</span>
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] text-white">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-caption text-white">
               {pendingCount}
             </span>
           </Link>

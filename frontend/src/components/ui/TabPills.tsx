@@ -73,7 +73,7 @@ export function TabPills<K extends string = string>({
             key={tab.key}
             onClick={() => onChange(tab.key)}
             className={cn(
-              "inline-flex items-center rounded-pill text-[13px] font-semibold text-muted transition-colors duration-150 cursor-pointer",
+              "inline-flex items-center rounded-pill text-copy font-semibold text-muted transition-colors duration-150 cursor-pointer",
               !isActive && "hover:text-ink",
               SIZE_CLASSES[size],
               shape === "rect" && "rounded-sm",

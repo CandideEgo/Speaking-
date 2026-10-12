@@ -107,7 +107,7 @@ export default function FavoritesPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12">
+      <main className="py-6 sm:py-12">
         <PageHeader
           crumb="我的"
           title="我的收藏"
@@ -130,7 +130,7 @@ export default function FavoritesPage() {
             action={
               <Link
                 href="/browse"
-                className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
               >
                 去频道看看 →
               </Link>
@@ -162,7 +162,7 @@ export default function FavoritesPage() {
                         <Link
                           href={watchHref(v.id, { from: "favorites", extra: { note: 1 } })}
                           onClick={(e) => e.stopPropagation()}
-                          className="block text-[11px] text-muted hover:text-ink transition-colors line-clamp-2 mt-1 px-1"
+                          className="block text-caption text-muted hover:text-ink transition-colors line-clamp-2 mt-1 px-1"
                         >
                           <span className="text-muted-soft">笔记 · </span>
                           {v.note_excerpt}
@@ -184,7 +184,7 @@ export default function FavoritesPage() {
 
             {hasMore && (
               <div ref={loaderRef} className="flex justify-center py-8">
-                <span className="text-xs text-muted-soft">加载更多…</span>
+                <span className="text-meta text-muted-soft">加载更多…</span>
               </div>
             )}
           </>

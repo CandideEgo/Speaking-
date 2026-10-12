@@ -204,7 +204,7 @@ export function SubtitleEditor({
 
   return (
     <Card padding={3} className="space-y-2">
-      <div className="flex items-center gap-2 text-xs text-muted">
+      <div className="flex items-center gap-2 text-meta text-muted">
         <button
           type="button"
           onClick={() => onSeekTo?.(subtitle.start_time)}
@@ -337,7 +337,7 @@ export function SubtitleEditor({
       </div>
 
       {textEnChanged && (
-        <label className="flex items-center gap-1.5 text-[11px] text-muted">
+        <label className="flex items-center gap-1.5 text-caption text-muted">
           <input
             type="checkbox"
             checked={preserveLevels}

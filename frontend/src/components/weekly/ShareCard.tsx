@@ -213,7 +213,7 @@ export function ShareCard({ report, onReady }: ShareCardProps) {
       ref={canvasRef}
       width={W}
       height={H}
-      className="w-full h-auto rounded-xl shadow-lg border border-hairline"
+      className="w-full h-auto rounded-lg shadow-lg border border-hairline"
       aria-label="学习周报分享卡片"
     />
   );

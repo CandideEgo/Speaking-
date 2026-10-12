@@ -11,6 +11,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import type { AdminAccount, AdminSettings } from "@/types";
 import { getAdminSettings, listAdminAccounts, saveAdminSettings } from "@/lib/adminData";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Toggle Switch (prototype 32 .switch)
@@ -54,8 +55,10 @@ function Row({
   return (
     <div className="flex items-center justify-between gap-4 border-b border-hairline-soft py-3.5 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">{title}</p>
-        {description && <p className="mt-0.5 text-xs leading-relaxed text-muted">{description}</p>}
+        <p className="text-copy font-semibold text-ink">{title}</p>
+        {description && (
+          <p className="mt-0.5 text-meta leading-relaxed text-muted">{description}</p>
+        )}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -78,18 +81,18 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-hairline bg-canvas">
+    <Card padding={0} className="overflow-hidden">
       <div className="flex items-center gap-2.5 border-b border-hairline px-5 py-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
           <Icon size={16} />
         </div>
         <div>
-          <h2 className="text-[15px] font-bold text-ink">{title}</h2>
-          {description && <p className="mt-px text-xs text-muted">{description}</p>}
+          <h2 className="text-copy-lg font-bold text-ink">{title}</h2>
+          {description && <p className="mt-px text-meta text-muted">{description}</p>}
         </div>
       </div>
       <div className="px-5 py-2">{children}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -116,7 +119,7 @@ function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={cn(
-        "h-9 rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all",
+        "h-9 rounded-lg border border-hairline bg-canvas px-3 text-copy text-ink outline-none transition-all",
         "placeholder:text-muted-soft focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12",
         mono && "font-mono",
         wide ? "min-w-[220px]" : "min-w-[140px]"
@@ -147,11 +150,11 @@ function NumberSuffixInput({
         onChange={(e) => onChange(e.target.value)}
         style={{ width }}
         className={cn(
-          "h-9 rounded-l-lg border border-hairline bg-canvas px-3 font-mono text-[13.5px] text-ink outline-none transition-all",
+          "h-9 rounded-l-lg border border-hairline bg-canvas px-3 font-mono text-copy text-ink outline-none transition-all",
           "focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
         )}
       />
-      <span className="inline-flex h-9 items-center rounded-r-lg border border-hairline border-l-0 bg-surface-card px-2.5 text-[13px] text-muted">
+      <span className="inline-flex h-9 items-center rounded-r-lg border border-hairline border-l-0 bg-surface-card px-2.5 text-copy text-muted">
         {suffix}
       </span>
     </span>
@@ -302,7 +305,7 @@ export default function AdminSettingsPage() {
           />
         </Row>
         {thresholdError && (
-          <div className="flex items-center gap-2 py-2.5 text-xs text-error">
+          <div className="flex items-center gap-2 py-2.5 text-meta text-error">
             <AlertCircle size={14} />
             {thresholdError}
           </div>
@@ -346,24 +349,24 @@ export default function AdminSettingsPage() {
       <Section icon={UserCog} title="管理员账户" description="拥有后台访问权限的账户">
         <div className="flex flex-col gap-2.5 py-3.5">
           {admins.length === 0 ? (
-            <p className="py-2 text-center text-xs text-muted">暂无管理员账户</p>
+            <p className="py-2 text-center text-meta text-muted">暂无管理员账户</p>
           ) : (
             admins.map((a) => (
               <div
                 key={a.id}
-                className="flex items-center gap-3 rounded-[10px] border border-hairline px-3.5 py-2.5"
+                className="flex items-center gap-3 rounded-md border border-hairline px-3.5 py-2.5"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-sm font-semibold text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-copy font-semibold text-white">
                   {(a.name || "管").slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-semibold text-ink">
+                  <p className="truncate text-copy font-semibold text-ink">
                     {a.name || "管理员"}
                     {a.id === currentUserId && (
-                      <span className="ml-1.5 text-xs text-muted">(我)</span>
+                      <span className="ml-1.5 text-meta text-muted">(我)</span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 text-meta text-muted">
                     {MASK_PHONE(a.phone)} · 最近活跃{" "}
                     {a.last_active_at
                       ? new Date(a.last_active_at).toLocaleString("zh-CN", {
@@ -375,7 +378,7 @@ export default function AdminSettingsPage() {
                       : "—"}
                   </p>
                 </div>
-                <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-600">
+                <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-caption font-semibold text-brand-600">
                   管理员
                 </span>
               </div>
@@ -386,8 +389,8 @@ export default function AdminSettingsPage() {
 
       {/* Save bar (prototype 32 .save-bar) */}
       {dirty && (
-        <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-xl bg-ink px-[18px] py-3 text-canvas shadow-xl">
-          <div className="flex items-center gap-2 text-[13px]">
+        <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-lg bg-ink px-[18px] py-3 text-canvas shadow-xl">
+          <div className="flex items-center gap-2 text-copy">
             <AlertCircle size={15} className="text-warning" />
             有未保存的更改
           </div>

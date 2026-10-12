@@ -55,7 +55,7 @@ test.describe("Exam Runner - full answer journey", () => {
     await page.goto(`/practice/exams/${paperId}`);
 
     // Question cards — each must render at least one derived/stored option.
-    const cards = page.locator("div.rounded-xl:has(button[data-testid='exam-option'])");
+    const cards = page.locator("div.rounded-md:has(button[data-testid='exam-option'])");
     await expect(cards.first()).toBeVisible({ timeout: 15000 });
     const cardCount = await cards.count();
     expect(cardCount).toBeGreaterThan(0);

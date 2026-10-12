@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { relativeTime } from "@/lib/date";
 import type { Paginated } from "@/types";
 
@@ -84,7 +85,7 @@ export default function NotificationsPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12 max-w-3xl">
+      <main className="py-6 sm:py-12 max-w-measure">
         <PageHeader crumb="我的" title="通知" description="系统消息、学习提醒和成就通知都在这里" />
 
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -112,22 +113,20 @@ export default function NotificationsPage() {
           <>
             <div className="space-y-2">
               {items.map((n) => (
-                <div
+                <Card
                   key={n.id}
-                  className={
-                    "bg-canvas border border-hairline rounded-xl p-4 flex items-start gap-3 " +
-                    (n.is_read ? "" : "border-brand-200")
-                  }
+                  padding={4}
+                  className={"flex items-start gap-3 " + (n.is_read ? "" : "border-brand-200")}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="text-sm font-semibold text-ink truncate">{n.title}</h3>
-                      <span className="text-[11px] text-muted-soft shrink-0">
+                      <h3 className="text-copy font-semibold text-ink truncate">{n.title}</h3>
+                      <span className="text-caption text-muted-soft shrink-0">
                         {relativeTime(n.created_at)}
                       </span>
                     </div>
                     {n.message && (
-                      <p className="text-xs text-body leading-relaxed whitespace-pre-wrap">
+                      <p className="text-meta text-body leading-relaxed whitespace-pre-wrap">
                         {n.message}
                       </p>
                     )}
@@ -136,7 +135,7 @@ export default function NotificationsPage() {
                         <Link
                           href={n.related_url}
                           onClick={() => markRead(n.id)}
-                          className="text-[11px] text-brand-500 hover:underline"
+                          className="text-caption text-brand-500 hover:underline"
                         >
                           查看详情 →
                         </Link>
@@ -144,7 +143,7 @@ export default function NotificationsPage() {
                       {!n.is_read && (
                         <button
                           onClick={() => markRead(n.id)}
-                          className="text-[11px] text-muted hover:text-ink inline-flex items-center gap-1"
+                          className="text-caption text-muted hover:text-ink inline-flex items-center gap-1"
                         >
                           <Check size={11} />
                           标为已读
@@ -152,12 +151,12 @@ export default function NotificationsPage() {
                       )}
                     </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
             {hasMore && (
               <div ref={loaderRef} className="flex justify-center py-6">
-                <span className="text-xs text-muted-soft">加载更多…</span>
+                <span className="text-meta text-muted-soft">加载更多…</span>
               </div>
             )}
           </>

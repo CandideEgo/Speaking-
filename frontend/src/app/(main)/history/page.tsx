@@ -20,6 +20,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { relativeTime, formatTimeSpent, groupByDate } from "@/lib/date";
 import { Calendar, Clock, CheckCircle, PlayCircle, Flame } from "lucide-react";
 import type { LearningRecord, Paginated } from "@/types";
+import { Card } from "@/components/ui/Card";
 
 type FilterKey = "all" | "active" | "completed";
 
@@ -89,7 +90,7 @@ export default function HistoryPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12">
+      <main className="py-6 sm:py-12">
         {/* Header */}
         <PageHeader crumb="学习历史" title="学习记录" />
 
@@ -147,7 +148,7 @@ export default function HistoryPage() {
             action={
               <Link
                 href="/browse"
-                className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
               >
                 开始学习 →
               </Link>
@@ -158,7 +159,7 @@ export default function HistoryPage() {
           <div>
             {groups.map((group) => (
               <div key={group.label}>
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-caption-wide mb-3 mt-6 first:mt-0">
+                <h4 className="text-meta font-semibold text-muted uppercase tracking-caption-wide mb-3 mt-6 first:mt-0">
                   {group.label}
                 </h4>
                 <div className="space-y-2">
@@ -177,7 +178,7 @@ export default function HistoryPage() {
             <div className="w-5 h-5 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
           )}
           {!hasMore && records.length > 0 && !loading && (
-            <p className="text-xs text-muted">已加载全部内容</p>
+            <p className="text-meta text-muted">已加载全部内容</p>
           )}
         </div>
       </main>
@@ -190,9 +191,11 @@ function RecordCard({ record }: { record: LearningRecord }) {
   const timeAgo = relativeTime(record.last_accessed_at || record.created_at);
 
   return (
-    <Link
+    <Card
+      as={Link}
       href={watchHref(record.video_id, { from: "history" })}
-      className="flex items-center gap-4 p-4 rounded-lg border border-hairline bg-canvas hover:bg-surface-soft transition-colors"
+      padding={4}
+      className="flex items-center gap-4 hover:bg-surface-soft transition-colors"
     >
       {/* Thumbnail */}
       <div className="relative h-14 w-24 rounded-md bg-surface-card overflow-hidden flex-shrink-0">
@@ -201,15 +204,17 @@ function RecordCard({ record }: { record: LearningRecord }) {
           alt=""
           fill
           fallback={
-            <div className="absolute inset-0 flex items-center justify-center text-lg">🎬</div>
+            <div className="absolute inset-0 flex items-center justify-center text-copy-lg">🎬</div>
           }
         />
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-ink truncate">{record.video?.title || "未知视频"}</p>
-        <div className="flex items-center gap-3 mt-1 text-[13px] text-muted flex-wrap">
+        <p className="text-copy font-medium text-ink truncate">
+          {record.video?.title || "未知视频"}
+        </p>
+        <div className="flex items-center gap-3 mt-1 text-copy text-muted flex-wrap">
           <span>{record.words_learned} 个生词</span>
           {record.time_spent_seconds > 0 && (
             <span>{formatTimeSpent(record.time_spent_seconds)}</span>
@@ -230,18 +235,18 @@ function RecordCard({ record }: { record: LearningRecord }) {
             />
           </div>
         </div>
-        <span className="text-xs text-muted w-10 text-right">
+        <span className="text-meta text-muted w-10 text-right">
           {Math.round(record.progress_percentage)}%
         </span>
         <span
           className={
-            "inline-flex items-center gap-1 px-2.5 py-1 rounded-pill text-[11px] font-semibold flex-shrink-0 " +
+            "inline-flex items-center gap-1 px-2.5 py-1 rounded-pill text-caption font-semibold flex-shrink-0 " +
             (record.completed ? "bg-surface-card text-muted" : "bg-brand-50 text-brand-600")
           }
         >
           {record.completed ? "复习" : "续播"}
         </span>
       </div>
-    </Link>
+    </Card>
   );
 }

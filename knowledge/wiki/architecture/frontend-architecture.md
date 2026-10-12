@@ -6,7 +6,7 @@ confidence: verified
 related_code: [frontend-app, frontend-components, frontend-stores, frontend-lib, frontend-hooks]
 related: [knowledge/wiki/architecture/auth-system.md]
 created: 2026-07-21
-updated: 2026-09-28
+updated: 2026-10-12
 ---
 
 # Background
@@ -33,7 +33,7 @@ frontend/src/
 # Dark Mode
 
 - `globals.css` semantic tokens + `.dark` variable block
-- Semantic tokens are the default: one `.dark` block flips the `var()` values, so components need no per-theme class. `dark:` variants are the documented escape hatch for what tokens cannot express: functional multi-colour chips (the bulk of the occurrences), one `.dark .b-hero` override in `globals.css`, and `Avatar`'s `dark:invert` on the default illustrations — line art on a flat cream ground, which no token can recolour
+- Semantic tokens are the default: one `.dark` block flips the `var()` values, so components need no per-theme class. `dark:` variants are the documented escape hatch for what tokens cannot express: functional multi-colour chips (the bulk of the occurrences), `HeatmapCalendar`'s brand tint steps, and `Avatar`'s `dark:invert` on the default illustrations — line art on a flat cream ground, which no token can recolour
 - `layout.tsx` inline script before first paint prevents FOUC
 - `bg-ink` is theme-aware (`--ink` flips to near-white in dark mode) — it must be paired with
   `text-canvas`, never `text-white`, as `Button` / `TabPills` / `HomeFilterBar` do
@@ -41,10 +41,11 @@ frontend/src/
 # Design System
 
 - Unified component library with watch page as style anchor
-- coral/cream/brand color scheme
-- New components must use semantic tokens (`bg-surface`/`text-primary`), never hardcoded color values
+- One brand scheme: `brand-*` is the only name for the primary orange; surfaces/text/borders are the
+  `canvas` / `surface-*` / `ink` / `body` / `muted*` / `hairline*` token families
+- New components must use semantic tokens (`bg-canvas`/`text-ink`/`border-hairline`), never hardcoded color values
 - 动效一律走 CSS：`globals.css` 的 `animate-*` 工具类 + keyframes（`fade-in` / `fade-slide-in` /
-  `check-pop` / `complete-flash` / `shake`），不引入新的 JS 动效库——GSAP 现在只剩 `ScrollReveal` 一处
+  `check-pop` / `shake`），不引入新的 JS 动效库——GSAP 现在只剩 `ScrollReveal` 一处
   按需 `import()`（它曾挂在每个主页面，把整包拉进共享 chunk，见 `PageTransition` 注释），纯 CSS
   keyframes 效果相同、零 JS 成本。新动效先复用既有 keyframes，判定时刻（答对/答错、完成）是首选落点
 

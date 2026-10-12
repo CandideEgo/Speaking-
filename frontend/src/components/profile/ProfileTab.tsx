@@ -13,6 +13,7 @@ import { AVATAR_GENDERS, type AvatarGender } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import type { User } from "@/types";
+import { Card } from "@/components/ui/Card";
 
 interface ProfileTabProps {
   user: User;
@@ -136,8 +137,8 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   return (
     <div className="max-w-2xl space-y-6">
       {/* Avatar */}
-      <div className="rounded-xl border border-hairline bg-canvas p-5">
-        <label className="block text-sm font-semibold text-ink mb-3">头像</label>
+      <Card padding={5}>
+        <label className="block text-copy font-semibold text-ink mb-3">头像</label>
         <div className="flex items-center gap-4">
           <Avatar
             src={user.avatar_url}
@@ -146,7 +147,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             gender={user.gender}
             size="xl"
             alt={user.name ?? "头像"}
-            className="w-20 h-20 text-2xl border border-hairline"
+            className="w-20 h-20 text-display-sm border border-hairline"
           />
           <div>
             <input
@@ -166,14 +167,14 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             >
               {uploading ? "上传中..." : "上传头像"}
             </Button>
-            <p className="mt-1.5 text-xs text-muted">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
+            <p className="mt-1.5 text-meta text-muted">支持 JPG/PNG/WebP/GIF，最大 5MB</p>
           </div>
         </div>
 
         {/* 默认头像跟随用户的性别。此前按用户 id 哈希指派男女，约一半用户被永久
             分配异性插画且无纠正途径——改为在资料里填性别，插画跟着变（DEC-048）。 */}
         <div className="mt-4 pt-4 border-t border-hairline">
-          <span className="block text-sm font-semibold text-ink mb-2">性别</span>
+          <span className="block text-copy font-semibold text-ink mb-2">性别</span>
           <div className="flex gap-2" role="group" aria-label="性别">
             {AVATAR_GENDERS.map((p) => (
               <button
@@ -183,7 +184,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
                 disabled={savingGender}
                 onClick={() => handleGenderChange(p)}
                 className={cn(
-                  "rounded-pill border px-3.5 py-1.5 text-sm transition-colors disabled:opacity-60",
+                  "rounded-pill border px-3.5 py-1.5 text-copy transition-colors disabled:opacity-60",
                   user.gender === p
                     ? "border-brand-500 bg-brand-50 text-brand-600 font-semibold"
                     : "border-hairline text-body hover:border-brand-300"
@@ -193,14 +194,14 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-xs text-muted">{genderHint}</p>
+          <p className="mt-1.5 text-meta text-muted">{genderHint}</p>
         </div>
-      </div>
+      </Card>
 
       {/* Name + phone + plan */}
-      <div className="rounded-xl border border-hairline bg-canvas p-5 space-y-4">
+      <Card padding={5} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-ink mb-2">昵称</label>
+          <label className="block text-copy font-semibold text-ink mb-2">昵称</label>
           <Input
             type="text"
             value={name}
@@ -213,8 +214,8 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
 
         <div className="flex items-center justify-between border-t border-hairline pt-4">
           <div>
-            <p className="text-sm font-semibold text-ink">手机号</p>
-            <p className="text-[13px] text-muted mt-0.5 flex items-center gap-1.5">
+            <p className="text-copy font-semibold text-ink">手机号</p>
+            <p className="text-copy text-muted mt-0.5 flex items-center gap-1.5">
               <Phone size={13} />
               {user.phone ? user.phone.replace(/^(\d{3})\d{4}(\d{4})$/, "$1****$2") : "未绑定"}
             </p>
@@ -225,14 +226,14 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </div>
 
         <div className="flex items-center justify-between border-t border-hairline pt-4">
-          <p className="text-sm font-semibold text-ink">会员</p>
+          <p className="text-copy font-semibold text-ink">会员</p>
           {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念，统一显示「内测免费」。
               plan 字段保留 dormant，未来收费可复用。 */}
-          <span className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-medium bg-surface-card text-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-copy font-medium bg-surface-card text-muted">
             内测免费 · 全功能开放
           </span>
         </div>
-      </div>
+      </Card>
 
       <div>
         <Button onClick={handleSave} disabled={saving}>
@@ -295,7 +296,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             required
             className="w-full"
           />
-          {smsError && <p className="text-sm text-error">{smsError}</p>}
+          {smsError && <p className="text-copy text-error">{smsError}</p>}
         </form>
       </Modal>
     </div>

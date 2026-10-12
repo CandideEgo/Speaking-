@@ -1,3 +1,5 @@
+import { Card } from "@/components/ui/Card";
+
 /**
  * ShellSkeleton — layout-aware loading placeholder.
  * Replaces FullPageSpinner in the authenticated shell to avoid jarring
@@ -10,14 +12,14 @@ export function ShellSkeleton() {
       {/* Sidebar placeholder */}
       <aside className="hidden md:flex w-[248px] flex-col border-r border-hairline bg-canvas">
         <div className="h-16 border-b border-hairline flex items-center px-5">
-          <div className="h-5 w-24 rounded bg-surface-card animate-pulse" />
+          <div className="h-5 w-24 rounded-md bg-surface-card animate-pulse" />
         </div>
         <div className="flex-1 px-3 py-4 space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 px-3 py-2.5">
-              <div className="w-[18px] h-[18px] rounded bg-surface-card animate-pulse" />
+              <div className="w-[18px] h-[18px] rounded-md bg-surface-card animate-pulse" />
               <div
-                className="h-3.5 rounded bg-surface-card animate-pulse"
+                className="h-3.5 rounded-md bg-surface-card animate-pulse"
                 style={{ width: `${60 + (i % 3) * 15}%` }}
               />
             </div>
@@ -29,8 +31,8 @@ export function ShellSkeleton() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* TopBar placeholder */}
         <header className="h-16 flex-shrink-0 border-b border-hairline">
-          <div className="container-wide flex items-center gap-4 h-full">
-            <div className="md:hidden w-9 h-9 rounded bg-surface-card animate-pulse" />
+          <div className="container-page flex items-center gap-4 h-full">
+            <div className="md:hidden w-9 h-9 rounded-md bg-surface-card animate-pulse" />
             <div className="flex-1 flex justify-center">
               <div className="w-full max-w-[360px] h-10 rounded-sm bg-surface-card animate-pulse" />
             </div>
@@ -42,32 +44,26 @@ export function ShellSkeleton() {
         </header>
 
         {/* Content placeholder */}
-        <main className="flex-1 overflow-hidden p-6 sm:p-8">
-          <div className="max-w-wide mx-auto space-y-6">
+        <main className="flex-1 overflow-hidden py-6 sm:py-8">
+          <div className="container-page space-y-6">
             {/* Greeting row */}
             <div className="flex items-center justify-between">
               <div className="space-y-2">
-                <div className="h-5 w-32 rounded bg-surface-card animate-pulse" />
-                <div className="h-3.5 w-44 rounded bg-surface-card animate-pulse" />
+                <div className="h-5 w-32 rounded-md bg-surface-card animate-pulse" />
+                <div className="h-3.5 w-44 rounded-md bg-surface-card animate-pulse" />
               </div>
-              <div className="h-4 w-20 rounded bg-surface-card animate-pulse" />
+              <div className="h-4 w-20 rounded-md bg-surface-card animate-pulse" />
             </div>
             {/* Card grid */}
             <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-32 rounded-lg border border-hairline bg-surface-soft animate-pulse"
-                />
+                <Card key={i} variant="soft" padding={0} className="h-32 animate-pulse" />
               ))}
             </div>
             {/* List rows */}
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-16 rounded-lg border border-hairline bg-surface-soft animate-pulse"
-                />
+                <Card key={i} variant="soft" padding={0} className="h-16 animate-pulse" />
               ))}
             </div>
           </div>

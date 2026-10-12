@@ -25,7 +25,7 @@ export function FilterPills({
           key={f.key}
           onClick={() => onChange(f.key)}
           className={cn(
-            "inline-flex items-center rounded-sm px-3 py-1.5 text-xs font-medium transition-colors border",
+            "inline-flex items-center rounded-sm px-3 py-1.5 text-meta font-medium transition-colors border",
             value === f.key
               ? "bg-brand-500 text-white border-brand-500"
               : "bg-canvas text-muted border-hairline hover:text-ink"

@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import type { AdminChannel } from "@/types";
 
 interface FormState {
@@ -138,41 +139,40 @@ export default function AdminChannelsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-ink flex items-center gap-2">
+      <AdminPageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
             <Radio size={18} className="text-brand-500" />
             频道管理
-          </h1>
-          <p className="text-[13px] text-muted mt-0.5">
-            作者页（ADR-0014 修订）：视频入库时按上游频道 ID
-            自动建档；手建的为策展频道，排在频道列表前部。
-          </p>
-        </div>
-        <Button onClick={openCreate} icon={Plus} size="sm">
-          新建频道
-        </Button>
-      </div>
+          </span>
+        }
+        description="作者页（ADR-0014 修订）：视频入库时按上游频道 ID 自动建档；手建的为策展频道，排在频道列表前部。"
+        actions={
+          <Button onClick={openCreate} icon={Plus} size="sm">
+            新建频道
+          </Button>
+        }
+      />
 
-      {error && <div className="text-sm text-error">{error}</div>}
+      {error && <div className="text-copy text-error">{error}</div>}
 
       {channels === null && !error && (
-        <div className="flex items-center gap-2 text-sm text-muted py-8 justify-center">
+        <div className="flex items-center gap-2 text-copy text-muted py-8 justify-center">
           <Loader2 size={14} className="animate-spin" /> 加载中…
         </div>
       )}
 
       {channels !== null && channels.length === 0 && (
-        <div className="text-sm text-muted py-8 text-center">
+        <div className="text-copy text-muted py-8 text-center">
           还没有频道，点右上角「新建频道」创建第一个。
         </div>
       )}
 
       {channels !== null && channels.length > 0 && (
         <Card className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[720px]">
+          <table className="w-full text-copy min-w-[720px]">
             <thead>
-              <tr className="border-b border-hairline text-left text-xs text-muted uppercase tracking-wider">
+              <tr className="border-b border-hairline text-left text-meta text-muted uppercase tracking-wider">
                 <th className="px-4 py-3 font-medium">频道</th>
                 <th className="px-4 py-3 font-medium">slug</th>
                 <th className="px-4 py-3 font-medium">上游 ID</th>
@@ -189,16 +189,16 @@ export default function AdminChannelsPage() {
                   <td className="px-4 py-3">
                     <p className="font-semibold text-ink">{ch.name}</p>
                     {ch.description && (
-                      <p className="text-xs text-muted mt-0.5 line-clamp-1">{ch.description}</p>
+                      <p className="text-meta text-muted mt-0.5 line-clamp-1">{ch.description}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted">{ch.slug}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted">
+                  <td className="px-4 py-3 font-mono text-meta text-muted">{ch.slug}</td>
+                  <td className="px-4 py-3 font-mono text-meta text-muted">
                     {ch.upstream_channel_id || "—"}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
-                      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md ${
+                      className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md ${
                         ch.is_auto ? "text-brand-500 bg-brand-50" : "text-success bg-success-soft"
                       }`}
                       title={ch.is_auto ? "视频入库时自动建档" : "管理员手建"}
@@ -211,7 +211,7 @@ export default function AdminChannelsPage() {
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => toggleVisible(ch)}
-                      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md transition-colors ${
+                      className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md transition-colors ${
                         ch.is_visible
                           ? "text-success bg-success-soft"
                           : "text-muted bg-surface-card"

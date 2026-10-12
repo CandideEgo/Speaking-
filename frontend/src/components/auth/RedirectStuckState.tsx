@@ -41,7 +41,7 @@ export function RedirectStuckState({ next }: { next: string }) {
       <div className="mt-6 space-y-4">
         <div className="flex items-start gap-2.5 rounded-md bg-surface-soft px-3.5 py-3">
           <ShieldAlert size={16} className="text-warning mt-0.5 flex-shrink-0" />
-          <p className="text-[13px] text-body leading-relaxed">
+          <p className="text-copy text-body leading-relaxed">
             浏览器似乎拦截了本站的登录凭据（cookie），登录状态无法保持。请允许 {host || "本站"} 使用
             cookie 后重试，或重新登录。
           </p>

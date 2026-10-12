@@ -151,7 +151,7 @@ export function CodeInput({ onChange, hasError, disabled }: CodeInputProps) {
             onPaste={(e) => handlePaste(idx, e)}
             placeholder={"•".repeat(max)}
             className={cn(
-              "w-[4.5rem] sm:w-20 h-14 text-center text-xl font-mono tracking-[0.2em] font-semibold uppercase",
+              "w-[4.5rem] sm:w-20 h-14 text-center text-title font-mono tracking-[0.2em] font-semibold uppercase",
               "bg-canvas border-[1.5px] rounded-lg text-ink outline-none transition-colors",
               "focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20",
               hasError
@@ -164,7 +164,7 @@ export function CodeInput({ onChange, hasError, disabled }: CodeInputProps) {
             aria-label={`兑换码第 ${idx + 1} 段`}
           />
           {idx < SEGMENT_LENGTHS.length - 1 && (
-            <span className="text-2xl font-bold text-muted-soft select-none">-</span>
+            <span className="text-display-sm font-bold text-muted-soft select-none">-</span>
           )}
         </div>
       ))}

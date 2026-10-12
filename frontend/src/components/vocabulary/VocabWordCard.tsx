@@ -44,11 +44,13 @@ export function VocabWordCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-[17px] font-bold tracking-tight text-ink">{word}</span>
-            {ipa && <span className="text-xs text-muted font-mono">{ipa}</span>}
-            {partOfSpeech && <span className="text-xs text-muted-soft italic">{partOfSpeech}</span>}
+            <span className="text-copy-lg font-bold tracking-tight text-ink">{word}</span>
+            {ipa && <span className="text-meta text-muted font-mono">{ipa}</span>}
+            {partOfSpeech && (
+              <span className="text-meta text-muted-soft italic">{partOfSpeech}</span>
+            )}
           </div>
-          <p className="text-[13px] text-body leading-relaxed mt-1 line-clamp-2">{meaning}</p>
+          <p className="text-copy text-body leading-relaxed mt-1 line-clamp-2">{meaning}</p>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -68,7 +70,7 @@ export function VocabWordCard({
 
       {hasFooter && (
         <div className="flex items-center justify-between gap-3 flex-wrap mt-3 pt-3 border-t border-hairline-soft">
-          <div className="min-w-0 text-xs">
+          <div className="min-w-0 text-meta">
             {sentenceHref && (
               <Link
                 href={sentenceHref}
@@ -104,9 +106,9 @@ export function VocabWordAction({
   children: ReactNode;
 }) {
   const TONE: Record<"muted" | "success" | "danger", string> = {
-    muted: "text-xs text-muted hover:text-ink hover:underline",
-    success: "text-xs font-semibold text-success hover:underline",
-    danger: "text-xs text-muted hover:text-error hover:underline",
+    muted: "text-meta text-muted hover:text-ink hover:underline",
+    success: "text-meta font-semibold text-success hover:underline",
+    danger: "text-meta text-muted hover:text-error hover:underline",
   };
   return (
     <button

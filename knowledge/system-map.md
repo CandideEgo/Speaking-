@@ -28,6 +28,11 @@ User → Next.js 16 (App Router) ── api.ts (JWT auto-refresh)
 | `services/vocabulary_service` + `sr_service` | 错误次数分档复习调度（DEC-057；SM-2 列保留兼容，`calculate_next_review` 冻结供新词/考试判分复用） |
 | `services/vocab_set_service` | Vocab sets + quick-sieve loop (ADR-0019): collection-scoped flow state over Vocabulary rows |
 | `services/ecdict` + `exam_corpus` + `word_notes` | The three gloss sources: local exam-level annotation (no AI) + past-paper sentences + pre-generated AI notes |
+| `services/exam_service` + `api/v1/exams.py` | 真题测试：卷库、尝试生命周期、服务端判分、每日一练。UI 在 `app/(main)/practice/exams/*` 与 `/practice/daily`——`practice` 是路由，`exams` 不是 |
+| `services/practice_service` + `study_session_service` | 词库自适应练习 + 训练轮次 / 每日配额 / 加练（DEC-053） |
+| `services/difficulty_service` + `video_classification` | 视频难度与主题：字幕词级标注推导难度 + LLM 主题标签与 CEFR 分类 |
+| `services/search_service` + `behavior_service` + `weekly_report_service` | 视频/字幕搜索；`behavior_events` 行为采集喂推荐与评分；学习周报（D9）聚合 |
+| `services/video_like_service` + `subtitle_metrics_service` + `youtube_cookies_service` + `alert_service` | 点赞与自动精选；字幕派生语音指标（语速/词汇密度）；管理员一键 seed 的 YouTube cookies 探测与刷新；外部告警通道（E4） |
 | `services/unlock_service` | Free-tier access rules: login wall + unlock quotas (quota path retired for 内测期, endpoints answer allow/empty) |
 | `services/payment_provider` + `alipay/wechat/mock` | Multi-provider payment, factory pattern (disabled for ICP compliance; redemption code is the only channel) |
 | `services/learning_event_service` + `profile_service` + `milestone_service` | Non-blocking LearningEvent emission + profile aggregation (streak / mastery / milestones) |
@@ -40,7 +45,7 @@ User → Next.js 16 (App Router) ── api.ts (JWT auto-refresh)
 | `tasks/order_tasks` + `redeem_tasks` | Order expiry beat + async redemption (the Pro-downgrade beat is parked, not removed) |
 | `tasks/reminder_tasks` + `report_tasks` | Vocabulary reminders (hourly, per user timezone) + weekly reports (the Pro-expiry reminder beat is parked) |
 | `core/*` | Config, database, redis, security, errors, cache, limiter, logging |
-| `frontend/src/app/(main)/*` | User-facing pages: home / browse / watch / vocabulary / history / exams |
+| `frontend/src/app/(main)/*` | User-facing pages: home / browse / channels / watch / search / vocabulary / practice (`daily`, `exams`) / rankings / history / favorites / weekly-report / notifications / profile. 已退役的 Pro 页（`checkout` / `pricing` / `redeem`）只剩 `redirect("/")` 存根 |
 | `frontend/src/app/(admin)/*` | Admin panel: videos / users / stats / invites / orders / channels |
 | `frontend/src/stores/*` | 6 Zustand stores: auth, adminAuth, profile, watch, vocabulary, plan (plan is profile-only now) |
 | `frontend/src/lib/api.ts` | API client with JWT auto-refresh |

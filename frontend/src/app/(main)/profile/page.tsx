@@ -26,6 +26,7 @@ import { useProfileStore } from "@/stores/profileStore";
 
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 import type {
   User,
   UserPreferences,
@@ -176,12 +177,12 @@ export default function ProfilePage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12">
+      <main className="py-6 sm:py-12">
         {/* Header */}
         <PageHeader crumb="个人设置" title="账户管理" />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
-        <div className="flex items-center gap-4 bg-canvas border border-hairline rounded-xl p-5 mb-7">
+        <Card padding={5} className="flex items-center gap-4 mb-7">
           <Avatar
             src={user.avatar_url}
             name={user}
@@ -191,14 +192,14 @@ export default function ProfilePage() {
             alt={user.name ?? "头像"}
           />
           <div className="flex-1 min-w-0">
-            <div className="text-lg font-bold text-ink flex items-center gap-2 flex-wrap">
+            <div className="text-copy-lg font-bold text-ink flex items-center gap-2 flex-wrap">
               {user.name || "学习者"}
               {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念。 */}
-              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
+              <span className="inline-flex items-center text-caption font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
                 内测免费
               </span>
             </div>
-            <div className="text-sm text-muted mt-1 flex items-center gap-2 flex-wrap">
+            <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
               {user.phone && <span>{maskPhone(user.phone)}</span>}
               {targetLabel(preferences) && (
                 <>
@@ -217,12 +218,12 @@ export default function ProfilePage() {
               { n: learningProfile?.current_streak, l: "连续天数" },
             ].map((s) => (
               <div key={s.l} className="text-center">
-                <div className="text-xl font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
-                <div className="text-[11px] text-muted mt-0.5">{s.l}</div>
+                <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
+                <div className="text-caption text-muted mt-0.5">{s.l}</div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-hairline mb-8">
@@ -231,7 +232,7 @@ export default function ProfilePage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer",
+                "flex items-center gap-2 px-4 py-3 text-copy font-medium border-b-2 transition-colors cursor-pointer",
                 activeTab === tab.key
                   ? "border-brand-500 text-brand-500"
                   : "border-transparent text-muted hover:text-ink"
@@ -249,26 +250,28 @@ export default function ProfilePage() {
           <div className="max-w-2xl space-y-6">
             {/* D9：周报入口（有报告才显示，不足一周不出现） */}
             {latestReport && (
-              <Link
+              <Card
+                as={Link}
                 href="/weekly-report"
-                className="flex items-center justify-between bg-canvas border border-hairline rounded-xl p-5 hover:border-brand-500/40 transition-colors group"
+                padding={5}
+                className="flex items-center justify-between hover:border-brand-500/40 transition-colors group"
               >
                 <div>
-                  <h2 className="text-sm font-semibold text-ink">学习周报</h2>
-                  <p className="text-xs text-muted mt-1">
+                  <h2 className="text-copy font-semibold text-ink">学习周报</h2>
+                  <p className="text-meta text-muted mt-1">
                     最新一期：{latestReport.week_start} 周 · 每周一自动生成，可保存分享卡片
                   </p>
                 </div>
-                <span className="text-brand-500 text-sm font-semibold group-hover:translate-x-0.5 transition-transform">
+                <span className="text-brand-500 text-copy font-semibold group-hover:translate-x-0.5 transition-transform">
                   查看 →
                 </span>
-              </Link>
+              </Card>
             )}
             {/* D3a：周循环回顾（从首页移入，只回顾不施压）：
                 一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">学习闭环</h2>
-              <div className="bg-canvas border border-hairline rounded-xl p-5">
+              <h2 className="text-copy font-semibold text-ink mb-4">学习闭环</h2>
+              <Card padding={5}>
                 <div className="flex items-center gap-2.5 flex-wrap">
                   {[
                     { icon: "🎬", label: "看视频" },
@@ -277,41 +280,41 @@ export default function ProfilePage() {
                     { icon: "🔁", label: "复习" },
                   ].map((t, i) => (
                     <span key={t.label} className="inline-flex items-center gap-1">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-[13px] font-medium text-ink">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-copy font-medium text-ink">
                         <span aria-hidden>{t.icon}</span>
                         {t.label}
                       </span>
-                      {i < 3 && <span className="text-muted-soft text-xs">+</span>}
+                      {i < 3 && <span className="text-muted-soft text-meta">+</span>}
                     </span>
                   ))}
                 </div>
-                <p className="mt-3 text-sm text-muted">
+                <p className="mt-3 text-copy text-muted">
                   一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
                   <span className="font-semibold text-ink">
                     {learningProfile?.weekly_cycles_completed ?? 0}
                   </span>{" "}
                   个闭环。
                 </p>
-              </div>
+              </Card>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">掌握度趋势</h2>
+              <h2 className="text-copy font-semibold text-ink mb-4">掌握度趋势</h2>
               <MasteryTrend weeks={8} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">本周学习时长</h2>
-              <div className="bg-canvas border border-hairline rounded-xl p-5">
+              <h2 className="text-copy font-semibold text-ink mb-4">本周学习时长</h2>
+              <Card padding={5}>
                 {weeklyStats ? (
                   <div className="space-y-3">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-extrabold text-ink tabular-nums">
+                      <span className="text-display font-extrabold text-ink tabular-nums">
                         {weeklyStats.this_week_minutes}
                       </span>
-                      <span className="text-sm text-muted">分钟</span>
+                      <span className="text-copy text-muted">分钟</span>
                       {weeklyStats.week_delta_pct !== null && weeklyStats.last_week_minutes > 0 && (
                         <span
                           className={
-                            "text-xs font-semibold ml-auto " +
+                            "text-meta font-semibold ml-auto " +
                             (weeklyStats.week_delta_pct >= 0 ? "text-success" : "text-error")
                           }
                         >
@@ -328,35 +331,35 @@ export default function ProfilePage() {
                         return (
                           <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
                             <div
-                              className="w-full bg-brand-500 rounded-t"
+                              className="w-full bg-brand-500 rounded-t-md"
                               style={{ height: h + "%", minHeight: 2 }}
                               title={d.date + " · " + d.minutes + " 分钟"}
                             />
-                            <span className="text-[9px] text-muted-soft">{labels[i] ?? ""}</span>
+                            <span className="text-caption text-muted-soft">{labels[i] ?? ""}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-muted text-center py-4">加载中…</div>
+                  <div className="text-meta text-muted text-center py-4">加载中…</div>
                 )}
-              </div>
+              </Card>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">事件占比（近 30 天）</h2>
-              <div className="bg-canvas border border-hairline rounded-xl p-5">
+              <h2 className="text-copy font-semibold text-ink mb-4">事件占比（近 30 天）</h2>
+              <Card padding={5}>
                 <EventDistributionChart data={eventDist} />
-              </div>
+              </Card>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">活动热力图（90 天）</h2>
-              <div className="bg-canvas border border-hairline rounded-xl p-5">
+              <h2 className="text-copy font-semibold text-ink mb-4">活动热力图（90 天）</h2>
+              <Card padding={5}>
                 <HeatmapCalendar days={heatmap} range={90} />
-              </div>
+              </Card>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-ink mb-4">成就徽章</h2>
+              <h2 className="text-copy font-semibold text-ink mb-4">成就徽章</h2>
               <MilestoneGrid milestones={milestones} />
             </div>
           </div>

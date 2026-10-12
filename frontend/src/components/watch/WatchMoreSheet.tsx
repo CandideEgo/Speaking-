@@ -66,7 +66,7 @@ export function WatchMoreSheet({
         role="dialog"
         aria-label="更多设置"
         style={{ transform: dy ? `translateY(${dy}px)` : undefined }}
-        className="absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col overflow-hidden rounded-t-2xl border-t border-hairline bg-canvas pb-4 shadow-lift"
+        className="absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col overflow-hidden rounded-t-lg border-t border-hairline bg-canvas pb-4 shadow-lift"
       >
         <SheetHandle
           testId="watch-more-grab"
@@ -121,7 +121,7 @@ export function WatchMoreSheet({
 
           <div className="rounded-lg border border-hairline px-3 py-2.5">
             {sourceUrl ? (
-              <p className="text-[13px] text-muted">
+              <p className="text-copy text-muted">
                 原视频来源：YouTube ·{" "}
                 <a
                   href={sourceUrl}
@@ -133,9 +133,9 @@ export function WatchMoreSheet({
                 </a>
               </p>
             ) : (
-              <p className="text-[13px] text-muted">本视频由 SeeWord 提供</p>
+              <p className="text-copy text-muted">本视频由 SeeWord 提供</p>
             )}
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-soft">
+            <p className="mt-1.5 text-caption leading-relaxed text-muted-soft">
               内容仅供学习交流使用，版权归原作者所有。如有侵权请联系我们删除。
             </p>
           </div>
@@ -150,7 +150,7 @@ export function WatchMoreSheet({
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] text-muted-soft">{label}</p>
+      <p className="mb-1.5 text-caption text-muted-soft">{label}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   );
@@ -172,7 +172,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-[13px] font-medium transition-colors cursor-pointer",
+        "inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-copy font-medium transition-colors cursor-pointer",
         mono && "font-mono",
         active
           ? "bg-brand-500 text-white"

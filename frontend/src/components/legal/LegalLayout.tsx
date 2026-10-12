@@ -86,7 +86,7 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
           {/* TOC - sticky on desktop, hidden on mobile */}
           <aside className="hidden lg:block">
             <div className="sticky top-10">
-              <div className="text-xs font-semibold text-muted-soft uppercase tracking-wider mb-3">
+              <div className="text-meta font-semibold text-muted-soft uppercase tracking-wider mb-3">
                 目录
               </div>
               <nav className="space-y-1 border-l border-hairline">
@@ -96,7 +96,7 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
                     href={`#${s.id}`}
                     onClick={(e) => handleClick(e, s.id)}
                     className={cn(
-                      "block text-[13px] py-1.5 -ml-px border-l-2 transition-colors",
+                      "block text-copy py-1.5 -ml-px border-l-2 transition-colors",
                       activeId === s.id
                         ? "border-brand-500 text-brand-600 font-medium pl-3"
                         : "border-transparent text-muted hover:text-ink pl-3"
@@ -108,7 +108,7 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
               </nav>
               <Link
                 href="/"
-                className="inline-flex items-center gap-1 mt-6 text-xs text-muted hover:text-ink transition-colors"
+                className="inline-flex items-center gap-1 mt-6 text-meta text-muted hover:text-ink transition-colors"
               >
                 <ArrowLeft size={13} />
                 返回首页
@@ -118,12 +118,12 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
 
           {/* Article body */}
           <article ref={articleRef}>
-            <h1 className="font-display text-3xl font-normal text-ink tracking-display-md">
+            <h1 className="font-display text-display font-normal text-ink tracking-display-md">
               {title}
             </h1>
-            <p className="mt-2 text-sm text-muted">最后更新：{updatedAt}</p>
-            <div className="mt-8 space-y-6 text-sm leading-relaxed text-body">{children}</div>
-            <div className="mt-10 border-t border-hairline pt-6 text-sm text-muted lg:hidden">
+            <p className="mt-2 text-copy text-muted">最后更新：{updatedAt}</p>
+            <div className="mt-8 space-y-6 text-copy leading-relaxed text-body">{children}</div>
+            <div className="mt-10 border-t border-hairline pt-6 text-copy text-muted lg:hidden">
               <Link href="/" className="text-brand-500 hover:underline">
                 ← 返回首页
               </Link>

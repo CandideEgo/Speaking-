@@ -59,15 +59,15 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
       className="absolute top-[calc(100%+8px)] right-0 min-w-[188px] rounded-lg border border-hairline bg-canvas shadow-lift py-1.5 animate-fade-in z-50"
     >
       <div className="px-3.5 py-2 border-b border-hairline mb-1">
-        <div className="text-[13px] font-semibold text-ink">{userName}</div>
-        <div className="text-[11px] text-muted mt-0.5">SeeWord 学习者</div>
+        <div className="text-copy font-semibold text-ink">{userName}</div>
+        <div className="text-caption text-muted mt-0.5">SeeWord 学习者</div>
       </div>
       {items.map((item) => (
         <Link
           key={item.label}
           href={item.href}
           onClick={onClose}
-          className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-body hover:bg-surface-card hover:text-ink transition-colors"
+          className="flex items-center gap-2.5 px-3.5 py-2 text-copy text-body hover:bg-surface-card hover:text-ink transition-colors"
         >
           <item.icon size={15} className="text-muted" />
           {item.label}
@@ -79,7 +79,7 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
             onClose();
             logout();
           }}
-          className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-muted hover:bg-red-soft hover:text-error transition-colors w-full"
+          className="flex items-center gap-2.5 px-3.5 py-2 text-copy text-muted hover:bg-red-soft hover:text-error transition-colors w-full"
         >
           <LogOut size={15} />
           退出登录
@@ -275,7 +275,7 @@ export function TopBar() {
     <header className="sticky top-0 z-30 h-16 flex-shrink-0 border-b border-hairline bg-topbar-bg/85 backdrop-blur-[10px]">
       {/* 内容套与页面同一个容器：顶栏与内容左右边界才对得齐。padding 只由类里的 gutter
           提供 —— header 自己再写一份会叠加。 */}
-      <div className="container-wide flex items-center gap-3 sm:gap-5 h-full">
+      <div className="container-page flex items-center gap-3 sm:gap-5 h-full">
         {/* Logo */}
         <Link
           href="/"
@@ -283,9 +283,9 @@ export function TopBar() {
           aria-label="SeeWord 首页"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 shadow-brand">
-            <span className="text-[17px] font-extrabold text-white">S</span>
+            <span className="text-copy-lg font-extrabold text-white">S</span>
           </div>
-          <span className="hidden sm:inline text-[18px] font-extrabold tracking-tight text-ink">
+          <span className="hidden sm:inline text-title font-extrabold tracking-tight text-ink">
             See<span className="text-brand-500">Word</span>
           </span>
         </Link>
@@ -300,14 +300,14 @@ export function TopBar() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative text-sm font-medium rounded-lg px-3.5 py-2 transition-colors duration-150",
+                  "relative text-copy font-medium rounded-lg px-3.5 py-2 transition-colors duration-150",
                   active ? "bg-ink text-canvas" : "text-muted hover:bg-surface-card hover:text-ink"
                 )}
               >
                 {item.label}
                 {/* 单词训练 due badge */}
                 {item.href === "/vocabulary" && dueCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[11px] font-semibold bg-brand-500 text-on-primary rounded-pill">
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-caption font-semibold bg-brand-500 text-on-primary rounded-pill">
                     {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}
@@ -337,7 +337,7 @@ export function TopBar() {
               }}
               onKeyDown={handleSearchKeyDown}
               className="w-full h-10 pl-10 pr-12 rounded-md bg-surface-card border border-transparent
-                       text-sm text-ink placeholder:text-muted-soft
+                       text-copy text-ink placeholder:text-muted-soft
                        focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                        transition-colors duration-150"
             />
@@ -345,7 +345,7 @@ export function TopBar() {
               size={17}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
             />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-soft bg-canvas border border-hairline px-1.5 py-0.5 rounded-md font-mono">
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-caption text-muted-soft bg-canvas border border-hairline px-1.5 py-0.5 rounded-md font-mono">
               ⌘K
             </kbd>
             {showDropdown && (

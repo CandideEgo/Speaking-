@@ -291,7 +291,7 @@ export default function SearchPage() {
     <main className="min-h-full bg-canvas">
       {/* Search header */}
       <div className="sticky top-0 z-30 bg-canvas border-b border-hairline">
-        <div className="container-wide flex items-center gap-3 py-3">
+        <div className="flex items-center gap-3 py-3">
           <Button variant="ghost" size="icon" onClick={() => router.back()} aria-label="返回">
             <ArrowLeft size={20} />
           </Button>
@@ -311,7 +311,7 @@ export default function SearchPage() {
                 setTimeout(() => setSuggestOpen(false), 150);
               }}
               className="w-full h-10 pl-10 pr-4 rounded-md bg-surface-soft border border-hairline
-                         text-sm text-ink placeholder:text-muted
+                         text-copy text-ink placeholder:text-muted
                          focus:border-brand-500 focus:outline-none focus:ring-[3px] focus:ring-brand-500/15
                          transition-colors duration-150"
             />
@@ -326,7 +326,7 @@ export default function SearchPage() {
                 {suggestions.map((s, i) => (
                   <li key={s} role="option" aria-selected={i === activeIdx}>
                     <button
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-copy transition-colors ${
                         i === activeIdx
                           ? "bg-surface-soft text-ink"
                           : "text-body hover:bg-surface-soft"
@@ -349,12 +349,12 @@ export default function SearchPage() {
       </div>
 
       {/* Results */}
-      <div className="container-wide py-4">
+      <div className="py-4">
         {/* Loading */}
         {isSearching && (
           <div className="flex items-center justify-center gap-2 py-12">
             <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
-            <span className="text-sm text-muted">搜索中...</span>
+            <span className="text-copy text-muted">搜索中...</span>
           </div>
         )}
 
@@ -371,7 +371,7 @@ export default function SearchPage() {
                     <Link
                       key={kw}
                       href={`/search?q=${encodeURIComponent(kw)}`}
-                      className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
+                      className="px-3 py-1.5 rounded-pill text-meta font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
                     >
                       {kw}
                     </Link>
@@ -387,7 +387,7 @@ export default function SearchPage() {
           <div className="space-y-8 py-6">
             {hotTerms.length > 0 && (
               <section>
-                <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted mb-3">
+                <h2 className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-muted mb-3">
                   <Flame size={12} className="text-brand-500" />
                   热门搜索
                 </h2>
@@ -396,7 +396,7 @@ export default function SearchPage() {
                     <button
                       key={kw}
                       onClick={() => submitSearch(kw)}
-                      className="px-3 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
+                      className="px-3 py-1.5 rounded-pill text-meta font-medium bg-surface-card text-body hover:bg-brand-50 hover:text-brand-500 transition-colors"
                     >
                       <span className="mr-1.5 font-mono text-muted-soft">{i + 1}</span>
                       {kw}
@@ -407,7 +407,7 @@ export default function SearchPage() {
             )}
             {history.length > 0 && (
               <section>
-                <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted mb-3">
+                <h2 className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-muted mb-3">
                   <History size={12} />
                   搜索历史
                 </h2>
@@ -415,7 +415,7 @@ export default function SearchPage() {
                   {history.map((kw) => (
                     <span
                       key={kw}
-                      className="inline-flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-pill text-xs font-medium bg-surface-card text-body"
+                      className="inline-flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-pill text-meta font-medium bg-surface-card text-body"
                     >
                       <button
                         onClick={() => submitSearch(kw)}
@@ -438,7 +438,7 @@ export default function SearchPage() {
             {hotTerms.length === 0 && history.length === 0 && (
               <div className="flex flex-col items-center gap-2 py-12">
                 <SearchIcon className="h-10 w-10 text-muted/30" />
-                <span className="text-sm text-muted">输入关键词搜索视频或字幕</span>
+                <span className="text-copy text-muted">输入关键词搜索视频或字幕</span>
               </div>
             )}
           </div>
@@ -447,7 +447,7 @@ export default function SearchPage() {
         {/* Video results */}
         {hasVideoResults && (
           <div>
-            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center justify-between">
+            <div className="px-1 pb-2 text-caption font-semibold uppercase tracking-wide text-muted flex items-center justify-between">
               <span>视频</span>
               <span className="text-muted-soft normal-case font-medium tracking-normal">
                 {videoResults.length} 个结果
@@ -460,7 +460,7 @@ export default function SearchPage() {
                     className="w-full flex items-center gap-3 px-2 py-2.5 hover:bg-surface-soft rounded-lg transition-colors text-left"
                     onClick={() => handleVideoClick(video.id)}
                   >
-                    <div className="flex-shrink-0 w-24 h-14 rounded overflow-hidden">
+                    <div className="flex-shrink-0 w-24 h-14 rounded-md overflow-hidden">
                       <VideoThumbnail
                         url={video.thumbnail_url}
                         title={video.title}
@@ -469,7 +469,7 @@ export default function SearchPage() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink line-clamp-2">{video.title}</p>
+                      <p className="text-copy font-medium text-ink line-clamp-2">{video.title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         {video.difficulty_level && (
                           <Badge tone={difficultyTone(video.difficulty_level)}>
@@ -488,7 +488,7 @@ export default function SearchPage() {
         {/* Subtitle results */}
         {hasSubtitleResults && (
           <div className={hasVideoResults ? "mt-4 pt-4 border-t border-hairline" : ""}>
-            <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
+            <div className="px-1 pb-2 text-caption font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
               <Subtitles size={12} />
               字幕匹配
               <span className="text-muted-soft normal-case font-medium tracking-normal">
@@ -504,7 +504,7 @@ export default function SearchPage() {
                       className="w-full flex items-start gap-3 px-2 py-2.5 hover:bg-surface-soft rounded-lg transition-colors text-left"
                       onClick={() => handleVideoClick(result.video.id, sub.start_time)}
                     >
-                      <div className="flex-shrink-0 w-20 h-10 rounded overflow-hidden mt-0.5">
+                      <div className="flex-shrink-0 w-20 h-10 rounded-md overflow-hidden mt-0.5">
                         <VideoThumbnail
                           url={result.video.thumbnail_url}
                           title={result.video.title}
@@ -514,10 +514,10 @@ export default function SearchPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         {/* DEC-073：搜索结果标题与字幕命中都是"可读正文"，移动端不低于 14px */}
-                        <p className="text-sm font-medium text-ink line-clamp-1">
+                        <p className="text-copy font-medium text-ink line-clamp-1">
                           {result.video.title}
                         </p>
-                        <p className="text-[13px] text-muted line-clamp-1 mt-0.5">
+                        <p className="text-copy text-muted line-clamp-1 mt-0.5">
                           <span className="text-muted font-mono mr-1.5">
                             {formatTime(sub.start_time)}
                           </span>

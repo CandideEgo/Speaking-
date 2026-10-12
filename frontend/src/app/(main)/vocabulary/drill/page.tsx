@@ -91,9 +91,9 @@ function DrillHeader({
         >
           <X size={20} />
         </Link>
-        <span className="text-[13px] font-semibold text-ink flex-shrink-0">{label}</span>
+        <span className="text-copy font-semibold text-ink flex-shrink-0">{label}</span>
         {step != null && (
-          <span className="text-xs text-muted-soft flex-shrink-0 tabular-nums">第 {step} 题</span>
+          <span className="text-meta text-muted-soft flex-shrink-0 tabular-nums">第 {step} 题</span>
         )}
         <div className="flex-1 min-w-0 h-1.5 rounded-full bg-surface-card overflow-hidden">
           <div
@@ -101,7 +101,7 @@ function DrillHeader({
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="text-xs text-muted flex-shrink-0 tabular-nums">
+        <span className="text-meta text-muted flex-shrink-0 tabular-nums">
           <span className="text-muted-soft">{progressLabel}</span>{" "}
           <span className="font-mono">
             {done}/{total}

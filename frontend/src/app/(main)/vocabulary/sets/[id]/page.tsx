@@ -14,6 +14,7 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { api } from "@/lib/api";
@@ -70,7 +71,7 @@ export default function VocabSetDetailPage() {
   if (error && !detail) {
     return (
       <PageTransition>
-        <main className="container-page py-6 sm:py-12">
+        <main className="py-6 sm:py-12">
           <ErrorState title={error} onRetry={reload} className="py-16" />
         </main>
       </PageTransition>
@@ -80,7 +81,7 @@ export default function VocabSetDetailPage() {
   if (loading && !detail) {
     return (
       <PageTransition>
-        <main className="container-page py-6 sm:py-12">
+        <main className="py-6 sm:py-12">
           <div className="flex justify-center py-16">
             <InlineSpinner />
           </div>
@@ -129,12 +130,12 @@ export default function VocabSetDetailPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12">
+      <main className="py-6 sm:py-12">
         {/* 面包屑 + 返回 (S8)：回「词库 · 视频集合」，tab 状态由 URL query 复现 */}
         <div className="mb-4">
           <Link
             href="/vocabulary?tab=library&sub=sets"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors"
+            className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors"
           >
             <ChevronLeft size={15} />
             词库 · 视频集合
@@ -149,9 +150,10 @@ export default function VocabSetDetailPage() {
             <Image src={detail.thumbnail_url} alt={detail.title} sizes="112px" />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <h1 className="text-lg font-extrabold tracking-tight text-ink line-clamp-1">
-              {detail.title}
-            </h1>
+            <PageHeader
+              className="pt-0 pb-0"
+              title={<span className="line-clamp-1">{detail.title}</span>}
+            />
             <div className="flex items-center gap-2.5 mt-2">
               <div className="w-full max-w-[220px] h-1.5 rounded-full bg-surface-card overflow-hidden">
                 <div
@@ -159,7 +161,7 @@ export default function VocabSetDetailPage() {
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <span className="text-[13px] text-muted tabular-nums flex-shrink-0">
+              <span className="text-copy text-muted tabular-nums flex-shrink-0">
                 已掌握 {masteredCount}/{detail.total} · {pct}%
               </span>
             </div>
@@ -167,7 +169,7 @@ export default function VocabSetDetailPage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <Link
               href={watchHref(detail.video_id, { from: "set", extra: { set: id } })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-canvas text-ink border border-hairline text-[13px] font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
             >
               <Play size={14} />
               回看原视频
@@ -175,7 +177,7 @@ export default function VocabSetDetailPage() {
             <Link
               href={`/vocabulary/sets/${id}/sieve`}
               data-testid="start-sieve"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-sm bg-brand-500 text-on-primary text-[13px] font-semibold shadow-brand hover:bg-brand-600 transition-all"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-sm bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 transition-all"
             >
               <ListFilter size={14} />
               {ctaLabel}
@@ -264,7 +266,7 @@ export default function VocabSetDetailPage() {
         {words.length > 0 && (
           <Link
             href={`/vocabulary/sets/${id}/sieve`}
-            className="mt-8 flex items-center justify-center gap-2 w-full px-6 py-3 rounded-sm bg-canvas text-ink border border-hairline text-sm font-semibold hover:border-ink hover:bg-surface-soft transition-all"
+            className="mt-8 flex items-center justify-center gap-2 w-full px-6 py-3 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
           >
             <ListFilter size={16} />
             {ctaLabel}

@@ -65,7 +65,7 @@ export function SheetHandle({
         (dragging ? "" : "transition-transform duration-150")
       }
     >
-      <span className="h-1 w-9 rounded-full bg-cream-strong" />
+      <span className="h-1 w-9 rounded-full bg-surface-cream-strong" />
     </div>
   );
 }

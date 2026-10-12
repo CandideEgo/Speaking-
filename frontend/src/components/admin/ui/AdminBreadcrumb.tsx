@@ -16,7 +16,7 @@ export interface AdminBreadcrumbProps {
 
 export function AdminBreadcrumb({ items, className }: AdminBreadcrumbProps) {
   return (
-    <nav className={cn("flex items-center gap-1.5 text-sm", className)} aria-label="Breadcrumb">
+    <nav className={cn("flex items-center gap-1.5 text-copy", className)} aria-label="Breadcrumb">
       <Link href="/admin" className="text-muted hover:text-ink transition-colors" title="管理后台">
         <Home size={14} />
       </Link>

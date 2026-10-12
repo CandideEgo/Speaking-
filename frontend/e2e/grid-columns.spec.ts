@@ -5,8 +5,9 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
  * 方案 S6（网格列数自适应）：同一屏宽下所有视频网格的**列数必须一致**。
  *
  * 主网格从固定断点类（`sm:2 / lg:3 / xl:4`）换成
- * `repeat(auto-fill, minmax(min(260px,100%),1fr))` 后，列数由容器宽度决定：
- * 2560 屏（容器封顶 2400）= 8 列，1275 屏 = 4 列。这套断言盯的是最容易回归的
+ * `repeat(auto-fill, minmax(min(260px,100%),1fr))` 后，列数由容器宽度决定。
+ * DEC-075 之后容器封顶 1320（S2 的 2400 与 S6 的 8 列一起作废）：2560 与 1275
+ * 都是 4 列。这套断言盯的是最容易回归的
  * 点：**只改首页、漏掉其它页面**——S6 之前同样的网格字符串散在 4 个文件 10 处，
  * 漏一处就会出现同屏宽首页 4 列、/browse 3 列（旧类目下 1275 落在 lg 档 = 3 列）。
  *
@@ -20,10 +21,11 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
 
 /**
  * 主网格加了任意值类 `grid-cols-[repeat(auto-fill,...)]`，用它做锚点定位。
- * 限定 `main.container-wide` 是为了排除 auth 初始化期 ShellSkeleton 的闪现——
- * 它的 `<main>` 不带 container-wide，且其占位网格在窄屏读数与本断言不同。
+ * 限定 `#main-scroll`（外壳的滚动容器）是为了排除 auth 初始化期 ShellSkeleton 的闪现——
+ * 那时外壳根本没渲染，滚动容器与它内部的 `.container-page` 都不存在，而骨架自己的
+ * 占位网格读数与本断言不同。
  */
-const GRID_SELECTOR = 'main.container-wide [class*="auto-fill"]';
+const GRID_SELECTOR = '#main-scroll > .container-page [class*="auto-fill"]';
 
 /**
  * 读实际轨道数与首轨宽度（px）。元素可见性无关紧要：空网格高度为 0 也算数。
@@ -51,7 +53,7 @@ async function readTracks(page: Page): Promise<{ count: number; first: number }>
 }
 
 const VIEWPORTS = [
-  { width: 2560, height: 1440, columns: 8 },
+  { width: 2560, height: 1440, columns: 4 },
   { width: 1275, height: 900, columns: 4 },
 ];
 

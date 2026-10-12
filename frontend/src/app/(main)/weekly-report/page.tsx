@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { ShareCard } from "@/components/weekly/ShareCard";
 import { CalendarRange, Download, Sparkles } from "lucide-react";
 import { useChartTheme } from "@/lib/chart-theme";
+import { Card } from "@/components/ui/Card";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -124,13 +125,13 @@ export default function WeeklyReportPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-10">
+      <main className="py-6 sm:py-10">
         <PageHeader crumb="我的" title="学习周报" />
 
         {loading && (
           <div className="max-w-2xl space-y-4">
-            <div className="h-24 rounded-xl bg-surface-soft animate-pulse" />
-            <div className="h-64 rounded-xl bg-surface-soft animate-pulse" />
+            <div className="h-24 rounded-lg bg-surface-soft animate-pulse" />
+            <div className="h-64 rounded-lg bg-surface-soft animate-pulse" />
           </div>
         )}
 
@@ -145,7 +146,7 @@ export default function WeeklyReportPage() {
             action={
               <Link
                 href="/browse"
-                className="inline-flex items-center px-5 py-2.5 rounded-md bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
+                className="inline-flex items-center px-5 py-2.5 rounded-md bg-brand-500 text-white text-copy font-semibold hover:bg-brand-600 transition-colors"
               >
                 去看视频
               </Link>
@@ -157,12 +158,12 @@ export default function WeeklyReportPage() {
           <div className="max-w-2xl space-y-8">
             {/* ── 周报头部：周范围 + 环比 ── */}
             <div className="flex items-baseline justify-between flex-wrap gap-2">
-              <h2 className="text-lg font-bold text-ink">{formatRange(report.week_start)}</h2>
+              <h2 className="text-copy-lg font-bold text-ink">{formatRange(report.week_start)}</h2>
               {/* 首周不显示环比箭头 */}
               {report.delta_minutes_pct !== null && (
                 <span
                   className={
-                    "text-xs font-semibold " +
+                    "text-meta font-semibold " +
                     (report.delta_minutes_pct >= 0 ? "text-success" : "text-error")
                   }
                 >
@@ -175,23 +176,20 @@ export default function WeeklyReportPage() {
             {/* ── 概览大数字（0 也显示，真实反馈） ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {stats.map((s) => (
-                <div
-                  key={s.label}
-                  className="bg-canvas border border-hairline rounded-xl p-4 text-center"
-                >
-                  <div className="text-3xl font-extrabold text-brand-500 tabular-nums">
+                <Card key={s.label} padding={4} className="text-center">
+                  <div className="text-display font-extrabold text-brand-500 tabular-nums">
                     {s.value}
                   </div>
-                  <div className="text-[11px] text-muted mt-1">
+                  <div className="text-caption text-muted mt-1">
                     {s.label} · {s.unit}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
 
             {/* ── 7 天热力条 ── */}
-            <div className="bg-canvas border border-hairline rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-ink mb-4">每日学习时长</h3>
+            <Card padding={5}>
+              <h3 className="text-copy font-semibold text-ink mb-4">每日学习时长</h3>
               <div className="flex items-end gap-1.5 h-20">
                 {report.daily_minutes.map((d, i) => {
                   const max = Math.max(1, ...report.daily_minutes.map((x) => x.minutes));
@@ -199,20 +197,20 @@ export default function WeeklyReportPage() {
                   return (
                     <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
                       <div
-                        className="w-full bg-brand-500 rounded-t"
+                        className="w-full bg-brand-500 rounded-t-md"
                         style={{ height: h + "%", minHeight: 2 }}
                         title={d.date + " · " + d.minutes + " 分钟"}
                       />
-                      <span className="text-[9px] text-muted-soft">{DAY_LABELS[i] ?? ""}</span>
+                      <span className="text-caption text-muted-soft">{DAY_LABELS[i] ?? ""}</span>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </Card>
 
             {/* ── 词汇增长曲线（本周新词累计） ── */}
-            <div className="bg-canvas border border-hairline rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-ink mb-4">词汇增长</h3>
+            <Card padding={5}>
+              <h3 className="text-copy font-semibold text-ink mb-4">词汇增长</h3>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={wordCurve} margin={{ top: 8, right: 8, bottom: 0, left: -22 }}>
@@ -242,17 +240,19 @@ export default function WeeklyReportPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </Card>
 
             {/* ── 本周亮点 ── */}
-            <div className="flex items-center gap-3 rounded-xl border border-brand-500/20 bg-brand-500/5 px-5 py-4">
+            <div className="flex items-center gap-3 rounded-lg border border-brand-500/20 bg-brand-500/5 px-5 py-4">
               <Sparkles size={18} className="text-brand-500 flex-shrink-0" />
-              <p className="text-sm font-semibold text-ink">{report.highlight ?? "坚持就是胜利"}</p>
+              <p className="text-copy font-semibold text-ink">
+                {report.highlight ?? "坚持就是胜利"}
+              </p>
             </div>
 
             {/* ── 分享卡片 ── */}
             <div>
-              <h3 className="text-sm font-semibold text-ink mb-4">分享卡片</h3>
+              <h3 className="text-copy font-semibold text-ink mb-4">分享卡片</h3>
               <div className="max-w-[320px] mx-auto">
                 <ShareCard report={report} onReady={(c) => (canvasRef.current = c)} />
               </div>
@@ -266,18 +266,20 @@ export default function WeeklyReportPage() {
             {/* ── 历史周报 ── */}
             {history.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-ink mb-4">历史周报</h3>
+                <h3 className="text-copy font-semibold text-ink mb-4">历史周报</h3>
                 <ul className="space-y-2">
                   {history.map((r) => (
-                    <li
+                    <Card
+                      as="li"
                       key={r.id}
-                      className="flex items-center justify-between bg-canvas border border-hairline rounded-lg px-4 py-3 text-sm"
+                      padding={0}
+                      className="flex items-center justify-between px-4 py-3 text-copy"
                     >
                       <span className="text-ink font-medium">{formatRange(r.week_start)}</span>
-                      <span className="text-muted text-xs">
+                      <span className="text-muted text-meta">
                         {r.study_days} 天 · {r.total_minutes} 分钟 · 新学 {r.new_words} 词
                       </span>
-                    </li>
+                    </Card>
                   ))}
                 </ul>
               </div>

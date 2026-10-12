@@ -3,12 +3,11 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type BadgeTone = "brand" | "amber" | "orange" | "green" | "red" | "neutral";
+export type BadgeTone = "brand" | "amber" | "green" | "red" | "neutral";
 
 const TONE: Record<BadgeTone, string> = {
   brand: "bg-brand-50 text-brand-600",
   amber: "bg-warning-soft text-warning",
-  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
   green: "bg-success-soft text-success",
   red: "bg-red-soft text-error",
   neutral: "bg-surface-soft text-muted",
@@ -16,7 +15,7 @@ const TONE: Record<BadgeTone, string> = {
 
 /**
  * Small status pill. Consolidates the ad-hoc `inline-flex rounded-sm px-2
- * py-0.5 text-[10px] font-medium` badges that were copy-pasted (with per-page
+ * py-0.5 text-caption font-medium` badges that were copy-pasted (with per-page
  * color maps) across admin pages. Tone palette mirrors `StatCard`.
  */
 export function Badge({
@@ -33,7 +32,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-caption font-medium",
         TONE[tone],
         className
       )}

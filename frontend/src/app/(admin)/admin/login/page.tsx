@@ -67,14 +67,14 @@ export default function AdminLoginPage() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white font-bold text-lg shadow-lg shadow-brand-500/30">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy-lg shadow-lg shadow-brand-500/30">
             S
           </div>
           <div>
-            <span className="font-display text-xl font-bold text-on-dark tracking-tight block">
+            <span className="font-display text-title font-bold text-on-dark tracking-tight block">
               SeeWord
             </span>
-            <span className="text-[11px] uppercase tracking-widest text-on-dark-soft">
+            <span className="text-caption uppercase tracking-widest text-on-dark-soft">
               Admin Console
             </span>
           </div>
@@ -82,7 +82,7 @@ export default function AdminLoginPage() {
 
         {/* Center content */}
         <div className="relative z-10 space-y-8">
-          <h2 className="text-3xl xl:text-4xl font-bold text-on-dark leading-tight tracking-tight">
+          <h2 className="display-lg text-on-dark">
             管理后台
             <br />
             <span className="text-brand-400">运营控制中心</span>
@@ -97,7 +97,7 @@ export default function AdminLoginPage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] border border-white/[0.08]">
                   <f.icon size={16} className="text-brand-400" />
                 </div>
-                <span className="text-sm text-on-dark-soft">{f.text}</span>
+                <span className="text-copy text-on-dark-soft">{f.text}</span>
               </div>
             ))}
           </div>
@@ -105,7 +105,7 @@ export default function AdminLoginPage() {
 
         {/* Footer */}
         <div className="relative z-10">
-          <p className="text-xs text-on-dark-soft/50">SeeWord Admin v2.0</p>
+          <p className="text-meta text-on-dark-soft/50">SeeWord Admin v2.0</p>
         </div>
       </div>
 
@@ -114,16 +114,18 @@ export default function AdminLoginPage() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="mb-8 text-center lg:hidden">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500 text-white font-bold text-xl mb-3">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-title mb-3">
               S
             </div>
-            <h1 className="font-display text-xl font-bold text-ink">SeeWord 管理后台</h1>
+            <h1 className="font-display text-title font-bold text-ink">SeeWord 管理后台</h1>
           </div>
 
           {/* Header */}
           <div className="hidden lg:block mb-8">
-            <h1 className="font-display text-2xl font-bold text-ink tracking-tight">管理员登录</h1>
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
+            <h1 className="font-display text-display-sm font-bold text-ink tracking-tight">
+              管理员登录
+            </h1>
+            <p className="mt-2 flex items-center gap-1.5 text-copy text-muted">
               <ShieldCheck size={14} className="text-brand-500" />
               仅限授权管理员访问
             </p>
@@ -132,7 +134,7 @@ export default function AdminLoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">手机号</label>
+              <label className="block text-copy font-medium text-ink mb-1.5">手机号</label>
               <div className="relative">
                 <Phone
                   size={16}
@@ -148,7 +150,7 @@ export default function AdminLoginPage() {
                   autoComplete="tel"
                   placeholder="请输入手机号"
                   className={cn(
-                    "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-4 text-sm text-ink",
+                    "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-4 text-copy text-ink",
                     "placeholder:text-muted-soft",
                     "focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20",
                     "transition-colors"
@@ -158,7 +160,7 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">密码</label>
+              <label className="block text-copy font-medium text-ink mb-1.5">密码</label>
               <div className="relative">
                 <Lock
                   size={16}
@@ -172,7 +174,7 @@ export default function AdminLoginPage() {
                   autoComplete="current-password"
                   placeholder="请输入密码"
                   className={cn(
-                    "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-10 text-sm text-ink",
+                    "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-10 text-copy text-ink",
                     "placeholder:text-muted-soft",
                     "focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20",
                     "transition-colors"
@@ -189,7 +191,7 @@ export default function AdminLoginPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-error/10 px-4 py-2.5 text-sm text-error">{error}</div>
+              <div className="rounded-lg bg-error/10 px-4 py-2.5 text-copy text-error">{error}</div>
             )}
 
             <Button type="submit" fullWidth disabled={loading} className="mt-2 h-11">
@@ -201,7 +203,7 @@ export default function AdminLoginPage() {
           <div className="mt-8 text-center">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors"
+              className="inline-flex items-center gap-1.5 text-copy text-muted hover:text-ink transition-colors"
             >
               <ArrowLeft size={14} />
               返回用户端

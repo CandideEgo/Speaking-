@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Subtitle } from "@/types";
+import { Card } from "@/components/ui/Card";
 
 /**
  * Subtitle timeline (canvas editor B-F2 + B-F4). Renders one block per
@@ -215,10 +216,10 @@ export function SubtitleTimeline({
   for (let t = 0; t <= totalSec; t += tickStep) ticks.push(t);
 
   return (
-    <div className="bg-canvas border border-hairline rounded-xl overflow-hidden">
+    <Card padding={0} className="overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-hairline">
-        <span className="text-xs font-semibold text-muted">时间轴</span>
-        <span className="text-[10px] text-muted-soft">
+        <span className="text-meta font-semibold text-muted">时间轴</span>
+        <span className="text-caption text-muted-soft">
           点击定位 · {subtitles.length} 句 · {formatTs(totalSec)}
         </span>
       </div>
@@ -238,7 +239,7 @@ export function SubtitleTimeline({
                 style={{ left: t * PX_PER_SEC }}
               >
                 <div className="w-px h-2 bg-hairline" />
-                <span className="ml-1 text-[9px] text-muted-soft font-mono">{formatTs(t)}</span>
+                <span className="ml-1 text-caption text-muted-soft font-mono">{formatTs(t)}</span>
               </div>
             ))}
           </div>
@@ -284,11 +285,11 @@ export function SubtitleTimeline({
                   )}
                   style={{ left, width, height: BLOCK_HEIGHT, touchAction: "none" }}
                 >
-                  <span className="text-[9px] font-mono text-muted-soft shrink-0 mr-1">
+                  <span className="text-caption font-mono text-muted-soft shrink-0 mr-1">
                     {sub.sentence_index + 1}
                   </span>
                   {!narrow && (
-                    <span className="text-[10px] leading-none truncate">
+                    <span className="text-caption leading-none truncate">
                       {sub.text_en || "（空）"}
                     </span>
                   )}
@@ -327,6 +328,6 @@ export function SubtitleTimeline({
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

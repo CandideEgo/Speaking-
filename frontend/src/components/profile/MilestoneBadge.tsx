@@ -101,10 +101,10 @@ export function MilestoneBadge({ type, milestone }: MilestoneBadgeProps) {
         <Icon size={20} />
       </div>
       <div className="min-w-0">
-        <p className={`text-sm font-medium truncate ${achieved ? "text-ink" : "text-muted"}`}>
+        <p className={`text-copy font-medium truncate ${achieved ? "text-ink" : "text-muted"}`}>
           {config.label}
         </p>
-        <p className="text-xs text-muted truncate">
+        <p className="text-meta text-muted truncate">
           {achieved && milestone?.achieved_at
             ? new Date(milestone.achieved_at).toLocaleDateString("zh-CN")
             : config.description}

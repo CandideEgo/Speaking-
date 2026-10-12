@@ -133,7 +133,7 @@ export function ShadowingDrawer({
       style={{ top, height, transform: dy ? `translateY(${dy}px)` : undefined }}
       className={cn(
         "fixed inset-x-0 z-50 flex flex-col overflow-hidden bg-canvas",
-        "rounded-t-2xl border-t border-hairline shadow-lift",
+        "rounded-t-lg border-t border-hairline shadow-lift",
         dy === 0 && "transition-transform duration-150"
       )}
     >
@@ -149,27 +149,27 @@ export function ShadowingDrawer({
       {/* 顶边第一件事：把「要跟读的这一句」钉住，视线不必回到画面上 */}
       <div className="shrink-0 px-4 pb-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <span className="text-caption font-semibold uppercase tracking-wide text-muted">
             要跟读的这一句
           </span>
-          <span className="text-[11px] font-mono text-muted-soft" data-testid="drawer-counter">
+          <span className="text-caption font-mono text-muted-soft" data-testid="drawer-counter">
             {index + 1} / {total}
           </span>
         </div>
         <div
           data-testid="drawer-sentence-en"
-          className="mt-1 text-[15px] font-semibold leading-snug text-ink"
+          className="mt-1 text-copy-lg font-semibold leading-snug text-ink"
         >
           {textEn}
         </div>
-        {textZh && <div className="mt-0.5 text-xs leading-relaxed text-muted">{textZh}</div>}
+        {textZh && <div className="mt-0.5 text-meta leading-relaxed text-muted">{textZh}</div>}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
         {/* 状态行 + 计时（计时是 #26 点名的现状缺口：seconds 有值但从来没画出来） */}
         <div
           className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]",
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-meta",
             mode === "rec" ? "bg-red-soft text-error" : "bg-surface-soft text-muted"
           )}
         >
@@ -191,7 +191,7 @@ export function ShadowingDrawer({
           {mode === "rec" && (
             <span
               data-testid="recording-timer"
-              className="shrink-0 font-mono text-[12px] tabular-nums text-error"
+              className="shrink-0 font-mono text-meta tabular-nums text-error"
             >
               {formatTime(seconds)}
             </span>
@@ -208,13 +208,13 @@ export function ShadowingDrawer({
         {mode === "review" && (
           <div className="mt-3">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              <span className="text-caption font-semibold uppercase tracking-wide text-muted">
                 原声 / 我的
               </span>
               <button
                 type="button"
                 onClick={() => setMergedWave((v) => !v)}
-                className="cursor-pointer rounded px-1.5 py-0.5 text-[11px] font-medium text-brand-600 hover:bg-brand-50"
+                className="cursor-pointer rounded-md px-1.5 py-0.5 text-caption font-medium text-brand-600 hover:bg-brand-50"
                 data-testid="wave-merge-toggle"
               >
                 {mergedWave ? "两条分开" : "合并一条"}
@@ -244,7 +244,7 @@ export function ShadowingDrawer({
           <span
             className={cn(
               "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-              autoAdvance ? "bg-brand-500" : "bg-cream-strong"
+              autoAdvance ? "bg-brand-500" : "bg-surface-cream-strong"
             )}
           >
             <span
@@ -254,7 +254,7 @@ export function ShadowingDrawer({
               )}
             />
           </span>
-          <span className="text-[12px] text-body">
+          <span className="text-meta text-body">
             自动推进
             <span className="ml-1 text-muted-soft">录音一停就换下一句</span>
           </span>
@@ -326,7 +326,7 @@ export function ShadowingDrawer({
               开始跟读本句
             </Button>
             {ytMode && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-soft">
+              <span className="flex items-center gap-1 text-caption text-muted-soft">
                 <Repeat size={12} />
                 YouTube 源不可用
               </span>

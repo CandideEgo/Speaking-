@@ -26,12 +26,14 @@ export function PageHeader({
   return (
     <div className={cn("pt-2 pb-5", centered && "text-center", className)}>
       {crumb && (
-        <div className="text-xs font-semibold text-muted uppercase tracking-caption-wide mb-2.5">
+        <div className="text-meta font-semibold text-muted uppercase tracking-caption-wide mb-2.5">
           {crumb}
         </div>
       )}
-      <h1 className="text-[34px] font-extrabold tracking-display-lg">{title}</h1>
-      {description && <p className="text-[15px] text-muted mt-2">{description}</p>}
+      <h1 className="text-display-sm sm:text-display font-extrabold tracking-display-lg">
+        {title}
+      </h1>
+      {description && <p className="text-copy text-muted mt-2 max-w-measure">{description}</p>}
     </div>
   );
 }

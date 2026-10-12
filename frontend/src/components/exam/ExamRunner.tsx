@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Timer, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 /**
  * 真题客观题答题器 —— 试卷/每日小测/错题重做共用。
@@ -200,7 +201,7 @@ export default function ExamRunner({
             title="退出"
             className="w-[34px] h-[34px] px-0 flex-shrink-0"
           />
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-[13px] font-semibold text-ink flex-shrink-0">
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-surface-card text-copy font-semibold text-ink flex-shrink-0">
             <span className="w-2 h-2 rounded-full bg-brand-500" />
             {accent}
           </span>
@@ -211,14 +212,14 @@ export default function ExamRunner({
             />
           </div>
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[13px] font-semibold font-mono flex-shrink-0 ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-copy font-semibold font-mono flex-shrink-0 ${
               timeWarn ? "bg-warning-soft text-warning" : "bg-surface-card text-ink"
             }`}
           >
             <Timer size={13} />
             {mm}:{ss}
           </span>
-          <span className="text-xs text-muted font-mono flex-shrink-0">
+          <span className="text-meta text-muted font-mono flex-shrink-0">
             {answered}/{questions.length}
           </span>
           <Button
@@ -236,14 +237,14 @@ export default function ExamRunner({
 
       <div className="max-w-[880px] mx-auto w-full flex-1 px-4 py-8 pb-8 space-y-8">
         {error && (
-          <div className="rounded-lg bg-error-50 text-error-600 text-[13px] px-4 py-3 border border-error-200">
+          <div className="rounded-lg bg-error-50 text-error-600 text-copy px-4 py-3 border border-error-200">
             {error}
           </div>
         )}
 
         {Object.entries(sections).map(([section, qs]) => (
           <section key={section}>
-            <h2 className="text-sm font-bold text-ink mb-3">
+            <h2 className="text-copy font-bold text-ink mb-3">
               {SECTION_LABELS[section] ?? section}
             </h2>
             <div className="space-y-5">
@@ -251,27 +252,27 @@ export default function ExamRunner({
                 const derived = deriveOptions(q);
                 const options = q.options ?? derived?.options ?? null;
                 return (
-                  <div key={q.id} className="bg-canvas border border-hairline rounded-xl p-5">
+                  <Card key={q.id} padding={5}>
                     {q.passage ? (
                       derived?.kind === "matching" ? (
                         // DEC-073：移动端文章框不再自己滚（页级滚动）——桌面仍是卡内滚动。
                         <div className="custom-scrollbar rounded-lg border border-hairline-soft bg-surface-soft px-4 py-3 mb-4 md:max-h-72 md:overflow-y-auto">
-                          <p className="text-[13px] leading-relaxed text-muted whitespace-pre-wrap">
+                          <p className="text-copy leading-relaxed text-muted whitespace-pre-wrap">
                             {q.passage}
                           </p>
                         </div>
                       ) : (
-                        <p className="text-[13px] leading-relaxed text-ink whitespace-pre-wrap mb-4 text-muted">
+                        <p className="text-copy leading-relaxed text-ink whitespace-pre-wrap mb-4 text-muted">
                           {stripWordBank(q.passage)}
                         </p>
                       )
                     ) : null}
                     {q.question ? (
-                      <p className="text-[14px] font-semibold leading-relaxed text-ink mb-3">
+                      <p className="text-copy font-semibold leading-relaxed text-ink mb-3">
                         {q.number}. {q.question}
                       </p>
                     ) : (
-                      <p className="text-[14px] font-semibold text-ink mb-3">第 {q.number} 题</p>
+                      <p className="text-copy font-semibold text-ink mb-3">第 {q.number} 题</p>
                     )}
 
                     {options ? (
@@ -291,7 +292,7 @@ export default function ExamRunner({
                               }`}
                             >
                               <span
-                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5 ${
+                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-caption font-bold flex-shrink-0 mt-0.5 ${
                                   active
                                     ? "border-brand-500 text-brand-600"
                                     : "border-hairline-strong text-muted"
@@ -299,15 +300,15 @@ export default function ExamRunner({
                               >
                                 {active ? <CheckCircle2 size={14} /> : key}
                               </span>
-                              <span className="text-[13px] leading-relaxed">{text}</span>
+                              <span className="text-copy leading-relaxed">{text}</span>
                             </button>
                           );
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted">（本题暂无可选项）</p>
+                      <p className="text-meta text-muted">（本题暂无可选项）</p>
                     )}
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -318,7 +319,7 @@ export default function ExamRunner({
       {/* 移动端底部提交栏（原型 06 exam-foot；DEC-073 起是常规流里的 sticky，不是 fixed） */}
       <div className="md:hidden sticky bottom-0 z-40 bg-canvas/92 backdrop-blur border-t border-hairline px-4 py-3">
         <div className="max-w-[880px] mx-auto flex items-center gap-3">
-          <span className="flex-1 text-xs text-muted">
+          <span className="flex-1 text-meta text-muted">
             已答 <strong className="text-ink">{answered}</strong>/{questions.length}
           </span>
           <Button
@@ -341,11 +342,11 @@ export default function ExamRunner({
           onClick={() => !submitting && setConfirming(false)}
         >
           <div
-            className="w-full max-w-sm bg-canvas rounded-2xl p-6 shadow-xl"
+            className="w-full max-w-sm bg-canvas rounded-lg p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold text-ink mb-2">确认交卷？</h3>
-            <p className="text-[13px] text-muted leading-relaxed mb-5">
+            <h3 className="text-copy-lg font-bold text-ink mb-2">确认交卷？</h3>
+            <p className="text-copy text-muted leading-relaxed mb-5">
               已作答 {answered}/{questions.length} 题
               {answered < questions.length ? "，未作答的题目将计为错误" : ""}。交卷后不可修改。
             </p>

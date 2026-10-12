@@ -60,13 +60,13 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <main className="container-wide py-7 pb-24">
+      <main className="py-7 pb-24">
         {/* ── 问候区 ── */}
         <div className="mb-7">
-          <h1 className="text-2xl font-bold text-ink tracking-tight">
+          <h1 className="text-display-sm font-bold text-ink tracking-tight">
             {greeting}，{userName}
           </h1>
-          <p className="text-sm text-muted mt-1">{dateLabel || "\u00A0"}</p>
+          <p className="text-copy text-muted mt-1">{dateLabel || "\u00A0"}</p>
         </div>
 
         {/* D3a 紧凑统计行：只展示事实，不施压（替代旧进度环） */}
@@ -81,13 +81,13 @@ export default function HomePage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/10">
                 <Trophy size={16} className="text-brand-500" />
               </div>
-              <p className="text-sm font-medium text-ink">
+              <p className="text-copy font-medium text-ink">
                 恭喜达成「{getMilestoneLabel(recentMilestone.milestone_type)}」！
               </p>
             </div>
             <button
               onClick={() => setMilestoneBannerDismissed(true)}
-              className="rounded p-1 text-muted hover:text-ink transition-colors"
+              className="rounded-md p-1 text-muted hover:text-ink transition-colors"
               aria-label="关闭"
             >
               <X size={16} />

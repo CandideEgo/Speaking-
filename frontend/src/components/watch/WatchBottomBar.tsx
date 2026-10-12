@@ -157,10 +157,10 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           shownBuffered = buffered;
         }
       }
-      const rounded = Math.floor(time);
-      if (textRef.current && rounded !== shownTime) {
+      const wholeSeconds = Math.floor(time);
+      if (textRef.current && wholeSeconds !== shownTime) {
         textRef.current.textContent = `${formatClock(time)} / ${formatClock(total ?? 0)}`;
-        shownTime = rounded;
+        shownTime = wholeSeconds;
       }
     };
 
@@ -258,7 +258,11 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
         className="relative h-11 cursor-pointer touch-none select-none"
       >
         <div ref={railRef} className="absolute inset-x-0 top-0 h-[2px] bg-hairline">
-          <div ref={bufferedRef} className="h-full bg-cream-strong" style={{ width: "0%" }} />
+          <div
+            ref={bufferedRef}
+            className="h-full bg-surface-cream-strong"
+            style={{ width: "0%" }}
+          />
           <div
             ref={playedRef}
             data-testid="watch-progress-fill"
@@ -277,7 +281,7 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           disabled={sentenceNavDisabled}
           aria-label="上一句"
           title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跳转" : "上一句"}
-          className="flex flex-1 items-center justify-center gap-1.5 text-[12px] font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           <SkipBack size={19} />
           上一句
@@ -288,7 +292,7 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           data-testid="watch-toggle-play"
           onClick={onTogglePlay}
           aria-label={isPlaying ? "暂停" : "播放"}
-          className="flex flex-1 items-center justify-center gap-1.5 text-[12px] font-semibold text-ink transition-colors hover:text-brand-500 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-ink transition-colors hover:text-brand-500 cursor-pointer"
         >
           {isPlaying ? (
             <Pause size={21} fill="currentColor" />
@@ -305,7 +309,7 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           disabled={sentenceNavDisabled}
           aria-label="下一句"
           title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跳转" : "下一句"}
-          className="flex flex-1 items-center justify-center gap-1.5 text-[12px] font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           下一句
           <SkipForward size={19} />
@@ -318,7 +322,7 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           aria-label={shadowingActive ? "关闭跟读" : "跟读"}
           title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跟读" : "跟读练习"}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 text-[12px] font-semibold transition-colors cursor-pointer",
+            "flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold transition-colors cursor-pointer",
             shadowingActive ? "text-brand-500" : "text-muted hover:text-ink"
           )}
         >

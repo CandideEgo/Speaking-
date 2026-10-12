@@ -139,7 +139,7 @@ export function VideoDetailRow({
       {/* Left: preview + localize */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-xs font-medium text-muted uppercase tracking-wider mb-2">预览</h3>
+          <h3 className="text-meta font-medium text-muted uppercase tracking-wider mb-2">预览</h3>
           <div className="aspect-video w-full overflow-hidden rounded-sm bg-ink/5 flex items-center justify-center">
             {hasLocal && video.video_url_720p ? (
               <video
@@ -164,12 +164,12 @@ export function VideoDetailRow({
             ) : (
               <div className="text-center p-4">
                 <VideoIcon size={32} className="mx-auto text-muted-soft" />
-                <p className="mt-2 text-xs text-muted">无本地视频文件</p>
+                <p className="mt-2 text-meta text-muted">无本地视频文件</p>
                 <a
                   href={video.source_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 inline-block text-xs text-brand-600 hover:underline break-all"
+                  className="mt-1 inline-block text-meta text-brand-600 hover:underline break-all"
                 >
                   打开源链接
                 </a>
@@ -178,7 +178,7 @@ export function VideoDetailRow({
           </div>
           {isProcessing && (
             <div className="mt-2 space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted">
+              <div className="flex items-center gap-2 text-meta text-muted">
                 <Loader2 size={12} className="animate-spin" />
                 处理中{stepLabel ? ` · ${stepLabel}` : ""}
                 {video.processing_progress
@@ -234,7 +234,7 @@ export function VideoDetailRow({
       {/* Right: edit form */}
       <form onSubmit={handleSave} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-medium text-muted uppercase tracking-wider">编辑</h3>
+          <h3 className="text-meta font-medium text-muted uppercase tracking-wider">编辑</h3>
           <Button
             type="button"
             variant="outline"
@@ -249,8 +249,8 @@ export function VideoDetailRow({
 
         {/* UGC review actions (pending_review only) */}
         {video.review_status === "pending_review" && !video.is_official && (
-          <div className="rounded-sm border border-orange-200 bg-brand-50 p-3 space-y-2 dark:border-orange-900">
-            <div className="text-xs font-medium text-orange-800 dark:text-orange-300">
+          <div className="rounded-sm border border-brand-200 bg-brand-50 p-3 space-y-2">
+            <div className="text-meta font-medium text-brand-700">
               待审核 · 提交于{" "}
               {video.submitted_at ? new Date(video.submitted_at).toLocaleString() : "未知时间"}
             </div>
@@ -280,14 +280,12 @@ export function VideoDetailRow({
 
         {/* Pending-processing: admin can trigger GPU processing */}
         {video.status === "pending_processing" && (
-          <div className="rounded-sm border border-blue-200 bg-sky-soft p-3 space-y-2 dark:border-blue-900">
-            <div className="text-xs font-medium text-blue-800 dark:text-blue-300">
+          <div className="rounded-sm border border-indigo/25 bg-sky-soft p-3 space-y-2">
+            <div className="text-meta font-medium text-indigo">
               视频等待处理 · {workerOnline ? "Worker 在线" : "Worker 离线"}
             </div>
             {!workerOnline && (
-              <div className="text-[11px] text-blue-600 dark:text-blue-400">
-                请先启动本地处理服务
-              </div>
+              <div className="text-caption text-indigo/80">请先启动本地处理服务</div>
             )}
             <Button
               type="button"
@@ -302,8 +300,8 @@ export function VideoDetailRow({
         )}
         {/* Processing / ready_subtitles: normal progress with optional recover link */}
         {(video.status === "processing" || video.status === "ready_subtitles") && (
-          <div className="rounded-sm border border-amber-200 bg-warning-soft p-3 space-y-2 dark:border-amber-900">
-            <div className="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+          <div className="rounded-sm border border-warning/30 bg-warning-soft p-3 space-y-2">
+            <div className="flex items-center gap-2 text-meta font-medium text-warning">
               <Loader2 size={12} className="animate-spin" />
               处理中{stepLabel ? ` · ${stepLabel}` : ""}
               {video.processing_progress ? `（${video.processing_progress}%）` : ""}
@@ -321,7 +319,7 @@ export function VideoDetailRow({
             <button
               type="button"
               onClick={() => onRecover(video)}
-              className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 underline underline-offset-2"
+              className="inline-flex items-center gap-1 text-meta text-warning hover:text-warning/80 underline underline-offset-2"
             >
               <RefreshCw size={10} />
               卡住了？重新恢复处理
@@ -330,8 +328,8 @@ export function VideoDetailRow({
         )}
         {/* Error state: show error_message + retry button */}
         {video.status === "error" && (
-          <div className="rounded-sm border border-red-200 bg-red-soft p-3 space-y-2 dark:border-red-900">
-            <div className="flex items-center gap-2 text-xs font-medium text-red-800 dark:text-red-300">
+          <div className="rounded-sm border border-error/30 bg-red-soft p-3 space-y-2">
+            <div className="flex items-center gap-2 text-meta font-medium text-error">
               <AlertCircle size={12} />
               处理失败
               {video.processing_step
@@ -339,27 +337,25 @@ export function VideoDetailRow({
                 : ""}
             </div>
             {video.error_message && (
-              <div className="text-xs text-red-600 dark:text-red-400 break-all">
-                {video.error_message}
-              </div>
+              <div className="text-meta text-error/80 break-all">{video.error_message}</div>
             )}
             {/* Resume hint: if subtitles exist, retry will skip transcription */}
             {video.processing_step &&
               (video.processing_step === "transcribing" ||
                 video.processing_step === "extracting") && (
-                <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+                <div className="text-caption text-error/80 bg-error/10 rounded-md px-2 py-1">
                   重新处理时将从转录步骤开始（无字幕缓存）
                 </div>
               )}
             {video.processing_step &&
               video.processing_step !== "transcribing" &&
               video.processing_step !== "extracting" && (
-                <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+                <div className="text-caption text-error/80 bg-error/10 rounded-md px-2 py-1">
                   重新处理将从转录后的步骤继续（已有字幕缓存，无需重新转录）
                 </div>
               )}
             {!video.processing_step && (
-              <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 rounded px-2 py-1">
+              <div className="text-caption text-error/80 bg-error/10 rounded-md px-2 py-1">
                 重新处理将从转录步骤开始（无字幕缓存）
               </div>
             )}
@@ -375,19 +371,19 @@ export function VideoDetailRow({
           </div>
         )}
         {video.review_status === "rejected" && !video.is_official && video.rejection_reason && (
-          <div className="rounded-sm border border-red-200 bg-red-soft p-3 text-xs text-red-700 dark:border-red-900 dark:text-red-300">
+          <div className="rounded-sm border border-error/30 bg-red-soft p-3 text-meta text-error">
             已驳回：{video.rejection_reason}
           </div>
         )}
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">标题</label>
+          <label className="block text-meta font-medium text-muted mb-1">标题</label>
           <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">难度</label>
+            <label className="block text-meta font-medium text-muted mb-1">难度</label>
             <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               <option value="">-</option>
               {DIFFICULTY_OPTIONS.map((d) => (
@@ -398,7 +394,7 @@ export function VideoDetailRow({
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">标签</label>
+            <label className="block text-meta font-medium text-muted mb-1">标签</label>
             <Input
               type="text"
               value={topicTags}
@@ -409,7 +405,7 @@ export function VideoDetailRow({
         </div>
 
         <div className="flex gap-6">
-          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-copy text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={isOfficial}
@@ -418,7 +414,7 @@ export function VideoDetailRow({
             />
             官方
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-copy text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={isFeatured}
@@ -427,7 +423,7 @@ export function VideoDetailRow({
             />
             精选
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-copy text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={isPublished}
@@ -437,10 +433,10 @@ export function VideoDetailRow({
             />
             已发布
             {video.status !== "ready" && !isPublished && (
-              <span className="text-xs text-muted">（需 ready）</span>
+              <span className="text-meta text-muted">（需 ready）</span>
             )}
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-copy text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={showOnHomepage}
@@ -449,7 +445,7 @@ export function VideoDetailRow({
             />
             首页展示
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-ink cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-copy text-ink cursor-pointer">
             <input
               type="checkbox"
               checked={isDemo}
@@ -461,7 +457,7 @@ export function VideoDetailRow({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">管理员备注</label>
+          <label className="block text-meta font-medium text-muted mb-1">管理员备注</label>
           <Textarea
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}
@@ -475,7 +471,7 @@ export function VideoDetailRow({
           <button
             type="button"
             onClick={() => onDelete(video)}
-            className="inline-flex items-center gap-1.5 text-xs text-error hover:text-error/80"
+            className="inline-flex items-center gap-1.5 text-meta text-error hover:text-error/80"
           >
             <Trash2 size={12} />
             删除视频

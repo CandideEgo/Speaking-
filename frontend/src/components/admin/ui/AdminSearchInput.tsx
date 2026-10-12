@@ -64,7 +64,7 @@ export function AdminSearchInput({
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          "w-full rounded-lg border border-hairline bg-canvas py-2 pl-9 pr-8 text-sm text-ink",
+          "w-full rounded-lg border border-hairline bg-canvas py-2 pl-9 pr-8 text-copy text-ink",
           "placeholder:text-muted-soft",
           "focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20",
           "transition-colors"
@@ -73,7 +73,7 @@ export function AdminSearchInput({
       {internalValue && (
         <button
           onClick={handleClear}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-soft hover:text-ink transition-colors"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-muted-soft hover:text-ink transition-colors"
         >
           <X size={14} />
         </button>

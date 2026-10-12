@@ -21,12 +21,12 @@ export function StatChip({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-xs">
-      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded ${iconClass}`}>
+    <div className="flex items-center gap-2.5 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-meta">
+      <div className={`flex h-[30px] w-[30px] items-center justify-center rounded-md ${iconClass}`}>
         {Icon ? <Icon size={16} /> : children}
       </div>
       <div>
-        <div className="font-mono text-[17px] font-extrabold leading-tight text-ink">
+        <div className="font-mono text-copy-lg font-extrabold leading-tight text-ink">
           {typeof value === "number" ? value.toLocaleString() : value}
         </div>
         <div className="text-muted">{label}</div>

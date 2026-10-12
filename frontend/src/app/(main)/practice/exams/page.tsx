@@ -8,6 +8,8 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Card } from "@/components/ui/Card";
 
 interface PaperListItem {
   id: string;
@@ -69,28 +71,32 @@ export default function ExamPapersPage() {
 
   return (
     <main className="min-h-full bg-surface-soft">
-      <div className="container-page py-8 pb-24">
+      <div className="py-8 pb-24">
         {/* Header */}
         <div className="mb-6">
           <Link
             href="/practice"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors mb-3"
+            className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors mb-3"
           >
             <ArrowLeft size={14} />
             返回练习
           </Link>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-brand-50 text-brand-600 text-[13px] font-semibold">
-            <FileText size={13} />
-            真题试卷
-          </span>
-          <h1 className="text-2xl font-extrabold tracking-tight mt-3 mb-1">
-            {levelLabel}历年真题
-            <span className="text-sm font-semibold text-muted ml-2">{total} 套</span>
-          </h1>
-          <p className="text-sm text-muted leading-relaxed">
-            历年大学英语{levelLabel}考试阅读部分原题（选词填空 / 段落匹配 /
-            仔细阅读），交卷后自动判分。
-          </p>
+          <PageHeader
+            className="pt-0 pb-0"
+            crumb="真题试卷"
+            title={
+              <>
+                {levelLabel}历年真题
+                <span className="text-copy font-semibold text-muted ml-2">{total} 套</span>
+              </>
+            }
+            description={
+              <>
+                历年大学英语{levelLabel}考试阅读部分原题（选词填空 / 段落匹配 /
+                仔细阅读），交卷后自动判分。
+              </>
+            }
+          />
         </div>
 
         {/* Level tabs */}
@@ -99,7 +105,7 @@ export default function ExamPapersPage() {
             <button
               key={t.key}
               onClick={() => setLevel(t.key)}
-              className={`px-4 py-1.5 rounded-md text-[13px] font-semibold transition-colors ${
+              className={`px-4 py-1.5 rounded-md text-copy font-semibold transition-colors ${
                 level === t.key ? "bg-ink text-canvas" : "text-muted hover:text-ink"
               }`}
             >
@@ -110,7 +116,7 @@ export default function ExamPapersPage() {
 
         {/* Paper grid */}
         {loading ? (
-          <div className="py-20 text-center text-sm text-muted">加载中…</div>
+          <div className="py-20 text-center text-copy text-muted">加载中…</div>
         ) : error ? (
           <ErrorState title={error} onRetry={() => setReloadKey((k) => k + 1)} className="py-10" />
         ) : papers.length === 0 ? (
@@ -118,25 +124,27 @@ export default function ExamPapersPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {papers.map((p) => (
-              <Link
+              <Card
+                as={Link}
                 key={p.id}
                 href={`/practice/exams/${p.id}`}
-                className="group flex flex-col gap-3 bg-canvas border border-hairline rounded-xl p-5 hover:border-brand-400 hover:shadow-sm transition-all"
+                padding={5}
+                className="group flex flex-col gap-3 hover:border-brand-400 hover:shadow-sm transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-base font-bold text-ink group-hover:text-brand-600 transition-colors">
+                    <h2 className="text-copy-lg font-bold text-ink group-hover:text-brand-600 transition-colors">
                       {p.year} 年 {p.month} 月
                     </h2>
-                    <p className="text-[13px] text-muted mt-0.5">
+                    <p className="text-copy text-muted mt-0.5">
                       第 {p.set_no} 套 · {p.total_questions} 题
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-pill bg-surface-card text-muted flex-shrink-0">
+                  <span className="text-caption font-semibold px-2 py-0.5 rounded-pill bg-surface-card text-muted flex-shrink-0">
                     {levelLabel}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted">
+                <div className="flex items-center gap-3 text-meta text-muted">
                   {p.attempt_count > 0 ? (
                     <>
                       <span className="inline-flex items-center gap-1 text-brand-600 font-semibold">
@@ -152,11 +160,11 @@ export default function ExamPapersPage() {
                     </span>
                   )}
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600 group-hover:gap-2.5 transition-all">
+                <span className="inline-flex items-center gap-1.5 text-copy font-semibold text-brand-600 group-hover:gap-2.5 transition-all">
                   开始作答
                   <ArrowLeft size={13} className="rotate-180" />
                 </span>
-              </Link>
+              </Card>
             ))}
           </div>
         )}

@@ -3,6 +3,7 @@
 import { useState, useCallback, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 import { AdminEmptyState } from "./AdminEmptyState";
 import { AdminSkeleton } from "./AdminSkeleton";
 
@@ -124,8 +125,8 @@ export function AdminTable<T>({
   const colSpan = columns.length + (selectable ? 1 : 0);
 
   return (
-    <div className={cn("overflow-x-auto rounded-lg border border-hairline bg-canvas", className)}>
-      <table className="w-full text-sm">
+    <Card padding={0} className={cn("overflow-x-auto", className)}>
+      <table className="w-full text-copy">
         <thead>
           <tr className="border-b border-hairline bg-surface-soft/50">
             {selectable && (
@@ -134,7 +135,7 @@ export function AdminTable<T>({
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleSelectAll}
-                  className="h-4 w-4 rounded border-hairline text-brand-500 focus:ring-brand-500"
+                  className="h-4 w-4 rounded-md border-hairline text-brand-500 focus:ring-brand-500"
                 />
               </th>
             )}
@@ -142,7 +143,7 @@ export function AdminTable<T>({
               <th
                 key={col.key}
                 className={cn(
-                  "px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted",
+                  "px-4 py-3 text-meta font-medium uppercase tracking-wider text-muted",
                   col.align === "right" && "text-right",
                   col.align === "center" && "text-center",
                   col.width
@@ -200,7 +201,7 @@ export function AdminTable<T>({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelect(key)}
-                          className="h-4 w-4 rounded border-hairline text-brand-500 focus:ring-brand-500"
+                          className="h-4 w-4 rounded-md border-hairline text-brand-500 focus:ring-brand-500"
                         />
                       </td>
                     )}
@@ -232,7 +233,7 @@ export function AdminTable<T>({
           )}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }
 

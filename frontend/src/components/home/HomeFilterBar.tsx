@@ -44,7 +44,7 @@ const SORT_OPTIONS: Record<FeedSort, { label: string; hint: string; icon: Lucide
 const SORT_ORDER: FeedSort[] = ["recommended", "hot", "favorite", "weekly_favorite", "latest"];
 
 const CHIP_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 cursor-pointer";
+  "inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-copy font-semibold transition-colors duration-150 cursor-pointer";
 
 /** 可展开的下拉按钮：按钮本身 + 绝对定位面板，点面板外任意处收起。 */
 function DropdownButton({
@@ -127,7 +127,7 @@ function CategoryDropdown({
                 close();
               }}
               className={cn(
-                "rounded-pill px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150 cursor-pointer",
+                "rounded-pill px-3 py-1.5 text-copy font-semibold transition-colors duration-150 cursor-pointer",
                 cat.id === active
                   ? "bg-ink text-canvas"
                   : "text-muted hover:bg-surface-soft hover:text-ink"
@@ -182,7 +182,7 @@ function SortDropdown({
                 <span className="flex-1">
                   <span
                     className={cn(
-                      "block text-[13px] font-semibold",
+                      "block text-copy font-semibold",
                       key === effectiveSort && "text-brand-600"
                     )}
                   >
@@ -190,7 +190,7 @@ function SortDropdown({
                   </span>
                   <span
                     className={cn(
-                      "block text-xs",
+                      "block text-meta",
                       key === effectiveSort ? "text-brand-600/70" : "text-muted"
                     )}
                   >
@@ -204,7 +204,7 @@ function SortDropdown({
           <Link
             href="/rankings"
             onClick={close}
-            className="flex items-center gap-2 rounded-md px-2.5 py-2 text-[13px] font-semibold text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+            className="flex items-center gap-2 rounded-md px-2.5 py-2 text-copy font-semibold text-muted transition-colors hover:bg-surface-soft hover:text-ink"
           >
             <Trophy size={14} />
             完整榜单
@@ -267,7 +267,7 @@ export function HomeFilterBar({
         {/* 结果计数 */}
         <div className="md:ml-auto flex items-center gap-3 flex-shrink-0">
           {total > 0 && (
-            <span className="text-xs text-muted hidden sm:block font-medium">{total} 个视频</span>
+            <span className="text-meta text-muted hidden sm:block font-medium">{total} 个视频</span>
           )}
         </div>
       </div>

@@ -10,7 +10,7 @@ export function VideoStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-meta font-medium",
         config.className
       )}
     >

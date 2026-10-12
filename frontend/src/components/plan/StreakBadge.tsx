@@ -23,10 +23,12 @@ export function StreakBadge({ streak, size = "md", showLabel = false }: StreakBa
       )}
     >
       <Flame size={px} className={isActive ? "fill-current" : ""} />
-      <span className={cn("font-semibold tabular-nums", size === "lg" ? "text-base" : "text-xs")}>
+      <span
+        className={cn("font-semibold tabular-nums", size === "lg" ? "text-copy-lg" : "text-meta")}
+      >
         {streak} 天
       </span>
-      {showLabel && <span className="text-xs text-muted">连续</span>}
+      {showLabel && <span className="text-meta text-muted">连续</span>}
     </span>
   );
 }

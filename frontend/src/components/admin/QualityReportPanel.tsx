@@ -48,17 +48,17 @@ function ReportRow({ r }: { r: QualityReport }) {
         ) : (
           <XCircle size={15} className="text-error flex-shrink-0" />
         )}
-        <span className="text-sm font-semibold text-ink">{stageLabel(r.stage)}</span>
+        <span className="text-copy font-semibold text-ink">{stageLabel(r.stage)}</span>
         <span
           className={cn(
-            "text-xs font-medium px-2 py-0.5 rounded-pill",
+            "text-meta font-medium px-2 py-0.5 rounded-pill",
             passed ? "bg-success/15 text-success" : "bg-error/15 text-error"
           )}
         >
           {passed ? "通过" : "未通过"}
         </span>
         {r.coverage_ratio != null && (
-          <span className="text-xs text-muted ml-auto">
+          <span className="text-meta text-muted ml-auto">
             覆盖率{" "}
             <span className="font-mono font-medium text-ink">
               {formatCoverage(r.coverage_ratio)}
@@ -66,17 +66,17 @@ function ReportRow({ r }: { r: QualityReport }) {
           </span>
         )}
         {r.segment_count != null && (
-          <span className="text-xs text-muted">· {r.segment_count} 段</span>
+          <span className="text-meta text-muted">· {r.segment_count} 段</span>
         )}
         {r.created_at && (
-          <span className="text-xs text-muted-soft">
+          <span className="text-meta text-muted-soft">
             {new Date(r.created_at).toLocaleString("zh-CN")}
           </span>
         )}
       </div>
 
       {r.issues && r.issues.length > 0 && (
-        <div className="mt-2 flex items-start gap-1.5 text-xs text-error">
+        <div className="mt-2 flex items-start gap-1.5 text-meta text-error">
           <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
           <div className="space-y-0.5">
             {r.issues.map((iss, i) => (
@@ -88,8 +88,8 @@ function ReportRow({ r }: { r: QualityReport }) {
 
       {r.metrics && Object.keys(r.metrics).length > 0 && (
         <details className="mt-2">
-          <summary className="text-xs text-muted cursor-pointer hover:text-ink">详细指标</summary>
-          <pre className="mt-1.5 text-[11px] text-muted bg-canvas rounded p-2 overflow-x-auto font-mono">
+          <summary className="text-meta text-muted cursor-pointer hover:text-ink">详细指标</summary>
+          <pre className="mt-1.5 text-caption text-muted bg-canvas rounded-md p-2 overflow-x-auto font-mono">
             {JSON.stringify(r.metrics, null, 2)}
           </pre>
         </details>
@@ -151,11 +151,11 @@ export function QualityReportPanel({ videoId }: { videoId: string }) {
       }
     >
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted py-4">
+        <div className="flex items-center gap-2 text-copy text-muted py-4">
           <Loader2 size={14} className="animate-spin" /> 加载质量报告…
         </div>
       ) : reports.length === 0 ? (
-        <p className="text-sm text-muted py-4">暂无质量报告。视频处理完成后会自动生成。</p>
+        <p className="text-copy text-muted py-4">暂无质量报告。视频处理完成后会自动生成。</p>
       ) : (
         <div className="space-y-2.5">
           {reports.map((r) => (
@@ -167,14 +167,14 @@ export function QualityReportPanel({ videoId }: { videoId: string }) {
       {/* Retranslate with alternate engine */}
       <div className="mt-5 pt-4 border-t border-hairline">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-ink">换引擎重翻译：</span>
+          <span className="text-copy font-medium text-ink">换引擎重翻译：</span>
           {blocked && (
-            <span className="text-xs text-warning flex items-center gap-1">
+            <span className="text-meta text-warning flex items-center gap-1">
               <AlertTriangle size={12} />
               存在未通过的质量检查
             </span>
           )}
-          <span className="text-xs text-muted ml-auto hidden sm:inline">
+          <span className="text-meta text-muted ml-auto hidden sm:inline">
             同引擎同输入会复现低覆盖，建议换引擎重试
           </span>
         </div>
@@ -194,7 +194,7 @@ export function QualityReportPanel({ videoId }: { videoId: string }) {
             </Button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-muted-soft">
+        <p className="mt-2 text-meta text-muted-soft">
           重翻译会清空现有中文翻译与质量标记，用所选引擎重新生成。
         </p>
       </div>

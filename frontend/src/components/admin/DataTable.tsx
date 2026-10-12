@@ -11,7 +11,7 @@ export interface DataTableColumn {
 /**
  * Shared admin table shell. Owns the duplicated chrome every admin list page
  * hand-rolled: the `overflow-x-auto` wrapper, `<table className="w-full
- * text-sm">`, the canonical header row, the `divide-y` body, the empty-state
+ * text-copy">`, the canonical header row, the `divide-y` body, the empty-state
  * row, and — for expandable tables — the `flatMap([main, expanded && detail])`
  * wiring plus the detail row's `<tr bg-surface-soft/40><td colSpan>` wrapper.
  *
@@ -51,9 +51,9 @@ export function DataTable<T>({
 
   return (
     <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full text-sm">
+      <table className="w-full text-copy">
         <thead>
-          <tr className="border-b border-hairline text-left text-xs text-muted uppercase tracking-wider">
+          <tr className="border-b border-hairline text-left text-meta text-muted uppercase tracking-wider">
             {columns.map((c, i) => (
               <th key={i} className={cn("pb-2 font-medium", c.align === "right" && "text-right")}>
                 {c.label}

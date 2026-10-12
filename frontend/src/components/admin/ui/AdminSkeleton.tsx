@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Base Skeleton
@@ -42,11 +43,11 @@ function Cards({ count = 4 }: { count?: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="rounded-lg border border-hairline bg-canvas p-5">
+        <Card key={i} padding={5}>
           <Skeleton className="h-3 w-20" />
           <Skeleton className="mt-3 h-8 w-16" />
           <Skeleton className="mt-2 h-3 w-24" />
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -54,10 +55,10 @@ function Cards({ count = 4 }: { count?: number }) {
 
 function Chart({ height = 240 }: { height?: number }) {
   return (
-    <div className="rounded-lg border border-hairline bg-canvas p-5">
+    <Card padding={5}>
       <Skeleton className="h-4 w-32" />
       <Skeleton className="mt-4 w-full" style={{ height }} />
-    </div>
+    </Card>
   );
 }
 
@@ -72,14 +73,14 @@ function Page() {
         <Skeleton className="h-9 w-28" />
       </div>
       <Cards />
-      <div className="rounded-lg border border-hairline bg-canvas p-5">
+      <Card padding={5}>
         <Skeleton className="h-4 w-32" />
         <div className="mt-4 space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

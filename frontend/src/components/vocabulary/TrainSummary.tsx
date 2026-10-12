@@ -5,6 +5,7 @@ import { RotateCcw, Home, CheckCircle2, Target, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Confetti } from "@/components/common/Confetti";
+import { Card } from "@/components/ui/Card";
 
 export interface WeakWord {
   word: string;
@@ -43,23 +44,23 @@ export function TrainSummary({
     <div className="w-full max-w-[560px] mx-auto text-center">
       <Confetti fire={celebrate} />
 
-      <div className="bg-canvas border border-hairline rounded-2xl shadow-lift px-6 py-10 animate-fade-in">
+      <Card padding={0} className="shadow-lift px-6 py-10 animate-fade-in">
         {nothing ? (
           <>
             <CheckCircle2 size={44} className="mx-auto text-success" />
-            <h2 className="text-xl font-extrabold text-ink mt-4">今天的词都练完了</h2>
-            <p className="text-[13px] text-muted mt-2">保持节奏，明天继续。去频道看看新视频吧。</p>
+            <h2 className="text-title font-extrabold text-ink mt-4">今天的词都练完了</h2>
+            <p className="text-copy text-muted mt-2">保持节奏，明天继续。去频道看看新视频吧。</p>
           </>
         ) : (
           <>
             <Sparkles size={44} className="mx-auto text-brand-500" />
-            <h2 className="text-xl font-extrabold text-ink mt-4">今日训练完成</h2>
+            <h2 className="text-title font-extrabold text-ink mt-4">今日训练完成</h2>
             {accuracy != null && (
-              <p className="text-[15px] text-muted mt-2">
+              <p className="text-copy text-muted mt-2">
                 作答正确率{" "}
                 <span
                   className={cn(
-                    "font-extrabold text-2xl",
+                    "font-extrabold text-display-sm",
                     accuracy >= 80 ? "text-success" : "text-warning"
                   )}
                 >
@@ -69,31 +70,33 @@ export function TrainSummary({
             )}
 
             <div className="flex justify-center gap-3 mt-6">
-              <div className="px-5 py-3 rounded-xl bg-surface-soft">
-                <div className="text-xl font-extrabold text-ink">{learnedCount}</div>
-                <div className="text-[11px] text-muted mt-0.5">新词已学</div>
+              <div className="px-5 py-3 rounded-lg bg-surface-soft">
+                <div className="text-title font-extrabold text-ink">{learnedCount}</div>
+                <div className="text-caption text-muted mt-0.5">新词已学</div>
               </div>
-              <div className="px-5 py-3 rounded-xl bg-surface-soft">
-                <div className="text-xl font-extrabold text-ink flex items-center gap-1">
+              <div className="px-5 py-3 rounded-lg bg-surface-soft">
+                <div className="text-title font-extrabold text-ink flex items-center gap-1">
                   <Target size={16} className="text-brand-500" />
                   {quizTotal > 0 ? `${quizCorrect}/${quizTotal}` : "—"}
                 </div>
-                <div className="text-[11px] text-muted mt-0.5">作答正确</div>
+                <div className="text-caption text-muted mt-0.5">作答正确</div>
               </div>
             </div>
 
             {weakWords.length > 0 && (
               <div className="mt-6 text-left">
-                <p className="text-xs font-semibold text-muted mb-2">薄弱词，明天会优先出现</p>
+                <p className="text-meta font-semibold text-muted mb-2">薄弱词，明天会优先出现</p>
                 <div className="flex flex-wrap gap-1.5">
                   {weakWords.map((w) => (
                     <span
                       key={w.word}
-                      className="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-pill bg-surface-card text-[13px]"
+                      className="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-pill bg-surface-card text-copy"
                       title={w.translation ?? undefined}
                     >
                       <span className="font-semibold text-ink">{w.word}</span>
-                      {w.translation && <span className="text-muted text-xs">{w.translation}</span>}
+                      {w.translation && (
+                        <span className="text-muted text-meta">{w.translation}</span>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -122,7 +125,7 @@ export function TrainSummary({
             返回首页
           </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -27,6 +27,7 @@ import {
   revokeRedeemCode,
 } from "@/lib/adminData";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { Card } from "@/components/ui/Card";
 
 const PAGE_SIZE = 20;
 
@@ -234,27 +235,27 @@ export default function AdminInvitesPage() {
 
       {/* Generate + preview (prototype 30 .gen-grid) */}
       <div className="grid gap-[18px] lg:grid-cols-2">
-        <div className="rounded-xl border border-hairline bg-canvas p-5">
-          <h3 className="mb-4 text-[15px] font-bold text-ink">批量生成</h3>
+        <Card padding={5}>
+          <h3 className="mb-4 text-copy-lg font-bold text-ink">批量生成</h3>
           <form onSubmit={handleGenerate} className="flex flex-col gap-3.5">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[13px] font-semibold text-ink">生成数量</label>
+              <label className="text-copy font-semibold text-ink">生成数量</label>
               <input
                 type="number"
                 value={codeCount}
                 onChange={(e) => setCodeCount(Number(e.target.value))}
                 min={1}
                 max={500}
-                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
+                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-copy text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
               />
-              <span className="text-[11.5px] text-muted">单次最多 500 个</span>
+              <span className="text-meta text-muted">单次最多 500 个</span>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[13px] font-semibold text-ink">套餐</label>
+              <label className="text-copy font-semibold text-ink">套餐</label>
               <select
                 value={codeDuration}
                 onChange={(e) => setCodeDuration(Number(e.target.value))}
-                className="h-[38px] cursor-pointer rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
+                className="h-[38px] cursor-pointer rounded-lg border border-hairline bg-canvas px-3 text-copy text-ink outline-none transition-all focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
               >
                 {PLAN_OPTIONS.map((p) => (
                   <option key={p.days} value={p.days}>
@@ -264,13 +265,13 @@ export default function AdminInvitesPage() {
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[13px] font-semibold text-ink">批次标签（可选）</label>
+              <label className="text-copy font-semibold text-ink">批次标签（可选）</label>
               <input
                 type="text"
                 value={codeLabel}
                 onChange={(e) => setCodeLabel(e.target.value)}
                 placeholder="例: batch-2026Q3"
-                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-[13.5px] text-ink outline-none transition-all placeholder:text-muted-soft focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
+                className="h-[38px] rounded-lg border border-hairline bg-canvas px-3 text-copy text-ink outline-none transition-all placeholder:text-muted-soft focus:border-brand-400 focus:ring-[3px] focus:ring-brand-500/12"
               />
             </div>
             <Button
@@ -283,14 +284,14 @@ export default function AdminInvitesPage() {
               {generating ? "生成中..." : "生成兑换码"}
             </Button>
           </form>
-        </div>
+        </Card>
 
-        <div className="rounded-xl border border-hairline bg-canvas p-5">
+        <Card padding={5}>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-[15px] font-bold text-ink">预览</h3>
-            <span className="text-xs text-muted">格式 XXXX-XXXX-XX</span>
+            <h3 className="text-copy-lg font-bold text-ink">预览</h3>
+            <span className="text-meta text-muted">格式 XXXX-XXXX-XX</span>
           </div>
-          <div className="min-h-[60px] rounded-[10px] border border-dashed border-hairline bg-surface-soft p-3.5 font-mono text-[13px] text-body">
+          <div className="min-h-[60px] rounded-md border border-dashed border-hairline bg-surface-soft p-3.5 font-mono text-copy text-body">
             {lastGenerated.length === 0 ? (
               <span className="text-muted-soft">生成后将在此显示新兑换码...</span>
             ) : (
@@ -307,7 +308,7 @@ export default function AdminInvitesPage() {
               </>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Toolbar: search + filter */}
@@ -322,14 +323,14 @@ export default function AdminInvitesPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-hairline bg-canvas">
-        <table className="w-full min-w-[760px] text-sm">
+      <Card padding={0} className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-copy">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft/50">
               {["兑换码", "套餐", "状态", "使用人", "生成时间", "操作"].map((h, i) => (
                 <th
                   key={h}
-                  className={`px-4 py-3 text-[11.5px] font-bold uppercase tracking-wide text-muted ${
+                  className={`px-4 py-3 text-meta font-bold uppercase tracking-wide text-muted ${
                     i === 5 ? "text-right" : "text-left"
                   }`}
                 >
@@ -356,12 +357,12 @@ export default function AdminInvitesPage() {
                 return (
                   <tr key={c.id} className="transition-colors hover:bg-surface-soft/40">
                     <td className="px-4 py-3">
-                      <span className="font-mono text-[13px] font-semibold text-brand-600">
+                      <span className="font-mono text-copy font-semibold text-brand-600">
                         {c.code}
                       </span>{" "}
                       <button
                         onClick={() => copyCode(c)}
-                        className="rounded bg-surface-soft px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:bg-brand-50 hover:text-brand-600"
+                        className="rounded-md bg-surface-soft px-2 py-0.5 font-mono text-meta text-muted transition-colors hover:bg-brand-50 hover:text-brand-600"
                         title="复制"
                       >
                         {copiedId === c.id ? (
@@ -374,16 +375,16 @@ export default function AdminInvitesPage() {
                         )}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-[13px] text-body">Pro · {c.duration_days} 天</td>
+                    <td className="px-4 py-3 text-copy text-body">Pro · {c.duration_days} 天</td>
                     <td className="px-4 py-3">
                       <Badge tone={statusCfg.tone}>{statusCfg.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-[13px] text-muted">
+                      <span className="font-mono text-copy text-muted">
                         {c.used_by ? c.used_by.slice(0, 8) + "..." : "-"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[12.5px] text-muted">
+                    <td className="px-4 py-3 text-meta text-muted">
                       {new Date(c.created_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -422,7 +423,7 @@ export default function AdminInvitesPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pagination */}
       <Pagination

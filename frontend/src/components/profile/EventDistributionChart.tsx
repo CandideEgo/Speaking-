@@ -52,7 +52,7 @@ export function EventDistributionChart({ data }: EventDistributionChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="text-xs text-muted text-center py-6">
+      <div className="text-meta text-muted text-center py-6">
         还没有学习活动 — 看完第一个视频后这里会显示事件分布
       </div>
     );
@@ -90,7 +90,7 @@ export function EventDistributionChart({ data }: EventDistributionChartProps) {
       </div>
       <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
         {chartData.map((d, i) => (
-          <span key={d.raw} className="inline-flex items-center gap-1 text-[11px] text-muted">
+          <span key={d.raw} className="inline-flex items-center gap-1 text-caption text-muted">
             <span
               className="w-2 h-2 rounded-full"
               style={{ background: COLORS[i % COLORS.length] }}

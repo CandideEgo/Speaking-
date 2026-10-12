@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { AdminStats } from "@/types";
 import { getAdminStats, getUgcPendingCount, getWorkerStatus } from "@/lib/adminData";
+import { Card } from "@/components/ui/Card";
 
 // recharts is heavy (~100KB+ gzip) — load it only once stats are in, keeping
 // it out of the dashboard's initial JS.
@@ -68,7 +69,7 @@ function KpiCard({
   }[tone];
 
   const content = (
-    <div className="group rounded-xl border border-hairline bg-canvas p-5 transition-all hover:shadow-md hover:border-brand-200">
+    <Card padding={5} className="group transition-all hover:shadow-md hover:border-brand-200">
       <div className="flex items-start justify-between">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneStyles)}>
           <Icon size={18} />
@@ -80,17 +81,17 @@ function KpiCard({
           />
         )}
       </div>
-      <p className="mt-4 text-2xl font-semibold text-ink">{value}</p>
+      <p className="mt-4 text-display-sm font-semibold text-ink">{value}</p>
       <div className="mt-1 flex items-center gap-2">
-        <p className="text-xs text-muted">{label}</p>
+        <p className="text-meta text-muted">{label}</p>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-success">
+          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success">
             <TrendingUp size={12} />
             {delta}
           </span>
         )}
       </div>
-    </div>
+    </Card>
   );
 
   if (href) {
@@ -105,12 +106,12 @@ function KpiCard({
 
 function StatusBadge({ online }: { online: boolean | null }) {
   if (online === null) {
-    return <span className="text-xs text-muted">检测中...</span>;
+    return <span className="text-meta text-muted">检测中...</span>;
   }
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-meta font-medium",
         online ? "bg-success-soft text-success" : "bg-error/10 text-error"
       )}
     >
@@ -241,35 +242,35 @@ export default function AdminDashboardPage() {
       {/* Main content grid */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Trend Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-hairline bg-canvas p-5">
+        <Card padding={5} className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-ink">增长趋势</h3>
-            <span className="text-xs text-muted">近 30 天</span>
+            <h3 className="text-copy font-semibold text-ink">增长趋势</h3>
+            <span className="text-meta text-muted">近 30 天</span>
           </div>
           <GrowthTrendChart data={trendData} />
-        </div>
+        </Card>
 
         {/* Right column */}
         <div className="space-y-6">
           {/* System Status */}
-          <div className="rounded-xl border border-hairline bg-canvas p-5">
-            <h3 className="text-sm font-semibold text-ink mb-4">系统状态</h3>
+          <Card padding={5}>
+            <h3 className="text-copy font-semibold text-ink mb-4">系统状态</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <ServerCog size={16} className="text-muted" />
-                  <span className="text-sm text-body">GPU Worker</span>
+                  <span className="text-copy text-body">GPU Worker</span>
                 </div>
                 <StatusBadge online={workerOnline} />
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <Cpu size={16} className="text-muted" />
-                  <span className="text-sm text-body">GPU 队列</span>
+                  <span className="text-copy text-body">GPU 队列</span>
                 </div>
                 <span
                   className={cn(
-                    "text-sm font-medium",
+                    "text-copy font-medium",
                     stats.gpu_queue_depth > 0 ? "text-warning" : "text-muted"
                   )}
                 >
@@ -279,11 +280,11 @@ export default function AdminDashboardPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <AlertTriangle size={16} className="text-muted" />
-                  <span className="text-sm text-body">失败视频</span>
+                  <span className="text-copy text-body">失败视频</span>
                 </div>
                 <span
                   className={cn(
-                    "text-sm font-medium",
+                    "text-copy font-medium",
                     stats.videos_error_count > 0 ? "text-error" : "text-muted"
                   )}
                 >
@@ -291,33 +292,33 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* UGC Queue */}
-          <div className="rounded-xl border border-hairline bg-canvas p-5">
+          <Card padding={5}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-ink">UGC 审核队列</h3>
-              <Link href="/admin/videos" className="text-xs text-brand-500 hover:text-brand-600">
+              <h3 className="text-copy font-semibold text-ink">UGC 审核队列</h3>
+              <Link href="/admin/videos" className="text-meta text-brand-500 hover:text-brand-600">
                 查看全部
               </Link>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-surface-soft p-3 text-center">
-                <p className="text-xl font-semibold text-ink">{pendingProcessing}</p>
-                <p className="text-xs text-muted mt-0.5">待处理</p>
+                <p className="text-title font-semibold text-ink">{pendingProcessing}</p>
+                <p className="text-meta text-muted mt-0.5">待处理</p>
               </div>
               <div className="rounded-lg bg-surface-soft p-3 text-center">
-                <p className="text-xl font-semibold text-ink">{pendingReview}</p>
-                <p className="text-xs text-muted mt-0.5">待审核</p>
+                <p className="text-title font-semibold text-ink">{pendingReview}</p>
+                <p className="text-meta text-muted mt-0.5">待审核</p>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="rounded-xl border border-hairline bg-canvas p-5">
-        <h3 className="text-sm font-semibold text-ink mb-4">快捷入口</h3>
+      <Card padding={5}>
+        <h3 className="text-copy font-semibold text-ink mb-4">快捷入口</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { href: "/admin/videos", label: "视频管理", icon: Video },
@@ -335,7 +336,7 @@ export default function AdminDashboardPage() {
                 size={18}
                 className="text-muted group-hover:text-brand-500 transition-colors"
               />
-              <span className="text-sm font-medium text-body group-hover:text-ink transition-colors">
+              <span className="text-copy font-medium text-body group-hover:text-ink transition-colors">
                 {item.label}
               </span>
               <ArrowRight
@@ -345,15 +346,15 @@ export default function AdminDashboardPage() {
             </Link>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Recent Activity */}
       {stats.recent_activity.length > 0 && (
-        <div className="rounded-xl border border-hairline bg-canvas p-5">
-          <h3 className="text-sm font-semibold text-ink mb-4">最近动态</h3>
+        <Card padding={5}>
+          <h3 className="text-copy font-semibold text-ink mb-4">最近动态</h3>
           <div className="space-y-3">
             {stats.recent_activity.slice(0, 5).map((activity) => (
-              <div key={activity.id} className="flex items-center gap-3 text-sm">
+              <div key={activity.id} className="flex items-center gap-3 text-copy">
                 <span
                   className={cn(
                     "flex h-7 w-7 items-center justify-center rounded-full",
@@ -365,7 +366,7 @@ export default function AdminDashboardPage() {
                   {activity.type === "signup" ? <UserPlus size={14} /> : <CreditCard size={14} />}
                 </span>
                 <span className="flex-1 text-body">{activity.summary}</span>
-                <span className="text-xs text-muted-soft">
+                <span className="text-meta text-muted-soft">
                   {new Date(activity.created_at).toLocaleTimeString("zh-CN", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -374,7 +375,7 @@ export default function AdminDashboardPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

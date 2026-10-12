@@ -53,7 +53,7 @@ export function AdminDialog({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div
         className={cn(
-          "relative w-full mx-4 rounded-xl border border-hairline bg-canvas shadow-xl",
+          "relative w-full mx-4 rounded-lg border border-hairline bg-canvas shadow-xl",
           SIZES[size],
           className
         )}
@@ -61,8 +61,8 @@ export function AdminDialog({
         {(title || description) && (
           <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
-              {title && <h2 className="text-lg font-semibold text-ink">{title}</h2>}
-              {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+              {title && <h2 className="text-copy-lg font-semibold text-ink">{title}</h2>}
+              {description && <p className="mt-1 text-copy text-muted">{description}</p>}
             </div>
             <button
               type="button"
@@ -137,8 +137,8 @@ export function AdminConfirmDialog({
           </div>
         )}
         <div>
-          <h3 className="text-base font-semibold text-ink">{title}</h3>
-          {description && <p className="mt-1.5 text-sm text-muted">{description}</p>}
+          <h3 className="text-copy-lg font-semibold text-ink">{title}</h3>
+          {description && <p className="mt-1.5 text-copy text-muted">{description}</p>}
         </div>
       </div>
     </AdminDialog>

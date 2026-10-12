@@ -63,7 +63,7 @@ export function RankingRow({
     >
       <span
         className={cn(
-          "w-6 flex-shrink-0 text-center font-display text-xl font-extrabold tabular-nums tracking-display-sm sm:w-8 sm:text-2xl",
+          "w-6 flex-shrink-0 text-center font-display text-title font-extrabold tabular-nums tracking-display-sm sm:w-8 sm:text-display-sm",
           rankClass(rank)
         )}
       >
@@ -80,19 +80,19 @@ export function RankingRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1">
+        <p className="line-clamp-2 text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1">
           {video.title}
         </p>
-        {meta && <p className="mt-1 line-clamp-1 text-xs text-muted">{meta}</p>}
+        {meta && <p className="mt-1 line-clamp-1 text-meta text-muted">{meta}</p>}
       </div>
 
       <div className="w-14 flex-shrink-0 text-right sm:w-20">
         {mode === "metric" ? (
           <>
-            <p className="hidden text-[10px] font-semibold uppercase tracking-wider text-muted-soft sm:block">
+            <p className="hidden text-caption font-semibold uppercase tracking-wider text-muted-soft sm:block">
               {metricLabel}
             </p>
-            <p className="text-sm font-bold tabular-nums text-ink">{formatCount(metric)}</p>
+            <p className="text-copy font-bold tabular-nums text-ink">{formatCount(metric)}</p>
             <div className="mt-1 hidden h-1 overflow-hidden rounded-pill bg-surface-card sm:block">
               <div
                 className="h-full rounded-pill bg-brand-500 transition-[width] duration-300"
@@ -102,10 +102,10 @@ export function RankingRow({
           </>
         ) : (
           <>
-            <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-brand-600">
+            <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-600">
               NEW
             </span>
-            <p className="mt-1 text-[11px] tabular-nums text-muted">
+            <p className="mt-1 text-caption tabular-nums text-muted">
               {relativeTime(video.published_at ?? video.created_at)}
             </p>
           </>

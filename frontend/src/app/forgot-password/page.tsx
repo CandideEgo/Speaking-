@@ -134,11 +134,13 @@ export default function ForgotPasswordPage() {
             <Check size={22} className="text-success" />
           </div>
           <div className="rounded-lg bg-success-soft border border-success/30 p-4">
-            <p className="text-sm text-success">如果该手机号已注册，密码已重置。请用新密码登录。</p>
+            <p className="text-copy text-success">
+              如果该手机号已注册，密码已重置。请用新密码登录。
+            </p>
           </div>
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
+            className="inline-flex items-center gap-1.5 text-copy text-brand-500 hover:underline font-medium"
           >
             <ArrowLeft size={14} />
             返回登录
@@ -150,7 +152,7 @@ export default function ForgotPasswordPage() {
           {step === 0 && (
             <div className="mt-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-ink">手机号</label>
+                <label className="block text-copy font-medium text-ink">手机号</label>
                 <Input
                   type="tel"
                   inputMode="numeric"
@@ -162,7 +164,7 @@ export default function ForgotPasswordPage() {
                   placeholder="请输入手机号"
                 />
               </div>
-              {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
+              {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
               <Button fullWidth disabled={sending || phone.length !== 11} onClick={handleSendCode}>
                 {sending ? "发送中..." : cooldown > 0 ? `${cooldown}s 后可重发` : "发送验证码"}
               </Button>
@@ -173,7 +175,7 @@ export default function ForgotPasswordPage() {
           {step === 1 && (
             <div className="mt-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-ink">验证码</label>
+                <label className="block text-copy font-medium text-ink">验证码</label>
                 <div className="mt-1.5 flex gap-2">
                   <Input
                     inputMode="numeric"
@@ -194,7 +196,7 @@ export default function ForgotPasswordPage() {
                   </Button>
                 </div>
               </div>
-              {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
+              {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
               <Button fullWidth onClick={handleVerifyCode}>
                 验证
               </Button>
@@ -205,7 +207,7 @@ export default function ForgotPasswordPage() {
           {step === 2 && (
             <form onSubmit={handleReset} className="mt-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-ink">新密码</label>
+                <label className="block text-copy font-medium text-ink">新密码</label>
                 <Input
                   type="password"
                   value={password}
@@ -217,7 +219,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-ink">确认新密码</label>
+                <label className="block text-copy font-medium text-ink">确认新密码</label>
                 <Input
                   type="password"
                   value={confirmPassword}
@@ -229,7 +231,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              {error && <p className="text-sm text-error">{error}</p>}
+              {error && <p className="text-copy text-error">{error}</p>}
 
               <Button type="submit" fullWidth disabled={loading}>
                 {loading ? "重置中..." : "完成修改"}
@@ -246,7 +248,7 @@ export default function ForgotPasswordPage() {
                 setStep(step - 1);
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink font-medium transition-colors",
+                "inline-flex items-center gap-1.5 text-copy text-muted hover:text-ink font-medium transition-colors",
                 step === 0 && "invisible"
               )}
             >
@@ -257,7 +259,7 @@ export default function ForgotPasswordPage() {
               <div className="mt-3">
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline font-medium"
+                  className="inline-flex items-center gap-1.5 text-copy text-brand-500 hover:underline font-medium"
                 >
                   <ArrowLeft size={14} />
                   返回登录

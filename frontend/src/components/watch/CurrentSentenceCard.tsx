@@ -130,7 +130,7 @@ export function CurrentSentenceCard({
       data-cs-variant={variant}
       onClick={onTogglePlay}
       className={cn(
-        "relative mt-3 rounded-xl border border-hairline bg-canvas px-3.5 py-2.5 text-left cursor-pointer select-none",
+        "relative mt-3 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-left cursor-pointer select-none",
         // 齐平字幕带（DEC-070 / DEC-074）：与画框同一个槽位、同一条左右边界，上下各 8px，
         // 无外框无圆角 —— 于是「画框下沿」是这一段唯一的边。
         isBand && "mt-0 rounded-none border-0 py-2",
@@ -138,7 +138,7 @@ export function CurrentSentenceCard({
       )}
     >
       {subtitleMode === "hidden" ? (
-        <p className="text-[12px] text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
+        <p className="text-meta text-muted-soft">字幕已隐藏 —— 按 S 键切换显示</p>
       ) : (
         // 内容**不再**放进 `flex flex-col` + `max-h` 容器里：上一版靠 flex 压缩决定
         // 「谁被牺牲」，可 `-webkit-line-clamp` 在 flex 子项里于 WebKit 不生效，长句照样
@@ -211,7 +211,7 @@ export function CurrentSentenceCard({
               {counter && (
                 <span
                   data-testid="subtitle-counter"
-                  className="font-mono text-[11px] leading-none text-muted-soft"
+                  className="font-mono text-caption leading-none text-muted-soft"
                 >
                   {counter}
                 </span>
@@ -230,7 +230,7 @@ export function CurrentSentenceCard({
                   }}
                   // 44×24：行内次级控件。24 是 WCAG 2.5.8 的 AA 线（量具按 <24 判 fail），
                   // 44 高在字幕带里做不到 —— 它是 AAA(<44) 的已知项，与行内词热区同性质。
-                  className="-mr-1 flex h-6 w-11 shrink-0 items-center justify-center rounded text-muted-soft transition-colors hover:text-ink cursor-pointer"
+                  className="-mr-1 flex h-6 w-11 shrink-0 items-center justify-center rounded-md text-muted-soft transition-colors hover:text-ink cursor-pointer"
                 >
                   <ChevronDown
                     size={16}
@@ -246,7 +246,7 @@ export function CurrentSentenceCard({
       {!isBand && counter && (
         <span
           data-testid="subtitle-counter"
-          className="absolute right-3 top-2 text-[11px] font-mono text-muted-soft"
+          className="absolute right-3 top-2 text-caption font-mono text-muted-soft"
         >
           {counter}
         </span>

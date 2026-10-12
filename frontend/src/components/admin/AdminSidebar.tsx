@@ -97,7 +97,7 @@ function NavLinks({
       {NAV.map((section) => (
         <div key={section.title} className="mb-4">
           {!collapsed && (
-            <div className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-soft">
+            <div className="mb-1.5 px-3 text-caption font-semibold uppercase tracking-wider text-muted-soft">
               {section.title}
             </div>
           )}
@@ -113,7 +113,7 @@ function NavLinks({
                   title={collapsed ? item.label : undefined}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-copy font-medium transition-all",
                     collapsed && "justify-center px-2",
                     active
                       ? "bg-brand-500 text-white shadow-sm"
@@ -125,7 +125,7 @@ function NavLinks({
                   {!collapsed && item.badge !== undefined && item.badge > 0 && (
                     <span
                       className={cn(
-                        "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold",
+                        "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-meta font-semibold",
                         active ? "bg-white/20 text-white" : "bg-brand-100 text-brand-700"
                       )}
                     >
@@ -158,13 +158,13 @@ function Brand({ collapsed }: { collapsed: boolean }) {
         collapsed && "justify-center px-2"
       )}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-sm">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy">
         S
       </div>
       {!collapsed && (
         <div className="leading-tight">
-          <div className="text-[15px] font-display font-bold text-ink">SeeWord</div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-soft">管理后台</div>
+          <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
+          <div className="text-caption uppercase tracking-wider text-muted-soft">管理后台</div>
         </div>
       )}
     </Link>
@@ -210,12 +210,12 @@ export function AdminSidebar() {
       >
         <div className="flex h-16 items-center justify-between border-b border-hairline px-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy">
               S
             </div>
             <div className="leading-tight">
-              <div className="text-[15px] font-display font-bold text-ink">SeeWord</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-soft">管理后台</div>
+              <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
+              <div className="text-caption uppercase tracking-wider text-muted-soft">管理后台</div>
             </div>
           </div>
           <button onClick={() => setMobileOpen(false)} aria-label="关闭导航">
@@ -229,7 +229,7 @@ export function AdminSidebar() {
           <Link
             href="/"
             onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted hover:bg-surface-soft hover:text-ink transition-colors"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-meta text-muted hover:bg-surface-soft hover:text-ink transition-colors"
           >
             <ArrowLeft size={14} />
             返回用户端
@@ -256,7 +256,7 @@ export function AdminSidebar() {
             href="/"
             title={collapsed ? "返回用户端" : undefined}
             className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted hover:bg-surface-soft hover:text-ink transition-colors",
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-meta text-muted hover:bg-surface-soft hover:text-ink transition-colors",
               collapsed && "justify-center px-2"
             )}
           >
@@ -267,7 +267,7 @@ export function AdminSidebar() {
             onClick={toggle}
             title={collapsed ? "展开侧栏" : "收起侧栏"}
             className={cn(
-              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted hover:bg-surface-soft hover:text-ink transition-colors",
+              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-meta text-muted hover:bg-surface-soft hover:text-ink transition-colors",
               collapsed && "justify-center px-2"
             )}
           >

@@ -3,17 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Tone =
-  | "default"
-  | "brand"
-  | "success"
-  | "warning"
-  | "indigo"
-  | "coral"
-  | "teal"
-  | "amber"
-  | "purple"
-  | "blue";
+type Tone = "default" | "brand" | "success" | "warning" | "indigo";
 
 const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> = {
   default: { icon: "bg-surface-soft text-muted", value: "text-ink" },
@@ -34,21 +24,6 @@ const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> 
   },
   indigo: {
     icon: "bg-indigo-soft text-indigo",
-  },
-  coral: {
-    icon: "bg-brand-500/10 text-brand-500",
-  },
-  teal: {
-    icon: "bg-teal/10 text-teal",
-  },
-  amber: {
-    icon: "bg-warning-soft text-warning",
-  },
-  purple: {
-    icon: "bg-indigo-soft text-indigo",
-  },
-  blue: {
-    icon: "bg-sky-soft text-sky-600 dark:text-sky-400",
   },
 };
 
@@ -94,21 +69,21 @@ export function MetricCard({
           // 边框色两种取值互斥地二选一：写 `border-hairline` 再叠一个 `!border-*`
           // 在 Tailwind v4 下两头都落空——运行时拼出来的 `!border-*` 是扫描器
           // 看不见的候选类，既不生成规则，也让 tailwind-merge 认不出冲突。
-          "bg-canvas rounded-lg p-5 border hover:shadow-soft transition-all duration-150",
+          "bg-canvas rounded-md p-5 border hover:shadow-soft transition-all duration-150",
           t.border ?? "border-hairline",
           className
         )}
       >
         <div
           className={cn(
-            "flex items-center gap-2 text-xs font-semibold mb-2",
+            "flex items-center gap-2 text-meta font-semibold mb-2",
             t.value ?? "text-muted"
           )}
         >
           <Icon size={14} /> {label}
         </div>
         <div
-          className={cn("text-[28px] font-extrabold tracking-display-md", t.value ?? "text-ink")}
+          className={cn("text-display font-extrabold tracking-display-md", t.value ?? "text-ink")}
         >
           {value}
           {suffix}
@@ -121,30 +96,27 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "bg-canvas border border-hairline rounded-lg p-[22px] hover:shadow-soft transition-all duration-150",
+        "bg-canvas border border-hairline rounded-md p-[22px] hover:shadow-soft transition-all duration-150",
         className
       )}
     >
       <div className="flex items-center justify-between mb-3.5">
         <div
-          className={cn(
-            "w-[38px] h-[38px] rounded-[10px] flex items-center justify-center",
-            t.icon
-          )}
+          className={cn("w-[38px] h-[38px] rounded-md flex items-center justify-center", t.icon)}
         >
           <Icon size={19} />
         </div>
       </div>
       <div
         className={cn(
-          "text-[30px] font-extrabold tracking-display-lg leading-none",
+          "text-display font-extrabold tracking-display-lg leading-none",
           t.value ?? "text-ink"
         )}
       >
         {value}
         {suffix}
       </div>
-      <div className="text-[13px] text-muted mt-1">{label}</div>
+      <div className="text-copy text-muted mt-1">{label}</div>
     </div>
   );
 }

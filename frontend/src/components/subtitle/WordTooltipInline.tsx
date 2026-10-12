@@ -52,7 +52,7 @@ function highlightWord(text: string, target: string): ReactNode {
   const parts = text.split(new RegExp(`(${esc})`, "gi"));
   return parts.map((p, i) =>
     p.toLowerCase() === t.toLowerCase() ? (
-      <mark key={i} className="bg-brand-100 text-brand-700 font-semibold rounded px-0.5">
+      <mark key={i} className="bg-brand-100 text-brand-700 font-semibold rounded-md px-0.5">
         {p}
       </mark>
     ) : (
@@ -63,7 +63,7 @@ function highlightWord(text: string, target: string): ReactNode {
 
 function SectionLabel({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-soft mb-2">
+    <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wider text-muted-soft mb-2">
       {Icon && <Icon size={12} />}
       {children}
       <span className="flex-1 h-px bg-hairline" />
@@ -124,11 +124,11 @@ export function WordCardBody({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {/* 显示字幕中的原词（surface form），而非 lemma */}
-            <div className="text-2xl font-extrabold tracking-tight text-ink leading-tight break-words">
+            <div className="text-display-sm font-extrabold tracking-tight text-ink leading-tight break-words">
               {word}
             </div>
             {gloss?.phonetic && (
-              <div className="text-xs text-muted font-mono mt-1">/{gloss.phonetic}/</div>
+              <div className="text-meta text-muted font-mono mt-1">/{gloss.phonetic}/</div>
             )}
           </div>
           <button
@@ -150,7 +150,7 @@ export function WordCardBody({
                 <span
                   key={lv}
                   className={cn(
-                    "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                    "inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md",
                     wordHighlightClass([lv])
                   )}
                 >
@@ -160,7 +160,7 @@ export function WordCardBody({
               );
             })}
             {gloss.is_high_freq && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning-soft text-warning">
+              <span className="inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning">
                 <GraduationCap size={10} /> 真题高频
               </span>
             )}
@@ -172,16 +172,16 @@ export function WordCardBody({
         {loading ? (
           <div className="px-4 pb-4 space-y-2.5">
             <div className="h-16 bg-surface-card rounded-lg animate-pulse" />
-            <div className="h-9 bg-surface-card rounded animate-pulse" />
-            <div className="h-9 bg-surface-card rounded animate-pulse" />
-            <p className="text-xs text-muted-soft pt-1">查询中…</p>
+            <div className="h-9 bg-surface-card rounded-md animate-pulse" />
+            <div className="h-9 bg-surface-card rounded-md animate-pulse" />
+            <p className="text-meta text-muted-soft pt-1">查询中…</p>
           </div>
         ) : (
           <div className="px-4 pb-4">
             {/* 词形变化条：billions ← billion（复数形式） */}
             {showFormBar && (
-              <div className="flex items-center gap-2 flex-wrap bg-surface-soft rounded-lg px-3 py-2 mb-3 text-xs text-muted">
-                <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full flex-shrink-0">
+              <div className="flex items-center gap-2 flex-wrap bg-surface-soft rounded-lg px-3 py-2 mb-3 text-meta text-muted">
+                <span className="text-caption font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full flex-shrink-0">
                   词形
                 </span>
                 <span>
@@ -196,10 +196,10 @@ export function WordCardBody({
 
             {/* 第一焦点：本视频语境释义 */}
             <div className="bg-brand-50 border-l-[3px] border-brand-500 rounded-r-lg rounded-l-md p-3.5 mb-4">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-600 mb-1.5">
+              <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wide text-brand-600 mb-1.5">
                 <Video size={12} /> 在本视频中
               </div>
-              <p className="text-sm text-ink font-medium leading-relaxed">
+              <p className="text-copy text-ink font-medium leading-relaxed">
                 {gloss?.contextual_note || gloss?.translation || "暂无语境释义"}
               </p>
             </div>
@@ -211,9 +211,9 @@ export function WordCardBody({
                 {senses.length > 0 && (
                   <div className="space-y-1.5">
                     {senses.map((s, i) => (
-                      <div key={i} className="flex gap-2 text-[13px] leading-relaxed items-start">
+                      <div key={i} className="flex gap-2 text-copy leading-relaxed items-start">
                         {s.pos && (
-                          <span className="flex-shrink-0 text-[11px] font-bold text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900 rounded px-1.5 py-0.5 mt-0.5">
+                          <span className="flex-shrink-0 text-caption font-bold bg-indigo-soft text-indigo rounded-md px-1.5 py-0.5 mt-0.5">
                             {s.pos}
                           </span>
                         )}
@@ -223,7 +223,7 @@ export function WordCardBody({
                   </div>
                 )}
                 {gloss?.definition && (
-                  <p className="text-xs text-muted italic mt-2 leading-relaxed">
+                  <p className="text-meta text-muted italic mt-2 leading-relaxed">
                     {firstLine(gloss.definition)}
                   </p>
                 )}
@@ -235,16 +235,16 @@ export function WordCardBody({
               <div className="mb-4">
                 <SectionLabel icon={BookOpen}>真题例句</SectionLabel>
                 <div className="bg-surface-soft rounded-lg p-3">
-                  <p className="text-[13px] text-ink italic leading-relaxed">
+                  <p className="text-copy text-ink italic leading-relaxed">
                     {highlightWord(gloss.example_sentence, gloss.lemma || word)}
                   </p>
                   {gloss.example_sentence_zh && (
-                    <p className="text-xs text-muted mt-1.5 leading-relaxed">
+                    <p className="text-meta text-muted mt-1.5 leading-relaxed">
                       {gloss.example_sentence_zh}
                     </p>
                   )}
                   {gloss.example_source && (
-                    <p className="text-[10px] text-muted-soft mt-1.5">— {gloss.example_source}</p>
+                    <p className="text-caption text-muted-soft mt-1.5">— {gloss.example_source}</p>
                   )}
                 </div>
               </div>
@@ -257,18 +257,18 @@ export function WordCardBody({
                 <div className="space-y-2">
                   {gloss?.pitfalls && (
                     <div className="border border-hairline rounded-lg p-3">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-warning mb-1">
+                      <div className="flex items-center gap-1.5 text-caption font-bold text-warning mb-1">
                         <AlertTriangle size={12} /> 易错点
                       </div>
-                      <p className="text-xs text-body leading-relaxed">{gloss.pitfalls}</p>
+                      <p className="text-meta text-body leading-relaxed">{gloss.pitfalls}</p>
                     </div>
                   )}
                   {gloss?.knowledge && (
                     <div className="border border-hairline rounded-lg p-3">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-1">
+                      <div className="flex items-center gap-1.5 text-caption font-bold text-indigo mb-1">
                         <Info size={12} /> 拓展
                       </div>
-                      <p className="text-xs text-body leading-relaxed">{gloss.knowledge}</p>
+                      <p className="text-meta text-body leading-relaxed">{gloss.knowledge}</p>
                     </div>
                   )}
                 </div>
@@ -279,7 +279,7 @@ export function WordCardBody({
             {!gloss?.contextual_note &&
               !gloss?.translation &&
               !gloss?.definition &&
-              senses.length === 0 && <p className="text-sm text-muted">暂无释义</p>}
+              senses.length === 0 && <p className="text-copy text-muted">暂无释义</p>}
           </div>
         )}
       </div>
@@ -381,7 +381,7 @@ export function WordTooltipInline({
       style={style}
       data-testid="word-tooltip"
       data-variant="floating"
-      className="fixed z-50 flex flex-col overflow-hidden bg-canvas border border-hairline rounded-xl shadow-lift w-[min(92vw,400px)] touch-none"
+      className="fixed z-50 flex flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
     >
       <WordCardBody
         word={word}

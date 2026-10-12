@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import type { AdminStats, AdminUser } from "@/types";
 import { getAdminStats, listUsers, promoteUser, setUserBanned, setUserPlan } from "@/lib/adminData";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Filter options
@@ -231,8 +232,8 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-hairline bg-canvas overflow-hidden">
-        <table className="w-full text-sm">
+      <Card padding={0} className="overflow-hidden">
+        <table className="w-full text-copy">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft/50">
               {[
@@ -248,7 +249,7 @@ export default function AdminUsersPage() {
                 <th
                   key={h}
                   className={cn(
-                    "px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted",
+                    "px-4 py-3 text-meta font-medium uppercase tracking-wider text-muted",
                     align
                   )}
                 >
@@ -307,7 +308,7 @@ export default function AdminUsersPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pagination */}
       <Pagination
@@ -383,7 +384,7 @@ function UserRow({
             />
             <div className="min-w-0">
               <p className="font-medium text-ink truncate max-w-[140px]">{u.name || "未命名"}</p>
-              <p className="text-xs text-muted truncate max-w-[140px]">{u.phone || "-"}</p>
+              <p className="text-meta text-muted truncate max-w-[140px]">{u.phone || "-"}</p>
             </div>
           </div>
         </td>
@@ -393,7 +394,7 @@ function UserRow({
               管理员
             </Badge>
           ) : (
-            <span className="text-xs text-muted">普通用户</span>
+            <span className="text-meta text-muted">普通用户</span>
           )}
         </td>
         <td className="px-4 py-3">
@@ -402,26 +403,23 @@ function UserRow({
               {isExpiredPro(u) ? "已过期" : "Pro"}
             </Badge>
           ) : (
-            <span className="text-xs text-muted">Free</span>
+            <span className="text-meta text-muted">Free</span>
           )}
         </td>
         <td className="px-4 py-3">
           {u.plan_expires_at ? (
             <span
-              className={cn(
-                "font-mono text-[12.5px]",
-                isExpiredPro(u) ? "text-error" : "text-body"
-              )}
+              className={cn("font-mono text-meta", isExpiredPro(u) ? "text-error" : "text-body")}
             >
               {new Date(u.plan_expires_at).toLocaleDateString("zh-CN")}
             </span>
           ) : (
-            <span className="text-xs text-muted">—</span>
+            <span className="text-meta text-muted">—</span>
           )}
         </td>
         <td className="px-4 py-3">
-          <span className="font-mono text-[13px] text-body">{u.learned_words ?? 0}</span>
-          <span className="text-xs text-muted"> 词 · {u.videos_watched ?? 0} 视频</span>
+          <span className="font-mono text-copy text-body">{u.learned_words ?? 0}</span>
+          <span className="text-meta text-muted"> 词 · {u.videos_watched ?? 0} 视频</span>
         </td>
         <td className="px-4 py-3">
           {u.is_banned ? (
@@ -429,13 +427,13 @@ function UserRow({
               已封禁
             </Badge>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs text-success">
+            <span className="inline-flex items-center gap-1.5 text-meta text-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
               正常
             </span>
           )}
         </td>
-        <td className="px-4 py-3 text-xs text-muted">
+        <td className="px-4 py-3 text-meta text-muted">
           {new Date(u.created_at).toLocaleDateString("zh-CN")}
         </td>
         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -489,14 +487,14 @@ function UserRow({
               {/* Pro management */}
               <div className="flex items-end gap-3">
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">赠送天数</label>
+                  <label className="block text-meta text-muted mb-1.5">赠送天数</label>
                   <input
                     type="number"
                     value={days}
                     onChange={(e) => setDays(Number(e.target.value))}
                     min={1}
                     max={3650}
-                    className="w-24 rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                    className="w-24 rounded-lg border border-hairline bg-canvas px-3 py-2 text-copy focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                   />
                 </div>
                 <Button
@@ -521,9 +519,9 @@ function UserRow({
 
 function DetailStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg bg-canvas border border-hairline p-3">
-      <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
-    </div>
+    <Card padding={3}>
+      <p className="text-caption uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-copy font-semibold text-ink">{value}</p>
+    </Card>
   );
 }

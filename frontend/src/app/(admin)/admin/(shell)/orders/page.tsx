@@ -19,6 +19,7 @@ import { toastApiError } from "@/lib/errors";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { RedemptionRecord } from "@/types";
 import { listRedemptions, redemptionSummary, refundRedeemCode } from "@/lib/adminData";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -132,7 +133,7 @@ export default function AdminOrdersPage() {
       />
 
       {/* Note (prototype 29 .note) */}
-      <div className="flex items-start gap-2.5 rounded-[10px] border border-hairline bg-surface-soft px-3.5 py-3 text-[12.5px] text-muted">
+      <div className="flex items-start gap-2.5 rounded-md border border-hairline bg-surface-soft px-3.5 py-3 text-meta text-muted">
         <Info size={16} className="mt-px shrink-0 text-brand-500" />
         <span>
           本站是非经营性平台，不提供站内支付。订单指
@@ -175,14 +176,14 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-hairline bg-canvas">
-        <table className="w-full min-w-[840px] text-sm">
+      <Card padding={0} className="overflow-x-auto">
+        <table className="w-full min-w-[840px] text-copy">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft/50">
               {["兑换码", "用户", "套餐", "状态", "兑换时间", "操作"].map((h, i) => (
                 <th
                   key={h}
-                  className={`px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted ${
+                  className={`px-4 py-3 text-meta font-bold uppercase tracking-wide text-muted ${
                     i === 5 ? "text-right" : "text-left"
                   }`}
                 >
@@ -206,28 +207,26 @@ export default function AdminOrdersPage() {
                 return (
                   <tr key={r.id} className="transition-colors hover:bg-surface-soft/40">
                     <td className="px-4 py-3">
-                      <span className="font-mono text-[12.5px] font-semibold text-brand-600">
+                      <span className="font-mono text-meta font-semibold text-brand-600">
                         {r.code}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-[13px] text-body">{r.user_phone || "-"}</span>
+                      <span className="font-mono text-copy text-body">{r.user_phone || "-"}</span>
                     </td>
-                    <td className="px-4 py-3 text-[13px] text-body">Pro · {r.duration_days} 天</td>
+                    <td className="px-4 py-3 text-copy text-body">Pro · {r.duration_days} 天</td>
                     <td className="px-4 py-3">
                       <Badge tone={st.tone}>
                         <span className="h-1.5 w-1.5 rounded-full bg-current" />
                         {st.label}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-[12.5px] text-muted">
-                      {formatDateTime(r.used_at)}
-                    </td>
+                    <td className="px-4 py-3 text-meta text-muted">{formatDateTime(r.used_at)}</td>
                     <td className="px-4 py-3 text-right">
                       {r.status === "redeemed" && (
                         <button
                           onClick={() => setRefundTarget(r)}
-                          className="inline-flex h-[30px] items-center gap-1.5 rounded px-2.5 text-xs font-medium text-error transition-colors hover:bg-error/10"
+                          className="inline-flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-meta font-medium text-error transition-colors hover:bg-error/10"
                         >
                           <RotateCcw size={13} />
                           退款
@@ -240,7 +239,7 @@ export default function AdminOrdersPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pagination */}
       <Pagination

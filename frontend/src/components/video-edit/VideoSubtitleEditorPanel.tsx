@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import type { Subtitle, SubtitleRevision, VideoWithSubtitles } from "@/types";
 import type { SubtitlePatch, SubtitleCreatePayload } from "@/lib/adminData";
+import { Card } from "@/components/ui/Card";
 
 /**
  * Watch-format subtitle editing surface, shared by the creator center
@@ -185,7 +186,7 @@ export function VideoSubtitleEditorPanel({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
         {/* LEFT: player + current subtitle card / editor */}
         <div className="min-w-0 space-y-3">
-          <div className="aspect-video w-full overflow-hidden rounded-xl bg-surface-dark">
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-dark">
             {url ? (
               <video
                 ref={videoRef}
@@ -200,7 +201,7 @@ export function VideoSubtitleEditorPanel({
                 }}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-center p-4 text-xs text-white/40">
+              <div className="flex h-full w-full items-center justify-center text-center p-4 text-meta text-white/40">
                 无本地视频文件，无法预览时间轴
               </div>
             )}
@@ -225,11 +226,11 @@ export function VideoSubtitleEditorPanel({
           )}
 
           {video.subtitles.length === 0 ? (
-            <div className="text-center text-muted py-6 text-sm">{emptyHint}</div>
+            <div className="text-center text-muted py-6 text-copy">{emptyHint}</div>
           ) : editSub ? (
-            <div className="bg-canvas border border-hairline rounded-xl p-3 space-y-2">
+            <Card padding={3} className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted">
+                <span className="text-meta font-semibold text-muted">
                   编辑字幕 #{editSub.sentence_index + 1}
                 </span>
                 <Button variant="outline" size="xs" onClick={() => setEditId(null)}>
@@ -256,11 +257,11 @@ export function VideoSubtitleEditorPanel({
                   onRolledBack={handleRolledBack}
                 />
               )}
-            </div>
+            </Card>
           ) : currentSub ? (
-            <div className="bg-canvas border border-hairline rounded-xl p-4">
+            <Card padding={4}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-muted">
+                <span className="text-caption text-muted">
                   #{currentSub.sentence_index + 1} · {currentSub.start_time.toFixed(1)}s–
                   {currentSub.end_time.toFixed(1)}s
                 </span>
@@ -275,7 +276,7 @@ export function VideoSubtitleEditorPanel({
                   </Button>
                 )}
               </div>
-              <div className="text-base leading-relaxed text-ink">
+              <div className="text-copy-lg leading-relaxed text-ink">
                 {currentSub.text_en.split(" ").map((word, i) => (
                   <span key={i} className={levelClassFor(word, currentSub.word_levels)}>
                     {word}{" "}
@@ -283,16 +284,16 @@ export function VideoSubtitleEditorPanel({
                 ))}
               </div>
               {(mode === "bilingual" || mode === "chinese") && currentSub.text_zh && (
-                <div className="text-sm text-muted mt-1.5">{currentSub.text_zh}</div>
+                <div className="text-copy text-muted mt-1.5">{currentSub.text_zh}</div>
               )}
-            </div>
+            </Card>
           ) : null}
         </div>
 
         {/* RIGHT: subtitle list (watch-style) */}
-        <aside className="bg-canvas border border-hairline rounded-xl overflow-hidden min-w-0">
+        <Card as="aside" padding={0} className="overflow-hidden min-w-0">
           <div className="border-b border-hairline p-2 flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold">字幕</span>
+            <span className="text-meta font-semibold">字幕</span>
             <div className="flex gap-0.5">
               {(["english", "bilingual", "chinese"] as SubtitleMode[]).map((m) => (
                 <button
@@ -300,7 +301,7 @@ export function VideoSubtitleEditorPanel({
                   type="button"
                   onClick={() => setMode(m)}
                   className={cn(
-                    "text-[11px] px-2 py-0.5 rounded transition-colors",
+                    "text-caption px-2 py-0.5 rounded-md transition-colors",
                     mode === m ? "bg-brand-500 text-white" : "text-muted hover:bg-surface-soft"
                   )}
                 >
@@ -309,11 +310,11 @@ export function VideoSubtitleEditorPanel({
               ))}
             </div>
             <div className="ml-auto flex items-center gap-1">
-              <span className="text-[11px] text-muted">考级</span>
+              <span className="text-caption text-muted">考级</span>
               <Select
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
-                className="w-auto py-0.5 text-[11px]"
+                className="w-auto py-0.5 text-caption"
               >
                 {TARGET_LEVEL_OPTIONS.map((l) => (
                   <option key={l.key} value={l.key}>
@@ -340,7 +341,7 @@ export function VideoSubtitleEditorPanel({
                   )}
                 >
                   {mode !== "chinese" && (
-                    <div className="text-xs leading-relaxed text-ink">
+                    <div className="text-meta leading-relaxed text-ink">
                       {sub.text_en.split(" ").map((word, wi) => (
                         <span key={wi} className={levelClassFor(word, sub.word_levels)}>
                           {word}{" "}
@@ -349,9 +350,9 @@ export function VideoSubtitleEditorPanel({
                     </div>
                   )}
                   {(mode === "bilingual" || mode === "chinese") && sub.text_zh && (
-                    <div className="text-[11px] text-muted mt-0.5">{sub.text_zh}</div>
+                    <div className="text-caption text-muted mt-0.5">{sub.text_zh}</div>
                   )}
-                  <div className="text-[10px] text-muted/70 mt-0.5">
+                  <div className="text-caption text-muted/70 mt-0.5">
                     {sub.start_time.toFixed(1)}s
                   </div>
                 </button>
@@ -363,14 +364,14 @@ export function VideoSubtitleEditorPanel({
               <button
                 type="button"
                 onClick={handleCreate}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-muted hover:text-ink hover:bg-surface-soft transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-meta font-medium text-muted hover:text-ink hover:bg-surface-soft transition-colors cursor-pointer"
               >
                 <Plus size={14} />
                 新增字幕
               </button>
             </div>
           )}
-        </aside>
+        </Card>
       </div>
     </div>
   );

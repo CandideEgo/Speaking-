@@ -35,7 +35,7 @@ export function DifficultyBadge({ level, size = "sm", className }: DifficultyBad
     <span
       className={cn(
         "inline-block font-bold rounded-pill",
-        size === "sm" ? "text-[11px] px-2 py-0.5" : "text-xs px-2.5 py-1",
+        size === "sm" ? "text-caption px-2 py-0.5" : "text-meta px-2.5 py-1",
         BADGE_CLASS,
         className
       )}

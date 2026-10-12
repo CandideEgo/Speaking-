@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Radio } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
+import { Card } from "@/components/ui/Card";
 
 export interface ChannelSummary {
   id: string;
@@ -41,31 +42,33 @@ export function ChannelStrip() {
   return (
     <section className="mb-8">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-ink flex items-center gap-1.5">
+        <h2 className="text-copy font-bold text-ink flex items-center gap-1.5">
           <Radio size={15} className="text-brand-500" />
           频道
         </h2>
-        <Link href="/channels" className="text-xs text-muted hover:text-ink transition-colors">
+        <Link href="/channels" className="text-meta text-muted hover:text-ink transition-colors">
           全部频道 →
         </Link>
       </div>
       <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
         {channels.map((ch) => (
-          <Link
+          <Card
+            as={Link}
             key={ch.id}
             href={`/channels/${ch.slug}`}
-            className="group flex-shrink-0 w-40 rounded-xl border border-hairline bg-canvas overflow-hidden hover:border-hairline-strong transition-colors"
+            padding={0}
+            className="group flex-shrink-0 w-40 overflow-hidden hover:border-hairline-strong transition-colors"
           >
             <div className="relative aspect-video bg-surface-card">
               <Image src={ch.cover_url} alt={ch.name} />
             </div>
             <div className="px-3 py-2">
-              <p className="text-[13px] font-semibold text-ink truncate group-hover:text-brand-500 transition-colors">
+              <p className="text-copy font-semibold text-ink truncate group-hover:text-brand-500 transition-colors">
                 {ch.name}
               </p>
-              <p className="text-[11px] text-muted mt-0.5">{ch.video_count} 个视频</p>
+              <p className="text-caption text-muted mt-0.5">{ch.video_count} 个视频</p>
             </div>
-          </Link>
+          </Card>
         ))}
       </div>
     </section>

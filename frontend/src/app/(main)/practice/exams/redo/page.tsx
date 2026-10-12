@@ -56,15 +56,15 @@ export default function WrongRedoPage() {
   if (!attempt) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <div className="container-page py-16 text-center space-y-5">
-          <p className="text-sm text-muted">
+        <div className="py-16 text-center space-y-5">
+          <p className="text-copy text-muted">
             {loading ? "正在生成错题重做…" : (error ?? "错题重做不可用")}
           </p>
           {!loading && (
             <>
               <button
                 onClick={start}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-[13px] font-semibold hover:bg-brand-500 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-copy font-semibold hover:bg-brand-500 transition-colors"
               >
                 <RotateCcw size={14} />
                 重新生成
@@ -72,7 +72,7 @@ export default function WrongRedoPage() {
               <div>
                 <Link
                   href="/practice"
-                  className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-ink transition-colors"
+                  className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors"
                 >
                   <ArrowLeft size={14} />
                   返回练习专题

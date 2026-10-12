@@ -110,7 +110,7 @@ export default function OnboardingPage() {
           <button
             onClick={handleSkip}
             disabled={saving}
-            className="text-sm text-muted hover:text-ink transition-colors disabled:opacity-50"
+            className="text-copy text-muted hover:text-ink transition-colors disabled:opacity-50"
           >
             跳过，稍后设置
           </button>
@@ -133,8 +133,8 @@ export default function OnboardingPage() {
         {step === 0 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">欢迎来到 SeeWord 👋</h2>
-              <p className="text-sm text-muted">选择最接近你水平的级别，我们为你定制学习路线</p>
+              <h2 className="font-display text-display-sm text-ink mb-1">欢迎来到 SeeWord 👋</h2>
+              <p className="text-copy text-muted">选择最接近你水平的级别，我们为你定制学习路线</p>
             </div>
             <div className="space-y-2">
               {LEVELS.map((l) => (
@@ -149,7 +149,7 @@ export default function OnboardingPage() {
                   )}
                 >
                   <span className="font-medium">{l.label}</span>
-                  <span className="ml-2 text-sm text-muted">
+                  <span className="ml-2 text-copy text-muted">
                     {l.description}
                     {cefrExamHint(l.value) && ` · ≈${cefrExamHint(l.value)}`}
                   </span>
@@ -166,8 +166,8 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">学习目标</h2>
-              <p className="text-sm text-muted">你想准备哪个考试或目标？</p>
+              <h2 className="font-display text-display-sm text-ink mb-1">学习目标</h2>
+              <p className="text-copy text-muted">你想准备哪个考试或目标？</p>
             </div>
             <div className="space-y-2">
               {EXAMS.map((e) => (
@@ -182,7 +182,7 @@ export default function OnboardingPage() {
                   )}
                 >
                   <span className="font-medium">{e.label}</span>
-                  <span className="ml-2 text-sm text-muted">{e.description}</span>
+                  <span className="ml-2 text-copy text-muted">{e.description}</span>
                 </button>
               ))}
             </div>
@@ -201,13 +201,13 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl text-ink mb-1">学习节奏</h2>
-              <p className="text-sm text-muted">设置每日学习时长</p>
+              <h2 className="font-display text-display-sm text-ink mb-1">学习节奏</h2>
+              <p className="text-copy text-muted">设置每日学习时长</p>
             </div>
 
             {/* Daily minutes */}
             <div>
-              <p className="text-sm font-medium text-ink mb-2">每日学习时长</p>
+              <p className="text-copy font-medium text-ink mb-2">每日学习时长</p>
               <div className="grid grid-cols-2 gap-2">
                 {DAILY_MINUTES.map((d) => (
                   <button
@@ -221,7 +221,7 @@ export default function OnboardingPage() {
                     )}
                   >
                     <div className="font-medium">{d.label}</div>
-                    <div className="text-xs text-muted mt-0.5">{d.description}</div>
+                    <div className="text-meta text-muted mt-0.5">{d.description}</div>
                   </button>
                 ))}
               </div>

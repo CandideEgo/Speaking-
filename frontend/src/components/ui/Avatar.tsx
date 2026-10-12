@@ -9,11 +9,11 @@ import { mediaUrl } from "@/lib/api";
 export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 const SIZE: Record<AvatarSize, string> = {
-  xs: "w-6 h-6 text-[10px]",
-  sm: "w-7 h-7 text-[11px]",
-  md: "w-8 h-8 text-xs",
-  lg: "w-10 h-10 text-sm",
-  xl: "w-16 h-16 text-lg",
+  xs: "w-6 h-6 text-caption",
+  sm: "w-7 h-7 text-caption",
+  md: "w-8 h-8 text-meta",
+  lg: "w-10 h-10 text-copy",
+  xl: "w-16 h-16 text-copy-lg",
 };
 
 /**

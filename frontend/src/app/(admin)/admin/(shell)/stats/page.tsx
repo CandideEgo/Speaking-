@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/Button";
 import type { AdminStats, RecentActivityType } from "@/types";
 import { getAdminStats } from "@/lib/adminData";
 import { useChartTheme } from "@/lib/chart-theme";
+import { Card } from "@/components/ui/Card";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -88,23 +89,23 @@ function KpiCard({
   }[tone];
 
   return (
-    <div className="rounded-xl border border-hairline bg-canvas p-5">
+    <Card padding={5}>
       <div className="flex items-start justify-between">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneStyles)}>
           <Icon size={18} />
         </div>
       </div>
-      <p className="mt-4 text-2xl font-semibold text-ink">{value}</p>
+      <p className="mt-4 text-display-sm font-semibold text-ink">{value}</p>
       <div className="mt-1 flex items-center gap-2">
-        <p className="text-xs text-muted">{label}</p>
+        <p className="text-meta text-muted">{label}</p>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-success">
+          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success">
             <TrendingUp size={12} />
             {delta}
           </span>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -124,16 +125,16 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-canvas p-5">
+    <Card padding={5}>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-ink">{title}</h3>
-          {description && <p className="text-xs text-muted mt-0.5">{description}</p>}
+          <h3 className="text-copy font-semibold text-ink">{title}</h3>
+          {description && <p className="text-meta text-muted mt-0.5">{description}</p>}
         </div>
         {actions}
       </div>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -289,7 +290,7 @@ export default function AdminStatsPage() {
                 key={r}
                 onClick={() => setRange(r)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  "rounded-md px-3 py-1.5 text-meta font-medium transition-colors",
                   range === r ? "bg-canvas text-ink shadow-sm" : "text-muted hover:text-ink"
                 )}
               >
@@ -363,7 +364,7 @@ export default function AdminStatsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="视频分类分布" description="按主题">
           {stats.videos_by_topic.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted">暂无已发布视频主题数据</p>
+            <p className="py-8 text-center text-meta text-muted">暂无已发布视频主题数据</p>
           ) : (
             <div className="flex flex-col gap-3">
               {stats.videos_by_topic.map((t, i) => {
@@ -371,12 +372,12 @@ export default function AdminStatsPage() {
                 const color = TOPIC_COLORS[i % TOPIC_COLORS.length];
                 return (
                   <div key={t.topic} className="flex items-center gap-3">
-                    <span className="w-[90px] shrink-0 truncate text-[13px] text-body">
+                    <span className="w-[90px] shrink-0 truncate text-copy text-body">
                       {t.topic}
                     </span>
-                    <div className="h-6 flex-1 overflow-hidden rounded bg-surface-soft">
+                    <div className="h-6 flex-1 overflow-hidden rounded-md bg-surface-soft">
                       <div
-                        className="flex h-full items-center justify-end rounded pr-2 font-mono text-[11.5px] font-semibold text-white"
+                        className="flex h-full items-center justify-end rounded-md pr-2 font-mono text-meta font-semibold text-white"
                         style={{
                           width: `${Math.max(12, (t.count / max) * 100)}%`,
                           backgroundColor: color,
@@ -385,7 +386,7 @@ export default function AdminStatsPage() {
                         {t.count}
                       </div>
                     </div>
-                    <span className="w-[52px] shrink-0 text-right font-mono text-[13px] font-semibold text-ink">
+                    <span className="w-[52px] shrink-0 text-right font-mono text-copy font-semibold text-ink">
                       {t.count}
                     </span>
                   </div>
@@ -410,12 +411,10 @@ export default function AdminStatsPage() {
                 : 0;
               return (
                 <div key={label} className="flex items-center gap-3">
-                  <span className="w-[90px] shrink-0 text-[13px] font-medium text-body">
-                    {label}
-                  </span>
+                  <span className="w-[90px] shrink-0 text-copy font-medium text-body">{label}</span>
                   <div className="flex-1">
                     <div
-                      className="flex h-[34px] items-center overflow-hidden rounded-lg px-3.5 text-[13px] font-semibold text-white"
+                      className="flex h-[34px] items-center overflow-hidden rounded-lg px-3.5 text-copy font-semibold text-white"
                       style={{
                         width: `${Math.max(8, pct)}%`,
                         backgroundColor: color,
@@ -424,10 +423,10 @@ export default function AdminStatsPage() {
                       {value.toLocaleString()}
                     </div>
                   </div>
-                  <span className="w-[70px] shrink-0 text-right font-mono text-[13px] font-bold text-ink">
+                  <span className="w-[70px] shrink-0 text-right font-mono text-copy font-bold text-ink">
                     {value.toLocaleString()}
                   </span>
-                  <span className="w-[46px] shrink-0 text-[11.5px] text-muted">{pct}%</span>
+                  <span className="w-[46px] shrink-0 text-meta text-muted">{pct}%</span>
                 </div>
               );
             })}
@@ -447,15 +446,15 @@ export default function AdminStatsPage() {
                 key={date}
                 className="flex h-full flex-1 flex-col items-center justify-end gap-2"
               >
-                <span className="font-mono text-[11px] text-muted">{v}</span>
+                <span className="font-mono text-caption text-muted">{v}</span>
                 <div
-                  className="w-full max-w-[36px] rounded-t transition-opacity hover:opacity-85"
+                  className="w-full max-w-[36px] rounded-t-md transition-opacity hover:opacity-85"
                   style={{
                     height: `${Math.max(3, (v / max) * 100)}%`,
                     backgroundColor: v === max ? "#e84a10" : "#ff7a45",
                   }}
                 />
-                <span className="font-mono text-[11px] text-muted">{formatDate(date)}</span>
+                <span className="font-mono text-caption text-muted">{formatDate(date)}</span>
               </div>
             );
           })}
@@ -488,7 +487,7 @@ export default function AdminStatsPage() {
             {planData.map((p) => (
               <div key={p.name} className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full" style={{ backgroundColor: p.color }} />
-                <span className="text-xs text-muted">
+                <span className="text-meta text-muted">
                   {p.name}: {p.value}
                 </span>
               </div>
@@ -543,8 +542,8 @@ export default function AdminStatsPage() {
                 >
                   <Icon size={14} />
                 </span>
-                <span className="flex-1 text-sm text-body">{a.summary}</span>
-                <span className="text-xs text-muted-soft">
+                <span className="flex-1 text-copy text-body">{a.summary}</span>
+                <span className="text-meta text-muted-soft">
                   {new Date(a.created_at).toLocaleTimeString("zh-CN", {
                     hour: "2-digit",
                     minute: "2-digit",

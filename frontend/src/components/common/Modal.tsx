@@ -52,7 +52,7 @@ export function Modal({
       >
         {title && (
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold flex items-center gap-1.5">{title}</h3>
+            <h3 className="text-copy font-bold flex items-center gap-1.5">{title}</h3>
             <button
               type="button"
               onClick={onClose}

@@ -230,7 +230,7 @@ export function VideoControls({
           </button>
 
           {/* 时间 */}
-          <span className="text-[11px] font-mono text-white/85 shrink-0">
+          <span className="text-caption font-mono text-white/85 shrink-0">
             {formatDuration(currentTime)} / {formatDuration(total)}
           </span>
 
@@ -267,7 +267,7 @@ export function VideoControls({
               type="button"
               onClick={() => setMenu(menu === "rate" ? null : "rate")}
               aria-label="倍速（C）"
-              className="px-2 h-8 rounded-lg text-[12px] font-semibold font-mono hover:bg-white/15 transition-colors cursor-pointer"
+              className="px-2 h-8 rounded-lg text-meta font-semibold font-mono hover:bg-white/15 transition-colors cursor-pointer"
             >
               {rate}x
             </button>
@@ -282,7 +282,7 @@ export function VideoControls({
                       setMenu(null);
                     }}
                     className={cn(
-                      "w-full px-3 py-1.5 text-[12px] font-mono text-left flex items-center justify-between hover:bg-white/15 cursor-pointer",
+                      "w-full px-3 py-1.5 text-meta font-mono text-left flex items-center justify-between hover:bg-white/15 cursor-pointer",
                       r === rate ? "text-brand-400" : "text-white/85"
                     )}
                   >
@@ -296,7 +296,7 @@ export function VideoControls({
             type="button"
             onClick={cycleSubtitle}
             aria-label={`字幕：${SUBTITLE_MODE_LABEL[subtitleMode]}（S）`}
-            className="px-2 h-8 rounded-lg text-[12px] font-medium hover:bg-white/15 transition-colors cursor-pointer"
+            className="px-2 h-8 rounded-lg text-meta font-medium hover:bg-white/15 transition-colors cursor-pointer"
           >
             字幕·{SUBTITLE_MODE_LABEL[subtitleMode]}
           </button>
@@ -314,7 +314,7 @@ export function VideoControls({
             {menu === "more" && (
               <div className="absolute bottom-10 right-0 bg-black/85 backdrop-blur rounded-lg py-1.5 px-3 min-w-[150px] space-y-2">
                 <div>
-                  <p className="text-[11px] text-white/55 mb-1">字幕字号</p>
+                  <p className="text-caption text-white/55 mb-1">字幕字号</p>
                   <div className="flex gap-1">
                     {(Object.keys(FONT_SIZE_LABEL) as SubtitleFontSize[]).map((s) => (
                       <button
@@ -325,7 +325,7 @@ export function VideoControls({
                           setMenu(null);
                         }}
                         className={cn(
-                          "flex-1 py-1 rounded text-[12px] transition-colors cursor-pointer",
+                          "flex-1 py-1 rounded-md text-meta transition-colors cursor-pointer",
                           subtitleFontSize === s
                             ? "bg-brand-500 text-white"
                             : "bg-white/10 text-white/80 hover:bg-white/20"

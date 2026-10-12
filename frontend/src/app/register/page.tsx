@@ -126,7 +126,7 @@ function RegisterForm() {
     >
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-ink">手机号</label>
+          <label className="block text-copy font-medium text-ink">手机号</label>
           <Input
             type="tel"
             inputMode="numeric"
@@ -139,7 +139,7 @@ function RegisterForm() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-ink">验证码</label>
+          <label className="block text-copy font-medium text-ink">验证码</label>
           <div className="mt-1.5 flex gap-2">
             <Input
               inputMode="numeric"
@@ -161,7 +161,7 @@ function RegisterForm() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-ink">设置密码</label>
+          <label className="block text-copy font-medium text-ink">设置密码</label>
           <Input
             type="password"
             value={password}
@@ -185,14 +185,14 @@ function RegisterForm() {
                   />
                 ))}
               </div>
-              <span className={cn("text-xs font-medium w-7 text-right", strength.text)}>
+              <span className={cn("text-meta font-medium w-7 text-right", strength.text)}>
                 {strength.label}
               </span>
             </div>
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-ink">确认密码</label>
+          <label className="block text-copy font-medium text-ink">确认密码</label>
           <Input
             type="password"
             value={confirmPassword}
@@ -204,14 +204,14 @@ function RegisterForm() {
           />
         </div>
 
-        {(error || smsError) && <p className="text-sm text-error">{error || smsError}</p>}
+        {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
 
-        <label className="flex items-start gap-2 text-xs text-muted">
+        <label className="flex items-start gap-2 text-meta text-muted">
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-hairline text-brand-500 focus:ring-brand-500"
+            className="mt-0.5 h-4 w-4 rounded-md border-hairline text-brand-500 focus:ring-brand-500"
           />
           <span>
             我已阅读并同意

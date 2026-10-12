@@ -62,6 +62,7 @@ import { Textarea } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { STEP_LABELS } from "@/lib/videoStatus";
+import { Card } from "@/components/ui/Card";
 
 // D1：字幕字号档位 → 像素的映射已随当前句卡搬到
 // `components/watch/CurrentSentenceCard.tsx`（当前句现在只有那一份渲染）。
@@ -142,7 +143,7 @@ function VideoActions({
         {!compact && (
           <span
             className={cn(
-              "text-xs font-semibold tabular-nums",
+              "text-meta font-semibold tabular-nums",
               isLiked ? "text-error" : "text-muted"
             )}
           >
@@ -750,7 +751,7 @@ export default function WatchPage() {
   function levelClassFor(word: string, wordLevels: Record<string, string[]> | null): string {
     const token = cleanToken(word);
     if (vocabWords.has(token)) {
-      return "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 rounded px-0.5";
+      return "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 rounded-md px-0.5";
     }
     if (!wordLevels || !selectedExamLevel) return "";
     const levels = wordLevels[token];
@@ -864,7 +865,7 @@ export default function WatchPage() {
         title="处理失败"
         message={video.error_message || "未知错误"}
         action={
-          <button onClick={back.go} className="mt-4 text-sm text-brand-500 hover:underline">
+          <button onClick={back.go} className="mt-4 text-copy text-brand-500 hover:underline">
             {back.label}
           </button>
         }
@@ -880,7 +881,7 @@ export default function WatchPage() {
         <div className="text-center">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-ink">加载视频失败</p>
-          <p className="mt-1 text-sm text-muted">请检查网络连接后重试</p>
+          <p className="mt-1 text-copy text-muted">请检查网络连接后重试</p>
           <Button onClick={retry} className="mt-4">
             重新加载
           </Button>
@@ -898,8 +899,8 @@ export default function WatchPage() {
       <main className="flex min-h-dvh items-center justify-center bg-canvas">
         <div className="text-center max-w-md px-4">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
-          <p className="text-lg font-semibold text-ink">该视频已下架</p>
-          <p className="mt-2 text-sm text-muted leading-relaxed">
+          <p className="text-copy-lg font-semibold text-ink">该视频已下架</p>
+          <p className="mt-2 text-copy text-muted leading-relaxed">
             视频媒体已释放存储空间，不再提供播放。
             <br />
             你的学习记录（词库与视频集合）仍然保留，可以继续学习。
@@ -924,9 +925,9 @@ export default function WatchPage() {
         <div className="text-center">
           <Loader2 size={32} className="mx-auto animate-spin text-brand-500" />
           <p className="mt-4 text-ink">{stepLabel}</p>
-          <p className="mt-1 text-sm text-muted">视频下载和转码需要几分钟，请稍候</p>
+          <p className="mt-1 text-copy text-muted">视频下载和转码需要几分钟，请稍候</p>
           {video.status === "ready_subtitles" && (
-            <p className="mt-2 text-xs text-success">字幕已就绪，视频处理中...</p>
+            <p className="mt-2 text-meta text-success">字幕已就绪，视频处理中...</p>
           )}
         </div>
       </main>
@@ -940,9 +941,9 @@ export default function WatchPage() {
    * 收进了 ⋯ 面板）：桌面端仍在页头原位，移动端由 `WatchMoreSheet` 的 `extra` 渲染。
    */
   const notesPanel = noteOpen ? (
-    <div className="mt-3 bg-canvas border border-hairline rounded-lg p-4 animate-fade-in">
+    <Card padding={4} className="mt-3 animate-fade-in">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm font-semibold">学习笔记</span>
+        <span className="text-copy font-semibold">学习笔记</span>
         <button
           onClick={() => setNoteOpen(false)}
           className="text-muted hover:text-ink"
@@ -966,28 +967,28 @@ export default function WatchPage() {
           保存
         </Button>
       </div>
-    </div>
+    </Card>
   ) : null;
 
   return (
     // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
-    // 容器走 container-wide（上限 2400、gutter 与首页/频道一致）。原先的 1280 封顶是为了
-    // 宽屏不把视频列拉过头，那件事现在交给画框的高度护栏（S4 的 .watch-stage-cap）。
-    <div className="container-wide pt-6 pb-16">
+    // 容器由壳层提供（DEC-075：全站唯一容器在 MainLayoutInner 渲染一次），这里只留纵向留白。
+    // 原先的 1280 封顶是为了宽屏不把视频列拉过头，那件事现在交给画框的高度护栏（.watch-stage-cap）。
+    <div className="pt-6 pb-16">
       {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
           动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
       <div className={cn("mb-4", isMobile && "hidden")}>
         {/* 顶部细行：返回 + 标题 + 操作图标 */}
         <div className="flex items-center gap-3">
           <button
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 text-copy font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
             onClick={back.go}
           >
             <ArrowLeft size={14} />
             {back.label}
           </button>
           <div className="h-4 w-px bg-hairline shrink-0" />
-          <h1 className="text-[15px] font-semibold text-ink truncate flex-1 min-w-0">
+          <h1 className="text-copy-lg font-semibold text-ink truncate flex-1 min-w-0">
             {video.title}
           </h1>
           <VideoActions
@@ -1007,7 +1008,7 @@ export default function WatchPage() {
         </div>
 
         {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
-        <div className="mt-2 flex items-center gap-2 text-[12px] text-muted">
+        <div className="mt-2 flex items-center gap-2 text-meta text-muted">
           {video.channel_name ? (
             video.channel_slug ? (
               <Link
@@ -1079,7 +1080,7 @@ export default function WatchPage() {
                 "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
                 // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
                 // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
-                isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-xl",
+                isMobile ? "w-screen rounded-none -mx-4 sm:-mx-7" : "w-full rounded-lg",
                 isMobile && !noteOpen && "-mt-6",
                 // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
                 // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
@@ -1204,7 +1205,7 @@ export default function WatchPage() {
                   <div className="flex h-full w-full items-center justify-center">
                     <div className="text-center">
                       <Play size={40} className="mx-auto text-white/30" />
-                      <p className="mt-3 text-sm text-white/40">视频未就绪</p>
+                      <p className="mt-3 text-copy text-white/40">视频未就绪</p>
                     </div>
                   </div>
                 )}
@@ -1218,7 +1219,7 @@ export default function WatchPage() {
               R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
               （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
               （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
-              基类的 `mt-3 / border / rounded-xl`。 */}
+              基类的 `mt-3 / border / rounded-lg`。 */}
             {currentSubtitle && (
               <CurrentSentenceCard
                 // DEC-074：移动端是齐平字幕带（无外框、计数与展开开关进元信息行），
@@ -1252,7 +1253,7 @@ export default function WatchPage() {
                       >
                         <button
                           className={cn(
-                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-[13px] font-semibold transition-colors duration-150 cursor-pointer",
+                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-copy font-semibold transition-colors duration-150 cursor-pointer",
                             sentenceShadow.active
                               ? "bg-success text-white"
                               : "text-muted hover:text-ink",
@@ -1279,7 +1280,7 @@ export default function WatchPage() {
 
                         <button
                           className={cn(
-                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-[13px] font-semibold transition-colors duration-150 cursor-pointer",
+                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-copy font-semibold transition-colors duration-150 cursor-pointer",
                             speakingActive ? "bg-brand-500 text-white" : "text-muted hover:text-ink"
                           )}
                           onClick={() => {
@@ -1298,7 +1299,7 @@ export default function WatchPage() {
 
                       {/* D10 逐句模式状态行（播放中/录音中/回放引导） */}
                       {sentenceShadow.active && (
-                        <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-[12px] text-brand-600">
+                        <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-meta text-brand-600">
                           <Repeat size={13} className="shrink-0" />
                           <span className="font-medium">
                             {sentenceShadow.phase === "playing"
@@ -1323,10 +1324,10 @@ export default function WatchPage() {
                                 <Mic size={20} />
                               </button>
                               <div className="flex-1">
-                                <p className="text-[13px] font-semibold text-ink">
+                                <p className="text-copy font-semibold text-ink">
                                   点击麦克风开始录音
                                 </p>
-                                <p className="text-xs text-muted mt-0.5">朗读上方高亮字幕</p>
+                                <p className="text-meta text-muted mt-0.5">朗读上方高亮字幕</p>
                               </div>
                             </div>
                           )}
@@ -1341,13 +1342,13 @@ export default function WatchPage() {
                                 <Mic size={20} />
                               </button>
                               <div className="flex-1">
-                                <p className="text-[13px] font-semibold text-ink">录音中…</p>
+                                <p className="text-copy font-semibold text-ink">录音中…</p>
                                 <div className="mt-1">
                                   <AudioWaveform stream={recordingStream} barCount={24} />
                                 </div>
                               </div>
                               <button
-                                className="text-[13px] font-semibold text-muted hover:text-ink cursor-pointer"
+                                className="text-copy font-semibold text-muted hover:text-ink cursor-pointer"
                                 onClick={stopSpeaking}
                               >
                                 取消
@@ -1358,7 +1359,7 @@ export default function WatchPage() {
                           {speakingState === "reviewing" && (
                             <div className="bg-surface-soft rounded-lg p-3 space-y-3">
                               {/* Status row */}
-                              <div className="flex items-center gap-2 text-[13px]">
+                              <div className="flex items-center gap-2 text-copy">
                                 {uploading ? (
                                   <>
                                     <Loader2 size={14} className="animate-spin text-brand-500" />
@@ -1437,7 +1438,7 @@ export default function WatchPage() {
         </div>
 
         {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
-        <aside className="bg-canvas border border-hairline rounded-xl lg:sticky lg:top-4 overflow-hidden min-w-0">
+        <aside className="bg-canvas border border-hairline rounded-lg lg:sticky lg:top-4 overflow-hidden min-w-0">
           {/* 折叠态在移动端到不了：折叠键已 `hidden lg:flex`（移动端不渲染）、
               `panelCollapsed` 也不持久化 —— 这个守卫只是把「到不了的状态」堵死，
               免得将来有人把折叠键放回移动端时，页面直接落进窄轨分支（DEC-070 T4d）。 */}
@@ -1456,7 +1457,7 @@ export default function WatchPage() {
 
               {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
               {subtitleMode === "hidden" ? (
-                <div className="p-8 text-center text-xs text-muted">
+                <div className="p-8 text-center text-meta text-muted">
                   字幕已隐藏，按 S 键或控制条切换显示模式
                 </div>
               ) : (
@@ -1491,7 +1492,7 @@ export default function WatchPage() {
                       >
                         {subtitleMode !== "chinese" && (
                           // 橙色只留给字幕带：当前项不再染 `text-brand-500`（DEC-070 定案②）。
-                          <div className="font-medium text-sm leading-relaxed text-ink">
+                          <div className="font-medium text-copy leading-relaxed text-ink">
                             {sub.text_en.split(" ").map((word, wi) => (
                               <span key={wi} className={levelClassFor(word, sub.word_levels)}>
                                 {word}{" "}
@@ -1501,7 +1502,7 @@ export default function WatchPage() {
                         )}
                         {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
                           sub.text_zh && (
-                            <div className="text-muted mt-0.5 text-xs">{sub.text_zh}</div>
+                            <div className="text-muted mt-0.5 text-meta">{sub.text_zh}</div>
                           )}
                       </button>
                     ))}
@@ -1516,13 +1517,13 @@ export default function WatchPage() {
       {/* ===== 练习区：视频试卷已砍（S8-5 撤「暂停开发」徽标），引导到真题练习 ===== */}
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3.5 flex-wrap gap-3">
-          <h2 className="text-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
+          <h2 className="text-copy-lg font-bold tracking-tight text-ink">本视频练习试卷</h2>
         </div>
-        <div className="flex items-center gap-3 p-5 bg-canvas border border-dashed border-hairline-strong rounded-xl">
+        <div className="flex items-center gap-3 p-5 bg-canvas border border-dashed border-hairline-strong rounded-lg">
           <span className="w-9 h-9 rounded-lg bg-surface-soft flex items-center justify-center text-brand-500 flex-shrink-0">
             <Layers size={16} />
           </span>
-          <p className="text-[13px] text-muted leading-relaxed">
+          <p className="text-copy text-muted leading-relaxed">
             本视频暂不出试卷，真题阅读练习已上线——去
             <Link href="/practice/exams" className="text-brand-600 font-semibold hover:underline">
               真题练习

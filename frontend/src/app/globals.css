@@ -47,38 +47,12 @@
   --color-surface-dark-elevated: #161616;
   --color-surface-dark-soft: #1c1c1c;
 
-  /* --- Backward-compatible aliases --- */
-  --color-cream-soft: var(--surface-soft);
-  --color-cream-card: var(--surface-card);
-  --color-cream-strong: var(--surface-strong);
-  --color-cream: var(--surface-card);
-  --color-parchment: var(--surface-soft);
-  --color-navy: #0a0a0a;
-  --color-navy-elevated: #161616;
-
   /* --- Text (theme-aware) --- */
   --color-ink: var(--ink);
   --color-body: var(--body);
   --color-body-strong: var(--body-strong);
   --color-muted: var(--muted-c);
   --color-muted-soft: var(--muted-soft);
-  --color-muted-foreground: var(--muted-c);
-
-  /* --- Text aliases --- */
-  --color-olive: var(--muted-c);
-  --color-olive-soft: var(--muted-soft);
-  --color-ivory: #fafafa;
-  --color-terracotta: #ff5a1f;
-
-  /* --- Primary --- */
-  --color-primary: #ff5a1f;
-  --color-primary-active: #e84a10;
-  --color-primary-disabled: var(--surface-card);
-
-  /* --- Coral = primary alias --- */
-  --color-coral: #ff5a1f;
-  --color-coral-active: #e84a10;
-  --color-coral-soft: var(--brand-50);
 
   /* --- Semantic (theme-aware) --- */
   --color-success: var(--success);
@@ -86,15 +60,13 @@
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-error: var(--error);
-  --color-danger: var(--error);
 
   /* --- Soft-background pairs --- */
   --color-sky-soft: var(--sky-soft);
   --color-red-soft: var(--red-soft);
 
-  /* --- Teal / amber (legacy, static accents) --- */
+  /* --- Teal / amber (static accents) --- */
   --color-teal: #10b981;
-  --color-accent-teal: #10b981;
   --color-accent-amber: #f59e0b;
 
   /* --- On-colors (static) ---
@@ -106,7 +78,6 @@
   /* --- Borders (theme-aware) --- */
   --color-hairline: var(--hairline);
   --color-hairline-soft: var(--hairline-soft);
-  --color-hairline-cream: var(--hairline);
 
   /* --- Learning mode highlights (static — 高亮色两主题可读) --- */
   --color-learn-highlight: #4ade80;
@@ -118,22 +89,49 @@
 
   /* --- Chrome (runtime theme vars) --- */
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted-foreground-var: var(--muted-c);
   --color-border: var(--hairline);
   --color-surface: var(--surface-soft);
   --color-sidebar-bg: var(--sidebar-bg);
   --color-topbar-bg: var(--topbar-bg);
 
-  /* --- Border radius (override defaults) --- */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius: 12px;
+  /* --- Border radius（DEC-075 §4.1：3 档 + 2 个特殊）---
+     sm 内嵌小块 / 输入 / 分段控件内段（旧 xs 4 + sm 8）；
+     md 卡片与面板的默认（旧默认 12 + md 10）—— 旧档位里 md 比默认还小，这个坏序随合并消失；
+     lg 大容器 / 弹层 / 抽屉（旧 lg 16 + xl 22 + 2xl 24）。full 与 pill 保留。
+     没有裸 `--radius`：`rounded-md`（无后缀）已全仓换成 `rounded-md`。 */
+  --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
-  --radius-xl: 22px;
-  --radius-2xl: 24px;
   --radius-pill: 9999px;
+
+  /* --- Font sizes ---
+     六档刻度（DEC-075 §4.2）+ 页头的一个移动档（§八 偏差 2）。
+     命名说明：14px 档叫 `copy` 而不是方案表里的 `body` —— `--color-body` 已经是全仓
+     在用的正文**颜色**，Tailwind 的 `text-body` 只能指向一个语义，两个 token 同名会让
+     一处颜色被字号悄悄顶掉（`search/page.tsx` 等已经在用 `text-body` 当颜色）。
+     颜色名一律不动：§4.3 的 `ink / body / body-strong / muted / muted-soft` 原样保留。
+     每档都带 `--text-*--line-height`：Tailwind 的 `text-xs/sm/base/xl/2xl` 本来就成对给
+     字号与行高（12/16、14/20、16/24、20/28、24/32），只给字号会把 556 处的行高悄悄换成
+     `normal`（页面整体变紧）—— 那不在本片「字号收敛」的目标里。带行高也让 `leading-*`
+     仍能通过 `--tw-leading` 覆盖（Tailwind v4 的 text-* 写法是
+     `line-height: var(--tw-leading, var(--text-x--line-height))`）。
+     单位用 rem 而不是 px：Tailwind 默认的 `text-*` 全是 rem，S8-4 的 ≥1536px 根字号 16→17
+     靠的就是它整体放一档。写死 px 会让全站字号在大屏上停止跟随（实测 2560 档整体小 6%），
+     而 §4.2 的 px 值就是 16px 根下的读数，两者在默认档完全等价。 */
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1rem;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-copy: 0.875rem;
+  --text-copy--line-height: 1.25rem;
+  --text-copy-lg: 1rem;
+  --text-copy-lg--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-display-sm: 1.5rem;
+  --text-display-sm--line-height: 2rem;
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.25rem;
 
   /* --- Spacing --- */
   --spacing-section: 96px;
@@ -142,11 +140,12 @@
   --spacing-128: 32rem;
 
   /* --- Max width --- */
+  /* 全站唯一容器上限（1320）。gutter 由 .container-page 的 px-4 sm:px-7 提供：
+     播放页的画框与当前句卡靠 -mx-4 sm:-mx-7 精确抵消它实现全出血，
+     padding 一改 640–1023px 档就错位。 */
   --max-width-page: 1320px;
-  /* 宽屏内容面（首页 / 频道 / 浏览 / 搜索 / 排行榜 / 播放页）。gutter 与
-     container-page 完全一致，只放宽上限：播放页的画框与当前句卡靠
-     -mx-4 sm:-mx-7 精确抵消 gutter 实现全出血，padding 一改 640–1023px 档就错位。 */
-  --max-width-wide: 2400px;
+  /* 正文读宽（通知 / 联系我们 / 练习正文等）。容器仍是 page 1320，读宽只收正文块。 */
+  --max-width-measure: 68ch;
 
   /* --- Watch stage guard (S4) ---
      播放页「画框 + 当前句卡」的高度护栏常量（px）= 画框顶 166 + 句卡
@@ -170,7 +169,6 @@
   --shadow-card: var(--elevation-card);
   --shadow-lift: var(--elevation-lift);
   --shadow-brand: 0 8px 24px rgba(255, 90, 31, 0.28);
-  --shadow-coral: 0 8px 24px rgba(255, 90, 31, 0.28);
 
   /* --- Keyframes --- */
   --animate-wave-bar: wave-bar 1s ease-in-out infinite;
@@ -320,15 +318,15 @@
   }
 
   h1 {
-    @apply text-5xl tracking-display-xl leading-tight;
+    @apply text-display tracking-display-xl leading-tight;
   }
 
   h2 {
-    @apply text-3xl tracking-display-lg leading-tight;
+    @apply text-title tracking-display-lg leading-tight;
   }
 
   h3 {
-    @apply text-xl tracking-display-sm leading-tight;
+    @apply text-copy-lg tracking-display-sm leading-tight;
   }
 
   *:focus-visible {
@@ -361,7 +359,7 @@
   }
 
   /* S8-4 大屏档（≥1536px）：根字号 16→17px，rem 系字号/间距整体等比放大一档；
-     px 系微标签（text-[11px] 等）不随动，避免小标签在大屏过度膨胀。
+     px 系微标签（text-caption 等）不随动，避免小标签在大屏过度膨胀。
      全仓此前 0 条 2xl: 断点，大屏一直吃 16px 基线。 */
   @media (min-width: 1536px) {
     html {
@@ -478,9 +476,6 @@
   .animate-check-pop {
     animation: check-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
-  .animate-complete-flash {
-    animation: complete-flash 0.5s ease-out forwards;
-  }
 
   /* Entrance for content mounted by a user action (flashcard reveal,
      drill completion) — slightly longer travel than the plain fade. */
@@ -491,12 +486,6 @@
   /* Wrong-answer judgment: brief horizontal shake (keyframes below). */
   .animate-shake {
     animation: shake 0.25s ease-in-out;
-  }
-
-  /* 统一的卡片/可点击元素 hover 抬升语言（与 VideoCard 一致） */
-  .hover-lift {
-    @apply transition-all duration-150
-           hover:-translate-y-0.5 hover:shadow-lift hover:border-transparent;
   }
 }
 
@@ -555,18 +544,6 @@
   }
 }
 
-/* Plan item completion: card background flashes success then settles */
-@keyframes complete-flash {
-  0% {
-    background-color: color-mix(in oklab, var(--success) 18%, transparent);
-    border-color: color-mix(in oklab, var(--success) 50%, transparent);
-  }
-  100% {
-    background-color: color-mix(in oklab, var(--success) 6%, transparent);
-    border-color: color-mix(in oklab, var(--success) 20%, transparent);
-  }
-}
-
 /* Drill wrong-answer judgment: brief horizontal shake */
 @keyframes shake {
   0%,
@@ -585,14 +562,13 @@
    Components layer
    ============================================================ */
 @layer components {
-  /* === Container === */
+  /* === Container ===
+     全站唯一内容容器（max-w-page 1320 / gutter px-4 sm:px-7）。由 MainLayoutInner
+     在滚动容器内渲染一次、页面不再自带容器类；TopBar 的行内内容共用同一个类，
+     顶栏与内容的左右边界因此是构造结果，不靠人记得去对齐。
+     全出血元素（播放页画框 / 当前句卡）靠 -mx-4 sm:-mx-7 抵消这里的一份 gutter。 */
   .container-page {
     @apply max-w-page mx-auto px-4 sm:px-7;
-  }
-  /* 与 .container-page 同 gutter、只放宽上限。顶栏的内容也套这一个类，
-     两边才严格对齐（顶栏自己不再写 padding —— 那会与类里的 gutter 叠加）。 */
-  .container-wide {
-    @apply max-w-wide mx-auto px-4 sm:px-7;
   }
 
   /* === Watch stage cap (S4) ===
@@ -619,6 +595,23 @@
            text-[28px] sm:text-[42px];
   }
 
+  /* === Display numerals（装饰性巨型数字，非正文） ===
+     排行榜名次水印这类编辑排版数字：等宽数字、无行高、尺寸远超字号刻度。
+     出「六档 + display 族」的地方就在这里 —— 组件里不再写任意 px 字号。
+     档位：sm 36 / 60 / lg 88 / xl 110·140。 */
+  .display-num {
+    @apply font-display font-extrabold leading-none tabular-nums text-[60px];
+  }
+  .display-num-sm {
+    @apply font-display font-extrabold leading-none tabular-nums text-[36px];
+  }
+  .display-num-lg {
+    @apply font-display font-extrabold leading-none tabular-nums text-[88px];
+  }
+  .display-num-xl {
+    @apply font-display font-extrabold leading-none tabular-nums text-[110px] sm:text-[140px];
+  }
+
   /* === Filter bar (browse) ===
      The app shell scrolls <main> (TopBar sits OUTSIDE the scroller), so the
      bar sticks at top-0 of the scroll viewport. `sticky` also requires no
@@ -641,7 +634,7 @@
     @apply font-semibold text-ink;
   }
   .now-sub-word {
-    @apply cursor-pointer rounded transition-colors duration-100
+    @apply cursor-pointer rounded-md transition-colors duration-100
            hover:bg-brand-50 hover:text-brand-500;
   }
   .now-sub-word-hl {
@@ -649,224 +642,6 @@
   }
   .now-sub-zh {
     @apply text-muted;
-  }
-
-  /* === 移动端入画字幕（#24 乙 / #28 决议）===
-     画框内的当前句：白字压在画面自带的黑色渐变上；字号仍由字号档位给（行内 style）。
-     整块 pointer-events-none（点画面出控制条要穿过去），只有词自己接指针。 */
-  .burn-sub-en {
-    @apply leading-[1.35] text-white;
-  }
-  .burn-sub-zh {
-    @apply mt-0.5 leading-[1.3] text-white/85;
-  }
-  .burn-sub-word {
-    @apply relative pointer-events-auto cursor-pointer rounded px-px transition-colors duration-100
-           hover:bg-white/20;
-  }
-  /* 行内词热区：排版仍是 22px 一行，热区向外扩 4px（与 #27 原型同款 ::after）。
-     画面内点词的可达性天花板就在这儿 —— 相邻两行互压 4px，#22 已实测。 */
-  .burn-sub-word::after {
-    content: "";
-    position: absolute;
-    inset: -4px -1px;
-  }
-  .burn-sub-word-hl {
-    @apply bg-brand-500/40 text-brand-100;
-  }
-
-  /* === Quiz block === */
-  .q-opt {
-    @apply block px-3.5 py-2.5 border border-hairline rounded-sm text-[13px]
-           mb-1.5 cursor-pointer
-           hover:border-ink hover:bg-surface-soft transition-colors duration-100;
-  }
-  .q-opt-selected {
-    @apply border-brand-500 bg-brand-50 text-brand-500 font-semibold;
-  }
-
-  /* === Bar chart === */
-  .bar-chart {
-    @apply flex items-end gap-2.5 h-[160px] pt-2.5;
-  }
-  .bar-col {
-    @apply flex flex-col items-center gap-2 h-full justify-end flex-1;
-  }
-  .bar-fill {
-    @apply w-full max-w-[34px] bg-surface-card rounded-t-md transition-all duration-200;
-  }
-  .bar-fill-hi {
-    @apply bg-brand-500;
-  }
-  .bar-col:hover .bar-fill {
-    @apply bg-ink;
-  }
-  .bar-col:hover .bar-fill-hi {
-    @apply bg-brand-600;
-  }
-  .bar-label {
-    @apply text-[11px] text-muted-soft font-medium;
-  }
-
-  /* ============================================================
-     HOME — bento 首屏 (variant 03)
-     独立于现有 .vcard，仅首页使用，不影响其它页面
-     ============================================================ */
-  .bento {
-    @apply grid gap-4 mb-2;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-  /* hero 大卡 — 深色，占 4 列（亮暗主题皆为黑，暗色下提边框保持分界） */
-  .b-hero {
-    @apply relative min-h-[230px] p-8 rounded-lg flex flex-col justify-between overflow-hidden border;
-    grid-column: span 4 / span 4;
-    background: linear-gradient(135deg, #161616, #0a0a0a);
-    border-color: #1c1c1c;
-    color: #fafafa;
-  }
-  .dark .b-hero {
-    border-color: #2a2a2e;
-  }
-  .b-hero-tag {
-    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase font-mono;
-    letter-spacing: 0.16em;
-    color: #ff7a45;
-  }
-  .b-hero-tag .led {
-    @apply w-[7px] h-[7px] rounded-full bg-brand-500;
-    box-shadow: 0 0 8px #ff5a1f;
-  }
-  .b-hero h1 {
-    @apply text-[34px] font-extrabold tracking-display-md leading-[1.1] mt-3.5 text-on-dark;
-  }
-  .b-hero h1 em {
-    @apply not-italic text-brand-400;
-  }
-  .b-hero-sub {
-    @apply text-sm mt-2 max-w-[42ch] text-on-dark-soft;
-  }
-  .b-hero-cta {
-    @apply flex gap-2.5 mt-5;
-  }
-  /* 右侧栈 — 连胜 + 目标，占 2 列 */
-  .b-stack {
-    grid-column: span 2 / span 2;
-    @apply flex flex-col gap-4;
-  }
-  .b-streak {
-    @apply flex-1 p-6 rounded-lg border flex flex-col justify-between bg-brand-50 border-brand-100;
-  }
-  .b-streak .lbl,
-  .b-goal .lbl,
-  .b-practice .lbl,
-  .b-cat-big .lv {
-    @apply text-[11px] font-semibold uppercase font-mono;
-    letter-spacing: 0.14em;
-  }
-  .b-streak .lbl {
-    @apply text-brand-700;
-  }
-  .b-streak .big {
-    @apply text-[60px] font-extrabold tracking-display-lg leading-none mt-2.5 text-brand-600;
-  }
-  .b-streak .big small {
-    @apply text-[18px] font-semibold ml-1 text-brand-500;
-  }
-  .b-streak .foot {
-    @apply text-xs font-medium mt-2 text-brand-700;
-  }
-  .b-goal {
-    @apply flex-1 p-6 rounded-lg border bg-canvas border-hairline
-           flex flex-col justify-between;
-  }
-  .b-goal .lbl {
-    @apply text-muted-foreground;
-  }
-  .b-goal .num {
-    @apply text-[36px] font-extrabold tracking-display-lg leading-none mt-2;
-  }
-  .b-goal .num small {
-    @apply text-base font-semibold text-muted;
-  }
-  .b-goal-track {
-    @apply h-2 rounded-pill overflow-hidden mt-3.5 bg-surface-card;
-  }
-  .b-goal-fill {
-    @apply h-full rounded-pill;
-    background: linear-gradient(90deg, #ff5a1f, #ff7a45);
-  }
-  .b-goal .foot {
-    @apply text-xs text-muted mt-2;
-  }
-  /* 今日练习入口 — 全宽 */
-  .b-practice {
-    grid-column: span 6 / span 6;
-    @apply px-[26px] py-5 rounded-lg border bg-surface-soft border-hairline
-           flex items-center gap-6;
-  }
-  .b-practice .lbl {
-    @apply text-muted-foreground;
-  }
-  .b-practice .title {
-    @apply text-[17px] font-bold tracking-display-sm mt-[3px];
-  }
-  .b-practice-modes {
-    @apply flex gap-2.5 ml-auto flex-wrap;
-  }
-  .mode-chip {
-    @apply inline-flex items-center gap-2 px-[15px] py-[9px] rounded-md text-[13px] font-semibold
-           bg-canvas border border-hairline text-body
-           hover:border-ink hover:-translate-y-0.5 hover:shadow-soft transition-all duration-150 cursor-pointer;
-  }
-  .mode-chip .dot {
-    @apply w-2 h-2 rounded-full;
-  }
-  .mode-chip .dot.r {
-    @apply bg-brand-500;
-  }
-  .mode-chip .dot.m {
-    @apply bg-success;
-  }
-  .mode-chip .dot.f {
-    @apply bg-indigo;
-  }
-  .mode-chip small {
-    @apply text-[11px] font-medium text-muted;
-  }
-  /* 主推大卡 — 不对称网格 */
-  .feat-grid {
-    @apply grid gap-4;
-    grid-template-columns: 1.6fr 1fr 1fr;
-  }
-  .vcard-feat {
-    grid-column: span 1 / span 1;
-    grid-row: span 2 / span 2;
-  }
-  /* 响应式：bento 在中等屏降级 */
-  @media (max-width: 1024px) {
-    .bento {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .b-hero {
-      grid-column: span 2 / span 2;
-    }
-    .b-stack {
-      grid-column: span 2 / span 2;
-      @apply flex-row;
-    }
-    .b-practice {
-      grid-column: span 2 / span 2;
-      @apply flex-col items-start;
-    }
-    .b-practice-modes {
-      @apply ml-0;
-    }
-    .feat-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .vcard-feat {
-      grid-row: auto / auto;
-    }
   }
 }
 
@@ -882,23 +657,4 @@
 }
 .coach-pulse {
   animation: coach-pulse 2s ease-in-out infinite;
-}
-
-/* D2 first-time word-card gold flash (1.5s) */
-@keyframes gold-edge {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 200, 80, 0);
-    border-color: rgba(255, 200, 80, 0);
-  }
-  20% {
-    box-shadow: 0 0 0 4px rgba(255, 200, 80, 0.55);
-    border-color: rgba(255, 200, 80, 1);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 200, 80, 0);
-    border-color: rgba(255, 200, 80, 0);
-  }
-}
-.coach-gold-flash {
-  animation: gold-edge 1.5s ease-out 1;
 }

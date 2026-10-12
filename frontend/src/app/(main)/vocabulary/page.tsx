@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/Card";
 import { type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/common/ErrorState";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { ProgressRing } from "@/components/ui/ProgressRing";
@@ -87,17 +88,14 @@ function VocabSetsPanel({
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-hairline bg-canvas p-4 flex items-center gap-3.5"
-          >
+          <Card key={i} padding={4} className="flex items-center gap-3.5">
             <div className="w-24 aspect-video rounded-md skeleton-shimmer bg-surface-soft flex-shrink-0" />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-3/4 skeleton-shimmer rounded-sm bg-surface-soft" />
               <div className="h-3 w-1/3 skeleton-shimmer rounded-sm bg-surface-soft" />
             </div>
             <div className="w-11 h-11 rounded-full skeleton-shimmer bg-surface-soft flex-shrink-0" />
-          </div>
+          </Card>
         ))}
       </div>
     );
@@ -111,7 +109,7 @@ function VocabSetsPanel({
         action={
           <Link
             href="/browse"
-            className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+            className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
           >
             去频道看看 →
           </Link>
@@ -135,8 +133,8 @@ function VocabSetsPanel({
                 <Image src={s.thumbnail_url} alt={s.title} sizes="96px" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-bold text-ink line-clamp-1">{s.title}</p>
-                <p className="text-xs text-muted mt-1">
+                <p className="text-copy-lg font-bold text-ink line-clamp-1">{s.title}</p>
+                <p className="text-meta text-muted mt-1">
                   {done
                     ? "已学完"
                     : s.last_activity_at
@@ -316,13 +314,14 @@ export default function VocabularyPage() {
 
   return (
     <PageTransition>
-      <main className="container-page py-6 sm:py-12">
+      <main className="py-6 sm:py-12">
         {/* Page head: title + desc + 视图切换（今日 | 词库） */}
         <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
-          <div>
-            <h1 className="text-[26px] font-extrabold tracking-tight text-ink">单词训练</h1>
-            <p className="text-[13px] text-muted mt-1">每天一小步，把视频里遇到的单词变成自己的</p>
-          </div>
+          <PageHeader
+            className="pt-0 pb-0"
+            title="单词训练"
+            description="每天一小步，把视频里遇到的单词变成自己的"
+          />
           <TabPills
             tabs={[
               { key: "today", label: "今日" },
@@ -449,7 +448,7 @@ export default function VocabularyPage() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
-                      text-sm text-ink placeholder:text-muted-soft
+                      text-copy text-ink placeholder:text-muted-soft
                       focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                       transition-colors duration-150"
                       />
@@ -484,7 +483,7 @@ export default function VocabularyPage() {
                       debouncedQuery ? null : (
                         <Link
                           href="/browse"
-                          className="inline-block mt-3 text-sm font-semibold text-brand-500 hover:underline"
+                          className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
                         >
                           去频道看看 →
                         </Link>
@@ -555,7 +554,7 @@ export default function VocabularyPage() {
                       <ChevronLeft size={14} />
                       上一页
                     </Button>
-                    <span className="text-[13px] text-muted tabular-nums">
+                    <span className="text-copy text-muted tabular-nums">
                       第 {list.page} / {totalPages} 页 · 共 {list.total} 词
                     </span>
                     <Button

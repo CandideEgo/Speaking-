@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
 import type { User, UserPreferences } from "@/types";
+import { Card } from "@/components/ui/Card";
 
 interface SettingsTabProps {
   user: User;
@@ -95,8 +96,8 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
   return (
     <div className="max-w-2xl space-y-6">
       {/* Learning group */}
-      <section className="rounded-xl border border-hairline bg-canvas p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-ink">学习</h2>
+      <Card as="section" padding={5} className="space-y-4">
+        <h2 className="text-copy font-semibold text-ink">学习</h2>
 
         <FormField label="每日目标" hint="设置每日学习目标，养成坚持学习的好习惯">
           <div className="flex items-center gap-3">
@@ -124,7 +125,7 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
               onChange={(e) => setGoalValue(parseInt(e.target.value) || 1)}
               className="w-24"
             />
-            <span className="text-xs text-muted">
+            <span className="text-meta text-muted">
               每天 {goalValue} {GOAL_TYPE_LABELS[goalType]}
             </span>
           </div>
@@ -166,23 +167,23 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
             ))}
           </Select>
         </FormField>
-      </section>
+      </Card>
 
       {/* Account group */}
-      <section className="rounded-xl border border-hairline bg-canvas p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-ink">账户</h2>
+      <Card as="section" padding={5} className="space-y-4">
+        <h2 className="text-copy font-semibold text-ink">账户</h2>
         <PasswordChangeForm />
         <NotificationPreferences />
         <div className="pt-2 border-t border-hairline">
           <Link
             href="/contact"
-            className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand-500 transition-colors"
+            className="inline-flex items-center gap-1.5 text-meta text-muted hover:text-brand-500 transition-colors"
           >
             <MessageSquare size={13} />
             意见反馈与帮助
           </Link>
         </div>
-      </section>
+      </Card>
 
       {/* Unified save for learning prefs + timezone */}
       <div>

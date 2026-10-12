@@ -56,7 +56,11 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
   // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
   if (!isAuthenticated) {
-    return <div className="min-h-dvh bg-canvas">{children}</div>;
+    return (
+      <div className="min-h-dvh bg-canvas">
+        <div className="container-page">{children}</div>
+      </div>
+    );
   }
 
   // Render shell immediately — onboarding check runs in background
@@ -80,7 +84,10 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
         id={SCROLL_CONTAINER_ID}
         className={`flex-1 overflow-y-auto custom-scrollbar${isWatch ? "" : " pb-16 md:pb-0"}`}
       >
-        {children}
+        {/* DEC-075：容器归壳层所有 —— 全站唯一 .container-page 在这里渲染一次，
+            页面不再自带容器类。h-full 让页面根的 min-h-full（练习 / 考试 / 搜索等
+            满屏流）仍以滚动容器的高度为基准，几何与「页面自己写容器」时一致。 */}
+        <div className="container-page h-full">{children}</div>
       </main>
       {isWatch ? <WatchBottomBar chrome={chrome} /> : <MobileTabBar />}
     </div>

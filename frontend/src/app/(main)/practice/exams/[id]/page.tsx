@@ -68,8 +68,8 @@ export default function ExamPaperPage() {
   if (error || (!paper && !attempt)) {
     return (
       <main className="min-h-full bg-surface-soft">
-        <div className="container-page py-16 text-center">
-          <p className="text-sm text-muted">{error ?? "加载中…"}</p>
+        <div className="py-16 text-center">
+          <p className="text-copy text-muted">{error ?? "加载中…"}</p>
         </div>
       </main>
     );

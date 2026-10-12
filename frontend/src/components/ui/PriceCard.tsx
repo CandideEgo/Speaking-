@@ -22,13 +22,13 @@ export function PriceCard({
   return (
     <div
       className={cn(
-        "bg-canvas border border-hairline rounded-lg p-[30px] flex flex-col",
+        "bg-canvas border border-hairline rounded-md p-[30px] flex flex-col",
         popular && "border-ink border-2 relative",
         className
       )}
     >
       {popular && (
-        <div className="absolute -top-[13px] left-1/2 -translate-x-1/2 bg-ink text-canvas text-[11px] font-bold px-3 py-1 rounded-pill tracking-caption-wide">
+        <div className="absolute -top-[13px] left-1/2 -translate-x-1/2 bg-ink text-canvas text-caption font-bold px-3 py-1 rounded-pill tracking-caption-wide">
           {ribbonText}
         </div>
       )}

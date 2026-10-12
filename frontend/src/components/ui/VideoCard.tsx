@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Bookmark, Eye, Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
+import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { cn, formatCount } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
@@ -77,7 +78,7 @@ export function VideoCard({
   const category = topicLabel(video.topic_tags?.split(",")[0]);
   const videoId = String(video.id || video.video_id || "");
 
-  // 频道名跳作者页：外层卡片是 <Link>，不能嵌套 <a>，用受控 span 拦截冒泡。
+  // 频道名跳作者页：外层卡片是 Card as={Link}，不能嵌套 <a>，用受控 span 拦截冒泡。
   // 未挂频道的视频（channel_slug 为空）保持纯文本。
   const channelLink = video.channel_slug ? `/channels/${video.channel_slug}` : null;
 
@@ -88,11 +89,13 @@ export function VideoCard({
   }
 
   return (
-    <Link
+    <Card
+      as={Link}
       href={watchHref(videoId, entry)}
       onClick={() => trackClick(videoId, clickSource())}
+      padding={0}
       className={cn(
-        "bg-canvas border border-hairline rounded-xl overflow-hidden cursor-pointer",
+        "overflow-hidden cursor-pointer",
         "hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/[0.08] hover:border-transparent",
         "transition-all duration-200 ease-out group",
         className
@@ -127,7 +130,7 @@ export function VideoCard({
         {/* Duration badge */}
         {durationLabel ? (
           <span
-            className="absolute right-2 bottom-2 text-white text-[11px] font-semibold font-mono px-1.5 py-0.5 rounded-[5px]"
+            className="absolute right-2 bottom-2 text-white text-caption font-semibold font-mono px-1.5 py-0.5 rounded-sm"
             style={{ background: "rgba(10, 10, 10, 0.78)" }}
           >
             {durationLabel}
@@ -136,7 +139,7 @@ export function VideoCard({
           video.duration != null &&
           video.duration > 0 && (
             <span
-              className="absolute right-2 bottom-2 text-white text-[11px] font-semibold font-mono px-1.5 py-0.5 rounded-[5px]"
+              className="absolute right-2 bottom-2 text-white text-caption font-semibold font-mono px-1.5 py-0.5 rounded-sm"
               style={{ background: "rgba(10, 10, 10, 0.78)" }}
             >
               {formatDuration(video.duration)}
@@ -153,7 +156,7 @@ export function VideoCard({
         </div>
         {/* 已下线标注（需求 §5.3）：收藏夹保留入口，但明确告知不可播。 */}
         {video.storage_mode === "offline" && (
-          <span className="absolute left-2 bottom-2 inline-flex items-center rounded-pill bg-ink/85 px-2 py-0.5 text-[11px] font-semibold text-canvas backdrop-blur-sm">
+          <span className="absolute left-2 bottom-2 inline-flex items-center rounded-pill bg-ink/85 px-2 py-0.5 text-caption font-semibold text-canvas backdrop-blur-sm">
             已下架
           </span>
         )}
@@ -163,8 +166,8 @@ export function VideoCard({
       <div className="p-4">
         <p
           className={cn(
-            "text-sm font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
-            feat && "text-lg min-h-[50px]"
+            "text-copy font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
+            feat && "text-copy-lg min-h-[50px]"
           )}
         >
           {video.title}
@@ -172,13 +175,13 @@ export function VideoCard({
         {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
         {video.description && (
           // DEC-073：卡片摘要跟着移动端基线走 13px（卡内嵌摘要允许 11–13px，正文才要求 ≥14px）
-          <p className="text-[13px] leading-relaxed text-muted line-clamp-2 mb-2">
+          <p className="text-copy leading-relaxed text-muted line-clamp-2 mb-2">
             {video.description}
           </p>
         )}
         {/* 站内总播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
         {(video.view_count != null || video.favorite_count != null) && (
-          <div className="flex items-center gap-3 text-[11px] text-muted mb-2.5">
+          <div className="flex items-center gap-3 text-caption text-muted mb-2.5">
             {video.view_count != null && (
               <span className="inline-flex items-center gap-1" title="播放量">
                 <Eye size={13} className="text-muted-soft" />
@@ -194,7 +197,7 @@ export function VideoCard({
           </div>
         )}
         {footer ?? (
-          <div className="flex items-center gap-2 text-xs text-muted">
+          <div className="flex items-center gap-2 text-meta text-muted">
             {channelLink ? (
               <span
                 role="link"
@@ -214,13 +217,13 @@ export function VideoCard({
               </span>
             )}
             <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-            <span className="text-[11px] font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
+            <span className="text-caption font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
               {category}
             </span>
             {feat && progress !== undefined && (
               <>
                 <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-                <span className="text-[11px] font-semibold font-mono text-brand-500">
+                <span className="text-caption font-semibold font-mono text-brand-500">
                   {progress}% 已观看
                 </span>
               </>
@@ -228,19 +231,19 @@ export function VideoCard({
           </div>
         )}
       </div>
-    </Link>
+    </Card>
   );
 }
 
 /** Skeleton placeholder for loading states. */
 export function VideoCardSkeleton() {
   return (
-    <div className="bg-canvas border border-hairline rounded-xl overflow-hidden animate-pulse">
+    <Card padding={0} className="overflow-hidden animate-pulse">
       <div className="relative aspect-video bg-surface-card" />
       <div className="p-4">
         <div className="h-4 bg-surface-card rounded-md w-3/4 mb-2.5" />
         <div className="h-3 bg-surface-card rounded-md w-1/2" />
       </div>
-    </div>
+    </Card>
   );
 }

@@ -24,14 +24,17 @@ export function FormField({
 }: FormFieldProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={htmlFor} className={cn("block text-sm font-medium text-ink", labelClassName)}>
+      <label
+        htmlFor={htmlFor}
+        className={cn("block text-copy font-medium text-ink", labelClassName)}
+      >
         {label}
       </label>
       {children}
       {error ? (
-        <p className="text-xs text-error">{error}</p>
+        <p className="text-meta text-error">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted">{hint}</p>
+        <p className="text-meta text-muted">{hint}</p>
       ) : null}
     </div>
   );

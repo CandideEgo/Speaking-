@@ -44,13 +44,13 @@ export function WatchTopBar({ chrome = {} }: { chrome?: WatchChromeState }) {
 
       {/* 中栏：标题一行 truncate + 级别文本（来源与桌面 meta 细行同源） */}
       <div className="min-w-0 flex-1">
-        <div data-testid="watch-top-title" className="truncate text-[15px] font-semibold text-ink">
+        <div data-testid="watch-top-title" className="truncate text-copy-lg font-semibold text-ink">
           {title ?? ""}
         </div>
         <div
           data-testid="watch-top-level"
           // DEC-073：元信息行 11px（移动端基线里 11px 只给角标/元信息）。
-          className="-mt-0.5 truncate text-[11px] font-medium leading-[1.3] text-muted"
+          className="-mt-0.5 truncate text-caption font-medium leading-[1.3] text-muted"
         >
           {levelText ?? ""}
         </div>

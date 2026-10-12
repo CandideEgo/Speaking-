@@ -251,11 +251,11 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-ink">通知</h3>
+          <h3 className="text-copy font-semibold text-ink">通知</h3>
           {/* WebSocket connection indicator */}
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${
-              wsConnected ? "bg-success" : "bg-muted-foreground/30"
+              wsConnected ? "bg-success" : "bg-muted/30"
             }`}
             title={wsConnected ? "实时连接" : "轮询模式"}
           />
@@ -264,7 +264,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
           <button
             onClick={markAllAsRead}
             disabled={isMarkingAll}
-            className="text-xs text-brand-500 hover:text-brand-500/80 transition-colors disabled:opacity-50"
+            className="text-meta text-brand-500 hover:text-brand-500/80 transition-colors disabled:opacity-50"
           >
             {isMarkingAll ? "标记中..." : "全部已读"}
           </button>
@@ -272,7 +272,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
         <Link
           href="/notifications"
           onClick={onClose}
-          className="text-xs text-muted hover:text-ink transition-colors ml-auto"
+          className="text-meta text-muted hover:text-ink transition-colors ml-auto"
         >
           查看全部 →
         </Link>
@@ -287,7 +287,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted">
             <Bell size={32} className="mb-2 opacity-40" />
-            <span className="text-sm">暂无通知</span>
+            <span className="text-copy">暂无通知</span>
           </div>
         ) : (
           <ul>
@@ -306,12 +306,12 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
                     )}
                     <div className={`flex-1 min-w-0 ${notification.is_read ? "pl-4" : ""}`}>
                       <p
-                        className={`text-sm ${notification.is_read ? "text-muted" : "text-ink font-medium"}`}
+                        className={`text-copy ${notification.is_read ? "text-muted" : "text-ink font-medium"}`}
                       >
                         {notification.title}
                       </p>
-                      <p className="text-xs text-muted mt-0.5 truncate">{notification.message}</p>
-                      <p className="text-xs text-muted/60 mt-1">
+                      <p className="text-meta text-muted mt-0.5 truncate">{notification.message}</p>
+                      <p className="text-meta text-muted/60 mt-1">
                         {timeAgo(notification.created_at)}
                       </p>
                     </div>
