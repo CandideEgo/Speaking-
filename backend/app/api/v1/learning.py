@@ -180,7 +180,11 @@ async def save_watch_progress(
         record.position_seconds = body.position_seconds
         record.last_accessed_at = datetime.now(UTC)
 
-    # Update progress_percentage based on position vs video duration
+    # Update progress_percentage based on position vs video duration.
+    # 分母是 DB 的 `videos.duration`，其正确性归 ingest（ffprobe 实测，
+    # BUG-19）；此处的进度展示若与真实时长有出入，修数据侧而非在展示时猜。
+    # 取不到 duration 时保持既有百分比不动——宁可停在旧值，也不按 position
+    # 猜一个看起来像真值的分母。
     video_result = await db.execute(select(Video).where(Video.id == body.video_id))
     video = video_result.scalar_one_or_none()
     if video and video.duration and video.duration > 0:
