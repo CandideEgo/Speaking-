@@ -266,9 +266,7 @@ export function HomeFilterBar({
         </div>
         {/* 结果计数 */}
         <div className="md:ml-auto flex items-center gap-3 flex-shrink-0">
-          {total > 0 && (
-            <span className="text-meta text-muted hidden sm:block font-medium">{total} 个视频</span>
-          )}
+          {total > 0 && <span className="text-meta text-muted font-medium">{total} 个视频</span>}
         </div>
       </div>
     </div>
