@@ -60,7 +60,6 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
     >
       <div className="px-3.5 py-2 border-b border-hairline mb-1">
         <div className="text-copy font-semibold text-ink">{userName}</div>
-        <div className="text-caption text-muted mt-0.5">SeeWord 学习者</div>
       </div>
       {items.map((item) => (
         <Link
@@ -307,8 +306,14 @@ export function TopBar() {
                 {item.label}
                 {/* 单词训练 due badge */}
                 {item.href === "/vocabulary" && dueCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-caption font-semibold bg-brand-500 text-on-primary rounded-pill">
-                    {dueCount > 99 ? "99+" : dueCount}
+                  // BUG-10：写清语义——这是待复习词数，不是未读消息；封顶改成
+                  // 「待复习 99+」并补 aria-label/title，与通知小圆点区分。
+                  <span
+                    className="ml-1.5 inline-flex items-center justify-center h-[18px] px-1.5 text-caption font-semibold bg-brand-500 text-on-primary rounded-pill whitespace-nowrap"
+                    aria-label={`待复习 ${dueCount} 个单词`}
+                    title={`待复习 ${dueCount} 个单词`}
+                  >
+                    待复习 {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}
               </Link>
