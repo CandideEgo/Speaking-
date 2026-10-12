@@ -29,13 +29,14 @@ Last Updated: 2026-10-13
 
 ## Next Steps
 
-1. 在接入对象认知 MCP 的会话中，让对象认知工具检查本轮新增 / 修改 / 删除的受管理对象（不要手改机器认知卷）：
-   `lib/subtitleModes.ts`、`services/local_time.py`、`services/learning_event_service.py`、
-   `services/vocabulary_service.py`、`tasks/reminder_tasks.py`、`api/v1/learning_plan.py`、
-   `schemas/learning_plan.py`、`schemas/common.py`、删掉的 `components/subtitle/SubtitleList.tsx`，
-   以及 `watchStore` / `TopBar` / 首页组件。另有两项旧账：DEC-075 P5 删掉的 `ui/Eyebrow.tsx` /
-   `ui/Grid.tsx` 仍在机器认知卷里，以及 P6 改过的 `globals.css`（该卷的条目仍写 `q-opt` /
-   `display-*` / `bento 系列` 成分组件类）。
+1. **对象认知收尾未完成（阻塞，需人工先做范围复核）**：本轮改动覆盖 8 个尚无认知条目的对象
+   （`lib/subtitleModes.ts`、`services/local_time.py`、`scripts/backfill_video_duration.py`、
+   `schemas/common.py` 等）、3 个孤儿条目（本轮的 `components/subtitle/SubtitleList.tsx` +
+   DEC-075 P5 删掉的 `ui/Eyebrow.tsx` / `ui/Grid.tsx`），以及一批更早轮次留下的过期条目
+   （`.agent/*`、`AGENTS.md`、`backend/AGENTS.md`、skills、`check-design-system.mjs`）。工具判定
+   阻塞：要先由人工复核托管范围里待确认的对象、并对孤儿条目的去留做显式裁决，机器才会签发创作
+   批次。机器状态是「未对齐」，不要手改认知卷资产，也不要为让它变绿而改检查器或白名单。
+   另有一项旧账：DEC-075 P6 改过的 `globals.css`，其条目仍写着已废弃的成分组件类。
 2. 在带 Postgres / Redis / 后端的机器上跑 e2e：`watch.spec.ts` 的「关闭」档新用例、
    `mobile-current-sentence-card.spec.ts`、`mobile-inline-subtitle.spec.ts`（后者需真实 mp4，
    占位文件会 skip）；随后按 `docs/design/mobile/destination/device-acceptance.md` 做 iPhone 真机
