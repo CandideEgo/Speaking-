@@ -3,17 +3,19 @@
 > Forward-looking only. Completed work belongs in `knowledge/decisions-index.md`,
 > `knowledge/CHANGELOG.md` or `knowledge/archive/`; this file is a work queue, not a diary.
 
-Last Updated: 2026-10-12
+Last Updated: 2026-10-13
 
 ## Current Focus
 
-- **前端视觉统一 P1–P6 全部落盘（DEC-075）、整批未提交**：P1 唯一容器、P2 页头归一、
-  P3 圆角 + 颜色名收敛、P4 字号刻度 19 档 → 7 档 + display 族、P5 `Card` 强制化 + 删零引用
-  primitive、P6 `globals.css` 清理 + 新增 `frontend/scripts/check-design-system.mjs`（接进
-  `npm run check`，四条规则 + 点名白名单）。执行记录与每片偏差见
-  `knowledge/plans/前端视觉统一-2026-10.md` §八。**下一步是把这批提交**（提交前走
-  `knowledge/wiki/guides/release-checklist.md`）。三条继续改前端时要信的事实：① 14px 字号档叫
-  `text-copy`（不是 `text-body` —— `--color-body` 已是全仓在用的正文颜色）；② 页头移动档是
+- **前端缺陷清单余项已全量修复（BUG-03 ~ BUG-20）**：13 条一次收口、每个 BUG 一条提交
+  （DEC-075 P1–P6 整批已先行落盘）。字幕模式新增单一来源 `frontend/src/lib/subtitleModes.ts`
+  （双语/英文/中文/关闭），首页问候与日期改由后端 profile 下发 `local_date` / `local_hour`，
+  「用户本地日」的三套回退口径收敛为 `backend/app/services/local_time.py`（默认 Asia/Shanghai，
+  行为变更见 **DEC-079**），`videos.duration` 数据侧校正脚本
+  `backend/scripts/backfill_video_duration.py` 默认 dry-run、写入要显式 `--apply`。
+  **未执行的验收**：本机无 Postgres / Redis / 后端，e2e 与脚本的 DB 分支都没跑，需在带服务的
+  机器上复跑（见 Next Steps）。三条继续改前端时要信的事实：① 14px 字号档叫 `text-copy`
+  （不是 `text-body` —— `--color-body` 已是全仓在用的正文颜色）；② 页头移动档是
   `text-display-sm`（24px）；③ `--text-*` 必须带 `--text-*--line-height` 且用 rem，否则行高被换
   成 `normal`、大屏（≥1536 根字号 17px）字号停止跟随。设计系统门禁**还只在 `npm run check`
   里，没进 CI**（见 Next Steps）。
@@ -21,28 +23,29 @@ Last Updated: 2026-10-12
   构建曾通过，但仓库里的媒体是占位文件，相关 mobile e2e 会 skip。需要在有真实 mp4 的机器上
   跑 `mobile-transcript-scroll.spec.ts` 与 `mobile-current-sentence-card.spec.ts`，再按
   `docs/design/mobile/destination/device-acceptance.md` 做真机记录，并重出 touch-target rev7 基线。
-- **心智系统切换为“路由 + 按需技能”（2026-10-12）**：常驻规则不再承载对象认知的操作协议；
-  协议唯一正文放在项目的对象认知 skill，`.agents/skills/` 与 `.claude/skills/` 双宿主保持一致。
-  本轮同时改知识门禁，让它检查“规则文件没有内嵌协议”和双宿主 skill 一致，而不是要求根规则
-  保留工具安装块。完成后需运行知识检查，并由接入对象认知 MCP 的会话处理受管理对象的收尾。
-
 - **产品重构排在视觉统一之后（DEC-078）**：watch 焦点面板与首页 IA 在 DEC-075 P1–P6 完成前
   不开工；「组件体系升级」已被 DEC-075 覆盖，不另立计划。首页 IA 的前置是修排序真相
   （BUG-01：UI 写「推荐」、后端默认 `latest`）。两页形态未定，P6 之后另立决策。
 
 ## Next Steps
 
-1. 运行 `python scripts/check-knowledge/check_knowledge.py`，修正本轮规则、skill、索引和门禁改动造成的真实违规。
-2. 在接入对象认知 MCP 的会话中，让对象认知工具检查本轮新增/修改的受管理对象；不要手改机器认知卷。
-   现在挂着的两项：DEC-075 P5 删掉的 `ui/Eyebrow.tsx` / `ui/Grid.tsx` 仍在机器认知卷里，
-   以及 P6 改过的 `globals.css`（该卷的条目仍写 `q-opt` / `display-*` / `bento 系列` 成分组件类）。
-3. 提交 DEC-075 的 P1–P6（未提交的整批），提交前按 `knowledge/wiki/guides/release-checklist.md`
-   跑后端、前端、e2e 与知识检查。是否按片拆成多个 commit 由提交时决定。
+1. 在接入对象认知 MCP 的会话中，让对象认知工具检查本轮新增 / 修改 / 删除的受管理对象（不要手改机器认知卷）：
+   `lib/subtitleModes.ts`、`services/local_time.py`、`services/learning_event_service.py`、
+   `services/vocabulary_service.py`、`tasks/reminder_tasks.py`、`api/v1/learning_plan.py`、
+   `schemas/learning_plan.py`、`schemas/common.py`、删掉的 `components/subtitle/SubtitleList.tsx`，
+   以及 `watchStore` / `TopBar` / 首页组件。另有两项旧账：DEC-075 P5 删掉的 `ui/Eyebrow.tsx` /
+   `ui/Grid.tsx` 仍在机器认知卷里，以及 P6 改过的 `globals.css`（该卷的条目仍写 `q-opt` /
+   `display-*` / `bento 系列` 成分组件类）。
+2. 在带 Postgres / Redis / 后端的机器上跑 e2e：`watch.spec.ts` 的「关闭」档新用例、
+   `mobile-current-sentence-card.spec.ts`、`mobile-inline-subtitle.spec.ts`（后者需真实 mp4，
+   占位文件会 skip）；随后按 `docs/design/mobile/destination/device-acceptance.md` 做 iPhone 真机
+   验收、重出 touch-target rev7 基线。
+3. `backfill_video_duration.py` 先在有库的环境跑 `--dry-run` 看差异明细，确认后再决定是否
+   `--apply`；生产执行不在本轮。
 4. 决定要不要把 `frontend/scripts/check-design-system.mjs` 接进 CI：CI 的 frontend job 现在是逐条
    step（`format:check` / `tsc` / `test:unit` / `lint`），没跑 `npm run check`，所以这条新门禁
    今天还拦不住 PR。加它要么改 job 的 step 列表，要么让 job 直接跑 `npm run check`。
-5. 准备真实媒体后运行移动端 e2e，并安排一次 iPhone 真机验收。
-6. 若要给 CI 增加按端触发，先决定是拆 workflow 并调整 required checks，还是接受现有 workflow 级过滤；job 级 `paths` 在 GitHub Actions 中不存在。
+5. 若要给 CI 增加按端触发，先决定是拆 workflow 并调整 required checks，还是接受现有 workflow 级过滤；job 级 `paths` 在 GitHub Actions 中不存在。
 
 ## Known Issues
 
@@ -71,6 +74,8 @@ Last Updated: 2026-10-12
 - **mypy 是基线门，不是无错门**：不要为掩盖新增错误扩展 `backend/.mypy-baseline`；
   目前类型检查版本钉在 `<2.4`。
 - **静态分析基线不是无害证明**：涉及 ORM 属性、列名和跨模块签名的基线条目仍需按代码求证。
-- **`get_user_local_date` 默认回退 UTC**：日期口径测试可能在凌晨 flake；修改回退基准需要决策。
+- **「用户本地日」的默认基准已是东八（DEC-079）**：未设置 / 非法 `reminder_timezone` 的用户
+  统一按 Asia/Shanghai 翻天，不再一处 UTC、一处东八。日期口径测试若在凌晨边界 flake，先看是不是
+  跨了东八零点；再改基准要走决策。
 - **不要重跑 `backfill_difficulty.py`（DEC-043）**：存量难度已经是新算值。
 - **Docker 镜像 `.dockerignore` 曾漏嵌套缓存和日志**：改动后必须重建镜像并实际检查镜像内容。

@@ -83,5 +83,6 @@
 | DEC-076 | 2026-10-12 | 规则层降本：AOCI 降为按需检索、规则就近分层（扩展 DEC-072） | ADR-0021 | active; 只换仪式与层次，不删 742 条对象语义；执行序列见 `plans/规则层重构-B-落地序列-2026-10.md` |
 | DEC-077 | 2026-10-12 | AOCI 协议整体技能化，规则文件保持零协议正文（扩展 DEC-076） | — | active |
 | DEC-078 | 2026-10-12 | 前端视觉统一先行：watch 焦点面板与首页 IA 推迟到 DEC-075 P1–P6 之后 | — | active |
+| DEC-079 | 2026-10-13 | 「用户本地日」收敛到单一权威助手，默认 Asia/Shanghai（BUG-16 / BUG-05） | — | active; 未设置/非法 `reminder_timezone` 的用户统一按东八翻天，属行为变更 |
 
 Retired 6 — DEC-003, DEC-005, DEC-013, DEC-016, DEC-024, DEC-047 — superseded or never implemented; bodies and stubs stay in `decisions.md`.

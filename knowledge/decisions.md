@@ -555,3 +555,15 @@ DEC-056 — body archived verbatim → [decisions-2026-09.md](archive/decisions-
 **Reason**: 判据是「重构坐在哪块地基上」。P3–P5 重写圆角、颜色、字号与卡片面，正是 watch 焦点面板与首页推荐卡**最外层**要用的东西；先建页面再改 token 等于把这两页做两遍。且 P1 改约 13 个页面文件、P2 改约 20 个页头、P3/P4 各改约 120 / 110 处，这些落点与两页重构几乎完全重合——「先地基后页面」不是顺序偏好，是避免同一文件互相覆盖。选 A 而非 B：B 换来早两周看到 watch 变化，代价是 P4/P5 在首页与播放页上做的工作被重构部分重做，用户明确选择不做这笔交换。选 C 被否得更硬：DEC-004 已经证明没有检查的统一只能撑八个月。
 
 **Trade-offs**: ① **最高价值的页面排在最后** —— watch 是用户价值排序里的第一位，却要等六片（其中 P4/P5 落在约 110 / 40 个文件上）之后才动，这是本条最贵的一项，用户已确认接受。② 首页 IA 的前置不止是 P6：`前端布局与信息架构-优化方案-2026-10.md` §4 已查明首页排序控件**在说谎**（UI 写「推荐」、后端默认返回 `latest`，缺陷清单 BUG-01），所以首页重构的第一个动作是修排序真相，不是排 hero 版位。③ 本条只定顺序，不定形态：首页「猜你喜欢 / 分类 rail」与 watch 学习面板都还没有方案，`/recommendations/home` 的 40/30/20/10 策略存在但分类聚合不存在——这些都属 P6 之后的独立决策，不要从本条推导实现细节。
+
+## 2026-10-13 — 「用户本地日」收敛到单一权威助手，默认 Asia/Shanghai（BUG-16 / BUG-05）
+
+**Problem**: 计算「用户本地日」的地方各写了一份回退口径：`learning_event_service`（每日计数 / 连续天数）与 `vocabulary_service`（昨日错词窗口）在 `reminder_timezone` 缺失或值非法时回退 **UTC**，而 `reminder_tasks`（断链提醒）自带 `_DEFAULT_TZ = "Asia/Shanghai"`。于是一个没设过时区的用户，在断链判定与「今天学了几个词 / 连续几天」之间可能拿到不同的「今天」——北京时间 00:00–08:00 之间两者整整差一天。这正是 BUG-04（`0 天连续` 分不清真假）与 BUG-05（问候用浏览器时区、连续天数用学习时区）背后的根因，`wiki/problems/local-date-basis-test-flake.md` 也把「回退基准到底该是哪个时区」留成了未决的产品疑问。
+
+**Options**: A) 全部回退 UTC，把「用户本地日」定义为 UTC 日；B) 全部回退 Asia/Shanghai，非东八用户也按东八翻天；C) 先引入按 IP / 浏览器上报的时区并落库，再统一取用。
+
+**Decision**: B。新增 `backend/app/services/local_time.py` 作为唯一权威，暴露 `DEFAULT_USER_TIMEZONE = "Asia/Shanghai"`、`resolve_user_timezone(tz_name)`（未设置或名字非法都回退默认）、`user_local_now` / `user_local_date` 与异步 `get_user_local_now` / `get_user_local_date`。`learning_event_service` 删掉自己的本地日实现、改为从新模块导入并保留同名导出（`study_session_service` 等调用点不动）；`vocabulary_service._utc_window_of_local_yesterday` 与 `reminder_tasks._to_local` 改用同一 resolver，双方各自的 `_DEFAULT_TZ` / 内联 `zoneinfo` 分支删除。`GET /plan/profile` 与 `/plan/profile/refresh` 由同一助手下发 `local_date`（`YYYY-MM-DD`）与 `local_hour`（int），首页问候与日期标签不再读浏览器时钟，日期按显式年月日构造本地 `Date` 再格式化，避免裸 `YYYY-MM-DD` 被当 UTC 午夜解析而回退一天。**行为变更**：`reminder_timezone` 为空（或值非法）的用户统一按 Asia/Shanghai 翻天，不再一处 UTC、一处东八。
+
+**Reason**: 「用户没设置时区」是默认态而不是异常态，所以三处各自挑一个默认值必然在边界上打架；把默认值收进一个函数，等于把「分歧」这个故障模式从数据流里删掉，也让 `local-date-basis-test-flake` 那条遗留疑问有了答案。选东八而非 UTC：站内面向中文用户，断链提醒与榜单周窗（周一 00:00 Asia/Shanghai）本来就锚在东八，UTC 会在东八晚上 20:00 后把「今天」提前翻页——这正是该 flake 记录的凌晨现象。选 C 需要先有可靠的时区上报链路（当前前端不采集），属新增能力，不在本轮。
+
+**Trade-offs**: ① **非东八用户仍按东八翻天** —— 这是已知近似，将来接 C 时只改 `resolve_user_timezone` 一处。② 用户填了合法 `reminder_timezone` 时行为逐字不变，本条只对「未设置」与「值非法」的用户产生可见变化。③ **不做数据迁移**：已落库的 `LearningEvent` 仍按各自当时的基准存，跨基准的历史日期不重算。④ 单一来源需要测试锁住，新增 `backend/tests/test_local_time.py`（默认 / 非法 / 显式三种回退，外加「提醒与计数同基准」的护栏），否则下一次「顺手再写一个默认值」会再次分叉。⑤ 更正一处措辞：落地提交 `490eaa5` 的提交信息把两处回退写反了（实际是 `learning_event_service` 与 `vocabulary_service` 回退 UTC、`reminder_tasks` 回退东八），以本条与 `app/services/local_time.py` 的 docstring 为准。
