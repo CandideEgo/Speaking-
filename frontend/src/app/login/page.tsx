@@ -8,12 +8,20 @@ import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
+import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
+import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
+import { cn } from "@/lib/utils";
 import { Lock } from "lucide-react";
+
+type LoginMode = "code" | "password";
+
+// 生产短信验证码为 4 位；后端兼容 4–6 位。
+const OTP_LENGTH = 4;
 
 // D0 登录墙：未登录被 middleware 302 到 /login?next=…，登录成功后跳回原页。
 // useSearchParams 需要 Suspense 包裹（客户端页面静态预渲染约束）。
@@ -31,18 +39,30 @@ function LoginForm() {
   const next = safeNext(searchParams.get("next"));
   const login = useAuthStore((s) => s.login);
   const { isAuthenticated, isLoading, redirectStuck } = useRedirectIfAuthenticated(next);
+
+  const [mode, setMode] = useState<LoginMode>("code");
   const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusSignal, setFocusSignal] = useState(0);
+  const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
 
-  // Show spinner while auth state is initializing
+  const code = otp.join("");
+
   if (isLoading) {
     return <FullPageSpinner />;
   }
 
   if (isAuthenticated) {
     return <AuthenticatedRedirect redirectStuck={redirectStuck} next={next} />;
+  }
+
+  async function handleSendCode() {
+    setError("");
+    const sent = await sendCode(phone, "auth");
+    if (sent) setFocusSignal((n) => n + 1);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,12 +74,36 @@ function LoginForm() {
     }
     setLoading(true);
     try {
-      const res = await api<{ token: string; refresh_token: string }>("/api/v1/auth/phone-login", {
-        method: "POST",
-        body: JSON.stringify({ phone, password }),
-      });
-      login(res.token, res.refresh_token);
-      router.replace(next);
+      if (mode === "code") {
+        const res = await api<{
+          token: string;
+          refresh_token: string;
+          is_new_user: boolean;
+          user: { onboarding_completed: boolean };
+        }>("/api/v1/auth/sms/login", {
+          method: "POST",
+          body: JSON.stringify({ phone, code }),
+        });
+        login(res.token, res.refresh_token);
+        const needsOnboarding = res.is_new_user || !res.user.onboarding_completed;
+        const dest = needsOnboarding ? "/onboarding" : next;
+        if (res.is_new_user) {
+          // 验证码登录首次建号：先设置登录密码（可跳过），再进入引导/原页。
+          router.replace(`/set-password?from=login&next=${encodeURIComponent(dest)}`);
+        } else {
+          router.replace(dest);
+        }
+      } else {
+        const res = await api<{ token: string; refresh_token: string }>(
+          "/api/v1/auth/phone-login",
+          {
+            method: "POST",
+            body: JSON.stringify({ phone, password }),
+          }
+        );
+        login(res.token, res.refresh_token);
+        router.replace(next);
+      }
     } catch (err) {
       setError(apiErrorMessage(err, "登录失败，请重试"));
     } finally {
@@ -69,7 +113,35 @@ function LoginForm() {
 
   return (
     <AuthCard title="欢迎回来" subtitle="登录账号，继续今天的学习。">
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <div className="mt-2 grid grid-cols-2 rounded-lg bg-surface-soft p-1" role="tablist">
+        {(
+          [
+            { value: "code", label: "验证码登录" },
+            { value: "password", label: "密码登录" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={mode === tab.value}
+            onClick={() => {
+              setMode(tab.value);
+              setError("");
+            }}
+            className={cn(
+              "rounded-md px-3 py-2 text-copy font-medium transition-colors",
+              mode === tab.value
+                ? "bg-surface-card text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div>
           <label className="block text-copy font-medium text-ink">手机号</label>
           {/* +86 前缀（原型 01）：整组 focus 态由 Input 自身承担 */}
@@ -89,28 +161,57 @@ function LoginForm() {
             />
           </div>
         </div>
-        <div>
-          {/* 标签行：左标签 + 右忘记密码（原型 01 field-label 布局） */}
-          <div className="flex items-baseline justify-between">
-            <label className="block text-copy font-medium text-ink">密码</label>
-            <Link
-              href="/forgot-password"
-              className="text-meta text-brand-500 hover:underline font-medium"
-            >
-              忘记密码？
-            </Link>
-          </div>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="mt-1.5"
-            placeholder="请输入密码"
-          />
-        </div>
 
-        {error && <p className="text-copy text-error">{error}</p>}
+        {mode === "code" ? (
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <span id="login-otp-label" className="text-copy font-medium text-ink">
+                验证码
+              </span>
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={sending || cooldown > 0 || phone.length !== 11}
+                className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
+              >
+                {cooldown > 0 ? `${cooldown}s 后重发` : sending ? "发送中..." : "获取验证码"}
+              </button>
+            </div>
+            <SmsOtpInput
+              value={otp}
+              onChange={(nextOtp) => {
+                setOtp(nextOtp);
+                setError("");
+              }}
+              focusSignal={focusSignal}
+              labelledBy="login-otp-label"
+            />
+            <p className="text-meta text-muted">未注册的手机号验证后会直接创建账号。</p>
+          </div>
+        ) : (
+          <div>
+            {/* 标签行：左标签 + 右忘记密码（原型 01 field-label 布局） */}
+            <div className="flex items-baseline justify-between">
+              <label className="block text-copy font-medium text-ink">密码</label>
+              <Link
+                href="/forgot-password"
+                className="text-meta text-brand-500 hover:underline font-medium"
+              >
+                忘记密码？
+              </Link>
+            </div>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="mt-1.5"
+              placeholder="请输入密码"
+            />
+          </div>
+        )}
+
+        {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
 
         <Button type="submit" fullWidth disabled={loading} className="mt-2">
           {loading ? "登录中..." : "登录"}

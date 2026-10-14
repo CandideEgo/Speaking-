@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 import {
-  DEV_SMS_CODE,
-  TEST_PASSWORD,
   uniquePhone,
   registerUserViaApi,
   registerViaUi,
+  fillSmsOtp,
   loginViaUi,
+  loginViaToken,
 } from "./helpers";
 
 // 串行（同族先例：viewport-height / mobile-wordcard-drawer / mobile-d1-d10）：
@@ -16,28 +16,39 @@ test.describe.configure({ mode: "serial" });
 
 // A shared, onboarding-completed user for the login / logout tests.
 const SHARED_PHONE = uniquePhone();
+let SHARED_TOKEN = "";
 
 test.beforeAll(async ({ request }) => {
-  await registerUserViaApi(request, SHARED_PHONE);
+  ({ token: SHARED_TOKEN } = await registerUserViaApi(request, SHARED_PHONE));
 });
 
 test.describe("Registration", () => {
-  test("full registration flow: phone + SMS code + password, then redirect", async ({ page }) => {
+  test("full registration flow: phone + 4-digit code + set password, then redirect", async ({
+    page,
+  }) => {
     const phone = uniquePhone();
     await registerViaUi(page, phone);
-    // Registration succeeded: we left /register and a token was stored.
+    // Registration succeeded: we left /register for /onboarding via /set-password.
     expect(page.url()).not.toContain("/register");
+    expect(page.url()).not.toContain("/set-password");
     const token = await page.evaluate(() => localStorage.getItem("seeword_token"));
     expect(token).toBeTruthy();
+  });
+
+  test("new user can skip the set-password step and continue", async ({ page }) => {
+    await loginViaToken(page, SHARED_TOKEN);
+    await page.goto("/set-password?from=register&next=/");
+    await expect(page.locator("h1")).toHaveText(/设置登录密码/);
+    await page.getByRole("button", { name: "暂时跳过" }).click();
+    // Skipping does not call the API — it just forwards to ?next.
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 15000 });
   });
 
   test("submit button is disabled until the terms are agreed", async ({ page }) => {
     await page.goto("/register");
     // Fill every field validly but do NOT agree to the terms.
     await page.locator('input[placeholder="请输入手机号"]').fill(uniquePhone());
-    await page.locator('input[placeholder="请输入验证码"]').fill(DEV_SMS_CODE);
-    await page.locator('input[placeholder="至少 8 位，含大小写字母和数字"]').fill(TEST_PASSWORD);
-    await page.locator('input[placeholder="请再次输入密码"]').fill(TEST_PASSWORD);
+    await fillSmsOtp(page);
 
     const submit = page.locator('button[type="submit"]');
     await expect(submit).toBeDisabled();
@@ -63,6 +74,7 @@ test.describe("Login", () => {
     page,
   }) => {
     await page.goto("/login");
+    await page.getByRole("tab", { name: "密码登录" }).click();
     // Survives a React re-render, dies on a document reload.
     await page.evaluate(() => {
       (window as unknown as { __loginMarker?: string }).__loginMarker = "kept";
@@ -146,8 +158,8 @@ test.describe("Password Reset", () => {
     await page.getByRole("button", { name: "发送验证码" }).click();
 
     await expect(page.locator("h1")).toHaveText(/输入验证码/);
-    await expect(page.locator('input[placeholder="请输入验证码"]')).toBeVisible();
-    await page.locator('input[placeholder="请输入验证码"]').fill(DEV_SMS_CODE);
+    await expect(page.getByLabel("验证码第 1 位")).toBeVisible();
+    await fillSmsOtp(page);
     await page.getByRole("button", { name: "验证", exact: true }).click();
 
     await expect(page.locator("h1")).toHaveText(/设置新密码/);

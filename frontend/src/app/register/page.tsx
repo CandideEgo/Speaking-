@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { Suspense, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
@@ -10,33 +11,19 @@ import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
+import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
 import { cn } from "@/lib/utils";
 
-/** Password strength tiers keyed to a 0-4 score. */
-const STRENGTH = [
-  { label: "", color: "bg-hairline", text: "text-muted-soft" },
-  { label: "弱", color: "bg-error", text: "text-error" },
-  { label: "中", color: "bg-warning", text: "text-warning" },
-  { label: "强", color: "bg-success", text: "text-success" },
-  { label: "很强", color: "bg-success", text: "text-success" },
-];
-
-/** Score 0-4: length + upper + lower + digit (the same rules enforced on submit). */
-function scorePassword(pw: string): number {
-  if (!pw) return 0;
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[a-z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  return score;
-}
+// 生产短信验证码为 4 位（开发/CI 假码 1234 同为 4 位）；后端仍兼容 4–6 位。
+const OTP_LENGTH = 4;
+const PHONE_RE = /^1[3-9]\d{9}$/;
 
 // ?next= 透传（登录页跳注册时携带），注册成功后跳回原页。
+// 免密注册 = 验证码即登录：新手机号由 /auth/sms/login 建号，再进入「设置登录密码」
+// 步骤（可跳过），设置后可用手机号 + 密码登录。
 export default function RegisterPage() {
   return (
     <Suspense fallback={<FullPageSpinner />}>
@@ -54,17 +41,18 @@ function RegisterForm() {
   const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
 
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
+  const [fieldErrors, setFieldErrors] = useState<{ phone?: string; code?: string }>({});
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [focusSignal, setFocusSignal] = useState(0);
 
-  const pwScore = useMemo(() => scorePassword(password), [password]);
-  const strength = STRENGTH[pwScore];
+  const code = otp.join("");
+  const phoneValid = PHONE_RE.test(phone);
+  const phoneError = fieldErrors.phone || smsError;
 
-  // Show spinner while auth state is initializing
   if (isLoading) {
     return <FullPageSpinner />;
   }
@@ -73,44 +61,79 @@ function RegisterForm() {
     return <AuthenticatedRedirect redirectStuck={redirectStuck} next={next} />;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleOtpChange(nextOtp: string[]) {
+    setOtp(nextOtp);
+    setFieldErrors((current) => ({ ...current, code: "" }));
+    setFormError("");
+  }
+
+  function handlePhoneChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextPhone = event.target.value.replace(/\D/g, "").slice(0, 11);
+    setPhone(nextPhone);
+    setFieldErrors((current) => ({ ...current, phone: "" }));
+    setFormError("");
+    if (sentTo && sentTo !== nextPhone) {
+      setSentTo(null);
+      setOtp(Array(OTP_LENGTH).fill(""));
+    }
+  }
+
+  async function handleSendCode() {
+    setFormError("");
+    if (!phoneValid) {
+      setFieldErrors((current) => ({ ...current, phone: "请输入正确的手机号" }));
+      return;
+    }
+    const sent = await sendCode(phone, "auth");
+    if (sent) {
+      setSentTo(phone);
+      setFieldErrors((current) => ({ ...current, code: "" }));
+      setFocusSignal((n) => n + 1);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const nextErrors: { phone?: string; code?: string } = {};
+    if (!phoneValid) nextErrors.phone = "请输入正确的手机号";
+    if (code.length < 4) nextErrors.code = "请输入完整的验证码";
+    setFieldErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) return;
     if (!agreed) {
-      setError("请先阅读并同意《用户协议》与《隐私政策》");
+      setFormError("请先阅读并同意《用户协议》与《隐私政策》");
       return;
     }
-    if (
-      password.length < 8 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/\d/.test(password)
-    ) {
-      setError("密码至少 8 位，需含大小写字母和数字");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("两次输入的密码不一致");
-      return;
-    }
-    setError("");
+
+    setFormError("");
     setLoading(true);
     try {
       const res = await api<{
         token: string;
         refresh_token: string;
-        user: { id: string; phone: string };
-      }>("/api/v1/auth/sms/register", {
+        is_new_user: boolean;
+        user: { id: string; phone: string; onboarding_completed: boolean };
+      }>("/api/v1/auth/sms/login", {
         method: "POST",
-        body: JSON.stringify({ phone, code, password }),
+        body: JSON.stringify({ phone, code }),
       });
       login(res.token, res.refresh_token);
-      router.replace(next);
+      if (res.is_new_user || !res.user.onboarding_completed) {
+        // 新建（或尚未完成引导）的账号先设置登录密码，再进入引导。
+        const dest = "/onboarding";
+        router.replace(`/set-password?from=register&next=${encodeURIComponent(dest)}`);
+      } else {
+        router.replace(next);
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, "注册失败，请重试"));
+      setFormError(apiErrorMessage(err, "注册失败，请重试"));
     } finally {
       setLoading(false);
     }
   }
+
+  const loginHref = next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`;
 
   return (
     <AuthCard
@@ -118,115 +141,180 @@ function RegisterForm() {
       subtitle={
         <>
           已有账号？{" "}
-          <Link href="/login" className="text-brand-500 hover:underline font-medium">
-            登录
+          <Link
+            href={loginHref}
+            className="font-semibold text-ink underline decoration-hairline underline-offset-2 transition-colors hover:decoration-ink"
+          >
+            直接登录
           </Link>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div>
-          <label className="block text-copy font-medium text-ink">手机号</label>
-          <Input
-            type="tel"
-            inputMode="numeric"
-            maxLength={11}
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-            required
-            className="mt-1.5"
-            placeholder="请输入手机号"
-          />
-        </div>
-        <div>
-          <label className="block text-copy font-medium text-ink">验证码</label>
-          <div className="mt-1.5 flex gap-2">
-            <Input
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="space-y-1.5">
+          <label htmlFor="register-phone" className="text-meta font-medium text-ink">
+            手机号
+          </label>
+          <div
+            className={cn(
+              "flex h-[46px] overflow-hidden rounded-md border-[1.5px] bg-surface-card transition-colors focus-within:border-brand-500 focus-within:bg-canvas focus-within:ring-4 focus-within:ring-brand-500/15",
+              phoneError ? "border-error" : "border-hairline hover:border-muted"
+            )}
+          >
+            <span className="flex select-none items-center border-r border-hairline bg-surface-soft px-3.5 text-copy font-medium text-ink">
+              +86
+            </span>
+            <input
+              id="register-phone"
+              name="phone"
+              type="tel"
               inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              required
-              placeholder="请输入验证码"
+              autoComplete="tel"
+              maxLength={11}
+              value={phone}
+              onChange={handlePhoneChange}
+              placeholder="请输入手机号"
+              aria-invalid={Boolean(phoneError)}
+              aria-describedby={phoneError ? "register-phone-error" : undefined}
+              className="min-w-0 flex-1 bg-transparent px-3.5 font-mono text-copy-lg tracking-[0.05em] text-ink outline-none placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-soft"
             />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={sending || cooldown > 0 || phone.length !== 11}
-              onClick={() => sendCode(phone)}
-              className="shrink-0"
-            >
-              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}
-            </Button>
-          </div>
-        </div>
-        <div>
-          <label className="block text-copy font-medium text-ink">设置密码</label>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="mt-1.5"
-            placeholder="至少 8 位，含大小写字母和数字"
-          />
-          {/* Password strength indicator */}
-          {password && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex gap-1 flex-1">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "h-1 flex-1 rounded-full transition-colors",
-                      i <= pwScore ? strength.color : "bg-hairline"
-                    )}
-                  />
-                ))}
-              </div>
-              <span className={cn("text-meta font-medium w-7 text-right", strength.text)}>
-                {strength.label}
+            {phoneValid && (
+              <span className="flex items-center pr-3.5 text-success" aria-hidden="true">
+                <Check size={18} strokeWidth={2.2} />
               </span>
-            </div>
+            )}
+          </div>
+          {phoneError && (
+            <p
+              id="register-phone-error"
+              role="alert"
+              className="text-meta leading-relaxed text-error"
+            >
+              {phoneError}
+            </p>
           )}
         </div>
-        <div>
-          <label className="block text-copy font-medium text-ink">确认密码</label>
-          <Input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            minLength={8}
-            className="mt-1.5"
-            placeholder="请再次输入密码"
+
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between">
+            <span id="register-otp-label" className="text-meta font-medium text-ink">
+              验证码
+            </span>
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={!phoneValid || sending || cooldown > 0}
+              className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
+            >
+              {cooldown > 0
+                ? `${cooldown}s 后重发`
+                : sending
+                  ? "发送中..."
+                  : sentTo
+                    ? "重新发送"
+                    : "获取验证码"}
+            </button>
+          </div>
+
+          <SmsOtpInput
+            value={otp}
+            onChange={handleOtpChange}
+            hasError={Boolean(fieldErrors.code)}
+            focusSignal={focusSignal}
+            labelledBy="register-otp-label"
+            describedBy={fieldErrors.code ? "register-code-error" : undefined}
           />
+
+          {fieldErrors.code && (
+            <p
+              id="register-code-error"
+              role="alert"
+              className="text-meta leading-relaxed text-error"
+            >
+              {fieldErrors.code}
+            </p>
+          )}
+          {sentTo === phone && !fieldErrors.code && (
+            <p
+              className="flex items-center gap-1.5 text-meta leading-relaxed text-success"
+              role="status"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
+              验证码已发送，5 分钟内有效
+            </p>
+          )}
         </div>
 
-        {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
+        {formError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-sm border border-error/20 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error"
+          >
+            <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>{formError}</span>
+          </div>
+        )}
 
-        <label className="flex items-start gap-2 text-meta text-muted">
+        <label className="flex cursor-pointer select-none items-start gap-2.5 py-px">
           <input
             type="checkbox"
             checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded-md border-hairline text-brand-500 focus:ring-brand-500"
+            onChange={(event) => {
+              setAgreed(event.target.checked);
+              if (event.target.checked) setFormError("");
+            }}
+            className="peer sr-only"
           />
-          <span>
+          <span
+            className={cn(
+              "mt-px grid h-[18px] w-[18px] flex-none place-items-center rounded-sm border-[1.5px] transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-2",
+              agreed ? "border-brand-500 bg-brand-500" : "border-hairline bg-canvas"
+            )}
+            aria-hidden="true"
+          >
+            <Check
+              size={11}
+              strokeWidth={3.2}
+              className={cn(
+                "text-on-primary transition-all",
+                agreed ? "scale-100 opacity-100" : "scale-75 opacity-0"
+              )}
+            />
+          </span>
+          <span className="text-meta leading-relaxed text-muted">
             我已阅读并同意
-            <Link href="/terms" className="text-brand-500 hover:underline" target="_blank">
+            <Link
+              href="/terms"
+              className="font-medium text-ink underline decoration-ink/30 underline-offset-2 transition-colors hover:decoration-ink"
+              target="_blank"
+            >
               《用户协议》
             </Link>
             与
-            <Link href="/privacy" className="text-brand-500 hover:underline" target="_blank">
+            <Link
+              href="/privacy"
+              className="font-medium text-ink underline decoration-ink/30 underline-offset-2 transition-colors hover:decoration-ink"
+              target="_blank"
+            >
               《隐私政策》
             </Link>
           </span>
         </label>
 
-        <Button type="submit" fullWidth disabled={loading || !agreed} className="mt-2">
-          {loading ? "注册中..." : "注册"}
+        <Button
+          type="submit"
+          fullWidth
+          disabled={loading || !agreed}
+          className="mt-1 h-12 rounded-md text-copy-lg"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+              注册中...
+            </>
+          ) : (
+            "注册并继续"
+          )}
         </Button>
       </form>
     </AuthCard>

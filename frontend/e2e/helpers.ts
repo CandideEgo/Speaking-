@@ -12,6 +12,17 @@ import type { Page, APIRequestContext } from "@playwright/test";
 /** Fixed code accepted by the backend when no Aliyun SMS credentials are set. */
 export const DEV_SMS_CODE = "1234";
 
+/**
+ * Fill the four-box registration OTP. Production codes are 4 digits (dev/CI
+ * uses 1234); the page's cells are single-digit, so type one digit per box.
+ */
+export async function fillSmsOtp(page: Page, code = DEV_SMS_CODE): Promise<void> {
+  const digits = code.replace(/\D/g, "");
+  for (let i = 0; i < digits.length; i += 1) {
+    await page.getByLabel(`验证码第 ${i + 1} 位`).fill(digits[i]);
+  }
+}
+
 /** Password meeting the frontend policy (>=8 chars, upper + lower + digit). */
 export const TEST_PASSWORD = "TestPass123";
 
@@ -41,6 +52,10 @@ export function uniquePhone(): string {
 /**
  * Register a user via the API and mark onboarding complete, so that a
  * subsequent UI login lands on "/" (not "/onboarding"). Returns the session.
+ *
+ * Canonical flow (no password at signup): send-code(auth) → sms/login (creates
+ * the account) → change-password (first-time set, no current_password) →
+ * complete onboarding.
  */
 export async function registerUserViaApi(
   request: APIRequestContext,
@@ -48,15 +63,22 @@ export async function registerUserViaApi(
   password = TEST_PASSWORD
 ): Promise<{ token: string; phone: string; password: string }> {
   await request.post("/api/v1/auth/sms/send-code", {
-    data: { phone, purpose: "register" },
+    data: { phone, purpose: "auth" },
   });
-  const res = await request.post("/api/v1/auth/sms/register", {
-    data: { phone, code: DEV_SMS_CODE, password },
+  const login = await request.post("/api/v1/auth/sms/login", {
+    data: { phone, code: DEV_SMS_CODE },
   });
-  if (!res.ok()) {
-    throw new Error(`API registration failed: ${res.status()} ${await res.text()}`);
+  if (!login.ok()) {
+    throw new Error(`API registration failed: ${login.status()} ${await login.text()}`);
   }
-  const { token } = await res.json();
+  const { token } = await login.json();
+  const change = await request.post("/api/v1/auth/change-password", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { new_password: password },
+  });
+  if (!change.ok()) {
+    throw new Error(`API password setup failed: ${change.status()} ${await change.text()}`);
+  }
   // Complete onboarding so login doesn't bounce to /onboarding.
   await request.post("/api/v1/users/me/onboarding", {
     headers: { Authorization: `Bearer ${token}` },
@@ -66,32 +88,34 @@ export async function registerUserViaApi(
 }
 
 /** Register a user through the register page UI (exercises the real flow). */
-export async function registerViaUi(
-  page: Page,
-  phone: string,
-  password = TEST_PASSWORD
-): Promise<void> {
+export async function registerViaUi(page: Page, phone: string): Promise<void> {
   await page.goto("/register");
   await page.locator('input[placeholder="请输入手机号"]').fill(phone);
   await page.getByRole("button", { name: "获取验证码" }).click();
-  await page.locator('input[placeholder="请输入验证码"]').fill(DEV_SMS_CODE);
-  await page.locator('input[placeholder="至少 8 位，含大小写字母和数字"]').fill(password);
-  await page.locator('input[placeholder="请再次输入密码"]').fill(password);
+  await fillSmsOtp(page);
   await page.locator('input[type="checkbox"]').check();
   await page.locator('button[type="submit"]').click();
-  // New users go to "/" then "/onboarding"; either means registration worked.
+
+  // New users land on the set-password step (from=register); save a password.
+  await page.waitForURL((url) => url.pathname === "/set-password", { timeout: 15000 });
+  await page.locator('input[placeholder="请输入新密码"]').fill(TEST_PASSWORD);
+  await page.locator('input[placeholder="再次输入密码"]').fill(TEST_PASSWORD);
+  await page.locator('button[type="submit"]').click();
+
+  // After saving, the new user goes to /onboarding.
   await page.waitForURL((url) => url.pathname === "/" || url.pathname === "/onboarding", {
     timeout: 15000,
   });
 }
 
-/** Log in through the login page UI. The user must have onboarding completed. */
+/** Log in through the login page UI (password mode). Onboarding must be done. */
 export async function loginViaUi(
   page: Page,
   phone: string,
   password = TEST_PASSWORD
 ): Promise<void> {
   await page.goto("/login");
+  await page.getByRole("tab", { name: "密码登录" }).click();
   await page.locator('input[placeholder="请输入手机号"]').fill(phone);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();

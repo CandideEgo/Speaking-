@@ -1,17 +1,14 @@
+import Image from "next/image";
 import Link from "next/link";
 import { siteConfig } from "@/lib/siteConfig";
-import { Subtitles, BookOpen, Mic } from "lucide-react";
-
-const FEATURES = [
-  { icon: Subtitles, text: "真实视频 + AI 双语字幕" },
-  { icon: BookOpen, text: "SM-2 科学间隔复习" },
-  { icon: Mic, text: "跟读录音，练口语" },
-];
 
 /**
- * Shared outer shell for the auth pages (login / register / forgot-password /
- * reset-password): split-screen layout with brand visual panel + form area.
- * Inspired by Linear/Vercel auth pages — clean, confident, brand-forward.
+ * Shared outer shell for the account flow (login / register / forgot-password /
+ * set-password / redirect recovery). Single centered column, max 400px, with
+ * the brand lockup (`/logo.png` + wordmark) above the title/subtitle.
+ *
+ * 原型「注册 / 登录 / 找回密码 / 设置密码」共用同一居中壳层；管理员登录页
+ * 有自己的壳，不在此列。
  */
 export function AuthCard({
   title,
@@ -23,64 +20,27 @@ export function AuthCard({
   children: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-dvh bg-canvas">
-      {/* Left brand panel — hidden on mobile */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-[42%] relative overflow-hidden bg-surface-dark flex-col justify-between p-10">
-        {/* Decorative gradient orbs */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-500/20 blur-[100px]" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-brand-400/10 blur-[80px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-indigo/10 blur-[90px]" />
-
-        {/* Logo */}
-        <div className="relative z-10">
-          <span className="font-display text-title font-bold text-on-dark tracking-tight">
+    <main className="flex min-h-dvh justify-center bg-canvas px-5 py-10">
+      <div className="my-auto w-full max-w-[400px]">
+        <Link
+          href="/"
+          aria-label={`${siteConfig.brandName} 首页`}
+          className="mb-[34px] flex items-center gap-[9px]"
+        >
+          <Image src="/logo.png" alt="" width={26} height={26} className="rounded-sm" priority />
+          <span className="font-display text-copy-lg font-bold tracking-display-sm text-ink">
             {siteConfig.brandName}
           </span>
-        </div>
+        </Link>
 
-        {/* Center content */}
-        <div className="relative z-10 space-y-8">
-          <h2 className="display-lg text-on-dark">
-            用真实视频，
-            <br />
-            <span className="text-brand-400">开口说英语。</span>
-          </h2>
-          <div className="space-y-4">
-            {FEATURES.map((f) => (
-              <div key={f.text} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] border border-white/[0.08]">
-                  <f.icon size={16} className="text-brand-400" />
-                </div>
-                <span className="text-copy text-on-dark-soft">{f.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <header className="mb-[22px]">
+          <h1 className="font-display text-display-sm font-bold tracking-display-md text-ink">
+            {title}
+          </h1>
+          {subtitle && <p className="mt-1.5 text-copy leading-relaxed text-muted">{subtitle}</p>}
+        </header>
 
-        {/* Social proof */}
-        <div className="relative z-10">
-          <p className="text-meta text-on-dark-soft/60">「看·查·懂」三位一体学习法，每天 15 分钟</p>
-        </div>
-      </div>
-
-      {/* Right form area */}
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-sm">
-          <div className="text-center">
-            <Link
-              href="/"
-              aria-label={`${siteConfig.brandName} 首页`}
-              className="font-display text-display-sm font-bold text-ink tracking-tight lg:hidden"
-            >
-              {siteConfig.brandName}
-            </Link>
-            <h1 className="mt-4 lg:mt-0 font-display text-display font-bold text-ink tracking-display-md">
-              {title}
-            </h1>
-            {subtitle && <p className="mt-2 text-copy text-muted">{subtitle}</p>}
-          </div>
-          {children}
-        </div>
+        {children}
       </div>
     </main>
   );

@@ -9,12 +9,16 @@ import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/auth/AuthCard";
+import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
 import { cn } from "@/lib/utils";
 
 /** Mask a phone number: 138****8855（原型 15）. */
 function maskPhone(phone: string): string {
   return phone.replace(/^(\d{3})\d{4}(\d{4})$/, "$1****$2");
 }
+
+// 生产短信验证码为 4 位（开发/CI 假码 1234）；后端兼容 4–6 位。
+const OTP_LENGTH = 4;
 
 const STEPS = [
   { title: "找回密码", sub: "输入注册时的手机号，我们将发送验证码" },
@@ -31,12 +35,14 @@ export default function ForgotPasswordPage() {
   const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
+  const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+
+  const code = otp.join("");
 
   async function handleSendCode() {
     setError("");
@@ -50,8 +56,7 @@ export default function ForgotPasswordPage() {
 
   function handleVerifyCode() {
     setError("");
-    // 开发环境验证码为 4 位（1234），线上为 6 位 —— 4 位起放行，
-    // 真实有效性由后端在重置时校验。
+    // 4 位起放行；真实有效性由后端在重置时校验（一次性消费）。
     if (code.trim().length < 4) {
       setError("请输入验证码");
       return;
@@ -115,7 +120,7 @@ export default function ForgotPasswordPage() {
     >
       {/* 步骤指示器（原型 15 step-ind） */}
       {!done && (
-        <div className="mt-6 flex gap-1.5">
+        <div className="mt-2 flex gap-1.5">
           {STEPS.map((_, i) => (
             <span
               key={i}
@@ -174,27 +179,29 @@ export default function ForgotPasswordPage() {
           {/* Step 2: 验证码 */}
           {step === 1 && (
             <div className="mt-6 space-y-4">
-              <div>
-                <label className="block text-copy font-medium text-ink">验证码</label>
-                <div className="mt-1.5 flex gap-2">
-                  <Input
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    required
-                    placeholder="请输入验证码"
-                  />
-                  <Button
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span id="reset-otp-label" className="text-copy font-medium text-ink">
+                    验证码
+                  </span>
+                  <button
                     type="button"
-                    variant="outline"
-                    disabled={sending || cooldown > 0}
                     onClick={() => sendCode(phone, "reset_password")}
-                    className="shrink-0"
+                    disabled={sending || cooldown > 0}
+                    className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
                   >
                     {cooldown > 0 ? `${cooldown}s 后重发` : sending ? "发送中..." : "重新发送"}
-                  </Button>
+                  </button>
                 </div>
+                <SmsOtpInput
+                  value={otp}
+                  onChange={(nextOtp) => {
+                    setOtp(nextOtp);
+                    setError("");
+                  }}
+                  autoFocus
+                  labelledBy="reset-otp-label"
+                />
               </div>
               {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
               <Button fullWidth onClick={handleVerifyCode}>
