@@ -19,7 +19,7 @@ const LIVE_SECTIONS = [
     key: "real",
     title: "真题试卷",
     icon: FileText,
-    desc: "四六级历年真题阅读部分（选词填空 / 段落匹配 / 仔细阅读），交卷自动判分 + 错题解析。",
+    desc: "四六级阅读真题（选词填空 / 段落匹配 / 仔细阅读），交卷自动判分 + 错题解析。",
     href: "/practice/exams",
     cta: "去刷真题",
   },
@@ -79,7 +79,7 @@ export default function PracticePage() {
             className="pt-0 pb-0"
             crumb="练习专题"
             title="真题实战 + 单词训练"
-            description="四六级历年真题已上线，交卷自动判分；错题本沉淀薄弱点，单词训练正常开放。"
+            description="四六级阅读真题已上线，交卷自动判分；错题本沉淀薄弱点，单词训练正常开放。"
           />
           <div className="flex gap-6 mt-4 flex-wrap">
             <span className="inline-flex items-center gap-2 text-copy text-muted">

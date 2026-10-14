@@ -533,10 +533,56 @@ export interface UserPreferences {
   reminder_time: string | null;
   reminder_timezone: string | null;
   auto_play_next_subtitle: boolean;
+  /** P1-5: vocabulary drills auto-advance ~800ms after a correct answer. */
+  auto_advance_on_correct: boolean;
   subtitle_mode_default: "bilingual" | "english" | "chinese";
   preferred_difficulty: string | null;
   /** User's target exam level (canonical key from lib/examLevels.ts, e.g. "cet4"). */
   target_exam: string | null;
+}
+
+/* ── Account lifecycle (P1-7) ── */
+
+/** GET/POST /users/me/deletion — 30-day cancellable deletion countdown. */
+export interface DeletionStatus {
+  scheduled: boolean;
+  requested_at: string | null;
+  scheduled_at: string | null;
+  days_remaining: number | null;
+  reason: string | null;
+}
+
+/** GET /users/me/export — a queued async export task. */
+export interface ExportTask {
+  task_id: string;
+  status: "pending" | "running" | "ready" | "failed";
+  created_at: string | null;
+}
+
+/** GET /users/me/export/{task_id} — status + short-lived single-use URL. */
+export interface ExportStatus {
+  task_id: string;
+  status: "pending" | "running" | "ready" | "failed";
+  created_at: string | null;
+  size_bytes: number | null;
+  error: string | null;
+  download_url: string | null;
+  download_expires_at: string | null;
+}
+
+/** POST /vocab-sets/{id}/celebrate — set-closure celebration card (P1-6). */
+export interface VocabSetCelebration {
+  first_time: boolean;
+  card: {
+    set_id: string;
+    video_id: string;
+    title: string | null;
+    thumbnail_url: string | null;
+    exam_level: string | null;
+    exam_label: string | null;
+    total: number;
+    mastered_count: number;
+  };
 }
 
 /* ── Exam vocabulary (CET/高考/考研) ── */

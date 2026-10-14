@@ -17,9 +17,10 @@ import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
+import { SetCelebrationModal } from "@/components/vocabulary/SetCelebrationModal";
 import { api } from "@/lib/api";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
-import type { VocabSetScope, VocabSetWord, VocabSetWordStatus } from "@/types";
+import type { VocabSetCelebration, VocabSetScope, VocabSetWord, VocabSetWordStatus } from "@/types";
 
 /** 集合内单词的过筛状态 → Badge（pending=未学 / unknown=学习中 / known+learned=已掌握）。 */
 function statusBadge(status: VocabSetWordStatus): { tone: BadgeTone; text: string } {
@@ -56,6 +57,25 @@ export default function VocabSetDetailPage() {
   const [masteredDelta, setMasteredDelta] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const { speak } = useSpeech();
+
+  // P1-6：集合被就地标记到全掌握时也走一次幂等庆祝（与过筛页同一端点）。
+  const [celebration, setCelebration] = useState<VocabSetCelebration["card"] | null>(null);
+  const fullyMastered =
+    !!detail && detail.total > 0 && detail.mastered_count + masteredDelta >= detail.total;
+  useEffect(() => {
+    if (!fullyMastered) return;
+    let cancelled = false;
+    api<VocabSetCelebration>(`/api/v1/vocab-sets/${id}/celebrate`, { method: "POST" })
+      .then((res) => {
+        if (!cancelled && res.first_time) setCelebration(res.card);
+      })
+      .catch(() => {
+        /* 庆祝失败不阻塞集合页 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fullyMastered, id]);
 
   // scope 切换 / reload 重拉成功后，服务端计数与词行状态已包含就地改动，
   // 本地覆盖与 delta 必须清零，否则会重复增减（掌握数偏高/偏低）。
@@ -272,6 +292,8 @@ export default function VocabSetDetailPage() {
             {ctaLabel}
           </Link>
         )}
+
+        <SetCelebrationModal card={celebration} onClose={() => setCelebration(null)} />
       </main>
     </PageTransition>
   );

@@ -126,7 +126,7 @@ export default function ContactPage() {
               <p className="text-copy text-muted mt-1 leading-relaxed">
                 有任何问题或建议，欢迎通过下方反馈表单留言，或直接联系开发者邮箱：
               </p>
-              <p className="text-copy font-mono text-ink mt-2 select-all">1841666301@qq.com</p>
+              <p className="text-copy font-mono text-ink mt-2 select-all">support@seeword.top</p>
             </div>
           </div>
         </Card>
@@ -196,7 +196,7 @@ export default function ContactPage() {
                 type="text"
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
-                placeholder="联系方式（可选，如 QQ 邮箱，方便我们回复你）"
+                placeholder="联系方式（可选，填邮箱或微信，方便我们回复你）"
                 maxLength={200}
               />
               <div className="flex justify-end">

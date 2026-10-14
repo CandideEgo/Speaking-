@@ -47,6 +47,49 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # of defense against billing abuse.
 _SMS_COOLDOWN_SECONDS = 60
 
+# New-account creation through /auth/sms/login keeps the registration
+# risk-control budget (3/min/IP). Existing-account login stays at 10/min.
+_SIGNUP_RATE_LIMIT = 3
+_SIGNUP_RATE_WINDOW_SECONDS = 60
+
+
+async def _verify_auth_code(phone: str, code: str) -> bool:
+    """Verify a code issued for the canonical auth purpose or legacy register."""
+    if await verify_sms_code(phone, code, purpose="auth"):
+        return True
+    return await verify_sms_code(phone, code, purpose="register")
+
+
+async def _registration_enabled(db: AsyncSession) -> bool:
+    """Admin kill switch: absent row means registration is enabled."""
+    from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
+
+    row = (await db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))).scalar_one_or_none()
+    return row is None or bool(row.registration_enabled)
+
+
+async def _check_signup_rate_limit(request: Request) -> None:
+    """Per-IP guard for accounts created by the combined login/register flow.
+
+    Redis is not the source of truth: a blip must not block signup (INV-002),
+    so storage failures fall through.
+    """
+    if settings.env == "testing":
+        return
+    redis = get_redis()
+    client_host = request.client.host if request.client else "unknown"
+    key = f"auth:signup_rate:{client_host}"
+    try:
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, _SIGNUP_RATE_WINDOW_SECONDS)
+        if count > _SIGNUP_RATE_LIMIT:
+            raise HTTPException(status_code=429, detail="注册过于频繁，请稍后再试")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning("signup_rate_limit_check_failed", client=client_host)
+
 
 @router.post("/sms/send-code", response_model=MessageResponse)
 @rate_limit("5/minute")
@@ -81,48 +124,76 @@ async def sms_send_code(request: Request, data: SendSmsCodeRequest):
 @router.post("/sms/login", response_model=TokenResponse)
 @rate_limit("10/minute")
 async def sms_login(request: Request, data: SmsLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Log in via phone number + SMS code.
+    """Log in or register with phone number + SMS code.
 
-    Login-only — does NOT auto-create accounts. Registration is via
-    /auth/sms/register (which sets a password).
+    Canonical passwordless entry point: a verified code logs into an existing
+    account, or creates a phone-only account (``hashed_password`` NULL) when
+    the phone is new. ``is_new_user`` tells the client to route into
+    onboarding. Registration risk controls (``registration_enabled`` +
+    per-IP 3/min) apply only on the create branch.
     """
-    if not await verify_sms_code(data.phone, data.code, purpose="register"):
+    if not await _verify_auth_code(data.phone, data.code):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
     result = await db.execute(select(User).where(User.phone == data.phone))
     user = result.scalar_one_or_none()
 
+    is_new_user = False
     if user is None:
-        raise HTTPException(status_code=404, detail="该手机号未注册")
+        await _check_signup_rate_limit(request)
+        if not await _registration_enabled(db):
+            raise HTTPException(status_code=403, detail="注册功能暂未开放，请联系管理员")
+
+        user = User(
+            phone=data.phone,
+            hashed_password=None,
+            name=None,
+            onboarding_completed=False,
+            plan=PlanType.pro,
+            plan_expires_at=datetime.now(UTC) + timedelta(days=settings.trial_days),
+            plan_source="trial",
+        )
+        db.add(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+            is_new_user = True
+        except Exception as exc:
+            # Concurrent first logins with the same phone race past the check
+            # and hit the partial unique index — fall back to the winner's row.
+            await db.rollback()
+            if "uq_users_phone_partial" in str(exc) or "unique" in str(exc).lower():
+                user = (await db.execute(select(User).where(User.phone == data.phone))).scalar_one_or_none()
+                if user is None:
+                    raise
+            else:
+                raise
     if user.is_banned:
         raise HTTPException(status_code=403, detail="账户已被封禁")
 
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
-    logger.info("sms_login_success", user_id=user.id, phone=mask_phone(data.phone))
-    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
+    logger.info("sms_login_success", user_id=user.id, phone=mask_phone(data.phone), is_new_user=is_new_user)
+    return TokenResponse(
+        token=token,
+        refresh_token=refresh_token,
+        user=UserResponse.model_validate(user),
+        is_new_user=is_new_user,
+    )
 
 
 @router.post("/sms/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit("3/minute")
 async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Register with phone + SMS code + password (phone-only registration).
+    """Deprecated compatibility registration endpoint.
 
-    The SMS code proves phone ownership; the password is set now (used for
-    subsequent /auth/phone-login).
+    New clients use ``/auth/sms/login``. Kept for one release so old clients
+    that still send a password keep working; ``password`` is now optional.
     """
-    if not await verify_sms_code(data.phone, data.code, purpose="register"):
+    if not await _verify_auth_code(data.phone, data.code):
         raise HTTPException(status_code=400, detail="验证码错误或已失效")
 
-    # Admin settings kill switch (absent row -> enabled):
-    # registration_enabled=False blocks new signups while existing users
-    # (login / password reset) keep working.
-    from sqlalchemy import select
-
-    from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
-
-    reg_row = (await db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))).scalar_one_or_none()
-    if reg_row is not None and not reg_row.registration_enabled:
+    if not await _registration_enabled(db):
         raise HTTPException(status_code=403, detail="注册功能暂未开放，请联系管理员")
 
     existing = await db.execute(select(User).where(User.phone == data.phone))
@@ -131,7 +202,7 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
 
     user = User(
         phone=data.phone,
-        hashed_password=hash_password(data.password),
+        hashed_password=hash_password(data.password) if data.password else None,
         name=data.name,
         onboarding_completed=False,
         # Signup trial (D0): every new phone gets trial_days of Pro, full
@@ -157,7 +228,12 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
     token = create_token(user.id)
     refresh_token = create_token(user.id, token_type="refresh")
     logger.info("sms_register_success", user_id=user.id, phone=mask_phone(data.phone))
-    return TokenResponse(token=token, refresh_token=refresh_token, user=UserResponse.model_validate(user))
+    return TokenResponse(
+        token=token,
+        refresh_token=refresh_token,
+        user=UserResponse.model_validate(user),
+        is_new_user=True,
+    )
 
 
 @router.post("/phone-login", response_model=TokenResponse)
@@ -377,17 +453,27 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Change password for an already-authenticated user."""
-    if not verify_password(data.current_password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
-        )
+    """Set a first password, or change an existing one.
+
+    A phone-only account has ``hashed_password`` NULL: the authenticated
+    session is enough to set the first password, and doing so must not
+    invalidate that session (first setup is not a credential change). A real
+    password change still requires the current password and bumps
+    ``password_changed_at`` to revoke older sessions.
+    """
+    is_first_setup = not current_user.hashed_password
+    if not is_first_setup:
+        if not data.current_password or not verify_password(data.current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect",
+            )
 
     current_user.hashed_password = hash_password(data.new_password)
-    # Invalidate all sessions issued before this moment.
-    current_user.password_changed_at = datetime.now(UTC)
+    if not is_first_setup:
+        # Invalidate all sessions issued before this moment.
+        current_user.password_changed_at = datetime.now(UTC)
     await db.commit()
 
-    logger.info("password_changed", user_id=current_user.id)
-    return MessageResponse(message="Password changed successfully")
+    logger.info("password_changed", user_id=current_user.id, first_setup=is_first_setup)
+    return MessageResponse(message="Password set successfully" if is_first_setup else "Password changed successfully")

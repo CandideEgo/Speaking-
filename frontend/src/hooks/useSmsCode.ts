@@ -26,7 +26,7 @@ export function useSmsCode() {
     return () => clearInterval(t);
   }, [cooldown]);
 
-  async function sendCode(phone: string, purpose: string = "register") {
+  async function sendCode(phone: string, purpose: string = "auth") {
     if (!/^1[3-9]\d{9}$/.test(phone)) {
       setError("请输入正确的手机号");
       return false;

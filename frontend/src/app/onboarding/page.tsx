@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { cefrExamHint } from "@/lib/cefrLevels";
@@ -44,13 +44,13 @@ export default function OnboardingPage() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth({
     replace: true,
   });
-  const { setOnboardingCompleted } = useAuthStore();
 
   const [step, setStep] = useState(0);
   const [level, setLevel] = useState<string | null>(null);
   const [targetExam, setTargetExam] = useState<string | null>(null);
   const [dailyMinutes, setDailyMinutes] = useState<number>(30);
   const [saving, setSaving] = useState(false);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
   if (authLoading) return null;
   if (!isAuthenticated) return null;
@@ -62,7 +62,6 @@ export default function OnboardingPage() {
         method: "POST",
         body: JSON.stringify({ onboarding_completed: true }),
       });
-      setOnboardingCompleted();
       router.replace("/");
     } catch (err) {
       toastApiError(err, "操作失败，请重试");
@@ -93,8 +92,14 @@ export default function OnboardingPage() {
         method: "POST",
         body: JSON.stringify({ onboarding_completed: true }),
       });
-      setOnboardingCompleted();
-      router.replace("/");
+      // 第一课：有 is_demo 视频就直达 demo watch；没有则不阻塞，回首页。
+      try {
+        const demo = await api<{ id: string }>("/api/v1/videos/demo");
+        router.replace(`/watch/${demo.id}?first_lesson=1`);
+      } catch {
+        track("demo_video_missing");
+        router.replace("/");
+      }
     } catch (err) {
       toastApiError(err, "保存失败，请重试");
     } finally {
@@ -108,13 +113,47 @@ export default function OnboardingPage() {
         {/* Skip button — top right */}
         <div className="flex justify-end mb-4">
           <button
-            onClick={handleSkip}
+            onClick={() => setShowSkipConfirm(true)}
             disabled={saving}
             className="text-copy text-muted hover:text-ink transition-colors disabled:opacity-50"
           >
-            跳过，稍后设置
+            跳过设置
           </button>
         </div>
+
+        {showSkipConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-sm rounded-lg border border-hairline bg-canvas p-5 shadow-lg">
+              <h3 className="font-semibold text-ink">跳过会关闭考试词高亮</h3>
+              <p className="mt-2 text-copy text-muted">
+                没有目标考试时，视频里的四级/六级重点词不会高亮。你仍然可以稍后在「我的 →
+                学习设置」里补上。
+              </p>
+              <div className="mt-4 flex gap-3">
+                <Button
+                  variant="secondaryDark"
+                  fullWidth
+                  onClick={() => {
+                    setShowSkipConfirm(false);
+                    setStep(1);
+                  }}
+                >
+                  去设置目标
+                </Button>
+                <Button
+                  fullWidth
+                  disabled={saving}
+                  onClick={() => {
+                    setShowSkipConfirm(false);
+                    void handleSkip();
+                  }}
+                >
+                  仍然跳过
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div className="mb-8 flex gap-2">

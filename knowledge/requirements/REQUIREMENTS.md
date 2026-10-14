@@ -7,7 +7,7 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | SeeWord |
-| 定位 | 用真实视频学英语——双语字幕 + 考试词汇标注 + SM-2 间隔复习 |
+| 定位 | 视频词汇 + 阅读训练——双语字幕 + 考试词汇标注 + SM-2 间隔复习 + 四六级阅读真题 |
 | 目标用户 | 中国英语学习者（中考/高考/四级/六级/考研/雅思） |
 | 后端 | FastAPI + SQLAlchemy async + Celery + PostgreSQL + Redis |
 | 前端 | Next.js（App Router）+ React + Tailwind CSS v4 + Zustand |
@@ -46,6 +46,13 @@ SeeWord 是面向中文母语者的英语学习应用。管理员精选 YouTube/
 | gre | GRE |
 
 用户在 onboarding 或个人中心设置目标考试级别（`UserPreferences.target_exam`），观看页按该级别过滤高亮词汇。
+
+### 1.4 考试面边界（2026-10-14 收窄）
+
+考试侧只交付两件事：**视频词汇**（点词、考试词高亮、词库与间隔复习）与**阅读训练**
+（`exam_service` 的 `reading_A / reading_B / reading_C`）。不提供听力、写作、翻译训练，
+也不承诺四六级全科覆盖；词汇题里的「听音选义」只是一个题型，不是听力能力训练。
+对外文案、定价页与注册页统一按这条边界表述。
 
 ---
 

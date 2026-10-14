@@ -21,7 +21,11 @@ interface VocabStats {
   due_count: number;
 }
 
-export function CompactStatsBar() {
+/**
+ * `band`（默认）= 首页原来那条整宽统计卡；`inline` = DEC-080 的头部附属形态 ——
+ * 不渲染 Card 外框，三项事实 + CTA 折成一行，跟问候语并排。数据与入口两档完全一致。
+ */
+export function CompactStatsBar({ variant = "band" }: { variant?: "band" | "inline" }) {
   const { profile } = usePlan();
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
@@ -46,53 +50,77 @@ export function CompactStatsBar() {
   const streak = profile ? profile.current_streak : null;
   const dueCount = vocabStats?.due_count ?? 0;
 
+  const facts = (
+    <>
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+        title="连续学习天数"
+      >
+        <Flame size={15} className={(streak ?? 0) > 0 ? "text-brand-500" : "text-muted-soft"} />
+        {streak !== null ? `${streak} 天连续` : "–"}
+      </Link>
+      <Link
+        href="/vocabulary"
+        className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+        title="词库总词数"
+      >
+        <BookOpen size={15} className="text-muted" />
+        {vocabStats ? `${vocabStats.total} 个词` : "–"}
+      </Link>
+      <Link
+        href="/history"
+        className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
+        title="已学视频数"
+      >
+        <Clapperboard size={15} className="text-muted" />
+        {recordsTotal !== null ? `${recordsTotal} 个视频` : "–"}
+      </Link>
+    </>
+  );
+
+  {
+    /* 便利入口：有到期词 → 开始复习；没有 → 去练习。统计未到位时两边都不渲染，不猜 */
+  }
+  const cta =
+    vocabStats !== null ? (
+      dueCount > 0 ? (
+        <Link
+          href="/vocabulary/drill"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-500 px-3.5 py-1.5 text-copy font-semibold text-white transition-colors hover:bg-brand-600"
+        >
+          开始复习
+          <ArrowRight size={13} />
+        </Link>
+      ) : (
+        <Link
+          href="/practice"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-hairline px-3.5 py-1.5 text-copy font-semibold text-ink transition-colors hover:border-muted-soft"
+        >
+          去练习
+          <ArrowRight size={13} />
+        </Link>
+      )
+    ) : null;
+
+  if (variant === "inline") {
+    return (
+      <div
+        data-testid="compact-stats-inline"
+        className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2"
+      >
+        {facts}
+        {cta}
+      </div>
+    );
+  }
+
   return (
     <Card padding={0} className="flex items-center gap-4 px-5 py-3.5">
       <div className="flex items-center gap-5 flex-1 min-w-0 overflow-x-auto scrollbar-none">
-        <Link
-          href="/profile"
-          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
-          title="连续学习天数"
-        >
-          <Flame size={15} className={(streak ?? 0) > 0 ? "text-brand-500" : "text-muted-soft"} />
-          {streak !== null ? `${streak} 天连续` : "–"}
-        </Link>
-        <Link
-          href="/vocabulary"
-          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
-          title="词库总词数"
-        >
-          <BookOpen size={15} className="text-muted" />
-          {vocabStats ? `${vocabStats.total} 个词` : "–"}
-        </Link>
-        <Link
-          href="/history"
-          className="inline-flex items-center gap-1.5 text-copy font-semibold text-ink whitespace-nowrap transition-colors hover:text-brand-600"
-          title="已学视频数"
-        >
-          <Clapperboard size={15} className="text-muted" />
-          {recordsTotal !== null ? `${recordsTotal} 个视频` : "–"}
-        </Link>
+        {facts}
       </div>
-      {/* 便利入口：有到期词 → 开始复习；没有 → 去练习。统计未到位时两边都不渲染，不猜 */}
-      {vocabStats !== null &&
-        (dueCount > 0 ? (
-          <Link
-            href="/vocabulary/drill"
-            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg bg-brand-500 text-white text-copy font-semibold hover:bg-brand-600 transition-colors"
-          >
-            开始复习
-            <ArrowRight size={13} />
-          </Link>
-        ) : (
-          <Link
-            href="/practice"
-            className="inline-flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-lg border border-hairline text-ink text-copy font-semibold hover:border-muted-soft transition-colors"
-          >
-            去练习
-            <ArrowRight size={13} />
-          </Link>
-        ))}
+      {cta}
     </Card>
   );
 }

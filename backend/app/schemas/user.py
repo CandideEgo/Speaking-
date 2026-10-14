@@ -9,7 +9,10 @@ from app.core.security import validate_password_strength
 
 class SendSmsCodeRequest(BaseModel):
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
-    purpose: str = Field(default="register", pattern=r"^(register|change_phone|reset_password)$")
+    # "auth" is the canonical purpose for both login and registration.
+    # "register" / "reset_password" stay accepted for one release so old
+    # clients keep working (see P0-A).
+    purpose: str = Field(default="auth", pattern=r"^(auth|register|change_phone|reset_password)$")
 
 
 class SmsLoginRequest(BaseModel):
@@ -25,17 +28,23 @@ class PhoneLoginRequest(BaseModel):
 
 
 class SmsRegisterRequest(BaseModel):
-    """Phone-only registration: SMS code proves phone ownership, password is set now."""
+    """Phone-only registration (deprecated compatibility entry point).
+
+    The canonical flow is ``POST /auth/sms/login`` — a verified code creates
+    the account when the phone is new. This endpoint stays for one release so
+    existing clients can still register; ``password`` is now optional.
+    """
 
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
     code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
-    password: str = Field(min_length=8, max_length=128)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
     name: str | None = Field(default=None, max_length=100)
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
-        validate_password_strength(v)
+    def validate_password(cls, v: str | None) -> str | None:
+        if v is not None:
+            validate_password_strength(v)
         return v
 
 
@@ -109,6 +118,10 @@ class TokenResponse(BaseModel):
     token: str
     refresh_token: str | None = None
     user: UserResponse
+    # True when /auth/sms/login created the account on the fly. Existing
+    # clients ignore the extra field; the web client uses it to route a new
+    # user into onboarding immediately.
+    is_new_user: bool = False
 
 
 class RefreshRequest(BaseModel):
@@ -121,7 +134,9 @@ class RefreshResponse(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
+    # First-time password setup (phone-only account, hashed_password is NULL)
+    # omits current_password; a real change requires it.
+    current_password: str | None = None
     new_password: str = Field(min_length=8, max_length=128)
 
     @field_validator("new_password")
@@ -149,6 +164,8 @@ class UserPreferencesResponse(BaseModel):
     reminder_time: str | None = None
     reminder_timezone: str | None = None
     auto_play_next_subtitle: bool = True
+    # P1-5: vocabulary-drill "auto-advance after a correct answer" toggle.
+    auto_advance_on_correct: bool = False
     subtitle_mode_default: str = "bilingual"
     subtitle_font_size: str = "medium"
     preferred_difficulty: str | None = None
@@ -164,6 +181,7 @@ class UserPreferencesUpdate(BaseModel):
     reminder_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     reminder_timezone: str | None = None
     auto_play_next_subtitle: bool | None = None
+    auto_advance_on_correct: bool | None = None
     subtitle_mode_default: Literal["bilingual", "english", "chinese"] | None = None
     subtitle_font_size: Literal["small", "medium", "large"] | None = None
     preferred_difficulty: str | None = None
@@ -179,3 +197,59 @@ class UserPreferencesUpdate(BaseModel):
 
 class OnboardingRequest(BaseModel):
     onboarding_completed: bool = True
+
+
+# ── Account deletion (P1-7) ─────────────────────────────────────────
+
+
+class DeletionRequest(BaseModel):
+    """Second-confirmation payload for ``POST /users/me/deletion``.
+
+    ``confirm`` must be True — it is the explicit second confirmation the
+    plan requires; ``reason`` is optional free text kept with the request.
+    """
+
+    confirm: bool = False
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class DeletionStatusResponse(BaseModel):
+    """Current 30-day-cancellable-deletion state for the user."""
+
+    scheduled: bool = False
+    requested_at: datetime | None = None
+    scheduled_at: datetime | None = None
+    days_remaining: int | None = None
+    reason: str | None = None
+
+    @field_serializer("requested_at", "scheduled_at")
+    def serialize_datetime(self, v: datetime | None) -> str | None:
+        return v.isoformat() if v is not None else None
+
+
+# ── Async data export (P1-7) ────────────────────────────────────────
+
+
+class ExportTaskResponse(BaseModel):
+    task_id: str
+    status: str
+    created_at: datetime | None = None
+
+    @field_serializer("created_at")
+    def serialize_datetime(self, v: datetime | None) -> str | None:
+        return v.isoformat() if v is not None else None
+
+
+class ExportStatusResponse(BaseModel):
+    task_id: str
+    status: str
+    created_at: datetime | None = None
+    size_bytes: int | None = None
+    error: str | None = None
+    # Present only when status == "ready"; short-lived + single-use.
+    download_url: str | None = None
+    download_expires_at: datetime | None = None
+
+    @field_serializer("created_at", "download_expires_at")
+    def serialize_datetime(self, v: datetime | None) -> str | None:
+        return v.isoformat() if v is not None else None

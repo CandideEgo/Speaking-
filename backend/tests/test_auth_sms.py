@@ -149,18 +149,31 @@ class TestPhoneLogin:
         assert resp.status_code == 401
 
 
-class TestSmsLoginNoAutoCreate:
-    """sms/login must NOT auto-create accounts (registration is via sms/register)."""
+class TestSmsLoginAutoCreate:
+    """sms/login is the passwordless registration + login entry point."""
 
-    async def test_sms_login_unregistered_returns_404(self, client: AsyncClient):
+    async def test_sms_login_unregistered_creates_phone_only_account(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": "13900000000", "purpose": "auth"},
+        )
         resp = await client.post(
             "/api/v1/auth/sms/login",
             json={"phone": "13900000000", "code": _DEV_FAKE_CODE},
         )
-        assert resp.status_code == 404
-        assert "未注册" in resp.json()["detail"]
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["is_new_user"] is True
+        assert data["user"]["phone"] == "13900000000"
+        # No password was set: password login must not work until one is set.
+        assert (
+            await client.post(
+                "/api/v1/auth/phone-login",
+                json={"phone": "13900000000", "password": _TEST_PASSWORD},
+            )
+        ).status_code == 401
 
-    async def test_sms_login_registered_returns_token(self, client: AsyncClient):
+    async def test_sms_login_existing_returns_token_and_is_new_user_false(self, client: AsyncClient):
         await client.post(
             "/api/v1/auth/sms/send-code",
             json={"phone": _TEST_PHONE, "purpose": "register"},
@@ -175,6 +188,52 @@ class TestSmsLoginNoAutoCreate:
         )
         assert resp.status_code == 200
         assert "token" in resp.json()
+        assert resp.json()["is_new_user"] is False
+
+    async def test_first_password_setup_does_not_require_current_or_rotate_session(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "auth"},
+        )
+        created = await client.post(
+            "/api/v1/auth/sms/login",
+            json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE},
+        )
+        token = created.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            headers=headers,
+            json={"new_password": _TEST_PASSWORD},
+        )
+        assert resp.status_code == 200, resp.text
+
+        # First setup is not a credential change: the session that set it stays valid.
+        assert (await client.get("/api/v1/users/me", headers=headers)).status_code == 200
+        assert (
+            await client.post(
+                "/api/v1/auth/phone-login",
+                json={"phone": _TEST_PHONE, "password": _TEST_PASSWORD},
+            )
+        ).status_code == 200
+
+    async def test_change_password_with_existing_password_still_requires_current(self, client: AsyncClient):
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "register"},
+        )
+        created = await client.post(
+            "/api/v1/auth/sms/register",
+            json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
+        )
+        headers = {"Authorization": f"Bearer {created.json()['token']}"}
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            headers=headers,
+            json={"new_password": "BrandNew123!"},
+        )
+        assert resp.status_code == 400
 
 
 class TestSmsResetPassword:

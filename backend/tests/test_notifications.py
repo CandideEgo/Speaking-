@@ -1,10 +1,100 @@
 """Tests for the notifications API (/api/v1/notifications)."""
 
+import asyncio
+import json
+
+import pytest
 from fastapi import WebSocketDisconnect, status
 from httpx import AsyncClient
 
 from app.models.notification import Notification
 from tests.conftest import TestSessionLocal
+
+
+class TestNotificationFanout:
+    """Redis Pub/Sub fan-out with local delivery as the fail-open path."""
+
+    async def test_push_delivers_locally_and_publishes(self, monkeypatch):
+        from app.api.v1 import notifications as notif
+
+        delivered = []
+        published = []
+
+        async def fake_send(user_id, message):
+            delivered.append((user_id, message))
+
+        class FakeRedis:
+            async def publish(self, channel, payload):
+                published.append((channel, json.loads(payload)))
+
+        monkeypatch.setattr(notif.ws_manager, "send_to_user", fake_send)
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: FakeRedis())
+
+        await notif.push_to_user("u1", {"type": "notification"})
+
+        assert delivered == [("u1", {"type": "notification"})]
+        channel, payload = published[0]
+        assert channel == notif.NOTIFICATIONS_CHANNEL
+        assert payload["origin"] == notif._INSTANCE_ID
+        assert payload["user_id"] == "u1"
+        assert payload["message"] == {"type": "notification"}
+
+    async def test_push_still_delivers_locally_when_redis_is_down(self, monkeypatch):
+        from app.api.v1 import notifications as notif
+
+        delivered = []
+
+        async def fake_send(user_id, message):
+            delivered.append((user_id, message))
+
+        def broken_redis():
+            raise RuntimeError("redis unavailable")
+
+        monkeypatch.setattr(notif.ws_manager, "send_to_user", fake_send)
+        monkeypatch.setattr("app.core.redis.get_redis", broken_redis)
+
+        await notif.push_to_user("u1", {"type": "notification"})
+        assert delivered == [("u1", {"type": "notification"})]
+
+    async def test_subscriber_delivers_other_workers_and_skips_own(self, monkeypatch):
+        from app.api.v1 import notifications as notif
+
+        delivered = []
+
+        async def fake_send(user_id, message):
+            delivered.append((user_id, message))
+
+        foreign = json.dumps({"origin": "other-worker", "user_id": "u2", "message": {"type": "notification"}})
+        own = json.dumps({"origin": notif._INSTANCE_ID, "user_id": "u3", "message": {"type": "notification"}})
+
+        class FakePubSub:
+            async def subscribe(self, channel):
+                self.channel = channel
+
+            async def listen(self):
+                yield {"type": "subscribe"}
+                yield {"type": "message", "data": foreign}
+                yield {"type": "message", "data": own}
+                raise asyncio.CancelledError
+
+            async def unsubscribe(self, channel):
+                return None
+
+            async def aclose(self):
+                return None
+
+        class FakeRedis:
+            def pubsub(self):
+                return FakePubSub()
+
+        monkeypatch.setattr(notif.ws_manager, "send_to_user", fake_send)
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: FakeRedis())
+
+        task = asyncio.create_task(notif._notification_subscriber_loop())
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert delivered == [("u2", {"type": "notification"})]
 
 
 class TestListNotifications:

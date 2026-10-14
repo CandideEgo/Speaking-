@@ -17,18 +17,22 @@ import { Avatar } from "@/components/ui/Avatar";
 import { watchHref } from "@/lib/watchEntry";
 import { useProfileStore } from "@/stores/profileStore";
 import { useVisibilityAwareInterval } from "@/hooks/useVisibilityAwareInterval";
-import { Search, Bell, Sun, Moon, User, LogOut, HelpCircle, Bookmark } from "lucide-react";
+import { Search, Bell, Sun, Moon, User, LogOut, HelpCircle, Bookmark, History } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
 
-/** Top-level horizontal navigation links (B方案: 顶栏水平导航). */
+/** Top-level horizontal navigation links (B方案: 顶栏水平导航)。
+ *
+ * P1-4 导航 IA：桌面与移动统一为「首页 / 频道 / 练习 / 词汇 / 我的」，顺序、
+ * 文案、高亮两端口径一致。学习记录/收藏/设置等降为「我的」页或其二级入口，
+ * 不再占主干；榜单/周报/通知/兑换/定价同理（见「我的」页）。 */
 const NAV = [
   { label: "首页", href: "/", shortcut: "1" },
   { label: "频道", href: "/browse", shortcut: "2" },
-  { label: "练习专题", href: "/practice", shortcut: "3" },
-  { label: "单词训练", href: "/vocabulary", shortcut: "4" },
-  { label: "学习记录", href: "/history", shortcut: "5" },
+  { label: "练习", href: "/practice", shortcut: "3" },
+  { label: "词汇", href: "/vocabulary", shortcut: "4" },
+  { label: "我的", href: "/profile", shortcut: "5" },
 ];
 
 /** Avatar dropdown menu (个人中心/收藏/退出) - migrated from Sidebar UserPopover. */
@@ -49,6 +53,7 @@ function AvatarMenu({ userName, onClose }: { userName: string; onClose: () => vo
   // 1B 设计减法：原「个人资料」「学习偏好」两项同指 /profile，收敛为一项。
   const items = [
     { label: "个人中心", icon: User, href: "/profile" },
+    { label: "学习记录", icon: History, href: "/history" },
     { label: "我的收藏", icon: Bookmark, href: "/favorites" },
     { label: "帮助与反馈", icon: HelpCircle, href: "/contact" },
   ];
@@ -334,7 +339,7 @@ export function TopBar() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="搜索视频、字幕、单词…"
+              placeholder="搜索视频、字幕…"
               value={searchQuery}
               onChange={(e) => handleSearchInput(e.target.value)}
               onFocus={() => {

@@ -33,12 +33,15 @@ import { ShadowingDrawer } from "@/components/watch/ShadowingDrawer";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
+import { LearningActions } from "@/components/watch/LearningActions";
+import { SentenceWordStrip } from "@/components/watch/SentenceWordStrip";
 import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
 import { useWatchChrome, type WatchChromeState } from "@/components/watch/WatchChromeProvider";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
+import { selectSentenceWords } from "@/lib/sentenceWords";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
   ArrowLeft,
@@ -47,8 +50,6 @@ import {
   Mic,
   Bookmark,
   Heart,
-  BookOpen,
-  GraduationCap,
   Pencil,
   X,
   AlertCircle,
@@ -103,27 +104,19 @@ function VideoActions({
   isLiked,
   likeCount,
   isFavorited,
-  vocabSet,
-  addingVocabSet,
   noteOpen,
   onToggleLike,
   onToggleFavorite,
-  onVocabSet,
   onNotes,
-  onDrill,
 }: {
   compact: boolean;
   isLiked: boolean;
   likeCount: number;
   isFavorited: boolean;
-  vocabSet: VocabSet | null;
-  addingVocabSet: boolean;
   noteOpen: boolean;
   onToggleLike: () => void;
   onToggleFavorite: () => void;
-  onVocabSet: () => void;
   onNotes: () => void;
-  onDrill: () => void;
 }) {
   // 移动端一律 44px 触控目标（#24/#28 的触控基线），桌面端维持原有的 36px 紧凑档。
   const box = compact ? "w-11 h-11" : "w-9 h-9";
@@ -161,34 +154,6 @@ function VideoActions({
         title={isFavorited ? "取消收藏" : "收藏"}
       >
         <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
-      </button>
-      <button
-        className={cn(
-          box,
-          "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-          vocabSet ? "text-brand-500" : "text-muted hover:bg-surface-card hover:text-ink"
-        )}
-        onClick={onVocabSet}
-        aria-label={vocabSet ? "已加入学习，查看词汇集合" : "把本视频单词加入学习"}
-        title={vocabSet ? "已加入学习" : "加入学习"}
-        disabled={addingVocabSet}
-      >
-        {addingVocabSet ? (
-          <Loader2 size={18} className="animate-spin" />
-        ) : (
-          <GraduationCap size={18} className={cn(vocabSet && "fill-current")} />
-        )}
-      </button>
-      <button
-        className={cn(
-          box,
-          "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
-        )}
-        onClick={onDrill}
-        aria-label="单词训练"
-        title="单词训练"
-      >
-        <BookOpen size={18} />
       </button>
       <button
         className={cn(
@@ -404,9 +369,12 @@ export default function WatchPage() {
   // D2: first-time coach mark tour. Only shows when the watch page is
   // fully ready (subtitles loaded, video URL known) so the spotlight
   // rects aren't zero. The hook writes seeword_coach_done on finish/skip.
+  const isFirstLesson = searchParams.get("first_lesson") === "1";
   const coach = useCoachMark({
     isAuthenticated,
     isReady: playbackMode === "ready" && !!video && (video.subtitles?.length ?? 0) > 0,
+    isFirstLesson,
+    onEvent: (event, payload) => track(event, payload, id),
   });
 
   // D3b: EndScreen state. Activated when the <video> fires onEnded.
@@ -495,6 +463,22 @@ export default function WatchPage() {
       getSubtitles: () => video?.subtitles,
       videoId: id,
     });
+
+  // First-lesson tour advances on the real actions, not only the "next" button.
+  useEffect(() => {
+    if (selectedWord) coach.advanceFromFirstWordClick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWord]);
+
+  useEffect(() => {
+    if (sentenceShadow.active) coach.advanceFromShadowing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentenceShadow.active]);
+
+  const handleSaveWord = useCallback(async () => {
+    await saveToVocabulary();
+    coach.advanceFromWordSaved();
+  }, [saveToVocabulary, coach.advanceFromWordSaved]);
 
   // D3b/S7b: deep-link focus — ?sub=<subtitle id> lands on one sentence
   // (「回到对应句子」/「回看原句」), ?word= highlights that word too, legacy ?t=
@@ -942,6 +926,13 @@ export default function WatchPage() {
   }
 
   const currentSubtitle = video.subtitles[currentSubtitleIndex];
+  // W1：桌面「本句词」条目的数据源。纯函数，不进 hook —— 它必须放在早退之后，
+  // 而早退之后不能再加 hook（React 规则）。句子级数据量小，每次渲染直接算即可。
+  const sentenceWords = selectSentenceWords(
+    currentSubtitle.text_en,
+    currentSubtitle.word_levels ?? null,
+    selectedExamLevel
+  );
 
   /**
    * 学习笔记面板。抽出来是因为它现在有两个落点（DEC-069 第 6 条把移动端的笔记入口
@@ -1003,14 +994,10 @@ export default function WatchPage() {
             isLiked={isLiked}
             likeCount={likeCount}
             isFavorited={isFavorited}
-            vocabSet={vocabSet}
-            addingVocabSet={addingVocabSet}
             noteOpen={noteOpen}
             onToggleLike={toggleLike}
             onToggleFavorite={toggleFavorite}
-            onVocabSet={handleVocabSetClick}
             onNotes={() => setNoteOpen((v) => !v)}
-            onDrill={() => router.push("/vocabulary")}
           />
         </div>
 
@@ -1249,6 +1236,24 @@ export default function WatchPage() {
                       {/* S5：桌面动作带——原来「画面下的第二张卡」整块搬进句卡自身。
                           `isMobile ? undefined` 保证移动端**不传**、DOM 零变化
                           （`hidden lg:flex` 是第二条保险）。状态与回调逐字沿用原卡。 */}
+
+                      {/* W1/W2（DEC-080）：本句词条 + 学习动作。句卡是桌面唯一的学习焦点，
+                          词条点开同一个词卡，学习动作从页头搬到这里；视频级动作仍留在页头。 */}
+                      <div className="mb-2 flex items-center gap-2">
+                        <SentenceWordStrip
+                          words={sentenceWords}
+                          targetLevel={selectedExamLevel}
+                          isSelected={isSelectedWord}
+                          onWordClick={handleWordClick}
+                        />
+                        <LearningActions
+                          compact={false}
+                          vocabSet={vocabSet}
+                          addingVocabSet={addingVocabSet}
+                          onVocabSet={handleVocabSetClick}
+                          onDrill={() => router.push("/vocabulary")}
+                        />
+                      </div>
 
                       {/* 动作带：整宽 2 段（TabPills 视觉语言）。逐句跟读与手动录音
                           互斥：进逐句前若手动录音在跑，先收掉（同一支麦克风）。 */}
@@ -1548,7 +1553,7 @@ export default function WatchPage() {
               gloss={wordGloss}
               onClose={clearWord}
               onPronounce={() => speakWord(selectedWord)}
-              onSave={saveToVocabulary}
+              onSave={handleSaveWord}
             />
           ) : (
             <WordTooltipInline
@@ -1556,7 +1561,7 @@ export default function WatchPage() {
               gloss={wordGloss}
               onClose={clearWord}
               onPronounce={() => speakWord(selectedWord)}
-              onSave={saveToVocabulary}
+              onSave={handleSaveWord}
               panelCollapsed={panelCollapsed}
             />
           )}
@@ -1577,20 +1582,25 @@ export default function WatchPage() {
         onRateChange={setRate}
         sourceUrl={video.source_url ?? null}
         actions={
-          <VideoActions
-            compact
-            isLiked={isLiked}
-            likeCount={likeCount}
-            isFavorited={isFavorited}
-            vocabSet={vocabSet}
-            addingVocabSet={addingVocabSet}
-            noteOpen={noteOpen}
-            onToggleLike={toggleLike}
-            onToggleFavorite={toggleFavorite}
-            onVocabSet={handleVocabSetClick}
-            onNotes={() => setNoteOpen((v) => !v)}
-            onDrill={() => router.push("/vocabulary")}
-          />
+          <div className="flex items-center gap-1">
+            <VideoActions
+              compact
+              isLiked={isLiked}
+              likeCount={likeCount}
+              isFavorited={isFavorited}
+              noteOpen={noteOpen}
+              onToggleLike={toggleLike}
+              onToggleFavorite={toggleFavorite}
+              onNotes={() => setNoteOpen((v) => !v)}
+            />
+            <LearningActions
+              compact
+              vocabSet={vocabSet}
+              addingVocabSet={addingVocabSet}
+              onVocabSet={handleVocabSetClick}
+              onDrill={() => router.push("/vocabulary")}
+            />
+          </div>
         }
         extra={noteOpen ? notesPanel : null}
       />

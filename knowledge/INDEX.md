@@ -15,6 +15,13 @@
 | 部署上这台机器该做什么 | 下面「运维」组 |
 
 
+## 当前先做什么
+
+- 跨会话工作只有一个控制面：`knowledge/work/`。先看下面的 WorkItem，不要从 `plans/` 里挑任务。
+- 当前阶段、前沿与推荐下一步的唯一家在 `work/W-20261014-01-产品缺口推进/README.md` 和
+  `.agent/state.md`；本页只保证入口可达，不复制状态快照。
+- `knowledge/plans/` 只保存设计、落地记录和历史依据，不再回答“现在该干哪个”。
+
 ## 顶层
 
 - [Technical Decisions](decisions.md)
@@ -35,7 +42,7 @@
 
 - [组合型静默失效的两个模式](wiki/problems/silent-composition-failures.md) — 状态跃迁把实体挤出所有可达队列（错词毕业即消失）/ 逐条写入超过端点限流预算（逐题 POST 撞 429 丢复习进度） · active · 2026-09-28
 - [行锁的三个可复用陷阱（写者不共用锁 / SQLAlchemy 只警告不报错 / 临界区内的 commit 提前释放锁）](wiki/problems/shared-row-locks-and-nested-commits.md) — active · 2026-09-28
-- [本地日期基准不一致的测试 flake](wiki/problems/local-date-basis-test-flake.md) — 测试用宿主机「昨天」、服务端回退 UTC「今天」，只在凌晨失败；get_user_local_date 回退基准的产品疑问待 DEC · active · 2026-09-28
+- [本地日期基准不一致的测试 flake](wiki/problems/local-date-basis-test-flake.md) — 测试用宿主机「昨天」、服务端当时回退 UTC「今天」，只在凌晨失败；回退基准已由 DEC-079 统一为 Asia/Shanghai · active · 2026-10-14
 - [错误与清理路径的三个隐形失效模式（回显非有限浮点 / fail-open 的漏洞 / 清理跑两次）](wiki/problems/error-path-blindspots.md) — active · 2026-09-28
 - [缓存失效与媒体门控的两个隐形失效模式](wiki/problems/cache-invalidation-and-media-gate-blindspots.md) — fail-open 吞异常使失效静默失效 / 门控靠文件名正则，命名不符即整段跳过 · active · 2026-09-28
 - [审计验证的两个失效模式](wiki/problems/audit-verification-failure-modes.md) — 静态分析基线把「已接受的债」读成无害，掩盖线上 /videos/search 500 / 高召回 LLM 审查 critical/high 档近 1/3 误报，须逐条对代码求证 · active · 2026-09-28
@@ -45,10 +52,11 @@
 
 ## 指南：怎么在这个仓里做事
 
-- [Repository Layout](wiki/guides/repository-layout.md) — Which directory holds which kind of thing, and what a new top-level entry needs · active · 2026-09-29
+- [Repository Layout](wiki/guides/repository-layout.md) — Which directory holds which kind of thing, and what a new top-level entry needs · active · 2026-10-14
 - [Testing Guide](wiki/guides/testing.md) — Backend tests, frontend checks, CI, lint & format · active · 2026-09-28
 - [Development Setup](wiki/guides/setup.md) — Local dev, infrastructure, environment, production deploy, video seeding · active · 2026-09-28
 - [Release / Pre-Push Checklist](wiki/guides/release-checklist.md) — The four local gates, known CI traps, migration checks before pushing · active · 2026-09-28
+- [Spec Flow：从想法到切片执行的通用工作流](wiki/guides/spec-workstreams.md) — 五层 WorkItem 控制意图与证据，GitHub Issues 保存认领、阻塞与关闭 · active · 2026-10-14
 - [Image Handling in Agent Sessions](wiki/guides/agent-image-handling.md) — Why pasting images corrupts agent sessions, and how to recover · active · 2026-09-25
 - [审查改动时的六个必问](wiki/guides/code-review-principles.md) — 行为枚举 / 默认翻转点名损失 / prompt 即行为 / 契约是绊线 / 移植带清单 / 静默失败最重 · active · 2026-10-11
 - [审查改动时的「问谁」清单](wiki/guides/review-surfaces.md) — 谁在依赖现有行为 / 绊线清单 / 九篇 problems 按等级回填 · active · 2026-10-12
@@ -75,30 +83,61 @@
 - [ADR-0002: 砍掉 AI 口语评分；录音改为纯回放](adr/0002-cut-ai-scoring-recording-playback.md)
 - [ADR-0001: 产品定位 — 视频词汇学习 + 社区 UGC 并重](adr/0001-product-positioning.md)
 
-## 方案：已成形、已落地或未采用的计划
+## 工作项：持续工作与切片
 
-- [规则层重构 B：分片落地序列（2026-10-12，R0–R5 待执行，DEC-076 / ADR-0021）](plans/规则层重构-B-落地序列-2026-10.md)
-- [前端视觉统一：全站单一容器 + 收敛 token / 页头 / 卡片（2026-10-12，P1–P6 待执行，DEC-075）](plans/前端视觉统一-2026-10.md)
-- [AGENTS.md 重写草案：参考 Kimi Code 的仓库级 Agent 指南（2026-10-12，待拍板）](plans/AGENTS-精简规则-2026-10.md)
-- [AGENTS.md 同构格式版草案：逐节对齐 Kimi 的根 AGENTS.md（2026-10-12，待拍板）](plans/AGENTS-Kimi同构格式-2026-10.md)
-- [前端布局与信息架构：分步执行方案（2026-10，S1–S8，待执行）](plans/前端布局与信息架构-执行方案-2026-10.md)
-- [前端布局与信息架构：优化方案（2026-10，草案 v2 · 已过评审 · 已拍板）](plans/前端布局与信息架构-优化方案-2026-10.md)
-- [前端缺陷清单（2026-10-05，v2 已过评审；余项已于 2026-10-13 全量修复）](plans/前端缺陷清单-2026-10.md)
-- [移动端播放页：句导航修复 + R5「齐平字幕带」版式 — 执行方案（2026-10，待执行）](plans/移动端播放页-句导航与R5版式-执行方案-2026-10.md)
-- [移动端播放页：边界突兀 / 上下句失灵 / 字幕跳转高亮异常 — 诊断与修复方案（2026-10-02）](plans/移动端播放页-边界与句导航缺陷-诊断与方案-2026-10.md)
-- [移动端播放页重构：把控制搬进壳的两个栏 — 执行方案（2026-10，待实施）](plans/移动端播放页-壳层控制条-落地方案-2026-10.md)
-- [移动端设计优化：字号刻度 / 单层滚动 / 高亮四档 / 当前句带三行 — 已实施（2026-10-11，DEC-073/074）](plans/移动端设计优化-2026-10.md)
-- [播放页返回导航 + 单词训练体系重构（设计方案 / 决策记录）](plans/词汇训练与播放页返回-设计方案-2026-09.md)
-- [播放页返回 + 单词训练体系：执行方案](plans/词汇训练与播放页返回-执行方案-2026-09.md)
-- [词汇训练与播放页返回：剩余分片计划（S4 / S5 / S6 / S8）](plans/词汇训练与播放页返回-剩余分片计划-2026-09.md)
-- [编排层：从口播到执行的连接件 — 落地方案（2026-09）](plans/编排层-落地方案-2026-09.md)
-- [知识冷仓重构 — 方案（2026-09）](plans/知识冷仓重构-方案-2026-09.md)
-- [SeeWord 产品设计规划（2026-08 起）](plans/产品设计规划-2026-08.md)
-- [SeeWord 产品规划（2026-08 起，6 个月视野）](plans/产品规划-2026-08.md)
-- [agent 技能线：落地方案（借 mattpocock/skills 的三格）](plans/agent技能线-落地方案-2026-09.md)
-- [SeeWord](plans/WORKFLOW.md)
-- [后续开发计划](plans/PLAN-2026-08-后续开发.md)
-- [前端设计重构落地计划 - prototypes → frontend Next.js](plans/FRONTEND-REFACTOR-2026-07.md)
+<!-- spec-flow:index:start -->
+- [Spec Flow WorkItems](work/README.md)
+- [产品缺口 P0+P1 收口](work/W-20261014-01-产品缺口推进/README.md)
+- [Intent — 产品缺口 P0+P1 上线前闭环](work/W-20261014-01-产品缺口推进/intent.md)
+- [Research — 迁移与推进依据](work/W-20261014-01-产品缺口推进/research.md)
+- [Solution — 用真实验收和显式决策收口](work/W-20261014-01-产品缺口推进/solution.md)
+- [Plan — S01–S05 切片推进](work/W-20261014-01-产品缺口推进/plan.md)
+- [服务环境验收](work/W-20261014-01-产品缺口推进/slices/S01-service-env-acceptance.md)
+- [前端测试载体](work/W-20261014-01-产品缺口推进/slices/S02-frontend-test-harness.md)
+- [对象认知回填](work/W-20261014-01-产品缺口推进/slices/S03-cognition-backfill.md)
+- [延后产品决策](work/W-20261014-01-产品缺口推进/slices/S04-deferred-product-decisions.md)
+- [发布后兼容清理](work/W-20261014-01-产品缺口推进/slices/S05-post-release-cleanup.md)
+<!-- spec-flow:index:end -->
+
+## 方案：设计记录与历史计划（不是执行队列）
+
+> 需要决定“下一步”时看上面的 WorkItem 和 `.agent/state.md`。本组保存设计依据、落地记录、
+> 未采用方案和历史；除非某行明确写“在飞”，不要从这里挑选工作。`knowledge/plans/` 继续保留
+> 已落地方案，不搬迁、不删除，因为决策、WorkItem 和 ADR 仍引用它们。
+
+### 最近落地与待验收记录
+
+- [产品缺口总结：定位 / 前后端功能 / 用户体验（2026-10）](plans/产品缺口-2026-10.md) — P0/P1 的来源与产品判断
+- [产品缺口实施方案（2026-10）](plans/产品缺口实施方案-2026-10.md) — P0/P1 已实施；剩余验收迁入 `W-20261014-01`
+- [核心两页落地：watch 焦点带增强 + 首页最小发现页修正（2026-10-13）](plans/核心两页-焦点带与最小发现页-2026-10.md) — 代码 W1–W3 / H1–H3 已落；真媒体几何校准待服务环境
+- [规则层重构 B：分片落地序列（2026-10-12）](plans/规则层重构-B-落地序列-2026-10.md) — R1 / R2 / R4 / R5 已落；R3 只落了措辞与注释
+- [前端视觉统一：全站单一容器 + 收敛 token / 页头 / 卡片（2026-10-12）](plans/前端视觉统一-2026-10.md) — 已实施（P1–P6）
+- [前端布局与信息架构：分步执行方案（2026-10）](plans/前端布局与信息架构-执行方案-2026-10.md) — 已实施（S1–S8）
+- [前端缺陷清单（2026-10-05）](plans/前端缺陷清单-2026-10.md) — 已修复 / 已撤销 / 已取代
+- [移动端播放页：句导航修复 + R5「齐平字幕带」版式（2026-10）](plans/移动端播放页-句导航与R5版式-执行方案-2026-10.md) — 已实施（DEC-070）
+- [移动端播放页重构：把控制搬进壳的两个栏（2026-10-02）](plans/移动端播放页-壳层控制条-落地方案-2026-10.md) — 已实施
+- [移动端设计优化：字号刻度 / 单层滚动 / 高亮四档 / 当前句带三行（2026-10-11）](plans/移动端设计优化-2026-10.md) — 已实施
+
+### 历史设计、诊断与完成记录
+
+- [前端布局与信息架构：优化方案（2026-10，v2）](plans/前端布局与信息架构-优化方案-2026-10.md) — 上游设计；执行结果见分步执行方案
+- [移动端播放页：边界突兀 / 上下句失灵 / 字幕跳转高亮异常 — 诊断与方案（2026-10-02）](plans/移动端播放页-边界与句导航缺陷-诊断与方案-2026-10.md) — DEC-069 / DEC-070 的上游诊断
+- [播放页返回导航 + 单词训练体系重构（设计方案 / 决策记录）](plans/词汇训练与播放页返回-设计方案-2026-09.md) — 后续已实施
+- [播放页返回 + 单词训练体系：执行方案](plans/词汇训练与播放页返回-执行方案-2026-09.md) — 后续已实施
+- [词汇训练与播放页返回：剩余分片计划（S4 / S5 / S6 / S8）](plans/词汇训练与播放页返回-剩余分片计划-2026-09.md) — 已落地
+- [知识冷仓重构 — 方案（2026-09）](plans/知识冷仓重构-方案-2026-09.md) — 已实施；后续分层见 DEC-072 / DEC-076 / DEC-077
+- [SeeWord 产品规划（2026-08 起，6 个月视野）](plans/产品规划-2026-08.md) — 历史产品规划
+- [SeeWord 产品设计规划（2026-08 起）](plans/产品设计规划-2026-08.md) — 历史设计规划
+- [后续开发计划（2026-08）](plans/PLAN-2026-08-后续开发.md) — 历史执行计划
+- [前端设计重构落地计划 - prototypes → frontend Next.js（2026-07）](plans/FRONTEND-REFACTOR-2026-07.md) — 历史落地记录
+- [SeeWord 独立开发者工作流](plans/WORKFLOW.md) — 工作流参考，不是当前执行队列
+
+### 未采用与历史草案
+
+- [agent 技能线：落地方案（2026-09）](plans/agent技能线-落地方案-2026-09.md) — 部分方向已由现行技能覆盖；本文不再作为执行队列
+- [编排层：从口播到执行的连接件 — 落地方案（2026-09）](plans/编排层-落地方案-2026-09.md) — 未采用（DEC-065）
+- [AGENTS.md 重写草案：参考 Kimi Code（2026-10-12）](plans/AGENTS-精简规则-2026-10.md) — 历史草案；现行 AGENTS.md / ADR-0021 / DEC-076 / DEC-077 为准
+- [AGENTS.md 同构格式版草案（2026-10-12）](plans/AGENTS-Kimi同构格式-2026-10.md) — 历史草案；未作为执行队列
 
 ## 进度：某段时间发生了什么
 

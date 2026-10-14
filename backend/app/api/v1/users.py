@@ -1,8 +1,10 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +15,10 @@ from app.core.limiter import rate_limit
 from app.core.uploads import read_upload_bounded
 from app.models.user import User
 from app.schemas.user import (
+    DeletionRequest,
+    DeletionStatusResponse,
+    ExportStatusResponse,
+    ExportTaskResponse,
     MessageResponse,
     OnboardingRequest,
     UserPreferencesResponse,
@@ -144,6 +150,7 @@ async def get_preferences(
             auto_play_next_subtitle=pref_row.auto_play_next_subtitle
             if pref_row.auto_play_next_subtitle is not None
             else True,
+            auto_advance_on_correct=bool(pref_row.auto_advance_on_correct),
             subtitle_mode_default=pref_row.subtitle_mode_default or "bilingual",
             subtitle_font_size=pref_row.subtitle_font_size or "medium",
             preferred_difficulty=pref_row.preferred_difficulty,
@@ -190,8 +197,222 @@ async def update_preferences(
         reminder_time=pref.reminder_time,
         reminder_timezone=pref.reminder_timezone,
         auto_play_next_subtitle=pref.auto_play_next_subtitle if pref.auto_play_next_subtitle is not None else True,
+        auto_advance_on_correct=bool(pref.auto_advance_on_correct),
         subtitle_mode_default=pref.subtitle_mode_default or "bilingual",
         subtitle_font_size=pref.subtitle_font_size or "medium",
         preferred_difficulty=pref.preferred_difficulty,
         target_exam=pref.target_exam,
     )
+
+
+# ── 30-day cancellable deletion (P1-7) ──────────────────────────────
+
+# Grace period before the daily purge task actually deletes the account.
+DELETION_GRACE_DAYS = 30
+
+
+def _deletion_status_response(user: User) -> DeletionStatusResponse:
+    if user.deletion_scheduled_at is None:
+        return DeletionStatusResponse(scheduled=False)
+    scheduled = user.deletion_scheduled_at
+    if scheduled.tzinfo is None:
+        scheduled = scheduled.replace(tzinfo=UTC)
+    # Round up so "scheduled 30 days out" reads as 30, not 29 (the fresh delta
+    # is 30 days minus a few microseconds).
+    delta_seconds = (scheduled - datetime.now(UTC)).total_seconds()
+    remaining = -(-int(delta_seconds) // 86400)
+    return DeletionStatusResponse(
+        scheduled=True,
+        requested_at=user.deletion_requested_at,
+        scheduled_at=user.deletion_scheduled_at,
+        days_remaining=max(0, remaining),
+        reason=user.deletion_reason,
+    )
+
+
+@router.get("/me/deletion", response_model=DeletionStatusResponse)
+@rate_limit("30/minute")
+async def get_deletion_status(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Current deletion countdown — drives the persistent banner in the UI."""
+    return _deletion_status_response(current_user)
+
+
+@router.post("/me/deletion", response_model=DeletionStatusResponse)
+@rate_limit("10/minute")
+async def request_deletion(
+    request: Request,
+    data: DeletionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request account deletion with a 30-day grace period (idempotent).
+
+    Requires the explicit second confirmation (``confirm=True``). Scheduling
+    twice keeps the original ``scheduled_at`` so the countdown never silently
+    extends. Login and every other endpoint stay usable during the window; the
+    account is only cancelled by the explicit DELETE.
+    """
+    if not data.confirm:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请确认注销操作")
+    if current_user.deletion_scheduled_at is None:
+        now = datetime.now(UTC)
+        current_user.deletion_requested_at = now
+        current_user.deletion_scheduled_at = now + timedelta(days=DELETION_GRACE_DAYS)
+        current_user.deletion_reason = data.reason
+        await commit_refresh(db, current_user)
+        logger.info("account_deletion_requested", user_id=current_user.id)
+    return _deletion_status_response(current_user)
+
+
+@router.delete("/me/deletion", response_model=MessageResponse)
+@rate_limit("10/minute")
+async def cancel_deletion(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a pending deletion and clear every countdown field (idempotent)."""
+    if current_user.deletion_scheduled_at is not None:
+        current_user.deletion_requested_at = None
+        current_user.deletion_scheduled_at = None
+        current_user.deletion_reason = None
+        await commit_refresh(db, current_user)
+        logger.info("account_deletion_cancelled", user_id=current_user.id)
+    return MessageResponse(message="注销已撤销")
+
+
+# ── Async data export (P1-7) ────────────────────────────────────────
+
+# Download handshake TTL for a ready export.
+EXPORT_URL_TTL_SECONDS = 15 * 60
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """SQLite drops tzinfo on round-trip; normalise before comparing to now."""
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+@router.get("/me/export", response_model=ExportTaskResponse)
+@rate_limit("5/minute")
+async def create_export(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Queue a ZIP export of the caller's data (returns task id + status).
+
+    Reuses the newest pending/running task so a double-click doesn't build the
+    archive twice.
+    """
+    from app.models.data_export import DataExportTask
+
+    existing = (
+        await db.execute(
+            select(DataExportTask)
+            .where(DataExportTask.user_id == current_user.id, DataExportTask.status.in_(["pending", "running"]))
+            .order_by(DataExportTask.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return ExportTaskResponse(task_id=existing.id, status=existing.status, created_at=existing.created_at)
+
+    task = DataExportTask(user_id=current_user.id, status="pending")
+    db.add(task)
+    await commit_refresh(db, task)
+
+    from app.tasks.account_tasks import build_user_export
+
+    try:
+        build_user_export.delay(task.id)
+    except Exception:
+        # Broker unavailable: leave the row pending so a later retry can enqueue
+        # it; never fail the request over a queue blip (INV-002 spirit).
+        logger.warning("export_enqueue_failed", export_task_id=task.id, exc_info=True)
+    logger.info("data_export_requested", user_id=current_user.id, export_task_id=task.id)
+    return ExportTaskResponse(task_id=task.id, status=task.status, created_at=task.created_at)
+
+
+async def _owned_export_task(db: AsyncSession, user_id: str, task_id: str):
+    from app.models.data_export import DataExportTask
+
+    return (
+        await db.execute(select(DataExportTask).where(DataExportTask.id == task_id, DataExportTask.user_id == user_id))
+    ).scalar_one_or_none()
+
+
+@router.get("/me/export/{task_id}", response_model=ExportStatusResponse)
+@rate_limit("30/minute")
+async def get_export_status(
+    request: Request,
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export task status; mints a short-lived single-use download URL when ready."""
+    task = await _owned_export_task(db, current_user.id, task_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="导出任务不存在")
+
+    download_url = None
+    if task.status == "ready" and task.file_path and task.downloaded_at is None:
+        now = datetime.now(UTC)
+        expires_at = _as_utc(task.download_expires_at)
+        if task.download_token is None or expires_at is None or expires_at <= now:
+            task.download_token = uuid.uuid4().hex
+            task.download_expires_at = now + timedelta(seconds=EXPORT_URL_TTL_SECONDS)
+            await commit_refresh(db, task)
+        download_url = f"/api/v1/users/me/export/{task.id}/download?token={task.download_token}"
+
+    return ExportStatusResponse(
+        task_id=task.id,
+        status=task.status,
+        created_at=task.created_at,
+        size_bytes=task.size_bytes,
+        error=task.error,
+        download_url=download_url,
+        download_expires_at=task.download_expires_at if download_url else None,
+    )
+
+
+@router.get("/me/export/{task_id}/download")
+@rate_limit("10/minute")
+async def download_export(
+    request: Request,
+    task_id: str,
+    token: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve the export ZIP once, consuming the token.
+
+    The token is single-use and short-lived; a second request (or a stale token)
+    is rejected with 410 so a leaked URL cannot be replayed.
+    """
+    task = await _owned_export_task(db, current_user.id, task_id)
+    now = datetime.now(UTC)
+    expires_at = _as_utc(task.download_expires_at) if task is not None else None
+    if (
+        task is None
+        or task.status != "ready"
+        or task.file_path is None
+        or task.download_token is None
+        or task.download_token != token
+        or expires_at is None
+        or expires_at <= now
+        or task.downloaded_at is not None
+    ):
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="下载链接已失效，请重新获取")
+
+    path = Path(get_settings().local_media_path) / task.file_path
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="导出文件不存在")
+
+    task.downloaded_at = now
+    await db.commit()
+    return FileResponse(path, media_type="application/zip", filename=f"seeword-export-{task.id}.zip")

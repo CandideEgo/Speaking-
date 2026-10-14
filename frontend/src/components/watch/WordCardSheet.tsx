@@ -56,7 +56,7 @@ export function WordCardSheet({
 
   if (!geo) return null;
 
-  const top = Math.max(8, Math.min(geo.frameBottom, geo.bottom - MIN_SHEET_HEIGHT));
+  const top = Math.max(8, Math.min(geo.anchorBottom, geo.bottom - MIN_SHEET_HEIGHT));
   const maxHeight = Math.max(MIN_SHEET_HEIGHT, geo.bottom - top);
 
   return (

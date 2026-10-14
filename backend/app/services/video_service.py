@@ -8,7 +8,7 @@ domain logic (queries, state transitions, side effects).
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -462,6 +462,15 @@ async def update_video(
     """Apply a partial admin update to a video (None fields are skipped)."""
     video = await _get_video_or_404(db, video_id)
 
+    # Exactly one demo/first-lesson video is allowed globally. Flipping a
+    # video on clears the previous holder in the same transaction.
+    demo_cleared = False
+    if payload.is_demo is True and not video.is_demo:
+        result = await db.execute(
+            update(Video).where(Video.is_demo.is_(True), Video.id != video_id).values(is_demo=False)
+        )
+        demo_cleared = bool(result.rowcount)
+
     # Publish guard: only ready videos may be published. Raising ValueError lets
     # the route handler map this to a 400 (mirrors localize's error mapping).
     if payload.is_published is True and video.status != VideoStatus.ready:
@@ -511,6 +520,11 @@ async def update_video(
     except Exception:
         pass
 
+    if demo_cleared:
+        from app.services.video_cache import invalidate_browse_cache
+
+        await invalidate_browse_cache()
+
     # Publish/unpublish changes which videos surface on the homepage/browse feed,
     # and a channel_ref change rewrites the author link (`channel_slug`) embedded
     # in every cached browse card — invalidate those caches too. (Subtitle edits
@@ -522,6 +536,20 @@ async def update_video(
         await invalidate_browse_cache()
 
     return VideoAdminResponse.model_validate(video)
+
+
+async def get_demo_video(db: AsyncSession) -> VideoResponse:
+    """Return the single first-lesson/demo video, or raise if none is marked.
+
+    ``update_video`` guarantees at most one ``is_demo=True`` row globally;
+    ordering by ``created_at`` keeps the response stable if that guarantee is
+    ever temporarily violated by a direct DB edit.
+    """
+    result = await db.execute(select(Video).where(Video.is_demo.is_(True)).order_by(Video.created_at.desc()).limit(1))
+    video = result.scalar_one_or_none()
+    if video is None:
+        raise ValueError("Demo video not found")
+    return VideoResponse.model_validate(video)
 
 
 async def delete_video(db: AsyncSession, video_id: str) -> bool:

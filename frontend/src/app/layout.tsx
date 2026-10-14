@@ -5,8 +5,8 @@ import { ThemedToaster } from "@/components/common/ThemedToaster";
 import { AuthInitializer } from "@/components/common/AuthInitializer";
 
 export const metadata: Metadata = {
-  title: "SeeWord — 用真实视频学开口说英语",
-  description: "粘贴视频链接，AI 生成双语字幕和口语练习，开口说英语。",
+  title: "SeeWord — 用真实视频背单词",
+  description: "在真实视频里点词、看释义、跟读巩固；四六级词汇与阅读真题一起练。",
 };
 
 // viewport-fit=cover 让页面铺到刘海 / Home indicator 下（iOS 26 起 Safari 的浮动底栏

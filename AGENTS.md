@@ -28,6 +28,7 @@
 | 后端本机环境与检查口径 | [`backend/AGENTS.md`](backend/AGENTS.md) | 动 `backend/` 前 |
 | 多 agent 分片和契约文件 | [`.agent/owners.md`](.agent/owners.md) | 并行拆分前 |
 | 口播、想法收集与分流 | `knowledge/inbox/README.md` 与 intake 技能 | 用户要求“记下来/整理这段想法”时 |
+| 跨会话工作：从想法到切片推进 | [Spec Flow 通用入口](knowledge/wiki/guides/spec-workstreams.md)（schema 在 `knowledge/work/README.md`，操作在 `spec-flow` 技能） | 开始或恢复一个多会话 WorkItem 时 |
 
 项目技能位于 [`.agents/skills/`](.agents/skills/) 与 [`.claude/skills/`](.claude/skills/)，两份内容保持一致。
 是否调用由任务与技能描述决定；不要把技能里的流程抄回本文件。

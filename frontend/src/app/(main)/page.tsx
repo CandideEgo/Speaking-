@@ -9,7 +9,9 @@ import { usePlatformFeed } from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
 import { CompactStatsBar } from "@/components/home/CompactStatsBar";
+import { ContinueLearningRail } from "@/components/home/ContinueLearningRail";
 import { HomeFilterBar } from "@/components/home/HomeFilterBar";
+import { TargetExamSetting } from "@/components/exam/TargetExamSetting";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { Button } from "@/components/ui/Button";
@@ -71,18 +73,21 @@ export default function HomePage() {
   return (
     <PageTransition>
       <main className="py-7 pb-24">
-        {/* ── 问候区 ── */}
-        <div className="mb-7">
-          <h1 className="text-display-sm font-bold text-ink tracking-tight">
-            {greeting}，{userName}
-          </h1>
-          <p className="text-copy text-muted mt-1">{dateLabel || "\u00A0"}</p>
+        {/* ── 问候 + 统计 ──
+            DEC-080：首屏先给「看什么」。统计从整宽 band 降为头部附属（md+ 与问候并排，
+            移动端折到问候下方），内容与入口一个字不少（CompactStatsBar 的 inline 档）。 */}
+        <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-display-sm font-bold text-ink tracking-tight">
+              {greeting}，{userName}
+            </h1>
+            <p className="text-copy text-muted mt-1">{dateLabel || "\u00A0"}</p>
+          </div>
+          <CompactStatsBar variant="inline" />
         </div>
 
-        {/* D3a 紧凑统计行：只展示事实，不施压（替代旧进度环） */}
-        <div className="mb-6">
-          <CompactStatsBar />
-        </div>
+        {/* ── 目标考试入口（P1-1）：固定入口，改目标后播放页考试词高亮立即刷新 ── */}
+        <TargetExamSetting compact className="mb-6" />
 
         {/* ── 成就达成 Banner ── */}
         {recentMilestone && !milestoneBannerDismissed && (
@@ -104,6 +109,17 @@ export default function HomePage() {
             </button>
           </div>
         )}
+
+        {/* ── 继续学习（DEC-080）：登录且存在未完成记录时才渲染 ── */}
+        <ContinueLearningRail />
+
+        {/* ── 推荐区 ──
+            说明是 section 级：后端没有 per-card reason 字段，卡片级「推荐理由」会与
+            难度 / 时长 / 主题徽标重复（DEC-080 的 Trade-offs）。 */}
+        <div className="mb-3">
+          <h2 className="text-title font-bold text-ink">为你推荐</h2>
+          <p className="text-copy text-muted mt-1">根据你的学习情况与难度偏好挑选</p>
+        </div>
 
         {/* ── 筛选栏 + 视频网格（筛选由 URL 派生 → useSearchParams 需要 Suspense 边界） ── */}
         <Suspense

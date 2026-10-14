@@ -67,6 +67,9 @@ _DEV_FAKE_CODE = "1234"
 
 # Template-code mapping by purpose (console 赠送模板 IDs).
 _PURPOSE_TEMPLATES = {
+    # Canonical login/registration purpose reuses the registration template
+    # (same wording: "your verification code is ...").
+    "auth": "aliyun_sms_template_register",
     "register": "aliyun_sms_template_register",
     "change_phone": "aliyun_sms_template_change_phone",
     "reset_password": "aliyun_sms_template_reset_password",

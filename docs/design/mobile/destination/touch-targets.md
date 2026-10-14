@@ -14,7 +14,8 @@
 >
 > **快照声明**：§3 的表 0–4 是**移动端播放页换成壳层两栏之前**这一台 375×812 上量出来的（生成器 `readings/touch-targets-375.json`，`--emit-md` 输出，**不要手改**）。
 > 表里凡是播放页的行（画框内返回键、入画字幕的行内词、移动端控制条、迷你窗退出键、动作行）都已经不是现行 DOM 的读数。
-> 要拿现行读数，**重跑 `node scripts/audit-touch-targets.mjs --emit-md`**（脚本本身还没跟上新形态：它仍在枚举 `.burn-sub-word` 与播放器覆盖面，跑之前要先按 `CurrentSentenceCard` / 壳底栏改枚举器）。
+> 要拿现行读数，**重跑 `node scripts/audit-touch-targets.mjs --emit-md`**（脚本已更新到
+> rev7，运行时枚举 `.now-sub-word`；旧表仍是 rev6 快照，不能直接与 rev7 读数比较）。
 
 ---
 
@@ -66,7 +67,7 @@ node scripts/audit-touch-targets.mjs --only drawer        # 冒烟：只跑 rout
 - **量具**：`frontend/scripts/audit-touch-targets.mjs`，仓库自带 `frontend/node_modules/playwright@1.60.0` 的 chromium，`viewport 375×812`、`deviceScaleFactor 2`、`isMobile: true`、`hasTouch: true`、iPhone 17.5 Safari UA（与 `baseline/README.md` 同一口径）。
 - **登录**：不碰短信注册（3/minute 限流）。脚本自己调后端 `.venv` 的 `app.core.security.create_token(user_id)` 铸 JWT，注入 `localStorage.seeword_token` + 同名 cookie（与 `frontend/e2e/helpers.ts:110` 同一招）。本次用的用户：`2f8bdb0b-feb2-494b-a25f-27c525c21337`（本地 dev 库按 `onboarding_completed desc, created_at` 取第一行；见 JSON `meta.userId`）。
 - **枚举什么**：`button`、`a[href]`、`[role=button|link|switch|tab|checkbox]`、`input`/`select`/`textarea`、`summary`、`[onclick]`、`label[for]`、`[contenteditable]`、`[draggable]`、`.now-sub-word`、`[data-testid$="-grab"]`、播放器覆盖面 `div.absolute.inset-0.z-10`，外加**启发式兜底**：`cursor:pointer` 且祖先不是目标。React 17+ 是事件委托 → DOM 里没有 `onclick` 属性，所以 `[onclick]` 这条实际命中 0，靠 `cursor:pointer` 兜住挂在 div/span 上的 onClick（这一条写在脚本里，别以为漏了）。`<video>` 只在带原生 `controls` 时算目标（本项目是 `controls=false` + 自定义控制条，实测 `videoHasControlsAttr: false`）。
-  - **枚举器还没跟上新形态**：脚本里的 `.burn-sub-word` 是旧类名（现行是当前句卡里的 `.now-sub-word`），`div.absolute.inset-0.z-10` 那个播放器覆盖面在 ≤1023px 也已经不存在（画面内零覆盖物）。**重跑之前先按 `components/watch/CurrentSentenceCard.tsx` 与 `components/watch/WatchBottomBar.tsx` 改枚举器**，否则播放页那几行会量不到东西。
+  - **枚举器状态**：脚本已使用 `.now-sub-word`（当前句卡类名），`.burn-sub-word` 已从 CSS 删除；`div.absolute.inset-0.z-10` 那个播放器覆盖面在 ≤1023px 已不存在（画面内零覆盖物）。重跑前应核对枚举与 `components/watch/CurrentSentenceCard.tsx`、`components/watch/WatchBottomBar.tsx` 的现行结构，旧的 rev6 行不能混入新表。
 - **稳定化**（否则两次跑没法比）：
   - 注入 `seeword_coach_done` 关掉 D2 教程浮层；
   - 视频**钉到 0 秒再暂停** —— 当前句（现在渲染在当前句卡里）由播放位置决定，不钉住它两次跑的字词集合就不一样；

@@ -3,8 +3,8 @@
 import { useEffect, useState, type RefObject } from "react";
 
 export interface SheetGeometry {
-  /** 画框下沿（视口坐标）—— 浮层顶边的天然上限：越过它就压住当前句卡。 */
-  frameBottom: number;
+  /** 当前句卡下沿（视口坐标）—— 浮层顶边。找不到句卡时退回画框下沿。 */
+  anchorBottom: number;
   /** 壳最后一行常规流底栏的上沿（视口坐标）—— 浮层底边。 */
   bottom: number;
 }
@@ -27,7 +27,8 @@ const MIN_SHEET_HEIGHT = 120;
  * 底边钉在**壳的最后一行常规流底栏**上沿：底栏是壳的常规流收尾行，天然贴住可视区底边
  * （INV-019），所以浮层不会压住底栏，也不会被 iOS 地址栏拽出可视区。观看页的那个收尾行
  * 是 `WatchBottomBar`（`data-shell-bottom-bar="watch"`），别的路由是 `MobileTabBar`。
- * 顶边由调用方按「画框下沿」或「屏高」给，本钩子只负责这两个读数本身。
+ * 顶边（INV-022 修订）取**当前句卡下沿**：词卡只覆盖后续文稿，不再盖住当前句。
+ * 句卡尚未渲染时退回画框下沿，再退到屏高兜底。
  *
  * 滚动监听必须走捕获阶段：播放页滚的是壳里的 <main>，scroll 事件不冒泡。
  */
@@ -52,14 +53,22 @@ export function useSheetGeometry(
       const barTop = bar ? bar.getBoundingClientRect().top : viewportBottom;
       // 底栏可能被安全区推高；夹一下，别让浮层底边跑到可视区外。
       const bottom = Math.min(Math.max(barTop, MIN_SHEET_HEIGHT), viewportBottom);
+      const sentenceCard = document.querySelector('[data-testid="current-sentence-card"]');
       const frame = anchorRef.current?.getBoundingClientRect();
-      const frameBottom = Math.min(frame ? frame.bottom : bottom - FALLBACK_HEIGHT, bottom);
+      const anchorBottom = Math.min(
+        sentenceCard
+          ? sentenceCard.getBoundingClientRect().bottom
+          : frame
+            ? frame.bottom
+            : bottom - FALLBACK_HEIGHT,
+        bottom
+      );
       setGeo((prev) =>
         prev &&
-        Math.abs(prev.frameBottom - frameBottom) < 0.5 &&
+        Math.abs(prev.anchorBottom - anchorBottom) < 0.5 &&
         Math.abs(prev.bottom - bottom) < 0.5
           ? prev
-          : { frameBottom, bottom }
+          : { anchorBottom, bottom }
       );
     };
 

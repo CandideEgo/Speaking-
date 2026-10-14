@@ -102,7 +102,7 @@ export function ShadowingDrawer({
 
   // 顶边：默认半屏 400px（#26 决议乙），但**绝不高于画框下沿** —— 画面里的当前句
   // 永远不被压住。两条约束打架时硬约束优先（短视口下自动落到「贴画面下沿」那一档）。
-  const top = Math.max(8, Math.max(geo.bottom - SHEET_HALF_SCREEN_PX, geo.frameBottom));
+  const top = Math.max(8, Math.max(geo.bottom - SHEET_HALF_SCREEN_PX, geo.anchorBottom));
   const height = Math.max(120, geo.bottom - top);
 
   const mode: "idle" | "playing" | "rec" | "review" =

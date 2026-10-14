@@ -100,6 +100,11 @@ celery_app.conf.update(
             "task": "app.tasks.report_tasks.generate_weekly_reports",
             "schedule": crontab(minute=0, hour=0, day_of_week=1),
         },
+        # P1-7 注销：每日清理已到期（30 天冷静期结束）的账号。
+        "purge-deleted-accounts": {
+            "task": "app.tasks.account_tasks.purge_deleted_accounts",
+            "schedule": crontab(minute=30, hour=18),
+        },
     },
 )
 
@@ -109,6 +114,7 @@ celery_app.conf.update(
 # automatically includes request_id for traceability.
 import app.core.logging as _logging
 import app.models
+import app.tasks.account_tasks
 import app.tasks.order_tasks
 import app.tasks.ranking_tasks
 import app.tasks.redeem_tasks

@@ -4,6 +4,7 @@ from app.models.behavior import BehaviorEvent
 from app.models.catalog import CatalogItem
 from app.models.channel import Channel
 from app.models.comment import VideoComment, VideoCommentStats
+from app.models.data_export import DataExportTask
 from app.models.engagement import VideoLike
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession

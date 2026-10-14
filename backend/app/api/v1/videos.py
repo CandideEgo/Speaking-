@@ -107,6 +107,9 @@ from app.services.video_service import (
     delete_video as _delete_video,
 )
 from app.services.video_service import (
+    get_demo_video as _get_demo_video,
+)
+from app.services.video_service import (
     get_ugc_pending_counts as _get_ugc_pending_counts,
 )
 from app.services.video_service import (
@@ -140,6 +143,24 @@ async def list_public_videos(
     db: AsyncSession = Depends(get_db),
 ):
     return await _list_public_videos(db, page=page, page_size=page_size)
+
+
+@router.get("/demo", response_model=VideoResponse)
+@rate_limit("30/minute")
+async def get_demo_video(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the first-lesson video for the new-user flow (login required).
+
+    404 means the operator has not marked a demo video yet; the client falls
+    back to the home page rather than blocking onboarding.
+    """
+    try:
+        return await _get_demo_video(db)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="暂未配置第一课视频") from exc
 
 
 @router.get("/search", response_model=list[VideoResponse])

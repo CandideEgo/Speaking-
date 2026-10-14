@@ -3,11 +3,11 @@
  * DEC-069 / #31 换锚点之后的版本。
  *
  * 断言的是决议里写死的那几个数，不是「看起来差不多」：
- *   ① #27 复议后的卡口：词卡顶边 = 画框下沿
+ *   ① #27 修订后的卡口：词卡顶边 = 当前句卡下沿（只盖后续文稿，不盖当前句）
  *   ② 词卡高度随内容、底边不越过**壳底栏**上沿（观看页形态 = `WatchBottomBar`），
  *      「加入词库」默认不自动关
  *   ③ #26 硬约束：抽屉展开前后播放器几何一像素不动
- *   ④ 抽屉顶边不越过画框下沿（半屏 400px 与「不压画面」取更靠下的一条）
+ *   ④ 抽屉顶边不越过当前句卡下沿（半屏 400px 与「不盖当前句」取更靠下的一条）
  *   ⑤ 抽屉里真的有「要跟读的这一句」、有计时
  *   ⑥ 动作行一律 44px；把手下拉 > 64px 关抽屉
  *   ⑦ 自动推进默认关
@@ -144,21 +144,23 @@ async function tapWord(page: Page, index = 0) {
   return { wordBox, text };
 }
 
-test("① 词卡贴画框下沿升起：高度随内容、不铺满屏；「加入词库」默认不关", async ({
+test("① 词卡贴当前句卡下沿升起：高度随内容、不铺满屏；「加入词库」默认不关", async ({
   page,
   request,
 }) => {
   const { frame, bottomBar } = await enterWatch(page, request);
   expect(bottomBar, "375 档壳底栏在").not.toBeNull();
   const frameBottom = frame.y + frame.height;
+  const sentenceCard = await boxOf(page, CARD);
+  const sentenceBottom = sentenceCard.y + sentenceCard.height;
 
   await tapWord(page, 0);
   const card = await boxOf(page, WORD_SHEET);
 
-  // 卡口 = 画面下沿：顶边落在画框下沿（`useSheetGeometry` 的 `frameBottom`），
-  // 且**绝不**压进画面。
-  expect(card.y, "词卡顶边不高于画框下沿").toBeGreaterThanOrEqual(frameBottom - 1.5);
-  expect(card.y, "词卡顶边贴着画面下沿（不是又一条断层）").toBeLessThanOrEqual(frameBottom + 2);
+  // 卡口 = 当前句卡下沿（INV-022 修订，DEC-086）：顶边落在句卡下沿，
+  // 既**不**压进画面，也**不**盖住刚点的那句。
+  expect(card.y, "词卡顶边不高于当前句卡下沿").toBeGreaterThanOrEqual(sentenceBottom - 1.5);
+  expect(card.y, "词卡顶边贴着当前句卡下沿").toBeLessThanOrEqual(sentenceBottom + 2);
   expect(card.height, "词卡有实际高度").toBeGreaterThan(200);
   expect(card.x, "词卡出血到屏宽两侧").toBeCloseTo(0, 0);
   expect(card.width).toBeCloseTo(375, 0);
@@ -169,7 +171,7 @@ test("① 词卡贴画框下沿升起：高度随内容、不铺满屏；「加�
     bottomBar!.y - 80
   );
   console.log(
-    `[#27] 375×812 画框底=${frameBottom.toFixed(1)} 词卡 top=${card.y.toFixed(1)} ` +
+    `[#27] 375×812 画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 词卡 top=${card.y.toFixed(1)} ` +
       `h=${card.height.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)}`
   );
 
@@ -190,7 +192,7 @@ test("① 词卡贴画框下沿升起：高度随内容、不铺满屏；「加�
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
 });
 
-test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动、顶边不越画框、计时/44px/下拉关闭/自动推进默认关", async ({
+test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动、顶边不越当前句卡、计时/44px/下拉关闭/自动推进默认关", async ({
   page,
   request,
 }) => {
@@ -198,6 +200,8 @@ test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动�
   const { frame, bottomBar } = await enterWatch(page, request);
   expect(bottomBar, "375 档壳底栏在").not.toBeNull();
   const frameBottom = frame.y + frame.height;
+  const sentenceCard = await boxOf(page, CARD);
+  const sentenceBottom = sentenceCard.y + sentenceCard.height;
 
   const sentence = (await page.locator('[data-testid="current-sentence-en"]').innerText()).trim();
 
@@ -212,13 +216,13 @@ test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动�
   expect(Math.abs(frameAfter.height - frame.height), "抽屉展开后画框高不动").toBeLessThanOrEqual(1);
 
   const d = await boxOf(page, '[data-testid="shadowing-drawer"]');
-  // ④ 顶边绝不越过画框下沿（压住画面或当前句卡就是违约）。
-  expect(d.y, "抽屉顶边不高于画框下沿").toBeGreaterThanOrEqual(frameBottom - 1.5);
+  // ④ 顶边绝不越过当前句卡下沿（压住画面或当前句卡就是违约）。
+  expect(d.y, "抽屉顶边不高于当前句卡下沿").toBeGreaterThanOrEqual(sentenceBottom - 1.5);
   expect(Math.abs(d.y + d.height - bottomBar!.y), "抽屉底边贴壳底栏上沿").toBeLessThanOrEqual(2);
   expect(d.height, "抽屉是半屏档（400px 封顶，短视口下自动落档）").toBeLessThanOrEqual(401);
   console.log(
     `[#26] 375×812 抽屉 top=${d.y.toFixed(1)} h=${d.height.toFixed(1)} ` +
-      `画框底=${frameBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
+      `画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
       `画框展开前 y=${frame.y.toFixed(1)} h=${frame.height.toFixed(1)} / 后 y=${frameAfter.y.toFixed(1)} h=${frameAfter.height.toFixed(1)}`
   );
 
@@ -291,15 +295,15 @@ test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动�
 
 /**
  * Destination §7 补测点 6：`WordCardSheet.tsx` 的落档公式
- * `top = max(8, min(画框下沿, 底栏顶 − 240))` 此前一条断言都没有 —— 812 档永远走
- * 「画框下沿」那一支，落档那一支从没被执行过。
+ * `top = max(8, min(当前句卡下沿, 底栏顶 − 240))` 此前一条断言都没有 —— 812 档永远走
+ * 「当前句卡下沿」那一支，落档那一支从没被执行过。
  *
  * 实测（上一轮探针）：落档**只在视口高 < ~560px 时**才激活。DEC-069 把底栏从 56px 的
  * 5 Tab 换成 ~102px 的播放控件、画框顶下移（顶栏 64 → 44）之后，375×600 仍然在正支
  * 一侧，但余量只剩个位数 —— 所以这条先断言前提（`底栏顶 − 240 > 画框底`），
  * 前提一旦翻转就红在那里，而不是悄悄去量另一支。
  */
-test("§7-6 短视口（375×600）下词卡仍走画框下沿那一支：顶边 = 画框下沿、卡底不越底栏", async ({
+test("§7-6 短视口（375×600）下词卡仍走当前句卡下沿那一支：顶边 = 句卡下沿、卡底不越底栏", async ({
   page,
   request,
 }) => {
@@ -307,35 +311,36 @@ test("§7-6 短视口（375×600）下词卡仍走画框下沿那一支：顶边
   const { frame, bottomBar } = await enterWatch(page, request);
   expect(bottomBar, "375 档壳底栏在").not.toBeNull();
   const frameBottom = frame.y + frame.height;
+  const sentenceCard = await boxOf(page, CARD);
+  const sentenceBottom = sentenceCard.y + sentenceCard.height;
   // 前提：这一档还没进落档区（进了的话下面那条断言就成了在量另一支）。
   expect(
     bottomBar!.y - 240,
-    "375×600 仍在落档阈值之上（底栏顶 − 240 > 画框底；这是边界守卫，翻转请改这条）"
-  ).toBeGreaterThan(frameBottom);
+    "375×600 仍在落档阈值之上（底栏顶 − 240 > 句卡底；这是边界守卫，翻转请改这条）"
+  ).toBeGreaterThan(sentenceBottom);
 
   const { wordBox } = await tapWord(page, 0);
   const card = await boxOf(page, WORD_SHEET);
 
   console.log(
-    `[#27] 375×600 画框底=${frameBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
+    `[#27] 375×600 画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
       `词卡 top=${card.y.toFixed(1)} h=${card.height.toFixed(1)}`
   );
-  expect(card.y, "词卡顶边 = 画框下沿（0 断层）").toBeCloseTo(frameBottom, 0);
+  expect(card.y, "词卡顶边 = 当前句卡下沿").toBeCloseTo(sentenceBottom, 0);
   expect(card.y + card.height, "词卡底边不越过壳底栏上沿").toBeLessThanOrEqual(bottomBar!.y + 2);
   expect(wordBox.y, "被点的词在画框下沿之下（当前句卡里）").toBeGreaterThan(frameBottom - 1);
 });
 
 /**
- * 落档区（视口高 < ~560px，含**横屏**）的实测刻画 —— 这一档没有决议，只锁当前行为。
+ * 落档区（视口高 < ~560px，含**横屏**）的实测刻画。
  * DEC-069 之后底栏更高（~102px），375×480 实测 `top = 379−240 = 139`（画框底 254.9），
- * 卡片从画面里 139 起、高 240 ⇒ **当前句卡被整块盖住**。
+ * 卡片从画面里 139 起、高 240 ⇒ 当前句卡与画面都被盖住。
  *
  * 为什么不能简单按 INV-022 的「绝不压进画面」把顶边压回画框下沿：横屏下画框底
  * 本身就在底栏顶**之下**，压回去等于卡片高度 0 —— 词卡直接消失。
  * 也就是说 `min(...)` 这一支是「画框根本装不下时保住 240px 卡片」的兜底。
- * 这条冲突（永不盖住刚点的那句 ↔ 卡片始终可用）本就挂 #25；DEC-069 把当前句搬到
- * 画面下方之后，**812 档也开始盖住当前句卡**（见 §7-7）—— 那不是这条用例引入的，
- * 记在这里免得下一个人以为是落档区独有。
+ * DEC-086 把常规档的锚点下移到当前句卡下沿后，812/600 档不再盖住当前句；这条只覆盖
+ * 「视口根本装不下」时的保底支，属于同一份决议写明的例外，不再是默认代价。
  */
 test("§7-6b 落档区（375×480）实测刻画：卡片抬进画面 ~116px 以保住 240px 高（#25 待定）", async ({
   page,
@@ -357,8 +362,8 @@ test("§7-6b 落档区（375×480）实测刻画：卡片抬进画面 ~116px 以
   expect(card.y, "落档：顶边 = 底栏顶 − 240").toBeCloseTo(bottomBar!.y - 240, 0);
   expect(card.height, "落档：卡片仍保住 240px").toBeCloseTo(240, 0);
   expect(card.y + card.height, "底边仍贴底栏上沿").toBeLessThanOrEqual(bottomBar!.y + 2);
-  // 代价照账：这一档卡片确实压进了画面（INV-022 的「绝不压进画面」在此让位给卡片可用性），
-  // 而且连画面下方的当前句卡也一起盖住。
+  // 保底支的例外：视口装不下时卡片压进画面换取可用性（DEC-086 保留该 fallback），
+  // 此时也盖住当前句卡；常规档（812/600）由 §7-7 断言不盖。
   expect(card.y, "落档区的代价：顶边已经高过画框下沿").toBeLessThan(frameBottom - 1);
   expect(card.y, "落档区的代价：当前句卡被盖住").toBeLessThan(sentenceCard.y);
 });
@@ -366,19 +371,17 @@ test("§7-6b 落档区（375×480）实测刻画：卡片抬进画面 ~116px 以
 /**
  * Destination §7 补测点 7：词卡压不到刚点的那**一个词** —— #27 的硬约束。
  *
- * ⚠️ DEC-069 之后这条**不再成立**：点词锚点从画框里的入画字幕搬到了画面正下方的
- * 当前句卡，而词卡顶边仍然钉在「画框下沿」（INV-022 的顶边那一半没改），
- * 于是词卡一定盖住当前句卡（`画框底 + mt-3` 就在它下面 12px）。这条用例因此改成断言
- * **点中的是哪个词**（词卡自己的 `aria-label`）—— 热区仍然准，只是上面压着词卡。
- * 要恢复「压不到」得让 `WordCardSheet` 的锚点改成当前句卡下沿（或把卡口下移 12px+卡高），
- * 那是决议，不是把这条改绿。
+ * DEC-086 把词卡锚点从画框下沿下移到当前句卡下沿：点词的那一句在词卡上方完整可见，
+ * 点中的词也不会被盖住。这条同时断言标题命中的是哪个词，以及几何上的「不盖当前句」。
  */
-test("§7-7 点词命中准确：词卡标题就是被点的那个词（DEC-069 后词卡会盖住当前句卡）", async ({
+test("§7-7 点词命中准确且词卡不盖当前句：标题 = 被点的词、句卡在词卡上方", async ({
   page,
   request,
 }) => {
   const { frame } = await enterWatch(page, request);
   const frameBottom = frame.y + frame.height;
+  const sentenceCard = await boxOf(page, CARD);
+  const sentenceBottom = sentenceCard.y + sentenceCard.height;
 
   const { wordBox, text } = await tapWord(page, 2);
   const card = await boxOf(page, WORD_SHEET);
@@ -389,11 +392,13 @@ test("§7-7 点词命中准确：词卡标题就是被点的那个词（DEC-069 
   // 被点的词在画面**下方**的当前句卡里（画面内零文字）。
   expect(wordBox.y, "被点的词在画框下沿之下").toBeGreaterThan(frameBottom - 1);
   expect(clean(label), `词卡标题「${label}」= 被点的那个词「${text}」`).toContain(clean(text));
-  // 卡口仍是画框下沿：它现在盖在「画框底 + mt-3」的当前句卡之上。
-  expect(card.y, "词卡顶边 = 画框下沿（#27 的卡口没变）").toBeCloseTo(frameBottom, 0);
-  expect(card.y, "代价照账：词卡盖住了当前句卡（INV-022 顶边未随锚点下移）").toBeLessThanOrEqual(
-    wordBox.y
-  );
+  // 卡口 = 当前句卡下沿（DEC-086）：词卡退到被点的句子下方，语境仍在原位。
+  expect(card.y, "词卡顶边 = 当前句卡下沿").toBeCloseTo(sentenceBottom, 0);
+  expect(card.y, "词卡顶边在画框下方（没压回画面）").toBeGreaterThan(frameBottom);
+  expect(
+    wordBox.y + wordBox.height,
+    "刚点的那个词完整落在词卡上方（不盖住语境）"
+  ).toBeLessThanOrEqual(card.y + 1);
 });
 
 /**

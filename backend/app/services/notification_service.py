@@ -126,9 +126,9 @@ async def create_notification(
 async def _push_notification(notification: Notification, user_id: str) -> None:
     """Attempt to push a notification via WebSocket. Best-effort."""
     try:
-        from app.api.v1.notifications import ws_manager
+        from app.api.v1.notifications import push_to_user
 
-        await ws_manager.send_to_user(
+        await push_to_user(
             user_id,
             {
                 "type": "notification",

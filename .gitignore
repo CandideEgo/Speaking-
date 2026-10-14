@@ -136,3 +136,7 @@ backend/watch-current.png
 # AOCI agent host integration (machine-bound; do not commit)
 .mcp.json
 .mcp.json.backup.*
+
+# Codex/Claude 本机配置（机器绑定，勿提交）
+.codex/
+.claude/settings.local.json

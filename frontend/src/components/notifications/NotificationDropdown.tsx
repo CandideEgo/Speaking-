@@ -161,17 +161,17 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     };
   }, [token, onUnreadCountChange, fetchUnreadCount]);
 
-  // Fallback: polling when WebSocket is not connected
+  // Fallback: polling always, at a lower rate while the WebSocket is healthy.
+  // A connected socket only proves this worker can push; another Gunicorn
+  // worker's notification is fanned out through Redis Pub/Sub on the backend,
+  // so the list + unread count still get a periodic safety net.
   useEffect(() => {
-    // If WebSocket is connected, no need to poll
-    if (wsConnected) return;
-
-    // Poll every 30 seconds when WebSocket is down (skips hidden tabs).
+    const intervalMs = wsConnected ? 120000 : 30000;
     pollIntervalRef.current = setInterval(async () => {
       if (document.hidden) return;
       await fetchNotifications();
       await fetchUnreadCount();
-    }, 30000);
+    }, intervalMs);
 
     return () => {
       if (pollIntervalRef.current) {

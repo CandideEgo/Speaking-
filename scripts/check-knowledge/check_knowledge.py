@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Integrity checks for the repository knowledge layer.
 
-Eight violation checks, one advisory check and an on-demand size report, all
+Nine violation checks, one advisory check and an on-demand size report, all
 deterministic (no LLM, no network, no dependency on the AOCI binary):
 
   refs         Markdown links resolve; every ADR-00xx reference has a file.
@@ -24,6 +24,9 @@ deterministic (no LLM, no network, no dependency on the AOCI binary):
                hosts, hot rules do not embed its protocol, and the machine state parses.
   captures     The user's dictated words stay exactly as captured, and every segment of
                them carries a disposition. The doctrine is knowledge/inbox/README.md.
+  workitems    Durable Spec Flow WorkItems carry a valid lifecycle: stage files exist when
+               their state requires them, approvals are recorded, slices are unique and
+               acyclic, and GitHub mappings are present once execution is claimed synced.
   stale        (advisory) Code changed under a module some knowledge/wiki/ document describes,
                since that document was last verified.
 
@@ -949,6 +952,49 @@ DISPOSITIONS = {
 OPEN_DISPOSITIONS = {"decide", "clarify", "execute"}
 
 
+WORK_PREFIX = _prefix("work")
+WORK_ID_RE = re.compile(r"^W-\d{8}-\d{2}$")
+SLICE_ID_RE = re.compile(r"^S\d{2}$")
+WORK_STATUSES = {
+    "intake",
+    "clarifying",
+    "solution_review",
+    "solution_approved",
+    "planning",
+    "plan_review",
+    "plan_approved",
+    "executing",
+    "verifying",
+    "done",
+    "paused",
+    "rejected",
+    "superseded",
+}
+WORK_PHASE_STATUSES = {
+    "intent": {"draft", "final"},
+    "research": {"open", "closed"},
+    "solution": {"draft", "review", "approved", "stale"},
+    "plan": {"draft", "review", "approved", "stale"},
+}
+SLICE_STATUSES = {
+    "specified",
+    "ready",
+    "in_progress",
+    "verifying",
+    "done",
+    "blocked",
+    "deferred",
+    "cancelled",
+}
+WORK_SYNC_STATES = {"pending", "synced"}
+WORK_STAGE_FILES = {
+    "intent": "intent.md",
+    "research": "research.md",
+    "solution": "solution.md",
+    "plan": "plan.md",
+}
+
+
 def capture_body(text: str) -> str:
     """Everything after the frontmatter block."""
     match = FM_RE.match(text)
@@ -1235,6 +1281,271 @@ def seal_capture(capture_id: str) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------- workitems
+
+
+def workitem_dirs() -> list[Path]:
+    """WorkItem roots, named `W-YYYYMMDD-NN-<slug>`."""
+    root = REPO_ROOT / WORK_PREFIX
+    if not root.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(root.iterdir())
+        if path.is_dir() and WORK_ID_RE.match(path.name[:13]) and path.name[13:14] == "-"
+    ]
+
+
+def work_stage_reached(status: str, stage: str) -> bool:
+    """Whether a root status has reached, or passed, one lifecycle stage."""
+    normal = {
+        "intake": 0,
+        "clarifying": 1,
+        "solution_review": 2,
+        "solution_approved": 2,
+        "planning": 3,
+        "plan_review": 3,
+        "plan_approved": 3,
+        "executing": 4,
+        "verifying": 4,
+        "done": 4,
+    }
+    rank = normal.get(status)
+    if rank is None:
+        return False
+    return rank >= {"intent": 0, "research": 1, "solution": 2, "plan": 3, "execution": 4}[stage]
+
+
+def parse_issue_number(value: str) -> int | None:
+    value = value.strip().strip("'\"")
+    if not value or value.lower() in {"null", "none", "~"}:
+        return None
+    try:
+        return int(value.lstrip("#"))
+    except ValueError:
+        return -1
+
+
+def check_workitems() -> list[Violation]:
+    """Spec Flow's five-stage WorkItem lifecycle.
+
+    This is deliberately local and deterministic. GitHub remains the execution source of
+    truth; the check only proves that a WorkItem is internally complete enough to hand to
+    the next session. Network truth is reconciled by `/spec-flow sync`.
+    """
+    violations: list[Violation] = []
+    seen_ids: dict[str, str] = {}
+
+    for directory in workitem_dirs():
+        where = rel(directory)
+        work_id = directory.name[:13]
+        if work_id in seen_ids:
+            violations.append(
+                Violation("workitems", where, f"duplicate WorkItem id also used by {seen_ids[work_id]}")
+            )
+        seen_ids[work_id] = where
+
+        root = directory / "README.md"
+        if not root.is_file():
+            violations.append(Violation("workitems", where, "missing README.md control plane"))
+            continue
+
+        fields = parse_frontmatter(root.read_text(encoding="utf-8", errors="replace")) or {}
+        for key in ("work_item", "title", "status", "created", "updated", "sync_state"):
+            if not fields.get(key):
+                violations.append(Violation("workitems", rel(root), f"missing frontmatter '{key}'"))
+        if fields.get("work_item") and fields["work_item"] != work_id:
+            violations.append(
+                Violation(
+                    "workitems",
+                    rel(root),
+                    f"work_item '{fields['work_item']}' does not match directory id '{work_id}'",
+                )
+            )
+
+        status = fields.get("status", "")
+        if status and status not in WORK_STATUSES:
+            violations.append(
+                Violation("workitems", rel(root), f"invalid status '{status}'")
+            )
+        sync_state = fields.get("sync_state", "")
+        if sync_state and sync_state not in WORK_SYNC_STATES:
+            violations.append(
+                Violation("workitems", rel(root), f"invalid sync_state '{sync_state}'")
+            )
+        for key in ("created", "updated"):
+            value = fields.get(key, "")
+            if value and not DATE_RE.match(value):
+                violations.append(
+                    Violation("workitems", rel(root), f"'{key}' is not an ISO date: {value}")
+                )
+
+        for stage, filename in WORK_STAGE_FILES.items():
+            path = directory / filename
+            reached = status in WORK_STATUSES and work_stage_reached(status, stage)
+            if reached and not path.is_file():
+                violations.append(
+                    Violation("workitems", where, f"status '{status}' requires {filename}")
+                )
+            if not path.is_file():
+                continue
+            phase_fields = parse_frontmatter(
+                path.read_text(encoding="utf-8", errors="replace")
+            ) or {}
+            phase = phase_fields.get("phase", "")
+            if phase != stage:
+                violations.append(
+                    Violation("workitems", rel(path), f"phase must be '{stage}', not '{phase or '(missing)'}'")
+                )
+            phase_status = phase_fields.get("status", "")
+            if phase_status and phase_status not in WORK_PHASE_STATUSES[stage]:
+                violations.append(
+                    Violation(
+                        "workitems",
+                        rel(path),
+                        f"invalid phase status '{phase_status}' for {stage}",
+                    )
+                )
+            if phase_status == "approved":
+                for key in ("approved_by", "approved_at", "approval_ref"):
+                    if not phase_fields.get(key):
+                        violations.append(
+                            Violation("workitems", rel(path), f"approved phase is missing '{key}'")
+                        )
+
+        if status in {
+            "solution_approved",
+            "planning",
+            "plan_review",
+            "plan_approved",
+            "executing",
+            "verifying",
+            "done",
+        }:
+            solution = directory / "solution.md"
+            solution_fields = (
+                parse_frontmatter(solution.read_text(encoding="utf-8", errors="replace")) or {}
+                if solution.is_file()
+                else {}
+            )
+            if solution_fields.get("status") != "approved":
+                violations.append(
+                    Violation("workitems", where, f"status '{status}' requires an approved solution.md")
+                )
+
+        if status in {"plan_approved", "executing", "verifying", "done"}:
+            plan = directory / "plan.md"
+            plan_fields = (
+                parse_frontmatter(plan.read_text(encoding="utf-8", errors="replace")) or {}
+                if plan.is_file()
+                else {}
+            )
+            if plan_fields.get("status") != "approved":
+                violations.append(
+                    Violation("workitems", where, f"status '{status}' requires an approved plan.md")
+                )
+
+        parent_issue = parse_issue_number(str(fields.get("parent_issue", "")))
+        if parent_issue == -1:
+            violations.append(Violation("workitems", rel(root), "parent_issue must be an issue number or null"))
+        if sync_state == "synced" and work_stage_reached(status, "solution") and not parent_issue:
+            violations.append(
+                Violation("workitems", rel(root), "synced WorkItem past solution gate needs parent_issue")
+            )
+
+        slices_dir = directory / "slices"
+        slice_fields: dict[str, dict] = {}
+        if slices_dir.is_dir():
+            for slice_path in sorted(slices_dir.glob("*.md")):
+                rel_slice = rel(slice_path)
+                slice_fields_raw = parse_frontmatter(
+                    slice_path.read_text(encoding="utf-8", errors="replace")
+                ) or {}
+                slice_id = slice_fields_raw.get("slice", "")
+                if not SLICE_ID_RE.match(slice_id):
+                    violations.append(
+                        Violation("workitems", rel_slice, f"invalid slice id '{slice_id or '(missing)'}'")
+                    )
+                    continue
+                if slice_id in slice_fields:
+                    violations.append(Violation("workitems", rel_slice, f"duplicate slice id {slice_id}"))
+                    continue
+                slice_fields[slice_id] = slice_fields_raw
+                slice_status = slice_fields_raw.get("status", "")
+                if slice_status and slice_status not in SLICE_STATUSES:
+                    violations.append(
+                        Violation("workitems", rel_slice, f"invalid slice status '{slice_status}'")
+                    )
+                if slice_status == "done" and not slice_fields_raw.get("evidence"):
+                    violations.append(
+                        Violation("workitems", rel_slice, "done slice must carry an evidence pointer")
+                    )
+                issue = parse_issue_number(str(slice_fields_raw.get("issue", "")))
+                if issue == -1:
+                    violations.append(Violation("workitems", rel_slice, "issue must be a number or null"))
+                if (
+                    sync_state == "synced"
+                    and status in {"plan_approved", "executing", "verifying", "done"}
+                    and not issue
+                ):
+                    violations.append(
+                        Violation("workitems", rel_slice, "synced executable slice needs its GitHub issue")
+                    )
+
+        for slice_id, fields_for_slice in slice_fields.items():
+            for dependency in parse_list(fields_for_slice.get("depends_on", "")):
+                if not SLICE_ID_RE.match(dependency):
+                    violations.append(
+                        Violation(
+                            "workitems",
+                            f"{where}/slices/{slice_id}",
+                            f"invalid dependency '{dependency}'",
+                        )
+                    )
+                elif dependency not in slice_fields:
+                    violations.append(
+                        Violation(
+                            "workitems",
+                            f"{where}/slices/{slice_id}",
+                            f"depends on unknown slice {dependency}",
+                        )
+                    )
+
+        graph = {
+            slice_id: [dep for dep in parse_list(fields_for_slice.get("depends_on", "")) if dep in slice_fields]
+            for slice_id, fields_for_slice in slice_fields.items()
+        }
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(slice_id: str, trail: list[str]) -> None:
+            if slice_id in visited:
+                return
+            if slice_id in visiting:
+                cycle = " -> ".join(trail + [slice_id])
+                violations.append(Violation("workitems", where, f"slice dependency cycle: {cycle}"))
+                return
+            visiting.add(slice_id)
+            for dependency in graph.get(slice_id, []):
+                visit(dependency, trail + [slice_id])
+            visiting.remove(slice_id)
+            visited.add(slice_id)
+
+        for slice_id in graph:
+            visit(slice_id, [])
+
+        plan = directory / "plan.md"
+        if plan.is_file() and slice_fields:
+            plan_text = plan.read_text(encoding="utf-8", errors="replace")
+            for slice_id in sorted(slice_fields):
+                if not re.search(rf"\b{re.escape(slice_id)}\b", plan_text):
+                    violations.append(
+                        Violation("workitems", rel(plan), f"slice {slice_id} is not represented in the plan")
+                    )
+
+    return violations
+
+
 # -------------------------------------------------------------------------- stale
 
 STAMPS_FILE = SCRIPT_DIR / "knowledge-stamps.json"
@@ -1380,7 +1691,17 @@ def refresh_stamps(only: list[str]) -> int:
 
 # -------------------------------------------------------------------------- main
 
-CHECKS = ("refs", "frontmatter", "ownership", "index", "paths", "layout", "cognition", "captures")
+CHECKS = (
+    "refs",
+    "frontmatter",
+    "ownership",
+    "index",
+    "paths",
+    "layout",
+    "cognition",
+    "captures",
+    "workitems",
+)
 ADVISORY = ("stale",)
 SELECTABLE = CHECKS + ADVISORY
 
@@ -1405,6 +1726,8 @@ def run_checks(selected: list[str]) -> list[Violation]:
         violations += check_cognition()
     if "captures" in selected:
         violations += check_captures(files)
+    if "workitems" in selected:
+        violations += check_workitems()
     return violations
 
 

@@ -7,10 +7,12 @@ import { MessageSquare } from "lucide-react";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
+import { AccountLifecycleSettings } from "@/components/profile/AccountLifecycleSettings";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
+import { TargetExamSetting } from "@/components/exam/TargetExamSetting";
 import type { User, UserPreferences } from "@/types";
 import { Card } from "@/components/ui/Card";
 
@@ -143,6 +145,9 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
           </Select>
         </FormField>
 
+        {/* P1-1：目标考试固定入口。改动立即写回偏好 + watchStore，播放页高亮随之刷新。 */}
+        <TargetExamSetting value={preferences?.target_exam ?? null} onSaved={onUpdatePreferences} />
+
         <FormField label="偏好难度" hint="用于推荐合适难度的视频">
           <Select
             value={preferredDifficulty}
@@ -174,6 +179,10 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
         <h2 className="text-copy font-semibold text-ink">账户</h2>
         <PasswordChangeForm />
         <NotificationPreferences />
+        {/* P1-7：数据导出 + 30 天可撤回注销 */}
+        <div className="pt-4 border-t border-hairline">
+          <AccountLifecycleSettings />
+        </div>
         <div className="pt-2 border-t border-hairline">
           <Link
             href="/contact"
@@ -234,12 +243,13 @@ function PasswordChangeForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-3">
-        <FormField label="当前密码">
+        {/* P0-A：仅验证码注册的账户 hashed_password 为空，首设密码时不校验旧密码
+            （后端首设分支也不失效当前会话）；因此这里允许留空。 */}
+        <FormField label="当前密码" hint="首次设置密码可留空">
           <Input
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
-            required
             className="w-full"
           />
         </FormField>

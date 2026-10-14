@@ -6,7 +6,7 @@ confidence: verified
 related_code: [pytest-suite]
 related: [knowledge/wiki/guides/testing.md]
 created: 2026-09-27
-updated: 2026-09-28
+updated: 2026-10-14
 ---
 
 # 测试与服务端「今天」不同基准 → 只在 00:00–08:00（北京）失败的 flake
@@ -36,6 +36,6 @@ updated: 2026-09-28
 - 凡测试要构造「昨天/过期」数据，先查服务端今天是怎么算的（`get_user_local_date` 有 timezone
   回退链），用同一函数/同一时区，不要用宿主机墙钟。
 - 回退量 ≥ 2 天的测试（如 30 天清理）不受 8 小时偏移影响，但统一写法可防未来时区字段变化。
-- **产品层疑问未解决**（遗留给 owner）：无 timezone 的用户在凌晨 0–8 点会拿到 UTC 日期，其
-  「今日训练」按 UTC 翻天——这是 `get_user_local_date` 回退到 UTC 的行为，改回退基准属行为
-  变更，需要 DEC 条目，不要顺手改。
+- **产品层基准已解决（DEC-079，2026-10-13）**：未设置或值非法的 `reminder_timezone` 统一按
+  `Asia/Shanghai` 翻天，不再回退 UTC。实现与测试以 `backend/app/services/local_time.py` 和
+  `backend/tests/test_local_time.py` 为准；本条保留的是当时为什么会 flake，不是当前回退口径。

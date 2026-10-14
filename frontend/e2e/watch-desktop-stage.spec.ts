@@ -11,8 +11,12 @@
  *
  * S5 增补：跟读动作带从「画面下的第二张卡」搬进句卡（`desktopActions`），
  * 卡高 76 → 136.5，常量随之校准为 315；1280×720 档也从「不介入」变为「介入」。
- * 本 spec 顺带断言：动作带在卡内、占内容区整宽、两段等宽；新用户 0 条跟读
- * 时 chips 历史整块不渲染。
+ * DEC-080 又往 `desktopActions` 里加了一行「本句词条 + 学习动作」，卡高继续增加；
+ * **常量 315 尚未跟着改**（本机没有真实可播媒体，不能凭估算改），本 spec 的校准日志
+ * 就是下一次实测的入口：先看 slack，再按 `T = C − slack` 反推，不许把估算值写进
+ * globals.css。
+ * 本 spec 顺带断言：跟读动作带在卡内、占内容区整宽、两段等宽；学习动作也在卡内；
+ * 本句词条若有则同样在卡内；新用户 0 条跟读时 chips 历史整块不渲染。
  *
  * 与 mobile-current-sentence-card.spec.ts 的分工：那边管「卡与点词」的桌面档
  * （只测默认视口），这边管「护栏在四档下都成立」。
@@ -103,6 +107,24 @@ test.describe("S4/S5 桌面档：句卡整块在首屏内、动作带在卡内�
       expect(Math.abs(seg1.width - seg2.width), "动作带两段等宽").toBeLessThanOrEqual(1);
       // 新用户 0 条跟读 → chips 历史整块不渲染（不留空盒子）。
       await expect(page.getByText("最近跟读")).toHaveCount(0);
+
+      // ⑤ DEC-080：学习动作住在句卡内；本句词条有数据时也必须被卡包住。
+      const learning = page.locator('[data-testid="learning-actions"]');
+      await expect(learning).toBeVisible();
+      const lb = (await learning.boundingBox())!;
+      expect(lb.y, "学习动作在卡内（DEC-080）").toBeGreaterThan(card.y);
+      expect(lb.y + lb.height, "学习动作在卡内（DEC-080）").toBeLessThanOrEqual(
+        card.y + card.height + 0.5
+      );
+
+      const strip = page.locator('[data-testid="sentence-word-strip"]');
+      if ((await strip.count()) > 0 && (await strip.isVisible())) {
+        const sb = (await strip.boundingBox())!;
+        expect(sb.y, "本句词条在卡内（DEC-080）").toBeGreaterThan(card.y);
+        expect(sb.y + sb.height, "本句词条在卡内（DEC-080）").toBeLessThanOrEqual(
+          card.y + card.height + 0.5
+        );
+      }
 
       // 校准日志：护栏生效档 slack≈0 时 --watch-stage-chrome 才是真值。
       const stageCap = await page.evaluate(() => {

@@ -59,6 +59,12 @@ class User(Base):
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 30 天可撤回注销（P1-7）：申请时间与到期时间成对出现；撤销时一起清空。
+    # 冷静期内**允许登录**，登录不会自动取消 —— 只有显式撤销才清字段。
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deletion_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 用户填写的注销原因，可选；删除完成后随用户行一起消失。
+    deletion_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     # relationships

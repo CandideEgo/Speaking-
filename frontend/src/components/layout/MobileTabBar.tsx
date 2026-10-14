@@ -15,13 +15,14 @@ interface TabItem {
   showBadge?: boolean;
 }
 
-/** Mobile bottom tab bar - 5 direct links (首页/频道/练习/单词训练/我的).
+/** Mobile bottom tab bar - 5 direct links (首页/频道/练习/词汇/我的).
+ * P1-4 导航 IA：与桌面 TopBar 同顺序、同文案、同高亮。
  * 退出登录已迁入 TopBar 头像菜单，故「我的」为直链 /profile。 */
 const TABS: TabItem[] = [
   { label: "首页", href: "/", icon: Sparkles },
   { label: "频道", href: "/browse", icon: Radio },
   { label: "练习", href: "/practice", icon: GraduationCap },
-  { label: "单词训练", href: "/vocabulary", icon: BookOpen, showBadge: true },
+  { label: "词汇", href: "/vocabulary", icon: BookOpen, showBadge: true },
   { label: "我的", href: "/profile", icon: User },
 ];
 

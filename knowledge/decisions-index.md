@@ -84,5 +84,17 @@
 | DEC-077 | 2026-10-12 | AOCI 协议整体技能化，规则文件保持零协议正文（扩展 DEC-076） | — | active |
 | DEC-078 | 2026-10-12 | 前端视觉统一先行：watch 焦点面板与首页 IA 推迟到 DEC-075 P1–P6 之后 | — | active |
 | DEC-079 | 2026-10-13 | 「用户本地日」收敛到单一权威助手，默认 Asia/Shanghai（BUG-16 / BUG-05） | — | active; 未设置/非法 `reminder_timezone` 的用户统一按东八翻天，属行为变更 |
+| DEC-080 | 2026-10-13 | 核心两页形态落定：watch 焦点带增强 + 首页最小发现页修正（DEC-078 形态决策） | — | active; practice 不动、不做句级实时 AI；B/C 档留后续 |
+| DEC-081 | 2026-10-14 | 免密注册/登录：验证码即注册/登录，密码改为可选后置 | — | active; `/auth/sms/register` 与 `purpose=register/reset_password` 保留一个发布周期 |
+| DEC-082 | 2026-10-14 | 考试定位收窄为「视频词汇 + 阅读训练」，不补听力 | — | active; `exam_service` 维持 `reading_A/B/C`，「听力」仅作词汇题类型 |
+| DEC-083 | 2026-10-14 | 新用户第一课复用真实视频 + `is_demo` 全局唯一 | — | active; `GET /videos/demo` 无标记 404 时回退首页并埋点 |
+| DEC-084 | 2026-10-14 | 两端导航统一为「首页 / 频道 / 练习 / 词汇 / 我的」 | — | active; 学习记录/收藏/设置下沉「我的」二级 |
+| DEC-085 | 2026-10-14 | 答对自动前进默认关闭 + 训练进度统一「本轮 done/total」 | — | active; 新增 `user_preferences.auto_advance_on_correct`（default false），属行为变更 |
+| DEC-086 | 2026-10-14 | 词卡/抽屉锚点下移到当前句卡下沿（修订 INV-022） | — | active; 盖住当前句由「已接受代价」改判为不允许；真机复看待办 |
+| DEC-087 | 2026-10-14 | 30 天可撤回注销：冷静期允许登录，手机号到期才释放 | — | active; `behavior_events.user_id` 置 NULL 保留匿名统计 |
+| DEC-088 | 2026-10-14 | 数据导出含媒体原件（头像 + 跟读录音），一次性短时下载 | — | active; 异步任务 + 站内通知，账号删除后导出包一并清理 |
+| DEC-089 | 2026-10-14 | Free/Pro 只差视频解锁量（确认既有事实，不新增权益差） | — | active; 内测权益迁移不在本轮 |
+| DEC-090 | 2026-10-14 | 规格控制面采用「总纲 + 切片」，执行前沿仍归 GitHub Issues | — | extended by DEC-091; 形状保留，位置迁到 `knowledge/work/` 并机器化 |
+| DEC-091 | 2026-10-14 | 规格控制面迁入 knowledge/work 并机器化（扩展 DEC-090） | — | active; WorkItem 落 `knowledge/work/`，ID/迁移/索引/校验交给 helper 与检查器 |
 
 Retired 6 — DEC-003, DEC-005, DEC-013, DEC-016, DEC-024, DEC-047 — superseded or never implemented; bodies and stubs stay in `decisions.md`.

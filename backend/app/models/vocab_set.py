@@ -37,6 +37,9 @@ class VocabSet(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+    # 集合闭环庆祝（P1-6）：第一次闭环时的庆祝时间。幂等端点按此列判定，
+    # 同一集合只返回一次「新庆祝」卡片；unmark 重开后再次闭环不重复加冕。
+    celebrated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

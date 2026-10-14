@@ -1,7 +1,11 @@
 """Notification route handlers — REST API + WebSocket for real-time push."""
 
+import asyncio
 import json
+import uuid
+from contextlib import suppress
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +29,15 @@ from app.schemas.notification import (
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+logger = structlog.get_logger(__name__)
+
+# Cross-worker fan-out. Each process subscribes to this one channel and
+# delivers to the sockets it holds; the publishing process also delivers
+# locally and tags the message with its instance id so its own subscriber
+# skips the copy it already delivered.
+NOTIFICATIONS_CHANNEL = "notifications:push"
+_INSTANCE_ID = uuid.uuid4().hex
+_subscriber_task: asyncio.Task | None = None
 
 
 # ── WebSocket connection manager ──────────────────────────────────────
@@ -96,6 +109,92 @@ class ConnectionManager:
 
 # Singleton instance
 ws_manager = ConnectionManager()
+
+
+async def push_to_user(user_id: str, message: dict) -> None:
+    """Deliver a message to a user's sockets on every worker.
+
+    Local delivery happens first so a Redis outage still reaches sockets
+    held by this process (INV-002: notifications are best-effort and Redis
+    must not block the user-facing flow). Redis Pub/Sub fans the message out
+    to the other workers' subscribers.
+    """
+    await ws_manager.send_to_user(user_id, message)
+    try:
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        await redis.publish(
+            NOTIFICATIONS_CHANNEL,
+            json.dumps(
+                {"origin": _INSTANCE_ID, "user_id": user_id, "message": message},
+                ensure_ascii=False,
+            ),
+        )
+    except Exception:
+        logger.warning("notification_publish_failed", user_id=user_id, exc_info=True)
+
+
+async def _notification_subscriber_loop() -> None:
+    """Subscribe to the cross-worker channel and deliver to local sockets.
+
+    Reconnects with a 1s backoff on any Redis error; cancellation is the
+    normal shutdown path and propagates.
+    """
+    while True:
+        pubsub = None
+        try:
+            from app.core.redis import get_redis
+
+            redis = get_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(NOTIFICATIONS_CHANNEL)
+            async for raw in pubsub.listen():
+                if raw.get("type") != "message":
+                    continue
+                try:
+                    payload = json.loads(raw["data"])
+                except (TypeError, ValueError):
+                    continue
+                if payload.get("origin") == _INSTANCE_ID:
+                    continue
+                user_id = payload.get("user_id")
+                message = payload.get("message")
+                if user_id and isinstance(message, dict):
+                    await ws_manager.send_to_user(user_id, message)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("notification_subscriber_reconnecting", exc_info=True)
+            await asyncio.sleep(1)
+        finally:
+            if pubsub is not None:
+                with suppress(Exception):
+                    await pubsub.unsubscribe(NOTIFICATIONS_CHANNEL)
+                with suppress(Exception):
+                    if hasattr(pubsub, "aclose"):
+                        await pubsub.aclose()
+                    else:
+                        await pubsub.close()
+
+
+def start_notification_subscriber() -> asyncio.Task:
+    """Start the per-process subscriber task (idempotent)."""
+    global _subscriber_task
+    if _subscriber_task is None or _subscriber_task.done():
+        _subscriber_task = asyncio.create_task(_notification_subscriber_loop())
+    return _subscriber_task
+
+
+async def stop_notification_subscriber() -> None:
+    """Cancel the subscriber task on shutdown."""
+    global _subscriber_task
+    task = _subscriber_task
+    _subscriber_task = None
+    if task is not None:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 # ── WebSocket endpoint ────────────────────────────────────────────────

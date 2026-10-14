@@ -87,7 +87,7 @@ export default function DailyCheckPage() {
               每日小测
             </span>
             <span className="text-meta text-muted">
-              从四六级真题随机抽 10 题 · 完成后可查看解析
+              从四六级阅读真题随机抽 10 题 · 完成后可查看解析
             </span>
           </div>
         </div>

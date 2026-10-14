@@ -155,3 +155,24 @@ async def judge_sieve_word(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Set word not found")
     await db.commit()
     return result
+
+
+@router.post("/{set_id}/celebrate")
+@rate_limit("30/minute")
+async def celebrate_vocab_set(
+    request: Request,
+    set_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """幂等的集合闭环庆祝端点（P1-6）。
+
+    集合学完（pending 与 unknown 均为 0）后返回庆祝卡片；同一集合重复调用
+    只把 ``first_time`` 置回 False，不重复加冕 —— 前端据此只放一次彩带。
+    未闭环或非本人的集合返回 404。
+    """
+    result = await vocab_set_service.celebrate(db, current_user, set_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Set not found or not completed")
+    await db.commit()
+    return result

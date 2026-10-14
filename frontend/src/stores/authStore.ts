@@ -64,11 +64,6 @@ interface AuthActions {
    * Returns true on success, false on failure (logout is called).
    */
   refreshAccessToken: () => Promise<boolean>;
-
-  /**
-   * Mark onboarding as completed (stored in localStorage).
-   */
-  setOnboardingCompleted: () => void;
 }
 
 const TOKEN_KEY = "seeword_token";
@@ -302,11 +297,5 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     })();
 
     return refreshPromise;
-  },
-
-  setOnboardingCompleted() {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("onboarding_completed", "true");
-    }
   },
 }));

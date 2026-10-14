@@ -33,6 +33,21 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
+## Choosing the flow
+
+Two parent/child patterns exist here, and they are not interchangeable:
+
+- **Spec Flow** (`/spec-flow`) is the default when the goal is already defined but the work spans
+  sessions, needs a solution decision plus a staged plan, or has independently verifiable slices.
+  The parent issue is the WorkItem; each child issue is one slice (DEC-090, extended by DEC-091).
+  Intent, solution, plan and evidence live in `knowledge/work/<W-ID>/`, not in the issue body.
+- **Wayfinding** (`/wayfinder`) is only for work whose *problem* is not yet defined: its
+  Destination is decisions, prototypes and an acceptance checklist, not code (DEC-068). Once the
+  problem is defined, open a Spec Flow WorkItem instead of stretching a map.
+
+Both use GitHub's native parent/child link and dependency edges; they differ in what the parent
+holds and whether a human approved a written solution and plan before execution.
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
@@ -51,3 +66,19 @@ source files before anyone re-checked the scope.
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## Spec Flow operations
+
+Used by `/spec-flow`. One WorkItem has one **parent** issue; one stable slice (`Sxx`) has one
+**child** issue. The WorkItem files hold intent, solution, plan and evidence; GitHub holds claim,
+blocking, PR links and open/closed state.
+
+- **Labels**: parent = `spec-flow:workitem`; child = `spec-flow:slice` + `ready-for-agent`.
+- **Create and sync**: use `python scripts/spec-flow/spec_flow.py issue-sync <W-ID> --stage solution|plan --apply`.
+  The helper is idempotent, writes issue numbers back into frontmatter, creates native dependency
+  edges and refreshes the parent task list.
+- **Read live state**: `python scripts/spec-flow/spec_flow.py issue-state <W-ID>`. Treat its output,
+  not a local snapshot, as the answer to “who is working, what is blocked, what is closed”.
+- **Claim**: `gh issue edit <child> --add-assignee @me`, before any execution work.
+- **Close**: update the slice result and evidence first, then close the child issue. Close the parent
+  only when every non-cancelled slice is done or explicitly deferred with a revisit condition.

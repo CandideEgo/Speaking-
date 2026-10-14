@@ -5,7 +5,9 @@
 > only its own row here, its one `knowledge/wiki/` document, and the contract files it touches.
 > Knowledge facts still belong to the files listed in `README.md` — this table only
 > decides *which* of them an agent loads. State transfer between agents goes through the
-> work item (a GitHub issue, DEC-065) and `.agent/state.md`, not through chat history.
+> work item (a GitHub issue, DEC-065) and `.agent/state.md`, not through chat history. A
+> multi-session effort additionally uses its Spec Flow WorkItem
+> (`knowledge/work/<W-ID>/README.md`); issue state still decides claim, blockers and closure.
 >
 > **对象认知不走这张表。** 某个文件或表是什么、与谁有关系、契约与约束，按需调用项目的对象认知
 > skill；不要在并行协议里重传完整认知，也不要在 prose 里重述它（缝判据见 `.agent/README.md`）。

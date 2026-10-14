@@ -31,6 +31,7 @@ Exit code 0 = clean, 1 = a violation not recorded in `knowledge-baseline.json`.
 | `layout` | A top-level entry git tracks at depth 1 is missing from `layout.json`, or an entry in it has nothing tracked there any more (a removed file, an empty directory) |
 | `cognition` | The cognition layer is unwired or leaks into hot rules: the machine volumes are missing/truncated, `.aoci/config.json` or `.aoci/baseline.json` does not parse, cognition assets are filed under another `layout.json` layer, the on-demand `.agents`/`.claude` cognition skills are missing or diverge, or an always-loaded hot file embeds cognition markers/tool commands/protocol steps |
 | `captures` | A capture's content changed after it was sealed, its cut markers are not `S01..Sn` in order, a segment has no row in `triage.md` or a disposition outside the closed vocabulary, an `<id>#Sxx` citation anywhere in the repo names no real segment, or `captures.json` and `knowledge/inbox/` disagree about which captures exist |
+| `workitems` | A durable Spec Flow WorkItem's lifecycle is internally incomplete: a required stage file is missing for its status, a stage's `phase`/`status` is invalid, an approved stage lacks `approved_by`/`approved_at`/`approval_ref`, a status has passed a gate without that gate's approval, a slice id is missing, duplicated, pointing at an unknown dependency or forming a cycle, a synced executable slice has no issue number, a `done` slice has no evidence, `parent_issue` is neither a number nor null, or a slice is not represented in the plan |
 | `stale` | (advisory, never fails on its own) Code under a module some `knowledge/wiki/` document declares changed since that document was last verified — see below |
 
 `frontmatter` also fails when a module in `modules.json` matches no file on disk **and** is
@@ -123,7 +124,7 @@ hot-layer boundary, while the cognition skill owns alignment and repair.
 
 ## The one advisory check: `stale`
 
-The eight checks above decide pass or fail, and `stale` is the ninth: the one wholly advisory part of
+The nine checks above decide pass or fail, and `stale` is the tenth: the one wholly advisory part of
 the run. It only reminds, because to re-read prose you need a person, and a reminder that blocks a
 commit buys silence rather than accuracy.
 

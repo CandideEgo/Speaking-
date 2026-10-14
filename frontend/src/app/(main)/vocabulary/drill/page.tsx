@@ -65,20 +65,20 @@ export default function VocabDrillPage() {
  * 一轮的题目总数一直在变，拿它当分母进度条只会乱跳。右侧计数器的口径由调用方
  * 用 `progressLabel` 说明（每日训练是「本轮」，深链测验是「已答」）。
  * 题型标签（认词/巩固/听音选词）属于题面，不占页头的槽位。
+ *
+ * P1-5 进度语义：页头只保留「本轮 done/total」，不再并存「第 N 题」——
+ * 两个口径会让用户分不清分母是词数还是题数。
  */
 function DrillHeader({
   label,
   progressLabel,
   done,
   total,
-  step,
 }: {
   label: string;
   progressLabel: string;
   done: number;
   total: number;
-  /** 当前第几题（1 起）；总结/加载态不传。 */
-  step?: number;
 }) {
   const pct = total ? Math.round((done / total) * 100) : 0;
   return (
@@ -92,9 +92,6 @@ function DrillHeader({
           <X size={20} />
         </Link>
         <span className="text-copy font-semibold text-ink flex-shrink-0">{label}</span>
-        {step != null && (
-          <span className="text-meta text-muted-soft flex-shrink-0 tabular-nums">第 {step} 题</span>
-        )}
         <div className="flex-1 min-w-0 h-1.5 rounded-full bg-surface-card overflow-hidden">
           <div
             className="h-full bg-brand-500 rounded-full transition-all duration-300"
@@ -316,8 +313,6 @@ function DailyTraining() {
   // 本轮单词总数：建队时的词池快照。一个词要连对两次才毕业、答错会重插，
   // 所以这是分母（词），不是题数。
   const roundTotal = Math.max(pool.length, progress.done, 1);
-  // 当前题号：已答数 + 1，反馈展示期间（`lastCorrect` 已填）停在这一题上。
-  const questionNo = progress.asked + (lastCorrect === null ? 1 : 0);
 
   if (phase === "drill") {
     return (
@@ -327,7 +322,6 @@ function DailyTraining() {
           progressLabel="本轮"
           done={progress.done}
           total={roundTotal}
-          step={questionNo}
         />
         <div className="max-w-[880px] mx-auto px-4 py-8 pb-24 animate-fade-in">
           {question ? (

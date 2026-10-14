@@ -6,7 +6,7 @@ confidence: verified
 related_code: []
 related: [knowledge/wiki/guides/setup.md, knowledge/wiki/guides/release-checklist.md]
 created: 2026-09-29
-updated: 2026-10-03
+updated: 2026-10-14
 ---
 
 # Where a file belongs
@@ -23,6 +23,9 @@ rules, not from taste:
    a second directory. `.agent/README.md` owns the fact → file table; this page owns the
    file → directory one. `.agent/README.md`'s seam test decides which layer a fact belongs to:
    **can it be written as a property of exactly one managed object?** Yes → the cognition layer.
+
+
+`knowledge/work/` is the control plane for cross-session WorkItems (DEC-091): it holds intent, research, solution, plan and slice evidence. `knowledge/plans/` holds design records, delivered plans and unadopted drafts; it is not the execution queue.
 
 ## Three layers, one table
 
@@ -42,15 +45,15 @@ edited together.
 | Entry | Layer | Holds | Add here when… |
 |---|---|---|---|
 | `.agent/` | hot | the facts every session loads: `README.md` (the layering standard), `state`, `invariants`, `owners` | the fact changes what the next session does before it knows the task |
-| `.agents/` | tooling | project-level agent skills at the agent-standard path — the same six skills as `.claude/skills/` | a tool looks for skills at this fixed path |
+| `.agents/` | tooling | project-level agent skills at the agent-standard path — the same project skills as `.claude/skills/` | a tool looks for skills at this fixed path |
 | `.claude/` | tooling | project-level agent config and skills (`intake`, `knowledge-maintain`, `knowledge-verify`, `speaking-dev`, …) | a skill or a tool reads it at this fixed path |
 | `.github/` | tooling | CI/CD workflows and dependabot | GitHub reads it at this fixed path |
 | `backend/` | code | the FastAPI application (`app/`, `migrations/`, `tests/`, `scripts/`) | it is code, or a config the code reads |
 | `docs/` | tooling | only the skills' fixed-path config (`agents/`) and material (`design/`) — see below | a tool looks for it at a fixed path, or it is something to look at |
 | `frontend/` | code | the Next.js application | it is code, or a config the code reads |
-| `knowledge/` | settled | the cold store: everything that records the past — `wiki/`, `adr/`, `plans/`, `progress/`, `requirements/`, `operations/`, `archive/`, `inbox/`, `decisions.md` + index, `system-map.md`, `CHANGELOG.md` | the value is "what happened" or "why it is this way" — read on demand, never needed to start a session |
+| `knowledge/` | settled | the cold store: everything that records the past — `wiki/`, `adr/`, `plans/`, `work/`, `progress/`, `requirements/`, `operations/`, `archive/`, `inbox/`, `decisions.md` + index, `system-map.md`, `CHANGELOG.md` | the value is "what happened" or "why it is this way" — read on demand, never needed to start a session |
 | `logs/` | runtime | local run output; only `.gitkeep` and the audit raw output are tracked | never — it is the one directory that must stay untracked |
-| `scripts/` | tooling | `check-knowledge/`, `release.sh` | a reusable project-level script (backend one-offs go to `backend/scripts/`) |
+| `scripts/` | tooling | `check-knowledge/`, `spec-flow/`, `release.sh` | a reusable project-level script (backend one-offs go to `backend/scripts/`) |
 | `AGENTS.md` | entry | the routing table and the MUST / SHOULD / NEVER rules | every session starts here |
 | `CLAUDE.md` | entry | a short redirect to `AGENTS.md` | the tool requires it at the root |
 | `CONTEXT.md` | entry | the domain glossary — the glossary itself, not a pointer | the task needs domain language |

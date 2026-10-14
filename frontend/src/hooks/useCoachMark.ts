@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CoachStep } from "@/components/common/CoachMark";
 
 const STORAGE_KEY = "seeword_coach_done";
+const FIRST_LESSON_STORAGE_KEY = "seeword_first_lesson_done";
 
 /**
  * D2 CoachMark driver — advances a 4-step tour over the watch page.
@@ -24,30 +25,47 @@ const STORAGE_KEY = "seeword_coach_done";
 export function useCoachMark(opts: {
   isAuthenticated: boolean;
   isReady: boolean;
+  /** First-lesson tour: separate completion key and behavior events. */
+  isFirstLesson?: boolean;
   onWordSaved?: () => void;
+  onEvent?: (event: string, payload?: Record<string, unknown>) => void;
 }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const onEventRef = useRef(opts.onEvent);
+  onEventRef.current = opts.onEvent;
+  const storageKey = opts.isFirstLesson ? FIRST_LESSON_STORAGE_KEY : STORAGE_KEY;
+  const emit = useCallback((event: string, payload?: Record<string, unknown>) => {
+    onEventRef.current?.(event, payload);
+  }, []);
 
   // Show the tour once: onboarding done + authed + watch page ready + flag off
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.localStorage.getItem(STORAGE_KEY) === "true") return;
+    if (window.localStorage.getItem(storageKey) === "true") return;
     if (!opts.isAuthenticated) return;
     if (!opts.isReady) return;
     // Defer one tick so layout settles (anchor rects would be 0 otherwise).
     const t = setTimeout(() => setActive(true), 600);
     return () => clearTimeout(t);
-  }, [opts.isAuthenticated, opts.isReady]);
+  }, [opts.isAuthenticated, opts.isReady, storageKey]);
+
+  useEffect(() => {
+    if (active && opts.isFirstLesson) emit("first_lesson_enter");
+  }, [active, opts.isFirstLesson, emit]);
 
   const finish = useCallback(() => {
     setActive(false);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, "true");
+      window.localStorage.setItem(storageKey, "true");
     }
-  }, []);
+    if (opts.isFirstLesson) emit("first_lesson_complete");
+  }, [storageKey, opts.isFirstLesson, emit]);
 
-  const skip = useCallback(() => finish(), [finish]);
+  const skip = useCallback(() => {
+    if (opts.isFirstLesson) emit("first_lesson_skip");
+    finish();
+  }, [finish, opts.isFirstLesson, emit]);
 
   const next = useCallback(() => {
     setStepIndex((i) => i + 1);
@@ -55,12 +73,19 @@ export function useCoachMark(opts: {
 
   // External step advances (driven by useWordLookup success)
   const advanceFromWordSaved = useCallback(() => {
+    if (opts.isFirstLesson) emit("first_lesson_word_saved");
+    opts.onWordSaved?.();
     if (active && stepIndex === 1) setStepIndex(2);
-  }, [active, stepIndex]);
+  }, [active, stepIndex, opts.isFirstLesson, opts.onWordSaved, emit]);
 
   const advanceFromFirstWordClick = useCallback(() => {
+    if (opts.isFirstLesson) emit("first_lesson_word_click");
     if (active && stepIndex === 0) setStepIndex(1);
-  }, [active, stepIndex]);
+  }, [active, stepIndex, opts.isFirstLesson, emit]);
+
+  const advanceFromShadowing = useCallback(() => {
+    if (opts.isFirstLesson) emit("first_lesson_shadowing");
+  }, [opts.isFirstLesson, emit]);
 
   const steps: CoachStep[] = [
     {
@@ -97,5 +122,6 @@ export function useCoachMark(opts: {
     finish,
     advanceFromFirstWordClick,
     advanceFromWordSaved,
+    advanceFromShadowing,
   };
 }

@@ -39,7 +39,7 @@
     "knowledge": {
       "kind": "dir",
       "layer": "settled",
-      "purpose": "冷仓：一切记录过去的知识，入口是 knowledge/INDEX.md（wiki / adr / plans / progress / requirements / operations / archive / inbox / decisions+index / system-map / CHANGELOG）"
+      "purpose": "冷仓：一切记录过去的知识，入口是 knowledge/INDEX.md（wiki / adr / plans / work / progress / requirements / operations / archive / inbox / decisions+index / system-map / CHANGELOG）；plans 存设计与历史，work 存跨会话控制面"
     },
     "logs": {
       "kind": "dir",
@@ -49,7 +49,7 @@
     "scripts": {
       "kind": "dir",
       "layer": "tooling",
-      "purpose": "项目级脚本（check-knowledge/、release.sh）"
+      "purpose": "项目级脚本（check-knowledge/、spec-flow/、release.sh）"
     },
     "AGENTS.md": {
       "kind": "file",

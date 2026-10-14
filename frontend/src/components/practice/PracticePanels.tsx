@@ -2,10 +2,12 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Volume2, Check, X, RotateCcw, Loader2, Trophy, Mic, MicOff } from "lucide-react";
 import type { GradedResult, PracticeItem } from "@/types";
 import { usePracticeAudio } from "@/hooks/usePracticeAudio";
 import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
@@ -528,17 +530,31 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
   const audio = usePracticeAudio();
   const [submitted, setSubmitted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // P1-5：答对自动前进是**偏好驱动**的持久开关，默认关闭（不改变既有默认行为）。
+  // 偏好没到位时按 false 处理，宁可要用户多点一次也不擅自跳题。
+  const { preferences, update } = useUserPreferences();
+  const autoAdvance = preferences?.auto_advance_on_correct ?? false;
 
   const total = session.items.length;
   const currentGraded = session.graded[currentIndex] ?? null;
 
   // Auto-advance ~800ms after a correct answer (lets the learner see the ✓).
+  // 答错保持手动：与「下一题」按钮的既有语义一致。
   useEffect(() => {
+    if (!autoAdvance) return;
     if (!currentGraded?.correct) return;
     if (currentIndex >= total - 1) return;
     const t = setTimeout(() => setCurrentIndex((i) => i + 1), 800);
     return () => clearTimeout(t);
-  }, [currentGraded, currentIndex, total]);
+  }, [autoAdvance, currentGraded, currentIndex, total]);
+
+  async function handleToggleAutoAdvance() {
+    try {
+      await update({ auto_advance_on_correct: !autoAdvance });
+    } catch {
+      toast.error("自动前进设置保存失败");
+    }
+  }
 
   // Reset to the first item whenever the item set reloads (level change /
   // refetch), so we never point past the end of a fresh list.
@@ -629,8 +645,9 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
           <span className="text-meta px-1.5 py-0.5 rounded-md bg-ink/5 text-muted">
             {levelLabel}
           </span>
-          <span className="text-meta text-muted">
-            {currentIndex + 1} / {total}
+          {/* P1-5 进度语义：只保留「本轮 done/total」，去掉并存的「第 N 题」。 */}
+          <span className="text-meta text-muted tabular-nums">
+            本轮 {session.answeredCount} / {total}
           </span>
         </div>
         <div className="flex items-center gap-3 text-copy text-muted">
@@ -640,6 +657,29 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
             重置
           </Button>
         </div>
+      </div>
+
+      {/* 答对自动前进（P1-5）：持久化偏好开关，默认关闭。 */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-meta text-muted">答对后自动进入下一题</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoAdvance}
+          aria-label="答对后自动进入下一题"
+          onClick={handleToggleAutoAdvance}
+          className={cn(
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500/15",
+            autoAdvance ? "bg-brand-500" : "bg-hairline"
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+              autoAdvance ? "translate-x-4" : "translate-x-0"
+            )}
+          />
+        </button>
       </div>
 
       {/* Progress dots — click to jump to any item */}

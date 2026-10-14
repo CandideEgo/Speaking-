@@ -142,8 +142,19 @@ async def lifespan(app: FastAPI):
             "will fail closed (send-code 502, verify always rejected). "
             "Set SMS_LOGIN_ENABLED=true + ALIYUN_SMS_ACCESS_KEY/SECRET_KEY."
         )
+    # Cross-worker notification fan-out. Tests drive the subscriber directly
+    # with a fake pubsub instead of starting a real connection.
+    if settings.env != "testing":
+        from app.api.v1.notifications import start_notification_subscriber
+
+        start_notification_subscriber()
     yield
     # --- Shutdown ---
+    if settings.env != "testing":
+        from app.api.v1.notifications import stop_notification_subscriber
+
+        await stop_notification_subscriber()
+
     from app.core.database import engine as db_engine
 
     await db_engine.dispose()

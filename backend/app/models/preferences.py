@@ -47,6 +47,10 @@ class UserPreferences(Base):
     reminder_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     reminder_timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     auto_play_next_subtitle: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 词汇训练：答对后约 800ms 自动前进（P1-5）。独立列而非塞进
+    # notification_preferences —— 这是学习行为开关，与通知无关；默认关闭，
+    # 不改变既有训练手感（用户在训练页显式打开才生效）。
+    auto_advance_on_correct: Mapped[bool] = mapped_column(Boolean, default=False)
     subtitle_mode_default: Mapped[str] = mapped_column(String(20), default="bilingual")
     # D1 字幕字号档位（小/中/大），watch 页字幕列表按此渲染。
     subtitle_font_size: Mapped[str] = mapped_column(String(10), default="medium")

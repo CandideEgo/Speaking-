@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -8,6 +8,7 @@ import { WatchTopBar } from "@/components/layout/WatchTopBar";
 import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 import { useWatchChromeValue } from "@/components/watch/WatchChromeProvider";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
+import { DeletionBanner } from "@/components/profile/DeletionBanner";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
@@ -16,6 +17,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // DEC-069 / #31：`/watch/*` 换掉壳的两个栏 —— 底栏槽位给播放控制（替换 5 Tab），
   // 顶栏（仅 ≤1023px，由 WatchTopBar 自己判定）收成 44px 观看页形态。
@@ -27,29 +29,45 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   // 路由切走不会留下上一个播放页的残留 chrome。
   const chrome = useWatchChromeValue(isWatch);
 
-  // Onboarding redirect: after auth, check user.onboarding_completed
-  // Non-blocking: render the shell immediately, redirect in background.
+  // Onboarding gate: the server flag is the only source of truth. Resolve it
+  // before rendering the shell so a new user never sees the home page flash
+  // before being sent to /onboarding.
   useEffect(() => {
-    if (isLoading || !isAuthenticated) {
+    if (isLoading) {
       return;
     }
+
+    if (!isAuthenticated) {
+      setOnboardingChecked(true);
+      return;
+    }
+
+    let cancelled = false;
 
     async function checkOnboarding() {
       try {
         const user = await api<{ onboarding_completed?: boolean }>("/api/v1/users/me");
+        if (cancelled) return;
         if (user.onboarding_completed === false) {
           router.replace("/onboarding");
+          return;
         }
       } catch {
-        // If API fails, don't block the user
+        // Fail-open: an API blip must not trap the user on a skeleton.
+      }
+      if (!cancelled) {
+        setOnboardingChecked(true);
       }
     }
 
-    checkOnboarding();
+    void checkOnboarding();
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, isLoading, router]);
 
-  // Skeleton while auth state is initializing (replaces jarring FullPageSpinner)
-  if (isLoading) {
+  // Skeleton while auth state initializes or the onboarding flag is in flight.
+  if (isLoading || (isAuthenticated && !onboardingChecked)) {
     return <ShellSkeleton />;
   }
 
@@ -63,7 +81,6 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Render shell immediately — onboarding check runs in background
   // 壳自己扛安全区：viewport-fit=cover 后页面会铺到刘海 / Home indicator 下，
   // 用 padding 把可视区推回安全区内（底部导航是 fixed，另有一份自己的 padding）。
   //
@@ -80,6 +97,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
       }}
     >
       {isWatch ? <WatchTopBar chrome={chrome} /> : <TopBar />}
+      <DeletionBanner />
       <main
         id={SCROLL_CONTAINER_ID}
         className={`flex-1 overflow-y-auto custom-scrollbar${isWatch ? "" : " pb-16 md:pb-0"}`}
