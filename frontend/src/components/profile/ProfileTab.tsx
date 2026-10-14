@@ -42,7 +42,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
   const [changePhoneCode, setChangePhoneCode] = useState("");
   const [changePhonePassword, setChangePhonePassword] = useState("");
   const [changingPhone, setChangingPhone] = useState(false);
-  const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
+  const { cooldown, sending, sendCode, error: smsError } = useSmsCode(newPhone);
 
   async function handleSave() {
     setSaving(true);
@@ -282,7 +282,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
               type="button"
               variant="outline"
               disabled={sending || cooldown > 0 || newPhone.length !== 11}
-              onClick={() => sendCode(newPhone, "change_phone")}
+              onClick={() => sendCode("change_phone")}
               className="shrink-0"
             >
               {cooldown > 0 ? `${cooldown}s` : sending ? "发送中..." : "获取验证码"}

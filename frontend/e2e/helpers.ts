@@ -108,6 +108,16 @@ export async function registerViaUi(page: Page, phone: string): Promise<void> {
   });
 }
 
+/**
+ * 切到登录页的「密码登录」tab。
+ *
+ * 26ff9c6 起 /login 默认是「验证码登录」，密码框只在切过去之后才渲染 ——
+ * 任何按 `input[type="password"]` 定位 /login 的用例都必须先切这一下。
+ */
+export async function switchToPasswordLogin(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "密码登录" }).click();
+}
+
 /** Log in through the login page UI (password mode). Onboarding must be done. */
 export async function loginViaUi(
   page: Page,
@@ -115,7 +125,7 @@ export async function loginViaUi(
   password = TEST_PASSWORD
 ): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("tab", { name: "密码登录" }).click();
+  await switchToPasswordLogin(page);
   await page.locator('input[placeholder="请输入手机号"]').fill(phone);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();

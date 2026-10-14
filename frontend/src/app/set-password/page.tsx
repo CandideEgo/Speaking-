@@ -6,14 +6,17 @@ import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
+import {
+  PASSWORD_HINT,
+  PASSWORD_RE,
+  PASSWORD_RULE_MESSAGE,
+  passwordStrength,
+} from "@/lib/password";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { cn } from "@/lib/utils";
-
-// 与后端 security.py 的真实规则一致：≥ 8 位且同时含大写、小写、数字。
-const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 type Origin = "register" | "login" | "";
 
@@ -25,16 +28,6 @@ const SUBTITLE: Record<Origin, string> = {
 
 const STRENGTH_LABEL = ["强度", "弱", "中", "强"] as const;
 const STRENGTH_COLOR = ["", "bg-error", "bg-warning", "bg-success"] as const;
-
-/** 0 = 空，1 = 弱，2 = 中，3 = 强（三格强度条，原型 setpw-strength）。 */
-function passwordStrength(password: string): 0 | 1 | 2 | 3 {
-  if (!password) return 0;
-  let score = 1; // 有输入即至少「弱」
-  if (password.length >= 8) score += 1;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
-  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score += 1;
-  return Math.min(score, 3) as 1 | 2 | 3;
-}
 
 /**
  * 设置登录密码（原型「设置登录密码」视图）。
@@ -66,6 +59,8 @@ function SetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
+  // 错误归属于哪个字段：只有它该红的那个框才红（空串 = 表单级错误，不染红任何输入框）。
+  const [errorField, setErrorField] = useState<"" | "password" | "confirm">("");
   const [loading, setLoading] = useState(false);
 
   const strength = passwordStrength(password);
@@ -80,14 +75,20 @@ function SetPasswordForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    // 回车提交不受按钮 disabled 约束，所以在途要在这里再挡一次。
+    if (loading) return;
     setError("");
+    setErrorField("");
 
     if (!PASSWORD_RE.test(password)) {
-      setError("密码至少 8 位，需同时包含大写字母、小写字母和数字");
+      setError(PASSWORD_RULE_MESSAGE);
+      setErrorField("password");
       return;
     }
     if (password !== confirm) {
       setError("两次输入的密码不一致");
+      setErrorField("confirm");
       return;
     }
 
@@ -99,6 +100,7 @@ function SetPasswordForm() {
       });
       finish();
     } catch (err) {
+      // 服务端错误不指向某个输入框（表单级）。
       setError(apiErrorMessage(err, "保存失败，请重试"));
     } finally {
       setLoading(false);
@@ -115,7 +117,7 @@ function SetPasswordForm() {
           <div
             className={cn(
               "flex h-[46px] items-stretch overflow-hidden rounded-md border-[1.5px] bg-surface-card transition-colors focus-within:border-brand-500 focus-within:bg-canvas focus-within:ring-4 focus-within:ring-brand-500/15",
-              error ? "border-error" : "border-hairline hover:border-muted"
+              errorField === "password" ? "border-error" : "border-hairline hover:border-muted"
             )}
           >
             <input
@@ -123,12 +125,16 @@ function SetPasswordForm() {
               name="new-password"
               type={show ? "text" : "password"}
               autoComplete="new-password"
+              disabled={loading}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError("");
+                setErrorField("");
               }}
               placeholder="请输入新密码"
+              aria-invalid={errorField === "password"}
+              aria-describedby={error ? "setpw-error" : undefined}
               className="min-w-0 flex-1 bg-transparent px-3.5 text-copy text-ink outline-none placeholder:text-muted-soft"
             />
             <button
@@ -161,9 +167,7 @@ function SetPasswordForm() {
             <span className="text-caption text-muted">{STRENGTH_LABEL[strength]}</span>
           </div>
 
-          <p className="text-meta leading-relaxed text-muted">
-            至少 8 位，需同时包含大写字母、小写字母和数字
-          </p>
+          <p className="text-meta leading-relaxed text-muted">{PASSWORD_HINT}</p>
         </div>
 
         <div className="space-y-1.5">
@@ -175,21 +179,26 @@ function SetPasswordForm() {
             name="confirm-password"
             type={show ? "text" : "password"}
             autoComplete="new-password"
+            disabled={loading}
             value={confirm}
             onChange={(e) => {
               setConfirm(e.target.value);
               setError("");
+              setErrorField("");
             }}
             placeholder="再次输入密码"
+            aria-invalid={errorField === "confirm"}
+            aria-describedby={error ? "setpw-error" : undefined}
             className={cn(
               "h-[46px] w-full rounded-md border-[1.5px] bg-surface-card px-3.5 text-copy text-ink outline-none transition-colors placeholder:text-muted-soft focus:border-brand-500 focus:bg-canvas focus:ring-4 focus:ring-brand-500/15",
-              error && password !== confirm ? "border-error" : "border-hairline hover:border-muted"
+              errorField === "confirm" ? "border-error" : "border-hairline hover:border-muted"
             )}
           />
         </div>
 
         {error && (
           <div
+            id="setpw-error"
             role="alert"
             className="flex items-start gap-2 rounded-sm border border-error/20 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error"
           >
@@ -219,7 +228,8 @@ function SetPasswordForm() {
         <button
           type="button"
           onClick={finish}
-          className="text-copy font-medium text-muted transition-colors hover:text-ink"
+          disabled={loading}
+          className="text-copy font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:text-muted-soft"
         >
           暂时跳过
         </button>

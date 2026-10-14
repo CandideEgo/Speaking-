@@ -96,6 +96,35 @@ export function syncAuthCookie(name: string, token: string | null, maxAgeDays = 
   }
 }
 
+/** `/api/v1/auth/sms/login` 响应里决定去向的字段。 */
+export interface PostAuthResult {
+  is_new_user: boolean;
+  user: { onboarding_completed: boolean };
+}
+
+/**
+ * 认证成功后去哪 —— 注册页与登录页共用这一条规则（唯一执行点）。
+ *
+ * - **新号**：先设置登录密码（可跳过）再进引导。建号时 `hashed_password` 为 NULL
+ *   （`auth.py` 的 `sms/login` 建号分支），所以 `/set-password` 的「首次设置」分支
+ *   必然成立，不传 `current_password` 也安全。引导必须排在密码之前，故此时不理会 next。
+ * - **老号未完成引导**：直接进引导。**不走设置密码页** —— 老号可能已有密码，而该页
+ *   只发 `new_password`，后端 `change-password` 会要求 `current_password` 并 400
+ *   （英文原文会直接透传到界面）。这正是把 `is_new_user` 与 `!onboarding_completed`
+ *   用 `||` 混在一起时的老 bug。
+ * - **其余**：回 next。
+ */
+export function postAuthRedirect(
+  res: PostAuthResult,
+  next: string,
+  from: "register" | "login"
+): string {
+  if (res.is_new_user) {
+    return `/set-password?from=${from}&next=${encodeURIComponent("/onboarding")}`;
+  }
+  return res.user.onboarding_completed ? next : "/onboarding";
+}
+
 /**
  * 校验登录回跳地址（?next=）：只允许站内相对路径，防开放重定向。
  * 非法/缺失时返回默认值。

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { toastApiError } from "@/lib/errors";
+import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
+import { PHONE_RE } from "@/lib/smsCode";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -32,7 +34,6 @@ const STEPS = [
  * 若服务端判定验证码错误，回退到第二步并允许重发。
  */
 export default function ForgotPasswordPage() {
-  const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
@@ -41,23 +42,34 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [focusSignal, setFocusSignal] = useState(0);
+  const { cooldown, sending, sendCode, error: smsError } = useSmsCode(phone);
 
   const code = otp.join("");
 
   async function handleSendCode() {
     setError("");
-    if (!/^1\d{10}$/.test(phone)) {
+    if (!PHONE_RE.test(phone)) {
       setError("请输入有效的手机号");
       return;
     }
-    const ok = await sendCode(phone, "reset_password");
-    if (ok) setStep(1);
+    const ok = await sendCode("reset_password");
+    if (ok) {
+      setStep(1);
+      setFocusSignal((n) => n + 1);
+    }
+  }
+
+  /** 第二步的重发：与第一步同一套行为（清旧错误、成功后把焦点送回第一格）。 */
+  async function handleResend() {
+    setError("");
+    if (await sendCode("reset_password")) setFocusSignal((n) => n + 1);
   }
 
   function handleVerifyCode() {
     setError("");
     // 4 位起放行；真实有效性由后端在重置时校验（一次性消费）。
-    if (code.trim().length < 4) {
+    if (code.trim().length < OTP_LENGTH) {
       setError("请输入验证码");
       return;
     }
@@ -66,15 +78,13 @@ export default function ForgotPasswordPage() {
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
+
+    // 回车提交不受按钮 disabled 约束，所以在途要在这里再挡一次。
+    if (loading) return;
     setError("");
 
-    if (
-      password.length < 8 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/\d/.test(password)
-    ) {
-      setError("密码至少 8 位，需含大小写字母和数字");
+    if (!PASSWORD_RE.test(password)) {
+      setError(PASSWORD_RULE_MESSAGE);
       return;
     }
     if (password !== confirmPassword) {
@@ -94,8 +104,11 @@ export default function ForgotPasswordPage() {
       // 该端点返回 400 只可能是验证码无效（密码强度失败是 422），故按状态码判断。
       if (err instanceof ApiError && err.status === 400) {
         setStep(1);
+        setOtp(Array(OTP_LENGTH).fill("")); // 旧码已被判失效，别让它留在格子里
         setError("验证码错误或已失效，请重新输入");
       } else {
+        // 429 / 500 / 断网：toast 之外还要在表单里留痕，否则页面看起来「什么都没发生」。
+        setError(err instanceof Error ? err.message : "重置失败，请重试");
         toastApiError(err, "重置失败，请重试");
       }
     } finally {
@@ -157,20 +170,35 @@ export default function ForgotPasswordPage() {
           {step === 0 && (
             <div className="mt-6 space-y-4">
               <div>
-                <label className="block text-copy font-medium text-ink">手机号</label>
+                <label htmlFor="reset-phone" className="block text-copy font-medium text-ink">
+                  手机号
+                </label>
                 <Input
+                  id="reset-phone"
                   type="tel"
                   inputMode="numeric"
+                  autoComplete="tel"
                   maxLength={11}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => {
+                    setPhone(e.target.value.replace(/\D/g, "").slice(0, 11));
+                    setError("");
+                  }}
                   required
                   className="mt-1.5"
                   placeholder="请输入手机号"
                 />
               </div>
-              {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
-              <Button fullWidth disabled={sending || phone.length !== 11} onClick={handleSendCode}>
+              {(error || smsError) && (
+                <p role="alert" className="text-copy text-error">
+                  {error || smsError}
+                </p>
+              )}
+              <Button
+                fullWidth
+                disabled={sending || !PHONE_RE.test(phone)}
+                onClick={handleSendCode}
+              >
                 {sending ? "发送中..." : cooldown > 0 ? `${cooldown}s 后可重发` : "发送验证码"}
               </Button>
             </div>
@@ -186,7 +214,7 @@ export default function ForgotPasswordPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => sendCode(phone, "reset_password")}
+                    onClick={handleResend}
                     disabled={sending || cooldown > 0}
                     className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
                   >
@@ -199,11 +227,17 @@ export default function ForgotPasswordPage() {
                     setOtp(nextOtp);
                     setError("");
                   }}
+                  hasError={Boolean(error)}
                   autoFocus
+                  focusSignal={focusSignal}
                   labelledBy="reset-otp-label"
                 />
               </div>
-              {(error || smsError) && <p className="text-copy text-error">{error || smsError}</p>}
+              {(error || smsError) && (
+                <p role="alert" className="text-copy text-error">
+                  {error || smsError}
+                </p>
+              )}
               <Button fullWidth onClick={handleVerifyCode}>
                 验证
               </Button>
@@ -212,13 +246,21 @@ export default function ForgotPasswordPage() {
 
           {/* Step 3: 新密码 */}
           {step === 2 && (
-            <form onSubmit={handleReset} className="mt-6 space-y-4">
+            <form onSubmit={handleReset} className="mt-6 space-y-4" noValidate>
               <div>
-                <label className="block text-copy font-medium text-ink">新密码</label>
+                <label htmlFor="reset-password" className="block text-copy font-medium text-ink">
+                  新密码
+                </label>
                 <Input
+                  id="reset-password"
                   type="password"
+                  autoComplete="new-password"
+                  disabled={loading}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError("");
+                  }}
                   required
                   minLength={8}
                   className="mt-1.5"
@@ -226,11 +268,22 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               <div>
-                <label className="block text-copy font-medium text-ink">确认新密码</label>
+                <label
+                  htmlFor="reset-password-confirm"
+                  className="block text-copy font-medium text-ink"
+                >
+                  确认新密码
+                </label>
                 <Input
+                  id="reset-password-confirm"
                   type="password"
+                  autoComplete="new-password"
+                  disabled={loading}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError("");
+                  }}
                   required
                   minLength={8}
                   className="mt-1.5"
@@ -238,7 +291,11 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              {error && <p className="text-copy text-error">{error}</p>}
+              {error && (
+                <p role="alert" className="text-copy text-error">
+                  {error}
+                </p>
+              )}
 
               <Button type="submit" fullWidth disabled={loading}>
                 {loading ? "重置中..." : "完成修改"}
@@ -247,23 +304,22 @@ export default function ForgotPasswordPage() {
           )}
 
           <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                if (step === 0) return;
-                setStep(step - 1);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1.5 text-copy text-muted hover:text-ink font-medium transition-colors",
-                step === 0 && "invisible"
-              )}
-            >
-              <ArrowLeft size={14} />
-              {step === 0 ? "返回登录" : "上一步"}
-            </button>
+            {/* 上一步：第一步没有上一步，那个 invisible 的死按钮不再渲染 */}
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setStep(step - 1);
+                }}
+                className="inline-flex items-center gap-1.5 text-copy text-muted hover:text-ink font-medium transition-colors"
+              >
+                <ArrowLeft size={14} />
+                上一步
+              </button>
+            )}
             {step === 0 && (
-              <div className="mt-3">
+              <div>
                 <Link
                   href="/login"
                   className="inline-flex items-center gap-1.5 text-copy text-brand-500 hover:underline font-medium"

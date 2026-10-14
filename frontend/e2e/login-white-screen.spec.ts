@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { TEST_PASSWORD } from "./helpers";
+import { switchToPasswordLogin, TEST_PASSWORD } from "./helpers";
 
 /**
  * 登录白屏回归（用户报告：登录后白屏，必须手动刷新）。
@@ -49,6 +49,7 @@ test.describe("login transition (white screen regression)", () => {
 
     try {
       await page.goto("/login");
+      await switchToPasswordLogin(page);
       await page.locator('input[placeholder="请输入手机号"]').fill(PHONE);
       await page.locator('input[type="password"]').fill(TEST_PASSWORD);
       await page.locator('button[type="submit"]').click();

@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useState, type ChangeEvent, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
-import { safeNext } from "@/lib/authHelpers";
+import { postAuthRedirect, safeNext } from "@/lib/authHelpers";
+import { PHONE_RE } from "@/lib/smsCode";
 import { useAuthStore } from "@/stores/authStore";
 import { useRedirectIfAuthenticated } from "@/hooks/useRequireAuth";
 import { useSmsCode } from "@/hooks/useSmsCode";
@@ -19,7 +20,6 @@ import { cn } from "@/lib/utils";
 
 // 生产短信验证码为 4 位（开发/CI 假码 1234 同为 4 位）；后端仍兼容 4–6 位。
 const OTP_LENGTH = 4;
-const PHONE_RE = /^1[3-9]\d{9}$/;
 
 // ?next= 透传（登录页跳注册时携带），注册成功后跳回原页。
 // 免密注册 = 验证码即登录：新手机号由 /auth/sms/login 建号，再进入「设置登录密码」
@@ -33,12 +33,9 @@ export default function RegisterPage() {
 }
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
   const login = useAuthStore((s) => s.login);
-  const { isAuthenticated, isLoading, redirectStuck } = useRedirectIfAuthenticated(next);
-  const { cooldown, sending, sendCode, error: smsError } = useSmsCode();
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
@@ -48,17 +45,23 @@ function RegisterForm() {
   const [agreed, setAgreed] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [focusSignal, setFocusSignal] = useState(0);
+  // 登录后去哪：提交前声明，之后由 useRedirectIfAuthenticated 导航（见 handleSubmit）。
+  const [postAuth, setPostAuth] = useState<string | null>(null);
+
+  const { cooldown, sending, sendCode, error: smsError } = useSmsCode(phone);
+  const { isAuthenticated, isLoading, redirectStuck } = useRedirectIfAuthenticated(
+    postAuth ?? next
+  );
 
   const code = otp.join("");
   const phoneValid = PHONE_RE.test(phone);
-  const phoneError = fieldErrors.phone || smsError;
 
   if (isLoading) {
     return <FullPageSpinner />;
   }
 
   if (isAuthenticated) {
-    return <AuthenticatedRedirect redirectStuck={redirectStuck} next={next} />;
+    return <AuthenticatedRedirect redirectStuck={redirectStuck} next={postAuth ?? next} />;
   }
 
   function handleOtpChange(nextOtp: string[]) {
@@ -70,7 +73,7 @@ function RegisterForm() {
   function handlePhoneChange(event: ChangeEvent<HTMLInputElement>) {
     const nextPhone = event.target.value.replace(/\D/g, "").slice(0, 11);
     setPhone(nextPhone);
-    setFieldErrors((current) => ({ ...current, phone: "" }));
+    setFieldErrors({});
     setFormError("");
     if (sentTo && sentTo !== nextPhone) {
       setSentTo(null);
@@ -84,7 +87,7 @@ function RegisterForm() {
       setFieldErrors((current) => ({ ...current, phone: "请输入正确的手机号" }));
       return;
     }
-    const sent = await sendCode(phone, "auth");
+    const sent = await sendCode("auth");
     if (sent) {
       setSentTo(phone);
       setFieldErrors((current) => ({ ...current, code: "" }));
@@ -95,9 +98,12 @@ function RegisterForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    // 回车提交不受按钮 disabled 约束，所以在途要在这里再挡一次。
+    if (loading) return;
+
     const nextErrors: { phone?: string; code?: string } = {};
     if (!phoneValid) nextErrors.phone = "请输入正确的手机号";
-    if (code.length < 4) nextErrors.code = "请输入完整的验证码";
+    if (code.length < OTP_LENGTH) nextErrors.code = "请输入完整的验证码";
     setFieldErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) return;
@@ -118,14 +124,12 @@ function RegisterForm() {
         method: "POST",
         body: JSON.stringify({ phone, code }),
       });
+      // 先声明登录后去哪，再登录。登录后**唯一的导航者**是上面的
+      // useRedirectIfAuthenticated：它会在 isAuthenticated 翻真的那次 effect 里跳到
+      // postAuth。这里若再自己 router.replace 一次，会被它覆盖 —— Next 的 action
+      // queue 会把先发的导航标为 discarded，后发的赢（注册完落首页即由此而来）。
+      setPostAuth(postAuthRedirect(res, next, "register"));
       login(res.token, res.refresh_token);
-      if (res.is_new_user || !res.user.onboarding_completed) {
-        // 新建（或尚未完成引导）的账号先设置登录密码，再进入引导。
-        const dest = "/onboarding";
-        router.replace(`/set-password?from=register&next=${encodeURIComponent(dest)}`);
-      } else {
-        router.replace(next);
-      }
     } catch (err) {
       setFormError(apiErrorMessage(err, "注册失败，请重试"));
     } finally {
@@ -158,7 +162,7 @@ function RegisterForm() {
           <div
             className={cn(
               "flex h-[46px] overflow-hidden rounded-md border-[1.5px] bg-surface-card transition-colors focus-within:border-brand-500 focus-within:bg-canvas focus-within:ring-4 focus-within:ring-brand-500/15",
-              phoneError ? "border-error" : "border-hairline hover:border-muted"
+              fieldErrors.phone ? "border-error" : "border-hairline hover:border-muted"
             )}
           >
             <span className="flex select-none items-center border-r border-hairline bg-surface-soft px-3.5 text-copy font-medium text-ink">
@@ -171,11 +175,12 @@ function RegisterForm() {
               inputMode="numeric"
               autoComplete="tel"
               maxLength={11}
+              disabled={loading}
               value={phone}
               onChange={handlePhoneChange}
               placeholder="请输入手机号"
-              aria-invalid={Boolean(phoneError)}
-              aria-describedby={phoneError ? "register-phone-error" : undefined}
+              aria-invalid={Boolean(fieldErrors.phone)}
+              aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined}
               className="min-w-0 flex-1 bg-transparent px-3.5 font-mono text-copy-lg tracking-[0.05em] text-ink outline-none placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-soft"
             />
             {phoneValid && (
@@ -184,13 +189,13 @@ function RegisterForm() {
               </span>
             )}
           </div>
-          {phoneError && (
+          {fieldErrors.phone && (
             <p
               id="register-phone-error"
               role="alert"
               className="text-meta leading-relaxed text-error"
             >
-              {phoneError}
+              {fieldErrors.phone}
             </p>
           )}
         </div>
@@ -203,7 +208,7 @@ function RegisterForm() {
             <button
               type="button"
               onClick={handleSendCode}
-              disabled={!phoneValid || sending || cooldown > 0}
+              disabled={!phoneValid || sending || loading || cooldown > 0}
               className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
             >
               {cooldown > 0
@@ -216,9 +221,17 @@ function RegisterForm() {
             </button>
           </div>
 
+          {/* 发码失败的错误属于「这次发送」，不属于手机号字段 */}
+          {smsError && (
+            <p role="alert" className="text-meta leading-relaxed text-error">
+              {smsError}
+            </p>
+          )}
+
           <SmsOtpInput
             value={otp}
             onChange={handleOtpChange}
+            disabled={loading}
             hasError={Boolean(fieldErrors.code)}
             focusSignal={focusSignal}
             labelledBy="register-otp-label"
@@ -300,6 +313,11 @@ function RegisterForm() {
             </Link>
           </span>
         </label>
+
+        {/* 未勾选时提交按钮是 disabled 的（e2e 钉住了这个契约），所以得写出「为什么点不动」 */}
+        {!agreed && phoneValid && code.length === OTP_LENGTH && (
+          <p className="text-meta leading-relaxed text-muted">勾选上方协议后即可注册</p>
+        )}
 
         <Button
           type="submit"

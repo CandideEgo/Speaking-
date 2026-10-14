@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
+import { uniquePhone, registerUserViaApi, loginViaToken, switchToPasswordLogin } from "./helpers";
 
 test.describe("Home Page", () => {
   test("unauthenticated visit redirects to the login wall", async ({ page }) => {
@@ -51,6 +51,7 @@ test.describe("Auth Surface", () => {
 
   test("login form can be submitted with the Enter key", async ({ page }) => {
     await page.goto("/login");
+    await switchToPasswordLogin(page);
     await page.locator('input[placeholder="请输入手机号"]').fill("13800000000");
     await page.locator('input[type="password"]').fill("WrongPass123");
     await page.keyboard.press("Enter");

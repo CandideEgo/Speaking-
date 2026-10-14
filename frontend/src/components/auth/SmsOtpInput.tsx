@@ -7,6 +7,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
+import { distributeDigits } from "@/lib/smsCode";
 import { cn } from "@/lib/utils";
 
 interface SmsOtpInputProps {
@@ -14,8 +15,6 @@ interface SmsOtpInputProps {
   value: string[];
   /** 任一位变化时回传新的完整数组。 */
   onChange: (value: string[]) => void;
-  /** 所有格填满时回传拼接后的验证码（可选，用于自动提交）。 */
-  onComplete?: (code: string) => void;
   /** 错误态：所有格高亮红边。 */
   hasError?: boolean;
   /** 禁用全部格。 */
@@ -40,11 +39,13 @@ interface SmsOtpInputProps {
  * 受控组件：父组件持有 `value: string[]`（每格一位数字），onChange 回传新数组。
  * 支持逐位输入、粘贴分发、退格（空格回退到上一格）、左右方向键、聚焦全选。
  * 注册页 / 登录验证码模式 / 找回密码验证码步骤共用，保证 4 格一致。
+ *
+ * 取值分发（`distributeDigits`）是 `lib/smsCode.ts` 里的纯函数，可单测 ——
+ * 这段逻辑是「粘贴整串」「从中间格粘贴」这类交互的唯一实现点。
  */
 export function SmsOtpInput({
   value,
   onChange,
-  onComplete,
   hasError,
   disabled,
   autoFocus,
@@ -59,13 +60,15 @@ export function SmsOtpInput({
 
   useEffect(() => {
     if (!autoFocus) return;
-    requestAnimationFrame(() => refs.current[0]?.focus());
+    const id = requestAnimationFrame(() => refs.current[0]?.focus());
+    return () => cancelAnimationFrame(id);
   }, [autoFocus]);
 
   useEffect(() => {
     if (focusSignal === lastFocus.current) return;
     lastFocus.current = focusSignal;
-    requestAnimationFrame(() => refs.current[0]?.focus());
+    const id = requestAnimationFrame(() => refs.current[0]?.focus());
+    return () => cancelAnimationFrame(id);
   }, [focusSignal]);
 
   function focusCell(index: number) {
@@ -74,18 +77,9 @@ export function SmsOtpInput({
   }
 
   function write(start: number, raw: string) {
-    const digits = raw.replace(/\D/g, "");
-    if (!digits) return;
-    const next = [...value];
-    let pos = start;
-    for (const digit of digits) {
-      if (pos >= length) break;
-      next[pos] = digit;
-      pos += 1;
-    }
+    const { next, caret } = distributeDigits(value, start, raw);
     onChange(next);
-    if (onComplete && next.every((d) => d !== "")) onComplete(next.join(""));
-    focusCell(pos);
+    focusCell(caret);
   }
 
   function handleChange(index: number, event: ChangeEvent<HTMLInputElement>) {
@@ -155,7 +149,10 @@ export function SmsOtpInput({
           onChange={(event) => handleChange(index, event)}
           onKeyDown={(event) => handleKeyDown(index, event)}
           onPaste={(event) => handlePaste(index, event)}
+          // 已填的格再点一下也必须全选：光标落进格内后 maxLength=1 会吞掉新输入，
+          // 用户不去退格就「打不进去」。
           onFocus={(event) => event.currentTarget.select()}
+          onClick={(event) => event.currentTarget.select()}
           aria-label={`验证码第 ${index + 1} 位`}
           aria-invalid={hasError || undefined}
           className={cn(

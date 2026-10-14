@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniquePhone, registerUserViaApi, loginViaUi } from "./helpers";
+import { uniquePhone, registerUserViaApi, loginViaUi, switchToPasswordLogin } from "./helpers";
 
 // Mobile viewport for the whole file.
 test.use({ viewport: { width: 375, height: 812 } });
@@ -33,6 +33,7 @@ test.describe("Mobile - Login Wall", () => {
     await page.goto("/");
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
+    await switchToPasswordLogin(page);
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
 });
@@ -40,6 +41,7 @@ test.describe("Mobile - Login Wall", () => {
 test.describe("Mobile - Login Form", () => {
   test("phone + password inputs and submit are visible and within viewport", async ({ page }) => {
     await page.goto("/login");
+    await switchToPasswordLogin(page);
     const phone = page.locator('input[placeholder="请输入手机号"]');
     await expect(phone).toBeVisible();
     const box = await phone.boundingBox();
@@ -51,6 +53,7 @@ test.describe("Mobile - Login Form", () => {
 
   test("login form can be filled and submitted (no crash)", async ({ page }) => {
     await page.goto("/login");
+    await switchToPasswordLogin(page);
     await page.locator('input[placeholder="请输入手机号"]').fill("13800000000");
     await page.locator('input[type="password"]').fill("WrongPass123");
     await page.locator('button[type="submit"]').click();

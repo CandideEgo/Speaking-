@@ -6,6 +6,7 @@ import {
   fillSmsOtp,
   loginViaUi,
   loginViaToken,
+  switchToPasswordLogin,
 } from "./helpers";
 
 // 串行（同族先例：viewport-height / mobile-wordcard-drawer / mobile-d1-d10）：
@@ -74,7 +75,7 @@ test.describe("Login", () => {
     page,
   }) => {
     await page.goto("/login");
-    await page.getByRole("tab", { name: "密码登录" }).click();
+    await switchToPasswordLogin(page);
     // Survives a React re-render, dies on a document reload.
     await page.evaluate(() => {
       (window as unknown as { __loginMarker?: string }).__loginMarker = "kept";
