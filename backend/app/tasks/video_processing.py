@@ -671,6 +671,29 @@ async def _run_prewarm_notes(ctx: PipelineCtx) -> None:
         await update_progress(video_id, "prewarm_notes")
 
 
+async def _run_classifying(ctx: PipelineCtx) -> None:
+    """Generate canonical topic tags — and a difficulty when it is still NULL.
+
+    Feeds the browse category filter and the card chip; the post-ready
+    subtitle-derived difficulty compute stays the fallback.
+
+    Same best-effort contract as ``prewarm_notes``: a failure must not block
+    publishing, and ``scripts/backfill_classification.py`` can retry later.
+    """
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    try:
+        from app.services.video_classification import classify_video_metadata
+
+        await classify_video_metadata(db, video_id)
+    except Exception as exc:
+        logger.warning("Video %s: classifying skipped (%s)", video_id, exc)
+    video.processing_step = "classifying"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["classifying"]
+    await db.commit()
+    await update_progress(video_id, "classifying")
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
@@ -679,6 +702,7 @@ _TAIL_BODIES: dict[str, StepBody] = {
     "translating": _run_translating,
     "annotating": _run_annotating,
     "prewarm_notes": _run_prewarm_notes,
+    "classifying": _run_classifying,
 }
 
 
@@ -725,29 +749,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 # failure attribution come with it. What follows is the tail of
                 # the sequence still waiting for its own body.
                 await run_steps(ctx, finalize_steps())
-
-                # --- Step: classifying (LLM topic tags + difficulty) ---
-                ctx.current_step = "classifying"
-                # Generate canonical topic_tags (browse category filter + card
-                # chip) from title/description/subtitles via LLM; also fills
-                # difficulty_level when NULL (the post-ready subtitle-derived
-                # compute remains the fallback). Mirrors the prewarm_notes
-                # best-effort contract: a failure must not block publishing —
-                # scripts/backfill_classification.py can retry later.
-                if not await is_step_done(video_id, "classifying"):
-                    try:
-                        from app.services.video_classification import classify_video_metadata
-
-                        await classify_video_metadata(db, video_id)
-                    except Exception as exc:
-                        logger.warning("Video %s: classifying skipped (%s)", video_id, exc)
-                    video.processing_step = "classifying"
-                    touch_step_started_at(video)
-                    video.processing_progress = 74
-                    await db.commit()
-                    await update_progress(video_id, "classifying")
-                else:
-                    logger.info("Video %s: skipping classifying (already done)", video_id)
 
                 # --- Step: downloading ---
                 ctx.current_step = "downloading"
