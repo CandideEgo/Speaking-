@@ -51,10 +51,36 @@ def _dependency_names(dependant) -> set[str]:
     return names
 
 
+def _all_routes() -> list:
+    """Every route the app serves, as objects carrying `path`, `methods`, `dependant`.
+
+    Not `app.routes`: FastAPI 0.141 wraps `include_router` in an `_IncludedRouter`
+    that is itself pathless and holds the real routes inside it, so reading
+    `route.path` off `app.routes` sees only the handful registered directly
+    (`/health`, `/metrics`, the docs). Every check below that walks routes then
+    inspects zero of them and passes regardless — 2026-10-16 found the four
+    route checks in this file in exactly that state, three of them since the
+    FastAPI upgrade. `effective_candidates()` returns the resolved route
+    context: full path (prefix included), methods, and `dependant`.
+    """
+    routes: list = []
+    for route in app.routes:
+        candidates = getattr(route, "effective_candidates", None)
+        if callable(candidates):
+            routes.extend(candidates())
+        else:
+            routes.append(route)
+    return routes
+
+
+def _route_paths() -> list[str]:
+    return [str(getattr(route, "path", "")) for route in _all_routes()]
+
+
 def _state_changing_video_routes() -> list[tuple[str, set[str], set[str]]]:
     found = []
-    for route in app.routes:
-        methods = getattr(route, "methods", set()) & STATE_CHANGING
+    for route in _all_routes():
+        methods = set(getattr(route, "methods", set()) or set()) & STATE_CHANGING
         path = getattr(route, "path", "")
         if methods and path.startswith(VIDEO_PREFIX):
             found.append((path, methods, _dependency_names(route.dependant)))
@@ -70,9 +96,13 @@ class TestVideoProcessingIsOperatorTriggered:
         A new unguarded mutation fails here. If a route is legitimately user-side, add it to
         USER_SIDE_ENGAGEMENT with a reason rather than loosening this test.
         """
+        routes = _state_changing_video_routes()
+        # A guard on the guard: an enumeration that finds nothing passes every
+        # assertion below without inspecting a single route (see _all_routes).
+        assert routes, "found no state-changing video routes at all — the walk is broken, not the app"
         unguarded = [
             (path, sorted(methods))
-            for path, methods, dependencies in _state_changing_video_routes()
+            for path, methods, dependencies in routes
             if path not in USER_SIDE_ENGAGEMENT and "get_admin_user" not in dependencies
         ]
         assert not unguarded, f"state-changing video routes without admin auth: {unguarded}"
@@ -89,7 +119,9 @@ class TestVideoProcessingIsOperatorTriggered:
     def test_no_bare_post_videos_route(self):
         """`POST /api/v1/videos` was the user submit-URL endpoint — removed in DEC-025."""
         registered = {
-            (method, getattr(route, "path", "")) for route in app.routes for method in getattr(route, "methods", set())
+            (method, str(getattr(route, "path", "")))
+            for route in _all_routes()
+            for method in (getattr(route, "methods", set()) or set())
         }
         assert ("POST", VIDEO_PREFIX) not in registered
 
@@ -99,7 +131,7 @@ class TestVideoProcessingIsOperatorTriggered:
     )
     def test_removed_submission_routes_stay_removed(self, fragment):
         """DEC-025 removed the user submission surface; none of it may reappear."""
-        offenders = [getattr(route, "path", "") for route in app.routes if fragment in getattr(route, "path", "")]
+        offenders = [path for path in _route_paths() if fragment in path]
         assert not offenders, f"removed '{fragment}' routes reappeared: {offenders}"
 
 
