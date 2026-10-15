@@ -13,6 +13,7 @@ Design goals (deep-module philosophy):
 """
 
 import json
+from dataclasses import dataclass
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -21,40 +22,69 @@ from app.tasks.async_helpers import run_async
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Step progress mapping — single source of truth
+# Pipeline steps — single source of truth
 # ---------------------------------------------------------------------------
 
-STEP_PROGRESS = {
-    "extracting": 10,
-    "transcribing": 30,
-    "translating": 70,
-    "annotating": 72,
-    "prewarm_notes": 74,
-    "classifying": 74,
-    "downloading": 75,
-    "transcoding": 90,
-    "done": 100,
-}
+#: Terminal step. Nothing is left running under it, so it budgets no time.
+TERMINAL_STEP = "done"
 
 
-# Watchdog budget per step (seconds), keyed by the same names as STEP_PROGRESS.
-# Kept beside the progress map so "what steps exist" and "what each step is
-# allowed to take" cannot drift apart; tests/test_pipeline_watchdog.py fails if
-# a step gains a progress entry without a budget here. Steps missing from the
-# map fall back to settings.pipeline_step_timeout_default.
+@dataclass(frozen=True)
+class Step:
+    """One pipeline step: resume name, progress percent, watchdog budget.
+
+    **Order in ``STEPS`` is the pipeline order** (extracting → … → done). The
+    two maps below are views of this tuple, so "what steps exist", "in which
+    order" and "what each is allowed to take" cannot drift apart — previously
+    the order lived only in ``finalize_video``'s if-sequence, a hundred lines
+    away from the two maps that had to agree with it.
+
+    ``timeout_attr`` names the ``Settings`` field holding the budget in
+    seconds; ``None`` means "no budget" (the terminal step). It is a name and
+    not a value because the watchdog reads settings at call time — an admin
+    setting is re-read per run, a module-level constant would freeze it.
+
+    批 3b adds the tenth field: the step's ``run`` coroutine, moving the bodies
+    out of ``finalize_video``. Until then the tuple declares order/progress/
+    budget only, and the bodies stay where they are.
+    """
+
+    name: str
+    progress: int
+    timeout_attr: str | None = None
+
+
+STEPS: tuple[Step, ...] = (
+    Step("extracting", 10, "pipeline_step_timeout_extracting"),
+    Step("transcribing", 30, "video_transcribe_timeout"),  # GPU gap is long
+    Step("translating", 70, "pipeline_step_timeout_translating"),
+    Step("annotating", 72, "pipeline_step_timeout_annotating"),
+    Step("prewarm_notes", 74, "pipeline_step_timeout_prewarm_notes"),
+    Step("classifying", 74, "pipeline_step_timeout_classifying"),
+    Step("downloading", 75, "pipeline_step_timeout_downloading"),
+    Step("transcoding", 90, "pipeline_step_timeout_transcoding"),
+    Step(TERMINAL_STEP, 100),
+)
+
+# Step name = percent complete for ``Video.processing_progress``. A plain dict
+# because that is what the tasks and the status endpoint read.
+STEP_PROGRESS: dict[str, int] = {step.name: step.progress for step in STEPS}
+
+
 def get_step_timeouts() -> dict[str, int]:
-    """Per-step watchdog budget in seconds, keyed by ``Video.processing_step``."""
+    """Per-step watchdog budget in seconds, keyed by ``Video.processing_step``.
+
+    Steps declared without a ``timeout_attr`` (the terminal one) are absent
+    here; the watchdog falls back to ``settings.pipeline_step_timeout_default``
+    for those.
+    """
     settings = get_settings()
-    return {
-        "extracting": settings.pipeline_step_timeout_extracting,
-        "transcribing": settings.video_transcribe_timeout,  # GPU gap is long
-        "translating": settings.pipeline_step_timeout_translating,
-        "annotating": settings.pipeline_step_timeout_annotating,
-        "prewarm_notes": settings.pipeline_step_timeout_prewarm_notes,
-        "classifying": settings.pipeline_step_timeout_classifying,
-        "downloading": settings.pipeline_step_timeout_downloading,
-        "transcoding": settings.pipeline_step_timeout_transcoding,
-    }
+    budgets: dict[str, int] = {}
+    for step in STEPS:
+        timeout_attr = step.timeout_attr
+        if timeout_attr:
+            budgets[step.name] = getattr(settings, timeout_attr)
+    return budgets
 
 
 # ---------------------------------------------------------------------------

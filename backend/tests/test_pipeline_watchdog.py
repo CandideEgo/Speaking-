@@ -165,15 +165,16 @@ class TestStepBudgets:
     """INV: every pipeline step declares its own watchdog budget."""
 
     def test_every_pipeline_step_has_a_budget(self):
-        """A step in STEP_PROGRESS without a budget inherits the 1h default.
+        """A step without a budget inherits the 1h default.
 
-        That is a silent hour of latency before a hung step is detected, so
-        adding a step to the progress map without a budget fails here instead.
+        That is a silent hour of latency before a hung step is detected. 批 3a
+        turned this from a convention into a structural property: the budget
+        *is* a ``Step`` field, so a step cannot join ``STEPS`` without either
+        naming a settings attr or being declared terminal.
         """
-        from app.tasks.pipeline_helpers import STEP_PROGRESS, get_step_timeouts
+        from app.tasks.pipeline_helpers import STEPS, TERMINAL_STEP
 
-        # "done" is terminal — nothing is left running under it to time out.
-        missing = sorted(set(STEP_PROGRESS) - {"done"} - set(get_step_timeouts()))
+        missing = [step.name for step in STEPS if step.name != TERMINAL_STEP and not step.timeout_attr]
         assert missing == [], f"steps with no watchdog budget (they fall back to the default): {missing}"
 
     def test_budgets_are_positive(self):
@@ -181,3 +182,47 @@ class TestStepBudgets:
         from app.tasks.pipeline_helpers import get_step_timeouts
 
         assert all(seconds > 0 for seconds in get_step_timeouts().values())
+
+    def test_progress_map_covers_every_declared_step(self):
+        """``STEP_PROGRESS`` is a view of ``STEPS``, so this also catches a step
+        added to the progress map by hand while ``STEPS`` was left alone."""
+        from app.tasks.pipeline_helpers import STEP_PROGRESS, STEPS
+
+        assert set(STEP_PROGRESS) == {step.name for step in STEPS}
+
+    def test_declared_order_is_the_order_finalize_runs_them(self):
+        """The declaration is only useful if it matches the code that runs it.
+
+        批 3a declared pipeline order in ``STEPS``, but the tail's real order
+        still lives in ``finalize_video``'s if-sequence — this is the check
+        that keeps the two agreeing until 批 3b moves the bodies into
+        ``Step.run``. Inserting a new step in the wrong place fails here
+        instead of at 3am when a downstream step finds missing input.
+        """
+        from app.tasks.pipeline_helpers import STEPS
+
+        executed = _steps_finalize_checks()
+        assert executed, "extracted no is_step_done() calls — the check stopped seeing the code"
+        declared = [step.name for step in STEPS if step.name in set(executed)]
+        assert declared == executed
+
+
+def _steps_finalize_checks() -> list[str]:
+    """Steps ``finalize_video`` asks ``is_step_done`` about, in source order."""
+    import ast
+    from pathlib import Path
+
+    import app.tasks.video_processing as video_processing
+
+    tree = ast.parse(Path(video_processing.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != "finalize_video":
+            continue
+        calls = [
+            call
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call) and getattr(call.func, "id", "") == "is_step_done"
+        ]
+        calls.sort(key=lambda call: (call.lineno, call.col_offset))
+        return [call.args[1].value for call in calls if len(call.args) > 1 and isinstance(call.args[1], ast.Constant)]
+    raise AssertionError("finalize_video not found in app/tasks/video_processing.py")
