@@ -19,7 +19,7 @@ import { SubtitleHistory } from "@/components/video-edit/SubtitleHistory";
 import { SubtitleTimeline } from "@/components/video-edit/SubtitleTimeline";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
-import type { Subtitle, SubtitleRevision, VideoWithSubtitles } from "@/types";
+import type { Subtitle, SubtitleRevision, VideoDetail } from "@/types";
 import type { SubtitlePatch, SubtitleCreatePayload } from "@/lib/adminData";
 import { Card } from "@/components/ui/Card";
 
@@ -47,7 +47,7 @@ const MODE_LABEL: Record<SubtitleMode, string> = {
 };
 
 export interface VideoSubtitleEditorPanelProps {
-  video: VideoWithSubtitles;
+  video: VideoDetail;
   canEdit: boolean;
   onSaveSubtitle: (subId: string, patch: SubtitlePatch) => Promise<Subtitle>;
   onSplit: (subId: string, payload: SubtitleSplitPayload) => Promise<void>;

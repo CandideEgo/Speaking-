@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { TOPIC_CATEGORY_LABELS } from "@/lib/topicCategories";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
-import type { Paginated, Video } from "@/types";
+import type { Paginated, VideoCard } from "@/types";
 
 type Platform = "browse" | "home";
 
@@ -69,7 +69,7 @@ const FALLBACK_CATEGORIES: Record<Platform, Category[]> = {
 
 /** Map a home-recommendation Video (from /recommendations/home) to VideoItem
  *  so the grid + VideoCard contract stays uniform across browse/home. */
-function homeVideoToItem(v: Video): VideoItem {
+function homeVideoToItem(v: VideoCard): VideoItem {
   return {
     video_id: v.id,
     id: v.id,
@@ -180,7 +180,7 @@ export function usePlatformFeed({
       // Any filter active on home: fall back to browse/feed (supports category+level+sort).
       // Browse: always /browse/feed.
       if (isHomeDefault) {
-        const data = await api<Paginated<Video>>(
+        const data = await api<Paginated<VideoCard>>(
           `/api/v1/recommendations/home?page=${pg}&page_size=${PAGE_SIZE}`
         );
         return {

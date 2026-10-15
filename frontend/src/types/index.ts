@@ -16,7 +16,17 @@ export interface User {
   created_at: string;
 }
 
-export interface Video {
+/**
+ * 卡片形状：**每个**列表端点返回的同一张卡片。
+ *
+ * 后端由 `services/video_card.serialize_video_card` 唯一产出，键集与
+ * `schemas/video.py::VideoResponse` 一一对应（response_model 保证 44 个键都在）。
+ * 浏览/首页 feed、搜索、排行榜、收藏、已解锁列表全是它 —— 差别只在 `scope`
+ * 填不填 `metric` / `note_excerpt` / `has_note` / `favorited_at` 这几个注解字段。
+ *
+ * 别名与 `video_id` 这类本地鸭子类型都是形状分叉的产物，别再往回加。
+ */
+export interface VideoCard {
   id: string;
   title: string;
   source_url: string;
@@ -34,7 +44,7 @@ export interface Video {
   is_published: boolean;
   /** Video review lifecycle (draft/pending_review/published/rejected). */
   review_status: "draft" | "pending_review" | "published" | "rejected";
-  /** Admin's rejection reason — only populated for the video owner. */
+  /** Admin's rejection reason — 非 owner 一律 null（projector 抹白）。 */
   rejection_reason: string | null;
   video_url_480p: string | null;
   video_url_720p: string | null;
@@ -54,32 +64,43 @@ export interface Video {
   channel_name: string | null;
   /** 视频简介（来自 external_meta，列表接口截断到 200 字符，详情为全文）；本地视频为 null。 */
   description: string | null;
+  /** 首次发布时间；rankings 卡片显示它，其余端点也有。 */
+  published_at: string | null;
   /** 作者页 slug（ADR-0014 修订）：视频已挂频道时非空，卡片/播放页链接到 /channels/{slug}。 */
-  channel_slug?: string | null;
+  channel_slug: string | null;
   /** 频道封面（播放页频道入口卡用）；未挂频道或无封面时为 null。 */
-  channel_cover_url?: string | null;
+  channel_cover_url: string | null;
   upload_date: string | null;
   ext_view_count: number | null;
   ext_like_count: number | null;
   wpm: number | null;
   vocabulary_density: number | null;
-  /** Translation quality flag (None | quality_warning | quality_blocked). Admin-visible. */
-  quality_flag: string | null;
   created_at: string;
+  /** 榜单名次依据（weekly_views/weekly_favorites 的周增量）；latest 榜与普通卡片为 null。 */
+  metric: number | null;
+  /** 收藏列表独有：该观看者笔记的前 60 字。其余端点恒为 null。 */
+  note_excerpt: string | null;
+  /** 是否写过笔记（仅收藏列表会为 true）。 */
+  has_note: boolean;
+  /** 收藏时间（仅收藏列表）。 */
+  favorited_at: string | null;
   /** Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks */
   forked_from: string | null;
   /** D0 示范视频：不消耗解锁额度，卡片不显示锁标。 */
-  is_demo?: boolean;
+  is_demo: boolean;
   /** 内容三态（需求 §5.1）：`offline` = 已下线（不可播，学习记录保留）。 */
-  storage_mode?: "local" | "proxy" | "offline";
+  storage_mode: "local" | "proxy" | "offline";
 }
 
-export interface VideoAdmin extends Video {
+/** 管理端视频视图：后端 `VideoAdminResponse` = 卡片 + 这几个只有管理员看得见的字段。 */
+export interface VideoAdmin extends VideoCard {
   /** Admin-only fields exposed by GET /admin/videos. */
   is_featured: boolean;
   show_on_homepage: boolean;
   admin_notes: string | null;
-  processing_progress: number;
+  /** 翻译质量门禁标记（None | quality_warning | quality_blocked）。只在管理端下发 ——
+   * 之前它挂在被所有页面共用的 `Video` 上，等于把管理端字段声明成了公共契约。 */
+  quality_flag: string | null;
   /** Review audit fields (admin sees when a video was submitted/reviewed). */
   submitted_at: string | null;
   reviewed_at: string | null;
@@ -110,29 +131,6 @@ export interface Paginated<T> {
   has_more: boolean;
   /** 总数（后端 PaginatedResponse.total 可选；列表端点不一定返回）。 */
   total?: number;
-}
-
-/** GET /api/v1/videos/rankings 排行项（latest / weekly_views / weekly_favorites，最多 20 条）。 */
-export interface RankedVideo {
-  id: string;
-  title: string;
-  thumbnail_url: string | null;
-  duration: number | null;
-  difficulty_level: string | null;
-  /** 与 Video.topic_tags 同源：后端 ranking_service 直接吐出逗号分隔的原始列。 */
-  topic_tags: string | null;
-  is_official: boolean;
-  video_source: string | null;
-  channel_name: string | null;
-  channel_slug: string | null;
-  like_count: number;
-  favorite_count: number;
-  status: string;
-  created_at: string;
-  view_count: number;
-  published_at: string | null;
-  /** 周增量（weekly_views/weekly_favorites）；latest 榜为 null。 */
-  metric: number | null;
 }
 
 export interface Subtitle {
@@ -169,7 +167,11 @@ export interface SubtitleRevision {
   created_at: string;
 }
 
-export interface VideoWithSubtitles extends Video {
+/**
+ * 播放页 / 视频详情：卡片 + 字幕 + 观看权限。
+ * 后端 `VideoDetailResponse` = `VideoResponse` + `subtitles` + `access`，同构。
+ */
+export interface VideoDetail extends VideoCard {
   subtitles: Subtitle[];
   /** D0 解锁制：当前观看者的访问权限（后端 video detail 返回）。 */
   access?: VideoAccessInfo;

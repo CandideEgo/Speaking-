@@ -34,14 +34,14 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
-import type { Subtitle, VideoWithSubtitles } from "@/types";
+import type { Subtitle, VideoDetail } from "@/types";
 
 const DIFFICULTY_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
 export default function VideoEditPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
+  const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmState, setConfirmState] = useState<{
     title: string;
@@ -292,8 +292,8 @@ function MetadataForm({
   video,
   onChanged,
 }: {
-  video: VideoWithSubtitles;
-  onChanged: (v: VideoWithSubtitles) => void;
+  video: VideoDetail;
+  onChanged: (v: VideoDetail) => void;
 }) {
   const [title, setTitle] = useState(video.title);
   const [difficulty, setDifficulty] = useState(video.difficulty_level || "");

@@ -12,14 +12,23 @@ import { cn, formatCount } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 import { topicLabel } from "@/lib/topicCategories";
 import { watchHref, type WatchEntry } from "@/lib/watchEntry";
+// 类型这份起别名：本模块导出的组件就叫 VideoCard（同一个概念，一个模块里名字只能活一个）。
+import type { VideoCard as VideoCardDTO } from "@/types";
 
-/** Minimal video data needed by VideoCard. Works with both Video and VideoItem. */
-export interface VideoCardData {
+/**
+ * 卡片组件需要的字段。
+ *
+ * 三个「任何来源都保证有」的字段直接取自共享卡片类型（`VideoCard`，后端
+ * `VideoResponse` 的同构镜像），不再在本地重新声明一遍 —— 以前本地那份是
+ * `title: string` 之类的第二次复写，后端改字段名这里不会报错。
+ *
+ * 其余字段可选，是因为站内卡片之外，平台条目（`types/platform.VideoItem`，
+ * 尚未入库、点了要先 import）也会渲染成这张卡片：它只有 `video_id` 没有 `id`，
+ * 也不保证 `storage_mode` 之类的站内字段。`id`/`video_id` 二者其一即可。
+ */
+export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "duration"> & {
   id?: string; // optional for VideoItem
   video_id?: string; // VideoItem uses this as primary key
-  title: string;
-  thumbnail_url: string | null;
-  duration: number | null;
   difficulty_level?: string | null;
   topic_tags?: string | null;
   channel_title?: string;
@@ -34,7 +43,7 @@ export interface VideoCardData {
   favorite_count?: number | null;
   /** 视频简介（列表接口已截断到 200 字符）；本地视频可能为 null。 */
   description?: string | null;
-}
+};
 
 export interface VideoCardProps {
   /** Video data. */

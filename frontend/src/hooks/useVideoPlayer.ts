@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
 import { useWatchStore } from "@/stores/watchStore";
-import type { VideoWithSubtitles } from "@/types";
+import type { VideoDetail } from "@/types";
 
 export type PlaybackMode = "ready" | "processing" | "loading" | "error" | "offline";
 
@@ -20,12 +20,12 @@ function loadPersistedRate(): number {
 }
 
 /** Pick the best available video URL (1080p > 720p > 480p). */
-export function bestVideoUrl(v: VideoWithSubtitles): string | null {
+export function bestVideoUrl(v: VideoDetail): string | null {
   return v.video_url_1080p || v.video_url_720p || v.video_url_480p || null;
 }
 
 /** Extract YouTube video ID from a URL. */
-export function youtubeId(v: VideoWithSubtitles): string | null {
+export function youtubeId(v: VideoDetail): string | null {
   const m = v.source_url?.match(
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/
   );
@@ -33,7 +33,7 @@ export function youtubeId(v: VideoWithSubtitles): string | null {
 }
 
 /** Whether the video can be played (local file or YouTube embed). */
-export function canPlay(v: VideoWithSubtitles): boolean {
+export function canPlay(v: VideoDetail): boolean {
   return !!bestVideoUrl(v) || !!youtubeId(v);
 }
 
@@ -90,7 +90,7 @@ interface UseVideoPlayerOptions {
 }
 
 interface UseVideoPlayerReturn {
-  video: VideoWithSubtitles | null;
+  video: VideoDetail | null;
   playbackMode: PlaybackMode;
   currentSubtitleIndex: number;
   setCurrentSubtitleIndex: (idx: number) => void;
@@ -147,7 +147,7 @@ export function useVideoPlayer({
   const mountedYtIdRef = useRef<string | null>(null);
   const ytTargetIdRef = useRef<string | null>(null);
 
-  const [video, setVideo] = useState<VideoWithSubtitles | null>(null);
+  const [video, setVideo] = useState<VideoDetail | null>(null);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("loading");
   const [currentSubtitleIndex, setCurrentSubtitleIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -169,7 +169,7 @@ export function useVideoPlayer({
 
   // Keep a ref in sync so callbacks (navigateSubtitle) can read the latest
   // video data without stale closures or putting side effects in updaters.
-  const videoDataRef = useRef<VideoWithSubtitles | null>(null);
+  const videoDataRef = useRef<VideoDetail | null>(null);
   useEffect(() => {
     videoDataRef.current = video;
   }, [video]);
@@ -199,7 +199,7 @@ export function useVideoPlayer({
   // Load video data
   const loadVideo = useCallback(() => {
     setPlaybackMode("loading");
-    api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`)
+    api<VideoDetail>(`/api/v1/videos/${videoId}`)
       .then((v) => {
         setVideo(v);
         // 已下线（需求 §5.1 offline）：媒体已删除，不再可播；字幕/学习记录保留，
@@ -230,7 +230,7 @@ export function useVideoPlayer({
     if (!video || (video.status !== "processing" && video.status !== "ready_subtitles")) return;
     const interval = setInterval(async () => {
       try {
-        const updated = await api<VideoWithSubtitles>(`/api/v1/videos/${videoId}`);
+        const updated = await api<VideoDetail>(`/api/v1/videos/${videoId}`);
         setVideo(updated);
         const unlocked = updated.access ? updated.access.unlocked : true;
         if (updated.status === "ready" && canPlay(updated) && unlocked) setPlaybackMode("ready");

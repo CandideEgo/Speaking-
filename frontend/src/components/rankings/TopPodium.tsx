@@ -6,7 +6,7 @@ import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
 import type { RankingRowMode } from "@/components/rankings/RankingRow";
-import type { RankedVideo } from "@/types";
+import type { VideoCard } from "@/types";
 
 /** 名次配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮）。 */
 function rankClass(rank: number): string {
@@ -23,7 +23,7 @@ function PodiumMetric({
   big,
   accent,
 }: {
-  video: RankedVideo;
+  video: VideoCard;
   mode: RankingRowMode;
   metricLabel: string;
   big: boolean;
@@ -60,7 +60,7 @@ function PodiumMetric({
 }
 
 interface PodiumCardProps {
-  video: RankedVideo;
+  video: VideoCard;
   /** 1~3 名。 */
   rank: number;
   mode: RankingRowMode;
@@ -147,7 +147,7 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
 
 export interface TopPodiumProps {
   /** 前 3 条（1~3 个；不足 3 个时布局自动退化）。 */
-  items: RankedVideo[];
+  items: VideoCard[];
   mode: RankingRowMode;
   metricLabel?: string;
 }

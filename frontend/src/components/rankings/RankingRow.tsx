@@ -5,7 +5,7 @@ import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
 import type { RankingScope } from "@/hooks/useRankings";
-import type { RankedVideo } from "@/types";
+import type { VideoCard } from "@/types";
 
 /** 行右侧指标口径：metric = 周增量计数（weekly 榜）；time = 相对发布时间（latest 榜）。 */
 export type RankingRowMode = "metric" | "time";
@@ -26,7 +26,7 @@ function rankClass(rank: number): string {
 }
 
 export interface RankingRowProps {
-  video: RankedVideo;
+  video: VideoCard;
   /** 1-based 名次 —— 决定名次数字配色（1 品牌橙 / 2 琥珀 / 3 深橙 / 其余中性）。 */
   rank: number;
   mode: RankingRowMode;

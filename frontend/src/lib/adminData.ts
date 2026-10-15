@@ -20,7 +20,8 @@ import type {
   Subtitle,
   SubtitleRevision,
   VideoAdmin,
-  VideoWithSubtitles,
+  VideoCard,
+  VideoDetail,
 } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -223,20 +224,12 @@ export async function takedownVideo(id: string): Promise<VideoAdmin> {
   });
 }
 
-export interface TakedownSuggestion {
-  id: string;
-  title: string;
-  thumbnail_url: string | null;
-  view_count: number;
-  favorite_count: number;
-  created_at: string | null;
-  published_at: string | null;
-  storage_mode: string;
-}
-
-/** 半自动下线的「建议下线」候选（阈值规则，管理员确认后执行）。 */
-export async function takedownSuggestions(limit = 20): Promise<TakedownSuggestion[]> {
-  const res = await adminApi<{ items: TakedownSuggestion[] }>(
+/** 半自动下线的「建议下线」候选（阈值规则，管理员确认后执行）。
+ *
+ *  第六份手写卡片在这里。后端现在连这个端点也走共享 projector，返回的就是普通
+ *  卡片 —— 管理员表格只用其中几列，但类型不必是另一份 8 字段的复写。 */
+export async function takedownSuggestions(limit = 20): Promise<VideoCard[]> {
+  const res = await adminApi<{ items: VideoCard[] }>(
     `/api/v1/videos/admin/takedown-suggestions?limit=${limit}`
   );
   return res.items;
@@ -296,8 +289,8 @@ export function rejectReview(id: string, reason: string): Promise<VideoAdmin> {
 
 /** Fetch video detail with subtitles. Uses admin-scoped endpoint to bypass
  *  check_video_access (so admins can view UGC drafts they don't own). */
-export function getVideoDetail(id: string): Promise<VideoWithSubtitles> {
-  return adminApi<VideoWithSubtitles>(`/api/v1/videos/admin/${id}/detail`);
+export function getVideoDetail(id: string): Promise<VideoDetail> {
+  return adminApi<VideoDetail>(`/api/v1/videos/admin/${id}/detail`);
 }
 
 export interface SubtitlePatch {

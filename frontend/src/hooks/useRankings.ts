@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { RankedVideo } from "@/types";
+import type { VideoCard } from "@/types";
 
 export type RankingScope = "latest" | "weekly_views" | "weekly_favorites";
 
 interface UseRankingsReturn {
-  items: RankedVideo[];
+  items: VideoCard[];
   loading: boolean;
   error: string | null;
   /** Re-fetch the current scope (error retry). */
@@ -20,7 +20,7 @@ interface UseRankingsReturn {
  * scope 切换时重新请求，并中断尚未完成的旧请求。
  */
 export function useRankings(scope: RankingScope): UseRankingsReturn {
-  const [items, setItems] = useState<RankedVideo[]>([]);
+  const [items, setItems] = useState<VideoCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -29,7 +29,7 @@ export function useRankings(scope: RankingScope): UseRankingsReturn {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    api<RankedVideo[]>(`/api/v1/videos/rankings?scope=${scope}`, { signal: controller.signal })
+    api<VideoCard[]>(`/api/v1/videos/rankings?scope=${scope}`, { signal: controller.signal })
       .then((data) => {
         setItems(Array.isArray(data) ? data : []);
       })

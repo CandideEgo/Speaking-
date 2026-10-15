@@ -23,7 +23,7 @@ import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn } from "@/lib/watchEntry";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
-import type { VideoWithSubtitles, VocabSet, VocabSetCreateResponse } from "@/types";
+import type { VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
@@ -234,7 +234,7 @@ export default function WatchPage() {
   }, [speakingState, audioBlob]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 时间同步回调通过 ref 读取最新 video / setter（避免与 useVideoPlayer 返回值的前向引用）。
-  const videoForTickRef = useRef<VideoWithSubtitles | null>(null);
+  const videoForTickRef = useRef<VideoDetail | null>(null);
   const setSubtitleIndexRef = useRef<(idx: number) => void>(() => {});
   // D10 逐句跟读：句尾检测回调（钩子在 useVideoPlayer 之后创建，经 ref 接入）。
   const sentenceHandleTimeRef = useRef<(t: number) => void>(() => {});

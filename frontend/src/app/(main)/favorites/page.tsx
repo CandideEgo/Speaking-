@@ -16,33 +16,18 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
-import type { Paginated } from "@/types";
-
-interface FavoriteVideoItem {
-  id: string;
-  title: string;
-  thumbnail_url: string | null;
-  duration: number | null;
-  difficulty_level: string | null;
-  topic_tags: string | null;
-  channel_name: string | null;
-  channel_slug?: string | null;
-  like_count: number;
-  favorite_count: number;
-  /** 站内总播放量（卡片指标行）。 */
-  view_count?: number;
-  /** 视频简介（列表已截断，卡片展示两行）。 */
-  description?: string | null;
-  note_excerpt: string | null;
-  has_note: boolean;
-  favorited_at: string;
-  /** 内容三态（需求 §5.3）：offline 时卡片显示「已下架」角标，后端 /videos/favorites 已下发。 */
-  storage_mode?: string | null;
-}
+import type { Paginated, VideoCard as VideoCardDTO } from "@/types";
 
 /**
  * 我的收藏 (Phase 1 D13).
  * Paginated list of the current user's favorited videos (GET /videos/favorites).
+ *
+ * 这里曾有一份本地 `FavoriteVideoItem`（少了 status/is_official/created_at，又把
+ * note_excerpt 写成必填）。后端现在 4 个卡片端点共用一张形状，收藏列表只是多了
+ * `note_excerpt` / `has_note` / `favorited_at` 三个注解字段 —— 用共享卡片类型即可。
+ *
+ * 类型这份起别名，是因为同名的 `VideoCard` 组件也在本文件里（同一个概念，一个模块
+ * 里名字只能活一个）。
  */
 export default function FavoritesPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
@@ -52,12 +37,12 @@ export default function FavoritesPage() {
 
   const fetcher = useCallback(
     (page: number) =>
-      api<Paginated<FavoriteVideoItem>>(`/api/v1/videos/favorites?page=${page}&page_size=20`),
+      api<Paginated<VideoCardDTO>>(`/api/v1/videos/favorites?page=${page}&page_size=20`),
     []
   );
 
   const { items, setItems, loading, hasMore, loaderRef, total, reload } =
-    usePaginatedList<FavoriteVideoItem>({
+    usePaginatedList<VideoCardDTO>({
       fetcher,
       mode: "append",
       enabled: isAuthenticated && !isLoading,
