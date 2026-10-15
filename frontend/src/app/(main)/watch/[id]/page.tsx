@@ -15,6 +15,7 @@ import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { useShadowing, type ShadowingAttempt } from "@/hooks/useShadowing";
 import { useSentenceShadowing } from "@/hooks/useSentenceShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
+import { useSubtitleFollow } from "@/hooks/useSubtitleFollow";
 import { useVideoPlayer, bestVideoUrl, youtubeId, PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
@@ -23,7 +24,6 @@ import { apiErrorMessage } from "@/lib/errors";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn } from "@/lib/watchEntry";
-import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import type { VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -387,65 +387,22 @@ export default function WatchPage() {
   const sessionLookupsRef = useRef(0);
   const sessionAddsRef = useRef(0);
 
-  // 字幕跟随（DEC-073）分成两条路：
-  //   · 桌面：只滚右侧内层字幕列表、把当前句居中，**绝不触碰整页 <main>**
-  //     （用 scrollIntoView 会连带 <main> 一起拽回顶部，停在底部练习区时页面被拽走白屏）。
-  //   · 移动端：文稿已是页级滚动（卡内不再有 max-h / 内部滚动条），跟随就把壳滚动容器
-  //     `main#main-scroll` 滚到「当前句条目顶边 = 画框下沿 + 8px」，且**只在画框已贴顶常驻
-  //     时**才跟 —— 页面还在顶部时画框与字幕带都在视野里，没有任何理由把页面拽走。
-  //     用户手动滚一下（touch/wheel）即暂停跟随，等下一次句子导航（上一句/下一句/点文稿行）
-  //     才恢复；否则播放中的每一句都会把用户刚滚到的位置抢回去。
-  const subtitleListRef = useRef<HTMLDivElement>(null);
+  // 字幕跟随（DEC-073）的两条路与暂停/恢复规则在 useSubtitleFollow 里；这里只安排
+  // 「跟随哪个元素」与「画框贴顶了没有」两件事。
   // #30 决议：移动端滚过画框之后，画面**贴顶常驻**（不是缩成右下角小窗）。
   // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 1023px)");
-  const followPausedRef = useRef(false);
-  /** 显式句导航（上一句/下一句/点文稿行/深链落点）会恢复跟随。 */
-  const resumeFollow = useCallback(() => {
-    followPausedRef.current = false;
-  }, []);
   // #30：移动端滚过画框之后画面贴顶常驻；DEC-069 之后钉住位置从壳顶变成**顶栏下沿**
   // （`main` 上沿，顶栏是 main 之上的常规流行）。`dismiss` 已随画面内的退出 X 一起删除
   // —— 退出跟随 = 滚回顶部（`useStickyPip` 的 `!out → setDismissed(false)` 本来就这么做）。
   const { isStuck } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
-  // 手动滚动 = 暂停跟随。只监听用户输入事件，程序自己的 scrollBy 不会触发这两个。
-  useEffect(() => {
-    if (!isMobile) return;
-    const scroller = document.getElementById(SCROLL_CONTAINER_ID);
-    if (!scroller) return;
-    const pauseFollow = () => {
-      followPausedRef.current = true;
-    };
-    scroller.addEventListener("touchstart", pauseFollow, { passive: true });
-    scroller.addEventListener("wheel", pauseFollow, { passive: true });
-    return () => {
-      scroller.removeEventListener("touchstart", pauseFollow);
-      scroller.removeEventListener("wheel", pauseFollow);
-    };
-  }, [isMobile]);
-  useEffect(() => {
-    const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
-    if (!el) return;
-    if (isMobile) {
-      const scroller = document.getElementById(SCROLL_CONTAINER_ID);
-      const frame = slotRef.current;
-      if (!scroller || !frame || !isStuck || followPausedRef.current) return;
-      const delta = el.getBoundingClientRect().top - (frame.getBoundingClientRect().bottom + 8);
-      // 只在本句偏离目标位置超过一行时才滚，避免每次 timeUpdate 都抖动。
-      if (Math.abs(delta) > 24) scroller.scrollBy({ top: delta, behavior: "smooth" });
-      return;
-    }
-    const container = subtitleListRef.current;
-    if (!container) return;
-    const elTop = el.getBoundingClientRect().top;
-    const cTop = container.getBoundingClientRect().top;
-    const offset = elTop - cTop - (container.clientHeight / 2 - el.clientHeight / 2);
-    // 仅当目标句偏离容器中心超过半句高时才滚，避免每次 timeUpdate 都抖动
-    if (Math.abs(offset) > el.clientHeight / 2) {
-      container.scrollBy({ top: offset, behavior: "smooth" });
-    }
-  }, [currentSubtitleIndex, isMobile, isStuck]);
+  const { subtitleListRef, resumeFollow } = useSubtitleFollow({
+    currentSubtitleIndex,
+    isMobile,
+    isStuck,
+    slotRef,
+  });
 
   const {
     isFavorited,
