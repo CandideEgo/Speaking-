@@ -30,7 +30,6 @@ EVENT_LEARNED_WORDS = "learned_words"
 EVENT_PRACTICED_ITEMS = "practiced_items"
 EVENT_REVIEWED_WORDS = "reviewed_words"
 EVENT_SHADOWED_SENTENCES = "shadowed_sentences"
-EVENT_COMPLETED_PLAN = "completed_plan"
 EVENT_MET_DAILY_GOAL = "met_daily_goal"
 
 VALID_EVENT_TYPES = {
@@ -39,7 +38,6 @@ VALID_EVENT_TYPES = {
     EVENT_PRACTICED_ITEMS,
     EVENT_REVIEWED_WORDS,
     EVENT_SHADOWED_SENTENCES,
-    EVENT_COMPLETED_PLAN,
     EVENT_MET_DAILY_GOAL,
 }
 
@@ -57,7 +55,6 @@ async def emit_event(
     event_type: str,
     event_value: int = 1,
     video_id: str | None = None,
-    plan_id: str | None = None,
     metadata: dict | None = None,
 ) -> None:
     """Emit a structured learning event and update daily goal tracking.
@@ -89,7 +86,6 @@ async def emit_event(
                 event_type=event_type,
                 event_value=event_value,
                 video_id=video_id,
-                plan_id=plan_id,
                 event_metadata=metadata,
                 event_date=today,
             )
@@ -100,8 +96,8 @@ async def emit_event(
             await _update_daily_progress(db, profile, event_type, event_value, today)
             await _update_streak(db, profile, today)
 
-            # Check daily goal (only for learning events, not meta-events)
-            if event_type not in {EVENT_COMPLETED_PLAN, EVENT_MET_DAILY_GOAL}:
+            # Check daily goal (only for learning events, not the meta-event)
+            if event_type != EVENT_MET_DAILY_GOAL:
                 goal_met = await _check_daily_goal(db, profile)
                 if goal_met and not profile.today_goal_met:
                     profile.today_goal_met = True

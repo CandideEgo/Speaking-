@@ -1,21 +1,15 @@
 """Learning profile API — profile, milestones, mastery trend.
 
-The daily-plan / plan-item / history / AI-generation endpoints were removed
-on 2026-08-27 (learning-plan task assignment was cut). They return 410 Gone so
-old clients get a clear signal instead of 404.
-
 Endpoints:
   GET  /plan/profile         — Learning profile
   POST /plan/profile/refresh — Force-refresh profile from raw data
   GET  /plan/mastery-trend   — Mastery snapshots for trend chart
   GET  /plan/milestones      — Achieved milestones
 
-Removed (410 Gone):
-  GET  /plan/today
-  POST /plan/items/{id}/complete
-  GET  /plan/progress
-  GET  /plan/history
-  POST /plan/generate/ai
+The daily-plan endpoints this router once served (today / items/{id}/complete /
+progress / history / generate/ai) are gone — with the tables behind them, in
+``d1e2f3a4b5c6``. They answered 410 Gone from 2026-08-27 until then, and
+nothing called them.
 """
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -35,43 +29,6 @@ from app.services import milestone_service, profile_service, study_session_servi
 from app.services.local_time import get_user_local_now
 
 router = APIRouter(prefix="/plan", tags=["plan"])
-
-_GONE = {"message": "This endpoint has been removed.", "code": "GONE"}
-
-
-@router.get("/today", status_code=410)
-@rate_limit("30/minute")
-async def get_today_plan(request: Request):
-    """Removed: daily learning plan."""
-    return _GONE
-
-
-@router.post("/items/{item_id}/complete", status_code=410)
-@rate_limit("10/minute")
-async def complete_plan_item(request: Request, item_id: str):
-    """Removed: plan item completion."""
-    return _GONE
-
-
-@router.get("/progress", status_code=410)
-@rate_limit("30/minute")
-async def get_today_progress(request: Request):
-    """Removed: daily plan progress."""
-    return _GONE
-
-
-@router.get("/history", status_code=410)
-@rate_limit("30/minute")
-async def get_plan_history(request: Request):
-    """Removed: plan history."""
-    return _GONE
-
-
-@router.post("/generate/ai", status_code=410)
-@rate_limit("3/minute")
-async def generate_ai_plan(request: Request):
-    """Removed: AI plan generation."""
-    return _GONE
 
 
 @router.get("/profile", response_model=LearningProfileResponse)

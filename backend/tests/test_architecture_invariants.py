@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from app.core.database import Base
 from app.core.errors import (
     AppError,
     BadRequestError,
@@ -348,3 +349,51 @@ class TestAuthenticationHasOneChain:
         assert sorted(dependencies) == ["get_current_user", "get_optional_user"]
         for name, node in dependencies.items():
             assert "_authenticate" in _called_names(node), f"{name} 绕过了 _authenticate"
+
+
+# --- 批 5: 被砍掉的三个特性不许留下化石 --------------------------------------
+
+# 六张表属于三个已被砍掉的功能：YouTube 评论质量分析（随社区/UGC 层一起砍，
+# ADR-0012）、fork→standard 的「回提 PR」流程（Phase 3e）、每日学习计划派发
+# （2026-08-27 砍）。功能删了，模型和表留着——于是每次基于 `create_all` 的测试
+# 都要建它们，每个 autogenerate diff 都要绕开它们。表在迁移 `d1e2f3a4b5c6` 里删掉，
+# 这个测试守的是另一半：别再长出声明同名的模型。
+DROPPED_TABLES = frozenset(
+    {
+        "video_comments",
+        "video_comment_stats",
+        "subtitle_change_proposals",
+        "subtitle_mergeable_updates",
+        "learning_plans",
+        "learning_plan_items",
+    }
+)
+
+# 学习计划派发删掉后，这五条路由先用 410 Gone 过渡了一段时间，现在连桩也不留。
+# 片段比较（而不是整段相等）是刻意的：`/plan/profile` 这类活路由与它们不共享片段。
+REMOVED_PLAN_ROUTE_FRAGMENTS = (
+    "/plan/today",
+    "/plan/progress",
+    "/plan/history",
+    "/plan/items/",
+    "/plan/generate/",
+)
+
+
+class TestCutFeaturesStayCut:
+    """批 5: 被砍功能的表与路由都不许复活。
+
+    `Base.metadata` 是「表还在」的判据；路由表是「接口还在」的判据。两者都不会
+    因为某个功能的业务代码被删而自动收缩——正是这一点让它们活过了自己的功能。
+    """
+
+    def test_no_model_declares_a_dropped_table(self):
+        import app.models  # 导入即注册全部模型
+
+        resurrected = sorted(DROPPED_TABLES & set(Base.metadata.tables))
+        assert not resurrected, f"已删的表又出现在 Base.metadata 里：{resurrected}"
+
+    @pytest.mark.parametrize("fragment", REMOVED_PLAN_ROUTE_FRAGMENTS)
+    def test_removed_plan_routes_stay_removed(self, fragment):
+        offenders = [path for path in _route_paths() if fragment in path]
+        assert not offenders, f"已删的 '{fragment}' 路由又出现了：{offenders}"

@@ -80,6 +80,5 @@ class User(Base):
     favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
     notes = relationship("UserNote", back_populates="user", cascade="all, delete-orphan")
     learning_profile = relationship("UserLearningProfile", back_populates="user", uselist=False)
-    learning_plans = relationship("LearningPlan", back_populates="user", cascade="all, delete-orphan")
     learning_events = relationship("LearningEvent", back_populates="user", cascade="all, delete-orphan")
     video_unlocks = relationship("UserVideoUnlock", back_populates="user", cascade="all, delete-orphan")

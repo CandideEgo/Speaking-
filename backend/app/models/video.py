@@ -233,8 +233,6 @@ class Video(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by])
     subtitles = relationship("Subtitle", back_populates="video", order_by="Subtitle.sentence_index")
     learning_records = relationship("LearningRecord", back_populates="video")
-    comments = relationship("VideoComment", back_populates="video", cascade="all, delete-orphan")
-    comment_stats = relationship("VideoCommentStats", back_populates="video", uselist=False)
     favorites = relationship("UserFavorite", back_populates="video", cascade="all, delete-orphan")
     notes = relationship("UserNote", back_populates="video", cascade="all, delete-orphan")
     likes = relationship("VideoLike", back_populates="video", cascade="all, delete-orphan")

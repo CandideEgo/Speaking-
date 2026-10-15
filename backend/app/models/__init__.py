@@ -3,7 +3,6 @@ from app.models.admin_setting import AdminSetting
 from app.models.behavior import BehaviorEvent
 from app.models.catalog import CatalogItem
 from app.models.channel import Channel
-from app.models.comment import VideoComment, VideoCommentStats
 from app.models.data_export import DataExportTask
 from app.models.engagement import VideoLike
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
@@ -11,7 +10,7 @@ from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSessio
 from app.models.favorite import UserFavorite, UserNote
 from app.models.feedback import Feedback
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
-from app.models.learning_plan import LearningEvent, LearningPlan, LearningPlanItem, UserLearningProfile
+from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
@@ -20,8 +19,6 @@ from app.models.redeem import RedeemCode
 from app.models.shadowing import ShadowingAttempt
 from app.models.study_session import StudySession, StudySessionItem
 from app.models.subtitle import Subtitle
-from app.models.subtitle_change_proposal import SubtitleChangeProposal
-from app.models.subtitle_mergeable_update import SubtitleMergeableUpdate
 from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
