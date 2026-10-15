@@ -740,6 +740,28 @@ async def _skip_downloading(ctx: PipelineCtx) -> None:
         ctx.video_path = _find_local_raw(ctx.video_id)
 
 
+async def _run_transcoding(ctx: PipelineCtx) -> None:
+    """Produce the playable renditions from whatever ``downloading`` left.
+
+    A run that arrives without a local path (a failed imported download) still
+    records the step done: there is nothing to transcode, but the video stays
+    playable through its original/embed URL.
+    """
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    if ctx.video_path:
+        urls = await _transcode_video(ctx.video_path, video.id)
+        video.video_url_480p = urls.get("480p")
+        video.video_url_720p = urls.get("720p", f"/media/{video.id}_raw.mp4")
+        video.video_url_1080p = urls.get("1080p")
+    else:
+        logger.warning("No video file to transcode for %s", video_id)
+    video.processing_step = "transcoding"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["transcoding"]
+    await db.commit()
+    await update_progress(video_id, "transcoding")
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
@@ -750,6 +772,7 @@ _TAIL_BODIES: dict[str, StepBody] = {
     "prewarm_notes": _run_prewarm_notes,
     "classifying": _run_classifying,
     "downloading": _run_downloading,
+    "transcoding": _run_transcoding,
 }
 
 #: Bodies that run *instead* of the body above when a resume skips that step,
@@ -806,24 +829,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 # failure attribution come with it. What follows is the tail of
                 # the sequence still waiting for its own body.
                 await run_steps(ctx, finalize_steps())
-
-                # --- Step: transcoding ---
-                ctx.current_step = "transcoding"
-                if not await is_step_done(video_id, "transcoding"):
-                    if ctx.video_path:
-                        urls = await _transcode_video(ctx.video_path, video.id)
-                        video.video_url_480p = urls.get("480p")
-                        video.video_url_720p = urls.get("720p", f"/media/{video.id}_raw.mp4")
-                        video.video_url_1080p = urls.get("1080p")
-                    else:
-                        logger.warning("No video file to transcode for %s", video_id)
-                    video.processing_step = "transcoding"
-                    touch_step_started_at(video)
-                    video.processing_progress = 90
-                    await db.commit()
-                    await update_progress(video_id, "transcoding")
-                else:
-                    logger.info("Video %s: skipping transcoding (already done)", video_id)
 
                 # --- Cover localization retry ---
                 # The first attempt ran at extraction (needs CDN egress). After

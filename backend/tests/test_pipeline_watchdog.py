@@ -194,35 +194,33 @@ class TestStepBudgets:
         """The declaration is only useful if it matches the code that runs it.
 
         批 3a declared pipeline order in ``STEPS``, but the tail's real order
-        still lives in ``finalize_video``'s if-sequence — this is the check
-        that keeps the two agreeing until 批 3b moves the bodies into
-        ``Step.run``. Inserting a new step in the wrong place fails here
-        instead of at 3am when a downstream step finds missing input.
+        lived in ``finalize_video``'s if-sequence — back then this check read
+        that sequence out of the AST. 批 3b moved the bodies into ``Step.run``,
+        so there is no sequence left to read and it asks the assembled tuple
+        instead: the tail's steps come off ``STEPS`` by name, in ``STEPS``
+        order, and the literal below names them.
+
+        What the two asserts catch, in order: a body dropped from
+        ``_TAIL_BODIES`` (the step would silently never run again — the literal
+        names every one of them), and a step inserted into the declaration in
+        the wrong place (the tail would run it out of order).  A downstream step
+        finding missing input at 3am is what this is for.
         """
         from app.tasks.pipeline_helpers import STEPS
+        from app.tasks.video_processing import finalize_steps
 
-        executed = _steps_finalize_checks()
-        assert executed, "extracted no is_step_done() calls — the check stopped seeing the code"
+        steps = finalize_steps()
+        executed = [step.name for step in steps]
+        assert executed == [
+            "translating",
+            "annotating",
+            "prewarm_notes",
+            "classifying",
+            "downloading",
+            "transcoding",
+        ]
         declared = [step.name for step in STEPS if step.name in set(executed)]
         assert declared == executed
-
-
-def _steps_finalize_checks() -> list[str]:
-    """Steps ``finalize_video`` asks ``is_step_done`` about, in source order."""
-    import ast
-    from pathlib import Path
-
-    import app.tasks.video_processing as video_processing
-
-    tree = ast.parse(Path(video_processing.__file__).read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef) or node.name != "finalize_video":
-            continue
-        calls = [
-            call
-            for call in ast.walk(node)
-            if isinstance(call, ast.Call) and getattr(call.func, "id", "") == "is_step_done"
-        ]
-        calls.sort(key=lambda call: (call.lineno, call.col_offset))
-        return [call.args[1].value for call in calls if len(call.args) > 1 and isinstance(call.args[1], ast.Constant)]
-    raise AssertionError("finalize_video not found in app/tasks/video_processing.py")
+        assert all(step.run is not None for step in steps)
+        by_name = {step.name: step for step in steps}
+        assert by_name["downloading"].skip_run is not None, "续跑跳过 downloading 时仍要把 raw 文件路径交给 transcoding"
