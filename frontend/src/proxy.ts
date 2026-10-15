@@ -7,7 +7,7 @@
  *
  * 未登录访问受保护路由 → 302 `/login?next={path}`，登录页成功后跳回。
  * token 事实来源仍是 localStorage（zustand authStore），登录/刷新时镜像到
- * 同名 cookie（见 lib/authHelpers.syncAuthCookie）供本文件读取。
+ * 同名 cookie（见 lib/authHelpers.setSession）供本文件读取。
  *
  * 管理端独立会话：/admin/* 检查 `seeword_admin_token`，与用户端互不影响。
  */

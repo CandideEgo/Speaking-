@@ -53,7 +53,7 @@ export function deriveAuthenticated<U extends BaseAuthUser>(
 export const AUTH_COOKIE_NAME = "seeword_token";
 
 /**
- * 镜像 cookie 的**读侧**检查，与 `syncAuthCookie` 成对。
+ * 镜像 cookie 的**读侧**检查，与写侧的 `setSession` / `clearSession` 成对。
  *
  * `proxy.ts` 的登录墙判据只有一条：cookie 存在**且非空**（不解码 JWT、不查
  * DB）。所以客户端能同步复算同一判定，不必先发一次注定被 302 弹回的跳转。
@@ -86,14 +86,88 @@ export function hasAuthCookieMirror(name: string): boolean {
  * middleware 运行在服务端，看不到 localStorage；cookie 仅作存在性镜像，
  * 事实来源仍是 localStorage（API 调用照旧用 Authorization 头）。
  * 传 null 则删除 cookie（登出/失效时调用）。
+ *
+ * **私有实现细节**，别 `export` 它：对外的入口是下面三个成对操作
+ * （`setSession` / `clearSession` / `remirrorSessionCookie`），它们保证 cookie
+ * 永远与 localStorage 一起动。这个函数本身只写一个家，单独调用就会造出
+ * 「看着已登录、每个请求 401」的错位状态。`scripts/check-session-writes.mjs`
+ * 守着这条线。
  */
-export function syncAuthCookie(name: string, token: string | null, maxAgeDays = 30): void {
+function syncAuthCookie(name: string, token: string | null, maxAgeDays = 30): void {
   if (typeof document === "undefined") return;
   if (token) {
     document.cookie = `${name}=${encodeURIComponent(token)}; path=/; max-age=${maxAgeDays * 86400}; SameSite=Lax`;
   } else {
     document.cookie = `${name}=; path=/; max-age=0`;
   }
+}
+
+/** 一份会话存放的两个 localStorage key。 */
+export interface SessionKeys {
+  /** access token 的 key —— 同时也是镜像 cookie 的名字（同名镜像，D0）。 */
+  token: string;
+  /** refresh token 的 key。 */
+  refreshToken: string;
+}
+
+/** 用户端会话存放位置。 */
+export const USER_SESSION_KEYS: SessionKeys = {
+  token: AUTH_COOKIE_NAME,
+  refreshToken: "seeword_refresh_token",
+};
+
+/**
+ * 管理端会话存放位置 —— 与用户端**两套独立会话**（登出其一不影响另一个）。
+ */
+export const ADMIN_SESSION_KEYS: SessionKeys = {
+  token: "seeword_admin_token",
+  refreshToken: "seeword_admin_refresh_token",
+};
+
+/**
+ * 开启会话：**同时**写 localStorage（真身）与镜像 cookie（边缘登录墙要读）。
+ *
+ * 这是全站唯一允许同时写这两处的地方。分开写会留下一类几乎无法复现的状态：
+ * 用户看着是登录的（localStorage 有 token，页面按已登录渲染），而每个请求都被
+ * 登录墙 307 弹回 /login —— 这个 bug 修过一次，见
+ * `components/auth/RedirectStuckState.tsx` 与 `e2e/login-redirect-loop.spec.ts`。
+ * 所以不要绕过它去调 `syncAuthCookie`（它已私有），也不要自己 `localStorage.setItem`
+ * 这两个 key。
+ */
+export function setSession(keys: SessionKeys, token: string, refreshToken?: string | null): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(keys.token, token);
+  syncAuthCookie(keys.token, token);
+  if (refreshToken) {
+    localStorage.setItem(keys.refreshToken, refreshToken);
+  } else {
+    localStorage.removeItem(keys.refreshToken);
+  }
+}
+
+/**
+ * 结束会话：两个存放位置都清干净。
+ *
+ * 顺带扫掉「有 refresh token 但没有 access token」的孤儿（`initialize()` 的
+ * `!token` 分支会走到这里），否则它会一直躺在 localStorage 里被反复忽略。
+ */
+export function clearSession(keys: SessionKeys): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(keys.token);
+  localStorage.removeItem(keys.refreshToken);
+  syncAuthCookie(keys.token, null);
+}
+
+/**
+ * 只补写镜像 cookie，**不碰** localStorage。
+ *
+ * 用于「localStorage 已经是对的、但 cookie 被浏览器拦掉/过期了」这一种恢复路径：
+ * 此时不能借 `setSession` 顺手写一遍 localStorage —— 调用方手上只有 access
+ * token，传 `refreshToken: null` 会顺手删掉真的 refresh token。
+ */
+export function remirrorSessionCookie(keys: SessionKeys, token: string | null): void {
+  if (typeof window === "undefined") return;
+  syncAuthCookie(keys.token, token);
 }
 
 /** `/api/v1/auth/sms/login` 响应里决定去向的字段。 */

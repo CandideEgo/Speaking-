@@ -80,11 +80,12 @@ export interface UseRedirectIfAuthenticatedReturn {
  * 渲染恢复卡（`RedirectStuckState`）。
  *
  * 为什么缺失必然是「浏览器拒绝了写入」而不是「cookie 过期」：
- * `authStore.initialize()`（`stores/authStore.ts:266`）每次页面加载都会用有效
- * token 重新镜像，cookie 被单独清除的情况会自愈。故持续缺失 ⟺ 写不进去。
+ * `authStore.initialize()` 每次页面加载都会用有效 token 重新镜像
+ * （`remirrorSessionCookie`），cookie 被单独清除的情况会自愈。故持续缺失
+ * ⟺ 写不进去。
  *
  * 注意本 hook 只在 effect 里读 cookie，不在 render 期读：`initialize()` 是先
- * `set(...)` 再 `syncAuthCookie(...)`，render 期读会依赖 React 的批处理时机。
+ * `set(...)` 再补 cookie，render 期读会依赖 React 的批处理时机。
  */
 export function useRedirectIfAuthenticated(redirectTo = "/"): UseRedirectIfAuthenticatedReturn {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);

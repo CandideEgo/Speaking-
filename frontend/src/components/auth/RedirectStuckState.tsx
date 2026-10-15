@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/Button";
-import { AUTH_COOKIE_NAME, syncAuthCookie } from "@/lib/authHelpers";
+import { USER_SESSION_KEYS, remirrorSessionCookie } from "@/lib/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 
 /**
@@ -32,7 +32,7 @@ export function RedirectStuckState({ next }: { next: string }) {
   }, []);
 
   function retry() {
-    syncAuthCookie(AUTH_COOKIE_NAME, token);
+    remirrorSessionCookie(USER_SESSION_KEYS, token);
     window.location.assign(next);
   }
 

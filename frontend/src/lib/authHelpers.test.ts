@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_COOKIE_NAME, hasAuthCookieMirror, postAuthRedirect } from "@/lib/authHelpers";
+import {
+  ADMIN_SESSION_KEYS,
+  AUTH_COOKIE_NAME,
+  USER_SESSION_KEYS,
+  clearSession,
+  hasAuthCookieMirror,
+  postAuthRedirect,
+  remirrorSessionCookie,
+  setSession,
+} from "@/lib/authHelpers";
 
 /** 把 document.cookie 的读取值钉死为给定字符串（node 环境下没有 document）。 */
 function stubCookie(raw: string): void {
@@ -9,6 +18,40 @@ function stubCookie(raw: string): void {
       return raw;
     },
   });
+}
+
+/** 内存版 localStorage（node 环境下没有它）。 */
+class FakeStorage {
+  private map = new Map<string, string>();
+  getItem(k: string): string | null {
+    return this.map.get(k) ?? null;
+  }
+  setItem(k: string, v: string): void {
+    this.map.set(k, v);
+  }
+  removeItem(k: string): void {
+    this.map.delete(k);
+  }
+  has(k: string): boolean {
+    return this.map.has(k);
+  }
+}
+
+/** 装一套浏览器环境，返回内存 localStorage 与「写过的 cookie 串」数组。 */
+function stubBrowser(): { store: FakeStorage; cookieWrites: string[] } {
+  const store = new FakeStorage();
+  const cookieWrites: string[] = [];
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("localStorage", store);
+  vi.stubGlobal("document", {
+    get cookie() {
+      return "";
+    },
+    set cookie(v: string) {
+      cookieWrites.push(v);
+    },
+  });
+  return { store, cookieWrites };
 }
 
 afterEach(() => {
@@ -119,5 +162,83 @@ describe("postAuthRedirect", () => {
     );
     expect(url).toContain("next=%2Fonboarding");
     expect(url).not.toContain("next=/onboarding");
+  });
+});
+
+describe("会话写入的三个入口（批 7 的原子对）", () => {
+  // 「已登录」有两个家：localStorage（真身）与镜像 cookie（登录墙只查它的存在性）。
+  // 分开写就会造出「看着已登录、每个请求 401」的错位状态——这些用例钉住的是
+  // 「两个家要么一起动，要么都不动」。
+
+  it("setSession 同时写两个家", () => {
+    const { store, cookieWrites } = stubBrowser();
+
+    setSession(USER_SESSION_KEYS, "tok", "refresh");
+
+    expect(store.getItem(USER_SESSION_KEYS.token)).toBe("tok");
+    expect(store.getItem(USER_SESSION_KEYS.refreshToken)).toBe("refresh");
+    expect(cookieWrites).toHaveLength(1);
+    expect(cookieWrites[0]).toContain(`${AUTH_COOKIE_NAME}=tok`);
+  });
+
+  it("setSession 不带 refresh token 时清掉旧的 refresh 键，cookie 仍然写", () => {
+    const { store, cookieWrites } = stubBrowser();
+    store.setItem(USER_SESSION_KEYS.refreshToken, "stale");
+
+    setSession(USER_SESSION_KEYS, "tok", null);
+
+    expect(store.has(USER_SESSION_KEYS.refreshToken)).toBe(false);
+    expect(store.getItem(USER_SESSION_KEYS.token)).toBe("tok");
+    expect(cookieWrites[0]).toContain(`${AUTH_COOKIE_NAME}=tok`);
+  });
+
+  it("clearSession 两个家一起清", () => {
+    const { store, cookieWrites } = stubBrowser();
+    setSession(USER_SESSION_KEYS, "tok", "refresh");
+    cookieWrites.length = 0;
+
+    clearSession(USER_SESSION_KEYS);
+
+    expect(store.has(USER_SESSION_KEYS.token)).toBe(false);
+    expect(store.has(USER_SESSION_KEYS.refreshToken)).toBe(false);
+    // 删 cookie 的写法是 max-age=0（不是写空值后再靠浏览器）。
+    expect(cookieWrites).toEqual([`${AUTH_COOKIE_NAME}=; path=/; max-age=0`]);
+  });
+
+  it("clearSession 顺带扫掉没有 access token 的孤儿 refresh token", () => {
+    const { store } = stubBrowser();
+    store.setItem(USER_SESSION_KEYS.refreshToken, "orphan");
+
+    clearSession(USER_SESSION_KEYS);
+
+    expect(store.has(USER_SESSION_KEYS.refreshToken)).toBe(false);
+  });
+
+  it("remirrorSessionCookie 只补 cookie，不碰 localStorage", () => {
+    // 这就是它单独存在（而不是复用 setSession）的理由：调用方手上只有 access
+    // token，走 setSession 会因为 refreshToken=undefined 顺手删掉真的 refresh token。
+    const { store, cookieWrites } = stubBrowser();
+    store.setItem(USER_SESSION_KEYS.refreshToken, "keep-me");
+
+    remirrorSessionCookie(USER_SESSION_KEYS, "tok");
+
+    expect(store.getItem(USER_SESSION_KEYS.refreshToken)).toBe("keep-me");
+    expect(cookieWrites[0]).toContain(`${AUTH_COOKIE_NAME}=tok`);
+  });
+
+  it("管理端写自己那套 key，不与用户端串台", () => {
+    const { store, cookieWrites } = stubBrowser();
+
+    setSession(ADMIN_SESSION_KEYS, "admin-tok", null);
+
+    expect(store.getItem(ADMIN_SESSION_KEYS.token)).toBe("admin-tok");
+    expect(store.has(USER_SESSION_KEYS.token)).toBe(false);
+    expect(cookieWrites[0]).toContain("seeword_admin_token=admin-tok");
+  });
+
+  it("SSR（没有 window）时是空操作且不抛错", () => {
+    expect(() => setSession(USER_SESSION_KEYS, "tok", "refresh")).not.toThrow();
+    expect(() => clearSession(USER_SESSION_KEYS)).not.toThrow();
+    expect(() => remirrorSessionCookie(USER_SESSION_KEYS, "tok")).not.toThrow();
   });
 });

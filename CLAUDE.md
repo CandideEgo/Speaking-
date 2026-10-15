@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 前端门禁 | `npm run check` | `frontend/` |
 | e2e 数据播种 | `python scripts/seed_e2e.py` | `backend/` |
 
-`npm run check` = design-system 检查 + `tsc --noEmit` + ESLint + Prettier `--check`。
+`npm run check` = design-system 检查 + 会话写入检查 + `tsc --noEmit` + ESLint + Prettier `--check`。后两个检查器都是「机器执行的不变量」，见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 
 ## 架构大图
 

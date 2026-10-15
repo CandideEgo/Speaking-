@@ -14,9 +14,12 @@
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
 import {
+  USER_SESSION_KEYS,
   migrateTokenKeys,
   deriveAuthenticated,
-  syncAuthCookie,
+  setSession,
+  clearSession,
+  remirrorSessionCookie,
   type BaseAuthUser,
 } from "@/lib/authHelpers";
 import { useProfileStore } from "@/stores/profileStore";
@@ -66,13 +69,10 @@ interface AuthActions {
   refreshAccessToken: () => Promise<boolean>;
 }
 
-const TOKEN_KEY = "seeword_token";
-const REFRESH_TOKEN_KEY = "seeword_refresh_token";
-
 /** One-time migration: move tokens from old "speaking_*" keys to new "seeword_*" keys. */
 const MIGRATION_MAPPINGS: [string, string][] = [
-  ["speaking_token", "seeword_token"],
-  ["speaking_refresh_token", "seeword_refresh_token"],
+  ["speaking_token", USER_SESSION_KEYS.token],
+  ["speaking_refresh_token", USER_SESSION_KEYS.refreshToken],
 ];
 
 type AuthStore = AuthState & AuthActions;
@@ -88,16 +88,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isLoading: true, // starts true until initialize() runs
 
   login(token: string, refreshToken?: string | null) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(TOKEN_KEY, token);
-      // D0 登录墙：镜像到同名 cookie 供 middleware 读取（事实来源仍是 localStorage）
-      syncAuthCookie(TOKEN_KEY, token);
-      if (refreshToken) {
-        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-      } else {
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-      }
-    }
+    // localStorage + 镜像 cookie 一起写（唯一入口，见 lib/authHelpers.setSession）。
+    setSession(USER_SESSION_KEYS, token, refreshToken);
     const user = decodeJwt(token) as AuthUser | null;
     // A different subject is a different user: drop the cached profile so the next reader
     // fetches theirs rather than showing the previous one's face. `login()` is also the
@@ -144,9 +136,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         : Promise.resolve();
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      syncAuthCookie(TOKEN_KEY, null);
+      // 两个存放位置一起清（唯一入口，见 lib/authHelpers.clearSession）。
+      clearSession(USER_SESSION_KEYS);
     }
     set({
       token: null,
@@ -181,10 +172,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       return;
     }
 
-    const token = localStorage.getItem(TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    const token = localStorage.getItem(USER_SESSION_KEYS.token);
+    const refreshToken = localStorage.getItem(USER_SESSION_KEYS.refreshToken);
     if (!token) {
-      syncAuthCookie(TOKEN_KEY, null); // 清理可能残留的镜像 cookie，避免 middleware 误放行
+      // 镜像 cookie 可能是上一轮留下的，清掉避免 middleware 误放行；顺带把
+      // 「有 refresh token 没有 access token」的孤儿也扫掉。
+      clearSession(USER_SESSION_KEYS);
       set({
         token: null,
         refreshToken: null,
@@ -214,9 +207,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
       // No refresh token - clear and redirect (unless on the independent admin
       // console, which manages its own auth via a separate token store).
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      syncAuthCookie(TOKEN_KEY, null);
+      clearSession(USER_SESSION_KEYS);
       set({
         token: null,
         refreshToken: null,
@@ -233,9 +224,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const user = decodeJwt(token) as AuthUser | null;
     if (!user) {
       // Token structurally invalid - clear and redirect
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      syncAuthCookie(TOKEN_KEY, null);
+      clearSession(USER_SESSION_KEYS);
       set({
         token: null,
         refreshToken: null,
@@ -257,8 +246,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       isLoading: false,
     });
     // 回访用户 cookie 可能已丢失/过期 — 用有效 token 重新镜像，
-    // 否则 middleware 会把已登录用户拦到 /login。
-    syncAuthCookie(TOKEN_KEY, token);
+    // 否则 middleware 会把已登录用户拦到 /login。只补 cookie，不动 localStorage。
+    remirrorSessionCookie(USER_SESSION_KEYS, token);
   },
 
   async refreshAccessToken(): Promise<boolean> {

@@ -13,9 +13,12 @@
 import { create } from "zustand";
 import { decodeJwt, isTokenExpired } from "@/lib/jwt";
 import {
+  ADMIN_SESSION_KEYS,
   migrateTokenKeys,
   deriveAuthenticated,
-  syncAuthCookie,
+  setSession,
+  clearSession,
+  remirrorSessionCookie,
   type BaseAuthUser,
 } from "@/lib/authHelpers";
 
@@ -38,13 +41,10 @@ interface AdminAuthActions {
   refreshAccessToken: () => Promise<boolean>;
 }
 
-const TOKEN_KEY = "seeword_admin_token";
-const REFRESH_TOKEN_KEY = "seeword_admin_refresh_token";
-
 /** One-time migration: move admin tokens from old "speaking_*" keys to new "seeword_*" keys. */
 const MIGRATION_MAPPINGS: [string, string][] = [
-  ["speaking_admin_token", "seeword_admin_token"],
-  ["speaking_admin_refresh_token", "seeword_admin_refresh_token"],
+  ["speaking_admin_token", ADMIN_SESSION_KEYS.token],
+  ["speaking_admin_refresh_token", ADMIN_SESSION_KEYS.refreshToken],
 ];
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -59,13 +59,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
   isLoading: true,
 
   login(token: string, refreshToken?: string | null) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(TOKEN_KEY, token);
-      // D0 登录墙：镜像到同名 cookie 供 middleware 校验 /admin 会话。
-      syncAuthCookie(TOKEN_KEY, token);
-      if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-      else localStorage.removeItem(REFRESH_TOKEN_KEY);
-    }
+    // localStorage + 镜像 cookie 一起写（唯一入口，见 lib/authHelpers.setSession）。
+    setSession(ADMIN_SESSION_KEYS, token, refreshToken);
     const user = decodeJwt(token) as AdminAuthUser | null;
     set({
       token,
@@ -96,9 +91,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       });
     }
     if (typeof window !== "undefined") {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      syncAuthCookie(TOKEN_KEY, null);
+      // 两个存放位置一起清（唯一入口，见 lib/authHelpers.clearSession）。
+      clearSession(ADMIN_SESSION_KEYS);
     }
     set({
       token: null,
@@ -118,10 +112,11 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       set({ isLoading: false });
       return;
     }
-    const token = localStorage.getItem(TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    const token = localStorage.getItem(ADMIN_SESSION_KEYS.token);
+    const refreshToken = localStorage.getItem(ADMIN_SESSION_KEYS.refreshToken);
     if (!token) {
-      syncAuthCookie(TOKEN_KEY, null); // 清理残留镜像 cookie，避免 middleware 误放行 /admin
+      // 镜像 cookie 可能是上一轮留下的，清掉避免 middleware 误放行 /admin。
+      clearSession(ADMIN_SESSION_KEYS);
       set({
         token: null,
         refreshToken: null,
@@ -139,8 +134,8 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
       isAuthenticated: deriveAuthenticated(token, user),
       isLoading: false,
     });
-    // 回访管理员的镜像 cookie 可能已丢失 — 用有效 token 重新镜像。
-    syncAuthCookie(TOKEN_KEY, token);
+    // 回访管理员的镜像 cookie 可能已丢失 — 用有效 token 重新镜像。只补 cookie。
+    remirrorSessionCookie(ADMIN_SESSION_KEYS, token);
     // If expired, refresh BEFORE clearing the loading state: the shell guard
     // redirects to /admin/login as soon as isLoading=false && !isAuthenticated,
     // so clearing isLoading synchronously would bounce an expired-but-

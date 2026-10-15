@@ -27,7 +27,7 @@ function isRscNavToHome(req: { url(): string; headers(): Record<string, string> 
 test.describe("login wall cookie mirror (stuck spinner regression)", () => {
   test("镜像缺失 → 渲染恢复卡，且不再发出注定被弹回的跳转", async ({ page }) => {
     await page.addInitScript(() => {
-      // 模拟「浏览器/隐私模式拒绝 cookie 写入」：syncAuthCookie 变成空操作，
+      // 模拟「浏览器/隐私模式拒绝 cookie 写入」：镜像 cookie 的写入变成空操作，
       // middleware 永远看不到镜像。
       Object.defineProperty(document, "cookie", {
         set() {},
