@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.video import VideoResponse
+from app.services.video_card import serialize_video_card
 
 # ---------------------------------------------------------------------------
 # D7 热门搜索（Redis ZSET 计数，1h 缓存，故障时退回静态列表）
@@ -173,7 +174,9 @@ async def search_videos(
 
     result = await db.execute(stmt)
     videos = result.scalars().all()
-    return [VideoResponse.model_validate(v) for v in videos]
+    # Cards come from the shared projector (services/video_card) — same shape as
+    # the feed, description truncated to CARD_DESCRIPTION_LIMIT.
+    return [serialize_video_card(v, scope="feed") for v in videos]
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +231,7 @@ async def search_subtitles(
     for sub, vid in rows:
         if vid.id not in seen_videos:
             seen_videos[vid.id] = {
-                "video": VideoResponse.model_validate(vid).model_dump(),
+                "video": serialize_video_card(vid, scope="feed").model_dump(),
                 "matching_subtitles": [],
             }
         entry = seen_videos[vid.id]

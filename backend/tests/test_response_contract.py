@@ -8,59 +8,49 @@ Why this file exists
 fossil cleanup) change response bodies — without this file every one of those
 changes would have to be reviewed by eye.
 
-This snapshot deliberately records **today's shape, including the parts that
-are inconsistent** (four hand-written card serializers, ``response_model=dict``
-endpoints whose item type is unbound). Its value is that the mess becomes
-diffable: after this file lands, a changed contract can only show up as a
-change here, and each line of that diff has to be justified.
+This snapshot recorded **today's shape, including the parts that were
+inconsistent** (four hand-written card serializers, ``response_model=dict``
+endpoints whose item type is unbound), so that a changed contract could only
+show up as a change here, with each line of that diff justified.
+
+批 1（错误契约）与批 2（卡片 projector）已按此线落地：前者换掉了决定状态码的
+消息嗅探，后者把四份手写卡片合并成一份。批 5（化石清理）仍会动这里的契约。
 
 Reading the failures
 --------------------
 If you changed a response on purpose, update the literal here in the same
 commit. If the snapshot disagrees with reality and you did not mean to change
 anything, the snapshot is right and the code is wrong.
-
-The four card endpoints below return **four different key sets** for what the
-UI renders as one card. That is not an oversight in this file — it is the
-defect batch 2 exists to collapse, pinned so the collapse is reviewable.
 """
 
-from app.models.favorite import UserFavorite
+from datetime import UTC, datetime, timedelta
+
+from app.models.favorite import UserFavorite, UserNote
 from app.models.video import Video, VideoReviewStatus, VideoStatus
 
 _FEED = "/api/v1/browse/feed"
 _PUBLIC = "/api/v1/videos/public"
 _RANKINGS = "/api/v1/videos/rankings"
 _FAVORITES = "/api/v1/videos/favorites"
+_TAKEDOWN = "/api/v1/videos/admin/takedown-suggestions"
 _ADMIN_FEEDBACK = "/api/v1/admin/feedback"
 
 # --- recorded shapes -------------------------------------------------------
 # sorted(keys) of the paginated envelope every list endpoint reuses.
 _ENVELOPE_KEYS = ["has_more", "items", "page", "page_size", "total"]
 
-# GET /browse/feed — services/browse._video_to_dict
-_FEED_ITEM_KEYS = [
-    "channel_name",
-    "channel_slug",
-    "created_at",
-    "description",
-    "difficulty_level",
-    "duration",
-    "favorite_count",
-    "id",
-    "is_official",
-    "like_count",
-    "status",
-    "thumbnail_url",
-    "title",
-    "topic_tags",
-    "video_source",
-    "view_count",
-]
-
-# GET /videos/public — the only card served through a real response_model
-# (PaginatedResponse[VideoResponse]), so its shape is enforced at runtime.
-_PUBLIC_ITEM_KEYS = [
+# Every card endpoint — /browse/feed, /videos/public, /videos/rankings,
+# /videos/favorites, /videos/admin/takedown-suggestions — now serves this one
+# shape, built by app/services/video_card.serialize_video_card. 批 2 之前这四处
+# 各有一份手写 dict（browse 的 _video_to_dict、ranking_service 的 _serialize、
+# /videos/favorites 的内联 dict、下架候选列表），字段集互不相同（feed 有
+# description，rankings 换成 metric，favorites 有 note_excerpt 但缺
+# status/is_official/video_source/created_at）。四份字面量合并成这一份，是那批
+# 改动的结果，也是它唯一要守住的东西。
+#
+# 44 = VideoResponse 的全部字段。`metric`/`note_excerpt`/`has_note`/
+# `favorited_at` 只有填充它们的 scope 会给出非 null 值，键始终在。
+_CARD_ITEM_KEYS = [
     "channel_cover_url",
     "channel_name",
     "channel_slug",
@@ -72,15 +62,20 @@ _PUBLIC_ITEM_KEYS = [
     "ext_like_count",
     "ext_view_count",
     "favorite_count",
+    "favorited_at",
     "forked_from",
+    "has_note",
     "id",
     "is_demo",
     "is_official",
     "is_published",
     "like_count",
+    "metric",
+    "note_excerpt",
     "processing_mode",
     "processing_progress",
     "processing_step",
+    "published_at",
     "rejection_reason",
     "review_status",
     "score",
@@ -100,51 +95,6 @@ _PUBLIC_ITEM_KEYS = [
     "vocabulary_density",
     "wpm",
     "yt_video_id",
-]
-
-# GET /videos/rankings — services/ranking_service._serialize. Adds the ranking
-# metric but drops the feed's `description`; there is no single card shape.
-_RANKINGS_ITEM_KEYS = [
-    "channel_name",
-    "channel_slug",
-    "created_at",
-    "difficulty_level",
-    "duration",
-    "favorite_count",
-    "id",
-    "is_official",
-    "like_count",
-    "metric",
-    "published_at",
-    "status",
-    "thumbnail_url",
-    "title",
-    "topic_tags",
-    "video_source",
-    "view_count",
-]
-
-# GET /videos/favorites — inline dict in api/v1/videos.py. Shares almost nothing
-# with the other three beyond the common core: it is the only one carrying
-# `favorited_at` / `has_note` / `note_excerpt`, and the only card missing
-# `status` / `is_official` / `video_source` / `created_at`.
-_FAVORITES_ITEM_KEYS = [
-    "channel_name",
-    "channel_slug",
-    "description",
-    "difficulty_level",
-    "duration",
-    "favorite_count",
-    "favorited_at",
-    "has_note",
-    "id",
-    "like_count",
-    "note_excerpt",
-    "storage_mode",
-    "thumbnail_url",
-    "title",
-    "topic_tags",
-    "view_count",
 ]
 
 
@@ -178,30 +128,53 @@ async def _seed_one_card(client, db, auth_headers) -> Video:
 
 
 class TestCardShapes:
-    """The four card endpoints, pinned independently so a drift names its site."""
+    """The four card endpoints, pinned — they now share one shape by construction.
+
+    Batch 2 collapsed four hand-written serializers into
+    ``services/video_card.serialize_video_card``, so these four assertions
+    compare against the *same* literal. They stay four tests on purpose: a
+    failure then names the endpoint that drifted, which is the whole reason the
+    snapshot exists.
+    """
 
     async def test_browse_feed(self, client, db_session, auth_headers):
         await _seed_one_card(client, db_session, auth_headers)
         body = (await client.get(_FEED)).json()
         assert sorted(body.keys()) == _ENVELOPE_KEYS
-        assert sorted(body["items"][0].keys()) == _FEED_ITEM_KEYS
+        assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
 
     async def test_videos_public(self, client, db_session, auth_headers):
         await _seed_one_card(client, db_session, auth_headers)
         body = (await client.get(_PUBLIC)).json()
         assert sorted(body.keys()) == _ENVELOPE_KEYS
-        assert sorted(body["items"][0].keys()) == _PUBLIC_ITEM_KEYS
+        assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
 
     async def test_videos_rankings(self, client, db_session, auth_headers):
         await _seed_one_card(client, db_session, auth_headers)
         body = (await client.get(_RANKINGS, params={"scope": "latest"})).json()
-        assert sorted(body[0].keys()) == _RANKINGS_ITEM_KEYS
+        assert sorted(body[0].keys()) == _CARD_ITEM_KEYS
 
     async def test_videos_favorites(self, client, db_session, auth_headers):
         await _seed_one_card(client, db_session, auth_headers)
         body = (await client.get(_FAVORITES, headers=auth_headers)).json()
         assert sorted(body.keys()) == _ENVELOPE_KEYS
-        assert sorted(body["items"][0].keys()) == _FAVORITES_ITEM_KEYS
+        assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
+
+    async def test_admin_takedown_suggestions(self, client, db_session, admin_headers):
+        """批 2 的第四处、也是最后一处手写卡片 dict。
+
+        管理员表格只读其中几列（title / view_count / favorite_count / created_at），
+        旧 dict 就只拼了这 8 个键 —— 但「建议下线」这一行没有理由跟别的卡片长得
+        不一样。种子要满足端点自己的阈值：上线超过 takedown_min_age_days 天，
+        且 view_count / favorite_count 都低于阈值。
+        """
+        video = await _make_video(db_session, title="cold")
+        video.created_at = datetime.now(UTC) - timedelta(days=45)
+        await db_session.commit()
+
+        body = (await client.get(_TAKEDOWN, headers=admin_headers)).json()
+        assert [i["title"] for i in body["items"]] == ["cold"]
+        assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
 
     async def test_admin_feedback_dict_endpoint(self, client, db_session, admin_headers):
         """``response_model=dict`` sites have no enforced shape at all.
@@ -214,23 +187,62 @@ class TestCardShapes:
         assert sorted(resp.json().keys()) == ["has_more", "items", "page", "page_size"]
 
 
-class TestCardShapesHaveDiverged:
-    """Documents the divergence batch 2 collapses — not an endorsement of it.
+class TestCardScopesDifferByValueNotByShape:
+    """批 2 的 scope 只改取值，不改键集 —— 这是它跟「四处各写一份」的分界。
 
-    If one of these starts failing because the four serializers were unified,
-    that is the intended outcome: delete the test in the same commit that
-    updates the key sets above.
+    键集由上面那条 `_CARD_ITEM_KEYS` 统一钉住；这里钉住三处真正有差别的取值，
+    否则「统一」会退化成「把该藏的也一起发了」。
     """
 
-    def test_favorites_is_not_the_feed_shape(self):
-        assert set(_FAVORITES_ITEM_KEYS) != set(_FEED_ITEM_KEYS)
+    async def test_feed_truncates_description_while_detail_does_not(self, client, db_session, auth_headers):
+        """CARD_DESCRIPTION_LIMIT 是卡片与详情页的分界线，不是随手加的护栏。"""
+        from app.schemas.video import CARD_DESCRIPTION_LIMIT
 
-    def test_rankings_is_not_the_feed_shape(self):
-        assert set(_RANKINGS_ITEM_KEYS) != set(_FEED_ITEM_KEYS)
+        long_blurb = "x" * (CARD_DESCRIPTION_LIMIT + 80)
+        video = await _make_video(db_session)
+        video.external_meta = {"description": long_blurb}
+        await db_session.commit()
 
-    def test_public_carries_the_whole_model(self):
-        # The one endpoint with a real response_model returns ~2.4x the fields.
-        assert len(_PUBLIC_ITEM_KEYS) > 2 * len(_FEED_ITEM_KEYS)
+        card = (await client.get(_FEED)).json()["items"][0]
+        assert card["description"] == "x" * CARD_DESCRIPTION_LIMIT
+
+        detail = (await client.get(f"/api/v1/videos/{video.id}")).json()
+        assert detail["description"] == long_blurb
+
+    async def test_owner_only_fields_are_blanked_for_other_viewers(self, client, db_session, auth_headers):
+        """error_message names internal pipeline failures; rejection_reason is
+        the operator's note to a UGC author. Neither is for the public.
+
+        Before 批 2 these keys were simply *absent* from the card dicts, so
+        nothing had to blank them. Now every card carries the full model, which
+        makes the blanking load-bearing rather than incidental.
+        """
+        video = await _make_video(db_session, title="errored")
+        video.error_message = "ffmpeg died at /srv/seeword/tmp/xyz"
+        video.rejection_reason = "封面不合适"
+        await db_session.commit()
+
+        card = (await client.get(_FEED)).json()["items"][0]
+        assert card["error_message"] is None
+        assert card["rejection_reason"] is None
+
+    async def test_favorites_annotations_are_filled_only_there(self, client, db_session, auth_headers):
+        """note_excerpt / has_note / favorited_at belong to the favorites scope."""
+        video = await _make_video(db_session, title="noted")
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        db_session.add(UserFavorite(user_id=me["id"], video_id=video.id))
+        db_session.add(UserNote(user_id=me["id"], video_id=video.id, content="重点在 12 分钟那段"))
+        await db_session.commit()
+
+        fav = (await client.get(_FAVORITES, headers=auth_headers)).json()["items"][0]
+        assert fav["note_excerpt"] == "重点在 12 分钟那段"
+        assert fav["has_note"] is True
+        assert fav["favorited_at"] is not None
+
+        feed = (await client.get(_FEED)).json()["items"][0]
+        assert feed["note_excerpt"] is None
+        assert feed["has_note"] is False
+        assert feed["favorited_at"] is None
 
 
 class TestErrorEnvelopeShapes:

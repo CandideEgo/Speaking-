@@ -13,7 +13,8 @@ from app.core.limiter import rate_limit
 from app.models.favorite import UserFavorite
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
-from app.schemas.video import CARD_DESCRIPTION_LIMIT
+from app.schemas.video import VideoResponse
+from app.services.video_card import CARD_SHAPE_VERSION, serialize_video_card
 from app.services.video_classification import TOPIC_CATEGORIES
 
 logger = structlog.get_logger()
@@ -33,7 +34,7 @@ async def list_categories(request: Request):
     return {"categories": CATEGORIES}
 
 
-@cached(ttl=300, key="browse:feed:{category}:{level_key}:{sort}:{page}:{page_size}")
+@cached(ttl=300, key=f"browse:feed:v{CARD_SHAPE_VERSION}:{{category}}:{{level_key}}:{{sort}}:{{page}}:{{page_size}}")
 async def _browse_feed_query(
     *,
     db: AsyncSession,
@@ -121,7 +122,7 @@ async def _browse_feed_query(
     )
 
 
-@router.get("/feed", response_model=PaginatedResponse)
+@router.get("/feed", response_model=PaginatedResponse[VideoResponse])
 @rate_limit("30/minute")
 async def browse_feed(
     request: Request,
@@ -151,7 +152,7 @@ async def browse_feed(
     )
 
 
-@cached(ttl=300, key="browse:featured:{limit}")
+@cached(ttl=300, key=f"browse:featured:v{CARD_SHAPE_VERSION}:{{limit}}")
 async def _browse_featured_query(*, db: AsyncSession, limit: int) -> dict:
     """DB query for featured videos, cached by @cached."""
     stmt = (
@@ -186,32 +187,16 @@ async def browse_featured(
 
 
 def _video_to_dict(v: Video, channel_slug: str | None = None) -> dict:
-    """Convert a Video model to a dict for the feed response.
+    """One browse card, as a plain dict. Delegates to services/video_card.
 
     ``channel_slug`` (author page link, ADR-0014 rev.) is passed in by callers
     that resolved the video's channel - keep it a parameter rather than a
     per-row query so paged feeds resolve slugs in one batch.
+
+    Dumped to a dict because both callers sit behind ``@cached`` and the payload
+    goes straight into Redis as JSON.
     """
-    return {
-        "id": v.id,
-        "title": v.title,
-        "thumbnail_url": v.thumbnail_url,
-        "duration": v.duration,
-        "difficulty_level": v.difficulty_level,
-        "topic_tags": v.topic_tags,
-        "is_official": v.is_official,
-        "video_source": v.video_source.value if v.video_source else None,
-        "channel_name": v.channel_name,
-        "channel_slug": channel_slug,
-        "like_count": v.like_count,
-        "favorite_count": v.favorite_count,
-        # In-app totals shown on cards (distinct from ext_* YouTube counters).
-        "view_count": v.view_count,
-        # Truncated YouTube blurb for the card subtitle; null for local videos.
-        "description": v.description[:CARD_DESCRIPTION_LIMIT] if v.description else None,
-        "status": v.status.value if v.status else None,
-        "created_at": v.created_at.isoformat() if v.created_at else None,
-    }
+    return serialize_video_card(v, scope="feed", channel_slug=channel_slug).model_dump()
 
 
 async def _channel_slug_map(db: AsyncSession, videos) -> dict[str, str]:

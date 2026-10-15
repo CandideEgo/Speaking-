@@ -32,8 +32,9 @@ from app.core.cache import cache_get_json, cache_set_json
 from app.core.config import get_settings
 from app.models.behavior import BehaviorEvent
 from app.models.favorite import UserFavorite
-from app.models.video import Video, VideoSource, VideoStatus
+from app.models.video import Video, VideoStatus
 from app.services.channel_service import channel_slugs_for
+from app.services.video_card import CARD_SHAPE_VERSION, serialize_video_card
 
 RANKING_SCOPES: tuple[str, ...] = ("latest", "weekly_views", "weekly_favorites")
 _RANKING_LIMIT = 20
@@ -60,8 +61,15 @@ _VISIBILITY_FILTER = (
 
 
 def rankings_cache_key(scope: str) -> str:
-    """Redis key for a scope's snapshot (written by the beat task, read here)."""
-    return f"rankings:snapshot:{scope}"
+    """Redis key for a scope's snapshot (written by the beat task, read here).
+
+    Carries ``CARD_SHAPE_VERSION`` because the snapshot is a list of serialized
+    cards that the endpoint now *validates* on read (``response_model``), and a
+    snapshot outlives a deploy by up to 48h. See that constant for the whole
+    story; the family prefix stays first so ``rankings:snapshot:*`` still
+    matches for invalidation.
+    """
+    return f"rankings:snapshot:v{CARD_SHAPE_VERSION}:{scope}"
 
 
 async def get_rankings(db: AsyncSession, scope: str) -> list[dict[str, Any]]:
@@ -156,30 +164,25 @@ async def _weekly_favorites_rankings(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def _serialize(db: AsyncSession, rows: Sequence[tuple[Video, Any]]) -> list[dict[str, Any]]:
-    """(Video, metric) rows → card dicts (browse feed shape + view/published/metric)."""
+    """(Video, metric) rows → ranking cards as plain dicts.
+
+    The card itself comes from the shared projector (services/video_card);
+    rankings only add the metric of the scope being ranked. `latest` ranks by
+    publish recency and has no count to show, hence the None.
+
+    Dumped to dicts rather than returned as models because the result is
+    written straight into the Redis snapshot (`get_rankings`), which serialises
+    plain JSON — and because a cache hit returns raw dicts, so both paths must
+    hand the route the same type.
+    """
     videos = [v for v, _ in rows]
     slug_map = await channel_slugs_for(db, videos)
-    items: list[dict[str, Any]] = []
-    for v, metric in rows:
-        items.append(
-            {
-                "id": v.id,
-                "title": v.title,
-                "thumbnail_url": v.thumbnail_url,
-                "duration": v.duration,
-                "difficulty_level": v.difficulty_level,
-                "topic_tags": v.topic_tags,
-                "is_official": v.is_official,
-                "video_source": (v.video_source.value if isinstance(v.video_source, VideoSource) else v.video_source),
-                "channel_name": v.channel_name,
-                "channel_slug": slug_map.get(v.channel_ref) if v.channel_ref else None,
-                "like_count": v.like_count,
-                "favorite_count": v.favorite_count,
-                "status": v.status.value if v.status else None,
-                "created_at": v.created_at.isoformat() if v.created_at else None,
-                "view_count": v.view_count,
-                "published_at": v.published_at.isoformat() if v.published_at else None,
-                "metric": metric,
-            }
-        )
-    return items
+    return [
+        serialize_video_card(
+            v,
+            scope="feed",
+            channel_slug=slug_map.get(v.channel_ref) if v.channel_ref else None,
+            metric=metric,
+        ).model_dump()
+        for v, metric in rows
+    ]

@@ -85,6 +85,18 @@ class VideoResponse(BaseModel):
     wpm: float | None = None
     vocabulary_density: float | None = None
     created_at: str
+    # Publish timestamp. Only the rankings card carried it before 批 2; every
+    # card does now, because there is one card shape (services/video_card).
+    published_at: str | None = None
+    # ── Ranking / favorites annotations (only the scope that has them fills
+    # these in; null on every other card) ──
+    # Ranking metric for the requested scope (weekly deduped plays, favorites,
+    # or null for `latest`, which ranks by publish recency and has no count).
+    metric: int | None = None
+    # First ~60 chars of the viewing user's note on this video (favorites cards).
+    note_excerpt: str | None = None
+    has_note: bool = False
+    favorited_at: str | None = None
     # Fork lineage (Phase 2 standard version): null for originals, UUID of source video for forks
     forked_from: str | None = None
     # D0: demo/tutorial videos are watchable without consuming unlock quotas;
@@ -96,7 +108,7 @@ class VideoResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    @field_validator("created_at", "score_updated_at", "upload_date", mode="before")
+    @field_validator("created_at", "score_updated_at", "upload_date", "published_at", "favorited_at", mode="before")
     @classmethod
     def _serialize_dt_iso(cls, v: object) -> str | None:
         if v is None:

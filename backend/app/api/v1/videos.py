@@ -15,7 +15,6 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.video import (
-    CARD_DESCRIPTION_LIMIT,
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
     SubtitleBatchUpdate,
@@ -87,6 +86,9 @@ from app.services.subtitle_edit_service import (
 )
 from app.services.subtitle_edit_service import (
     update_word_levels as _update_word_levels,
+)
+from app.services.video_card import (
+    serialize_video_card as _serialize_video_card,
 )
 from app.services.video_like_service import (
     get_video_like_status as _get_video_like_status,
@@ -819,7 +821,7 @@ async def list_unlocked_video_ids(
 # /{video_id} dynamic route so the static "favorites" path wins the match
 # (FastAPI's route ordering is registration order; the previous attempt got
 # swallowed by the catch-all and returned 404).
-@router.get("/favorites", response_model=PaginatedResponse[dict])
+@router.get("/favorites", response_model=PaginatedResponse[VideoResponse])
 @rate_limit("30/minute")
 async def list_user_favorites(
     request: Request,
@@ -829,14 +831,13 @@ async def list_user_favorites(
 ):
     """Paginated list of the current user's favorited videos.
 
-    Joins user_favorites → videos (LEFT user_notes for excerpt). The response
-    shape is intentionally flat: each item carries the fields the favorites
-    page needs (id, title, thumbnail, like/favorite counts, note excerpt)
-    so the frontend can render VideoCard without a second round-trip.
+    Joins user_favorites → videos (LEFT user_notes for the excerpt). Cards come
+    from the shared projector at ``scope="card"`` — same shape as every other
+    card, plus the favorite/note annotations this list is the only one to carry.
 
     已下线（``storage_mode='offline'``）的视频**仍然出现在收藏夹**：需求 §5.3
-    要求「收藏夹保留入口并标注已下架」。故此处刻意不加发布态过滤，而是把
-    ``storage_mode`` 下发，由前端渲染「已下架」角标。
+    要求「收藏夹保留入口并标注已下架」。故此处刻意不加发布态过滤；``storage_mode``
+    随卡片下发，由前端渲染「已下架」角标。
     """
     from app.models.favorite import UserFavorite, UserNote
     from app.services.channel_service import channel_slugs_for
@@ -862,27 +863,20 @@ async def list_user_favorites(
 
     slug_map = await channel_slugs_for(db, [v for v, _, _ in rows])
     items = [
-        {
-            "id": v.id,
-            "title": v.title,
-            "thumbnail_url": v.thumbnail_url,
-            "duration": v.duration,
-            "difficulty_level": v.difficulty_level,
-            "topic_tags": v.topic_tags,
-            "channel_name": v.channel_name,
-            "channel_slug": slug_map.get(v.channel_ref),
-            "like_count": getattr(v, "like_count", 0) or 0,
-            "favorite_count": getattr(v, "favorite_count", 0) or 0,
-            "view_count": getattr(v, "view_count", 0) or 0,
-            "description": v.description[:CARD_DESCRIPTION_LIMIT] if v.description else None,
-            "note_excerpt": (note.content[:60] + "…")
-            if note and note.content and len(note.content) > 60
-            else (note.content if note else None),
-            "has_note": bool(note and note.content),
-            "favorited_at": fav_at.isoformat() if fav_at else None,
-            # 已下线标注（需求 §5.3）：前端据此显示「已下架」角标。
-            "storage_mode": getattr(v, "storage_mode", "local") or "local",
-        }
+        _serialize_video_card(
+            v,
+            scope="card",
+            # The viewer here is the list's owner, so owner-only fields (their
+            # own UGC draft's error/rejection notes) stay visible, and the
+            # favorite/note annotations of this list are filled in.
+            viewer=current_user,
+            channel_slug=slug_map.get(v.channel_ref),
+            # `note` is the third SELECT column — UserNote.content itself, not a
+            # UserNote row. The pre-批 2 dict read `note.content` here and raised
+            # AttributeError (→ 500) for every favorites list containing a note.
+            note=note,
+            favorited_at=fav_at,
+        )
         for v, fav_at, note in rows
     ]
     return paginated(items, pagination, total=total)
@@ -892,7 +886,7 @@ async def list_user_favorites(
 # the static "rankings" path wins the match (same ordering constraint as
 # /favorites above). Optional auth: the lists are public; the dependency only
 # mirrors the neighboring endpoints.
-@router.get("/rankings", response_model=list[dict])
+@router.get("/rankings", response_model=list[VideoResponse])
 @rate_limit("30/minute")
 async def list_video_rankings(
     request: Request,

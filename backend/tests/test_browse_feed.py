@@ -24,6 +24,7 @@ from app.models.favorite import UserFavorite
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
 from app.services.ranking_service import current_week_start_utc
+from app.services.video_card import CARD_SHAPE_VERSION
 
 _FEED = "/api/v1/browse/feed"
 
@@ -269,8 +270,11 @@ class TestSortCacheKeys:
         assert _ids(by_week) == [this_week.id, all_time.id]
 
         keys = set(fake_redis._store)
-        assert "browse:feed:all:all:favorite:1:20" in keys
-        assert "browse:feed:all:all:weekly_favorite:1:20" in keys
+        # 键名带上卡片形状版本号，从常量拼出来，免得下次改形状时这里跟着一起改
+        # （改形状就该换版本号，见 services/video_card.CARD_SHAPE_VERSION）。
+        v = f"v{CARD_SHAPE_VERSION}"
+        assert f"browse:feed:{v}:all:all:favorite:1:20" in keys
+        assert f"browse:feed:{v}:all:all:weekly_favorite:1:20" in keys
 
     async def test_every_sort_value_returns_200(self, client, db_session):
         users = await _make_users(db_session, 1)

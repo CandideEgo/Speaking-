@@ -153,7 +153,7 @@ async def list_unlocked_videos(db: AsyncSession, user: User, page: int = 1, page
     """
     from app.models.video import VideoStatus
     from app.schemas.pagination import paginated
-    from app.schemas.video import VideoResponse
+    from app.services.video_card import serialize_video_card
 
     page = max(1, page)
     page_size = max(1, min(page_size, 50))
@@ -179,11 +179,15 @@ async def list_unlocked_videos(db: AsyncSession, user: User, page: int = 1, page
     videos = [video for _, video in rows[:page_size]]
     # Author-page link on the cards (ADR-0014 rev.) - one batched slug lookup.
     slug_map = await channel_slugs_for(db, videos)
-    items = []
-    for v in videos:
-        item = VideoResponse.model_validate(v).model_dump()
-        item["channel_slug"] = slug_map.get(v.channel_ref) if v.channel_ref else None
-        items.append(item)
+    items = [
+        serialize_video_card(
+            v,
+            scope="feed",
+            viewer=user,
+            channel_slug=slug_map.get(v.channel_ref) if v.channel_ref else None,
+        ).model_dump()
+        for v in videos
+    ]
     return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 

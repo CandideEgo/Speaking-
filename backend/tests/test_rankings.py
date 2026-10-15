@@ -13,7 +13,7 @@ test_recommendations.py.
 
 from datetime import UTC, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.cache import cache_get_json, cache_set_json
 from app.models.behavior import BehaviorEvent
@@ -379,9 +379,52 @@ class TestRankingsEndpoint:
         resp = await client.get("/api/v1/videos/rankings?scope=bogus")
         assert resp.status_code == 422
 
-    async def test_cache_hit_returns_snapshot(self, client, fake_redis, auth_headers):
-        """A pre-seeded snapshot is served verbatim without touching the DB."""
-        snapshot = [
+    async def test_cache_hit_serves_snapshot_without_touching_db(self, client, fake_redis, auth_headers):
+        """A snapshot written by one request is served by the next, DB or not.
+
+        The payload is never spelled out by hand here — it is whatever
+        ``ranking_service._serialize`` actually wrote on the first (cache-miss)
+        request. That is deliberate: this test then cannot go stale when the
+        card shape changes, so a shape change has to show up somewhere else
+        (``tests/test_response_contract.py`` pins the shape itself).
+
+        The play event is deleted between the two requests, so recomputing
+        ``weekly_views`` would return an empty list. Getting the video back is
+        proof the snapshot was read.
+        """
+        now = datetime.now(UTC)
+        async with TestSessionLocal() as db:
+            user = await _owner(db)
+            v = await _make_video(db, title="cached-v", published_at=now, owner_id=user.id)
+            await _event(db, video_id=v.id, event_type="play", session_id="s-cache", server_ts=now)
+
+        first = await client.get("/api/v1/videos/rankings?scope=weekly_views")
+        assert first.status_code == 200
+        assert [i["title"] for i in first.json()] == ["cached-v"]
+
+        async with TestSessionLocal() as db:
+            await db.execute(delete(BehaviorEvent).where(BehaviorEvent.video_id == v.id))
+            await db.commit()
+
+        second = await client.get("/api/v1/videos/rankings?scope=weekly_views")
+        assert second.status_code == 200
+        assert second.json() == first.json()
+
+    async def test_snapshot_written_before_the_shape_change_is_unreachable(self, client, fake_redis, auth_headers):
+        """缓存键里带形状版本号 —— 这条测的是那个部署窗口。
+
+        批 2 把四份手写卡片合并成一份 44 键形状。Redis 里还躺着按旧形状写的快照
+        （rankings 的 TTL 是 48h），而路由现在拿 ``response_model`` 校验读到的
+        dict：旧形状没有 ``source_url``，校验失败就是 500，不是「少几个字段」。
+        所以旧键必须够不着 —— 版本号进键名，旧条目只能自然过期。
+        """
+        now = datetime.now(UTC)
+        async with TestSessionLocal() as db:
+            user = await _owner(db)
+            await _make_video(db, title="real-v", published_at=now, owner_id=user.id)
+
+        # 批 2 之前这个接口写出来的形状（17 键，没有 source_url）
+        legacy = [
             {
                 "id": "snap-1",
                 "title": "from cache",
@@ -402,7 +445,9 @@ class TestRankingsEndpoint:
                 "metric": 7,
             }
         ]
-        await cache_set_json(rankings_cache_key("weekly_views"), snapshot, ttl=300)
-        resp = await client.get("/api/v1/videos/rankings?scope=weekly_views")
+        assert rankings_cache_key("latest") != "rankings:snapshot:latest"  # 版本号在位
+        await cache_set_json("rankings:snapshot:latest", legacy, ttl=300)
+
+        resp = await client.get("/api/v1/videos/rankings?scope=latest")
         assert resp.status_code == 200
-        assert resp.json() == snapshot
+        assert [i["title"] for i in resp.json()] == ["real-v"]

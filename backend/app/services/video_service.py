@@ -37,6 +37,7 @@ from app.services.video_access import (
     is_video_owner,
     should_use_snapshot,
 )
+from app.services.video_card import serialize_video_card
 
 
 async def count_subtitles(db: AsyncSession, video_id: str) -> int:
@@ -662,12 +663,16 @@ async def takedown_video(db: AsyncSession, video_id: str) -> VideoAdminResponse:
     return VideoAdminResponse.model_validate(video)
 
 
-async def takedown_suggestions(db: AsyncSession, *, limit: int = 20) -> list[dict]:
+async def takedown_suggestions(db: AsyncSession, *, limit: int = 20) -> list[VideoResponse]:
     """半自动下线的「建议下线」候选（需求 §5.3：阈值建议 + 管理员确认）。
 
     规则（全部由 config 控制）：已发布、上线超过 ``takedown_min_age_days``
     天、且 ``view_count`` / ``favorite_count`` 均低于阈值 —— 即冷启动期没有
     产生学习价值的视频。按热度升序（最冷门的排最前），仅建议，不自动执行。
+
+    卡片来自共享 projector（services/video_card）—— 这是第四个、也是最后一个
+    手写卡片 dict 的位置。管理员表格只读其中几列，但「建议下线」这一行的形状
+    没有理由跟别的卡片长得不一样。
     """
     from datetime import timedelta
 
@@ -695,19 +700,7 @@ async def takedown_suggestions(db: AsyncSession, *, limit: int = 20) -> list[dic
         .scalars()
         .all()
     )
-    return [
-        {
-            "id": v.id,
-            "title": v.title,
-            "thumbnail_url": v.thumbnail_url,
-            "view_count": v.view_count,
-            "favorite_count": v.favorite_count,
-            "created_at": v.created_at.isoformat() if v.created_at else None,
-            "published_at": v.published_at.isoformat() if v.published_at else None,
-            "storage_mode": v.storage_mode,
-        }
-        for v in rows
-    ]
+    return [serialize_video_card(v, scope="feed") for v in rows]
 
 
 # Single source of truth: import from pipeline_helpers instead of

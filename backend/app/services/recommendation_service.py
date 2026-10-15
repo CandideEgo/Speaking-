@@ -30,7 +30,6 @@ from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoStatus
-from app.schemas.video import CARD_DESCRIPTION_LIMIT, VideoResponse
 
 # target_exam → CEFR band (soft boost only; videos carry no exam_level field).
 # Used to nudge videos of a matching difficulty upward for the user's goal.
@@ -63,22 +62,26 @@ def _first_tag(video: Video) -> str:
     return video.topic_tags.split(",")[0].strip().lower()
 
 
-def _to_response(v: Video) -> dict:
-    data = VideoResponse.model_validate(v).model_dump()
-    # List payload: truncate the YouTube description so a page of cards stays
-    # small; the detail endpoint serializes VideoResponse without truncation.
-    if data.get("description"):
-        data["description"] = data["description"][:CARD_DESCRIPTION_LIMIT]
-    return data
-
-
 async def _responses_with_slug(db: AsyncSession, videos: list[Video]) -> list[dict]:
-    """_to_response per video plus the author-page slug (ADR-0014 rev.) -
-    one batched lookup for the whole page, None for unattached videos."""
+    """Card per video plus the author-page slug (ADR-0014 rev.) - one batched
+    lookup for the whole page, None for unattached videos.
+
+    Cards come from the shared projector (services/video_card), so the
+    description truncation and the owner-only blanking that used to be hand-
+    rolled here now match every other list surface.
+    """
     from app.services.channel_service import channel_slugs_for
+    from app.services.video_card import serialize_video_card
 
     slug_map = await channel_slugs_for(db, videos)
-    return [{**_to_response(v), "channel_slug": slug_map.get(v.channel_ref)} for v in videos]
+    return [
+        serialize_video_card(
+            v,
+            scope="feed",
+            channel_slug=slug_map.get(v.channel_ref) if v.channel_ref else None,
+        ).model_dump()
+        for v in videos
+    ]
 
 
 def _score_ordered(pool: list[Video]) -> list[Video]:
