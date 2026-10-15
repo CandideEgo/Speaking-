@@ -123,6 +123,36 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
     )
 
 
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """兜底：任何没被上面 5 个 handler 接住的异常 -> 500 + INTERNAL_ERROR。
+
+    在它存在之前，服务层抛出的 `ValueError`（services 里有 89 处）只要路由层
+    没认出来（`api/v1/videos.py` 那 16 处 `if "not found" in msg.lower()`
+    式的子串匹配）就会穿过所有 handler，变成**没有响应体的裸 500** —— 没有
+    code、没有 correlation id，客户端无从分支，只能当"服务器炸了"。
+
+    它更大的价值是**诊断**：日志里这一行会逐一列出当前正在漏成 500 的异常类型
+    与原始 message。批 1b 把服务层换成领域异常之前，先读日志，不要靠猜。
+
+    只把 message 写进日志，不回给客户端——原始消息里可能有内部细节。
+    Starlette 在 handler 返回后仍会重新抛出该异常，所以 ASGI 服务器自身的错误
+    日志行为不变。
+    """
+    logger.error(
+        "unhandled_exception path=%s method=%s request_id=%s exc=%s: %s",
+        request.url.path,
+        request.method,
+        getattr(request.state, "request_id", "-"),
+        type(exc).__name__,
+        exc,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"code": ErrorCode.INTERNAL_ERROR, "message": "服务器内部错误，请稍后重试"},
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage startup/shutdown lifecycle.
@@ -183,6 +213,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(AppError, _app_exception_handler)
     app.add_exception_handler(HTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
+    # Catch-all last: anything reaching the ASGI server unhandled becomes a
+    # typed 500 envelope instead of a body-less one. See the handler's docstring
+    # — its main job right now is to enumerate what is still leaking.
+    app.add_exception_handler(Exception, _unhandled_exception_handler)
 
     # Request ID middleware
     @app.middleware("http")
