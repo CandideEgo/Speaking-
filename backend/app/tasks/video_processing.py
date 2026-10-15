@@ -636,6 +636,41 @@ async def _run_annotating(ctx: PipelineCtx) -> None:
     await update_progress(video_id, "annotating")
 
 
+async def _run_prewarm_notes(ctx: PipelineCtx) -> None:
+    """Pre-generate AI learning notes for the video's exam-tagged words.
+
+    Stored as ``video:{id}`` rows so the gloss endpoint answers in <10ms instead
+    of calling the LLM on the reading path.
+
+    An enhancement, not a dependency: with the LLM down — or no ECDICT db, hence
+    no words to annotate — the step still records itself done and gloss falls
+    back to live AI / global notes.
+    """
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    if not ecdict.is_available():
+        logger.info(
+            "Video %s: skipping prewarm_notes (no ECDICT — no words to annotate)",
+            video_id,
+        )
+        await update_progress(video_id, "prewarm_notes")
+        return
+
+    try:
+        from app.services.word_notes import prewarm_video_notes
+
+        await prewarm_video_notes(db, video.id)
+        video.processing_step = "prewarm_notes"
+        touch_step_started_at(video)
+        video.processing_progress = STEP_PROGRESS["prewarm_notes"]
+        await db.commit()
+        await update_progress(video_id, "prewarm_notes")
+    except Exception as exc:
+        # Prewarm is an enhancement; don't fail the pipeline if the LLM is down.
+        # The gloss endpoint will fall back to live AI / global notes.
+        logger.warning("Video %s: prewarm_notes skipped (%s)", video_id, exc)
+        await update_progress(video_id, "prewarm_notes")
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
@@ -643,6 +678,7 @@ async def _run_annotating(ctx: PipelineCtx) -> None:
 _TAIL_BODIES: dict[str, StepBody] = {
     "translating": _run_translating,
     "annotating": _run_annotating,
+    "prewarm_notes": _run_prewarm_notes,
 }
 
 
@@ -689,37 +725,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 # failure attribution come with it. What follows is the tail of
                 # the sequence still waiting for its own body.
                 await run_steps(ctx, finalize_steps())
-
-                # --- Step: prewarm_notes (per-video AI learning notes) ---
-                ctx.current_step = "prewarm_notes"
-                # Batch-generate contextual_note / pitfalls / knowledge for the
-                # video's exam-tagged words, stored as video:{id} rows so the
-                # gloss endpoint can return <10ms responses. Resume-safe.
-                if not await is_step_done(video_id, "prewarm_notes"):
-                    if not ecdict.is_available():
-                        logger.info(
-                            "Video %s: skipping prewarm_notes (no ECDICT — no words to annotate)",
-                            video_id,
-                        )
-                        await update_progress(video_id, "prewarm_notes")
-                    else:
-                        try:
-                            from app.services.word_notes import prewarm_video_notes
-
-                            await prewarm_video_notes(db, video.id)
-                            video.processing_step = "prewarm_notes"
-                            touch_step_started_at(video)
-                            video.processing_progress = 74
-                            await db.commit()
-                            await update_progress(video_id, "prewarm_notes")
-                        except Exception as exc:
-                            # Prewarm is an enhancement; don't fail the
-                            # pipeline if the LLM is down. The gloss endpoint
-                            # will fall back to live AI / global notes.
-                            logger.warning("Video %s: prewarm_notes skipped (%s)", video_id, exc)
-                            await update_progress(video_id, "prewarm_notes")
-                else:
-                    logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
                 # --- Step: classifying (LLM topic tags + difficulty) ---
                 ctx.current_step = "classifying"
