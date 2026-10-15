@@ -3,7 +3,9 @@
 Provides the "lock + step recovery + error commit" skeleton that all three
 pipeline tasks (process_video, finalize_video, localize_video) previously
 duplicated.  Each task now declares its steps and delegates the plumbing
-here.
+here — including the step loop itself (``run_steps``), so that "in which
+order", "which steps exist" and "what each may take" are one declaration
+instead of a declaration plus a hand-written if-sequence.
 
 Design goals (deep-module philosophy):
 - **Leverage**: callers get lock/step/error semantics from a single import.
@@ -13,7 +15,9 @@ Design goals (deep-module philosophy):
 """
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Any
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -28,10 +32,13 @@ logger = get_logger(__name__)
 #: Terminal step. Nothing is left running under it, so it budgets no time.
 TERMINAL_STEP = "done"
 
+#: A step body: reads and writes the run's blackboard, owes nothing back.
+StepBody = Callable[["PipelineCtx"], Awaitable[None]]
+
 
 @dataclass(frozen=True)
 class Step:
-    """One pipeline step: resume name, progress percent, watchdog budget.
+    """One pipeline step: resume name, progress percent, watchdog budget, body.
 
     **Order in ``STEPS`` is the pipeline order** (extracting → … → done). The
     two maps below are views of this tuple, so "what steps exist", "in which
@@ -44,14 +51,28 @@ class Step:
     not a value because the watchdog reads settings at call time — an admin
     setting is re-read per run, a module-level constant would freeze it.
 
-    批 3b adds the tenth field: the step's ``run`` coroutine, moving the bodies
-    out of ``finalize_video``. Until then the tuple declares order/progress/
-    budget only, and the bodies stay where they are.
+    ``run`` is the body. The canonical tuple here leaves it ``None``: bodies
+    live with the task that owns them (the tail's bodies call
+    ``video_processing``'s helpers), and the task attaches them by name via
+    ``dataclasses.replace`` — so the order stays declared here while the code
+    stays where its collaborators are.
+
+    ``skip_run`` is for the rare step that still owes something to *later*
+    steps when a resume skips it: ``downloading`` must re-derive the local file
+    path for ``transcoding`` even when the download already happened.
+
+    ``resumable=False`` marks the terminal step. It is never consulted against
+    the completed-step set (there is nothing after it to resume into) and it is
+    not stamped as the failure attribution — a failure there belongs to the
+    last step that actually did work.
     """
 
     name: str
     progress: int
     timeout_attr: str | None = None
+    run: StepBody | None = None
+    skip_run: StepBody | None = None
+    resumable: bool = True
 
 
 STEPS: tuple[Step, ...] = (
@@ -63,7 +84,7 @@ STEPS: tuple[Step, ...] = (
     Step("classifying", 74, "pipeline_step_timeout_classifying"),
     Step("downloading", 75, "pipeline_step_timeout_downloading"),
     Step("transcoding", 90, "pipeline_step_timeout_transcoding"),
-    Step(TERMINAL_STEP, 100),
+    Step(TERMINAL_STEP, 100, resumable=False),
 )
 
 # Step name = percent complete for ``Video.processing_progress``. A plain dict
@@ -85,6 +106,70 @@ def get_step_timeouts() -> dict[str, int]:
         if timeout_attr:
             budgets[step.name] = getattr(settings, timeout_attr)
     return budgets
+
+
+@dataclass
+class PipelineCtx:
+    """Mutable blackboard for one pipeline run.
+
+    Three things travel between steps and cannot be arguments: ``current_step``
+    (the attribution ``commit_error_state`` stamps), ``video_path``
+    (``downloading`` → ``transcoding``), and a step's right to end the chain
+    early — ``stop()``.  Early termination is a first-class outcome, not an
+    exception: the error branch stays reserved for "something broke", which is
+    what the watchdog and the admin UI read.  Today the only such step is
+    ``translating`` on a quality block (``quality_flag = quality_blocked``).
+    """
+
+    db: Any
+    video: Any
+    video_id: str
+    engine: str | None = None
+    video_path: str | None = None
+    current_step: str | None = None
+    stopped: bool = False
+
+    def stop(self) -> None:
+        """End the chain after the current step; no later step runs."""
+        self.stopped = True
+
+
+async def run_steps(ctx: PipelineCtx, steps: tuple[Step, ...]) -> None:
+    """Run ``steps`` in order: resume-skip, failure attribution, early stop.
+
+    This is the sequence each task used to re-implement as hand-written
+    ``if not await is_step_done(...)`` blocks — eight of them in
+    ``finalize_video`` alone, each free to disagree with the declared order.
+
+    Contract:
+
+    - the attribution moves to each resumable step **before** it is looked up,
+      matching the blocks this replaces (they assigned the name above their
+      guard): a failure after a skipped step is named by that step, and a body
+      that raises is never blamed on its predecessor;
+    - a resumable step already recorded in Redis is skipped, logged with the
+      same wording as before, and its ``skip_run`` (if any) still runs;
+    - a body calling ``ctx.stop()`` ends the chain immediately — the terminal
+      step included;
+    - steps whose ``run`` is ``None`` are declared here but run by another
+      task's file (the GPU-side steps), and are passed over;
+    - exceptions are **not** caught here: ``commit_error_state`` needs the
+      video row and the session, which belong to the caller.
+    """
+    for step in steps:
+        body = step.run
+        if body is None:
+            continue
+        if step.resumable:
+            ctx.current_step = step.name
+            if await is_step_done(ctx.video_id, step.name):
+                logger.info("Video %s: skipping %s (already done)", ctx.video_id, step.name)
+                if step.skip_run is not None:
+                    await step.skip_run(ctx)
+                continue
+        await body(ctx)
+        if ctx.stopped:
+            return
 
 
 # ---------------------------------------------------------------------------
