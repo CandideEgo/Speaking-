@@ -1,6 +1,8 @@
 import asyncio
 import time
+from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -9,15 +11,25 @@ from app.services.transcription.audio_extractor import get_video_duration
 from app.tasks.celery_app import celery_app
 from app.tasks.pipeline_helpers import (
     STEP_PROGRESS,
+    STEPS,
+    PipelineCtx,
+    Step,
+    StepBody,
     acquire_lock,
     commit_error_state,
     is_step_done,
     release_lock,
     release_lock_and_steps,
     run_pipeline_task,
+    run_steps,
     touch_step_started_at,
     update_progress,
 )
+
+if TYPE_CHECKING:
+    # Only for the annotation below: the quality module pulls in the
+    # translation stack, which the GPU worker's import path must not pay for.
+    from app.services.translation.quality import TranslationQualityReport
 
 logger = get_logger(__name__)
 
@@ -43,7 +55,7 @@ def _find_local_raw(video_id: str) -> str | None:
 
 async def _translate_subtitles(
     texts: list[str], video_id: str | None = None, engine: str | None = None
-) -> tuple[list[str | None], "object | None"]:
+) -> tuple[list[str | None], "TranslationQualityReport | None"]:
     """Translate subtitle texts in batches using TranslationService.
 
     Uses the pluggable TranslationService (with engine selection + fallback)
@@ -489,6 +501,108 @@ async def _register_standard(db, video) -> None:
         logger.warning("Video %s: failed to register standard version (continuing)", video.id, exc_info=True)
 
 
+async def _run_translating(ctx: PipelineCtx) -> None:
+    """Translate every subtitle, then apply the coverage quality gate.
+
+    A blocked video **ends the chain here** (``ctx.stop()``) rather than taking
+    the error path: the same engine on the same input would reproduce the same
+    low coverage and only burn LLM quota. The admin re-translates with another
+    engine — or with the gate switched off — via ``POST /admin/{id}/retranslate``.
+    """
+    from sqlalchemy import select
+
+    from app.models.subtitle import Subtitle
+    from app.models.video import VideoStatus
+
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    sub_result = await db.execute(
+        select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
+    )
+    sub_rows = list(sub_result.scalars().all())
+    # Preserve original row index when filtering out empty
+    # text_en — translating a filtered list and writing back
+    # with the same enumerate index shifts every translation
+    # past the first empty row onto the wrong subtitle (the
+    # root cause of "some subtitles translated, some not").
+    indexed = [(i, s.text_en) for i, s in enumerate(sub_rows) if s.text_en]
+    texts = [t for _, t in indexed]
+    translated, quality_report = await _translate_subtitles(texts, video_id=video.id, engine=ctx.engine)
+    for j, t in enumerate(translated):
+        if t:
+            sub_rows[indexed[j][0]].text_zh = t
+    # Persist the translation quality report within this
+    # transaction (best-effort; never fails the pipeline).
+    if quality_report is not None:
+        from app.services.translation.quality import persist_quality_report
+
+        await persist_quality_report(db, video.id, quality_report)
+        # 阶段 2: coverage-based block/warn decision. Blocked
+        # videos stop the pipeline WITHOUT a Celery retry - the
+        # same engine + same input would reproduce the low
+        # coverage and waste LLM quota. Admin re-translates
+        # (optionally with a different engine) via
+        # POST /admin/{id}/retranslate. kill switch:
+        # translation_quality_block_enabled=False reverts to
+        # warn-only for a bad engine batch.
+        coverage = quality_report.coverage_ratio
+        block_enabled, block_coverage, warn_coverage = await _effective_quality_gate(db)
+        decision = _translation_quality_decision(
+            coverage,
+            block_enabled=block_enabled,
+            block_coverage=block_coverage,
+            warn_coverage=warn_coverage,
+        )
+        if decision == "quality_blocked":
+            video.quality_flag = "quality_blocked"
+            video.status = VideoStatus.error
+            video.error_message = f"Translation coverage {coverage:.0%} below block threshold {block_coverage:.0%}"
+            video.processing_step = None
+            video.step_started_at = None
+            await db.commit()
+            # 阶段 4: alert admins (best-effort; never fails pipeline)
+            from app.services.notification_service import notify_admins
+
+            await notify_admins(
+                db,
+                title="翻译质量阻塞",
+                message=(f"视频 {video_id} 翻译覆盖率 {coverage:.0%}，已标记 error。可在管理后台换引擎重触发翻译。"),
+                related_url=f"/admin/videos/{video_id}",
+            )
+            release_lock_and_steps(video_id)
+            logger.warning(
+                "Video %s translation blocked (coverage %.0f%%)",
+                video_id,
+                coverage * 100,
+            )
+            ctx.stop()
+            return
+        video.quality_flag = decision  # "quality_warning" or None
+    video.processing_step = "translating"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["translating"]
+    await db.commit()
+    await update_progress(video_id, "translating")
+
+
+#: Step name → body, for the steps **this task** owns. The declaration (order,
+#: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
+#: here, next to the helpers the bodies call and on the same side of the
+#: import cycle the declaration has to stay clear of.
+_TAIL_BODIES: dict[str, StepBody] = {
+    "translating": _run_translating,
+}
+
+
+def finalize_steps() -> tuple[Step, ...]:
+    """The tail's slice of the declared pipeline, with bodies attached.
+
+    Assembled by name off ``STEPS`` so the order is never restated: adding a
+    step to the declaration plus a body to ``_TAIL_BODIES`` is the whole change,
+    and a body whose name is not declared simply never runs.
+    """
+    return tuple(replace(step, run=_TAIL_BODIES[step.name]) for step in STEPS if step.name in _TAIL_BODIES)
+
+
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.finalize_video")
 def finalize_video(self, video_id: str, engine: str | None = None):
     """Tail of the video pipeline: translate → download → transcode → ready.
@@ -515,86 +629,17 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 release_lock_and_steps(video_id)
                 return
 
+            ctx = PipelineCtx(db=db, video=video, video_id=video_id, engine=engine)
+
             try:
-                # --- Step: translating ---
-                current_step = "translating"
-                if not await is_step_done(video_id, "translating"):
-                    sub_result = await db.execute(
-                        select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
-                    )
-                    sub_rows = list(sub_result.scalars().all())
-                    # Preserve original row index when filtering out empty
-                    # text_en — translating a filtered list and writing back
-                    # with the same enumerate index shifts every translation
-                    # past the first empty row onto the wrong subtitle (the
-                    # root cause of "some subtitles translated, some not").
-                    indexed = [(i, s.text_en) for i, s in enumerate(sub_rows) if s.text_en]
-                    texts = [t for _, t in indexed]
-                    translated, quality_report = await _translate_subtitles(texts, video_id=video.id, engine=engine)
-                    for j, t in enumerate(translated):
-                        if t:
-                            sub_rows[indexed[j][0]].text_zh = t
-                    # Persist the translation quality report within this
-                    # transaction (best-effort; never fails the pipeline).
-                    if quality_report is not None:
-                        from app.services.translation.quality import persist_quality_report
-
-                        await persist_quality_report(db, video.id, quality_report)
-                        # 阶段 2: coverage-based block/warn decision. Blocked
-                        # videos stop the pipeline WITHOUT a Celery retry - the
-                        # same engine + same input would reproduce the low
-                        # coverage and waste LLM quota. Admin re-translates
-                        # (optionally with a different engine) via
-                        # POST /admin/{id}/retranslate. kill switch:
-                        # translation_quality_block_enabled=False reverts to
-                        # warn-only for a bad engine batch.
-                        coverage = quality_report.coverage_ratio
-                        block_enabled, block_coverage, warn_coverage = await _effective_quality_gate(db)
-                        decision = _translation_quality_decision(
-                            coverage,
-                            block_enabled=block_enabled,
-                            block_coverage=block_coverage,
-                            warn_coverage=warn_coverage,
-                        )
-                        if decision == "quality_blocked":
-                            video.quality_flag = "quality_blocked"
-                            video.status = VideoStatus.error
-                            video.error_message = (
-                                f"Translation coverage {coverage:.0%} below block threshold {block_coverage:.0%}"
-                            )
-                            video.processing_step = None
-                            video.step_started_at = None
-                            await db.commit()
-                            # 阶段 4: alert admins (best-effort; never fails pipeline)
-                            from app.services.notification_service import notify_admins
-
-                            await notify_admins(
-                                db,
-                                title="翻译质量阻塞",
-                                message=(
-                                    f"视频 {video_id} 翻译覆盖率 {coverage:.0%}，"
-                                    f"已标记 error。可在管理后台换引擎重触发翻译。"
-                                ),
-                                related_url=f"/admin/videos/{video_id}",
-                            )
-                            release_lock_and_steps(video_id)
-                            logger.warning(
-                                "Video %s translation blocked (coverage %.0f%%)",
-                                video_id,
-                                coverage * 100,
-                            )
-                            return
-                        video.quality_flag = decision  # "quality_warning" or None
-                    video.processing_step = "translating"
-                    touch_step_started_at(video)
-                    video.processing_progress = 70
-                    await db.commit()
-                    await update_progress(video_id, "translating")
-                else:
-                    logger.info("Video %s: skipping translating (already done)", video_id)
+                # The steps whose bodies live here run through the runner, in
+                # the order declared in pipeline_helpers — resume-skip and the
+                # failure attribution come with it. What follows is the tail of
+                # the sequence still waiting for its own body.
+                await run_steps(ctx, finalize_steps())
 
                 # --- Step: annotating (CET/高考/考研 exam-level word tags) ---
-                current_step = "annotating"
+                ctx.current_step = "annotating"
                 # Pure local ECDICT lookup — no AI. Populates Subtitle.word_levels
                 # (lemma -> exam level keys) once, level-agnostic, so the watch
                 # page can filter by the user's target exam at display time.
@@ -640,7 +685,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                     logger.info("Video %s: skipping annotating (already done)", video_id)
 
                 # --- Step: prewarm_notes (per-video AI learning notes) ---
-                current_step = "prewarm_notes"
+                ctx.current_step = "prewarm_notes"
                 # Batch-generate contextual_note / pitfalls / knowledge for the
                 # video's exam-tagged words, stored as video:{id} rows so the
                 # gloss endpoint can return <10ms responses. Resume-safe.
@@ -671,7 +716,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                     logger.info("Video %s: skipping prewarm_notes (already done)", video_id)
 
                 # --- Step: classifying (LLM topic tags + difficulty) ---
-                current_step = "classifying"
+                ctx.current_step = "classifying"
                 # Generate canonical topic_tags (browse category filter + card
                 # chip) from title/description/subtitles via LLM; also fills
                 # difficulty_level when NULL (the post-ready subtitle-derived
@@ -694,7 +739,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                     logger.info("Video %s: skipping classifying (already done)", video_id)
 
                 # --- Step: downloading ---
-                current_step = "downloading"
+                ctx.current_step = "downloading"
                 video_path = None
                 if not await is_step_done(video_id, "downloading"):
                     if video.video_source == VideoSource.imported:
@@ -723,7 +768,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                         video_path = _find_local_raw(video.id)
 
                 # --- Step: transcoding ---
-                current_step = "transcoding"
+                ctx.current_step = "transcoding"
                 if not await is_step_done(video_id, "transcoding"):
                     if video_path:
                         urls = await _transcode_video(video_path, video.id)
@@ -818,7 +863,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
 
             except Exception as e:
                 logger.exception("Video %s finalize failed", video_id)
-                await commit_error_state(video, db, e, step=current_step)
+                await commit_error_state(video, db, e, step=ctx.current_step)
                 # Always release the lock so Celery's retry can re-acquire it.
                 # Keep the completed-step set so a retry (automatic or manual)
                 # resumes from the last successful step rather than re-running
