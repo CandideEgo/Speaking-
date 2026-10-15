@@ -1,6 +1,13 @@
 /**
  * Exam level taxonomy for the CET/高考/考研 vocabulary feature.
- * Mirror of backend/app/core/exam_levels.py — keep in sync.
+ *
+ * The taxonomy itself (which levels exist, their labels, their difficulty
+ * order, which are selectable targets) is **generated** from
+ * `backend/app/core/exam_levels.py` — see `./examLevels.generated.ts`. Edit the
+ * Python module, not the generated file; CI regenerates and fails on a diff.
+ *
+ * This file holds only what is genuinely frontend's: the Tailwind color token
+ * per level, the highlight class maps, and the display rules over `order`.
  *
  * Display rule: a word is highlighted when its highest level order >= the
  * user's target level order. Color rule: the user's target level takes
@@ -10,32 +17,52 @@
  * JIT picks them up.
  */
 
-export interface ExamLevelMeta {
-  key: string;
-  label: string;
-  order: number;
+import {
+  EXAM_LEVEL_TAXONOMY,
+  TARGET_LEVEL_KEYS,
+  type GeneratedExamLevel,
+} from "@/lib/examLevels.generated";
+
+export interface ExamLevelMeta extends GeneratedExamLevel {
   color: string; // tailwind color token
 }
 
-export const EXAM_LEVELS: ExamLevelMeta[] = [
-  { key: "zhongkao", label: "中考", order: 1, color: "slate" },
-  { key: "gaoKao", label: "高考", order: 2, color: "green" },
-  { key: "cet4", label: "四级", order: 3, color: "blue" },
-  { key: "cet6", label: "六级", order: 4, color: "purple" },
-  { key: "ky", label: "考研", order: 5, color: "orange" },
-  { key: "ielts", label: "雅思", order: 6, color: "red" },
-  { key: "toefl", label: "托福", order: 6, color: "red" },
-  { key: "gre", label: "GRE", order: 7, color: "rose" },
-];
+/**
+ * Tailwind color token per level key.
+ *
+ * Not generated: a color token is a rendering concern, and every consumer of it
+ * (the highlight class maps below) is here. Adding a level in Python therefore
+ * requires choosing a color here — the deliberately loud throw in the lookup
+ * below makes that a build failure rather than silently uncolored words.
+ */
+const LEVEL_COLORS: Record<string, string> = {
+  zhongkao: "slate",
+  gaoKao: "green",
+  cet4: "blue",
+  cet6: "purple",
+  ky: "orange",
+  ielts: "red",
+  toefl: "red",
+  gre: "rose",
+};
 
 const LEVEL_BY_KEY: Record<string, ExamLevelMeta> = Object.fromEntries(
-  EXAM_LEVELS.map((l) => [l.key, l])
+  EXAM_LEVEL_TAXONOMY.map((level): [string, ExamLevelMeta] => {
+    const color = LEVEL_COLORS[level.key];
+    if (!color) {
+      throw new Error(
+        `examLevels: no Tailwind color declared for level "${level.key}" — ` +
+          `add one to LEVEL_COLORS after changing backend/app/core/exam_levels.py`
+      );
+    }
+    return [level.key, { ...level, color }];
+  })
 );
 
-/** Levels offered as a user "target" in the selector (zhongkao/toefl excluded). */
-export const TARGET_LEVEL_OPTIONS: ExamLevelMeta[] = EXAM_LEVELS.filter(
-  (l) => l.key !== "zhongkao" && l.key !== "toefl"
-);
+export const EXAM_LEVELS: ExamLevelMeta[] = EXAM_LEVEL_TAXONOMY.map((l) => LEVEL_BY_KEY[l.key]);
+
+/** Levels offered as a user "target" in the selector, per the backend. */
+export const TARGET_LEVEL_OPTIONS: ExamLevelMeta[] = TARGET_LEVEL_KEYS.map((k) => LEVEL_BY_KEY[k]);
 
 export function levelMeta(key: string): ExamLevelMeta | undefined {
   return LEVEL_BY_KEY[key];

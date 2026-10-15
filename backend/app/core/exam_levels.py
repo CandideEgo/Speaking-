@@ -3,7 +3,14 @@
 Canonical level keys are derived from ECDICT's ``tag`` field (mapped in
 ``app/services/ecdict.py``). This module defines the difficulty ordering and
 the display rule used by both backend (annotation filtering, gloss API) and
-the mirrored frontend constants in ``frontend/src/lib/examLevels.ts``.
+the frontend.
+
+**This module is the single source for the taxonomy.** The frontend table is
+generated from it into ``frontend/src/lib/examLevels.generated.ts`` by
+``backend/scripts/generate_exam_levels.py``, and
+``tests/test_exam_levels_generated.py`` fails if the two drift. So: add or
+rename a level here, then run that script — do not hand-edit the generated file
+(colors and the display rules stay hand-written on the frontend side).
 
 Display rule: a word is shown when its highest level order >= the user's
 target level order. Color rule: the user's target level takes priority when

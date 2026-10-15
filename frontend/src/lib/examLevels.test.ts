@@ -1,6 +1,46 @@
 import { describe, expect, it } from "vitest";
 
-import { displayLevel, maxLevel, shouldDisplay, wordHighlightClass } from "@/lib/examLevels";
+import {
+  EXAM_LEVELS,
+  TARGET_LEVEL_OPTIONS,
+  displayLevel,
+  levelDotClass,
+  maxLevel,
+  shouldDisplay,
+  wordHighlightClass,
+} from "@/lib/examLevels";
+
+describe("generated taxonomy covers the frontend's color maps", () => {
+  // The taxonomy is generated from backend/app/core/exam_levels.py; the colors
+  // are hand-declared here. These two tests are the seam: a level added in
+  // Python must fail here until someone picks a color and a class entry.
+  it("every level has a color token with a non-empty highlight class", () => {
+    for (const level of EXAM_LEVELS) {
+      expect(level.color, `level ${level.key} has no color token`).toBeTruthy();
+      // An unknown color falls through every `?? ""` in wordHighlightClass and
+      // renders the word with no highlight at all — silent, and easy to ship.
+      expect(
+        wordHighlightClass([level.key], level.key),
+        `level ${level.key} renders bare`
+      ).not.toBe("");
+      expect(levelDotClass(level.color), `no dot class for color ${level.color}`).toMatch(/^bg-/);
+    }
+  });
+
+  it("offers the annotation-only levels as targets to nobody", () => {
+    const keys = TARGET_LEVEL_OPTIONS.map((l) => l.key);
+    expect(keys).not.toContain("zhongkao");
+    expect(keys).not.toContain("toefl");
+    expect(keys.length).toBeLessThan(EXAM_LEVELS.length);
+  });
+
+  it("labels and orders every level", () => {
+    for (const level of EXAM_LEVELS) {
+      expect(level.label).toBeTruthy();
+      expect(level.order).toBeGreaterThan(0);
+    }
+  });
+});
 
 describe("maxLevel", () => {
   it("returns the highest-order level", () => {
