@@ -33,6 +33,7 @@ class ErrorCode:
 
     # 校验
     VALIDATION_ERROR = "VALIDATION_ERROR"
+    BAD_REQUEST = "BAD_REQUEST"
 
     # AI
     AI_SERVICE_UNAVAILABLE = "AI_SERVICE_UNAVAILABLE"
@@ -43,6 +44,9 @@ class ErrorCode:
 
     # 配额
     QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+
+    # 非 AI 的下游依赖不可用（GPU worker 掉线、引擎未配置等）
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
 
     # 兜底
     INTERNAL_ERROR = "INTERNAL_ERROR"
@@ -67,6 +71,72 @@ class AppError(Exception):
         self.message = message
         self.detail = detail
         super().__init__(message)
+
+
+class DomainError(AppError):
+    """领域规则违反 - service 层用子类表达「哪种错」，而不是抛自由文本。
+
+    为什么必须是 AppError 的子类而不是并列：``create_app()`` 里已经有一个
+    ``AppError`` handler，继承意味着新增子类**不需要碰 main.py**，也不会有
+    任何一个子类漏掉而退化成 500。
+
+    为什么需要它：service 层过去抛 ``raise ValueError("... not found")``，由
+    router 用 ``if "not found" in msg.lower()`` 反解状态码 —— 状态码由散文
+    决定，措辞一改（翻译、大小写、加个词）就静默变成 500。子类把「哪个状态
+    码」变成类型系统的事。
+
+    子类只设类属性、不改 ``__init__`` 签名，于是调用点是
+    ``raise NotFoundError("视频不存在")``。
+    """
+
+    status_code: int = 500
+    code: str = ErrorCode.INTERNAL_ERROR
+
+    def __init__(self, message: str, detail: Any | None = None) -> None:
+        super().__init__(self.status_code, self.code, message, detail)
+
+
+class NotFoundError(DomainError):
+    """资源不存在（或对当前身份不可见）→ 404。
+
+    「不可见」与「不存在」用同一个状态码是刻意的：区分二者会把别人的私有
+    资源的存在性泄露给枚举者。
+    """
+
+    status_code = 404
+    code = ErrorCode.NOT_FOUND
+
+
+class BadRequestError(DomainError):
+    """请求语义非法 → 400。
+
+    与 422 的分界：422 是**格式/类型**错（pydantic 在校验层拦下），400 是
+    格式对但**状态或规则**不允许这次操作。
+    """
+
+    status_code = 400
+    code = ErrorCode.BAD_REQUEST
+
+
+class ForbiddenError(DomainError):
+    """当前身份不允许这次操作 → 403。"""
+
+    status_code = 403
+    code = ErrorCode.FORBIDDEN
+
+
+class ConflictError(DomainError):
+    """与当前资源状态冲突（重复提交、已处理、正在处理中）→ 409。"""
+
+    status_code = 409
+    code = ErrorCode.CONFLICT
+
+
+class ServiceUnavailableError(DomainError):
+    """下游依赖暂时不可用 → 503（区别于 AIServiceError 的 502）。"""
+
+    status_code = 503
+    code = ErrorCode.SERVICE_UNAVAILABLE
 
 
 def format_validation_errors(errors: list[dict]) -> str:

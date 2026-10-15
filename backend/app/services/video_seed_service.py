@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError, NotFoundError, ServiceUnavailableError
 from app.core.redis import get_redis
 from app.models.subtitle import Subtitle
 from app.models.user import User
@@ -280,14 +281,15 @@ async def fork_video(db: AsyncSession, video_id: str, current_user: User) -> Vid
     runs. ``forked_from`` records lineage to the source.
 
     Raises:
-        ValueError: If the source video is not found or not ready.
+        NotFound: If the source video is not found.
+        Invalid: If the source video is not ready.
     """
     result = await db.execute(select(Video).where(Video.id == video_id))
     source = result.scalar_one_or_none()
     if source is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
     if source.status != VideoStatus.ready:
-        raise ValueError(f"Video is not ready (current: {source.status.value}); only ready videos can be forked")
+        raise BadRequestError(f"Video is not ready (current: {source.status.value}); only ready videos can be forked")
 
     user_video = await _fork_video_from(db, source, current_user=current_user)
     return VideoResponse.model_validate(user_video)
@@ -317,20 +319,21 @@ async def start_processing(db: AsyncSession, video_id: str) -> VideoResponse:
     - The local GPU worker is confirmed online (Redis heartbeat key present).
 
     Raises:
-        ValueError: If the video is not found, not in pending_processing status,
-                    or the GPU worker is offline.
+        NotFound: If the video is not found.
+        Invalid: If the video is not in pending_processing status.
+        Unavailable: If the GPU worker is offline.
     """
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
     if video.status != VideoStatus.pending_processing:
-        raise ValueError(f"Video is not in pending_processing state (current: {video.status.value})")
+        raise BadRequestError(f"Video is not in pending_processing state (current: {video.status.value})")
 
     # Check GPU worker heartbeat
     worker_online = await is_gpu_worker_online()
     if not worker_online:
-        raise ValueError("GPU worker is offline — please start the local processing service first")
+        raise ServiceUnavailableError("GPU worker is offline — please start the local processing service first")
 
     # Transition to processing and dispatch Celery task
     video.status = VideoStatus.processing
@@ -362,14 +365,15 @@ async def recover_processing(db: AsyncSession, video_id: str) -> VideoAdminRespo
     so the task simply queues until a cloud worker is up — standard Celery.
 
     Raises:
-        ValueError: If the video is not found, or not in a recoverable status.
+        NotFound: If the video is not found.
+        Invalid: If the video is not in a recoverable status.
     """
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
     if video.status not in (VideoStatus.processing, VideoStatus.ready_subtitles):
-        raise ValueError(
+        raise BadRequestError(
             f"Video is not in a recoverable state (current: {video.status.value}). "
             f"Use start-processing for pending_processing; ready/error need no recovery."
         )
@@ -410,14 +414,15 @@ async def retry_video(db: AsyncSession, video_id: str) -> VideoAdminResponse:
     finalize for videos stuck mid-pipeline without an error state).
 
     Raises:
-        ValueError: If the video is not found, or not in error status.
+        NotFound: If the video is not found.
+        Invalid: If the video is not in error status.
     """
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
     if video.status != VideoStatus.error:
-        raise ValueError(
+        raise BadRequestError(
             f"Video is not in error state (current: {video.status.value}). "
             f"Use recover for processing/ready_subtitles; start-processing for pending_processing."
         )
@@ -481,17 +486,18 @@ async def retranslate_video(db: AsyncSession, video_id: str, engine: str | None 
     marked done so they're skipped.
 
     Raises:
-        ValueError: If the video is not found, or has no subtitles to translate.
+        NotFound: If the video is not found.
+        Invalid: If the video has no subtitles to translate.
     """
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
 
     from app.services.video_service import count_subtitles
 
     if await count_subtitles(db, video.id) == 0:
-        raise ValueError("Video has no subtitles to translate")
+        raise BadRequestError("Video has no subtitles to translate")
 
     # Clear existing translations so the re-run writes fresh text_zh everywhere.
     from app.models.subtitle import Subtitle

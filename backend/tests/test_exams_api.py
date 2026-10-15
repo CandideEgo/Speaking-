@@ -283,7 +283,9 @@ async def test_daily_submit_foreign_question_rejected(client, auth_headers, db_s
         headers=auth_headers,
     )
     assert resp.status_code == 409
-    assert "抽题" in resp.json()["detail"]
+    # 批 1c: 这条 409 现在是 exam_service 的 ConflictError，走 AppError handler，
+    # envelope 里只有 {code, message}（HTTPException 那条路才额外回显 detail）。
+    assert "抽题" in resp.json()["message"]
 
 
 async def test_daily_submit_partial_rejected(client, auth_headers, db_session):
@@ -344,7 +346,7 @@ async def test_wrong_book_empty(client, auth_headers, seeded_paper):
 
     resp = await client.post("/api/v1/exams/wrong/redo", json={}, headers=auth_headers)
     assert resp.status_code == 404
-    assert "错题" in resp.json()["detail"]
+    assert "错题" in resp.json()["message"]
 
 
 async def test_wrong_book_aggregation_dedup(client, auth_headers, seeded_paper, db_session):

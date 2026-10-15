@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.errors import NotFoundError
 from app.models.engagement import VideoLike
 from app.models.video import Video
 
@@ -27,7 +28,7 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
     video_result = await db.execute(select(Video).where(Video.id == video_id).with_for_update())
     video = video_result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
 
     result = await db.execute(select(VideoLike).where(VideoLike.user_id == user_id, VideoLike.video_id == video_id))
     existing = result.scalar_one_or_none()

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from app.api.v1.browse import _video_to_dict
+from app.core.errors import BadRequestError
 from app.models.channel import Channel
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import paginated
@@ -256,13 +257,13 @@ async def list_admin_channels(db: AsyncSession) -> list[dict]:
 async def create_channel(db: AsyncSession, payload: dict) -> Channel:
     name = (payload.get("name") or "").strip()
     if not name:
-        raise ValueError("频道名称不能为空")
+        raise BadRequestError("频道名称不能为空")
     slug = (payload.get("slug") or "").strip().lower() or slugify(name)
     if not SLUG_RE.match(slug):
-        raise ValueError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
+        raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
     exists = (await db.execute(select(Channel.id).where(Channel.slug == slug))).scalar_one_or_none()
     if exists:
-        raise ValueError(f"slug 已存在: {slug}")
+        raise BadRequestError(f"slug 已存在: {slug}")
 
     upstream = (payload.get("upstream_channel_id") or "").strip() or None
     channel = Channel(
@@ -302,12 +303,12 @@ async def update_channel(db: AsyncSession, channel_id: str, payload: dict) -> Ch
     if slug_in:
         slug = str(slug_in).strip().lower()
         if not SLUG_RE.match(slug):
-            raise ValueError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
+            raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
         clash = (
             await db.execute(select(Channel.id).where(Channel.slug == slug, Channel.id != channel_id))
         ).scalar_one_or_none()
         if clash:
-            raise ValueError(f"slug 已存在: {slug}")
+            raise BadRequestError(f"slug 已存在: {slug}")
         channel.slug = slug
     await db.flush()
     return channel

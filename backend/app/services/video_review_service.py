@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
 from app.services.video_cache import invalidate_video_detail_cache
@@ -54,7 +55,7 @@ async def begin_edit(db: AsyncSession, video: Video) -> Video:
     ``published_snapshot`` and flip to ``pending_review`` so the public keeps
     watching the snapshot while the owner edits the live draft."""
     if video.review_status != VideoReviewStatus.published.value:
-        raise ValueError("只有已发布的视频才能开始编辑")
+        raise BadRequestError("只有已发布的视频才能开始编辑")
     video.published_snapshot = await _build_snapshot(db, video)
     video.review_status = VideoReviewStatus.pending_review.value
     video.submitted_at = None
@@ -66,9 +67,9 @@ async def begin_edit(db: AsyncSession, video: Video) -> Video:
 async def submit_for_review(db: AsyncSession, video: Video) -> Video:
     """Owner submits a draft/rejected video for admin review."""
     if video.review_status not in (VideoReviewStatus.draft.value, VideoReviewStatus.rejected.value):
-        raise ValueError("当前状态无法提交审核")
+        raise BadRequestError("当前状态无法提交审核")
     if video.status != VideoStatus.ready:
-        raise ValueError("视频仍在处理中，暂无法提交审核")
+        raise BadRequestError("视频仍在处理中，暂无法提交审核")
     # Must have at least one subtitle line to review.
     from app.models.subtitle import Subtitle
 
@@ -78,7 +79,7 @@ async def submit_for_review(db: AsyncSession, video: Video) -> Video:
         )
     ).scalar_one()
     if not has_subs:
-        raise ValueError("尚无字幕，无法提交审核")
+        raise BadRequestError("尚无字幕，无法提交审核")
 
     video.review_status = VideoReviewStatus.pending_review.value
     video.submitted_at = datetime.now(UTC)
@@ -91,7 +92,7 @@ async def submit_for_review(db: AsyncSession, video: Video) -> Video:
 async def withdraw_submission(db: AsyncSession, video: Video) -> Video:
     """Owner withdraws a pending review back to draft."""
     if video.review_status != VideoReviewStatus.pending_review.value:
-        raise ValueError("仅待审核状态可撤回")
+        raise BadRequestError("仅待审核状态可撤回")
     video.review_status = VideoReviewStatus.draft.value
     video.submitted_at = None
     await commit_refresh(db, video)
@@ -103,7 +104,7 @@ async def approve_review(db: AsyncSession, video: Video, admin: User) -> Video:
     """Admin approves a pending review: freeze live subtitles as the new public
     version and mark published."""
     if video.review_status != VideoReviewStatus.pending_review.value:
-        raise ValueError("仅待审核状态可批准")
+        raise BadRequestError("仅待审核状态可批准")
     video.published_snapshot = await _build_snapshot(db, video)
     await _publish_video(db, video, reviewed_by=admin.id)
     return video
@@ -114,7 +115,7 @@ async def reject_review(db: AsyncSession, video: Video, admin: User, reason: str
     the public keeps watching the last approved version (if any); the owner can
     edit the live draft and resubmit."""
     if video.review_status != VideoReviewStatus.pending_review.value:
-        raise ValueError("仅待审核状态可驳回")
+        raise BadRequestError("仅待审核状态可驳回")
     video.review_status = VideoReviewStatus.rejected.value
     video.reviewed_by = admin.id
     video.reviewed_at = datetime.now(UTC)

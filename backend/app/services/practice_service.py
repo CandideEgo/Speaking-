@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ConflictError
 from app.core.exam_levels import should_display
 from app.models.learning import Vocabulary
 from app.models.subtitle import Subtitle
@@ -414,9 +415,12 @@ async def build_vocabulary_drill(
     words = result.scalars().all()
 
     if not words:
+        # 409 是既有线上行为（router 层过去把这两条 ValueError 一律映射成 409），
+        # 批 1c 只搬「谁决定状态码」，不动状态码本身；语义上 400 也说得通，但改
+        # 它是另一次改动（契约变更），不夹在重构里做。
         if video_id:
-            raise ValueError("该视频还没有生词，去看视频时点击字幕里的单词就能加入词汇本")
-        raise ValueError("词汇本为空，请先在学习中添加词汇")
+            raise ConflictError("该视频还没有生词，去看视频时点击字幕里的单词就能加入词汇本")
+        raise ConflictError("词汇本为空，请先在学习中添加词汇")
 
     # Filter by target exam level when requested. Words whose ECDICT lookup
     # levels pass should_display() are preferred; if too few match we top up

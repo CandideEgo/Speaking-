@@ -126,13 +126,14 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """兜底：任何没被上面 5 个 handler 接住的异常 -> 500 + INTERNAL_ERROR。
 
-    在它存在之前，服务层抛出的 `ValueError`（services 里有 89 处）只要路由层
-    没认出来（`api/v1/videos.py` 那 16 处 `if "not found" in msg.lower()`
-    式的子串匹配）就会穿过所有 handler，变成**没有响应体的裸 500** —— 没有
-    code、没有 correlation id，客户端无从分支，只能当"服务器炸了"。
+    在它存在之前，服务层抛出的 `ValueError` 只要路由层没认出来（`api/v1/
+    videos.py` 那 16 处 `if "not found" in msg.lower()` 式的子串匹配），就会
+    穿过所有 handler，变成**没有响应体的裸 500** —— 没有 code、没有
+    correlation id，客户端无从分支，只能当"服务器炸了"。
 
-    它更大的价值是**诊断**：日志里这一行会逐一列出当前正在漏成 500 的异常类型
-    与原始 message。批 1b 把服务层换成领域异常之前，先读日志，不要靠猜。
+    领域失败现在走 `core/errors.py::DomainError` 家族（服务层抛，自带状态码，
+    由上面的 AppError handler 接住）。所以这一层**不再是正常的错误路径**：
+    它一旦被触发，就是真的没有分类过的异常，值得看一眼日志。
 
     只把 message 写进日志，不回给客户端——原始消息里可能有内部细节。
     Starlette 在 handler 返回后仍会重新抛出该异常，所以 ASGI 服务器自身的错误

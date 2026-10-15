@@ -15,6 +15,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError, NotFoundError
 from app.models.catalog import CatalogItem, CatalogStatus
 from app.models.video import Video, VideoStatus
 from app.schemas.catalog import CatalogItemResponse
@@ -300,7 +301,7 @@ async def get_item(db: AsyncSession, item_id: str, *, for_update: bool = False) 
     else:
         item = await db.get(CatalogItem, item_id)
     if item is None:
-        raise ValueError("Catalog item not found")
+        raise NotFoundError("Catalog item not found")
     return item
 
 
@@ -398,7 +399,7 @@ async def promote_item(
     """
     item = await get_item(db, item_id, for_update=True)
     if item.status == CatalogStatus.published.value:
-        raise ValueError("Catalog item is already published")
+        raise BadRequestError("Catalog item is already published")
 
     existing = await _find_reusable_video(db, item)
     if existing is not None:
@@ -448,7 +449,7 @@ async def mark_item(
         CatalogStatus.processing.value,
         CatalogStatus.published.value,
     ):
-        raise ValueError(f"Cannot reset a {item.status} item to '{status}'")
+        raise BadRequestError(f"Cannot reset a {item.status} item to '{status}'")
     item.status = status
     if admin_notes is not None:
         item.admin_notes = admin_notes

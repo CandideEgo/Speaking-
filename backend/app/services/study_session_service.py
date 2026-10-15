@@ -31,6 +31,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.learning import Vocabulary
 from app.models.study_session import StudySession, StudySessionItem
 from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event, get_user_local_date
@@ -307,9 +308,9 @@ async def submit_answer(
     """
     session = await get_owned_session(db, user_id, session_id)
     if session is None:
-        raise LookupError("Round not found")
+        raise NotFoundError("Round not found")
     if session.status != SESSION_ACTIVE:
-        raise ValueError("Round is closed")
+        raise ConflictError("Round is closed")
 
     item = (
         await db.execute(
@@ -320,7 +321,7 @@ async def submit_answer(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise LookupError("Word is not part of this round")
+        raise NotFoundError("Word is not part of this round")
 
     vocab = (
         await db.execute(
@@ -331,7 +332,7 @@ async def submit_answer(
         )
     ).scalar_one_or_none()
     if vocab is None:
-        raise LookupError("Word not found")
+        raise NotFoundError("Word not found")
 
     was_pending = item.status == ITEM_PENDING
 
@@ -378,11 +379,11 @@ async def finish_session(
 ) -> StudySession:
     """Close a round and sweep the user's expired rounds in the same transaction."""
     if status not in {SESSION_FINISHED, SESSION_ABANDONED}:
-        raise ValueError("Invalid round status")
+        raise BadRequestError("Invalid round status")
 
     session = await get_owned_session(db, user_id, session_id)
     if session is None:
-        raise LookupError("Round not found")
+        raise NotFoundError("Round not found")
 
     session.status = status
     session.finished_at = datetime.now(UTC)

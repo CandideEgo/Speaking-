@@ -20,6 +20,7 @@ import structlog
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
+from app.core.errors import BadRequestError, ServiceUnavailableError
 
 from .engines import BUILTIN_ENGINES, DEFAULT_TRANSLATION_PROMPT, EngineConfig
 from .json_sanitizer import sanitize_json
@@ -324,7 +325,7 @@ class TranslationService:
         Returns a **copy** so the original ``BUILTIN_ENGINES`` entry stays pristine.
         """
         if name not in BUILTIN_ENGINES:
-            raise ValueError(f"Unknown translation engine: {name!r}. Available: {list(BUILTIN_ENGINES.keys())}")
+            raise BadRequestError(f"Unknown translation engine: {name!r}. Available: {list(BUILTIN_ENGINES.keys())}")
 
         cfg = copy.deepcopy(BUILTIN_ENGINES[name])
 
@@ -349,17 +350,17 @@ class TranslationService:
 
         # Validate required fields
         if not cfg.api_key:
-            raise ValueError(
+            raise ServiceUnavailableError(
                 f"Translation engine {name!r} has no API key configured. "
                 f"Set the appropriate TRANSLATION_*_API_KEY in .env."
             )
         if not cfg.base_url:
-            raise ValueError(
+            raise ServiceUnavailableError(
                 f"Translation engine {name!r} has no base_url configured. "
                 f"Set the appropriate TRANSLATION_*_BASE_URL in .env."
             )
         if not cfg.model:
-            raise ValueError(
+            raise ServiceUnavailableError(
                 f"Translation engine {name!r} has no model configured. Set the appropriate TRANSLATION_*_MODEL in .env."
             )
 

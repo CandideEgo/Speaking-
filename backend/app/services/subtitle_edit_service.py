@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError, NotFoundError
 from app.models.subtitle_revision import AUDITED_FIELDS, SubtitleRevision
 from app.schemas.pagination import paginated
 from app.schemas.video import (
@@ -75,13 +76,13 @@ async def _validate_timing(db: AsyncSession, video_id: str, subtitle) -> None:
 
     Checks ``start_time < end_time`` and that the interval does not overlap its
     immediate neighbors (ordered by ``sentence_index``). Gaps and touching
-    boundaries are allowed; overlaps are rejected. Raises ``ValueError`` — route
+    boundaries are allowed; overlaps are rejected. Raises ``Invalid`` — route
     handlers map that to HTTP 400.
     """
     from app.models.subtitle import Subtitle
 
     if subtitle.start_time >= subtitle.end_time:
-        raise ValueError("start_time must be less than end_time")
+        raise BadRequestError("start_time must be less than end_time")
 
     prev_q = (
         select(Subtitle)
@@ -106,9 +107,9 @@ async def _validate_timing(db: AsyncSession, video_id: str, subtitle) -> None:
     prev = (await db.execute(prev_q)).scalar_one_or_none()
     nxt = (await db.execute(next_q)).scalar_one_or_none()
     if prev is not None and subtitle.start_time < prev.end_time:
-        raise ValueError(f"start_time {subtitle.start_time} overlaps previous subtitle (ends at {prev.end_time})")
+        raise BadRequestError(f"start_time {subtitle.start_time} overlaps previous subtitle (ends at {prev.end_time})")
     if nxt is not None and subtitle.end_time > nxt.start_time:
-        raise ValueError(f"end_time {subtitle.end_time} overlaps next subtitle (starts at {nxt.start_time})")
+        raise BadRequestError(f"end_time {subtitle.end_time} overlaps next subtitle (starts at {nxt.start_time})")
 
 
 async def update_subtitle(
@@ -135,9 +136,9 @@ async def update_subtitle(
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     subtitle = result.scalar_one_or_none()
     if subtitle is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
     if subtitle.video_id != video_id:
-        raise ValueError("Subtitle does not belong to this video")
+        raise BadRequestError("Subtitle does not belong to this video")
 
     before_snap = _snapshot(subtitle)
 
@@ -194,9 +195,9 @@ async def update_subtitles_batch(
     for item in payload.updates:
         sub = subtitles_by_id.get(item.id)
         if sub is None:
-            raise ValueError(f"Subtitle {item.id} not found")
+            raise NotFoundError(f"Subtitle {item.id} not found")
         if sub.video_id != video_id:
-            raise ValueError(f"Subtitle {item.id} does not belong to this video")
+            raise BadRequestError(f"Subtitle {item.id} does not belong to this video")
 
     scope = await _determine_edit_scope(db, video_id)
     pending: list[tuple] = []
@@ -249,9 +250,9 @@ async def update_word_levels(
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     subtitle = result.scalar_one_or_none()
     if subtitle is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
     if subtitle.video_id != video_id:
-        raise ValueError("Subtitle does not belong to this video")
+        raise BadRequestError("Subtitle does not belong to this video")
 
     subtitle.word_levels = payload.word_levels  # None clears all annotations
     await commit_refresh(db, subtitle)
@@ -281,23 +282,23 @@ async def reorder_subtitles(
     result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id))
     subs_by_id = {s.id: s for s in result.scalars().all()}
     if not subs_by_id:
-        raise ValueError("视频没有字幕，无法重排")
+        raise BadRequestError("视频没有字幕，无法重排")
 
     items = payload.items
     if len(items) != len(subs_by_id):
-        raise ValueError(f"reorder must include all {len(subs_by_id)} subtitles, got {len(items)}")
+        raise BadRequestError(f"reorder must include all {len(subs_by_id)} subtitles, got {len(items)}")
 
     seen_ids: set[str] = set()
     seen_indices: set[int] = set()
     for item in items:
         if item.id not in subs_by_id:
-            raise ValueError(f"Subtitle {item.id} does not belong to this video")
+            raise BadRequestError(f"Subtitle {item.id} does not belong to this video")
         if item.id in seen_ids:
-            raise ValueError(f"Duplicate subtitle id in reorder: {item.id}")
+            raise BadRequestError(f"Duplicate subtitle id in reorder: {item.id}")
         if item.sentence_index in seen_indices:
-            raise ValueError(f"Duplicate sentence_index in reorder: {item.sentence_index}")
+            raise BadRequestError(f"Duplicate sentence_index in reorder: {item.sentence_index}")
         if item.sentence_index < 0 or item.sentence_index >= len(subs_by_id):
-            raise ValueError(f"sentence_index {item.sentence_index} out of range (0..{len(subs_by_id) - 1})")
+            raise BadRequestError(f"sentence_index {item.sentence_index} out of range (0..{len(subs_by_id) - 1})")
         seen_ids.add(item.id)
         seen_indices.add(item.sentence_index)
 
@@ -382,9 +383,9 @@ async def delete_subtitle(
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     sub = result.scalar_one_or_none()
     if sub is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
     if sub.video_id != video_id:
-        raise ValueError("Subtitle does not belong to this video")
+        raise BadRequestError("Subtitle does not belong to this video")
 
     deleted_index = sub.sentence_index
     await db.delete(sub)
@@ -435,11 +436,11 @@ async def split_subtitle(
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     subtitle = result.scalar_one_or_none()
     if subtitle is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
     if subtitle.video_id != video_id:
-        raise ValueError("Subtitle does not belong to this video")
+        raise BadRequestError("Subtitle does not belong to this video")
     if not (subtitle.start_time < payload.split_time < subtitle.end_time):
-        raise ValueError("split_time must be within the subtitle's time range")
+        raise BadRequestError("split_time must be within the subtitle's time range")
 
     before_snap = _snapshot(subtitle)
     original_end = subtitle.end_time
@@ -512,9 +513,9 @@ async def merge_subtitle(
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     cur = result.scalar_one_or_none()
     if cur is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
     if cur.video_id != video_id:
-        raise ValueError("Subtitle does not belong to this video")
+        raise BadRequestError("Subtitle does not belong to this video")
 
     nxt_result = await db.execute(
         select(Subtitle)
@@ -527,7 +528,7 @@ async def merge_subtitle(
     )
     nxt = nxt_result.scalar_one_or_none()
     if nxt is None:
-        raise ValueError("No next subtitle to merge with")
+        raise BadRequestError("No next subtitle to merge with")
 
     before_snap = _snapshot(cur)
     next_index = nxt.sentence_index
@@ -641,14 +642,14 @@ async def rollback_subtitle(
     )
     revision = result.scalar_one_or_none()
     if revision is None:
-        raise ValueError("Revision not found")
+        raise NotFoundError("Revision not found")
     if revision.video_id != video_id:
-        raise ValueError("Revision does not belong to this video")
+        raise BadRequestError("Revision does not belong to this video")
 
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     subtitle = result.scalar_one_or_none()
     if subtitle is None:
-        raise ValueError("Subtitle not found")
+        raise NotFoundError("Subtitle not found")
 
     before_snap = _snapshot(subtitle)
 
@@ -798,7 +799,7 @@ async def resegment_video(
     result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index))
     subs = list(result.scalars().all())
     if not subs:
-        raise ValueError("视频没有字幕，无法重断句")
+        raise BadRequestError("视频没有字幕，无法重断句")
 
     snapshot = SubtitleResegmentSnapshot(
         video_id=video_id,
@@ -823,7 +824,7 @@ async def resegment_video(
 
     new_segs = _resegment_segments(subs)
     if not new_segs:
-        raise ValueError("重断句失败：无法从现有字幕生成新分段")
+        raise BadRequestError("重断句失败：无法从现有字幕生成新分段")
 
     for s in subs:
         await db.delete(s)
@@ -880,7 +881,7 @@ async def rollback_resegment(
     )
     snapshot = result.scalar_one_or_none()
     if snapshot is None:
-        raise ValueError("没有可回滚的重断句快照")
+        raise BadRequestError("没有可回滚的重断句快照")
 
     cur_result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id))
     for s in cur_result.scalars().all():

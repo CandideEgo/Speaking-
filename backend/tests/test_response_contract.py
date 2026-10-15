@@ -236,9 +236,21 @@ class TestCardShapesHaveDiverged:
 class TestErrorEnvelopeShapes:
     """``(status, code)`` pairs for the error paths the plan touches.
 
-    batch 1 replaces the message-sniffing that produces these codes; the codes
-    themselves must not move. ``detail`` is asserted as "present" rather than
-    by value: it is the human-readable half and is allowed to change wording.
+    batch 1 replaced the message-sniffing that produced these responses. The
+    **status codes must not move** — a 404 stays a 404, because a moved status
+    means the service -> class mapping is wrong. The ``code`` string is a
+    different matter, and it splits in two:
+
+    - paths that still raise ``HTTPException`` (存量 150 处，route bodies and
+      the auth dependency) keep the transport-shaped ``HTTP_{status}``;
+    - paths whose failure now comes from a service ``DomainError`` name the
+      reason instead (``NOT_FOUND``, ``CONFLICT``, ``SERVICE_UNAVAILABLE`` …).
+
+    Which one a path is can only be told by reading it, so each test below
+    states which side it is on.
+
+    ``detail`` is asserted as "present" rather than by value: it is the
+    human-readable half and is allowed to change wording.
     """
 
     async def test_missing_bearer_token(self, client):
@@ -249,7 +261,19 @@ class TestErrorEnvelopeShapes:
         assert sorted(body.keys()) == ["code", "detail", "message"]
 
     async def test_missing_video_is_404(self, client):
-        """Produced today by `if "not found" in msg.lower()` in videos.py."""
+        """Stays `HTTP_404` — this 404 was never sniffed out of a message.
+
+        `GET /videos/{id}` gets ``None`` back from ``_get_video_detail`` and
+        raises ``HTTPException`` in the route body itself, so it is on the
+        legacy side and keeps the transport code. 批 1c removed the
+        *service-raises-ValueError / router-substring-matches-it* tier; this
+        route was never part of it.
+
+        The reason-naming half of 批 1c is pinned where it actually happened,
+        on a path that does come from a service: the 503 in
+        `test_pending_processing.py` (`SERVICE_UNAVAILABLE`). Both sides keep
+        their status code.
+        """
         resp = await client.get("/api/v1/videos/does-not-exist")
         assert resp.status_code == 404
         assert resp.json()["code"] == "HTTP_404"

@@ -23,6 +23,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import NotFoundError
 from app.core.exam_levels import EXAM_LEVELS
 from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent
@@ -238,17 +239,17 @@ async def collect_set(db: AsyncSession, user: User, video_id: str, exam_level: s
     token already in the user's vocabulary is reused, not recreated.
 
     Raises:
-        ValueError: the video does not exist (API maps this to 404).
+        NotFound: the video does not exist.
     """
     level = exam_level or (await user_target_level(db, user.id)) or _FALLBACK_LEVEL
 
     video = await db.get(Video, video_id)
     if video is None:
-        raise ValueError("视频不存在")
+        raise NotFoundError("视频不存在")
     # 只对公开可见的视频收词：未发布/已下线的视频不应被收词接口拉取字幕 token。
     # （media 门控挡的是媒体流，这里挡的是字幕标注读取。）
     if not video.is_published or video.storage_mode == "offline":
-        raise ValueError("视频不存在")
+        raise NotFoundError("视频不存在")
 
     vocab_set = (
         await db.execute(

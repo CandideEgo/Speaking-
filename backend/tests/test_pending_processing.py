@@ -115,7 +115,11 @@ class TestStartProcessing:
             )
 
         assert resp.status_code == 503
-        assert "offline" in resp.json()["detail"].lower()
+        # 批 1c: 这条 503 的 code 从 transport 形态（HTTP_503）换成原因名——
+        # service 抛 ServiceUnavailableError，走 AppError handler 的 envelope
+        # （{code, message}，不再回显 detail）。状态码本身不动。
+        assert resp.json()["code"] == "SERVICE_UNAVAILABLE"
+        assert "offline" in resp.json()["message"].lower()
 
     async def test_start_processing_wrong_status_400(
         self, client: AsyncClient, auth_headers: dict, admin_headers: dict

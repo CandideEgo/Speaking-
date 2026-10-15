@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import _to_aware_utc
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError, NotFoundError
 from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
@@ -441,7 +442,7 @@ async def get_admin_settings(db: AsyncSession) -> AdminSetting:
 async def update_admin_settings(db: AsyncSession, patch: dict) -> AdminSetting:
     """Apply a partial update to the singleton settings row.
 
-    Raises ``ValueError`` if the thresholds are inconsistent
+    Raises ``Invalid`` if the thresholds are inconsistent
     (warn threshold must be >= block threshold).
     """
     settings = await get_admin_settings(db)
@@ -451,7 +452,7 @@ async def update_admin_settings(db: AsyncSession, patch: dict) -> AdminSetting:
     block_t = float(settings.quality_block_threshold)
     warn_t = float(settings.quality_warn_threshold)
     if warn_t < block_t:
-        raise ValueError("警告阈值不能低于阻塞阈值")
+        raise BadRequestError("警告阈值不能低于阻塞阈值")
     await commit_refresh(db, settings)
     return settings
 
@@ -567,13 +568,13 @@ async def _get_user_or_raise(db: AsyncSession, user_id: str) -> User:
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise ValueError("User not found")
+        raise NotFoundError("User not found")
     return user
 
 
 async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_id: str) -> User:
     if user_id == admin_user_id:
-        raise ValueError("Cannot ban yourself")
+        raise BadRequestError("Cannot ban yourself")
     user = await _get_user_or_raise(db, user_id)
     user.is_banned = is_banned
     await commit_refresh(db, user)
@@ -583,7 +584,7 @@ async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_i
 
 async def change_user_role(db: AsyncSession, user_id: str, role: str, admin_user_id: str) -> User:
     if user_id == admin_user_id:
-        raise ValueError("Cannot change your own role")
+        raise BadRequestError("Cannot change your own role")
     user = await _get_user_or_raise(db, user_id)
     user.role = RoleType(role)
     await commit_refresh(db, user)
@@ -596,7 +597,7 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
     result = await db.execute(select(User).where(User.id == user_id).with_for_update())
     user = result.scalar_one_or_none()
     if not user:
-        raise ValueError("User not found")
+        raise NotFoundError("User not found")
     user.plan = PlanType(plan)
     if plan == "pro":
         now = datetime.now(UTC)
@@ -631,9 +632,9 @@ async def revoke_redeem_code(db: AsyncSession, code_id: str, reason: str) -> Red
     result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
     code = result.scalar_one_or_none()
     if not code:
-        raise ValueError("Redeem code not found")
+        raise NotFoundError("Redeem code not found")
     if code.status != RedeemStatus.unused:
-        raise ValueError(f"Only unused codes can be revoked (current status: {code.status.value})")
+        raise BadRequestError(f"Only unused codes can be revoked (current status: {code.status.value})")
 
     code.status = RedeemStatus.revoked
     code.revoked_reason = RevokedReason(reason)
@@ -651,16 +652,16 @@ async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode
     drops to <= now, downgrade the user to free. Full refund == full
     clawback; fair and simple (no pro-rating).
 
-    Returns ``(code, user)``. Raises ``ValueError`` if the code is not in the
+    Returns ``(code, user)``. Raises ``Invalid`` if the code is not in the
     redeemed state, or if its user no longer exists (the code is still revoked
     in that case but no plan change is possible).
     """
     result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
     code = result.scalar_one_or_none()
     if not code:
-        raise ValueError("Redeem code not found")
+        raise NotFoundError("Redeem code not found")
     if code.status != RedeemStatus.redeemed:
-        raise ValueError(f"Only redeemed codes can be refunded (current status: {code.status.value})")
+        raise BadRequestError(f"Only redeemed codes can be refunded (current status: {code.status.value})")
 
     # Mark the code revoked regardless of what happens to the user.
     code.status = RedeemStatus.revoked
@@ -669,7 +670,7 @@ async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode
     if not code.used_by:
         # Redeemed but no user recorded (data integrity edge): revoke only.
         await commit_refresh(db, code)
-        raise ValueError("Redeem code has no associated user; revoked without plan change")
+        raise BadRequestError("Redeem code has no associated user; revoked without plan change")
 
     user_result = await db.execute(select(User).where(User.id == code.used_by).with_for_update())
     user = user_result.scalar_one_or_none()
@@ -677,7 +678,7 @@ async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode
         # User was deleted; the FK on redeem_codes.used_by is SET NULL, but we
         # still hold the in-memory used_by from before the lock. Revoke only.
         await commit_refresh(db, code)
-        raise ValueError("Redeem code's user no longer exists; revoked without plan change")
+        raise BadRequestError("Redeem code's user no longer exists; revoked without plan change")
 
     now = datetime.now(UTC)
     current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import commit_refresh
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.learning import LearningRecord
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
@@ -450,7 +451,7 @@ async def _get_video_or_404(db: AsyncSession, video_id: str) -> Video:
     result = await db.execute(select(Video).where(Video.id == video_id))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Video not found")
+        raise NotFoundError("Video not found")
     return video
 
 
@@ -471,10 +472,9 @@ async def update_video(
         )
         demo_cleared = bool(result.rowcount)
 
-    # Publish guard: only ready videos may be published. Raising ValueError lets
-    # the route handler map this to a 400 (mirrors localize's error mapping).
+    # Publish guard: only ready videos may be published.
     if payload.is_published is True and video.status != VideoStatus.ready:
-        raise ValueError("只能发布 status=ready 的视频")
+        raise BadRequestError("只能发布 status=ready 的视频")
 
     publish_changed = payload.is_published is not None and payload.is_published != video.is_published
     # "" clears the assignment, so both sides normalize through `or None`.
@@ -548,7 +548,8 @@ async def get_demo_video(db: AsyncSession) -> VideoResponse:
     result = await db.execute(select(Video).where(Video.is_demo.is_(True)).order_by(Video.created_at.desc()).limit(1))
     video = result.scalar_one_or_none()
     if video is None:
-        raise ValueError("Demo video not found")
+        # 用户可见文案（登录后的新用户流程会读它）；不是内部日志文本。
+        raise NotFoundError("暂未配置第一课视频")
     return VideoResponse.model_validate(video)
 
 
@@ -720,13 +721,13 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
     """Kick off local download+transcode for an imported video (admin).
 
     Clears any existing local URLs and flips the video to ``processing`` so
-    the admin panel can poll progress. Returns 409 (via ValueError) if the
-    video is already being processed.
+    the admin panel can poll progress. Raises ``Conflict`` (409) if the video
+    is already being processed.
     """
     video = await _get_video_or_404(db, video_id)
 
     if video.status == VideoStatus.processing:
-        raise ValueError("Video is already processing")
+        raise ConflictError("Video is already processing")
 
     video.video_url_480p = None
     video.video_url_720p = None

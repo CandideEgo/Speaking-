@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession
 from app.models.preferences import UserPreferences
 from app.models.user import User
@@ -165,7 +166,7 @@ async def create_daily_session(
     # Never draw unanswerable questions (client would render no options).
     pool = _answerable_questions(list(pool))
     if not pool:
-        raise ValueError("题库为空，请先导入真题")
+        raise NotFoundError("题库为空，请先导入真题")
     picked = random.sample(pool, min(count, len(pool)))
     # Keep paper grouping so the same paper's passages stay together for reading.
     picked.sort(key=lambda q: (q.paper_id, q.number))
@@ -313,12 +314,12 @@ async def create_wrong_redo_session(
         allowed = set(question_ids)
         wrong_ids = [qid for qid in wrong_ids if qid in allowed]
     if not wrong_ids:
-        raise ValueError("暂无错题可重做")
+        raise NotFoundError("暂无错题可重做")
 
     questions = list((await db.execute(select(ExamQuestion).where(ExamQuestion.id.in_(wrong_ids)))).scalars())
     questions = _answerable_questions(questions)
     if not questions:
-        raise ValueError("暂无错题可重做")
+        raise NotFoundError("暂无错题可重做")
     questions.sort(key=lambda q: (q.paper_id, q.number))
 
     session = ExamSession(
@@ -399,9 +400,9 @@ async def submit_answers(
     {score, correct_count, total, part_scores, results}.
     """
     if session.user_id != user_id:
-        raise PermissionError("不是本人的作答")
+        raise ForbiddenError("不是本人的作答")
     if session.submitted_at is not None:
-        raise ValueError("该作答已提交")
+        raise ConflictError("该作答已提交")
 
     # Load the questions for this session (paper questions or daily picks).
     if session.paper_id is not None:
@@ -419,12 +420,12 @@ async def submit_answers(
         placeholders = {a.question_id: a for a in session.answers if a.question_id}
         submitted_ids = [a.get("question_id") for a in answers]
         if set(submitted_ids) != set(placeholders) or len(submitted_ids) != len(placeholders):
-            raise ValueError("作答题目与本次抽题不一致，请重新开始")
+            raise ConflictError("作答题目与本次抽题不一致，请重新开始")
         questions = list((await db.execute(select(ExamQuestion).where(ExamQuestion.id.in_(submitted_ids)))).scalars())
         questions.sort(key=lambda q: q.number)
 
     if not questions:
-        raise ValueError("作答题目不存在")
+        raise ConflictError("作答题目不存在")
 
     ans_map: dict[str, str] = {}
     for a in answers:
