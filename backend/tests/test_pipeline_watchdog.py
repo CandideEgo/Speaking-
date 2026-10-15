@@ -200,13 +200,17 @@ class TestStepBudgets:
         instead: the tail's steps come off ``STEPS`` by name, in ``STEPS``
         order, and the literal below names them.
 
+        The tail is the declared suffix from ``translating`` on — ``extracting``
+        and ``transcribing`` belong to the head/GPU tasks — which is now the
+        whole of what ``finalize_video`` does.
+
         What the two asserts catch, in order: a body dropped from
         ``_TAIL_BODIES`` (the step would silently never run again — the literal
         names every one of them), and a step inserted into the declaration in
         the wrong place (the tail would run it out of order).  A downstream step
         finding missing input at 3am is what this is for.
         """
-        from app.tasks.pipeline_helpers import STEPS
+        from app.tasks.pipeline_helpers import STEPS, TERMINAL_STEP
         from app.tasks.video_processing import finalize_steps
 
         steps = finalize_steps()
@@ -218,6 +222,7 @@ class TestStepBudgets:
             "classifying",
             "downloading",
             "transcoding",
+            TERMINAL_STEP,
         ]
         declared = [step.name for step in STEPS if step.name in set(executed)]
         assert declared == executed

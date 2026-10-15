@@ -12,6 +12,7 @@ from app.tasks.celery_app import celery_app
 from app.tasks.pipeline_helpers import (
     STEP_PROGRESS,
     STEPS,
+    TERMINAL_STEP,
     PipelineCtx,
     Step,
     StepBody,
@@ -762,6 +763,103 @@ async def _run_transcoding(ctx: PipelineCtx) -> None:
     await update_progress(video_id, "transcoding")
 
 
+async def _run_done(ctx: PipelineCtx) -> None:
+    """Declare the video ready, then do what only makes sense afterwards.
+
+    Terminal step: the runner never asks whether it already ran (there is
+    nothing after it to resume into) and never blames it for a failure — a
+    crash in here is attributed to ``transcoding``, the last step that did work.
+
+    The cover-localization retry is its first act rather than a step of its own,
+    because it needs what download/transcode left behind (the first attempt ran
+    at extraction, before any local file existed) and because it must happen
+    before the video claims to be ready; it stays best-effort — a failure keeps
+    the external URL for backfill.
+
+    Everything after the flip to ``ready`` is best-effort by contract: register
+    the standard version for this source, auto-publish when an official video
+    asked for it, then score / difficulty / speech metrics and the OSS cleanup
+    of the staged raw upload. None of them may fail a pipeline whose output is
+    already playable.
+    """
+    from app.models.video import VideoSource, VideoStatus
+
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+
+    # --- Cover localization retry ---
+    # The first attempt ran at extraction (needs CDN egress). After
+    # download/transcode the local file exists, so the ffmpeg frame
+    # fallback can synthesize a cover even with the egress dead.
+    # Non-blocking: failures keep the external URL for backfill.
+    if (video.thumbnail_url or "").startswith("http"):
+        from app.services.thumbnail_service import localize_video_thumbnail
+
+        if await localize_video_thumbnail(video):
+            await db.commit()
+
+    video.status = VideoStatus.ready
+    video.processing_step = None
+    video.step_started_at = None
+    video.processing_progress = 100
+    await db.commit()
+    await update_progress(video_id, "done")
+    release_lock_and_steps(video_id)
+    logger.info("Video %s finalized", video_id)
+
+    # Phase 2: register as the standard version for this source_url
+    # (first ready wins; no-op if a standard already exists).
+    await _register_standard(db, video)
+
+    # Auto-publish once ready. Only official videos with
+    # auto_publish=True are published immediately; UGC videos
+    # always stay in draft after processing so the creator can
+    # edit subtitles/practice before submitting for admin review.
+    if video.auto_publish and not video.is_published and video.is_official:
+        from app.services.video_publish import _publish_video
+
+        await _publish_video(db, video, reviewed_by="system:auto_publish")
+        try:
+            from app.services.video_cache import invalidate_browse_cache
+
+            await invalidate_browse_cache()
+        except Exception:
+            logger.warning("auto_publish browse cache invalidation failed", video_id=video_id, exc_info=True)
+        logger.info("Video %s auto-published (official)", video_id)
+
+    # P1: schedule an initial learning_score computation. Best-effort
+    # — scoring failure must never fail finalize. The beat jobs
+    # re-score hourly/daily; this gives new videos an immediate
+    # (metadata-baseline) score so they aren't buried at null.
+    try:
+        from app.tasks.scoring_tasks import compute_video_score_task
+
+        compute_video_score_task.delay(video_id)
+    except Exception:
+        logger.warning("Video %s: failed to schedule scoring (continuing)", video_id, exc_info=True)
+
+    # Sprint 3: auto-compute CEFR difficulty from subtitle word_levels.
+    # Best-effort — never fails the pipeline.
+    try:
+        from app.services.difficulty_service import compute_video_difficulty
+
+        await compute_video_difficulty(db, video_id)
+    except Exception:
+        logger.warning("Video %s: difficulty computation failed (continuing)", video_id, exc_info=True)
+
+    # 阶段 3: subtitle-derived speech metrics (WPM / vocabulary
+    # density), compute-on-null. Best-effort — never fails the pipeline.
+    try:
+        from app.services.subtitle_metrics_service import compute_video_speech_metrics
+
+        await compute_video_speech_metrics(db, video_id)
+    except Exception:
+        logger.warning("Video %s: speech metrics computation failed (continuing)", video_id, exc_info=True)
+
+    # Best-effort OSS cleanup of the staged raw upload.
+    if video.video_source != VideoSource.imported:
+        await _cleanup_oss_raw(video.id, video.source_url)
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
@@ -773,6 +871,7 @@ _TAIL_BODIES: dict[str, StepBody] = {
     "classifying": _run_classifying,
     "downloading": _run_downloading,
     "transcoding": _run_transcoding,
+    TERMINAL_STEP: _run_done,
 }
 
 #: Bodies that run *instead* of the body above when a resume skips that step,
@@ -810,7 +909,7 @@ def finalize_video(self, video_id: str, engine: str | None = None):
     from sqlalchemy import select
 
     from app.core.database import async_session
-    from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
+    from app.models.video import Video
 
     async def _process():
         async with async_session() as db:
@@ -824,87 +923,9 @@ def finalize_video(self, video_id: str, engine: str | None = None):
             ctx = PipelineCtx(db=db, video=video, video_id=video_id, engine=engine)
 
             try:
-                # The steps whose bodies live here run through the runner, in
-                # the order declared in pipeline_helpers — resume-skip and the
-                # failure attribution come with it. What follows is the tail of
-                # the sequence still waiting for its own body.
+                # The whole tail is the declared step sequence: order, resume-skip
+                # and the failure attribution all come from pipeline_helpers.STEPS.
                 await run_steps(ctx, finalize_steps())
-
-                # --- Cover localization retry ---
-                # The first attempt ran at extraction (needs CDN egress). After
-                # download/transcode the local file exists, so the ffmpeg frame
-                # fallback can synthesize a cover even with the egress dead.
-                # Non-blocking: failures keep the external URL for backfill.
-                if (video.thumbnail_url or "").startswith("http"):
-                    from app.services.thumbnail_service import localize_video_thumbnail
-
-                    if await localize_video_thumbnail(video):
-                        await db.commit()
-
-                # --- Step: done ---
-                video.status = VideoStatus.ready
-                video.processing_step = None
-                video.step_started_at = None
-                video.processing_progress = 100
-                await db.commit()
-                await update_progress(video_id, "done")
-                release_lock_and_steps(video_id)
-                logger.info("Video %s finalized", video_id)
-
-                # Phase 2: register as the standard version for this source_url
-                # (first ready wins; no-op if a standard already exists).
-                await _register_standard(db, video)
-
-                # Auto-publish once ready. Only official videos with
-                # auto_publish=True are published immediately; UGC videos
-                # always stay in draft after processing so the creator can
-                # edit subtitles/practice before submitting for admin review.
-                if video.auto_publish and not video.is_published and video.is_official:
-                    from app.services.video_publish import _publish_video
-
-                    await _publish_video(db, video, reviewed_by="system:auto_publish")
-                    try:
-                        from app.services.video_cache import invalidate_browse_cache
-
-                        await invalidate_browse_cache()
-                    except Exception:
-                        logger.warning(
-                            "auto_publish browse cache invalidation failed", video_id=video_id, exc_info=True
-                        )
-                    logger.info("Video %s auto-published (official)", video_id)
-
-                # P1: schedule an initial learning_score computation. Best-effort
-                # — scoring failure must never fail finalize. The beat jobs
-                # re-score hourly/daily; this gives new videos an immediate
-                # (metadata-baseline) score so they aren't buried at null.
-                try:
-                    from app.tasks.scoring_tasks import compute_video_score_task
-
-                    compute_video_score_task.delay(video_id)
-                except Exception:
-                    logger.warning("Video %s: failed to schedule scoring (continuing)", video_id, exc_info=True)
-
-                # Sprint 3: auto-compute CEFR difficulty from subtitle word_levels.
-                # Best-effort — never fails the pipeline.
-                try:
-                    from app.services.difficulty_service import compute_video_difficulty
-
-                    await compute_video_difficulty(db, video_id)
-                except Exception:
-                    logger.warning("Video %s: difficulty computation failed (continuing)", video_id, exc_info=True)
-
-                # 阶段 3: subtitle-derived speech metrics (WPM / vocabulary
-                # density), compute-on-null. Best-effort — never fails the pipeline.
-                try:
-                    from app.services.subtitle_metrics_service import compute_video_speech_metrics
-
-                    await compute_video_speech_metrics(db, video_id)
-                except Exception:
-                    logger.warning("Video %s: speech metrics computation failed (continuing)", video_id, exc_info=True)
-
-                # Best-effort OSS cleanup of the staged raw upload.
-                if video.video_source != VideoSource.imported:
-                    await _cleanup_oss_raw(video.id, video.source_url)
 
             except Exception as e:
                 logger.exception("Video %s finalize failed", video_id)
