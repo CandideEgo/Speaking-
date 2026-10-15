@@ -8,7 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 本仓库是 **Next.js 16**（App Router）——API、约定与文件结构都可能和你训练数据里的不同。**写代码前先读 `frontend/node_modules/next/dist/docs/` 里对应的指南**，留心 deprecation 提示。一个已经撞上的例子：Next 16 把 `middleware` 改名成了 [`src/proxy.ts`](src/proxy.ts) 里的 `proxy`。
 
-另注意：**`next dev` 会往 agent 文件里塞一段托管的 nextjs-agent-rules**（`node_modules/next/dist/server/lib/generate-agent-files.js`）：`AGENTS.md` 存在且已托管该块时写它，否则写进 `CLAUDE.md`——**本仓库是后者**，所以那段自动块长在这个文件末尾。不要跟它较劲：本文件其余部分才是人写的、稳定的那份；**看到 `<!-- BEGIN:nextjs-agent-rules -->` 块出现在 diff 里就顺手提交**，删掉只会让它再次出现。
+另注意：**`next dev` 会往 agent 文件里塞一段托管的 nextjs-agent-rules 块**（`node_modules/next/dist/server/lib/generate-agent-files.js`）：`AGENTS.md` 存在且已托管该块时写它，否则写进 `CLAUDE.md`——**本仓库是后者**，所以那段自动块长在这个文件末尾。不要跟它较劲：本文件其余部分才是人写的、稳定的那份；**看到带 `BEGIN:` / `END:` 标记的托管块出现在 diff 里就顺手提交**，删掉只会让它再次出现。
+
+**但别在本文件的人写段落里逐字写出那两个标记。** `upsertAgentRulesBlock` 用 `indexOf` 找**第一处**起始标记，人写文字里出现一次，它就会把「这处标记 → 真正的结束标记」之间的一切当成待替换的块内容，正文被整段吃掉：2026-10-15 实测，这段提醒原先逐字引用了起始标记，一次 `npm run dev` 就把本文件从 71 行削到 19 行（命令表、两道门、局部约定、e2e 全没了，只剩被截断的半句话）。要指代它就写「起始/结束标记」，或拆开写 `BEGIN:` 与 `END:`。
 
 ## 命令
 
