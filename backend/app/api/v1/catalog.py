@@ -5,7 +5,7 @@ scraped/discovered video candidates; admins promote them one at a time into the
 official-video pipeline ("process one, publish one"). See catalog_service.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user
@@ -77,10 +77,7 @@ async def get_catalog_item(
     db: AsyncSession = Depends(get_db),
 ):
     """Single candidate with its live promoted-video status."""
-    try:
-        return await catalog_service.get_item_response(db, item_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return await catalog_service.get_item_response(db, item_id)
 
 
 @router.post("/{item_id}/promote", response_model=CatalogItemResponse)
@@ -97,13 +94,7 @@ async def promote_catalog_item(
     Reuses the existing seed path; ``auto_publish=True`` publishes automatically
     once the pipeline reaches ready (mirrors ``/videos/seed-full``).
     """
-    try:
-        return await catalog_service.promote_item(db, item_id, auto_publish=payload.auto_publish)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await catalog_service.promote_item(db, item_id, auto_publish=payload.auto_publish)
 
 
 @router.patch("/{item_id}", response_model=CatalogItemResponse)
@@ -116,10 +107,4 @@ async def mark_catalog_item(
     db: AsyncSession = Depends(get_db),
 ):
     """Set a curation state (new/queued/skipped) + optional admin notes."""
-    try:
-        return await catalog_service.mark_item(db, item_id, payload.status, payload.admin_notes)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await catalog_service.mark_item(db, item_id, payload.status, payload.admin_notes)

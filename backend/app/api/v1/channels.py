@@ -114,10 +114,7 @@ async def admin_create_channel(
 ):
     """Create a channel; registering upstream_channel_id auto-attaches
     existing videos scraped from that upstream channel."""
-    try:
-        channel = await channel_service.create_channel(db, payload.model_dump())
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    channel = await channel_service.create_channel(db, payload.model_dump())
     await db.commit()
     # Videos may have just been auto-attached - feed cards embed the link.
     attached_ids = list((await db.execute(select(Video.id).where(Video.channel_ref == channel.id))).scalars())
@@ -141,10 +138,7 @@ async def admin_update_channel(
     db: AsyncSession = Depends(get_db),
 ):
     """Partial channel update. Admin only."""
-    try:
-        channel = await channel_service.update_channel(db, channel_id, payload.model_dump(exclude_unset=True))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    channel = await channel_service.update_channel(db, channel_id, payload.model_dump(exclude_unset=True))
     if channel is None:
         raise HTTPException(status_code=404, detail="频道不存在")
     await db.commit()

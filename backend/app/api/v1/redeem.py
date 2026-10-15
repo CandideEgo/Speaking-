@@ -230,10 +230,7 @@ async def revoke_code(
     """
     if payload is None:
         payload = RedeemRevokeRequest()
-    try:
-        code = await admin_service.revoke_redeem_code(db, code_id, payload.reason)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    code = await admin_service.revoke_redeem_code(db, code_id, payload.reason)
     return RedeemRevokeResponse(
         success=True,
         message=f"Code {code.code} revoked (reason: {code.revoked_reason.value if code.revoked_reason else 'unknown'})",
@@ -256,10 +253,7 @@ async def refund_code(
     ``duration_days`` from the user's ``plan_expires_at`` (not below now) +
     downgrade to free if expired. Full refund == full clawback.
     """
-    try:
-        code, user = await admin_service.refund_redeem_code(db, code_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    code, user = await admin_service.refund_redeem_code(db, code_id)
     return RedeemRefundResponse(
         success=True,
         message=f"Refund processed: clawed back {code.duration_days} days from user {user.id}",

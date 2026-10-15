@@ -245,18 +245,13 @@ async def answer_study_session(
     一次作答只写 1~2 行 UPDATE（词在本轮的行 + 词自身的行），并发出一次
     ``learned_words`` 学习事件（首次作答该词时），让今日累计真的长起来。
     """
-    try:
-        result = await study_session_service.submit_answer(
-            db,
-            current_user.id,
-            session_id,
-            body.vocabulary_id,
-            body.correct,
-        )
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    result = await study_session_service.submit_answer(
+        db,
+        current_user.id,
+        session_id,
+        body.vocabulary_id,
+        body.correct,
+    )
 
     item, word = (result["item"], None)
     rows = await study_session_service.session_rows(db, session_id)
@@ -294,10 +289,7 @@ async def finish_study_session(
     db: AsyncSession = Depends(get_db),
 ):
     """结束一轮（总结页到达时调用）。顺带清理该用户 30 天前的轮次明细。"""
-    try:
-        session = await study_session_service.finish_session(db, current_user.id, session_id)
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    session = await study_session_service.finish_session(db, current_user.id, session_id)
 
     rows = await study_session_service.session_rows(db, session.id)
     return StudySessionEnvelope(
@@ -325,10 +317,7 @@ async def get_vocabulary_practice(
     ``video_id`` / ``subtitle_id`` / ``start_time`` for the EndScreen's
     "复习本视频生词" deep link.
     """
-    try:
-        items = await practice_service.build_vocabulary_drill(db, current_user.id, level, count, due_only, video_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    items = await practice_service.build_vocabulary_drill(db, current_user.id, level, count, due_only, video_id)
 
     return {"items": items}
 

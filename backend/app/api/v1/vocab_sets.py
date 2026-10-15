@@ -41,10 +41,7 @@ async def collect_vocab_set(
     tokens. The target level comes from the body, then the user's
     preference, then the "cet4" fallback.
     """
-    try:
-        result = await vocab_set_service.collect_set(db, current_user, body.video_id, body.exam_level)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    result = await vocab_set_service.collect_set(db, current_user, body.video_id, body.exam_level)
     await db.commit()
     return result
 

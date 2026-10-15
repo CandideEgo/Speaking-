@@ -4,6 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -216,13 +217,21 @@ async def sms_register(request: Request, data: SmsRegisterRequest, db: AsyncSess
     db.add(user)
     try:
         await db.commit()
-    except Exception as exc:
+    except IntegrityError as exc:
         # Concurrent registration with the same phone can race past the check
         # above and hit the partial unique index — convert to a clean 409.
+        #
+        # The test is "does this phone exist now?", not a match on the driver's
+        # constraint name: whoever won the race has committed, so the re-query
+        # is the ground truth. Matching `"unique" in str(exc)` made the status
+        # code depend on driver prose — different driver wording, a translated
+        # message, or a rename of the index would have silently turned this 409
+        # back into a 500.
         await db.rollback()
-        if "uq_users_phone_partial" in str(exc) or "unique" in str(exc).lower():
-            raise HTTPException(status_code=409, detail="该手机号已注册") from exc
-        raise
+        taken = (await db.execute(select(User.id).where(User.phone == data.phone))).scalar_one_or_none()
+        if taken is None:
+            raise
+        raise HTTPException(status_code=409, detail="该手机号已注册") from exc
     await db.refresh(user)
 
     token = create_token(user.id)

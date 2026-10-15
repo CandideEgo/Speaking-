@@ -9,7 +9,7 @@ their admin routes in-place; this file adds the missing ones:
   - Orders listing
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user
@@ -96,10 +96,7 @@ async def ban_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Ban or unban a user. Admin only (cannot ban self)."""
-    try:
-        user = await admin_service.ban_user(db, user_id, payload.is_banned, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    user = await admin_service.ban_user(db, user_id, payload.is_banned, current_user.id)
     return {
         "id": user.id,
         "is_banned": user.is_banned,
@@ -116,10 +113,7 @@ async def change_user_role(
     db: AsyncSession = Depends(get_db),
 ):
     """Change user role (admin/user). Admin only (cannot change own role)."""
-    try:
-        user = await admin_service.change_user_role(db, user_id, payload.role, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    user = await admin_service.change_user_role(db, user_id, payload.role, current_user.id)
     return {
         "id": user.id,
         "role": user.role.value,
@@ -136,10 +130,7 @@ async def change_user_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """Grant or revoke Pro membership. Admin only."""
-    try:
-        user = await admin_service.change_user_plan(db, user_id, payload.plan, payload.duration_days, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    user = await admin_service.change_user_plan(db, user_id, payload.plan, payload.duration_days, current_user.id)
     return {
         "id": user.id,
         "plan": user.plan.value,
@@ -236,10 +227,7 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Partially update the singleton admin settings row. Admin only."""
-    try:
-        settings = await admin_service.update_admin_settings(db, payload.model_dump(exclude_unset=True))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    settings = await admin_service.update_admin_settings(db, payload.model_dump(exclude_unset=True))
     return {
         "site_name": settings.site_name,
         "wechat_shop_url": settings.wechat_shop_url,

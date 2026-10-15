@@ -78,11 +78,8 @@ async def start_daily_check(
     """
     if not level:
         level = await exam_service.user_target_level(db, current_user.id) or None
-    try:
-        session, questions = await exam_service.create_daily_session(db, current_user.id, level, count)
-        await db.commit()
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    session, questions = await exam_service.create_daily_session(db, current_user.id, level, count)
+    await db.commit()
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
@@ -107,13 +104,10 @@ async def redo_wrong_questions(
     db: AsyncSession = Depends(get_db),
 ):
     """Start a wrong-redo session (all wrong questions, or the given subset)."""
-    try:
-        session, questions = await exam_service.create_wrong_redo_session(
-            db, current_user.id, body.question_ids if body else None
-        )
-        await db.commit()
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    session, questions = await exam_service.create_wrong_redo_session(
+        db, current_user.id, body.question_ids if body else None
+    )
+    await db.commit()
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
@@ -194,12 +188,7 @@ async def submit_attempt(
     session = await exam_service.get_attempt_detail(db, session_id, current_user.id)
     if session is None:
         raise HTTPException(status_code=404, detail="作答不存在")
-    try:
-        result = await exam_service.submit_answers(db, session, current_user.id, [a.model_dump() for a in body.answers])
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    result = await exam_service.submit_answers(db, session, current_user.id, [a.model_dump() for a in body.answers])
     return ExamSubmitResponse(**result)
 
 

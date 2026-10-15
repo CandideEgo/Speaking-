@@ -49,81 +49,95 @@ def _token_issued_before_password_change(payload: dict, user: User) -> bool:
     return issued_at + timedelta(seconds=2) < changed_at
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: AsyncSession = Depends(get_db),
+class _AuthenticationError(Exception):
+    """没有可用的身份 —— 只在 **本模块内** 流转，不会逃到 handler。
+
+    存在的理由：``get_current_user`` 与 ``get_optional_user`` 走同一条校验链，
+    但结尾不一样（一个 raise、一个 return None）。把「哪一步没过」和「传什么
+    状态码」都放进这个异常，两个依赖就各自退回成三行：一个转成 HTTPException，
+    一个转成 None。
+
+    带上 ``status_code`` 是为了保住封禁的 403：封禁在必选依赖上是 403、在可选
+    依赖上是「当匿名」。若把它折成一个统一的 401，就等于**动了状态码**，而
+    批 1d 是搬运，不是改契约。
+    """
+
+    def __init__(self, status_code: int, message: str) -> None:
+        self.status_code = status_code
+        self.message = message
+        super().__init__(message)
+
+
+async def _authenticate(
+    credentials: HTTPAuthorizationCredentials | None,
+    db: AsyncSession,
 ) -> User:
+    """把一次请求的 token 解析成 User，失败一律抛 `_AuthenticationError`。
+
+    这是**唯一**一份登录校验链：token 类型、黑名单、``password_changed_at``、
+    用户是否还在、是否被封禁。过去它有两份拷贝（必选 / 可选两个依赖），于是
+    每加一条规则都得改两处，漏一处不报错，只让可选鉴权端点静默地少一道门。
+    """
     if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     payload = decode_token(credentials.credentials)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Invalid token")
 
     # Prevent refresh tokens from being used as access tokens
     if payload.get("type") not in ("access", None):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Invalid token type")
 
     # Token blacklist check (skip if feature disabled)
     if settings.jwt_blacklist_enabled and await is_token_blacklisted(payload.get("jti")):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Token has been revoked")
 
     user_id = payload.get("sub")
     if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Invalid token")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise _AuthenticationError(status.HTTP_401_UNAUTHORIZED, "User not found")
 
     # Reject tokens issued before the last password change/reset.
     if _token_issued_before_password_change(payload, user):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired due to password change. Please log in again.",
+        raise _AuthenticationError(
+            status.HTTP_401_UNAUTHORIZED,
+            "Session expired due to password change. Please log in again.",
         )
 
     # Reject banned users — their tokens may still be valid but access is revoked.
     if user.is_banned:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已被封禁")
+        raise _AuthenticationError(status.HTTP_403_FORBIDDEN, "账户已被封禁")
 
     return user
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    try:
+        return await _authenticate(credentials, db)
+    except _AuthenticationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    if credentials is None:
-        return None
-    payload = decode_token(credentials.credentials)
-    if payload is None:
-        return None
+    """Same chain as `get_current_user`; every rejection degrades to "anonymous".
 
-    # Prevent refresh tokens from being used as access tokens
-    if payload.get("type") not in ("access", None):
+    A banned user is rejected here too (not just on required endpoints) — the
+    difference is only that this dependency answers ``None`` instead of 403.
+    """
+    try:
+        return await _authenticate(credentials, db)
+    except _AuthenticationError:
         return None
-
-    # Token blacklist check (skip if feature disabled)
-    if settings.jwt_blacklist_enabled and await is_token_blacklisted(payload.get("jti")):
-        return None
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        return None
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-
-    # Reject tokens issued before the last password change/reset.
-    if user is not None and _token_issued_before_password_change(payload, user):
-        return None
-
-    # Reject banned users even on optional-auth endpoints.
-    if user is not None and user.is_banned:
-        return None
-
-    return user
 
 
 async def get_admin_user(

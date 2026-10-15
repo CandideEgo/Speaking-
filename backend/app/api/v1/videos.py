@@ -157,10 +157,7 @@ async def get_demo_video(
     404 means the operator has not marked a demo video yet; the client falls
     back to the home page rather than blocking onboarding.
     """
-    try:
-        return await _get_demo_video(db)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="暂未配置第一课视频") from exc
+    return await _get_demo_video(db)
 
 
 @router.get("/search", response_model=list[VideoResponse])
@@ -289,14 +286,7 @@ async def update_admin_video(
     db: AsyncSession = Depends(get_db),
 ):
     """Update video metadata (title, difficulty, tags, official/featured, published, notes). Admin only."""
-    try:
-        return await _update_video(db, video_id, payload)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
-        # Publish guard (and any other domain rule): 400 Bad Request.
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from None
+    return await _update_video(db, video_id, payload)
 
 
 @router.delete("/admin/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -308,10 +298,8 @@ async def delete_admin_video(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a video and all of its dependents + media files. Admin only."""
-    try:
-        await _delete_video(db, video_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+    await _delete_video(db, video_id)
+
     return None
 
 
@@ -331,15 +319,7 @@ async def start_processing_video(
     """
     from app.services.video_seed_service import start_processing as _start_processing
 
-    try:
-        return await _start_processing(db, video_id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        if "offline" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _start_processing(db, video_id)
 
 
 @router.post("/admin/{video_id}/recover", response_model=VideoAdminResponse)
@@ -360,13 +340,7 @@ async def recover_video(
     """
     from app.services.video_seed_service import recover_processing as _recover_processing
 
-    try:
-        return await _recover_processing(db, video_id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _recover_processing(db, video_id)
 
 
 @router.post("/admin/{video_id}/retry", response_model=VideoAdminResponse)
@@ -388,13 +362,7 @@ async def retry_video(
     """
     from app.services.video_seed_service import retry_video as _retry_video
 
-    try:
-        return await _retry_video(db, video_id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _retry_video(db, video_id)
 
 
 @router.get("/admin/takedown-suggestions")
@@ -428,10 +396,7 @@ async def takedown_admin_video(
     """
     from app.services.video_service import takedown_video
 
-    try:
-        return await takedown_video(db, video_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return await takedown_video(db, video_id)
 
 
 @router.post("/admin/{video_id}/localize", response_model=VideoAdminResponse)
@@ -443,13 +408,7 @@ async def localize_admin_video(
     db: AsyncSession = Depends(get_db),
 ):
     """Download + transcode an imported video's source to local storage. Admin only."""
-    try:
-        return await _localize_video_admin(db, video_id)
-    except ValueError as e:
-        msg = str(e)
-        if "already processing" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
+    return await _localize_video_admin(db, video_id)
 
 
 @router.post("/admin/{video_id}/retranslate", response_model=VideoAdminResponse)
@@ -470,13 +429,7 @@ async def retranslate_video(
     """
     from app.services.video_seed_service import retranslate_video as _retranslate
 
-    try:
-        return await _retranslate(db, video_id, engine=engine)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _retranslate(db, video_id, engine=engine)
 
 
 @router.get("/admin/{video_id}/quality-reports")
@@ -532,14 +485,7 @@ async def update_admin_subtitle(
 ):
     """Edit one subtitle's text/timing/grammar note. Editing text_en resets that
     line's word_levels to the ECDICT baseline. Admin only."""
-    try:
-        return await _update_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        # Cross-video edit attempt.
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _update_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
 
 
 @router.patch("/admin/{video_id}/subtitles", response_model=list[SubtitleResponse])
@@ -552,13 +498,7 @@ async def update_admin_subtitles_batch(
     db: AsyncSession = Depends(get_db),
 ):
     """Apply many subtitle edits in one transaction. All ids must belong to video_id. Admin only."""
-    try:
-        return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _update_subtitles_batch(db, video_id, payload, edited_by=current_user.id)
 
 
 @router.post("/admin/{video_id}/subtitles", response_model=SubtitleResponse)
@@ -573,13 +513,7 @@ async def create_admin_subtitle(
     """Append a new subtitle row at the end of the video (canvas editor).
     The English text may be empty initially; timing must not overlap existing
     rows. Admin only."""
-    try:
-        return await _create_subtitle(db, video_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _create_subtitle(db, video_id, payload, edited_by=current_user.id)
 
 
 @router.post(
@@ -598,13 +532,7 @@ async def reorder_admin_subtitles(
     editor drag-to-reorder). The payload must cover all current subtitles with
     a contiguous 0..N-1 index sequence; timing is re-validated against the new
     neighbor order. Admin only."""
-    try:
-        return await _reorder_subtitles(db, video_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _reorder_subtitles(db, video_id, payload, edited_by=current_user.id)
 
 
 @router.delete("/admin/{video_id}/subtitles/{subtitle_id}", response_model=dict)
@@ -618,13 +546,7 @@ async def delete_admin_subtitle(
 ):
     """Delete one subtitle and close the gap in sentence_index (canvas editor).
     Admin only."""
-    try:
-        return await _delete_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _delete_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
 
 
 @router.post(
@@ -641,13 +563,7 @@ async def split_admin_subtitle(
     db: AsyncSession = Depends(get_db),
 ):
     """Split one subtitle into two at split_time. Admin only."""
-    try:
-        return await _split_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _split_subtitle(db, video_id, subtitle_id, payload, edited_by=current_user.id)
 
 
 @router.post(
@@ -663,13 +579,7 @@ async def merge_admin_subtitle(
     db: AsyncSession = Depends(get_db),
 ):
     """Merge a subtitle with the next one. Admin only."""
-    try:
-        return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
 
 
 @router.post("/admin/{video_id}/subtitles/resegment", response_model=dict)
@@ -684,11 +594,7 @@ async def resegment_admin_subtitles(
     the change is reversible via /resegment/rollback. Translations are cleared
     — segmentation changed, so the admin should re-trigger translation after.
     Admin only."""
-    try:
-        return await _resegment_video(db, video_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _resegment_video(db, video_id, edited_by=current_user.id)
 
 
 @router.post("/admin/{video_id}/subtitles/resegment/rollback", response_model=dict)
@@ -700,11 +606,7 @@ async def rollback_resegment_admin(
     db: AsyncSession = Depends(get_db),
 ):
     """Restore subtitles from the latest re-segment snapshot. Admin only."""
-    try:
-        return await _rollback_resegment(db, video_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _rollback_resegment(db, video_id, edited_by=current_user.id)
 
 
 @router.patch("/admin/{video_id}/subtitles/{subtitle_id}/word-levels", response_model=SubtitleResponse)
@@ -718,13 +620,7 @@ async def update_admin_word_levels(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually override one subtitle's word-level annotations. Pass null to clear. Admin only."""
-    try:
-        return await _update_word_levels(db, video_id, subtitle_id, payload)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _update_word_levels(db, video_id, subtitle_id, payload)
 
 
 @router.post("/admin/{video_id}/subtitles/word-levels/recompute")
@@ -752,13 +648,7 @@ async def rollback_admin_subtitle(
     db: AsyncSession = Depends(get_db),
 ):
     """Roll back a subtitle to the before-state of a prior edit. Admin only."""
-    try:
-        return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
-    except ValueError as e:
-        msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from e
+    return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
 
 
 @router.get("/admin/{video_id}/subtitles/revisions")
@@ -801,10 +691,7 @@ async def approve_admin_review(
     """Approve a UGC video pending review: freezes live subtitles as the public
     version and marks it published. Admin only."""
     video = await _get_admin_video_or_404(db, video_id)
-    try:
-        return VideoAdminResponse.model_validate(await _approve_review(db, video, current_user))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return VideoAdminResponse.model_validate(await _approve_review(db, video, current_user))
 
 
 @router.post("/admin/{video_id}/review/reject", response_model=VideoAdminResponse)
@@ -819,20 +706,14 @@ async def reject_admin_review(
     """Reject a UGC video pending review with a reason. The public keeps the
     last approved snapshot (if any); the owner can edit & resubmit. Admin only."""
     video = await _get_admin_video_or_404(db, video_id)
-    try:
-        return VideoAdminResponse.model_validate(await _reject_review(db, video, current_user, payload.reason))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return VideoAdminResponse.model_validate(await _reject_review(db, video, current_user, payload.reason))
 
 
 async def _get_admin_video_or_404(db: AsyncSession, video_id: str):
     """Admin helper: fetch any video by id (no access gate — admin sees all)."""
     from app.services.video_service import _get_video_or_404
 
-    try:
-        return await _get_video_or_404(db, video_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found") from None
+    return await _get_video_or_404(db, video_id)
 
 
 @router.get("/admin/{video_id}/detail", response_model=VideoDetailResponse)
@@ -1286,10 +1167,7 @@ async def toggle_video_like(
     current_user: User = Depends(get_current_user),
 ):
     """Toggle like on a video. Returns {"liked": bool}."""
-    try:
-        return await _toggle_video_like(db, current_user.id, video_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return await _toggle_video_like(db, current_user.id, video_id)
 
 
 @router.get("/{video_id}/like-status")
