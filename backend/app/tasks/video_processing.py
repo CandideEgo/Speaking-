@@ -694,6 +694,52 @@ async def _run_classifying(ctx: PipelineCtx) -> None:
     await update_progress(video_id, "classifying")
 
 
+async def _run_downloading(ctx: PipelineCtx) -> None:
+    """Materialize the local file ``transcoding`` reads.
+
+    An imported (YouTube) source may play via embed with no local file at all,
+    so a failed download logs and continues; a local upload whose staged raw
+    file is gone *is* an error — there would be nothing to transcode and
+    nothing to serve.
+    """
+    from app.models.video import VideoSource
+
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    if video.video_source == VideoSource.imported:
+        ctx.video_path = await _download_video(video.source_url, video.id)
+        if not ctx.video_path:
+            # Imported (YouTube) videos can be played via embed
+            # without a local file.  Log and continue rather than
+            # failing the entire pipeline.
+            logger.warning(
+                "Video %s: download failed — continuing without local file (embed playback)",
+                video_id,
+            )
+    else:
+        # Local upload: raw file already staged by the head.
+        ctx.video_path = _find_local_raw(video.id)
+        if not ctx.video_path:
+            raise Exception(f"Raw video file not found for local upload {video_id}")
+    video.processing_step = "downloading"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["downloading"]
+    await db.commit()
+    await update_progress(video_id, "downloading")
+
+
+async def _skip_downloading(ctx: PipelineCtx) -> None:
+    """A resumed run still owes ``transcoding`` the path (``Step.skip_run``).
+
+    The download itself already happened, but a local upload's raw file has to
+    be re-found or the transcode that follows runs on ``None``. Imported sources
+    have nothing to re-find: their path only ever came from the download.
+    """
+    from app.models.video import VideoSource
+
+    if ctx.video.video_source != VideoSource.imported:
+        ctx.video_path = _find_local_raw(ctx.video_id)
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
@@ -703,6 +749,13 @@ _TAIL_BODIES: dict[str, StepBody] = {
     "annotating": _run_annotating,
     "prewarm_notes": _run_prewarm_notes,
     "classifying": _run_classifying,
+    "downloading": _run_downloading,
+}
+
+#: Bodies that run *instead* of the body above when a resume skips that step,
+#: because the step left something behind the later steps still need.
+_TAIL_SKIP_BODIES: dict[str, StepBody] = {
+    "downloading": _skip_downloading,
 }
 
 
@@ -713,7 +766,11 @@ def finalize_steps() -> tuple[Step, ...]:
     step to the declaration plus a body to ``_TAIL_BODIES`` is the whole change,
     and a body whose name is not declared simply never runs.
     """
-    return tuple(replace(step, run=_TAIL_BODIES[step.name]) for step in STEPS if step.name in _TAIL_BODIES)
+    return tuple(
+        replace(step, run=_TAIL_BODIES[step.name], skip_run=_TAIL_SKIP_BODIES.get(step.name))
+        for step in STEPS
+        if step.name in _TAIL_BODIES
+    )
 
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.finalize_video")
@@ -750,40 +807,11 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 # the sequence still waiting for its own body.
                 await run_steps(ctx, finalize_steps())
 
-                # --- Step: downloading ---
-                ctx.current_step = "downloading"
-                video_path = None
-                if not await is_step_done(video_id, "downloading"):
-                    if video.video_source == VideoSource.imported:
-                        video_path = await _download_video(video.source_url, video.id)
-                        if not video_path:
-                            # Imported (YouTube) videos can be played via embed
-                            # without a local file.  Log and continue rather than
-                            # failing the entire pipeline.
-                            logger.warning(
-                                "Video %s: download failed — continuing without local file (embed playback)",
-                                video_id,
-                            )
-                    else:
-                        # Local upload: raw file already staged by the head.
-                        video_path = _find_local_raw(video.id)
-                        if not video_path:
-                            raise Exception(f"Raw video file not found for local upload {video_id}")
-                    video.processing_step = "downloading"
-                    touch_step_started_at(video)
-                    video.processing_progress = 75
-                    await db.commit()
-                    await update_progress(video_id, "downloading")
-                else:
-                    logger.info("Video %s: skipping downloading (already done)", video_id)
-                    if video.video_source != VideoSource.imported:
-                        video_path = _find_local_raw(video.id)
-
                 # --- Step: transcoding ---
                 ctx.current_step = "transcoding"
                 if not await is_step_done(video_id, "transcoding"):
-                    if video_path:
-                        urls = await _transcode_video(video_path, video.id)
+                    if ctx.video_path:
+                        urls = await _transcode_video(ctx.video_path, video.id)
                         video.video_url_480p = urls.get("480p")
                         video.video_url_720p = urls.get("720p", f"/media/{video.id}_raw.mp4")
                         video.video_url_1080p = urls.get("1080p")
