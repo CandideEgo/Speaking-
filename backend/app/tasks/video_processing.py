@@ -584,12 +584,65 @@ async def _run_translating(ctx: PipelineCtx) -> None:
     await update_progress(video_id, "translating")
 
 
+async def _run_annotating(ctx: PipelineCtx) -> None:
+    """Tag subtitles with exam-level word keys — pure local ECDICT, no AI.
+
+    ``Subtitle.word_levels`` maps lemma → exam level keys once, level-agnostic;
+    the watch page filters by the reader's target exam at display time. An
+    existing annotation wins (manual review override, or a re-run where
+    ``text_en`` did not change but the pipeline re-ran).
+
+    A missing ECDICT db is not a failure: the step records itself done and
+    ``word_levels`` stays null.
+    """
+    from sqlalchemy import select
+
+    from app.models.subtitle import Subtitle
+
+    db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    if not ecdict.is_available():
+        logger.warning(
+            "Video %s: skipping annotating (ECDICT db missing at %s)",
+            video_id,
+            ecdict.DB_PATH,
+        )
+        await update_progress(video_id, "annotating")
+        return
+
+    ann_result = await db.execute(
+        select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
+    )
+    annotated_count = 0
+    preserved_count = 0
+    for s in ann_result.scalars().all():
+        if s.word_levels is not None:
+            # Preserve existing annotation (manual override or prior compute)
+            preserved_count += 1
+            continue
+        levels = ecdict.annotate_text(s.text_en)
+        s.word_levels = levels or None
+        annotated_count += 1
+    if preserved_count > 0:
+        logger.info(
+            "Video %s: preserved %d existing word_levels, annotated %d new",
+            video_id,
+            preserved_count,
+            annotated_count,
+        )
+    video.processing_step = "annotating"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["annotating"]
+    await db.commit()
+    await update_progress(video_id, "annotating")
+
+
 #: Step name → body, for the steps **this task** owns. The declaration (order,
 #: progress, watchdog budget) stays in ``pipeline_helpers``; only the code lives
 #: here, next to the helpers the bodies call and on the same side of the
 #: import cycle the declaration has to stay clear of.
 _TAIL_BODIES: dict[str, StepBody] = {
     "translating": _run_translating,
+    "annotating": _run_annotating,
 }
 
 
@@ -617,7 +670,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
     from sqlalchemy import select
 
     from app.core.database import async_session
-    from app.models.subtitle import Subtitle
     from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
     async def _process():
@@ -637,52 +689,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 # failure attribution come with it. What follows is the tail of
                 # the sequence still waiting for its own body.
                 await run_steps(ctx, finalize_steps())
-
-                # --- Step: annotating (CET/高考/考研 exam-level word tags) ---
-                ctx.current_step = "annotating"
-                # Pure local ECDICT lookup — no AI. Populates Subtitle.word_levels
-                # (lemma -> exam level keys) once, level-agnostic, so the watch
-                # page can filter by the user's target exam at display time.
-                # Skipped gracefully when the ECDICT db is absent (word_levels null).
-                # Phase 2: preserve existing word_levels — only compute when null.
-                # This protects manual overrides (admin review) and re-translation
-                # scenarios where text_en didn't change but the pipeline re-ran.
-                if not await is_step_done(video_id, "annotating"):
-                    if ecdict.is_available():
-                        ann_result = await db.execute(
-                            select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
-                        )
-                        annotated_count = 0
-                        preserved_count = 0
-                        for s in ann_result.scalars().all():
-                            if s.word_levels is not None:
-                                # Preserve existing annotation (manual override or prior compute)
-                                preserved_count += 1
-                                continue
-                            levels = ecdict.annotate_text(s.text_en)
-                            s.word_levels = levels or None
-                            annotated_count += 1
-                        if preserved_count > 0:
-                            logger.info(
-                                "Video %s: preserved %d existing word_levels, annotated %d new",
-                                video_id,
-                                preserved_count,
-                                annotated_count,
-                            )
-                        video.processing_step = "annotating"
-                        touch_step_started_at(video)
-                        video.processing_progress = 72
-                        await db.commit()
-                        await update_progress(video_id, "annotating")
-                    else:
-                        logger.warning(
-                            "Video %s: skipping annotating (ECDICT db missing at %s)",
-                            video_id,
-                            ecdict.DB_PATH,
-                        )
-                        await update_progress(video_id, "annotating")
-                else:
-                    logger.info("Video %s: skipping annotating (already done)", video_id)
 
                 # --- Step: prewarm_notes (per-video AI learning notes) ---
                 ctx.current_step = "prewarm_notes"
