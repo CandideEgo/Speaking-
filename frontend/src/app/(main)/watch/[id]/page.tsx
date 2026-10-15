@@ -16,6 +16,7 @@ import { useShadowing, type ShadowingAttempt } from "@/hooks/useShadowing";
 import { useSentenceShadowing } from "@/hooks/useSentenceShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useSubtitleFollow } from "@/hooks/useSubtitleFollow";
+import { useWatchChromeBridge } from "@/hooks/useWatchChromeBridge";
 import { useVideoPlayer, bestVideoUrl, youtubeId, PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
@@ -31,13 +32,11 @@ import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/Subtit
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { WordCardSheet } from "@/components/watch/WordCardSheet";
 import { ShadowingDrawer } from "@/components/watch/ShadowingDrawer";
-import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
 import { SentenceWordStrip } from "@/components/watch/SentenceWordStrip";
 import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
-import { useWatchChrome, type WatchChromeState } from "@/components/watch/WatchChromeProvider";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { WaveformCompare } from "@/components/speaking/WaveformCompare";
 import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
@@ -704,87 +703,28 @@ export default function WatchPage() {
   }
 
   // ---- 页面 → 壳：顶栏内容 + 底栏句柄（DEC-069 / #31）----------------------------
+  // 装配与 INV-025 那几条约束都在 useWatchChromeBridge 里；这里只交出页面这一侧的状态与回调。
   // **必须放在下面那些 early return 之前**：hook 一旦在某个分支被跳过，React 直接抛
   // 「Rendered fewer hooks than expected」并把整棵页面树卸载 —— 实测表现是只剩壳、
   // 页面内容整块消失（这个坑真踩过）。
-  //
-  // 只放**低频**事实：`currentTime` 每秒跳 4 次，进 store 会让整个壳每秒重渲染 4 次。
-  // 进度条由 `WatchBottomBar` 自己 rAF 直读 `videoRef`（见该文件顶部注释）。
-  // 上一句没有现成的页面函数，直接用 hook 的 `navigateSubtitle(-1)`（桌面端本来就有）。
-  const chromeTimer = useCallback(() => setMoreOpen((v) => !v), []);
-  // `<video>` 的 ref 落点：`videoRef` 与底栏共用同一个元素，但底栏还需要「元素接上了」这次
-  // 通知（`aria-valuemax` 必须重渲染才能改）。写法与 `nextRef` 同理 —— 把这次通知变成一次
-  // **低频** state 变化（只在挂载/卸载时），而不是让整个壳跟着每次渲染重算（INV-025）。
-  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
-  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
-    // `useVideoPlayer` 的 ref 声明成 `RefObject<HTMLVideoElement>`（`useRef(null!)`）；
-    // 元素卸载时 React 会用 null 调回调 ref，所以这里按可空写入 —— 与它的初值同性质。
-    videoRef.current = el as HTMLVideoElement;
-    setVideoEl(el);
-    // videoRef 是 useRef 的固定对象，故意不进依赖。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const chromeShadowing = useCallback(() => {
-    if (practiceOpen) closePractice();
-    else setPracticeOpen(true);
-    // closePractice 是每次渲染新建的普通函数，故意不进依赖（它只碰 ref 与稳定 setter）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [practiceOpen]);
-
-  const chrome: WatchChromeState = useMemo(
-    () => ({
-      title: video?.title ?? "",
-      levelText: `${video?.channel_name || "SeeWord"} · ${cefrWithExamHint(
-        video?.difficulty_level || "B2"
-      )}`,
-      levelSelector: (
-        <ExamLevelSelector level={selectedExamLevel} onChange={handleExamLevelChange} />
-      ),
-      onBack: back.go,
-      onMore: chromeTimer,
-      moreOpen,
-      videoRef,
-      attachVideo,
-      duration: video?.duration ?? null,
-      isPlaying,
-      onTogglePlay: togglePlayPause,
-      // 显式「上一句」也算一次句导航：先恢复跟随，再走 hook 的上一句（顺序不能反 ——
-      // `navigateSubtitle` 会同步改 `currentSubtitleIndex`，跟随 effect 就在那之后跑）。
-      onPrev: () => {
-        resumeFollow();
-        navigateSubtitle(-1);
-      },
-      // onPrev 稳定（`navigateSubtitle` 是 useCallback + ref 读值），onNext 也必须稳定 ——
-      // 见上面 `nextRef` / `onNextStable`。**别**把 `handleNextSubtitle` 或
-      // `currentSubtitleIndex` 加进依赖表：那会让壳每句重渲染 4 次（INV-025）。
-      onNext: onNextStable,
-      sentenceNavDisabled: isYtMode,
-      onShadowing: chromeShadowing,
-      shadowingActive: practiceOpen,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      video,
-      selectedExamLevel,
-      back.go,
-      chromeTimer,
-      moreOpen,
-      isPlaying,
-      togglePlayPause,
-      navigateSubtitle,
-      resumeFollow,
-      isYtMode,
-      chromeShadowing,
-      practiceOpen,
-      onNextStable,
-      attachVideo,
-      // `attachVideo` 是稳定 useCallback；`videoEl` 只用来给「元素接上了」这次低频变化
-      // 触发一次重算，它本身不参与 chrome 的值（所以上面对象里没引用它）。
-      videoEl,
-    ]
-  );
-  useWatchChrome(chrome);
+  const chrome = useWatchChromeBridge({
+    video,
+    videoRef,
+    moreOpen,
+    setMoreOpen,
+    practiceOpen,
+    setPracticeOpen,
+    closePractice,
+    selectedExamLevel,
+    onExamLevelChange: handleExamLevelChange,
+    onBack: back.go,
+    isPlaying,
+    onTogglePlay: togglePlayPause,
+    resumeFollow,
+    navigateSubtitle,
+    onNext: onNextStable,
+    isYtMode,
+  });
 
   // --- Keyboard shortcuts: 页面层不再持有快捷键 —— D1 后统一由
   // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；「下一句」由录音展开态按钮承担。
