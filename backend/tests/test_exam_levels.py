@@ -1,5 +1,7 @@
 """Tests for the exam-level taxonomy (app.core.exam_levels)."""
 
+import pytest
+
 from app.core.exam_levels import (
     EXAM_LEVEL_KEYS,
     EXAM_LEVELS,
@@ -7,7 +9,10 @@ from app.core.exam_levels import (
     display_level,
     level_order,
     max_level,
+    normalize_levels,
+    normalize_word_levels,
     should_display,
+    validate_word_levels,
 )
 
 
@@ -76,3 +81,45 @@ def test_target_options_exclude_collapsed_tiers():
 
 def test_taxonomy_covers_all_keys():
     assert set(EXAM_LEVELS.keys()) == set(EXAM_LEVEL_KEYS)
+
+
+# --- word_levels shape (the two historical shapes and the request rule) ------
+
+
+def test_normalize_levels_accepts_both_historical_shapes():
+    assert normalize_levels(["cet4", "cet6"]) == ["cet4", "cet6"]
+    assert normalize_levels("cet4") == ["cet4"]  # the legacy str arm
+    assert normalize_levels(("cet4",)) == ["cet4"]
+
+
+def test_normalize_levels_drops_unusable_members():
+    assert normalize_levels(["cet4", None, "", 7, "cet6"]) == ["cet4", "cet6"]
+    assert normalize_levels(None) == []
+    assert normalize_levels("") == []
+    assert normalize_levels([]) == []
+
+
+def test_normalize_levels_is_total():
+    """A read must never raise on whatever an older writer left behind."""
+    for junk in (42, 3.5, True, {"a": 1}, object()):
+        assert normalize_levels(junk) == []
+
+
+def test_normalize_word_levels_drops_entries_with_no_levels():
+    # A str value is the legacy shape; empty/None entries carry no annotation.
+    assert normalize_word_levels({"fox": "cet4", "cat": [], "dog": None}) == {"fox": ["cet4"]}
+
+
+def test_normalize_word_levels_tolerates_a_non_dict_field():
+    for junk in (None, "cet4", [1, 2], 7):
+        assert normalize_word_levels(junk) == {}
+
+
+def test_validate_word_levels_accepts_known_keys_only():
+    validate_word_levels(None)
+    validate_word_levels({"fox": ["cet4", "gre"]})
+    with pytest.raises(ValueError, match="unknown exam level"):
+        validate_word_levels({"fox": ["cet5"]})
+    # The legacy str shape is storage history, not a valid request.
+    with pytest.raises(ValueError, match="must be a list"):
+        validate_word_levels({"fox": "cet4"})

@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
-from app.core.exam_levels import EXAM_LEVELS
+from app.core.exam_levels import EXAM_LEVELS, normalize_word_levels
 from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent
 from app.models.subtitle import Subtitle
@@ -99,15 +99,14 @@ async def _load_tokens(db: AsyncSession, video_id: str, level: str) -> list[tupl
     tokens: list[tuple[str, str]] = []
     seen: set[str] = set()
     for sub in subtitles:
-        word_levels = sub.word_levels or {}
-        if not isinstance(word_levels, dict):
-            continue
-        for raw_token, levels in word_levels.items():
+        # One home for the list-or-str tolerance: app.core.exam_levels. Empty
+        # entries are already dropped there, so `level in levels` is the whole
+        # membership test this loop needs.
+        for raw_token, levels in normalize_word_levels(sub.word_levels).items():
             token = str(raw_token).strip().lower()
             if not token or token in seen:
                 continue
-            member = (isinstance(levels, list) and level in levels) or (isinstance(levels, str) and levels == level)
-            if member:
+            if level in levels:
                 seen.add(token)
                 tokens.append((token, sub.id))
     return tokens

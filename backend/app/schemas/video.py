@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from app.core.exam_levels import validate_word_levels
+
 
 class VideoCreate(BaseModel):
     source_url: str
@@ -340,6 +342,9 @@ class WordLevelsUpdate(BaseModel):
     ``word_levels`` maps a lowercase surface token to a list of canonical exam
     level keys (mirrors app.core.exam_levels.EXAM_LEVEL_KEYS). Pass null to
     clear all annotations for the line.
+
+    The rule itself lives in ``app.core.exam_levels.validate_word_levels`` so
+    that request validation and the column's normalizer read from one home.
     """
 
     word_levels: dict[str, list[str]] | None = None
@@ -347,17 +352,7 @@ class WordLevelsUpdate(BaseModel):
     @field_validator("word_levels")
     @classmethod
     def validate_level_keys(cls, v: dict[str, list[str]] | None) -> dict[str, list[str]] | None:
-        if v is None:
-            return v
-        from app.core.exam_levels import EXAM_LEVEL_KEYS
-
-        allowed = set(EXAM_LEVEL_KEYS)
-        for token, levels in v.items():
-            if not isinstance(levels, list):
-                raise ValueError(f"levels for {token!r} must be a list")
-            for lvl in levels:
-                if lvl not in allowed:
-                    raise ValueError(f"unknown exam level {lvl!r} (allowed: {sorted(allowed)})")
+        validate_word_levels(v)
         return v
 
 

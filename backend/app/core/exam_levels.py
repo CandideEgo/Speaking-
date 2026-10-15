@@ -74,3 +74,74 @@ def display_level(word_levels: list[str], target_level: str | None = None) -> st
     if target_level and target_level in word_levels:
         return target_level
     return max_level(word_levels)
+
+
+# ---------------------------------------------------------------------------
+# word_levels shape — the annotation field on Subtitle
+# ---------------------------------------------------------------------------
+#
+# ``Subtitle.word_levels`` is a plain ``JSON`` column: nothing between a writer
+# and the database enforces its shape. The canonical shape is
+# ``{surface token: [level keys]}``, which is what every writer produces today
+# (``app/services/ecdict.py::levels_of`` → ``list[str]``).  A bare ``str`` per
+# entry has also been accepted defensively since the feature landed (``8db75a6``
+# added the ``elif isinstance(levels, str)`` arm to the consumer), and that
+# tolerance had been copy-pasted into a second consumer
+# (``app/services/vocab_set_service.py``).  These three functions replace the
+# copies: one home for the shape, read by every consumer, plus the column type
+# in ``app/models/types.py`` that stops new bad shapes from being written.
+
+
+def normalize_levels(value: object) -> list[str]:
+    """Canonical ``list[str]`` for one ``word_levels`` entry's value.
+
+    Total by construction — a read must never raise on data an old writer left
+    behind. ``None`` and anything unrecognized normalize to ``[]`` (the entry
+    then gets dropped by :func:`normalize_word_levels`), so a row with an
+    unexpected value degrades to "no annotation" instead of failing the request.
+
+    The ``str`` arm is **temporary**: it exists only because the shape census
+    over historical rows has not been run. Once
+    ``scripts/backfill_word_levels.py`` has been run and its census reports 0
+    non-array entries, delete that arm — not before, or a legacy row silently
+    loses its annotation.
+    """
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, (list, tuple, set)):
+        return [v for v in value if isinstance(v, str) and v]
+    return []
+
+
+def normalize_word_levels(field: object) -> dict[str, list[str]]:
+    """Canonical ``{token: [level keys]}`` for a whole ``word_levels`` field.
+
+    Non-dict input and entries that normalize to no levels are dropped, so an
+    empty result means "no annotations at all" — writers store that as SQL NULL
+    (see ``app/models/types.py``), which is also how the column's NULL and an
+    empty dict have always been treated interchangeably.
+    """
+    if not isinstance(field, dict):
+        return {}
+    normalized = {str(token): normalize_levels(levels) for token, levels in field.items()}
+    return {token: levels for token, levels in normalized.items() if levels}
+
+
+def validate_word_levels(field: dict[str, list[str]] | None) -> None:
+    """Raise ``ValueError`` unless every entry holds known level list keys.
+
+    Stricter than :func:`normalize_word_levels` on purpose, and only for
+    **requests** (``app/schemas/video.py``), where a wrong key is the caller's
+    typo and a 422 with the allowed set is the useful answer. Storage keeps the
+    tolerant normalizer: a highlight that never matches is a rendering loss, not
+    a reason to fail a request that is otherwise fine.
+    """
+    if field is None:
+        return
+    allowed = set(EXAM_LEVEL_KEYS)
+    for token, levels in field.items():
+        if not isinstance(levels, list):
+            raise ValueError(f"levels for {token!r} must be a list")
+        for level in levels:
+            if level not in allowed:
+                raise ValueError(f"unknown exam level {level!r} (allowed: {sorted(allowed)})")

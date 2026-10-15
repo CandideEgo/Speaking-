@@ -4,6 +4,7 @@ from sqlalchemy import JSON, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.types import WordLevelsJSON
 
 
 class Subtitle(Base):
@@ -28,7 +29,9 @@ class Subtitle(Base):
     # CET/高考/考研 exam-level word annotations.
     # Maps lowercase word -> list of canonical exam level keys (see app.core.exam_levels).
     # Computed once at ingest from ECDICT; level-agnostic so display can filter by user target.
-    word_levels: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # The column type canonicalizes the shape on read and write — app.models.types
+    # explains why that enforcement lives on the column rather than in the schema.
+    word_levels: Mapped[dict | None] = mapped_column(WordLevelsJSON(), nullable=True)
 
     # Word-level timestamps from WhisperX alignment: [{word, start, end}, ...].
     # Populated at ingest (transcription callback). Enables precise segment

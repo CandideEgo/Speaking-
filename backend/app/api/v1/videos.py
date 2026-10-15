@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
 from app.core.database import get_db
+from app.core.exam_levels import normalize_word_levels
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.models.video import Video
@@ -1021,16 +1022,11 @@ async def list_shadowing_sentences(
     )
 
     def _exam_count(sub: Subtitle) -> int:
-        wl = sub.word_levels or {}
-        if not isinstance(wl, dict):
-            return 0
-        n = 0
-        for levels in wl.values():
-            if isinstance(levels, list) and target_exam in levels:
-                n += 1
-            elif isinstance(levels, str) and levels == target_exam:
-                n += 1
-        return n
+        # Shape tolerance for historical rows lives in one place now
+        # (app.core.exam_levels.normalize_word_levels) — this function used to
+        # carry its own copy of the list-or-str branch.
+        by_token = normalize_word_levels(sub.word_levels)
+        return sum(1 for levels in by_token.values() if target_exam in levels)
 
     scored = sorted(subtitles, key=_exam_count, reverse=True)
     if scored and _exam_count(scored[0]) > 0:
