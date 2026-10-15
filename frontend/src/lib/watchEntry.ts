@@ -13,6 +13,8 @@
  * "home → watch → home → browser back → watch again".
  */
 
+import type { Subtitle } from "@/types";
+
 export type WatchSource =
   "home" | "channel" | "set" | "drill" | "search" | "favorites" | "history" | "rankings" | "browse";
 
@@ -117,6 +119,74 @@ export function watchSentenceHref(
   focus: SentenceFocus
 ): string {
   return watchHref(videoId, { ...entry, extra: { ...entry.extra, ...sentenceFocusParams(focus) } });
+}
+
+/**
+ * What a sentence-focus deep link asks the watch page to do — the consuming
+ * half of `sentenceFocusParams`. `null` means "this URL carries no focus at
+ * all" (neither a sentence, a word, nor a legacy seek), which is the common
+ * case: it is how the caller tells a focus link from every other visit.
+ *
+ * `subtitleIndex` is `null` when the link brought no `sub`, **and also** when
+ * it brought one that no longer matches a subtitle — re-transcription
+ * renumbers ids, and the old behaviour was to fall through to `t` rather than
+ * fail the link. Use it (not `seconds`) as the "resume the follow" signal: a
+ * sentence the page cannot point at has nothing to follow.
+ */
+export interface WatchFocus {
+  /**
+   * Which params the link carried — not where they resolved to. The watch page
+   * applies a focus once per link (a re-render must not yank playback back to
+   * the sentence), so it dedupes on this key; keying on the resolution instead
+   * would re-apply after subtitles are re-fetched and their times shift.
+   */
+  key: string;
+  /** Index into the current subtitle list; null when the link names no sentence. */
+  subtitleIndex: number | null;
+  /** Seek target in seconds; null when the link only highlights a word. */
+  seconds: number | null;
+  /** Word to highlight; null when the link names none. */
+  word: string | null;
+}
+
+/**
+ * Resolve a watch URL's focus params against the video's subtitles.
+ *
+ * `sub` wins over `t` for the seek target — a sentence id is stable, seconds
+ * drift with re-transcription — and a `sub` that no longer resolves degrades to
+ * `t` instead of dropping the seek. Empty values do not count as a focus
+ * (`?t=` alone resolves to `null`), which is what the watch page's own
+ * truthiness guard used to decide. Unrelated params (`from`, `slug`, `note`)
+ * are ignored, so they do not affect `key` and cannot re-trigger a focus.
+ */
+export function resolveWatchFocus(
+  params: URLSearchParams,
+  subtitles: Subtitle[]
+): WatchFocus | null {
+  const sub = params.get("sub");
+  const word = params.get("word");
+  const t = params.get("t");
+  if (!sub && !word && !t) return null;
+
+  let subtitleIndex: number | null = null;
+  let seconds: number | null = null;
+  if (sub) {
+    const idx = subtitles.findIndex((s) => s.id === sub);
+    if (idx !== -1) {
+      subtitleIndex = idx;
+      seconds = subtitles[idx].start_time;
+    }
+  }
+  if (seconds === null && t) {
+    const parsed = parseFloat(t);
+    if (!Number.isNaN(parsed) && parsed >= 0) seconds = parsed;
+  }
+  return {
+    key: `${sub ?? ""}|${word ?? ""}|${t ?? ""}`,
+    subtitleIndex,
+    seconds,
+    word: word || null,
+  };
 }
 
 function isWatchSource(value: string | null): value is WatchSource {

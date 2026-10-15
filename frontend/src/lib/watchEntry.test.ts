@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildWatchEntryQuery,
+  resolveWatchFocus,
   resolveWatchReturn,
   sentenceFocusParams,
   watchHref,
   watchSentenceHref,
 } from "@/lib/watchEntry";
+import type { Subtitle } from "@/types";
 
 /** Build the URLSearchParams the watch page would see from a query suffix. */
 function params(query: string): URLSearchParams {
   return new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
+}
+
+/** Minimal subtitle rows: the resolver only reads `id` and `start_time`. */
+function subs(rows: Array<{ id: string; start_time: number }>): Subtitle[] {
+  return rows.map((row) => ({ ...row }) as Subtitle);
 }
 
 describe("buildWatchEntryQuery", () => {
@@ -81,6 +88,95 @@ describe("sentenceFocusParams / watchSentenceHref (S7b)", () => {
         { subtitleId: "sub-1", startTime: 30.2, word: "apple" }
       )
     ).toBe("/watch/abc?from=set&set=s9&sub=sub-1&t=30&word=apple");
+  });
+});
+
+describe("resolveWatchFocus (S7b consuming half)", () => {
+  const list = subs([
+    { id: "s1", start_time: 12.5 },
+    { id: "s2", start_time: 40 },
+  ]);
+
+  it("resolves a sentence id to its index and start time", () => {
+    expect(resolveWatchFocus(params("?sub=s2"), list)).toEqual({
+      key: "s2||",
+      subtitleIndex: 1,
+      seconds: 40,
+      word: null,
+    });
+  });
+
+  it("carries the word alongside the sentence", () => {
+    expect(resolveWatchFocus(params("?sub=s1&word=cat"), list)).toEqual({
+      key: "s1|cat|",
+      subtitleIndex: 0,
+      seconds: 12.5,
+      word: "cat",
+    });
+  });
+
+  it("keeps sub over t when both are present", () => {
+    expect(resolveWatchFocus(params("?sub=s1&t=900"), list)?.seconds).toBe(12.5);
+  });
+
+  it("falls back to t when the sentence id no longer resolves", () => {
+    expect(resolveWatchFocus(params("?sub=s-gone&t=90"), list)).toEqual({
+      key: "s-gone||90",
+      subtitleIndex: null,
+      seconds: 90,
+      word: null,
+    });
+  });
+
+  it("seeks a legacy t-only link without touching the follow", () => {
+    expect(resolveWatchFocus(params("?t=30"), list)).toEqual({
+      key: "||30",
+      subtitleIndex: null,
+      seconds: 30,
+      word: null,
+    });
+  });
+
+  it("ignores a negative or unparsable t", () => {
+    expect(resolveWatchFocus(params("?t=-3"), list)?.seconds).toBeNull();
+    expect(resolveWatchFocus(params("?t=abc"), list)?.seconds).toBeNull();
+  });
+
+  it("highlights a word-only link without seeking", () => {
+    expect(resolveWatchFocus(params("?word=cat"), list)).toEqual({
+      key: "|cat|",
+      subtitleIndex: null,
+      seconds: null,
+      word: "cat",
+    });
+  });
+
+  it("keys the link by its own params, not by the visit", () => {
+    const bare = resolveWatchFocus(params("?sub=s1"), list);
+    const withOrigin = resolveWatchFocus(params("?from=favorites&sub=s1&note=1"), list);
+    expect(withOrigin?.key).toBe(bare?.key);
+    expect(resolveWatchFocus(params("?sub=s2"), list)?.key).not.toBe(bare?.key);
+  });
+
+  it("returns null when there is nothing to focus on", () => {
+    expect(resolveWatchFocus(params(""), list)).toBeNull();
+    expect(resolveWatchFocus(params("?from=favorites"), list)).toBeNull();
+    expect(resolveWatchFocus(params("?t="), list)).toBeNull();
+    expect(resolveWatchFocus(params("?sub="), list)).toBeNull();
+  });
+
+  it("resolves a sentence id against an empty list as not found", () => {
+    expect(resolveWatchFocus(params("?sub=s1"), [])?.subtitleIndex).toBeNull();
+  });
+
+  it("round-trips what sentenceFocusParams produced", () => {
+    const query = sentenceFocusParams({ subtitleId: "s2", startTime: 39.4, word: "cat" });
+    expect(resolveWatchFocus(params(`?${new URLSearchParams(query)}`), list)).toEqual({
+      key: "s2|cat|39",
+      subtitleIndex: 1,
+      seconds: 40,
+      word: "cat",
+    });
   });
 });
 

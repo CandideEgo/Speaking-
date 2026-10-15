@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { CoachMark } from "@/components/common/CoachMark";
 import { useCoachMark } from "@/hooks/useCoachMark";
+import { useDeepLink } from "@/hooks/useDeepLink";
 import { EndScreen, type ShadowingSentence } from "@/components/watch/EndScreen";
 import { useWatchStore } from "@/stores/watchStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -481,40 +482,24 @@ export default function WatchPage() {
   }, [saveToVocabulary, coach.advanceFromWordSaved]);
 
   // D3b/S7b: deep-link focus — ?sub=<subtitle id> lands on one sentence
-  // (「回到对应句子」/「回看原句」), ?word= highlights that word too, legacy ?t=
-  // stays as a pure seek. `sub` wins over `t`: the sentence id is stable,
-  // seconds drift with re-transcription. Runs once the player is ready and
-  // re-applies only when the params themselves change.
-  const deepLinkAppliedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (playbackMode !== "ready" || !video || !videoRef.current) return;
-    const sub = searchParams.get("sub");
-    const word = searchParams.get("word");
-    const t = searchParams.get("t");
-    if (!sub && !word && !t) return;
-    const signature = `${sub ?? ""}|${word ?? ""}|${t ?? ""}`;
-    if (deepLinkAppliedRef.current === signature) return;
-    deepLinkAppliedRef.current = signature;
-
-    const subs = video.subtitles ?? [];
-    let seconds: number | null = null;
-    if (sub) {
-      const idx = subs.findIndex((s) => s.id === sub);
-      if (idx !== -1) {
-        resumeFollow(); // 深链落点算一次显式导航：把跟随拉回来
-        setCurrentSubtitleIndex(idx); // 句高亮 + 字幕跟随联动
-        seconds = subs[idx].start_time;
-      }
-    }
-    if (seconds === null && t) {
-      const parsed = parseFloat(t);
-      if (!Number.isNaN(parsed) && parsed >= 0) seconds = parsed;
-    }
-    if (seconds !== null) videoRef.current.currentTime = seconds;
-    if (word) handleWordClick(word); // 词高亮（字幕列表 selectedWord 联动）+ 词卡
-    // videoRef is a stable ref; intentionally not in deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackMode, video, searchParams]);
+  // 「回到对应句子」/「回看原句」, ?word= highlights that word too, legacy ?t=
+  // stays as a pure seek. The resolution and the once-per-link rule live in
+  // `useDeepLink` / `lib/watchEntry`; this is only what the page does with it.
+  const handleSentenceFocus = useCallback(
+    (index: number) => {
+      resumeFollow(); // 深链落点算一次显式导航：把跟随拉回来
+      setCurrentSubtitleIndex(index); // 句高亮 + 字幕跟随联动
+    },
+    [resumeFollow, setCurrentSubtitleIndex]
+  );
+  useDeepLink({
+    playbackMode,
+    subtitles: video?.subtitles,
+    params: searchParams,
+    videoRef,
+    onSentenceFocus: handleSentenceFocus,
+    onWordFocus: handleWordClick,
+  });
 
   const subtitleMode = useWatchStore((s) => s.subtitleMode);
   const setSubtitleMode = useWatchStore((s) => s.setSubtitleMode);
