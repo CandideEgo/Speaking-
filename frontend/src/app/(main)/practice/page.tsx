@@ -26,9 +26,11 @@ const LIVE_SECTIONS = [
 ];
 
 const SECTION_SHORT: Record<string, string> = {
+  use_of_english: "完形填空",
   reading_A: "选词填空",
   reading_B: "段落匹配",
   reading_C: "仔细阅读",
+  new_type: "新题型",
 };
 
 interface ExamStats {

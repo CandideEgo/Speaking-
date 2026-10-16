@@ -19,6 +19,7 @@ from app.api.v1 import (
     browse,
     catalog,
     channels,
+    exam_pdfs,
     exams,
     favorites,
     feedback,
@@ -312,6 +313,9 @@ def create_app() -> FastAPI:
     app.include_router(shadowing.router, prefix="/api/v1")
     app.include_router(behavior.router, prefix="/api/v1")
     app.include_router(exams.router, prefix="/api/v1")
+    # 原卷 PDF 单独一个 router：exams 的末尾 catch-all GET /{paper_id} 会把
+    # /exams/pdfs 当 paper_id 吃掉。
+    app.include_router(exam_pdfs.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/api/v1")
 
     @app.get("/health")

@@ -91,12 +91,20 @@ async def _upsert_questions(db: AsyncSession, paper: ExamPaper, rec: dict) -> in
     return len(rec["questions"])
 
 
+# 试卷科目（app.core.exam_subjects）与词汇大纲等级（app.core.exam_levels）是两套：
+# 考研题库按英语一/英语二拆成 ky1/ky2，但真题语料的等级键必须是 ECDICT 词表用的 ky，
+# 否则 find_example_sentence(levels=["ky"]) 永远匹配不到这些句子（句子会变成死行）。
+_CORPUS_LEVEL = {"ky1": "ky", "ky2": "ky"}
+
+
 async def _sync_exam_sentences(db: AsyncSession, rec: dict) -> int:
     """Push reading-passage sentences into the word-card gloss corpus."""
-    level = rec["level"]
+    level = _CORPUS_LEVEL.get(rec["level"], rec["level"])
     year = rec["year"]
     month = rec["month"]
-    source = f"{year}年{month}月{level.upper()}真题（第{rec['set_no']}套）"
+    # 归属直接用卷名：cet4/ky1/ky2 的 set_no 与月份口径各不相同，拼出来的
+    # 「2016年12月KY1真题（第1套）」既难看又和 ky2 撞车。
+    source = rec["title"]
     records: list[dict] = []
     for q in rec["questions"]:
         passage = (q.get("passage") or "").strip()

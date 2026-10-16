@@ -24,9 +24,11 @@ interface AttemptDetail {
 }
 
 const SECTION_LABELS: Record<string, string> = {
+  use_of_english: "Use of English · 完形填空",
   reading_A: "Section A · 选词填空",
   reading_B: "Section B · 段落匹配",
   reading_C: "Section C · 仔细阅读",
+  new_type: "Part B · 新题型",
 };
 
 export default function ExamResultPage() {

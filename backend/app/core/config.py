@@ -56,6 +56,11 @@ class Settings(BaseSettings):
 
     local_media_path: str = "./media"
 
+    # 真题原卷 PDF（data/exam_pdfs/index.json + files/*.pdf）。默认值即生产值：
+    # 容器 WORKDIR 是 /app，bind mount 把 ./backend/data 挂到 /app/data，所以
+    # 相对路径在生产与本地都指到同一处，不需要新增任何 env / compose 项。
+    exam_pdf_dir: str = "./data/exam_pdfs"
+
     # Local video upload limits + temp dir (used by upload_service).
     max_upload_file_size: int = 500 * 1024 * 1024  # 500 MB
     upload_temp_dir: str = "./media/uploads"

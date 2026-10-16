@@ -54,9 +54,11 @@ export interface ExamSubmitResponse {
 }
 
 const SECTION_LABELS: Record<string, string> = {
+  use_of_english: "Use of English · 完形填空",
   reading_A: "Section A · 选词填空",
   reading_B: "Section B · 段落匹配",
   reading_C: "Section C · 仔细阅读",
+  new_type: "Part B · 新题型",
 };
 
 const WORD_BANK_MARKER = "[word bank]";
@@ -69,7 +71,7 @@ interface DerivedOptions {
 
 /**
  * 选词填空 / 段落匹配题的 options 不落库（词库在 passage 末尾的
- * [word bank] 附录里；段落匹配的可选答案就是段落字母 A-O），
+ * [word bank] 附录里，恒为 A-O；段落匹配的可选答案就是文章里的段落字母，可到 R），
  * 前端从 passage 现场推导，否则这两节完全没有可点元素（「选项无法选择」根因）。
  */
 function deriveOptions(q: ExamQuestionPublic): DerivedOptions | null {
@@ -92,7 +94,9 @@ function deriveOptions(q: ExamQuestionPublic): DerivedOptions | null {
     return Object.keys(options).length ? { kind: "bank", options } : null;
   }
   if (q.question_type === "matching") {
-    const letters = [...new Set([...q.passage.matchAll(/^([A-O])\)/gm)].map((m) => m[1]))];
+    // 段落字母放宽到 A-Z（与后端 _PARAGRAPH_LETTER_RE 对齐）：文章段落可到 R，
+    // 卡在 A-O 会让 P/Q/R 的正确答案在界面上点不到。
+    const letters = [...new Set([...q.passage.matchAll(/^([A-Z])\)/gm)].map((m) => m[1]))];
     if (letters.length < 2) return null;
     return {
       kind: "matching",

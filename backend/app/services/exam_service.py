@@ -41,8 +41,11 @@ MODE_PAPER = "paper_exam"
 MODE_DAILY = "daily_check"
 MODE_WRONG = "wrong_redo"
 
-# Section display order in results.
-SECTION_ORDER = ("reading_A", "reading_B", "reading_C")
+# Section display order in results. **这也是一道丢弃门**：交卷时 part_scores 只保留
+# 列在这里的 section（见 `submit_answers` 里的 `for sec in SECTION_ORDER if sec in part`），
+# 新增 section 而不加进来会让成绩页整节消失、总分却仍然正确。考研卷用
+# use_of_english / new_type，四级六级只有 reading_A/B/C。
+SECTION_ORDER = ("use_of_english", "reading_A", "reading_B", "reading_C", "new_type")
 
 DAILY_QUESTION_COUNT = 10
 
@@ -105,7 +108,9 @@ def _snapshot_question(q: ExamQuestion) -> dict:
 # passage=null) has nothing to click and must not enter an attempt.
 _WORD_BANK_MARKER = "[word bank]"
 _WORD_BANK_ENTRY_RE = re.compile(r"([A-O])\)")
-_PARAGRAPH_LETTER_RE = re.compile(r"^([A-O])\)", re.MULTILINE)
+# 段落字母放宽到 A-Z：CET 匹配题的文章段落数不止 15（实测四级到 P、六级到 R），
+# 卡在 A-O 会让 P/Q/R 这三个字母的正确答案在界面上点不到。
+_PARAGRAPH_LETTER_RE = re.compile(r"^([A-Z])\)", re.MULTILINE)
 
 
 def is_answerable(q: ExamQuestion) -> bool:
