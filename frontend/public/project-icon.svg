@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="70" y1="45" x2="450" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF9" />
+      <stop offset="1" stop-color="#F5F1E9" />
+    </linearGradient>
+    <linearGradient id="bubble" x1="128" y1="110" x2="382" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF7945" />
+      <stop offset="1" stop-color="#E84A10" />
+    </linearGradient>
+    <filter id="shadow" x="34" y="30" width="444" height="462" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+      <feOffset dy="12" />
+      <feGaussianBlur stdDeviation="16" />
+      <feComposite in2="hardAlpha" operator="out" />
+      <feColorMatrix values="0 0 0 0 0.29 0 0 0 0 0.2 0 0 0 0 0.13 0 0 0 0.12 0" />
+      <feBlend in2="BackgroundImageFix" result="effect1_dropShadow" />
+      <feBlend in="SourceGraphic" in2="effect1_dropShadow" result="shape" />
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="66" y="54" width="380" height="380" rx="112" fill="url(#tile)" />
+    <rect x="66.75" y="54.75" width="378.5" height="378.5" rx="111.25" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.5" />
+  </g>
+  <path d="M153 132C153 113.222 168.222 98 187 98H337C355.778 98 371 113.222 371 132V280C371 298.778 355.778 314 337 314H247L177 363C168.701 368.811 157.5 362.873 157.5 352.741V308.345C154.613 302.706 153 296.31 153 289.5V132Z" fill="url(#bubble)" />
+  <path d="M318 166C305 153 288 147 269 147C241 147 221 162 221 184C221 206 238 216 269 223L282 226C307 232 320 243 320 262C320 285 299 300 269 300C246 300 226 292 211 276" stroke="white" stroke-width="27" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="354" cy="111" r="25" fill="#FFC857" stroke="#FFFDF9" stroke-width="9" />
+</svg>
