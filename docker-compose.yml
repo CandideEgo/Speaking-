@@ -23,6 +23,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      COMMANDCODE_API_KEY: ${COMMANDCODE_API_KEY:-}
     depends_on:
       - db
       - redis
@@ -36,6 +37,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://seeword:seeword_dev@db:5432/seeword
       REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      COMMANDCODE_API_KEY: ${COMMANDCODE_API_KEY:-}
     depends_on:
       - db
       - redis

@@ -24,10 +24,16 @@ export function EmptyState({ icon: Icon, title, description, action, className }
         className
       )}
     >
-      {Icon && <Icon size={48} className="mx-auto text-muted mb-4" />}
-      <p className="text-muted">{title}</p>
-      {description && <p className="mt-1 text-meta text-muted max-w-xs">{description}</p>}
-      {action && <div className="mt-5">{action}</div>}
+      {Icon && (
+        <span className="mb-4 inline-grid size-12 place-items-center rounded-full bg-surface-card text-muted">
+          <Icon size={24} />
+        </span>
+      )}
+      <p className="text-copy font-semibold text-ink">{title}</p>
+      {description && <p className="mt-1 max-w-[32rem] text-copy text-muted">{description}</p>}
+      {action && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">{action}</div>
+      )}
     </div>
   );
 }

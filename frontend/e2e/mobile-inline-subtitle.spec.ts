@@ -23,7 +23,7 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 test.describe.configure({ mode: "serial" });
 let token = "";
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 /** 画框（`<video>` 的外壳）—— 判据 1 的对象，也是贴顶常驻与浮层锚点量的那个盒子。 */
@@ -111,7 +111,9 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
     const card = await boxOf(page, CARD);
     const frameBottom = frame.y + frame.height;
     expect(card.y, "当前句卡顶边在画框下沿之下").toBeGreaterThanOrEqual(frameBottom - 1);
-    expect(card.y, "当前句卡只隔一个 mt-3（12px）").toBeLessThanOrEqual(frameBottom + 16);
+    const controls = await boxOf(page, '[data-testid="watch-bottom-bar"]');
+    expect(controls.y, "播放操作位于画面与当前句之间").toBeGreaterThanOrEqual(frameBottom - 1);
+    expect(card.y, "当前句位于播放操作之后").toBeGreaterThanOrEqual(controls.y + controls.height);
     await expect(page.locator('[data-testid="current-sentence-en"]')).toBeVisible();
 
     // 旧形态的两个画面内锚点都不在了。
@@ -143,10 +145,9 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
 
     const { shellTop, topBarBottom } = await page.evaluate(() => ({
       shellTop: document.querySelector("main#main-scroll")!.getBoundingClientRect().top,
-      topBarBottom: document.querySelector('[data-testid="watch-top-bar"]')!.getBoundingClientRect()
-        .bottom,
+      topBarBottom: document.querySelector(".user-topbar")!.getBoundingClientRect().bottom,
     }));
-    expect(topBarBottom, "壳顶栏下沿 = 44px（#31：64 → 44）").toBeCloseTo(44, 0);
+    expect(topBarBottom, "壳顶栏下沿 = 44px（#31：64 → 44）").toBeCloseTo(56, 0);
     expect(shellTop, "滚动容器上沿 = 顶栏下沿").toBeCloseTo(topBarBottom, 0);
     expect(stuck.y, "画面贴住壳顶（= 顶栏下沿）").toBeCloseTo(shellTop, 0);
     // 常驻时画面里也不许冒出文字。
@@ -174,7 +175,7 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
     ).toBeGreaterThan(0);
 
     // ③ 壳底栏：贴可视区底边；进度 44px 热区；四键各 ≥44×44。
-    const bar = await boxOf(page, '[data-testid="watch-bottom-bar"]');
+    const bar = await boxOf(page, '[data-testid="mobile-tab-bar"]');
     const innerHeight = await page.evaluate(() => window.innerHeight);
     expect(Math.abs(bar.y + bar.height - innerHeight), "底栏贴可视区底边").toBeLessThanOrEqual(1);
     const progress = await boxOf(page, '[data-testid="watch-progress"]');

@@ -36,18 +36,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `npm run check` = design-system 检查 + 会话写入检查 + `tsc --noEmit` + ESLint + Prettier `--check`。后两个检查器都是「机器执行的不变量」，见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 
+### 优先用 skill，别照上表手敲
+
+`.claude/skills/` 里三个 skill **已入库**，本机（中文 Windows + NSSM 服务）的坑都在里面，别自己重新踩：
+
+| skill | 干什么 |
+|---|---|
+| `/dev` | 起／重启本地全栈：uvicorn :8000 + 云端 Celery worker + GPU worker + Next :3000 + Docker 的 DB/Redis。用户说「重启服务」就是它——它会先清端口、清 `.next`，**重启不是另一套流程** |
+| `/dev-stop` | 停本地 dev（加 `--infra` 才连 Postgres/Redis 容器一起停） |
+| `/deploy` | 发生产：本机构建 amd64 镜像 → 上传校验 → 迁移 → 切容器 → 核验；回滚点、nginx reload、脏树停机等约束都在里面 |
+
+上面那张表是「只起一件东西」或排查时用的原始命令，不是推荐入口。前端相关的运行方式与 `dev` 代理前提见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
+
 ## 架构大图
 
 以下都是读多个文件才能拼出来的部分；单个文件的结构直接打开看即可。
 
 ### 后端装配与错误契约
 
-`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:322`）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
+`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:361`；行号会漂，认符号别认数字）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
 
 **所有错误响应都是统一 envelope** `{code, message, detail?}`：
 
 - 业务代码抛 `AppError(status_code, code, message, detail?)`，`code` 取 `backend/app/core/errors.py::ErrorCode`
-- 存量 `HTTPException`（约 150 处）由全局 handler 兜底转 envelope，`code = HTTP_{status}`
+- 存量 `HTTPException`（约 140 处）由全局 handler 兜底转 envelope，`code = HTTP_{status}`
 - 422 校验错误 → `code = VALIDATION_ERROR`，`detail` 是 pydantic errors 数组
 - `AIServiceError` → 502 + `AI_SERVICE_UNAVAILABLE`，绝不退化成 500 或静默假分值
 
@@ -93,9 +105,33 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`、`run_gpu_worker.ps1`）。
 
+### 首页编辑内容（选视频→AI 草稿→预览→发布替换→恢复上一版）
+
+后端的唯一事实源是 `backend/app/services/home_content_service.py` + `backend/app/schemas/home_content.py`；
+前端 DTO 的唯一契约是 `frontend/src/types/homeContent.ts`（前后端字段一一对应，页面不得自行解释任意 JSON）。
+
+- **三张表、内容与位置分离**：`home_content_drafts`（每视频一份可编辑草稿 + 生成状态机）、
+  `home_content_revisions`（**只追加**的不可变已发布版本）、`home_page_config`（单例布局，只引用
+  revision id + 稳定 expression_id/scenario_id，另有 draft/published/previous 三份供整版发布与回退）。
+  编辑或重新生成草稿永远不会影响线上，直到再次发布。
+- **来源指纹是失效机制**：`compute_source_fingerprint` 覆盖有序字幕 ID + 句序 + 起止时间 + 英中文本；
+  生成入队、生成落库、发布、公共读取都重算比对。因此字幕被改/重排/重新断句/重新转写后旧版本自动失效，
+  **不需要也不应该在每个字幕写入入口挂钩子**。
+- **公共读取不走缓存**：`GET /api/v1/browse/home-editorial`（`api/v1/home_editorial.py`）每次读库，用
+  `discovery_service.public_video_filters()` 判可见性，主推失效时次推可提升，全部失效返回 `{"editorial":null}`
+  让前端整块退回旧 `featured + learning metadata` 兜底（旧兜底仍用既有 browse 缓存与失效链路）。
+- **生成走云端 Celery**：`app/tasks/home_content_tasks.py` 的 `generate_home_content_draft` 在默认 `celery` 队列，
+  状态机 `idle→queued→running→succeeded|failed`，靠原子的 `active_generation_id` 占位去重；写回前校验
+  generation id / 入队草稿 revision / 入队指纹三者，任一不符即冲突且不覆盖；900s 未结束由 GET 状态与
+  beat `sweep-home-content-generations` 兜底标 TIMEOUT。
+- **后台预览 = 首页组件**：两个管理员 preview 接口都返回 `{page, issues}`，前端用
+  `HomeEditorialPreview` 渲染与首页同一套展示组件；公共接口没有 `?draft=true` 之类绕过发布边界的入口。
+- 操作说明见 [`docs/home-content-operation-guide-2026-10.md`](docs/home-content-operation-guide-2026-10.md)，
+  实施契约见 [`docs/home-editorial-content-implementation-2026-10.md`](docs/home-editorial-content-implementation-2026-10.md)。
+
 ### 前端装配
 
-Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户壳）与 `(admin)`（管理壳），另有裸路由 `login` / `register` / `forgot-password` / `set-password` / `onboarding` / `upgrade` / `terms` / `privacy`。
+Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户壳）与 `(admin)`（管理壳），另有裸路由 `login` / `register` / `forgot-password` / `set-password` / `onboarding` / `terms` / `privacy`。
 
 **手写 fetch 封装，没有 React Query 也没有 SWR。** `frontend/src/lib/createApiClient.ts` 是工厂，提供：仅对 GET/HEAD 的 5xx 重试（1s/2s 退避）、发请求前的 JWT 过期预检、401 单次刷新、解析上面的错误 envelope、GET 在途去重与可选 `cacheTtlMs` TTL 缓存。用户端实例是 `lib/api.ts`，管理端是 `lib/adminApi.ts`——**两套 token、两套会话**。
 
@@ -105,9 +141,13 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ### 配置
 
-`backend/app/core/config.py::Settings`（pydantic-settings，`get_settings()` 带 `@lru_cache`，读 `backend/.env`）。`model_post_init` **fail-closed**：`development` 给 localhost 与开发密钥默认值；其它环境强制要 `JWT_SECRET` + `DATABASE_URL`；`production` 还要 `OPENAI_API_KEY` + `REDIS_URL` + `TRANSCRIPTION_CALLBACK_SECRET`。
+`backend/app/core/config.py::Settings`（pydantic-settings，`get_settings()` 带 `@lru_cache`，读 `backend/.env`）。`model_post_init` **fail-closed**：`development` 给 localhost 与开发密钥默认值；其它环境强制要 `JWT_SECRET` + `DATABASE_URL`；`production` 还要 `REDIS_URL` + `TRANSCRIPTION_CALLBACK_SECRET`，且 `OPENAI_API_KEY` 与 `COMMANDCODE_API_KEY` 至少有一个（LLM 供应商二选一）。
+
+**LLM 接入**：provider + 模型目录 + 「哪些模型免费」+ 任务路由的唯一事实源是 `backend/app/services/llm_provider.py`（形状照 pi 的 `models.json`，裁成 env 驱动）。默认 provider 是 Command Code（OpenAI 兼容），默认模型是免费模型；`AIService`（词注释/分类/练习题/首页草稿）与翻译的 `commandcode` 引擎都从这里取模型，`LLM_MODEL_<TASK>` 可按任务换模型，`OPENAI_*` 仅作后备。巡检 `python scripts/check_llm_provider.py --list|--test`；接入手册与免费模型口径见 [`docs/llm-provider-commandcode-integration-2026-10.md`](docs/llm-provider-commandcode-integration-2026-10.md)（外部事实/调研见同目录 `llm-provider-commandcode-research-2026-10.md`）。
 
 运行时开关有两层：env 布尔（`sms_login_enabled`、`payments_enabled`、`oss_upload_enabled`、`jwt_blacklist_enabled` 等）与 DB 里的单行 `AdminSetting`（看门狗、注册开关、质量门阈值等，任务里按调用时刻读 `_effective_*`）。
+
+**会员收款走站外金数据收款页**（`JINSHUJU_*` env）：所有购买入口在站内 `/upgrade`，链接带 `x_field_1` 签名 token，付款后 Celery beat 每 5 分钟同步已付款 entry（可选「数据推送」webhook 做秒级）并自动延长**当前账号**的 `plan_expires_at`，不需要买家填手机号；手机号匹配路径保留兼容。收款页只支持微信内支付，所以 `/upgrade` 按浏览器分流：微信内直接跳转，桌面显示二维码扫码，手机浏览器复制链接去微信打开。站内 `payments_enabled` 仍保持关闭（ICP）。细节见 [`docs/jinshuju-payment-integration-2026-10.md`](docs/jinshuju-payment-integration-2026-10.md)。
 
 ## 常驻规则
 
@@ -121,7 +161,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ## 失效指针：这些路径已不存在
 
-2026-10-15 的提交 `a7d9d45` / `ec9688e` / `c3cbed2` 删除了整个文档与知识层——`docs/`、`knowledge/`、`wiki/`、`.agent/`、`CONTEXT.md`、根 `AGENTS.md`、`README.md`、`CONTRIBUTING.md` 以及各子包的 `AGENTS.md`。**代码里仍有指向它们的引用，不要去找那些文件。** 具体地：
+2026-10-15 的提交 `a7d9d45` / `ec9688e` / `c3cbed2` 删除了整个文档与知识层——`knowledge/`、`wiki/`、`.agent/`、`CONTEXT.md`、`README.md`、`CONTRIBUTING.md` 以及各子包的 `AGENTS.md`。**代码里仍有指向它们的引用，不要去找那些文件。** 具体地：
 
 - `backend/tests/test_architecture_invariants.py` 的 docstring 指向 `.agent/invariants.md`（已删）。**那个测试文件本身是活权威**（比如 INV-003：视频处理只由管理员/catalog 触发，没有用户投稿路径）——以测试代码为准。
 - `backend/pyproject.toml` 与 `app/**` 注释里的 `INV-005` 是**活规则**：AI 调用必须走 `app.services.ai_service` 或 `app.services.translation`，由 ruff 的 `TID251 banned-api` 强制。但那份带编号的清单文件已不存在。
@@ -130,3 +170,8 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 - `.mcp.json` 仍指向 `C:/Users/Administrator/Tools/aoci/aoci.exe`，该 server 已在 `.claude/settings.local.json` 里禁用。
 
 改这些注释里的失效指针不属于当前任务；遇到时按上面说明处理即可。
+
+**两个例外——这两个路径现在确实存在，别当成已删的：**
+
+- **`docs/` 已回归**（2026-10-15 `0b85160` 入库，只有进行中的计划与调研，不是被删的那批）：`docs/architecture-fix-plan-2026-10.md`、`docs/product-review-2026-10.md`、`docs/oss-reference-2026-10.md`（同类开源项目调研，含跟读评测选型结论）。可以读。
+- **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则仍然只有三个家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`。

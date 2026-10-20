@@ -10,6 +10,21 @@
  * A2≈高考、B1≈四级、B2≈六级、C1≈考研/雅思 6.5+。
  */
 
+/**
+ * CEFR 档位值域（与 `Video.difficulty_level` 的写入值一致）。
+ * 筛选下拉、URL `?level=` 的校验都从这里取，避免两处各写一份 A1–C2。
+ */
+export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+
+export type CefrLevel = (typeof CEFR_LEVELS)[number];
+
+/** 是否为合法 CEFR 档位（筛选参数校验用）。 */
+export function isCefrLevel(value: string | null | undefined): value is CefrLevel {
+  return (
+    value !== null && value !== undefined && (CEFR_LEVELS as readonly string[]).includes(value)
+  );
+}
+
 const CEFR_EXAM_EQUIVALENT: Record<string, string> = {
   A1: "初中",
   A2: "高考",

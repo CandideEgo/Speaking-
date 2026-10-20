@@ -1,22 +1,9 @@
 import { test, expect, type Locator } from "@playwright/test";
 
 /**
- * DEC-075（全站唯一容器）：容器归壳层所有 —— `MainLayoutInner` 在滚动容器里渲染一次
- * `.container-page`（max-w-page 1320 / px-4 sm:px-7），`TopBar` 的行内内容共用同一个类。
- * 页面本身不再写容器类，所以「顶栏内容与页面内容左右对齐」是构造结果，不靠人记得维护。
- *
- * 两个最容易回归的点各拍一条：
- *   1) 内容容器是 1320 —— S2 的 `container-wide`（上限 2400）那一级已删；
- *   2) 顶栏内容套的是**同一份容器** —— 顶栏自己写 padding、或壳层漏套容器，边界立刻错开。
- *
- * **容差的来源**：外壳的滚动容器是 `main#main-scroll`（`overflow-y-auto`），页面容器在
- * **它**的 client box 里居中，而顶栏容器在视口里居中 —— 一旦页面真的滚动，两者就相差
- * 最多一个滚动条宽（右侧差一整条、左侧差半条）。所以容差由实测的滚动条宽派生，而不是
- * 拍一个常数：不滚动的页面（CI 只种 1 个视频）上容差自动收紧到 1px。真正的回归
- * （换个类、少套一层）在 2560 档上是几百 px，任何容差都拦得住。
- *
- * 不注册用户、不依赖后端：登录票本地铸 + `/api/**` 一律 abort（同 home-sort-truth.spec.ts）。
- * 内容的左边距不依赖任何响应，所以读数在有无后端时一致。
+ * 壳层持有唯一正文容器：正文封顶 1320px 并在滚动区居中；顶栏铺满主壳。
+ * 验证桌面侧栏下的容器宽度、内边距和居中参照。
+ * 本地登录票配合 API 空响应，不依赖内容数量。
  */
 
 function mintToken(): string {
@@ -27,7 +14,7 @@ function mintToken(): string {
 }
 
 // 顶栏容器用 `header:has(...)` 锚住，避免在 auth 初始化期抓到 ShellSkeleton 的同名骨架行。
-const BAR_CONTAINER = 'header:has(a[aria-label="SeeWord 首页"]) .container-page';
+const BAR_CONTAINER = ".user-topbar .container-page";
 const PAGE_CONTAINER = "#main-scroll > .container-page";
 
 const CONTAINER_MAX = 1320;
@@ -46,7 +33,11 @@ for (const vp of VIEWPORTS) {
   }) => {
     const token = mintToken();
     await context.addCookies([
-      { name: "seeword_token", value: token, url: "http://localhost:3000" },
+      {
+        name: "seeword_token",
+        value: token,
+        url: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+      },
     ]);
     await page.addInitScript((t: string) => {
       window.localStorage.setItem("seeword_token", t);
@@ -70,7 +61,7 @@ for (const vp of VIEWPORTS) {
     const pageBox = await box(pageContainer);
 
     // 滚动容器（页面容器的居中参照）的 client 宽与滚动条宽
-    const { clientWidth, scrollbar } = await page.evaluate(() => {
+    const { clientWidth } = await page.evaluate(() => {
       const el = document.querySelector("main#main-scroll") as HTMLElement | null;
       return {
         clientWidth: el?.clientWidth ?? 0,
@@ -82,15 +73,17 @@ for (const vp of VIEWPORTS) {
     expect(pageBox.width).toBeLessThanOrEqual(CONTAINER_MAX + 1);
     expect(Math.abs(pageBox.width - Math.min(CONTAINER_MAX, clientWidth))).toBeLessThanOrEqual(1);
 
-    // 2) gutter 仍是 .container-page 的 sm:px-7；内容区 = 容器宽 − 2×gutter。
-    //    Tailwind v4 的 px-7 = --spacing(0.25rem) × 7，随根字号缩放（≥1536px 时 16→17px），
-    //    所以期望值从 DOM 的根字号推出来，而不是钉死 28px。
+    // 2) gutter 是 .container-page 的三档响应式 padding（stage-3 设计稿 .page 同值）：
+    //    <768 = px-4、768–1279 = px-6、≥1280 = px-8。
+    //    Tailwind v4 的 px-N = --spacing(0.25rem) × N，随根字号缩放（≥1536px 时 16→17px），
+    //    所以期望值从 DOM 的根字号推出来，而不是钉死 px。
     const { padding, expectedGutter } = await pageContainer.evaluate((el) => {
       const cs = getComputedStyle(el);
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const steps = window.innerWidth >= 1280 ? 8 : window.innerWidth >= 768 ? 6 : 4;
       return {
         padding: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight),
-        expectedGutter: 7 * 0.25 * rem,
+        expectedGutter: steps * 0.25 * rem,
       };
     });
     expect(padding).toBeCloseTo(expectedGutter * 2, 1);
@@ -100,15 +93,17 @@ for (const vp of VIEWPORTS) {
       )
     ).toBeLessThanOrEqual(1);
 
-    // 3) 容器边界对齐：左半条滚动条、右一整条
-    expect(Math.abs(pageBox.x - barBox.x)).toBeLessThanOrEqual(Math.ceil(scrollbar / 2) + 1);
-    expect(Math.abs(pageBox.x + pageBox.width - (barBox.x + barBox.width))).toBeLessThanOrEqual(
-      scrollbar + 1
+    // 顶栏铺满侧栏以外的壳层，正文容器在滚动区居中。
+    const shell = await box(page.locator(".user-shell-main"));
+    const main = await box(page.locator("#main-scroll"));
+    expect(Math.abs(barBox.x - shell.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(barBox.width - shell.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pageBox.x - (main.x + (clientWidth - pageBox.width) / 2))).toBeLessThanOrEqual(
+      1
     );
-
-    // 4) 用户真正看到的两个左边界：顶栏 Logo 与首页问候语
-    const logo = await box(page.locator('a[aria-label="SeeWord 首页"]').first());
-    const greeting = await box(page.locator(`${PAGE_CONTAINER} h1`).first());
-    expect(Math.abs(logo.x - greeting.x)).toBeLessThanOrEqual(scrollbar + 1);
+    // 页面根节点贴着容器的 gutter：首页原型没有 h1（直接进「本周精听」），所以锚点
+    // 用页面内容根节点而不是标题 —— 断言的是「内容从 gutter 开始」，与标题无关。
+    const content = await box(page.locator(`${PAGE_CONTAINER} > div`).first());
+    expect(Math.abs(content.x - pageBox.x - expectedGutter)).toBeLessThanOrEqual(1);
   });
 }

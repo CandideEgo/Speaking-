@@ -11,7 +11,7 @@ Adding a new engine
 4. Set ``TRANSLATION_ENGINE=<name>`` in ``.env``.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -26,6 +26,7 @@ class EngineConfig:
     system_prompt: str = ""  # Override default prompt if non-empty
     label: str = ""  # Human-readable label for logging
     batch_size: int = 0  # Per-engine override; 0 = use global translation_batch_size
+    headers: dict[str, str] = field(default_factory=dict)  # Extra request headers (e.g. x-cmd-zdr)
 
 
 # Default system prompt — same as the original AIService.translate_batch prompt
@@ -85,5 +86,14 @@ BUILTIN_ENGINES: dict[str, EngineConfig] = {
         model="",
         api_key="",
         label="Custom Endpoint",
+    ),
+    "commandcode": EngineConfig(
+        name="commandcode",
+        # base_url / model / api_key are populated from COMMANDCODE_* settings
+        # (app/services/llm_provider.py owns the model catalog + task routing).
+        base_url="",
+        model="",
+        api_key="",
+        label="Command Code (free tier)",
     ),
 }

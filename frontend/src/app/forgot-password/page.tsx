@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { cn } from "@/lib/utils";
 
 /** Mask a phone number: 138****8855（原型 15）. */
@@ -34,6 +35,9 @@ const STEPS = [
  * 若服务端判定验证码错误，回退到第二步并允许重发。
  */
 export default function ForgotPasswordPage() {
+  const [interactive, setInteractive] = useState(false);
+  // SSR 阶段先禁用输入，避免脚本就绪前填写号码而丢失 onChange。
+  useEffect(() => setInteractive(true), []);
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
@@ -41,9 +45,15 @@ export default function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirm?: string }>({});
   const [done, setDone] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
   const { cooldown, sending, sendCode, error: smsError } = useSmsCode(phone);
+
+  // 换步时回到页面顶部（第三步字段最多，避免落在半屏中间）。
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [step]);
 
   const code = otp.join("");
 
@@ -82,13 +92,14 @@ export default function ForgotPasswordPage() {
     // 回车提交不受按钮 disabled 约束，所以在途要在这里再挡一次。
     if (loading) return;
     setError("");
+    setFieldErrors({});
 
     if (!PASSWORD_RE.test(password)) {
-      setError(PASSWORD_RULE_MESSAGE);
+      setFieldErrors({ password: PASSWORD_RULE_MESSAGE });
       return;
     }
     if (password !== confirmPassword) {
-      setError("两次输入的密码不一致");
+      setFieldErrors({ confirm: "两次输入的密码不一致，请检查第二遍输入是否有多余空格。" });
       return;
     }
 
@@ -131,34 +142,37 @@ export default function ForgotPasswordPage() {
         )
       }
     >
-      {/* 步骤指示器（原型 15 step-ind） */}
+      {/* 步骤指示器（原型 15 step-ind）；「第 N 步 / 共 3 步」标签补齐原型的分步说明 */}
       {!done && (
-        <div className="mt-2 flex gap-1.5">
-          {STEPS.map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors",
-                i <= step ? "bg-brand-500" : "bg-surface-card"
-              )}
-            />
-          ))}
-        </div>
+        <>
+          <div className="mt-2 flex gap-1.5">
+            {STEPS.map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors",
+                  i <= step ? "bg-brand-500" : "bg-surface-card"
+                )}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-meta text-muted">第 {step + 1} 步 / 共 3 步</p>
+        </>
       )}
 
       {done ? (
         <div className="mt-8 text-center space-y-4">
           <div className="mx-auto w-12 h-12 rounded-full bg-success-soft border border-success/30 flex items-center justify-center">
-            <Check size={22} className="text-success" />
+            <Check size={22} className="text-success-text" />
           </div>
           <div className="rounded-lg bg-success-soft border border-success/30 p-4">
-            <p className="text-copy text-success">
+            <p className="text-copy text-success-text">
               如果该手机号已注册，密码已重置。请用新密码登录。
             </p>
           </div>
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-copy text-brand-500 hover:underline font-medium"
+            className="inline-flex items-center gap-1.5 text-copy text-brand-700 hover:underline font-medium"
           >
             <ArrowLeft size={14} />
             返回登录
@@ -178,6 +192,7 @@ export default function ForgotPasswordPage() {
                   type="tel"
                   inputMode="numeric"
                   autoComplete="tel"
+                  disabled={!interactive}
                   maxLength={11}
                   value={phone}
                   onChange={(e) => {
@@ -190,7 +205,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               {(error || smsError) && (
-                <p role="alert" className="text-copy text-error">
+                <p role="alert" className="text-copy text-error-text">
                   {error || smsError}
                 </p>
               )}
@@ -198,6 +213,7 @@ export default function ForgotPasswordPage() {
                 fullWidth
                 disabled={sending || !PHONE_RE.test(phone)}
                 onClick={handleSendCode}
+                className="disabled:text-body!"
               >
                 {sending ? "发送中..." : cooldown > 0 ? `${cooldown}s 后可重发` : "发送验证码"}
               </Button>
@@ -216,7 +232,7 @@ export default function ForgotPasswordPage() {
                     type="button"
                     onClick={handleResend}
                     disabled={sending || cooldown > 0}
-                    className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
+                    className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-700 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
                   >
                     {cooldown > 0 ? `${cooldown}s 后重发` : sending ? "发送中..." : "重新发送"}
                   </button>
@@ -234,10 +250,11 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               {(error || smsError) && (
-                <p role="alert" className="text-copy text-error">
+                <p role="alert" className="text-copy text-error-text">
                   {error || smsError}
                 </p>
               )}
+              <p className="text-caption text-muted">重新发送后旧验证码立刻作废。</p>
               <Button fullWidth onClick={handleVerifyCode}>
                 验证
               </Button>
@@ -247,57 +264,43 @@ export default function ForgotPasswordPage() {
           {/* Step 3: 新密码 */}
           {step === 2 && (
             <form onSubmit={handleReset} className="mt-6 space-y-4" noValidate>
-              <div>
-                <label htmlFor="reset-password" className="block text-copy font-medium text-ink">
-                  新密码
-                </label>
-                <Input
-                  id="reset-password"
-                  type="password"
-                  autoComplete="new-password"
-                  disabled={loading}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError("");
-                  }}
-                  required
-                  minLength={8}
-                  className="mt-1.5"
-                  placeholder="至少 8 位，含大小写字母和数字"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="reset-password-confirm"
-                  className="block text-copy font-medium text-ink"
-                >
-                  确认新密码
-                </label>
-                <Input
-                  id="reset-password-confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  disabled={loading}
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setError("");
-                  }}
-                  required
-                  minLength={8}
-                  className="mt-1.5"
-                  placeholder="再次输入新密码"
-                />
-              </div>
+              <PasswordField
+                id="reset-password"
+                label="新密码"
+                value={password}
+                onChange={(value) => {
+                  setPassword(value);
+                  setError("");
+                  setFieldErrors({});
+                }}
+                placeholder="至少 8 位，含大小写字母和数字"
+                disabled={loading}
+                error={fieldErrors.password}
+                showMeter
+                showRules
+                hint="规则与注册、设置登录密码完全一致：至少 8 位，需同时包含大写字母、小写字母和数字，不要求特殊字符。"
+              />
+              <PasswordField
+                id="reset-password-confirm"
+                label="确认新密码"
+                value={confirmPassword}
+                onChange={(value) => {
+                  setConfirmPassword(value);
+                  setError("");
+                  setFieldErrors({});
+                }}
+                placeholder="再次输入新密码"
+                disabled={loading}
+                error={fieldErrors.confirm}
+              />
 
               {error && (
-                <p role="alert" className="text-copy text-error">
+                <p role="alert" className="text-copy text-error-text">
                   {error}
                 </p>
               )}
 
-              <Button type="submit" fullWidth disabled={loading}>
+              <Button type="submit" fullWidth disabled={loading} className="disabled:text-body!">
                 {loading ? "重置中..." : "完成修改"}
               </Button>
             </form>
@@ -322,7 +325,7 @@ export default function ForgotPasswordPage() {
               <div>
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-1.5 text-copy text-brand-500 hover:underline font-medium"
+                  className="inline-flex items-center gap-1.5 text-copy text-brand-700 hover:underline font-medium"
                 >
                   <ArrowLeft size={14} />
                   返回登录

@@ -9,6 +9,8 @@ from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
 from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession
 from app.models.favorite import UserFavorite, UserNote
 from app.models.feedback import Feedback
+from app.models.home_content import HomeContentDraft, HomeContentRevision, HomePageConfig
+from app.models.jinshuju_payment import JinshujuPayment
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.milestone import MasterySnapshot, UserMilestone
@@ -22,6 +24,7 @@ from app.models.subtitle import Subtitle
 from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
 from app.models.user import User
+from app.models.user_content import ChannelSubscription, SentenceFavorite
 from app.models.user_video_unlock import UserVideoUnlock
 from app.models.video import Video
 from app.models.video_quality_report import VideoQualityReport

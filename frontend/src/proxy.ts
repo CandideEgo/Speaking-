@@ -31,8 +31,20 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+// 公开页面也要读取品牌与默认头像；仅放行 public/ 中这些确定的静态资源。
+const PUBLIC_ASSETS = new Set([
+  "/robots.txt",
+  "/logo.png",
+  "/logo-large.png",
+  "/og-image.png",
+  "/project-icon.svg",
+  "/default-avatar-male.webp",
+  "/default-avatar-female.webp",
+]);
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (PUBLIC_ASSETS.has(pathname)) return NextResponse.next();
 
   // 管理端：独立会话检查（/admin/login 公开）。
   if (pathname.startsWith("/admin")) {

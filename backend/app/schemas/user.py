@@ -158,6 +158,7 @@ class MessageResponse(BaseModel):
 
 
 class UserPreferencesResponse(BaseModel):
+    interest_categories: list[str] = []
     daily_goal_type: str = "words"
     daily_goal_value: int = 5
     reminder_enabled: bool = True
@@ -175,6 +176,17 @@ class UserPreferencesResponse(BaseModel):
 
 
 class UserPreferencesUpdate(BaseModel):
+    interest_categories: list[str] | None = Field(default=None, max_length=12)
+
+    @field_validator("interest_categories")
+    @classmethod
+    def validate_interests(cls, value: list[str] | None) -> list[str] | None:
+        from app.services.video_classification import TOPIC_CATEGORY_IDS
+
+        if value is not None and any(category not in TOPIC_CATEGORY_IDS for category in value):
+            raise ValueError("未知的兴趣分类")
+        return list(dict.fromkeys(value)) if value is not None else None
+
     daily_goal_type: Literal["minutes", "words"] | None = None
     daily_goal_value: int | None = Field(default=None, ge=1, le=100)
     reminder_enabled: bool | None = None

@@ -64,6 +64,8 @@ test.describe("Mobile - Login Form", () => {
   test("register and forgot-password links are accessible", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator('a[href*="register"]').first()).toBeVisible();
+    // 设计稿把「忘记密码？」放在密码登录方式里（验证码方式没有），先切到密码 tab。
+    await switchToPasswordLogin(page);
     await expect(page.locator('a[href="/forgot-password"]')).toBeVisible();
   });
 });
@@ -83,13 +85,13 @@ test.describe("Mobile - Navigation (authenticated)", () => {
     await loginViaUi(page, MOBILE_PHONE);
   });
 
-  test("mobile tab bar navigates to browse", async ({ page }) => {
+  test("mobile tab bar navigates to channels", async ({ page }) => {
     // The bottom MobileTabBar is always visible on mobile (no GSAP drawer),
     // so it is the reliable mobile navigation surface.
-    const browseTab = page.getByRole("link", { name: "频道", exact: true });
-    await expect(browseTab).toBeVisible({ timeout: 5000 });
-    await browseTab.click();
-    await page.waitForURL(/\/browse/, { timeout: 10000 });
-    expect(page.url()).toContain("/browse");
+    const channelsTab = page.getByRole("link", { name: "频道", exact: true });
+    await expect(channelsTab).toBeVisible({ timeout: 5000 });
+    await channelsTab.click();
+    await page.waitForURL(/\/channels/, { timeout: 10000 });
+    expect(page.url()).toContain("/channels");
   });
 });

@@ -105,7 +105,7 @@ interface UseVideoPlayerReturn {
   play: () => void;
   togglePlayPause: () => void;
   seekBy: (delta: number) => void;
-  seekTo: (time: number) => void;
+  seekTo: (time: number, playAfterSeek?: boolean) => void;
   navigateSubtitle: (delta: number) => void;
   retry: () => void;
   // ── D1 控制条能力 ─────────────────────────────────────────────
@@ -146,6 +146,7 @@ export function useVideoPlayer({
   const ytPlayingRef = useRef(false);
   const mountedYtIdRef = useRef<string | null>(null);
   const ytTargetIdRef = useRef<string | null>(null);
+  const pendingYtSeekRef = useRef<{ time: number; playAfterSeek: boolean } | null>(null);
 
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("loading");
@@ -309,7 +310,15 @@ export function useVideoPlayer({
         events: {
           onReady: () => {
             ytReadyRef.current = true;
-            resumeFromSavedPosition();
+            const pendingSeek = pendingYtSeekRef.current;
+            const player = ytPlayerRef.current;
+            if (pendingSeek && player?.seekTo) {
+              pendingYtSeekRef.current = null;
+              player.seekTo(pendingSeek.time, true);
+              if (pendingSeek.playAfterSeek) player.playVideo();
+            } else {
+              resumeFromSavedPosition();
+            }
           },
           onStateChange: (e: { data?: number }) => {
             // 1 = playing, 2 = paused, 0 = ended
@@ -461,7 +470,7 @@ export function useVideoPlayer({
     }
   }, []);
 
-  const seekTo = useCallback((time: number) => {
+  const seekTo = useCallback((time: number, playAfterSeek = true) => {
     const el = videoRef.current;
     if (el) {
       const applySeek = () => {
@@ -470,7 +479,7 @@ export function useVideoPlayer({
         // 再 seek 再 play，确保跳转生效。desktop/Android 保持原路径。
         if (isIOS()) el.pause();
         el.currentTime = time;
-        el.play().catch(() => {});
+        if (playAfterSeek) el.play().catch(() => {});
       };
       if (el.readyState >= 1) {
         // HAVE_METADATA 及以上才能接受 seek；元数据未就绪时直接赋值会被
@@ -497,7 +506,9 @@ export function useVideoPlayer({
       }
     } else if (ytReadyRef.current && ytPlayerRef.current?.seekTo) {
       ytPlayerRef.current.seekTo(time, true);
-      ytPlayerRef.current.playVideo();
+      if (playAfterSeek) ytPlayerRef.current.playVideo();
+    } else {
+      pendingYtSeekRef.current = { time, playAfterSeek };
     }
   }, []);
 

@@ -88,20 +88,18 @@ export function MilestoneBadge({ type, milestone }: MilestoneBadgeProps) {
   return (
     <div
       className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-        achieved
-          ? "border-brand-500/20 bg-brand-500/5"
-          : "border-hairline bg-surface-card opacity-60"
+        achieved ? "border-brand-500/20 bg-brand-500/5" : "border-hairline bg-surface-soft"
       }`}
     >
       <div
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-          achieved ? "bg-brand-500/10 text-brand-500" : "bg-surface-card text-muted"
+          achieved ? "bg-brand-500/10 text-brand-700" : "bg-surface-card text-muted"
         }`}
       >
         <Icon size={20} />
       </div>
       <div className="min-w-0">
-        <p className={`text-copy font-medium truncate ${achieved ? "text-ink" : "text-muted"}`}>
+        <p className={`text-copy font-medium truncate ${achieved ? "text-ink" : "text-body"}`}>
           {config.label}
         </p>
         <p className="text-meta text-muted truncate">

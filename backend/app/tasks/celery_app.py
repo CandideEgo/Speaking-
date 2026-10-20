@@ -75,6 +75,18 @@ celery_app.conf.update(
             "task": "app.tasks.ranking_tasks.snapshot_rankings",
             "schedule": crontab(minute=30, hour=16),
         },
+        # 金数据外部收款：每 5 分钟同步最近窗口内的已付款订单，自动开通 Pro。
+        # 数据推送 webhook（api/v1/payments.py）是秒级主路径，本任务负责补漏。
+        "sync-jinshuju-payments": {
+            "task": "app.tasks.payment_tasks.sync_jinshuju_payments",
+            "schedule": 300,  # every 5 minutes
+        },
+        # 首页编辑内容：把卡在 queued/running 超过 900s 的生成任务标为 failed TIMEOUT
+        # （GET 状态时也会顺手处理，本巡检是兜底）。生成任务本身走默认 celery 队列。
+        "sweep-home-content-generations": {
+            "task": "app.tasks.home_content_tasks.sweep_home_content_generations",
+            "schedule": 600,  # every 10 minutes
+        },
         # ── 内测期免费开放（需求 §2.3）：以下三个 Pro/兑换码相关 beat 已停用。
         # 任务体保留（tests 直调 + 未来收费复用），仅摘掉调度。
         # "downgrade-expired-pro": {
@@ -115,7 +127,9 @@ celery_app.conf.update(
 import app.core.logging as _logging
 import app.models
 import app.tasks.account_tasks
+import app.tasks.home_content_tasks
 import app.tasks.order_tasks
+import app.tasks.payment_tasks
 import app.tasks.ranking_tasks
 import app.tasks.redeem_tasks
 import app.tasks.reminder_tasks

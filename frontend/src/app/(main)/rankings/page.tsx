@@ -15,6 +15,7 @@ import {
 import { TopPodium } from "@/components/rankings/TopPodium";
 import { TabPills } from "@/components/ui/TabPills";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { useRankings, type RankingScope } from "@/hooks/useRankings";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
@@ -47,12 +48,11 @@ export default function RankingsPage() {
 
   return (
     <PageTransition>
-      <main className="py-6 sm:py-10">
+      <main className="pt-6 pb-18">
         <PageHeader
-          className="pt-0 pb-4"
-          crumb="Trending · 榜单"
+          crumb="视频排行"
           title="排行"
-          description="最新上架，以及本周热播、收藏趋势"
+          description="最新上架，以及本周热播、本周收藏；点任意一条回观看页。"
         />
         <TabPills
           tabs={TABS}
@@ -61,6 +61,7 @@ export default function RankingsPage() {
           variant="ghost"
           activeStyle="dark"
           size="sm"
+          className="mt-4"
         />
         {loading ? (
           <Card variant="surface" padding={0} className="mt-4 divide-y divide-hairline">
@@ -71,7 +72,16 @@ export default function RankingsPage() {
         ) : error ? (
           <ErrorState title={error} onRetry={retry} className="py-10" />
         ) : items.length === 0 ? (
-          <EmptyState icon={Trophy} title="暂无数据" />
+          <EmptyState
+            icon={Trophy}
+            title="暂无数据"
+            description="暂无榜单内容，可以先去发现感兴趣的视频。"
+            action={
+              <LinkButton href="/" variant="outline" size="sm">
+                去浏览视频
+              </LinkButton>
+            }
+          />
         ) : (
           <div key={scope} className="stagger-container mt-4 grid gap-4">
             <TopPodium items={items.slice(0, 3)} mode={mode} metricLabel={metricLabel} />

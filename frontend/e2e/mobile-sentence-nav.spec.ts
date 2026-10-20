@@ -133,7 +133,7 @@ let token = "";
 // 整个文件一次注册（`/auth/sms/register` 是 3/minute 按 IP）；两个 describe 共用同一个用户。
 // A/B/D 需要真媒体，C 不需要（CI 上也跑）—— 所以这里不能按 describe 各注册一个。
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 test.describe("句导航（真媒体，414×896）", () => {

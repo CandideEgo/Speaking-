@@ -86,7 +86,7 @@ async def test_generate_word_notes_bulk_dual_engine_fans_out(fake_redis, monkeyp
     service = AIService()
 
     # agnes _chat mock — returns one aligned note per input word.
-    async def fake_chat(system, user, temperature=0.3, response_format=None):
+    async def fake_chat(system, user, temperature=0.3, response_format=None, task="default"):
         # Echo a note for each numbered word in the user prompt.
         import re
 

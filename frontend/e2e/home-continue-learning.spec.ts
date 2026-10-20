@@ -1,15 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * DEC-080 · 首页最小发现页修正。
+ * 首页：真实表达与点词学习，顶部横条包含续学 / 少量复习 / 练习入口。
+ * 下方保留分类、难度、排序齐全的视频流。
  *
- * 两个可独立回归的点：
- *   1) 「继续学习」rail 只吃未完成且进度 > 0 的记录；空数据 / 500 / 未登录整块不渲染，
- *      但推荐网格照常；
- *   2) 统计条降级为头部附属（inline），不再是推荐区上方那条整宽 band。
- *
- * 不依赖后端：本地铸票 + `page.route` mock `/learning/records` 与 `/recommendations/home`，
- * 其余 `/api/**` abort。authStore 从 token payload 派生用户，所以铸票即可走登录态。
+ * 这些用例只关心三件仍然值得守的事：
+ *   1) 续播只给最近一条「未完成且看过一点」的记录，链接带 from=home；
+ *   2) 任一入口取数失败不拖垮推荐流；
+ *   3) 学习横条始终在内容之前，桌面三栏、手机换行且不横向溢出。
+ * API 全量 mock：这些测试不依赖真实库里的视频与学习记录。
  */
 
 function mintToken(): string {
@@ -111,6 +110,43 @@ const RECOMMENDATION = {
   total: 1,
 };
 
+const FEATURED = {
+  items: [
+    {
+      id: "featured-1",
+      source_url: "https://example.com/featured-1",
+      title: "本周精选视频",
+      channel_name: "TED",
+      channel_slug: "ted",
+      thumbnail_url: null,
+      duration: 684,
+      difficulty_level: "C1",
+      topic_tags: "ted",
+      is_official: true,
+      status: "ready",
+      storage_mode: "local",
+      wpm: 148,
+      created_at: "2026-10-01T00:00:00Z",
+    },
+  ],
+};
+
+const METADATA = {
+  "featured-1": {
+    subtitle_count: 38,
+    exam_word_count: 52,
+    sample_text_en: "The rush we feel is not a property of the world.",
+    sample_text_zh: "我们感到的匆忙并不是世界的属性。",
+    sample_start_time: 0.2,
+    sample_end_time: 3.2,
+    sample_subtitle_id: "featured-sub-1",
+    sample_words: [
+      { word: "rush", phonetic: "rʌʃ", translation: "n. 匆忙", levels: ["cet4"] },
+      { word: "property", phonetic: "ˈprɒpəti", translation: "n. 属性", levels: ["cet6"] },
+    ],
+  },
+};
+
 async function mockHome(
   page: Page,
   options: { authenticated: boolean; records: MockRecord[]; recordsFail?: boolean }
@@ -120,16 +156,30 @@ async function mockHome(
   await page.route("**/api/v1/recommendations/home**", (route) =>
     route.fulfill({ json: RECOMMENDATION })
   );
+  await page.route("**/api/v1/browse/featured**", (route) => route.fulfill({ json: FEATURED }));
+  await page.route("**/api/v1/discovery/learning-metadata**", (route) =>
+    route.fulfill({ json: METADATA })
+  );
+  await page.route("**/api/v1/vocabulary/stats**", (route) =>
+    route.fulfill({ json: { total: 241, due_count: 24 } })
+  );
+  await page.route("**/api/v1/exams/attempts**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 1 } })
+  );
+  await page.route("**/api/v1/learning/stats/weekly**", (route) =>
+    route.fulfill({
+      json: {
+        this_week_minutes: 18,
+        this_week_words: 0,
+        this_week_videos: 0,
+        daily_minutes: [],
+        week_delta_pct: null,
+      },
+    })
+  );
   await page.route("**/api/v1/learning/records**", (route) => {
-    const url = new URL(route.request().url());
-    // CompactStatsBar 的「已学视频」计数请求不带 completed 参数。
-    if (url.searchParams.get("completed") !== "false") {
-      return route.fulfill({
-        json: { items: [], page: 1, page_size: 1, has_more: false, total: 9 },
-      });
-    }
     if (options.recordsFail) {
-      return route.fulfill({ status: 500, json: { detail: "boom" } });
+      return route.abort("failed");
     }
     return route.fulfill({
       json: {
@@ -144,9 +194,13 @@ async function mockHome(
 
   if (options.authenticated) {
     const token = mintToken();
-    await page
-      .context()
-      .addCookies([{ name: "seeword_token", value: token, url: "http://localhost:3000" }]);
+    await page.context().addCookies([
+      {
+        name: "seeword_token",
+        value: token,
+        url: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+      },
+    ]);
     await page.addInitScript((t: string) => {
       window.localStorage.setItem("seeword_token", t);
       window.localStorage.setItem("seeword_coach_done", "true");
@@ -158,36 +212,117 @@ async function mockHome(
   }
 }
 
-test.describe("DEC-080 首页继续学习 rail", () => {
-  test("进行中记录显示 rail，完成/0 进度被排除，链接带 from=home", async ({ page }) => {
+test.describe("首页第一行动：续学 / 复习 / 找视频", () => {
+  test("续学只给最近一条进行中记录，链接直接落到真实位置", async ({ page }) => {
     await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.goto("/");
 
     const rail = page.getByTestId("continue-learning-rail");
     await expect(rail).toBeVisible();
     await expect(rail.getByText("进行中课程 A")).toBeVisible();
-    await expect(rail.getByText("进行中课程 B")).toBeVisible();
+    await expect(rail.getByText("已看 60%")).toBeVisible();
+    await expect(rail.getByText("进行中课程 B")).toHaveCount(0);
     await expect(rail.getByText("已完成课程")).toHaveCount(0);
     await expect(rail.getByText("未开始课程")).toHaveCount(0);
 
+    // 缩略图/标题/按钮三处都指向同一段视频，且都带真实位置 t=60。
     const links = rail.locator('a[href*="/watch/"]');
-    await expect(links).toHaveCount(2);
-    await expect(links.nth(0)).toHaveAttribute("href", /\/watch\/v1\?from=home/);
-    await expect(links.nth(1)).toHaveAttribute("href", /\/watch\/v2\?from=home/);
+    await expect(links.first()).toHaveAttribute("href", /\/watch\/v1\?from=home&t=60/);
+    await expect(rail.locator('a[href*="/watch/v2"]')).toHaveCount(0);
+    await expect(rail.getByRole("link", { name: "继续学习 · 1:00" })).toHaveAttribute(
+      "href",
+      "/watch/v1?from=home&t=60"
+    );
 
-    // rail 不吞推荐流：推荐网格照常渲染。
+    // 首页邀请完成一小轮，而不是把全部到期数量变成压力。
+    const vocab = page.getByRole("region", { name: "词汇复习" });
+    await expect(vocab.getByRole("link", { name: /先复习 5 个词/ })).toHaveAttribute(
+      "href",
+      "/vocabulary/drill?review_count=5"
+    );
+    await expect(
+      page
+        .getByRole("region", { name: "找视频", exact: true })
+        .getByRole("link", { name: /按主题/ })
+    ).toHaveAttribute("href", "#feed");
+
+    // 主行动不吞推荐流。
     await expect(page.getByText("推荐视频 A")).toBeVisible();
   });
 
-  test("500 时 rail 不渲染，推荐网格照常", async ({ page }) => {
-    await mockHome(page, { authenticated: true, records: [], recordsFail: true });
+  test("没有可继续记录时，今日精选就是首屏主任务（完整视频入口）", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: [] });
     await page.goto("/");
 
-    await expect(page.getByText("推荐视频 A")).toBeVisible();
+    await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
+    const task = page.getByRole("region", { name: "今日学习任务" });
+    await expect(task).toBeVisible();
+    await expect(task.getByRole("heading", { name: "本周精选视频" })).toBeVisible();
+    // 兜底没有片段数据：主按钮如实去完整视频，不写「听懂这段」。
+    const cta = task.getByRole("link", { name: /从这段开始/ });
+    await expect(cta).toHaveAttribute("href", "/watch/featured-1?from=home");
+    await expect(cta).toHaveAttribute("data-variant", "primary");
+    await expect(task.getByText("The rush we feel is not a property of the world.")).toBeVisible();
+  });
+
+  test("到期不足 5 个时显示实际数量，没有到期词时改去词库", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: [] });
+    let due = 3;
+    await page.route("**/api/v1/vocabulary/stats**", (route) =>
+      route.fulfill({ json: { due_count: due, total: 12 } })
+    );
+    await page.goto("/");
+    const vocab = page.getByRole("region", { name: "词汇复习" });
+    await expect(vocab.getByRole("link", { name: /先复习 3 个词/ })).toHaveAttribute(
+      "href",
+      "/vocabulary/drill?review_count=5"
+    );
+    due = 0;
+    await page.reload();
+    await expect(vocab.getByRole("link", { name: /翻翻我的词库/ })).toHaveAttribute(
+      "href",
+      "/vocabulary"
+    );
     await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
   });
 
-  test("未登录不渲染 rail", async ({ page }) => {
+  test("首页短复习只请求 5 个到期词，不启动完整的今日训练", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: IN_PROGRESS });
+    const practiceRequests: URL[] = [];
+    const fullTrainingRequests: string[] = [];
+    page.on("request", (request) => {
+      if (/\/vocabulary\/(daily-session|sessions)(\?|$)/.test(request.url()))
+        fullTrainingRequests.push(request.url());
+    });
+    await page.route("**/api/v1/vocabulary/practice**", (route) => {
+      practiceRequests.push(new URL(route.request().url()));
+      return route.fulfill({ json: { items: [] } });
+    });
+    await page.goto("/");
+    await page.getByRole("link", { name: /先复习 5 个词/ }).click();
+    await expect(page).toHaveURL(/\/vocabulary\/drill\?review_count=5$/);
+    await expect.poll(() => practiceRequests.length).toBeGreaterThan(0);
+    await expect(page.getByText("今天没有到期词，去听一点新内容吧。")).toBeVisible();
+    for (const request of practiceRequests) {
+      expect(request.searchParams.get("count")).toBe("5");
+      expect(request.searchParams.get("due_only")).toBe("true");
+    }
+    expect(fullTrainingRequests).toEqual([]);
+  });
+
+  test("续播加载失败可重试，今日任务与推荐流照常", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: [], recordsFail: true });
+    await page.goto("/");
+
+    await expect(page.getByText("学习记录暂时未能加载，今天先从这里开始。")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByRole("button", { name: "重试" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "今日学习任务" })).toBeVisible();
+    await expect(page.getByText("推荐视频 A")).toBeVisible();
+  });
+
+  test("未登录不渲染续播", async ({ page }) => {
     await mockHome(page, { authenticated: false, records: IN_PROGRESS });
     await page.goto("/");
 
@@ -197,49 +332,38 @@ test.describe("DEC-080 首页继续学习 rail", () => {
   });
 });
 
-test.describe("DEC-080 统计条降级为头部附属", () => {
-  test("1440 桌面：统计在头部行、不再是整宽 band", async ({ page }) => {
+test.describe("首页版式：主行动优先", () => {
+  test("1440 桌面：续学在最上方，任务在左、复习/找视频退到右栏", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.goto("/");
 
-    const inline = page.getByTestId("compact-stats-inline");
-    await expect(inline).toBeVisible();
-    const styles = await inline.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { background: cs.backgroundColor, borderTop: cs.borderTopWidth };
-    });
-    expect(styles.background).toBe("rgba(0, 0, 0, 0)");
-    expect(styles.borderTop).toBe("0px");
-
-    const greeting = page.locator("h1").first();
-    const greetingBox = (await greeting.boundingBox())!;
-    const inlineBox = (await inline.boundingBox())!;
-    const railBox = (await page.getByTestId("continue-learning-rail").boundingBox())!;
-    expect(inlineBox.x).toBeGreaterThan(greetingBox.x);
-    expect(inlineBox.y).toBeLessThan(railBox.y);
+    const rail = (await page.getByTestId("continue-learning-rail").boundingBox())!;
+    const task = (await page.getByRole("region", { name: "今日学习任务" }).boundingBox())!;
+    const aside = (await page.getByRole("complementary", { name: "其他学习入口" }).boundingBox())!;
+    expect(rail.y + rail.height).toBeLessThanOrEqual(task.y);
+    expect(aside.x).toBeGreaterThanOrEqual(task.x + task.width - 1);
+    expect(aside.width).toBeLessThan(500);
+    await expect(page.locator(".home-personal")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      1440
+    );
   });
 
-  test("390 移动：rail 可横向滚动，页面不横向溢出", async ({ page }) => {
+  test("390 移动：续学换行、仍在任务之前，主 CTA 可点且无横向溢出", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 812 });
-    await mockHome(page, {
-      authenticated: true,
-      records: [...IN_PROGRESS, ...IN_PROGRESS.map((r) => ({ ...r, id: `${r.id}-x` }))],
-    });
+    await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.goto("/");
 
-    const rail = page.getByTestId("continue-learning-rail");
-    await expect(rail).toBeVisible();
-    const metrics = await rail.evaluate((el) => {
-      const scroller = el.querySelector<HTMLElement>("div.overflow-x-auto");
-      return {
-        scrollWidth: scroller?.scrollWidth ?? 0,
-        clientWidth: scroller?.clientWidth ?? 0,
-        docWidth: document.documentElement.scrollWidth,
-        viewportWidth: window.innerWidth,
-      };
-    });
-    expect(metrics.scrollWidth).toBeGreaterThan(metrics.clientWidth);
+    const rail = (await page.getByTestId("continue-learning-rail").boundingBox())!;
+    const task = (await page.getByRole("region", { name: "今日学习任务" }).boundingBox())!;
+    expect(rail.y + rail.height).toBeLessThanOrEqual(task.y);
+    await expect(page.getByTestId("continue-learning-rail")).toBeVisible();
+    const metrics = await page.evaluate(() => ({
+      docWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
     expect(metrics.docWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+    await expect(page.getByRole("link", { name: /继续学习/ })).toBeVisible();
   });
 });

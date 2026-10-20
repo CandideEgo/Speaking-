@@ -16,6 +16,8 @@ import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
 import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
 // 生产短信验证码为 4 位（开发/CI 假码 1234 同为 4 位）；后端仍兼容 4–6 位。
@@ -37,6 +39,8 @@ function RegisterForm() {
   const next = safeNext(searchParams.get("next"));
   const login = useAuthStore((s) => s.login);
 
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(() => Array(OTP_LENGTH).fill(""));
   const [fieldErrors, setFieldErrors] = useState<{ phone?: string; code?: string }>({});
@@ -112,6 +116,12 @@ function RegisterForm() {
       return;
     }
 
+    if (password && !PASSWORD_RE.test(password)) {
+      setPasswordError(PASSWORD_RULE_MESSAGE);
+      setFormError("");
+      return;
+    }
+    setPasswordError("");
     setFormError("");
     setLoading(true);
     try {
@@ -120,15 +130,17 @@ function RegisterForm() {
         refresh_token: string;
         is_new_user: boolean;
         user: { id: string; phone: string; onboarding_completed: boolean };
-      }>("/api/v1/auth/sms/login", {
+      }>(password ? "/api/v1/auth/sms/register" : "/api/v1/auth/sms/login", {
         method: "POST",
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone, code, ...(password ? { password } : {}) }),
       });
       // 先声明登录后去哪，再登录。登录后**唯一的导航者**是上面的
       // useRedirectIfAuthenticated：它会在 isAuthenticated 翻真的那次 effect 里跳到
       // postAuth。这里若再自己 router.replace 一次，会被它覆盖 —— Next 的 action
       // queue 会把先发的导航标为 discarded，后发的赢（注册完落首页即由此而来）。
-      setPostAuth(postAuthRedirect(res, next, "register"));
+      setPostAuth(
+        password && res.is_new_user ? "/onboarding" : postAuthRedirect(res, next, "register")
+      );
       login(res.token, res.refresh_token);
     } catch (err) {
       setFormError(apiErrorMessage(err, "注册失败，请重试"));
@@ -184,18 +196,22 @@ function RegisterForm() {
               className="min-w-0 flex-1 bg-transparent px-3.5 font-mono text-copy-lg tracking-[0.05em] text-ink outline-none placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-soft"
             />
             {phoneValid && (
-              <span className="flex items-center pr-3.5 text-success" aria-hidden="true">
+              <span className="flex items-center pr-3.5 text-success-text" aria-hidden="true">
                 <Check size={18} strokeWidth={2.2} />
               </span>
             )}
           </div>
-          {fieldErrors.phone && (
+          {fieldErrors.phone ? (
             <p
               id="register-phone-error"
               role="alert"
-              className="text-meta leading-relaxed text-error"
+              className="text-meta leading-relaxed text-error-text"
             >
               {fieldErrors.phone}
+            </p>
+          ) : (
+            <p className="text-caption text-muted">
+              一个手机号对应一个账号；已注册的号码请直接登录。
             </p>
           )}
         </div>
@@ -209,7 +225,7 @@ function RegisterForm() {
               type="button"
               onClick={handleSendCode}
               disabled={!phoneValid || sending || loading || cooldown > 0}
-              className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-600 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
+              className="rounded-sm px-0.5 py-0.5 text-meta font-semibold text-ink transition-colors hover:text-brand-700 disabled:cursor-not-allowed disabled:font-medium disabled:text-muted"
             >
               {cooldown > 0
                 ? `${cooldown}s 后重发`
@@ -223,7 +239,7 @@ function RegisterForm() {
 
           {/* 发码失败的错误属于「这次发送」，不属于手机号字段 */}
           {smsError && (
-            <p role="alert" className="text-meta leading-relaxed text-error">
+            <p role="alert" className="text-meta leading-relaxed text-error-text">
               {smsError}
             </p>
           )}
@@ -242,14 +258,14 @@ function RegisterForm() {
             <p
               id="register-code-error"
               role="alert"
-              className="text-meta leading-relaxed text-error"
+              className="text-meta leading-relaxed text-error-text"
             >
               {fieldErrors.code}
             </p>
           )}
           {sentTo === phone && !fieldErrors.code && (
             <p
-              className="flex items-center gap-1.5 text-meta leading-relaxed text-success"
+              className="flex items-center gap-1.5 text-meta leading-relaxed text-success-text"
               role="status"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
@@ -258,10 +274,31 @@ function RegisterForm() {
           )}
         </div>
 
+        <PasswordField
+          id="register-password"
+          label="设置登录密码（可选）"
+          labelRight={
+            <span className="rounded-sm border border-hairline bg-surface-soft px-1.5 text-caption font-semibold text-body">
+              可跳过
+            </span>
+          }
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            setPasswordError("");
+            setFormError("");
+          }}
+          placeholder="至少 8 位，含大小写字母和数字"
+          disabled={loading}
+          error={passwordError}
+          showMeter
+          showRules
+          hint="不设密码也能注册：验证码登录后随时可在「设置登录密码」里补，规则不变。"
+        />
         {formError && (
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-sm border border-error/20 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error"
+            className="flex items-start gap-2 rounded-sm border border-error/30 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error-text"
           >
             <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>{formError}</span>
@@ -311,6 +348,7 @@ function RegisterForm() {
             >
               《隐私政策》
             </Link>
+            ，同意按政策处理手机号与学习数据。
           </span>
         </label>
 
@@ -323,7 +361,7 @@ function RegisterForm() {
           type="submit"
           fullWidth
           disabled={loading || !agreed}
-          className="mt-1 h-12 rounded-md text-copy-lg"
+          className="mt-1 h-12 rounded-md text-copy-lg disabled:text-body!"
         >
           {loading ? (
             <>

@@ -24,7 +24,7 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
 const LIST = '[data-coach="subtitles"]';
-const BAR = '[data-testid="watch-bottom-bar"]';
+const BAR = '[data-testid="mobile-tab-bar"]';
 const SCROLLER = "main#main-scroll";
 
 interface SubtitleRow {
@@ -39,7 +39,7 @@ let token = "";
 test.use({ viewport: { width: 414, height: 896 } });
 
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {

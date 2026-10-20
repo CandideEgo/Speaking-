@@ -1,47 +1,72 @@
 import Image from "next/image";
 import Link from "next/link";
 import { siteConfig } from "@/lib/siteConfig";
+import { AuthThemeToggle } from "@/components/auth/AuthThemeToggle";
+import { cn } from "@/lib/utils";
+import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 
 /**
- * Shared outer shell for the account flow (login / register / forgot-password /
- * set-password / redirect recovery). Single centered column, max 400px, with
- * the brand lockup (`/logo.png` + wordmark) above the title/subtitle.
+ * 账号流程（login / register / forgot-password / set-password / onboarding /
+ * redirect recovery）的公共壳：单列、顶部对齐，表单页 480px、引导页 44rem
+ * （设计 `auth.css` 的 `.auth-shell` / `.auth-shell-wide`），品牌与主题切换同排。
  *
- * 原型「注册 / 登录 / 找回密码 / 设置密码」共用同一居中壳层；管理员登录页
- * 有自己的壳，不在此列。
+ * 注意：`user-ui.css` 的 `.user-auth > div` 把**直接子 div** 限到 30rem，所以
+ * wide 版用 `<section>` 承载宽度，避免被该规则盖掉 `max-w-[44rem]`。
+ *
+ * 标题/副标题字号由 `user-ui.css` 的 `.user-auth h1` / `.user-auth header p`
+ * 提供，页面里不再各自写字号（避免与设计档位打架）。
  */
 export function AuthCard({
   title,
   subtitle,
   children,
+  wide = false,
+  headerActions,
 }: {
   title: string;
   subtitle?: React.ReactNode;
   children: React.ReactNode;
+  /** `auth-shell-wide`（44rem）：引导页使用。 */
+  wide?: boolean;
+  /** 页头右侧除主题切换外的附加动作（例如引导页的「跳过设置」）。 */
+  headerActions?: React.ReactNode;
 }) {
-  return (
-    <main className="flex min-h-dvh justify-center bg-canvas px-5 py-10">
-      <div className="my-auto w-full max-w-[400px]">
+  const content = (
+    <>
+      <div className="mb-8 flex items-center justify-between gap-4">
         <Link
           href="/"
           aria-label={`${siteConfig.brandName} 首页`}
-          className="mb-[34px] flex items-center gap-[9px]"
+          className="flex min-w-0 items-center gap-2 rounded-sm"
         >
           <Image src="/logo.png" alt="" width={26} height={26} className="rounded-sm" priority />
-          <span className="font-display text-copy-lg font-bold tracking-display-sm text-ink">
+          <span className="font-display text-[17px] font-extrabold tracking-[-0.03em] text-ink">
             {siteConfig.brandName}
           </span>
         </Link>
-
-        <header className="mb-[22px]">
-          <h1 className="font-display text-display-sm font-bold tracking-display-md text-ink">
-            {title}
-          </h1>
-          {subtitle && <p className="mt-1.5 text-copy leading-relaxed text-muted">{subtitle}</p>}
-        </header>
-
-        {children}
+        <div className="flex flex-none items-center gap-3">
+          {headerActions}
+          <AuthThemeToggle />
+        </div>
       </div>
+
+      <header>
+        <h1 className={cn("font-display text-ink", wide && "max-w-[40rem]")}>{title}</h1>
+        {subtitle && <p>{subtitle}</p>}
+      </header>
+
+      {children}
+      <ComplianceInfo className="mt-6 text-center" />
+    </>
+  );
+
+  return (
+    <main className="user-ui user-auth min-h-dvh bg-canvas px-5 pt-6 pb-10 md:px-6">
+      {wide ? (
+        <section className="mx-auto w-full max-w-[44rem]">{content}</section>
+      ) : (
+        <div className="mx-auto w-full max-w-[480px]">{content}</div>
+      )}
     </main>
   );
 }

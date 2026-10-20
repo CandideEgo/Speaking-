@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 import { mediaUrl } from "@/lib/api";
@@ -66,10 +66,20 @@ export function Image({
 >) {
   const [errored, setErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     setErrored(false);
-    setLoaded(false);
+    // 缓存命中/服务端预取时，图片可能在 React 挂上 onLoad 之前就已经 complete，
+    // onLoad 不会再触发；只依赖事件会让图片永远停在 opacity-0（证据截图里
+    // 首屏缩略图整块空白）。挂载后主动对一次真实状态。
+    const node = imgRef.current;
+    if (node?.complete) {
+      setLoaded(node.naturalWidth > 0);
+      setErrored(node.naturalWidth === 0);
+    } else {
+      setLoaded(false);
+    }
   }, [src]);
 
   const transition = cn("transition-opacity duration-300", loaded ? "opacity-100" : "opacity-0");
@@ -88,6 +98,7 @@ export function Image({
   if (!fill) {
     return (
       <NextImage
+        ref={imgRef}
         src={mediaUrl(src)}
         alt={alt}
         width={width}
@@ -106,6 +117,7 @@ export function Image({
     <>
       {!loaded && <div className="absolute inset-0 animate-pulse bg-surface-card" aria-hidden />}
       <NextImage
+        ref={imgRef}
         src={mediaUrl(src)}
         alt={alt}
         fill

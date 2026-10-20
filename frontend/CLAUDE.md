@@ -46,17 +46,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **容器归属**：全站唯一的 `.container-page` 在 [`src/app/(main)/MainLayoutInner.tsx`](<src/app/(main)/MainLayoutInner.tsx>) 渲染一次。页面**不得**自己再加容器——这正是设计系统第 1 条拦的东西。
 
-**观看页换壳**：`pathname.startsWith("/watch/")` 会把 TopBar 换成 `WatchTopBar`、MobileTabBar 换成 `WatchBottomBar`。[`WatchChromeProvider`](src/components/watch/WatchChromeProvider.tsx) 是全局单槽，底栏是铺满整宽的四个键。
+**用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页与其他用户页面共享导航；播放、逐句跳转、跟读位于页面内容中。手机词卡与跟读抽屉以全站底部导航为下边界，短视口至少保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
+
+桌面播放器的高度预算跟随实际句卡尺寸：保存跟读后出现的历史行会增加卡高，固定常量会把句卡再次挤出首屏。调整观看动作时同时运行 `watch-desktop-stage.spec.ts`，覆盖已有录音的账号。
 
 **`devIndicators: false` 是故意的，不是随手关的**（[`next.config.js`](next.config.js)）：Next 的 dev 徽标正好压在观看页底栏「上一句」的中心点上（实测 `elementFromPoint(52, 868)` 命中 `NEXTJS-PORTAL`），挪到右下角又压「跟读」，而底栏四角没有一个位置不压按钮——所以唯一能同时保住真机可点性与自动化判据的取值是整个关掉。编译/运行时错误浮层不受影响。
 
-**dev 代理只在 dev 生效**：`next.config.js` 的 `rewrites()` 把 `/api`、`/media`、`/health` 转到 `localhost:8000`，**仅当 `NODE_ENV === "development"`**。生产是 `output: "standalone"` + nginx 反代，没有这些 rewrite。**推论：e2e 必须对着 `next dev` 跑**；`next start` 没有代理，也够不到后端。同理，本机真机联调（手机走局域网 IP 访问 dev 站）要靠 `allowedDevOrigins`（默认放行 `192.168.x.x`，其它网段用 `DEV_ALLOWED_ORIGINS`），否则 Next 16 的 cross-site 防护会挡掉 HMR WebSocket，页面停在骨架屏、一个 API 都不发。
+**dev 代理只在 dev 生效**：`next.config.js` 的 `rewrites()` 把 `/api`、`/media`、`/health` 转到 `localhost:8000`，**仅当 `NODE_ENV === "development"`**。生产是 `output: "standalone"` + nginx 反代，没有这些 rewrite。**常规 e2e 使用 `next dev`，生产专项通过 nginx 反代运行（见下节）**；`next start` 本身不提供后端代理。同理，本机真机联调（手机走局域网 IP 访问 dev 站）要靠 `allowedDevOrigins`（默认放行 `192.168.x.x`，其它网段用 `DEV_ALLOWED_ORIGINS`），否则 Next 16 的 cross-site 防护会挡掉 HMR WebSocket，页面停在骨架屏、一个 API 都不发。
 
 **token 双重存放**：真身在 Zustand [`authStore`](src/stores/authStore.ts) 的 localStorage，请求时带 `Authorization: Bearer`；同时镜像到 cookie `seeword_token`，供边缘登录墙 [`src/proxy.ts`](src/proxy.ts) 读取。**登录墙只查 cookie 是否存在**，不解析 JWT、不查库。管理端是另一套：独立 `adminAuthStore` + `seeword_admin_token` + [`lib/adminApi.ts`](src/lib/adminApi.ts)。因为 `<video>`/`<audio>` 发不了请求头，`mediaUrl()` 用 `?token=` 附 token。
 
-**图片走自定义 loader**：[`src/lib/imageLoader.ts`](src/lib/imageLoader.ts) 绕过 Next 优化器（生产 standalone server 上没有 `/media` 路由，优化器的服务端抓取会失败）；`mediaUrl()` 把防盗链的 CDN 经 `/media/proxy` 代理。**新增远程图源要同时加 `next.config.js` 的 `images.remotePatterns`**，否则 `next/image` 会拒。
+**图片直接输出、不走 Next 优化器**：[`next.config.js`](next.config.js) 的 `images.unoptimized: true` 让 `next/image` 原样输出 src（生产 standalone server 上没有 `/media` 路由，优化器的服务端抓取会失败）；`mediaUrl()` 把防盗链的 CDN 经 `/media/proxy` 代理。**新增远程图源要同时加 `next.config.js` 的 `images.remotePatterns`**，否则 `next/image` 会拒。
 
 ## e2e
+
+**生产验收独立运行**：`scripts/production-smoke.ps1` 在专用 Compose 项目中创建临时数据库、生成可播放媒体和 localhost 测试证书；用 `playwright.production.config.ts` 验证生产镜像经过 HTTPS nginx 的行为。`PRODUCTION_REGRESSION=1` 复用观看页与移动端回归，`PLAYWRIGHT_BASE_URL` 要与 `PRODUCTION_SMOKE_URL` 同设为该本机地址（旧测试 helper 读取前者）。结束后用脚本的 `-Stop` 清理专用容器与测试卷。该配置拒绝远程主机，不能用于向线上账户写入测试数据。常规 e2e 仍用下面的开发环境配置；两种方式都要保留，因为开发代理不会覆盖生产响应头、录音权限与静态资源问题。
+
+**公开配置在构建时固定**：Docker 的 `NEXT_PUBLIC_*` 构建参数负责站点地址和已有公示信息；修改 Compose 运行时变量不会改变已构建的浏览器包。API 与媒体继续同源。会员链接、价格、期限从后端读取，公示字段为空时不补占位文字。
+
+Windows 的生产验收把参考词典原样复制到专用 Linux 卷再只读挂载：SQLite 通过 Windows bind mount 随机读的开销会制造搜索冷启动假故障（同一词典实测约 31 秒，本地卷约 0.3 秒）。保持词典内容一致，通过文件系统匹配生产环境，不增加测试等待时间或跳过搜索断言。
 
 [`playwright.config.ts`](playwright.config.ts)：`testDir: ./e2e`，baseURL 取 `PLAYWRIGHT_BASE_URL` 否则 `http://localhost:3000`，四个 project：`chromium` / `firefox` / `mobile-chrome` / `mobile-iphone`。非 CI 环境下有 `webServer` 会自动拉起 backend（uvicorn :8000）+ `npm run dev`。
 

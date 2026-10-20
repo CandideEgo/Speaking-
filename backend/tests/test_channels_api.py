@@ -1,6 +1,7 @@
 """Tests for the Channels API (ADR-0014, rev. 2026-08-30 full author pages)."""
 
 from app.models.channel import Channel
+from app.models.learning import LearningRecord
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.services import channel_service
 from app.services.channel_service import auto_attach_channel, list_public_channels
@@ -521,3 +522,92 @@ async def test_admin_video_patch_channel_ref_invalidates_browse_cache_only_on_ch
         # Re-sending the same value is a no-op (idempotent PATCH).
         await _patch({"channel_ref": channel.id})
         assert invalidate.await_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Learning facts (2026-10 频道改版): position / directions / difficulty / start
+# ---------------------------------------------------------------------------
+
+
+async def test_channel_list_exposes_content_learning_facts(client, db_session):
+    channel = await _make_channel(db_session, name="Rachel's English", slug="rachel-s-english")
+    video = await _make_video(db_session, channel_ref=channel.id)
+    video.title = "How to Pronounce SEX vs. SIX - American English"
+    video.difficulty_level = "B2"
+    # The old classifier put a wrong news tag on a pronunciation lesson;
+    # the curated profile is authoritative for this channel.
+    video.topic_tags = "news"
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/channels")
+    assert resp.status_code == 200
+    item = next(c for c in resp.json()["items"] if c["slug"] == channel.slug)
+    assert item["positioning_zh"] == "美式发音与口语训练"
+    assert item["learning_directions"] == [{"id": "pronunciation", "label": "发音"}]
+    assert item["difficulty_range"] == {"min": "B2", "max": "B2"}
+    assert item["accent_label"] == "美式发音"
+    assert item["video_titles"] == ["How to Pronounce SEX vs. SIX - American English"]
+    assert item["latest_video"]["difficulty_level"] == "B2"
+
+
+async def test_channel_detail_recommends_lowest_difficulty_and_falls_back_to_latest(client, db_session):
+    channel = await _make_channel(db_session, slug="plain-start")
+    hard = await _make_video(db_session, channel_ref=channel.id)
+    hard.title = "Hard one"
+    hard.difficulty_level = "B2"
+    hard.duration = 100
+    easy = await _make_video(db_session, channel_ref=channel.id)
+    easy.title = "Easy one"
+    easy.difficulty_level = "A2"
+    easy.duration = 300
+    await db_session.commit()
+
+    data = (await client.get(f"/api/v1/channels/{channel.slug}")).json()
+    assert data["channel"]["difficulty_range"] == {"min": "A2", "max": "B2"}
+    assert data["recommended_start"]["basis"] == "lowest_difficulty"
+    assert data["recommended_start"]["video"]["id"] == easy.id
+    assert data["recommended_start"]["video"]["difficulty_level"] == "A2"
+
+    no_level = await _make_channel(db_session, slug="plain-no-level")
+    await _make_video(db_session, channel_ref=no_level.id)
+    fallback = (await client.get(f"/api/v1/channels/{no_level.slug}")).json()
+    assert fallback["channel"]["difficulty_range"] is None
+    assert fallback["recommended_start"]["basis"] == "latest"
+    assert fallback["recommended_start"]["video"]["id"] is not None
+
+
+async def test_subscriptions_carry_continue_video_and_unlearned_count(client, auth_headers, db_session):
+    uid = (await client.get("/api/v1/users/me", headers=auth_headers)).json()["id"]
+    channel = await _make_channel(db_session, name="Sub Author", slug="sub-author")
+    started = await _make_video(db_session, channel_ref=channel.id)
+    started.title = "Started lesson"
+    started.duration = 300
+    started.difficulty_level = "A2"
+    untouched = await _make_video(db_session, channel_ref=channel.id)
+    untouched.title = "Untouched lesson"
+    untouched.duration = 200
+    db_session.add(
+        LearningRecord(
+            user_id=uid,
+            video_id=started.id,
+            words_learned=0,
+            speaking_attempts=0,
+            completed=False,
+            time_spent_seconds=60,
+            progress_percentage=40.5,
+            position_seconds=121.5,
+        )
+    )
+    await db_session.commit()
+    assert (
+        await client.put(f"/api/v1/discovery/subscriptions/{channel.slug}", headers=auth_headers)
+    ).status_code == 200
+
+    rows = (await client.get("/api/v1/discovery/subscriptions", headers=auth_headers)).json()
+    row = next(item for item in rows if item["slug"] == channel.slug)
+    assert row["video_count"] == 2
+    assert row["latest_video"]["title"] == "Untouched lesson"
+    assert row["continue_video"]["title"] == "Started lesson"
+    assert row["continue_video"]["progress_percentage"] == 40.5
+    assert row["continue_video"]["position_seconds"] == 121.5
+    assert row["unlearned_count"] == 1

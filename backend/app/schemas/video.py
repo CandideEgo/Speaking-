@@ -85,6 +85,11 @@ class VideoResponse(BaseModel):
     ext_view_count: int | None = None
     ext_like_count: int | None = None
     wpm: float | None = None
+    # Populated by the page-batched learning-metadata endpoint; unknown is not zero.
+    subtitle_count: int | None = None
+    exam_word_count: int | None = None
+    sample_text_en: str | None = None
+    sample_text_zh: str | None = None
     vocabulary_density: float | None = None
     created_at: str
     # Publish timestamp. Only the rankings card carried it before 批 2; every

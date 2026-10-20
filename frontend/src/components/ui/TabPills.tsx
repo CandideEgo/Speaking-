@@ -17,6 +17,9 @@ export type ActiveStyle = "default" | "dark" | "brand";
 /** Size preset controlling padding. */
 export type TabSize = "md" | "sm";
 
+/** Visual variants: segmented tabs / bare ghost tabs / design `.chip` filter chips. */
+export type TabVariant = "default" | "ghost" | "chips";
+
 export interface TabPillsProps<K extends string = string> {
   /** List of tabs to render. */
   tabs: TabItem<K>[];
@@ -26,8 +29,12 @@ export interface TabPillsProps<K extends string = string> {
   onChange: (key: K) => void;
   /** Additional className for the outer container. */
   className?: string;
-  /** Visual variant. Default "default" = pill bg; "ghost" = no background, tighter. */
-  variant?: "default" | "ghost";
+  /**
+   * Visual variant. Default "default" = segmented pill control (设计 `.tabs`);
+   * "ghost" = no background, tighter; "chips" = 设计 `.chip` 行（32px 高、
+   * 描边、激活为墨色底），用于难度/分类这类筛选行。
+   */
+  variant?: TabVariant;
   /** Tab shape override. Default "pill"; "rect" = sharper corners. */
   shape?: "pill" | "rect";
   /** Active-state style. "default" = canvas bg + shadow; "dark" = ink bg; "brand" = brand bg. */
@@ -43,8 +50,8 @@ const ACTIVE_CLASSES: Record<ActiveStyle, string> = {
 };
 
 const SIZE_CLASSES: Record<TabSize, string> = {
-  md: "px-4 py-2",
-  sm: "px-3.5 py-1.5",
+  md: "h-8 px-3.5",
+  sm: "h-8 px-3",
 };
 
 export function TabPills<K extends string = string>({
@@ -57,12 +64,15 @@ export function TabPills<K extends string = string>({
   activeStyle = "default",
   size = "md",
 }: TabPillsProps<K>) {
+  const isChips = variant === "chips";
   return (
     <div
       className={cn(
-        "inline-flex gap-1 p-1",
-        variant === "default" && "bg-surface-card rounded-pill",
-        variant === "ghost" && "bg-transparent p-0",
+        "inline-flex gap-1",
+        variant === "default" &&
+          "flex-wrap items-center rounded-pill border border-hairline bg-surface-soft p-1",
+        variant === "ghost" && "flex-nowrap bg-transparent p-0",
+        isChips && "flex-wrap items-center gap-2 bg-transparent p-0",
         className
       )}
     >
@@ -71,13 +81,21 @@ export function TabPills<K extends string = string>({
         return (
           <button
             key={tab.key}
+            type="button"
             onClick={() => onChange(tab.key)}
             className={cn(
-              "inline-flex items-center rounded-pill text-copy font-semibold text-muted transition-colors duration-150 cursor-pointer",
-              !isActive && "hover:text-ink",
-              SIZE_CLASSES[size],
-              shape === "rect" && "rounded-sm",
-              isActive && ACTIVE_CLASSES[activeStyle]
+              // shrink-0 + nowrap：放进 overflow-x-auto 的筛选行时不被压缩成多行/竖排。
+              "inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-colors duration-150",
+              !isChips && "rounded-pill text-meta font-medium text-muted",
+              !isChips && !isActive && "hover:text-ink",
+              !isChips && SIZE_CLASSES[size],
+              !isChips && shape === "rect" && "rounded-sm",
+              isChips &&
+                "h-8 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta font-medium text-body hover:border-muted-soft hover:text-ink",
+              isActive &&
+                (isChips
+                  ? "border-ink bg-ink text-canvas hover:text-canvas"
+                  : ACTIVE_CLASSES[activeStyle])
             )}
           >
             {tab.label}

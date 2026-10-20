@@ -3,11 +3,11 @@ import { siteConfig } from "@/lib/siteConfig";
 /**
  * 合规公示信息：个体工商户主体 + ICP 备案 + 公安网安备案。
  *
- * 用于 Footer / Sidebar 底部。所有字段来自 NEXT_PUBLIC_* 环境变量，
- * 未备案时渲染"备案信息准备中"占位，取得备案后无需改代码即可生效。
+ * 用于用户端页脚和公开账号页面。仅显示已配置的 NEXT_PUBLIC_* 公示字段。
  */
 export function ComplianceInfo({ className = "" }: { className?: string }) {
   const { companyName, companyUscc, icpBeian, policeBeian } = siteConfig;
+  if (!companyName && !icpBeian && !policeBeian) return null;
 
   return (
     <div className={`text-caption leading-relaxed text-muted-soft ${className}`}>
@@ -27,9 +27,7 @@ export function ComplianceInfo({ className = "" }: { className?: string }) {
           >
             {icpBeian}
           </a>
-        ) : (
-          <span>ICP 备案准备中</span>
-        )}
+        ) : null}
         {policeBeian && (
           <a
             href="https://beian.mps.gov.cn/"

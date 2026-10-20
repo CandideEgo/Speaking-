@@ -30,6 +30,7 @@ from app.models.preferences import UserPreferences
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video, VideoStatus
+from app.services.video_card import CARD_SHAPE_VERSION
 
 # target_exam → CEFR band (soft boost only; videos carry no exam_level field).
 # Used to nudge videos of a matching difficulty upward for the user's goal.
@@ -134,9 +135,11 @@ async def _user_topic_weights(db: AsyncSession, user: User | None) -> dict[str, 
         .limit(100)
     )
     tags_lists = [r[0] for r in rows.all() if r[0]]
+    prefs = (await db.execute(select(UserPreferences).where(UserPreferences.user_id == user.id))).scalar_one_or_none()
+    interests = prefs.interest_categories if prefs else []
     if len(tags_lists) < s.recommend_min_clicks_for_personalization:
-        return {}
-    weights: dict[str, float] = {}
+        tags_lists = []
+    weights: dict[str, float] = {tag: 3.0 for tag in (interests or [])}
     for tags in tags_lists:
         for tag in tags.split(","):
             tag = tag.strip().lower()
@@ -476,7 +479,7 @@ async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_siz
     page_size = max(1, min(page_size, 50))
     s = get_settings()
     user_key = user.id if user else "anon"
-    cache_key = f"recommend:home:{user_key}:{page}:{page_size}"
+    cache_key = f"recommend:home:{user_key}:{page}:{page_size}:v{CARD_SHAPE_VERSION}"
     cached = await cache_get_json(cache_key)
     if cached is not None:
         return cached
@@ -502,6 +505,20 @@ async def get_home_feed(db: AsyncSession, user: User | None, page: int, page_siz
     else:
         # page>1 or a pool too small to mix: plain score-desc + featured tiebreak.
         display = _score_ordered(pool)
+
+        if page == 1 and user:
+            prefs = (
+                await db.execute(select(UserPreferences).where(UserPreferences.user_id == user.id))
+            ).scalar_one_or_none()
+            if prefs and prefs.interest_categories:
+                display = _rank_sort(
+                    pool,
+                    personalized=True,
+                    topic_weights={tag: 3.0 for tag in prefs.interest_categories},
+                    exam_band=set(),
+                    user_level=None,
+                )
+                personalized = True
 
     offset = (page - 1) * page_size
     page_items = display[offset : offset + page_size]
@@ -531,7 +548,7 @@ async def get_category_feed(db: AsyncSession, user: User | None, tag: str, page:
     s = get_settings()
     tag_lower = (tag or "").strip().lower()
     user_key = f"{user.id if user else 'anon'}:cat:{tag_lower}"
-    cache_key = f"recommend:category:{user_key}:{page}:{page_size}"
+    cache_key = f"recommend:category:{user_key}:{page}:{page_size}:v{CARD_SHAPE_VERSION}"
     cached = await cache_get_json(cache_key)
     if cached is not None:
         return cached

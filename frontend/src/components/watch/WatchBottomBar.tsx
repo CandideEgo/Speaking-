@@ -6,26 +6,14 @@ import { cn } from "@/lib/utils";
 import { Mic, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { WatchChromeState } from "@/components/watch/WatchChromeProvider";
 
-/**
- * WatchBottomBar — 观看页形态的壳底栏（DEC-069 / #31），**替换 5 Tab**。
- *
- *     ┌──────────────────────────────────────────────┐
- *     │ ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁  11 / 190        │ 2px 进度，44px 透明热区可拖
- *     ├──────────────────────────────────────────────┤
- *     │   ⏮ 上一句     ▶/⏸      ⏭ 下一句    🎙 跟读 │ 56px 四等分，各 ≥44×44
- *     └──────────────────────────────────────────────┘
- *
- * 占的就是 `MobileTabBar` 那个**壳内常规流槽位**（`shrink-0`，不是 `fixed bottom-0`）——
- * 安全区与 `dvh` 的归属因此一个字都不用改（INV-019）。iOS Safari 上 `fixed` 锚的是
- * layout viewport（地址栏收起时的高度），地址栏一出来就比可视区低 40px、压在地址栏上；
- * 常规流收尾行永远贴住可视区底边。e2e / `useSheetGeometry` 都按它定位。
- *
- * **进度条绝不用 React state 驱动**：`currentTime` 每秒跳 4 次，进 state 会让整个壳每秒
- * 重渲染 4 次。这里用 `requestAnimationFrame` 直读 `videoRef`，只写两处 DOM 的 `style`
- * （已播 / 已缓冲），一行 React 状态都不碰。拖动时改成 rAF 里回写 `currentTime`，
- * 于是「拖」与「播」共用同一条渲染路径，也不需要 seek 节流。
- */
-export function WatchBottomBar({ chrome = {} }: { chrome?: WatchChromeState }) {
+/** 页面内播放操作。高频进度仍由 rAF 直读媒体，避免整页随播放重渲染。 */
+export function WatchBottomBar({
+  chrome = {},
+  inline = false,
+}: {
+  chrome?: WatchChromeState;
+  inline?: boolean;
+}) {
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   // 判据用「≤1023px」那一档（计划 §5 说的 pathname + isMobile）。
   // 已知一处**有意保留**的边角：768–1023px（竖屏平板 / 窄桌面窗）`isMobile` 为真，底栏照常
@@ -36,7 +24,7 @@ export function WatchBottomBar({ chrome = {} }: { chrome?: WatchChromeState }) {
   // 后者会压住抽屉的动作行（实测「加入学习」只剩一个像素在缝里）。与 `MobileTabBar` 在
   // 考试流程里 `return null` 同一个先例。
   if (chrome.moreOpen) return null;
-  return isDesktop ? null : <WatchBottomBarMobile chrome={chrome} />;
+  return isDesktop ? null : <WatchBottomBarMobile chrome={chrome} inline={inline} />;
 }
 
 /**
@@ -46,7 +34,7 @@ export function WatchBottomBar({ chrome = {} }: { chrome?: WatchChromeState }) {
  */
 export const WATCH_BOTTOM_BAR_HEIGHT = 101;
 
-function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
+function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; inline: boolean }) {
   const {
     videoRef,
     attachVideo: _attachVideo,
@@ -228,9 +216,9 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
   return (
     <nav
       data-testid="watch-bottom-bar"
-      data-shell-bottom-bar="watch"
+      data-shell-bottom-bar={inline ? undefined : "watch"}
       aria-label="播放控制"
-      className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden"
+      className="shrink-0 border-y border-hairline bg-canvas lg:hidden"
     >
       {/* 进度：2px 细线 + 44px 透明热区（点/拖都在这一条上） */}
       <div

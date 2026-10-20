@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 
 from app.core.config import get_settings
 from app.core.errors import BadRequestError, ServiceUnavailableError
+from app.services.llm_provider import COMMANDCODE_DEFAULT_BASE_URL, TASK_TRANSLATION, resolve_model
 
 from .engines import BUILTIN_ENGINES, DEFAULT_TRANSLATION_PROMPT, EngineConfig
 from .json_sanitizer import sanitize_json
@@ -347,12 +348,21 @@ class TranslationService:
             cfg.base_url = settings.translation_custom_base_url or cfg.base_url
             cfg.model = settings.translation_custom_model or cfg.model
             cfg.api_key = settings.translation_custom_api_key or cfg.api_key
+        elif name == "commandcode":
+            # Same provider as AIService (COMMANDCODE_*). The model resolves
+            # through llm_provider so LLM_MODEL_TRANSLATION can pin a different
+            # model than the rest of the app without forking the engine.
+            cfg.base_url = settings.commandcode_base_url or COMMANDCODE_DEFAULT_BASE_URL
+            cfg.model = resolve_model(settings, TASK_TRANSLATION)
+            cfg.api_key = settings.commandcode_api_key
+            if settings.commandcode_zdr:
+                cfg.headers = {"x-cmd-zdr": "1"}
 
         # Validate required fields
         if not cfg.api_key:
             raise ServiceUnavailableError(
-                f"Translation engine {name!r} has no API key configured. "
-                f"Set the appropriate TRANSLATION_*_API_KEY in .env."
+                f"Translation engine {name!r} has no API key configured. Set the engine's API key in .env "
+                f"(TRANSLATION_*_API_KEY, or COMMANDCODE_API_KEY for the commandcode engine)."
             )
         if not cfg.base_url:
             raise ServiceUnavailableError(
@@ -375,6 +385,8 @@ class TranslationService:
         }
         if engine.base_url:
             kwargs["base_url"] = engine.base_url
+        if engine.headers:
+            kwargs["default_headers"] = dict(engine.headers)
         return AsyncOpenAI(**kwargs)
 
     @staticmethod

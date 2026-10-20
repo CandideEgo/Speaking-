@@ -94,8 +94,8 @@ export default function SubtitleModeTabs({
               "flex h-11 min-w-[72px] items-center justify-center gap-1.5 rounded-md px-3 text-copy font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer",
               compact && "px-2",
               subtitleMode === m.key
-                ? "bg-canvas text-brand-500 shadow-sm"
-                : "text-muted hover:text-ink"
+                ? "bg-canvas text-brand-700 shadow-sm"
+                : "text-body hover:text-ink"
             )}
             title={compact ? m.label : undefined}
           >
@@ -143,7 +143,7 @@ export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
           className={cn(
             "w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 cursor-pointer",
             subtitleMode === m.key
-              ? "bg-brand-500/10 text-brand-500"
+              ? "bg-brand-500/10 text-brand-700"
               : "text-muted hover:text-ink hover:bg-surface-soft"
           )}
           title={m.label}

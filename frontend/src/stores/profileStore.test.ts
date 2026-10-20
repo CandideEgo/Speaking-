@@ -26,7 +26,7 @@ describe("useProfileStore", () => {
     mockedApi.mockResolvedValue({ avatar_url: "/media/a.webp", gender: "female" });
     await useProfileStore.getState().fetchMe();
     expect(useProfileStore.getState().me).toEqual({ url: "/media/a.webp", gender: "female" });
-    expect(mockedApi).toHaveBeenCalledWith("/api/v1/users/me");
+    expect(mockedApi).toHaveBeenCalledWith("/api/v1/users/me", { cacheTtlMs: 30_000 });
   });
 
   it("maps missing fields to nulls (no upload, no gender filled in)", async () => {

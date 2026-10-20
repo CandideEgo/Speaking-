@@ -48,7 +48,7 @@ _ENVELOPE_KEYS = ["has_more", "items", "page", "page_size", "total"]
 # status/is_official/video_source/created_at）。四份字面量合并成这一份，是那批
 # 改动的结果，也是它唯一要守住的东西。
 #
-# 44 = VideoResponse 的全部字段。`metric`/`note_excerpt`/`has_note`/
+# VideoResponse 的全部字段。`metric`/`note_excerpt`/`has_note`/
 # `favorited_at` 只有填充它们的 scope 会给出非 null 值，键始终在。
 _CARD_ITEM_KEYS = [
     "channel_cover_url",
@@ -59,6 +59,7 @@ _CARD_ITEM_KEYS = [
     "difficulty_level",
     "duration",
     "error_message",
+    "exam_word_count",
     "ext_like_count",
     "ext_view_count",
     "favorite_count",
@@ -78,11 +79,14 @@ _CARD_ITEM_KEYS = [
     "published_at",
     "rejection_reason",
     "review_status",
+    "sample_text_en",
+    "sample_text_zh",
     "score",
     "score_updated_at",
     "source_url",
     "status",
     "storage_mode",
+    "subtitle_count",
     "thumbnail_url",
     "title",
     "topic_tags",

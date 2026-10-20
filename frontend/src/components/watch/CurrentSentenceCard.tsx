@@ -3,20 +3,35 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { SubtitleFontSize } from "@/components/watch/VideoControls";
 
 // D1：字幕字号档位 → 像素。与字幕面板/桌面卡同源，别再各写一套。
-// DEC-073 的移动端基线：句子英文 17px、译文 14px，行高都 1.5 —— 字号与行高一律由行内
-// style 同时给（类里的 `leading-*` 会被 utilities 层盖掉，见 globals.css 的说明）。
-const SUBTITLE_FONT_EN: Record<SubtitleFontSize, number> = {
+// DEC-073 的移动端基线：句子英文 18px、译文 14px，行高都 1.5；桌面按设计稿
+// watch.css 的 `--w-sentence`（1440 22 / 1280 20 / 375 18）分两套映射：
+//   · 桌面默认档 20px（对齐 1280 设计），大档 22px（1440 设计）；小档 16px。
+//   · 移动默认档 18px（375 设计），大档 21、小档 14。
+// 字号与行高一律由行内 style 同时给（类里的 `leading-*` 会被 utilities 层盖掉，见
+// globals.css 的说明）。
+const SUBTITLE_FONT_EN_MOBILE: Record<SubtitleFontSize, number> = {
   small: 14,
-  medium: 17,
-  large: 20,
+  medium: 18,
+  large: 21,
 };
-const SUBTITLE_FONT_ZH: Record<SubtitleFontSize, number> = {
+const SUBTITLE_FONT_ZH_MOBILE: Record<SubtitleFontSize, number> = {
   small: 12,
   medium: 14,
   large: 16,
+};
+const SUBTITLE_FONT_EN_DESKTOP: Record<SubtitleFontSize, number> = {
+  small: 16,
+  medium: 20,
+  large: 22,
+};
+const SUBTITLE_FONT_ZH_DESKTOP: Record<SubtitleFontSize, number> = {
+  small: 13,
+  medium: 15,
+  large: 17,
 };
 
 /** DEC-073：正文与译文统一 1.5 行高（元信息 1.3、角标 1.2）。 */
@@ -26,9 +41,9 @@ const SUBTITLE_LINE_HEIGHT = 1.5;
  * CurrentSentenceCard — 当前句卡：**画面正下方**，移动端与桌面端共用的唯一一份当前句
  * （DEC-069 / #31）。
  *
- *     You can design that. It is not a personality      ← 17px，最多两行
+ *     You can design that. It is not a personality      ← 移动 18px / 桌面 20px，最多两行
  *     trait you were born without.
- *     这些是可以设计的。它不是你没长出来的某种性格。    ← 14px，一行
+ *     这些是可以设计的。它不是你没长出来的某种性格。    ← 移动 14px / 桌面 15px，一行
  *
  * 为什么在这里：真机上「入画字幕」压在画框下沿盖住人物下半张脸（`13-device-414-first-screen.jpg`），
  * 而首屏 776px 里文稿只剩 76px。搬出画面之后，**点词只有一个锚点**（INV-021 的理由列一
@@ -68,7 +83,8 @@ export function CurrentSentenceCard({
   /** 调用方的选中判定（与字幕面板的高亮共用同一个 `selectedWord`）。 */
   isSelected: (word: string) => boolean;
   levelClassFor: (word: string, wordLevels: Record<string, string[]> | null) => string;
-  onWordClick: (word: string) => void;
+  /** 点词。第二个参数是被点的 DOM 元素（词卡用它做锚定，避免固定在左下压住侧栏）。 */
+  onWordClick: (word: string, anchor?: HTMLElement | null) => void;
   /** 点卡片空白处 = 播放/暂停（与画面内原来的「点画面」一致，只是搬到了画面外）。 */
   onTogglePlay: () => void;
   /** 右下角的 `n / 总数`（可省）。 */
@@ -96,8 +112,13 @@ export function CurrentSentenceCard({
   desktopActions?: ReactNode;
 }) {
   const showEn = subtitleMode !== "chinese" && subtitleMode !== "hidden";
-  const showZh = (subtitleMode === "bilingual" || subtitleMode === "chinese") && !!textZh;
+  const showZh = subtitleMode === "bilingual" || subtitleMode === "chinese";
   const isBand = variant === "band";
+  // 设计稿的字号是分档的（桌面 22 / 1280 20 / 375 18），而「小/中/大」是用户偏好；
+  // 这里按桌面/移动各取一套映射：默认档在桌面 20、移动 18，大档桌面 22。
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const fontEn = (isDesktop ? SUBTITLE_FONT_EN_DESKTOP : SUBTITLE_FONT_EN_MOBILE)[fontSize];
+  const fontZh = (isDesktop ? SUBTITLE_FONT_ZH_DESKTOP : SUBTITLE_FONT_ZH_MOBILE)[fontSize];
   // 展开态默认自己管（`expanded`/`onToggleExpand` 传了才由调用方接管）。
   const [selfExpanded, setSelfExpanded] = useState(false);
   const isExpanded = expanded || selfExpanded;
@@ -130,10 +151,11 @@ export function CurrentSentenceCard({
       data-cs-variant={variant}
       onClick={onTogglePlay}
       className={cn(
-        "relative mt-3 rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 text-left cursor-pointer select-none",
+        "relative mt-3 rounded-lg border border-hairline bg-canvas px-3.5 py-2 text-left cursor-pointer select-none",
         // 齐平字幕带（DEC-070 / DEC-074）：与画框同一个槽位、同一条左右边界，上下各 8px，
-        // 无外框无圆角 —— 于是「画框下沿」是这一段唯一的边。
-        isBand && "mt-0 rounded-none border-0 py-2",
+        // 无外框无圆角 —— 于是「画框下沿」是这一段唯一的边。字号抬到 18px 后 py 收 2px，
+        // 首屏高度与旧版持平（375 档模式行仍压在底栏上沿之上）。
+        isBand && "mt-0 rounded-none border-0 px-3.5 py-1.5",
         className
       )}
     >
@@ -156,7 +178,7 @@ export function CurrentSentenceCard({
               // 写在 `.now-sub-en` 里等于没写，实测踩过。
               className={cn("now-sub-en", !isExpanded && "line-clamp-2")}
               style={{
-                fontSize: SUBTITLE_FONT_EN[fontSize],
+                fontSize: fontEn,
                 lineHeight: SUBTITLE_LINE_HEIGHT,
               }}
             >
@@ -172,14 +194,17 @@ export function CurrentSentenceCard({
                       // 词间那个真实空格**必须留在 DOM 里**（`{i > 0 && " "}`）：换成
                       // `mr-1` 看起来一样，但 `innerText`/`textContent` 会把整句拼成
                       // 「ButIthink…」——复制出来是坏文本，读屏也是。这里踩过一次。
-                      "now-sub-word inline-block -mb-1 pb-1",
+                      // 可点词的**静止态可发现性**（设计 base.css 的 `.word`：虚线下划线 +
+                      // hover 变橙）。等级/词库自带的 `decoration-*` 会由 tailwind-merge 覆盖
+                      // 这里的颜色与粗细，但虚线样式保留，所以「有下划线 = 可点」始终成立。
+                      "now-sub-word inline-block -mb-1 pb-1 underline decoration-dotted decoration-1 underline-offset-[3px] decoration-hairline-strong",
                       levelClassFor(word, wordLevels),
                       isSelected(word) && "now-sub-word-hl"
                     )}
                     onClick={(e) => {
                       // 点词不能顺带把整卡当成「播放/暂停」的面 —— 词自己吞掉这次点击。
                       e.stopPropagation();
-                      onWordClick(word);
+                      onWordClick(word, e.currentTarget);
                     }}
                   >
                     {word}
@@ -196,13 +221,15 @@ export function CurrentSentenceCard({
               // 长译文被省略号截断；要看全文走展开。
               className={cn("now-sub-zh mt-0.5", !isExpanded && "line-clamp-1")}
               style={{
-                fontSize: SUBTITLE_FONT_ZH[fontSize],
+                fontSize: fontZh,
                 lineHeight: SUBTITLE_LINE_HEIGHT,
               }}
             >
-              {textZh}
+              {textZh || "本句暂无译文"}
             </div>
           )}
+          {/* 「点带下划线的词看释义」不在卡内单独占一行：它作为桌面动作行的行内后缀
+              渲染（page.tsx 的 desktopActions），句卡高度回到预算内。 */}
           {/* 元信息行（仅齐平带）：计数 + 展开开关，右对齐、高 24px（AA 线）。
               计数从右上角搬到这里，是因为那个位置会和英文第一行抢宽度 —— 长句第一行
               一直被 `6 / 187` 压住半截。 */}
@@ -211,7 +238,7 @@ export function CurrentSentenceCard({
               {counter && (
                 <span
                   data-testid="subtitle-counter"
-                  className="font-mono text-caption leading-none text-muted-soft"
+                  className="font-mono text-caption leading-none text-muted"
                 >
                   {counter}
                 </span>
@@ -246,7 +273,7 @@ export function CurrentSentenceCard({
       {!isBand && counter && (
         <span
           data-testid="subtitle-counter"
-          className="absolute right-3 top-2 text-caption font-mono text-muted-soft"
+          className="absolute right-3 top-2 text-caption font-mono text-muted"
         >
           {counter}
         </span>
@@ -254,7 +281,7 @@ export function CurrentSentenceCard({
       {/* S5：桌面动作带 —— 在英文/中文两个块之外（不占那两行的高度预算）。
           分隔线 + 上边距是「同一张卡里的一段」，不是又一个盒子。 */}
       {desktopActions && (
-        <div className="hidden lg:flex flex-col border-t border-hairline mt-2 pt-2">
+        <div className="hidden lg:flex flex-col border-t border-hairline mt-1.5 pt-1.5">
           {desktopActions}
         </div>
       )}

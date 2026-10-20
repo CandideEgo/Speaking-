@@ -29,7 +29,8 @@ test.describe("Watch Page - Error States", () => {
   test("invalid video ID shows an error state, not a white screen", async ({ page, request }) => {
     // /watch/* 在登录墙后（proxy.ts）：未登录会被 302 到 /login，那里既没有
     // spinner 也没有错误态 —— 必须先登录才测得到错误态。
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     await loginViaToken(page, token);
 
     await page.goto("/watch/nonexistent-video-id-12345");
@@ -74,7 +75,8 @@ async function openFirstVideo(page: Page, token: string): Promise<boolean> {
 
 test.describe("Watch Page - Valid Video", () => {
   test("watch page loads with a valid video ID", async ({ page, request }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     await loginViaToken(page, token);
     const videoLink = page.locator('a[href*="/watch/"]').first();
     try {
@@ -103,7 +105,8 @@ test.describe("Watch Page - Subtitle Mode Tabs", () => {
     page.locator(`[role="tablist"][aria-label="字幕模式"] [role="tab"]:has-text("${label}")`);
 
   test("subtitle mode tabs render 双语 / 英文 / 中文 / 关闭 labels", async ({ page, request }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     if (!(await openFirstVideo(page, token))) {
       test.skip();
       return;
@@ -114,7 +117,8 @@ test.describe("Watch Page - Subtitle Mode Tabs", () => {
   });
 
   test("clicking a mode tab activates it", async ({ page, request }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     if (!(await openFirstVideo(page, token))) {
       test.skip();
       return;
@@ -126,7 +130,8 @@ test.describe("Watch Page - Subtitle Mode Tabs", () => {
 
   // BUG-03：S 键能切到「关闭」档，但面板里原来看不到回来的 tab —— 切过去就回不来。
   test("『关闭』档在面板里有 tab，且能切回双语", async ({ page, request }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     if (!(await openFirstVideo(page, token))) {
       test.skip();
       return;
@@ -148,7 +153,8 @@ test.describe("Watch Page - Keyboard Shortcuts", () => {
     page,
     request,
   }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     if (!(await openFirstVideo(page, token))) {
       test.skip();
       return;

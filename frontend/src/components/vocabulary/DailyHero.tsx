@@ -96,7 +96,7 @@ export function DailyHero({
             </p>
           </div>
           <Link
-            href="/browse"
+            href="/"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
           >
             去频道看视频

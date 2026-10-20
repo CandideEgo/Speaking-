@@ -16,18 +16,18 @@ interface NotificationType {
   icon: LucideIcon;
 }
 
+// 与后端 `NotificationPreferencesUpdate` 的字段一一对应（PUT 只认这几个 key，
+// 传别的会被 Pydantic 丢掉、看起来“保存成功”其实什么都没存）。社区类
+// community_updates / new_follower / comment_reply 已随 ADR-0012 休眠，不展示。
 const NOTIFICATION_TYPES: NotificationType[] = [
-  { id: "system", label: "系统通知", description: "重要更新与维护公告", icon: Bell },
-  { id: "video_ready", label: "视频就绪", description: "你提交的视频处理完成时通知", icon: Bell },
-  // pro_expiring 已随内测免费开放下线（需求 §2.3）：对应 beat 任务已停用。
-  { id: "vocabulary_reminder", label: "词汇复习提醒", description: "每日提醒复习词汇", icon: Bell },
+  { id: "push_notifications", label: "推送通知", description: "站内消息提醒总开关", icon: Bell },
   {
-    id: "streak_warning",
+    id: "streak_reminder",
     label: "连续学习提醒",
     description: "学习连续记录即将中断时提醒",
     icon: Bell,
   },
-  { id: "achievements", label: "成就达成", description: "解锁的里程碑与徽章", icon: Bell },
+  { id: "weekly_report", label: "学习周报", description: "每周学习总结生成时通知", icon: Bell },
 ];
 
 interface Preferences {

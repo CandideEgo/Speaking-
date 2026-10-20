@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Bell } from "lucide-react";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
@@ -13,13 +13,16 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
 import { TargetExamSetting } from "@/components/exam/TargetExamSetting";
+import { cn } from "@/lib/utils";
 import type { User, UserPreferences } from "@/types";
+import { InterestPicker } from "@/components/profile/InterestPicker";
 import { Card } from "@/components/ui/Card";
 
 interface SettingsTabProps {
   user: User;
   preferences: UserPreferences | null;
   onUpdatePreferences: (prefs: UserPreferences) => void;
+  section?: "all" | "learning" | "account";
 }
 
 const COMMON_TIMEZONES = [
@@ -41,12 +44,26 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
   words: "复习单词数",
 };
 
+/** 每日提醒时间档（设计稿 profile.html「提醒时间」的固定档位）。 */
+const REMINDER_TIMES = ["07:30", "12:30", "18:00", "20:30", "22:00"];
+
 /**
  * 设置（1B 设计减法后）：原「账户设置」「学习偏好」两个 Tab 合并为本页，
- * 分「学习」「账户」两个分组卡；学习目标/字幕/难度/时区共用一个底部保存，
- * 改密码因需要当前密码校验保留独立提交；通知设置默认折叠收纳。
+ * 分「学习」「账户」两个分组卡；学习目标/字幕/难度/时区/学习提醒共用一个
+ * 底部保存，改密码因需要当前密码校验保留独立提交；通知设置默认折叠收纳。
+ *
+ * 学习提醒（设计稿「学习提醒」区块）：后端 UserPreferences 已有
+ * reminder_enabled / reminder_time / reminder_timezone，这里补上入口，
+ * 并在保存时把「提醒时区」与设置页时区写成同一个值（与设计口径一致：
+ * 提醒与统计共用同一个时区）。
  */
-export default function SettingsTab({ user, preferences, onUpdatePreferences }: SettingsTabProps) {
+export default function SettingsTab({
+  user,
+  preferences,
+  onUpdatePreferences,
+  section = "all",
+}: SettingsTabProps) {
+  const [interests, setInterests] = useState(preferences?.interest_categories ?? []);
   // Learning preferences
   const [goalType, setGoalType] = useState<UserPreferences["daily_goal_type"]>(
     preferences?.daily_goal_type === "minutes" ? "minutes" : "words"
@@ -66,6 +83,13 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
       : "Asia/Shanghai";
   const [timezone, setTimezone] = useState(user.timezone || browserTz);
 
+  // Learning reminder（设计稿：每日提醒开关 + 提醒时间；时区与学习设置共用）
+  const [reminderEnabled, setReminderEnabled] = useState(preferences?.reminder_enabled ?? true);
+  const reminderTimeOptions = [
+    ...new Set([preferences?.reminder_time || "20:00", ...REMINDER_TIMES]),
+  ];
+  const [reminderTime, setReminderTime] = useState(preferences?.reminder_time || "20:00");
+
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -74,10 +98,15 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
       const updated = await api<UserPreferences>("/api/v1/users/me/preferences", {
         method: "PUT",
         body: JSON.stringify({
+          interest_categories: interests,
           daily_goal_type: goalType,
           daily_goal_value: goalValue,
           subtitle_mode_default: subtitleMode,
           preferred_difficulty: preferredDifficulty || null,
+          reminder_enabled: reminderEnabled,
+          reminder_time: reminderTime,
+          // 提醒与统计共用同一个时区：与页面上的时区选择保持同步。
+          reminder_timezone: timezone,
         }),
       });
       onUpdatePreferences(updated);
@@ -97,109 +126,209 @@ export default function SettingsTab({ user, preferences, onUpdatePreferences }: 
 
   return (
     <div className="max-w-2xl space-y-6">
-      {/* Learning group */}
-      <Card as="section" padding={5} className="space-y-4">
-        <h2 className="text-copy font-semibold text-ink">学习</h2>
+      {section !== "account" && (
+        <>
+          <InterestPicker value={interests} onChange={setInterests} disabled={saving} />
+          {/* Learning group */}
+          <Card as="section" padding={5} className="space-y-4">
+            <h2 className="user-sec-title">学习</h2>
 
-        <FormField label="每日目标" hint="设置每日学习目标，养成坚持学习的好习惯">
-          <div className="flex items-center gap-3">
-            <Select
-              value={goalType}
-              onChange={(e) => {
-                setGoalType(e.target.value as UserPreferences["daily_goal_type"]);
-                // Reset value to sensible defaults per type
-                if (e.target.value === "minutes") setGoalValue(15);
-                else if (e.target.value === "words") setGoalValue(10);
-              }}
-              className="w-40"
-            >
-              {Object.entries(GOAL_TYPE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              value={goalValue}
-              onChange={(e) => setGoalValue(parseInt(e.target.value) || 1)}
-              className="w-24"
+            <FormField label="每日目标" hint="设置每日学习目标，养成坚持学习的好习惯">
+              <div className="flex items-center gap-3">
+                <Select
+                  value={goalType}
+                  onChange={(e) => {
+                    setGoalType(e.target.value as UserPreferences["daily_goal_type"]);
+                    // Reset value to sensible defaults per type
+                    if (e.target.value === "minutes") setGoalValue(15);
+                    else if (e.target.value === "words") setGoalValue(10);
+                  }}
+                  className="w-40"
+                >
+                  {Object.entries(GOAL_TYPE_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={goalValue}
+                  onChange={(e) => setGoalValue(parseInt(e.target.value) || 1)}
+                  className="w-24"
+                />
+                <span className="text-meta text-muted">
+                  每天 {goalValue} {GOAL_TYPE_LABELS[goalType]}
+                </span>
+              </div>
+            </FormField>
+
+            <FormField label="默认字幕模式">
+              <Select
+                value={subtitleMode}
+                onChange={(e) =>
+                  setSubtitleMode(e.target.value as "bilingual" | "english" | "chinese")
+                }
+                className="w-40"
+              >
+                <option value="bilingual">双语字幕</option>
+                <option value="english">仅英文</option>
+                <option value="chinese">仅中文</option>
+              </Select>
+            </FormField>
+
+            {/* P1-1：目标考试固定入口。改动立即写回偏好 + watchStore，播放页高亮随之刷新。 */}
+            <TargetExamSetting
+              value={preferences?.target_exam ?? null}
+              onSaved={onUpdatePreferences}
             />
-            <span className="text-meta text-muted">
-              每天 {goalValue} {GOAL_TYPE_LABELS[goalType]}
-            </span>
+
+            <FormField label="偏好难度" hint="用于推荐合适难度的视频">
+              <Select
+                value={preferredDifficulty}
+                onChange={(e) => setPreferredDifficulty(e.target.value)}
+                className="w-40"
+              >
+                <option value="">不限</option>
+                {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </Card>
+
+          {/* 学习提醒（设计稿「学习提醒」区块）：开关 + 时间 + 时区 + 共同时区说明 */}
+          <Card as="section" padding={5} className="space-y-4">
+            <div>
+              <h2 className="user-sec-title">学习提醒</h2>
+              <p className="user-sec-sub mt-1">
+                每天最多提醒一次；提醒只提示「今天有多少词到期」，不催学习时长。
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-hairline-soft pt-4">
+              <div>
+                <p className="text-copy font-semibold text-ink">每日学习提醒</p>
+                <p className="mt-0.5 text-meta text-muted">
+                  由定时任务每小时检查一次到期词，到点推送站内通知。
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={cn(
+                    "text-meta font-semibold",
+                    reminderEnabled ? "text-brand-700" : "text-muted"
+                  )}
+                >
+                  {reminderEnabled ? "已开启" : "已关闭"}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={reminderEnabled}
+                  aria-label="每日学习提醒开关"
+                  onClick={() => setReminderEnabled((v) => !v)}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200",
+                    reminderEnabled
+                      ? "border-brand-500 bg-brand-50"
+                      : "border-hairline-strong bg-surface-soft"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block h-4 w-4 rounded-full shadow transition-transform duration-200",
+                      reminderEnabled
+                        ? "translate-x-5 bg-brand-500"
+                        : "translate-x-0.5 bg-canvas ring-1 ring-hairline-strong"
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="提醒时间" hint="到点只发一次；当天已经复习过就不再提醒。">
+                <Select
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  className="w-40"
+                  disabled={!reminderEnabled}
+                >
+                  {reminderTimeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="时区" hint="影响每日统计与提醒的结算时间，默认跟随浏览器。">
+                <Select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-56"
+                >
+                  {[...new Set([timezone, ...COMMON_TIMEZONES])].map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+
+            <div className="user-notice">
+              <Bell size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden />
+              <div>
+                <strong className="text-ink">提醒与统计共用同一个时区。</strong>
+                换时区会同时改变提醒时刻和「今天 / 本周」的切分点：本周从周一 00:00
+                起算，周报也按这个时区生成， 规则见{" "}
+                <Link
+                  href="/weekly-report"
+                  className="font-semibold text-brand-700 hover:underline"
+                >
+                  学习周报
+                </Link>
+                。
+              </div>
+            </div>
+          </Card>
+
+          {/* Unified save for learning prefs + timezone + reminder */}
+          <div>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "保存中..." : "保存设置"}
+            </Button>
           </div>
-        </FormField>
-
-        <FormField label="默认字幕模式">
-          <Select
-            value={subtitleMode}
-            onChange={(e) => setSubtitleMode(e.target.value as "bilingual" | "english" | "chinese")}
-            className="w-40"
-          >
-            <option value="bilingual">双语字幕</option>
-            <option value="english">仅英文</option>
-            <option value="chinese">仅中文</option>
-          </Select>
-        </FormField>
-
-        {/* P1-1：目标考试固定入口。改动立即写回偏好 + watchStore，播放页高亮随之刷新。 */}
-        <TargetExamSetting value={preferences?.target_exam ?? null} onSaved={onUpdatePreferences} />
-
-        <FormField label="偏好难度" hint="用于推荐合适难度的视频">
-          <Select
-            value={preferredDifficulty}
-            onChange={(e) => setPreferredDifficulty(e.target.value)}
-            className="w-40"
-          >
-            <option value="">不限</option>
-            {["A1", "A2", "B1", "B2", "C1", "C2"].map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-
-        <FormField label="时区" hint="影响每日活动统计的时间划分，默认跟随浏览器">
-          <Select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="w-56">
-            {[...new Set([timezone, ...COMMON_TIMEZONES])].map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-      </Card>
-
-      {/* Account group */}
-      <Card as="section" padding={5} className="space-y-4">
-        <h2 className="text-copy font-semibold text-ink">账户</h2>
-        <PasswordChangeForm />
-        <NotificationPreferences />
-        {/* P1-7：数据导出 + 30 天可撤回注销 */}
-        <div className="pt-4 border-t border-hairline">
-          <AccountLifecycleSettings />
-        </div>
-        <div className="pt-2 border-t border-hairline">
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-1.5 text-meta text-muted hover:text-brand-500 transition-colors"
-          >
-            <MessageSquare size={13} />
-            意见反馈与帮助
-          </Link>
-        </div>
-      </Card>
-
-      {/* Unified save for learning prefs + timezone */}
-      <div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "保存中..." : "保存设置"}
-        </Button>
-      </div>
+        </>
+      )}
+      {section !== "learning" && (
+        <>
+          {/* Account group */}
+          <Card as="section" padding={5} className="space-y-4">
+            <h2 className="user-sec-title">账户</h2>
+            <PasswordChangeForm />
+            <NotificationPreferences />
+            {/* P1-7：数据导出 + 30 天可撤回注销 */}
+            <div className="border-t border-hairline pt-4">
+              <AccountLifecycleSettings />
+            </div>
+            <div className="border-t border-hairline pt-2">
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-1.5 text-meta text-muted transition-colors hover:text-brand-700"
+              >
+                <MessageSquare size={13} />
+                意见反馈与帮助
+              </Link>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -241,7 +370,11 @@ function PasswordChangeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-3 border-t border-hairline pt-4">
+      <p className="text-copy font-semibold text-ink">登录与安全</p>
+      <p className="text-meta text-muted">
+        手机号 + 短信验证码登录，没有邮箱。手机号是唯一登录凭据，更换后旧号码立即失效。
+      </p>
       <div className="grid gap-3 sm:grid-cols-3">
         {/* P0-A：仅验证码注册的账户 hashed_password 为空，首设密码时不校验旧密码
             （后端首设分支也不失效当前会话）；因此这里允许留空。 */}

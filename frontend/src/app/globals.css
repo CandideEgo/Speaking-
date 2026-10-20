@@ -61,6 +61,15 @@
   --color-warning-soft: var(--warning-soft);
   --color-error: var(--error);
 
+  /* --- Semantic text（文字专用加深档）---
+     与上面三个主色分开：主色是给填充/图标/圆点的，用作 12–16px 文字时对比度
+     不足（success 3.3:1、warning 3.0:1、error 4.5:1 贴线）。设计基准
+     `stage-3/shared/page.css` 的 --ok-text/--warn-text/--err-text 就是这一档，
+     值逐字对齐。文字用 `text-success-text` 等，填充仍用 `bg-success`。 */
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-error-text: var(--error-text);
+
   /* --- Soft-background pairs --- */
   --color-sky-soft: var(--sky-soft);
   --color-red-soft: var(--red-soft);
@@ -78,6 +87,7 @@
   /* --- Borders (theme-aware) --- */
   --color-hairline: var(--hairline);
   --color-hairline-soft: var(--hairline-soft);
+  --color-hairline-strong: var(--hairline-strong);
 
   /* --- Learning mode highlights (static — 高亮色两主题可读) --- */
   --color-learn-highlight: #4ade80;
@@ -140,9 +150,10 @@
   --spacing-128: 32rem;
 
   /* --- Max width --- */
-  /* 全站唯一容器上限（1320）。gutter 由 .container-page 的 px-4 sm:px-7 提供：
-     播放页的画框与当前句卡靠 -mx-4 sm:-mx-7 精确抵消它实现全出血，
-     padding 一改 640–1023px 档就错位。 */
+  /* 全站唯一容器上限（1320）。gutter 由 .container-page 的 px-4 md:px-6 xl:px-8
+     提供，与 stage-3 设计稿 `.page` 的三档 padding 对齐：
+     <768 = 16px、768–1279 = 24px、≥1280 = 32px。
+     改 gutter 时同时检查观看页的出血/夹宽几何（.watch-stage-cap）。 */
   --max-width-page: 1320px;
   /* 正文读宽（通知 / 联系我们 / 练习正文等）。容器仍是 page 1320，读宽只收正文块。 */
   --max-width-measure: 68ch;
@@ -210,6 +221,7 @@
     /* Borders */
     --hairline: #ededed;
     --hairline-soft: #f4f4f5;
+    --hairline-strong: #e4e4e7;
 
     /* Brand soft band */
     --brand-50: #fff1eb;
@@ -224,6 +236,10 @@
     --warning: #d97706;
     --warning-soft: #fffbeb;
     --error: #dc2626;
+    /* 文字专用档：与 stage-3/shared/page.css 的 --ok-text/--warn-text/--err-text 一致 */
+    --success-text: #15803d;
+    --warning-text: #b45309;
+    --error-text: #b91c1c;
     --sky-soft: #f0f9ff;
     --red-soft: #fef2f2;
     --indigo-soft: #eef2ff;
@@ -264,6 +280,7 @@
     /* Borders */
     --hairline: #242426;
     --hairline-soft: #1c1c1e;
+    --hairline-strong: #2f2f33;
 
     /* Brand soft band — 暗橙底 + 提亮文本 */
     --brand-50: #241109;
@@ -278,6 +295,10 @@
     --warning: #f59e0b;
     --warning-soft: #241a08;
     --error: #ef4444;
+    /* 文字专用档（暗色）：与设计 --ok-text/--warn-text/--err-text 一致 */
+    --success-text: #4ade80;
+    --warning-text: #fbbf24;
+    --error-text: #f87171;
     --sky-soft: #0c1a24;
     --red-soft: #261212;
     --indigo-soft: #16172b;
@@ -566,12 +587,12 @@
    ============================================================ */
 @layer components {
   /* === Container ===
-     全站唯一内容容器（max-w-page 1320 / gutter px-4 sm:px-7）。由 MainLayoutInner
+     全站唯一内容容器（max-w-page 1320 / gutter px-4 md:px-6 xl:px-8）。由 MainLayoutInner
      在滚动容器内渲染一次、页面不再自带容器类；TopBar 的行内内容共用同一个类，
      顶栏与内容的左右边界因此是构造结果，不靠人记得去对齐。
-     全出血元素（播放页画框 / 当前句卡）靠 -mx-4 sm:-mx-7 抵消这里的一份 gutter。 */
+     gutter 三档与 stage-3 设计稿 `.page` 一致：16 / 24 / 32。 */
   .container-page {
-    @apply max-w-page mx-auto px-4 sm:px-7;
+    @apply max-w-page mx-auto px-4 md:px-6 xl:px-8;
   }
 
   /* === Watch stage cap (S4) ===

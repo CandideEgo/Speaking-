@@ -1,0 +1,78 @@
+# Isolated local acceptance environment. Never uses the production env file or volumes.
+name: seeword-production-smoke
+services:
+  reference-data:
+    image: alpine:latest
+    command: ["sh", "-c", "cp /reference/ecdict.db /data/ecdict.db && chmod 444 /data/ecdict.db"]
+    volumes:
+      - ./backend/data:/reference:ro
+      - smoke-reference-data:/data
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: smoke
+      POSTGRES_PASSWORD: local-smoke-only
+      POSTGRES_DB: smoke
+    tmpfs: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smoke -d smoke"]
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+  backend:
+    image: seeword-smoke-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cloud
+    environment:
+      ENV: testing
+      DATABASE_URL: postgresql+asyncpg://smoke:local-smoke-only@db:5432/smoke
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: isolated-local-smoke-secret-never-for-production
+      FRONTEND_URL: https://localhost:18443
+      FORWARDED_ALLOW_IPS: "*"
+      BCRYPT_ROUNDS: "4"
+      SMS_LOGIN_ENABLED: "false"
+      JINSHUJU_ENABLED: "false"
+      EXAM_PDF_DIR: /reference-exam-pdfs
+    volumes:
+      - smoke-media:/app/media
+      - ./frontend/e2e/production:/smoke:ro
+      # SQLite random reads across a Windows bind mount are much slower than Linux production.
+      - smoke-reference-data:/app/data:ro
+      - ./backend/data/exam_pdfs:/reference-exam-pdfs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      reference-data:
+        condition: service_completed_successfully
+  frontend:
+    image: seeword-smoke-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_SITE_URL: https://localhost:18443
+    depends_on:
+      backend:
+        condition: service_healthy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "127.0.0.1:18443:443"
+    volumes:
+      - ./nginx.ssl.conf:/etc/nginx/nginx.conf:ro
+      - ./.production-smoke/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+volumes:
+  smoke-media:
+  smoke-reference-data:

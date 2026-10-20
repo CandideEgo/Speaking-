@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export type ButtonVariant =
   | "primary"
+  | "tonal"
   | "dark"
   | "outline"
   | "ghost"
@@ -20,6 +21,10 @@ export type ButtonSize = "xs" | "sm" | "compact" | "md" | "nav" | "lg" | "icon";
 export const VARIANT: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted",
+  // 品牌色「浅底」按钮：看得见是按钮，但不和页面里唯一的实心主操作抢注意力
+  //（首页 hero 的「从这一段开始」用它，实心橙只留给真正的主操作）。
+  tonal:
+    "bg-brand-500/10 text-brand-700 hover:bg-brand-500/20 disabled:bg-surface-card disabled:text-muted",
   dark: "bg-ink text-canvas hover:bg-ink/90 hover:-translate-y-0.5 disabled:opacity-50",
   outline:
     "bg-canvas text-ink border border-hairline hover:border-ink hover:bg-surface-soft disabled:opacity-50",
@@ -49,7 +54,7 @@ export const SIZE: Record<ButtonSize, string> = {
 /**
  * Button primitive — replaces the `.btn-*` CSS `@apply` classes plus the
  * `!py-*`/`!px-*`/`!text-*` overrides that fought them. Variants mirror the
- * original classes (primary/dark/outline/ghost/text/destructive/secondary/
+ * original classes (primary/tonal/dark/outline/ghost/text/destructive/secondary/
  * secondaryDark); sizes absorb the in-the-wild override combos (xs/sm/compact/
  * md/nav/lg — `compact` covers the common `!py-1 !px-2 text-caption` admin-row
  * pattern). `fullWidth` and a normalized disabled cursor round it out.
@@ -83,6 +88,7 @@ export function Button({
           : 14;
   return (
     <button
+      data-variant={variant}
       className={cn(
         "inline-flex items-center justify-center rounded-sm font-semibold transition-all duration-150 active:scale-[0.98]",
         variant === "ghost" || variant === "ghostDark" || variant === "text"

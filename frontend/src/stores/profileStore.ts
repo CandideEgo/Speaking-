@@ -52,7 +52,10 @@ export const useProfileStore = create<ProfileState & ProfileActions>((set, get) 
     if (!inflight) {
       const gen = generation;
       inflight = api<{ avatar_url?: string | null; gender?: AvatarGender | null }>(
-        "/api/v1/users/me"
+        "/api/v1/users/me",
+        // 与壳层的 onboarding 门共用同一份 30s GET 缓存：整页导航时两边合计只打
+        // 一个请求，不再各自命中后端 30/min 的账号读取限流。
+        { cacheTtlMs: 30_000 }
       )
         .then((u) => {
           if (gen !== generation) return;

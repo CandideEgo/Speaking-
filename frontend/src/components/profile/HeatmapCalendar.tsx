@@ -76,7 +76,7 @@ export function HeatmapCalendar({ days, range: _range = 90 }: HeatmapCalendarPro
             return (
               <div
                 key={col}
-                className="text-caption text-muted-soft"
+                className="text-caption text-muted"
                 style={{ width: 14, marginRight: 2 }}
               >
                 {ml?.label ?? ""}
@@ -85,7 +85,7 @@ export function HeatmapCalendar({ days, range: _range = 90 }: HeatmapCalendarPro
           })}
         </div>
         <div className="flex">
-          <div className="flex flex-col mr-1.5 text-caption text-muted-soft" style={{ width: 24 }}>
+          <div className="flex flex-col mr-1.5 text-caption text-muted" style={{ width: 24 }}>
             <span style={{ height: 14, lineHeight: "14px" }}>一</span>
             <span style={{ height: 14, lineHeight: "14px" }}>&nbsp;</span>
             <span style={{ height: 14, lineHeight: "14px" }}>三</span>
@@ -111,7 +111,7 @@ export function HeatmapCalendar({ days, range: _range = 90 }: HeatmapCalendarPro
             ))}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-1.5 mt-2 text-caption text-muted-soft">
+        <div className="flex items-center justify-end gap-1.5 mt-2 text-caption text-muted">
           <span>少</span>
           {[0, 1, 2, 3, 4].map((l) => (
             <div

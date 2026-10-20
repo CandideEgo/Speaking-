@@ -8,14 +8,23 @@ import openai
 from openai import NOT_GIVEN, AsyncOpenAI
 
 from app.core.config import get_settings
+from app.services.llm_provider import (
+    TASK_DEFAULT,
+    TASK_WORD_NOTES,
+    build_client_kwargs,
+    resolve_model,
+    resolve_provider,
+)
 
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
 # Hard timeout (seconds) for a single LLM chat call. Bounds worst-case latency
-# so a slow/unreachable endpoint can't hang a request indefinitely.
-LLM_TIMEOUT = 60.0
+# so a slow/unreachable endpoint can't hang a request indefinitely. Free-tier
+# gateways can be slower than a paid endpoint, so it is configurable
+# (LLM_CALL_TIMEOUT) instead of a hardcoded constant.
+LLM_TIMEOUT = float(settings.llm_call_timeout)
 
 
 class AIServiceError(Exception):
@@ -33,16 +42,22 @@ class AIService:
         # generate_word_notes_bulk for dual-API concurrent prewarm. Maps engine
         # name -> (AsyncOpenAI, model). "agnes" is NOT cached here; it reuses
         # self.client/self.model.
+        # The active provider is resolved once (app/services/llm_provider.py):
+        # COMMANDCODE_* when its key is set, else the legacy OPENAI_* pair.
         self._engine_clients: dict[str, tuple[AsyncOpenAI, str]] = {}
-        if not settings.openai_api_key:
+        self.provider = resolve_provider(settings)
+        if self.provider is None:
             self.client = None
             self.model = settings.openai_model
             return
-        client_kwargs = {"api_key": settings.openai_api_key}
-        if settings.openai_base_url:
-            client_kwargs["base_url"] = settings.openai_base_url
-        self.client = AsyncOpenAI(**client_kwargs)
-        self.model = settings.openai_model
+        self.client = AsyncOpenAI(**build_client_kwargs(self.provider))
+        self.model = self.provider.model
+        logger.info(
+            "AIService provider=%s base_url=%s default_model=%s",
+            self.provider.name,
+            self.provider.base_url,
+            self.model,
+        )
 
     def _get_engine_client(self, name: str) -> tuple[AsyncOpenAI, str]:
         """Return ``(client, model)`` for an engine, creating it lazily.
@@ -55,7 +70,7 @@ class AIService:
         """
         if name == "agnes":
             if self.client is None:
-                raise AIServiceError("OPENAI_API_KEY not configured (agnes engine)")
+                raise AIServiceError("LLM 未配置（COMMANDCODE_API_KEY / OPENAI_API_KEY 均为空，agnes 引擎）")
             return self.client, self.model
         cached = self._engine_clients.get(name)
         if cached is not None:
@@ -70,17 +85,27 @@ class AIService:
         self._engine_clients[name] = (client, model)
         return self._engine_clients[name]
 
-    async def _chat(self, system: str, user: str, temperature: float = 0.3, response_format: dict | None = None) -> str:
+    async def _chat(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.3,
+        response_format: dict | None = None,
+        task: str = TASK_DEFAULT,
+    ) -> str:
         if self.client is None:
-            raise AIServiceError("OPENAI_API_KEY not configured")
+            raise AIServiceError("LLM 未配置（COMMANDCODE_API_KEY / OPENAI_API_KEY 均为空）")
         import time
 
+        # Per-task model routing (app/services/llm_provider.py): a task with no
+        # LLM_MODEL_* override falls back to the provider's default model.
+        model = resolve_model(settings, task)
         t0 = time.monotonic()
         try:
-            # Hard timeout: a slow endpoint must not hang the request. 60s is
-            # ample for normal chat calls while bounding worst-case latency.
+            # Hard timeout: a slow endpoint must not hang the request. Ample for
+            # normal chat calls while bounding worst-case latency.
             resp = await self.client.chat.completions.create(
-                model=self.model,
+                model=model,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -90,12 +115,12 @@ class AIService:
                 timeout=LLM_TIMEOUT,
             )
             content = resp.choices[0].message.content
-            logger.info("_chat ok model=%s elapsed=%.2fs", self.model, time.monotonic() - t0)
+            logger.info("_chat ok model=%s task=%s elapsed=%.2fs", model, task, time.monotonic() - t0)
             if content is None:
                 return ""
             return content
         except openai.APITimeoutError as e:
-            logger.error("_chat TIMEOUT after %.2fs: %s", time.monotonic() - t0, e)
+            logger.error("_chat TIMEOUT after %.2fs task=%s model=%s: %s", time.monotonic() - t0, task, model, e)
             raise AIServiceError(f"AI service timeout (LLM 未在 {LLM_TIMEOUT:.0f}s 内响应)") from e
         except openai.APIStatusError as e:
             logger.error(f"AI API error: {e.status_code} - {e.message}")
@@ -118,15 +143,22 @@ class AIService:
             text = "\n".join(lines)
         return text.strip()
 
-    async def chat_json(self, system: str, user: str, temperature: float = 0.3) -> dict:
+    async def chat_json(self, system: str, user: str, temperature: float = 0.3, task: str = TASK_DEFAULT) -> dict:
         """One-shot structured chat call: JSON mode + fence stripping + parse.
 
         Returns the decoded object (a dict). Raises ``AIServiceError`` on
         transport failure or when the response is not a JSON object — the
         caller decides whether to fall back or propagate. Used by video
-        content classification (``services/video_classification.py``).
+        content classification (``services/video_classification.py``) and
+        homepage draft generation (``services/home_content_generation.py``).
+
+        ``task`` selects the model via ``app/services/llm_provider.py``
+        (e.g. ``TASK_EDITORIAL`` lets homepage drafts use a different model
+        than batch video work); unknown tasks fall back to the default model.
         """
-        result = await self._chat(system, user, temperature=temperature, response_format={"type": "json_object"})
+        result = await self._chat(
+            system, user, temperature=temperature, response_format={"type": "json_object"}, task=task
+        )
         try:
             parsed = json.loads(self._extract_json(result))
         except json.JSONDecodeError as e:
@@ -184,7 +216,7 @@ class AIService:
         user = f"Word: {word}\nContext: {context_sentence}" if context_sentence else f"Word: {word}"
 
         try:
-            result = await self._chat(system, user, response_format={"type": "json_object"})
+            result = await self._chat(system, user, response_format={"type": "json_object"}, task=TASK_WORD_NOTES)
             parsed = json.loads(self._extract_json(result))
             parsed.setdefault("definition", "")
             parsed.setdefault("translation", "")
@@ -437,7 +469,7 @@ class AIService:
                 result = resp.choices[0].message.content or ""
                 logger.info("_chat ok model=%s elapsed=%.2fs", model, _time.monotonic() - t0)
             else:
-                result = await self._chat(system, user, response_format={"type": "json_object"})
+                result = await self._chat(system, user, response_format={"type": "json_object"}, task=TASK_WORD_NOTES)
             parsed = json.loads(self._extract_json(result))
             notes = parsed.get("notes") if isinstance(parsed, dict) else None
             if not isinstance(notes, list):

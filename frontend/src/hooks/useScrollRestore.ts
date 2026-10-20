@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { SCROLL_CONTAINER_ID, loadScroll, saveScroll } from "@/lib/scrollMemory";
 
 /** 恢复循环的上限：连续 3 帧命中目标（±1px）即停，否则最多跑这么久。 */
@@ -17,17 +17,29 @@ const SAVE_THROTTLE_MS = 200;
  * Pages render without the shell for anonymous users, where the container is
  * absent — that case silently does nothing.
  */
-export function useScrollRestore(key: string, ready: boolean): void {
+export function useScrollRestore(
+  key: string,
+  ready: boolean,
+  { restoreOnKeyChange = true }: { restoreOnKeyChange?: boolean } = {}
+): void {
+  // 原地筛选只在进入页面时恢复一次，换条件仍按新 key 保存当前位置。
+  // StrictMode 同 key 重挂 effect 时仍可恢复，避免首轮清理取消恢复后丢失位置。
+  const entryKey = useRef<string | null>(key);
   useEffect(() => {
+    if (!restoreOnKeyChange && entryKey.current !== key) entryKey.current = null;
     if (!ready) return;
     const container = document.getElementById(SCROLL_CONTAINER_ID);
     if (!container) return;
-    return watchContainer(container, () => key);
-  }, [ready, key]);
+    return watchContainer(container, () => key, restoreOnKeyChange || entryKey.current === key);
+  }, [ready, key, restoreOnKeyChange]);
 }
 
 /** Attach the restore-then-remember pair to the shell scroller. */
-function watchContainer(container: HTMLElement, currentKey: () => string): () => void {
+function watchContainer(
+  container: HTMLElement,
+  currentKey: () => string,
+  restore: boolean
+): () => void {
   let restoring = false;
   let frame = 0;
 
@@ -40,7 +52,9 @@ function watchContainer(container: HTMLElement, currentKey: () => string): () =>
     container.removeEventListener("keydown", abortRestore);
   }
 
-  const stored = loadScroll(currentKey());
+  const stored = restore ? loadScroll(currentKey()) : null;
+  // 换条件后即使用户没再滚动就进入播放页，也要按新 URL 记住当前视线。
+  if (!restore) saveScroll(currentKey(), container.scrollTop);
   // 0 表示用户当时就在顶部 —— 没有要恢复的位置，也就没有理由动滚动条。
   if (stored !== null && stored > 0) {
     const target: number = stored;

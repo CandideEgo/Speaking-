@@ -88,16 +88,8 @@ const WHITELISTS = {
   3: new Map(),
   4: new Map([
     [
-      "frontend/src/app/(main)/page.tsx",
-      "首页 hero 是唯一一版自绘首屏（DEC-075 P2 已报备），不进 ui/PageHeader。",
-    ],
-    [
       "frontend/src/app/(main)/watch/[id]/page.tsx",
       "播放页标题参与桌面两栏版式（§6 硬边界：桌面版式不动），不是页头语义。",
-    ],
-    [
-      "frontend/src/app/(main)/channels/[slug]/page.tsx",
-      "频道 banner 上的标题压在封面图里，与 ui/PageHeader 的版式不同构。",
     ],
     [
       "frontend/src/app/(admin)/admin/login/page.tsx",

@@ -179,7 +179,7 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
 
 
 async def _find_or_create_vocab(
-    db: AsyncSession, user_id: str, token: str, video_id: str, subtitle_id: str | None = None
+    db: AsyncSession, user_id: str, token: str, video_id: str | None, subtitle_id: str | None = None
 ) -> Vocabulary:
     """Find (or create + ECDICT-enrich) the user's Vocabulary row for a token.
 
@@ -343,13 +343,14 @@ async def list_sets(db: AsyncSession, user: User) -> list[dict]:
     items: list[dict] = []
     for s in sets:
         total, mastered_count = stats.get(s.id, (0, 0))
-        video = video_map.get(s.video_id)
+        video = video_map.get(s.video_id) if s.video_id else None
         items.append(
             {
                 "id": s.id,
                 "video_id": s.video_id,
                 "exam_level": s.exam_level,
-                "title": video.title if video else None,
+                "title": s.name or (video.title if video else None),
+                "source_type": s.source_type,
                 "thumbnail_url": video.thumbnail_url if video else None,
                 "total": total,
                 "mastered_count": mastered_count,
@@ -419,19 +420,21 @@ async def get_set_detail(db: AsyncSession, user: User, set_id: str, scope: str =
             "mastery_level": v.mastery_level,
             "context_sentence": v.context_sentence,
             "subtitle_id": v.subtitle_id,
+            "video_id": v.video_id,
             "start_time": sub.start_time if sub is not None else None,
         }
         for sw, v, sub in rows
     ]
 
     total, mastered_count, _pending, _unknown = await _progress_counts(db, vocab_set.id)
-    video = await db.get(Video, vocab_set.video_id)
+    video = await db.get(Video, vocab_set.video_id) if vocab_set.video_id else None
 
     return {
         "id": vocab_set.id,
         "video_id": vocab_set.video_id,
         "exam_level": vocab_set.exam_level,
-        "title": video.title if video else None,
+        "title": vocab_set.name or (video.title if video else None),
+        "source_type": vocab_set.source_type,
         "thumbnail_url": video.thumbnail_url if video else None,
         "total": total,
         "mastered_count": mastered_count,
@@ -690,7 +693,7 @@ async def celebrate(db: AsyncSession, user: User, set_id: str) -> dict | None:
     if vocab_set is None:
         return None
     total, mastered, pending, unknown = await _progress_counts(db, vocab_set.id)
-    if pending != 0 or unknown != 0:
+    if total == 0 or pending != 0 or unknown != 0:
         return None
 
     card = await _celebration_card(db, vocab_set, total, mastered)

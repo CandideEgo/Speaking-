@@ -74,6 +74,10 @@ export interface VideoCard {
   ext_view_count: number | null;
   ext_like_count: number | null;
   wpm: number | null;
+  subtitle_count?: number | null;
+  exam_word_count?: number | null;
+  sample_text_en?: string | null;
+  sample_text_zh?: string | null;
   vocabulary_density: number | null;
   created_at: string;
   /** 榜单名次依据（weekly_views/weekly_favorites 的周增量）；latest 榜与普通卡片为 null。 */
@@ -203,6 +207,8 @@ export interface LearningRecord {
      *  duration 是「继续观看」进度分母的权威值（DB `videos.duration`）。 */
     duration: number | null;
     channel_name: string | null;
+    /** 续播卡也展示真实难度；后端 VideoBrief 已下发。 */
+    difficulty_level?: string | null;
   } | null;
 }
 
@@ -306,7 +312,8 @@ export type VocabSetWordStatus = "pending" | "known" | "unknown" | "learned";
 /** GET /api/v1/vocab-sets — one video's vocab set summary card. */
 export interface VocabSet {
   id: string;
-  video_id: string;
+  source_type?: "video" | "exam" | "custom";
+  video_id: string | null;
   exam_level: string | null;
   /** Denormalized video fields for card rendering. */
   title: string;
@@ -331,6 +338,7 @@ export interface VocabSetCreateResponse {
 
 /** One word row inside a vocab set (GET /api/v1/vocab-sets/{id}). */
 export interface VocabSetWord {
+  video_id?: string | null;
   set_word_id: string;
   position: number;
   status: VocabSetWordStatus;
@@ -527,6 +535,7 @@ export interface AdminAccount {
 
 /* ── Profile ── */
 export interface UserPreferences {
+  interest_categories?: string[];
   // 后端 UserPreferencesUpdate 限制为 minutes|words；历史 DB 行的
   // speaking_attempts 由设置页（SettingsTab）读取时净化为 "words"。
   daily_goal_type: "minutes" | "words";

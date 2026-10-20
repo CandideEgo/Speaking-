@@ -8,16 +8,7 @@ import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useDailySession } from "@/hooks/useDailySession";
-import {
-  BookOpen,
-  Target,
-  CheckCircle2,
-  Flame,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
-} from "lucide-react";
+import { BookOpen, Search, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -26,22 +17,15 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/common/ErrorState";
-import { MetricCard } from "@/components/ui/MetricCard";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
-import { DailyHero } from "@/components/vocabulary/DailyHero";
+import { VocabularyToday } from "@/components/vocabulary/VocabularyToday";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
 import { relativeTime } from "@/lib/utils";
-import type {
-  Paginated,
-  TodayTrainingSummary,
-  VocabularyPreferences,
-  VocabularyWord,
-  VocabSet,
-} from "@/types";
+import type { Paginated, VocabularyPreferences, VocabularyWord, VocabSet } from "@/types";
 
 interface VocabStatsResponse {
   total: number;
@@ -108,8 +92,8 @@ function VocabSetsPanel({
         description="在视频页点「加入学习」，即可按视频把生词加进来过筛"
         action={
           <Link
-            href="/browse"
-            className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
+            href="/"
+            className="inline-block mt-3 text-copy font-semibold text-brand-700 hover:underline"
           >
             去频道看看 →
           </Link>
@@ -166,10 +150,17 @@ export default function VocabularyPage() {
   const searchParams = useSearchParams();
   const topTab = searchParams.get("tab") === "library" ? "library" : "today";
   // 词库内二级视图：视频集合 | 全部单词
+  useEffect(() => {
+    if (searchParams.get("sub") === "sets") router.replace("/vocabulary/sets");
+  }, [searchParams, router]);
   const libraryTab = searchParams.get("sub") === "words" ? "words" : "sets";
 
   /** tab 切换落 URL（replace，不刷历史栈）；today 是默认态，不占 query。 */
   function syncTabQuery(nextTop: "today" | "library", nextSub: "sets" | "words") {
+    if (nextTop === "library" && nextSub === "sets") {
+      router.push("/vocabulary/sets");
+      return;
+    }
     router.replace(
       nextTop === "library" ? `/vocabulary?tab=library&sub=${nextSub}` : "/vocabulary",
       { scroll: false }
@@ -180,10 +171,6 @@ export default function VocabularyPage() {
   // 配额保存后就地生效，不必重拉整个今日队列（重拉会让 Hero 闪一下加载态）
   const [quota, setQuota] = useState<VocabularyPreferences | null>(null);
   const preferences = quota ?? daily.session?.preferences ?? null;
-  const todaySummary: TodayTrainingSummary = daily.session?.today ?? {
-    words_learned: 0,
-    rounds: 0,
-  };
   const [stats, setStats] = useState({
     total: 0,
     due: 0,
@@ -310,18 +297,47 @@ export default function VocabularyPage() {
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const showEmpty = !list.loading && !list.error && list.items.length === 0;
   // 首启（一个词都没有）：Hero 换成收词引导，统计行不再摆一排 0。
-  const firstRun = statsLoaded && stats.total === 0;
+  const newTarget = preferences?.daily_new_target ?? 10;
+  const primaryLabel =
+    stats.total === 0 ? "去视频里收词" : stats.due > 0 ? "开始复习" : `提前复习 ${newTarget} 个`;
 
   return (
     <PageTransition>
-      <main className="py-6 sm:py-12">
-        {/* Page head: title + desc + 视图切换（今日 | 词库） */}
-        <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
-          <PageHeader
-            className="pt-0 pb-0"
-            title="单词训练"
-            description="每天一小步，把视频里遇到的单词变成自己的"
-          />
+      <main className="pt-6 pb-18">
+        {/* Page head: crumb → h1 → desc → actions（桌面 actions 右对齐），视图切换单独一行 */}
+        <PageHeader
+          crumb="词汇"
+          title={
+            !statsLoaded
+              ? "今天，记几个词？"
+              : stats.total === 0
+                ? "词库还是空的"
+                : stats.due > 0
+                  ? `今天有 ${stats.due} 个词到期`
+                  : "今天没有到期词"
+          }
+          description={
+            stats.total === 0
+              ? "在观看页点一个字幕里的词，就能把它和原句一起收进来。之后按间隔回来复习。"
+              : "先看看词和原句，也可以直接开始。之后的词会按复习间隔出现。"
+          }
+          actions={
+            <>
+              {stats.total > 0 && (
+                <Link href="/" className="text-copy text-muted hover:text-ink">
+                  去看视频
+                </Link>
+              )}
+              <Link
+                href={stats.total === 0 ? "/" : "/vocabulary/drill"}
+                className="inline-flex rounded-sm bg-brand-500 px-4 py-2.5 text-copy font-semibold text-on-primary hover:bg-brand-600"
+              >
+                {primaryLabel}
+              </Link>
+            </>
+          }
+        />
+        <div className="mt-4 flex justify-end">
           <TabPills
             tabs={[
               { key: "today", label: "今日" },
@@ -336,48 +352,12 @@ export default function VocabularyPage() {
         </div>
 
         {topTab === "today" ? (
-          <>
-            {/* 今日行动卡：掌握环 + 今日队列 + CTA + 今日已学/配额（同一张卡，见 DailyHero） */}
-            <DailyHero
-              newTotal={daily.session?.totals.new_total ?? 0}
-              dueTotal={daily.session?.totals.due_total ?? 0}
-              total={stats.total}
-              mastered={stats.mastered}
-              loading={daily.loading || !statsLoaded}
-              today={todaySummary}
-              preferences={preferences}
-              onQuotaSaved={setQuota}
-            />
-
-            {!firstRun && (
-              /* 词库统计：Hero 已经讲了「今天要做什么」，这行只交代词库总量，
-                 所以不给任何一张卡加外圈 ring，也不用 warning 色——「学习中」
-                 是进度不是警告。语义色只留「待复习」brand 与「已掌握」success。 */
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-                <MetricCard icon={BookOpen} label="总计" value={stats.total} variant="label-top" />
-                <MetricCard
-                  icon={Target}
-                  label="待复习"
-                  value={stats.due}
-                  tone="brand"
-                  variant="label-top"
-                />
-                <MetricCard
-                  icon={CheckCircle2}
-                  label="已掌握"
-                  value={stats.mastered}
-                  tone="success"
-                  variant="label-top"
-                />
-                <MetricCard
-                  icon={Flame}
-                  label="学习中"
-                  value={stats.learning}
-                  variant="label-top"
-                />
-              </div>
-            )}
-          </>
+          <VocabularyToday
+            session={daily.session ? { ...daily.session, preferences } : null}
+            stats={stats}
+            loading={daily.loading || !statsLoaded}
+            onQuotaSaved={setQuota}
+          />
         ) : (
           <>
             {/* 词库二级切换：视频集合 | 全部单词 */}
@@ -440,7 +420,7 @@ export default function VocabularyPage() {
                     <div className="relative w-full md:w-56 md:ml-auto">
                       <Search
                         size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-soft"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                       />
                       <input
                         type="text"
@@ -448,7 +428,7 @@ export default function VocabularyPage() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full h-9 pl-9 pr-3 rounded-md bg-surface-card border border-transparent
-                      text-copy text-ink placeholder:text-muted-soft
+                      text-copy text-ink placeholder:text-muted
                       focus:bg-canvas focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand-500/20
                       transition-colors duration-150"
                       />
@@ -482,8 +462,8 @@ export default function VocabularyPage() {
                     action={
                       debouncedQuery ? null : (
                         <Link
-                          href="/browse"
-                          className="inline-block mt-3 text-copy font-semibold text-brand-500 hover:underline"
+                          href="/"
+                          className="inline-block mt-3 text-copy font-semibold text-brand-700 hover:underline"
                         >
                           去频道看看 →
                         </Link>

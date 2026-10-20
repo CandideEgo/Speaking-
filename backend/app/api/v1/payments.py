@@ -5,6 +5,7 @@ with Mock, Alipay, or WeChat Pay backends.  The provider is selected
 via the ``default_payment_provider`` setting.
 """
 
+import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -24,6 +25,8 @@ from app.models.user import PlanType, User
 from app.schemas.payment import (
     CreateOrderRequest,
     CreateOrderResponse,
+    JinshujuPurchaseLinkResponse,
+    JinshujuPurchaseTier,
     OrderStatusResponse,
     PaymentStatusResponse,
 )
@@ -243,6 +246,91 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
     await _process_successful_payment(db, order)
     return {"code": "SUCCESS", "message": "OK"}
+
+
+@router.get("/jinshuju/purchase-link", response_model=JinshujuPurchaseLinkResponse)
+@rate_limit("30/minute")
+async def jinshuju_purchase_link(request: Request, current_user: User = Depends(get_current_user)):
+    """站内购买入口：返回带签名购买标识的收款页链接。
+
+    B 方案（零填写）：链接里的 ``x_field_1`` 是服务端签名的
+    ``user_id + 过期时间 + HMAC`` token，买家在金数据付款后，同步任务从 entry
+    读回它就能直接开通到当前账号，收款页不需要收集手机号。
+    """
+    if not settings.jinshuju_enabled or not settings.jinshuju_purchase_url:
+        raise HTTPException(status_code=503, detail="会员购买暂未开放")
+
+    from app.services import jinshuju_service
+
+    try:
+        url, ttl_seconds = jinshuju_service.purchase_url_for(current_user.id)
+    except jinshuju_service.JinshujuError as exc:
+        logger.error("jinshuju_purchase_url_unconfigured", error=str(exc))
+        raise HTTPException(status_code=503, detail="会员购买暂未开放") from exc
+
+    tiers = [
+        JinshujuPurchaseTier(name=name, days=days, price_fen=price_fen)
+        for name, (days, price_fen) in jinshuju_service.TIER_RULES.items()
+    ]
+    return JinshujuPurchaseLinkResponse(url=url, expires_in_seconds=ttl_seconds, tiers=tiers)
+
+
+@router.post("/jinshuju/webhook")
+@rate_limit("30/minute")
+async def jinshuju_webhook(request: Request):
+    """金数据「数据推送」回调：验签 + 转投 Celery，迅速返回 2XX。
+
+    金数据要求接收方 2 秒内返回 2XX，否则按斐波那契间隔重试（最多 6 次）。
+    真正的核对与开通在 worker 里做：任务会按 ``serial_number`` 重新拉取该条
+    数据，检查 ``trade_status`` 与实付金额 —— 即使推送内容被伪造，也发不出
+    会员（见 ``services/jinshuju_service.py``）。轮询任务还会补漏。
+    """
+    if not settings.jinshuju_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    expected = settings.jinshuju_webhook_secret
+    if not expected:
+        logger.warning("jinshuju_webhook_secret_unset")
+        raise HTTPException(status_code=503, detail="Webhook secret not configured")
+
+    provided = request.query_params.get("secret", "")
+    if not hmac.compare_digest(provided, expected):
+        logger.warning(
+            "jinshuju_webhook_bad_secret",
+            client=request.client.host if request.client else None,
+        )
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    try:
+        payload = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from None
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    form_token = str(payload.get("form") or "")
+    if not settings.jinshuju_form_token or form_token != settings.jinshuju_form_token:
+        logger.warning("jinshuju_webhook_form_mismatch", form=form_token)
+        raise HTTPException(status_code=400, detail="Unknown form")
+
+    entry = payload.get("entry")
+    serial_number = entry.get("serial_number") if isinstance(entry, dict) else None
+    if not isinstance(serial_number, int):
+        logger.warning("jinshuju_webhook_missing_serial")
+        raise HTTPException(status_code=400, detail="Missing serial_number")
+
+    try:
+        from app.tasks.payment_tasks import process_jinshuju_entry
+
+        process_jinshuju_entry.delay(serial_number)
+    except Exception:
+        # 转投失败不返回 5xx：定时同步会补上，避免金数据把 6 次重试都耗在
+        # 一个临时不可用的 broker 上。
+        logger.exception("jinshuju_webhook_enqueue_failed", serial_number=serial_number)
+        return {"code": 1, "message": "queued later"}
+
+    logger.info("jinshuju_webhook_accepted", serial_number=serial_number)
+    return {"code": 0, "message": "ok"}
 
 
 @router.get("/status")

@@ -252,13 +252,6 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
       <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
         <div className="flex items-center gap-2">
           <h3 className="text-copy font-semibold text-ink">通知</h3>
-          {/* WebSocket connection indicator */}
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              wsConnected ? "bg-success" : "bg-muted/30"
-            }`}
-            title={wsConnected ? "实时连接" : "轮询模式"}
-          />
         </div>
         {hasUnread && (
           <button

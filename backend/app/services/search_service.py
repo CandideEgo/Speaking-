@@ -104,6 +104,7 @@ async def search_videos(
     query: str,
     limit: int = 20,
     user_id: str | None = None,
+    offset: int = 0,
 ) -> list[VideoResponse]:
     """Search videos using PostgreSQL full-text search with ILIKE fallback.
 
@@ -169,6 +170,7 @@ async def search_videos(
         select(Video)
         .where(status_filter, access_filter, match_filter)
         .order_by(relevance.desc(), Video.created_at.desc())
+        .offset(offset)
         .limit(limit)
     )
 

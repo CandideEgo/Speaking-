@@ -41,7 +41,7 @@ let token = "";
 test.use({ viewport: { width: 414, height: 896 } });
 
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {
@@ -161,8 +161,9 @@ test.describe("当前句卡（414×896 移动端）", () => {
     expect(card!.y, "卡顶不高于画框底（不是浮在画面里）").toBeGreaterThanOrEqual(
       frame.y + frame.height - 1.5
     );
-    expect(card!.y, "卡顶贴着画框底（不是又一条断层）").toBeLessThanOrEqual(
-      frame.y + frame.height + 24
+    const controls = (await page.getByTestId("watch-bottom-bar").boundingBox())!;
+    expect(card!.y, "当前句位于页面内播放控制之后").toBeGreaterThanOrEqual(
+      controls.y + controls.height
     );
 
     // 文稿在卡之下：进页面未滚动时，卡在视口里、文稿顶边在卡底之下。

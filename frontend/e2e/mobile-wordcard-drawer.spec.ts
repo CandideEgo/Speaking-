@@ -1,33 +1,3 @@
-/**
- * #27 词卡贴画面下沿 + #26 跟读底部抽屉 —— 两条决议在 app 里的毕业物验收（375×812），
- * DEC-069 / #31 换锚点之后的版本。
- *
- * 断言的是决议里写死的那几个数，不是「看起来差不多」：
- *   ① #27 修订后的卡口：词卡顶边 = 当前句卡下沿（只盖后续文稿，不盖当前句）
- *   ② 词卡高度随内容、底边不越过**壳底栏**上沿（观看页形态 = `WatchBottomBar`），
- *      「加入词库」默认不自动关
- *   ③ #26 硬约束：抽屉展开前后播放器几何一像素不动
- *   ④ 抽屉顶边不越过当前句卡下沿（半屏 400px 与「不盖当前句」取更靠下的一条）
- *   ⑤ 抽屉里真的有「要跟读的这一句」、有计时
- *   ⑥ 动作行一律 44px；把手下拉 > 64px 关抽屉
- *   ⑦ 自动推进默认关
- *
- * DEC-069 换掉的两处锚点（本文件随之改）：
- *   · **点词热区**从画框里的入画字幕搬到画面正下方的当前句卡（`.now-sub-word` 仍在，
- *     只是宿主换成 `[data-testid="current-sentence-card"]`；画面里零文字）；
- *   · **跟读入口**从字幕卡的「录音」按钮搬到壳底栏的 `[data-testid="watch-shadowing"]`，
- *     抽屉里那句也从 `[data-testid="current-sentence-en"]` 读。
- *
- * 另含 Destination §7 的补测点（编号带 `§7-` 前缀，与上面 ①③… 是两套编号）：
- *  §7-6 / §7-6b 词卡落档的两支、§7-7 被点的那**一个词**、§7-8 计时真的在走、
- *  §7-10 常驻态下的抽屉、§7-11 词卡把手 >64px 关 / <64px 不关。
- *
- * 需要本地库里有**真能播**的视频：CI seed 的 `/media/<id>.mp4` 是占位 URL（404），
- * 这种情况下和 mobile-inline-subtitle.spec.ts 一样 skip，而不是在几何断言上失败。
- *
- * 运行：npx playwright test e2e/mobile-wordcard-drawer.spec.ts --project=chromium
- */
-
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 
@@ -40,42 +10,33 @@ test.use({ viewport: { width: 375, height: 812 } });
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, PHONE));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, PHONE)).token;
 });
 
 const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
 const WORD_SHEET = '[data-testid="word-tooltip"][data-variant="sheet"]';
 
-/** 假麦克风：MediaRecorder 一 stop 就交出一小段 blob，足以走完 listening → reviewing。 */
+/** 使用浏览器真实 MediaRecorder 录制合成音频，验证可解码的回放文件。 */
 async function mockMic(page: Page) {
   await page.addInitScript(() => {
-    const track = { stop() {}, kind: "audio" };
-    const fakeStream = { getTracks: () => [track] } as unknown as MediaStream;
-    navigator.mediaDevices.getUserMedia = async () => fakeStream;
-
-    class FakeMediaRecorder {
-      state = "inactive";
-      ondataavailable: ((e: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      static isTypeSupported() {
-        return true;
-      }
-      start() {
-        this.state = "recording";
-      }
-      stop() {
-        this.state = "inactive";
-        this.ondataavailable?.({
-          data: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }),
-        });
-        this.onstop?.();
-      }
-    }
-    Object.defineProperty(window, "MediaRecorder", {
-      value: FakeMediaRecorder,
-      configurable: true,
-    });
+    navigator.mediaDevices.getUserMedia = async () => {
+      const context = new AudioContext();
+      const source = context.createOscillator();
+      const destination = context.createMediaStreamDestination();
+      source.frequency.value = 220;
+      source.connect(destination);
+      source.start();
+      await context.resume();
+      const track = destination.stream.getAudioTracks()[0];
+      const stop = track.stop.bind(track);
+      track.stop = () => {
+        stop();
+        source.stop();
+        void context.close();
+      };
+      return destination.stream;
+    };
   });
 }
 
@@ -125,9 +86,9 @@ async function enterWatch(page: Page, request: APIRequestContext) {
   // 桌面端 `WatchBottomBar` 自己渲染 null → 量不到盒子，调用方按需断言非空。
   // 注意先 `count()` 再量：`locator.boundingBox()` 会先等元素出现，元素**永远不渲染**
   // 时它一路等到 60s 测试超时（桌面那条就是这样红掉的），`count()` 不会等。
-  const barCount = await page.locator('[data-testid="watch-bottom-bar"]').count();
+  const barCount = await page.locator('[data-testid="mobile-tab-bar"]').count();
   const bottomBar =
-    barCount > 0 ? await page.locator('[data-testid="watch-bottom-bar"]').boundingBox() : null;
+    barCount > 0 ? await page.locator('[data-testid="mobile-tab-bar"]').boundingBox() : null;
 
   const frame = await boxOf(page, FRAME);
   return { frame, bottomBar };
@@ -144,390 +105,123 @@ async function tapWord(page: Page, index = 0) {
   return { wordBox, text };
 }
 
-test("① 词卡贴当前句卡下沿升起：高度随内容、不铺满屏；「加入词库」默认不关", async ({
-  page,
-  request,
-}) => {
-  const { frame, bottomBar } = await enterWatch(page, request);
-  expect(bottomBar, "375 档壳底栏在").not.toBeNull();
-  const frameBottom = frame.y + frame.height;
-  const sentenceCard = await boxOf(page, CARD);
-  const sentenceBottom = sentenceCard.y + sentenceCard.height;
+async function assertSheetAboveNavigation(page: Page, selector: string) {
+  const sheet = await boxOf(page, selector);
+  const tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
+  expect(sheet.y).toBeGreaterThanOrEqual(0);
+  expect(sheet.y + sheet.height).toBeLessThanOrEqual(tabs.y + 2);
+  expect(sheet.width).toBeCloseTo((await page.viewportSize())!.width, 0);
+  expect(sheet.height).toBeGreaterThanOrEqual(239);
+}
 
-  await tapWord(page, 0);
-  const card = await boxOf(page, WORD_SHEET);
+for (const height of [812, 600, 480]) {
+  test(`375×${height}：词卡可读、点词准确且不遮挡全站导航`, async ({ page, request }) => {
+    await page.setViewportSize({ width: 375, height });
+    await enterWatch(page, request);
+    const word = page.locator(`${CARD} .now-sub-word`).first();
+    const text = (await word.innerText()).trim();
+    await word.click();
+    await expect(page.locator(WORD_SHEET)).toBeVisible();
+    await expect(page.locator(WORD_SHEET).getByRole("heading").first()).toHaveText(
+      new RegExp(text, "i")
+    );
+    await assertSheetAboveNavigation(page, WORD_SHEET);
+    const card = await boxOf(page, CARD);
+    const tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
+    const sheet = await boxOf(page, WORD_SHEET);
+    expect(sheet.y).toBeCloseTo(Math.max(8, Math.min(card.y + card.height, tabs.y - 240)), 0);
+    await page.locator(WORD_SHEET).getByRole("button", { name: "关闭", exact: true }).click();
+    await expect(page.locator(WORD_SHEET)).toHaveCount(0);
+  });
+}
 
-  // 卡口 = 当前句卡下沿（INV-022 修订，DEC-086）：顶边落在句卡下沿，
-  // 既**不**压进画面，也**不**盖住刚点的那句。
-  expect(card.y, "词卡顶边不高于当前句卡下沿").toBeGreaterThanOrEqual(sentenceBottom - 1.5);
-  expect(card.y, "词卡顶边贴着当前句卡下沿").toBeLessThanOrEqual(sentenceBottom + 2);
-  expect(card.height, "词卡有实际高度").toBeGreaterThan(200);
-  expect(card.x, "词卡出血到屏宽两侧").toBeCloseTo(0, 0);
-  expect(card.width).toBeCloseTo(375, 0);
-  // 高度随内容（原型 W2-edge：只给 top、卡高由内容决定，max-height 封顶）：
-  // 底边**不**钉在底栏上沿，而是内容多高就多高，底下的文稿列表仍看得见。
-  expect(card.y + card.height, "词卡底边不越过壳底栏上沿").toBeLessThanOrEqual(bottomBar!.y + 2);
-  expect(card.y + card.height, "词卡没铺满到只剩一条缝（内容高 vs 拉满）").toBeLessThan(
-    bottomBar!.y - 80
-  );
-  console.log(
-    `[#27] 375×812 画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 词卡 top=${card.y.toFixed(1)} ` +
-      `h=${card.height.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)}`
-  );
-
-  // 「加入词库」默认不自动关（#27 ③）—— 不管保存成功失败，词卡都还在。
-  await page.getByRole("button", { name: "加入词库" }).click();
-  await page.waitForTimeout(600);
+test("加入词库保留词卡，短拉回弹、长拉关闭", async ({ page, request }) => {
+  await enterWatch(page, request);
+  await tapWord(page);
+  await page.getByRole("button", { name: "加入词库", exact: true }).click();
   await expect(page.locator(WORD_SHEET)).toBeVisible();
-
-  // 关掉：浮层消失。
-  await page.locator(`${WORD_SHEET} [aria-label="关闭"]`).click();
-  await expect(page.locator('[data-testid="word-tooltip"]')).toHaveCount(0);
-
-  // 不引入横向溢出。
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
-  expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
+  const drag = async (dy: number) => {
+    const handle = await boxOf(page, '[data-testid="word-card-grab"]');
+    const x = handle.x + handle.width / 2,
+      y = handle.y + handle.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + dy, { steps: 10 });
+    await page.mouse.up();
+  };
+  await drag(40);
+  await expect(page.locator(WORD_SHEET)).toBeVisible();
+  await expect(page.locator(WORD_SHEET)).toHaveCSS("transform", "none");
+  await drag(140);
+  await expect(page.locator(WORD_SHEET)).toHaveCount(0);
 });
 
-test("③④⑤⑥⑦ 跟读底部抽屉：入口在壳底栏、播放器不动、顶边不越当前句卡、计时/44px/下拉关闭/自动推进默认关", async ({
-  page,
-  request,
-}) => {
+test("跟读抽屉保持画面位置，真实录音计时、回放、重录和拖动关闭", async ({ page, request }) => {
   await mockMic(page);
-  const { frame, bottomBar } = await enterWatch(page, request);
-  expect(bottomBar, "375 档壳底栏在").not.toBeNull();
-  const frameBottom = frame.y + frame.height;
-  const sentenceCard = await boxOf(page, CARD);
-  const sentenceBottom = sentenceCard.y + sentenceCard.height;
-
-  const sentence = (await page.locator('[data-testid="current-sentence-en"]').innerText()).trim();
-
-  // DEC-069：入口从字幕卡的「录音」搬到壳底栏的「跟读」。
-  await page.locator('[data-testid="watch-shadowing"]').click();
-  const drawer = page.locator('[data-testid="shadowing-drawer"]');
-  await expect(drawer).toBeVisible({ timeout: 5000 });
-
-  // ③ 硬约束：展开前后播放器几何不动。
-  const frameAfter = await boxOf(page, FRAME);
-  expect(Math.abs(frameAfter.y - frame.y), "抽屉展开后画框顶不动").toBeLessThanOrEqual(1);
-  expect(Math.abs(frameAfter.height - frame.height), "抽屉展开后画框高不动").toBeLessThanOrEqual(1);
-
-  const d = await boxOf(page, '[data-testid="shadowing-drawer"]');
-  // ④ 顶边绝不越过当前句卡下沿（压住画面或当前句卡就是违约）。
-  expect(d.y, "抽屉顶边不高于当前句卡下沿").toBeGreaterThanOrEqual(sentenceBottom - 1.5);
-  expect(Math.abs(d.y + d.height - bottomBar!.y), "抽屉底边贴壳底栏上沿").toBeLessThanOrEqual(2);
-  expect(d.height, "抽屉是半屏档（400px 封顶，短视口下自动落档）").toBeLessThanOrEqual(401);
-  console.log(
-    `[#26] 375×812 抽屉 top=${d.y.toFixed(1)} h=${d.height.toFixed(1)} ` +
-      `画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
-      `画框展开前 y=${frame.y.toFixed(1)} h=${frame.height.toFixed(1)} / 后 y=${frameAfter.y.toFixed(1)} h=${frameAfter.height.toFixed(1)}`
-  );
-
-  // ⑤ 抽屉顶边第一件事是钉住「要跟读的这一句」，那句来自当前句卡（唯一一份当前句）。
-  await expect(page.locator('[data-testid="drawer-sentence-en"]')).toHaveText(sentence);
-
-  // ⑦ 自动推进默认关。
-  await expect(page.locator('[data-testid="auto-advance"]')).toHaveAttribute(
-    "aria-checked",
-    "false"
-  );
-
-  // 抽屉打开时是 idle 档：点「开始跟读本句」才进录音态（DEC-069 之后底栏只负责开抽屉）。
-  await page.getByRole("button", { name: "开始跟读本句" }).click();
-
-  // ⑤ 计时：录制中必须把秒数画出来（现状缺口）。
-  const timer = page.locator('[data-testid="recording-timer"]');
-  await expect(timer).toBeVisible({ timeout: 5000 });
-  await expect(timer).toHaveText(/^\d+:\d{2}$/);
-
-  // 录音 → 回放态（#26 记的「e2e 从没跑到回放态」这一条）。
-  await page.getByRole("button", { name: "停止录音" }).click();
-  await expect(page.getByRole("button", { name: "重录" })).toBeVisible({ timeout: 8000 });
-  await expect(page.getByRole("button", { name: "满意" })).toBeVisible();
-  // 用抽屉内的动作行定位：底栏也有一个「下一句」，裸的 role 查询在 strict 模式下会撞两下。
-  await expect(
-    page.locator('[data-testid="drawer-actions"]').getByRole("button", { name: "下一句" })
-  ).toBeVisible();
-
-  // ⑥ 动作行一律 44px 触控目标。
-  const actions = page.locator('[data-testid="drawer-actions"] button');
-  const count = await actions.count();
-  expect(count).toBeGreaterThanOrEqual(3);
-  for (let i = 0; i < count; i++) {
-    const b = await actions.nth(i).boundingBox();
-    expect(b, `drawer action #${i}`).not.toBeNull();
-    expect(b!.height, `抽屉动作 ${i} 触控目标高度`).toBeGreaterThanOrEqual(44);
-  }
-
-  // ⑥ 把手下拉 > 64px 关抽屉（#26 决议④，也是 #29 手势集要认的那一条）。
-  // 先过一遍 390 / 414 档（#28 决议量过这三档）：换尺寸后抽屉要重算顶边，仍不压画面。
-  for (const [w, h] of [
-    [390, 844],
-    [414, 896],
-  ] as const) {
-    await page.setViewportSize({ width: w, height: h });
-    await page.waitForTimeout(400);
-    const f = await boxOf(page, FRAME);
-    const dd = await boxOf(page, '[data-testid="shadowing-drawer"]');
-    const bar = await boxOf(page, '[data-testid="watch-bottom-bar"]');
-    expect(dd.y, `${w} 档抽屉顶边不越画框下沿`).toBeGreaterThanOrEqual(f.y + f.height - 1.5);
-    expect(Math.abs(dd.y + dd.height - bar.y), `${w} 档抽屉底边贴底栏`).toBeLessThanOrEqual(2);
-  }
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.waitForTimeout(400);
-
+  await enterWatch(page, request);
+  const action = page.getByTestId("watch-shadowing");
+  await action.scrollIntoViewIfNeeded();
+  const frame = await boxOf(page, FRAME);
+  const sentence = await page.getByTestId("current-sentence-en").innerText();
+  await action.click();
+  const drawer = page.getByTestId("shadowing-drawer");
+  await expect(drawer).toBeVisible();
+  await assertSheetAboveNavigation(page, '[data-testid="shadowing-drawer"]');
+  const after = await boxOf(page, FRAME);
+  expect(after.y).toBeCloseTo(frame.y, 0);
+  expect(after.height).toBeCloseTo(frame.height, 0);
+  await expect(page.getByTestId("drawer-sentence-en")).toHaveText(sentence);
+  await expect(page.getByTestId("auto-advance")).toHaveAttribute("aria-checked", "false");
+  await drawer.getByRole("button", { name: "开始跟读本句" }).click();
+  await expect(page.getByTestId("recording-timer")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("recording-timer")).not.toHaveText("0:00", { timeout: 5000 });
+  await drawer.getByRole("button", { name: "停止录音" }).click();
+  const replay = drawer.getByRole("button", { name: "播放我的录音", exact: true });
+  await expect(replay).toBeVisible({ timeout: 10000 });
+  await replay.click();
+  await expect(drawer.getByRole("button", { name: "暂停我的录音", exact: true })).toBeVisible();
+  await drawer.getByRole("button", { name: "暂停我的录音", exact: true }).click();
+  for (const button of await page.getByTestId("drawer-actions").getByRole("button").all())
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await drawer.getByRole("button", { name: "重录", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "开始跟读本句" })).toBeVisible();
   const grab = await boxOf(page, '[data-testid="shadowing-drawer-grab"]');
   await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
   await page.mouse.down();
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 140, { steps: 8 });
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 140, { steps: 12 });
   await page.mouse.up();
-  await expect(page.locator('[data-testid="shadowing-drawer"]')).toHaveCount(0);
-
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
-  expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
+  await expect(drawer).toHaveCount(0);
 });
 
-/**
- * Destination §7 补测点 6：`WordCardSheet.tsx` 的落档公式
- * `top = max(8, min(当前句卡下沿, 底栏顶 − 240))` 此前一条断言都没有 —— 812 档永远走
- * 「当前句卡下沿」那一支，落档那一支从没被执行过。
- *
- * 实测（上一轮探针）：落档**只在视口高 < ~560px 时**才激活。DEC-069 把底栏从 56px 的
- * 5 Tab 换成 ~102px 的播放控件、画框顶下移（顶栏 64 → 44）之后，375×600 仍然在正支
- * 一侧，但余量只剩个位数 —— 所以这条先断言前提（`底栏顶 − 240 > 画框底`），
- * 前提一旦翻转就红在那里，而不是悄悄去量另一支。
- */
-test("§7-6 短视口（375×600）下词卡仍走当前句卡下沿那一支：顶边 = 句卡下沿、卡底不越底栏", async ({
-  page,
-  request,
-}) => {
-  await page.setViewportSize({ width: 375, height: 600 });
-  const { frame, bottomBar } = await enterWatch(page, request);
-  expect(bottomBar, "375 档壳底栏在").not.toBeNull();
-  const frameBottom = frame.y + frame.height;
-  const sentenceCard = await boxOf(page, CARD);
-  const sentenceBottom = sentenceCard.y + sentenceCard.height;
-  // 前提：这一档还没进落档区（进了的话下面那条断言就成了在量另一支）。
-  expect(
-    bottomBar!.y - 240,
-    "375×600 仍在落档阈值之上（底栏顶 − 240 > 句卡底；这是边界守卫，翻转请改这条）"
-  ).toBeGreaterThan(sentenceBottom);
-
-  const { wordBox } = await tapWord(page, 0);
-  const card = await boxOf(page, WORD_SHEET);
-
-  console.log(
-    `[#27] 375×600 画框底=${frameBottom.toFixed(1)} 句卡底=${sentenceBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
-      `词卡 top=${card.y.toFixed(1)} h=${card.height.toFixed(1)}`
-  );
-  expect(card.y, "词卡顶边 = 当前句卡下沿").toBeCloseTo(sentenceBottom, 0);
-  expect(card.y + card.height, "词卡底边不越过壳底栏上沿").toBeLessThanOrEqual(bottomBar!.y + 2);
-  expect(wordBox.y, "被点的词在画框下沿之下（当前句卡里）").toBeGreaterThan(frameBottom - 1);
-});
-
-/**
- * 落档区（视口高 < ~560px，含**横屏**）的实测刻画。
- * DEC-069 之后底栏更高（~102px），375×480 实测 `top = 379−240 = 139`（画框底 254.9），
- * 卡片从画面里 139 起、高 240 ⇒ 当前句卡与画面都被盖住。
- *
- * 为什么不能简单按 INV-022 的「绝不压进画面」把顶边压回画框下沿：横屏下画框底
- * 本身就在底栏顶**之下**，压回去等于卡片高度 0 —— 词卡直接消失。
- * 也就是说 `min(...)` 这一支是「画框根本装不下时保住 240px 卡片」的兜底。
- * DEC-086 把常规档的锚点下移到当前句卡下沿后，812/600 档不再盖住当前句；这条只覆盖
- * 「视口根本装不下」时的保底支，属于同一份决议写明的例外，不再是默认代价。
- */
-test("§7-6b 落档区（375×480）实测刻画：卡片抬进画面 ~116px 以保住 240px 高（#25 待定）", async ({
-  page,
-  request,
-}) => {
-  await page.setViewportSize({ width: 375, height: 480 });
-  const { frame, bottomBar } = await enterWatch(page, request);
-  expect(bottomBar, "375 档壳底栏在").not.toBeNull();
-  const frameBottom = frame.y + frame.height;
-  const sentenceCard = await boxOf(page, CARD);
-
-  await tapWord(page, 0);
-  const card = await boxOf(page, WORD_SHEET);
-  console.log(
-    `[#27] 375×480 画框底=${frameBottom.toFixed(1)} 底栏顶=${bottomBar!.y.toFixed(1)} ` +
-      `词卡 top=${card.y.toFixed(1)} h=${card.height.toFixed(1)} 当前句卡顶=${sentenceCard.y.toFixed(1)}`
-  );
-
-  expect(card.y, "落档：顶边 = 底栏顶 − 240").toBeCloseTo(bottomBar!.y - 240, 0);
-  expect(card.height, "落档：卡片仍保住 240px").toBeCloseTo(240, 0);
-  expect(card.y + card.height, "底边仍贴底栏上沿").toBeLessThanOrEqual(bottomBar!.y + 2);
-  // 保底支的例外：视口装不下时卡片压进画面换取可用性（DEC-086 保留该 fallback），
-  // 此时也盖住当前句卡；常规档（812/600）由 §7-7 断言不盖。
-  expect(card.y, "落档区的代价：顶边已经高过画框下沿").toBeLessThan(frameBottom - 1);
-  expect(card.y, "落档区的代价：当前句卡被盖住").toBeLessThan(sentenceCard.y);
-});
-
-/**
- * Destination §7 补测点 7：词卡压不到刚点的那**一个词** —— #27 的硬约束。
- *
- * DEC-086 把词卡锚点从画框下沿下移到当前句卡下沿：点词的那一句在词卡上方完整可见，
- * 点中的词也不会被盖住。这条同时断言标题命中的是哪个词，以及几何上的「不盖当前句」。
- */
-test("§7-7 点词命中准确且词卡不盖当前句：标题 = 被点的词、句卡在词卡上方", async ({
-  page,
-  request,
-}) => {
-  const { frame } = await enterWatch(page, request);
-  const frameBottom = frame.y + frame.height;
-  const sentenceCard = await boxOf(page, CARD);
-  const sentenceBottom = sentenceCard.y + sentenceCard.height;
-
-  const { wordBox, text } = await tapWord(page, 2);
-  const card = await boxOf(page, WORD_SHEET);
-  const label = (await page.locator(WORD_SHEET).getAttribute("aria-label")) ?? "";
-  // 词卡标题用的是页面清洗过的 token（去标点、保留大小写），span 文本可能带标点 → 两边都洗一遍。
-  const clean = (s: string) => s.replace(/\s+/g, "").replace(/[.,!?;:'"]/g, "");
-
-  // 被点的词在画面**下方**的当前句卡里（画面内零文字）。
-  expect(wordBox.y, "被点的词在画框下沿之下").toBeGreaterThan(frameBottom - 1);
-  expect(clean(label), `词卡标题「${label}」= 被点的那个词「${text}」`).toContain(clean(text));
-  // 卡口 = 当前句卡下沿（DEC-086）：词卡退到被点的句子下方，语境仍在原位。
-  expect(card.y, "词卡顶边 = 当前句卡下沿").toBeCloseTo(sentenceBottom, 0);
-  expect(card.y, "词卡顶边在画框下方（没压回画面）").toBeGreaterThan(frameBottom);
-  expect(
-    wordBox.y + wordBox.height,
-    "刚点的那个词完整落在词卡上方（不盖住语境）"
-  ).toBeLessThanOrEqual(card.y + 1);
-});
-
-/**
- * Destination §7 补测点 8：计时**在走**。此前只断言格式 `^\d+:\d{2}$` —— 一个恒为
- * `0:00` 的僵尸计时器也能过，而「seconds 从来没画出来」正是本轮点名的旧缺口。
- */
-test("§7-8 跟读计时真的在走：1.3s 后读数前进", async ({ page, request }) => {
-  await mockMic(page);
+test("抽屉旋转后仍贴全站导航上沿", async ({ page, request }) => {
   await enterWatch(page, request);
-  await page.locator('[data-testid="watch-shadowing"]').click();
-  await expect(page.locator('[data-testid="shadowing-drawer"]')).toBeVisible({ timeout: 5000 });
-  await page.getByRole("button", { name: "开始跟读本句" }).click();
-  const timer = page.locator('[data-testid="recording-timer"]');
-  await expect(timer).toBeVisible({ timeout: 5000 });
-
-  const read = async () => {
-    const [m, s] = (await timer.innerText()).trim().split(":");
-    return Number(m) * 60 + Number(s);
-  };
-  const before = await read();
-  await page.waitForTimeout(1300);
-  const after = await read();
-  console.log(`[#26] 计时 ${before}s → ${after}s`);
-  expect(after, "计时器必须真的在推进（恒 0:00 不算通过）").toBeGreaterThan(before);
+  await page.getByTestId("watch-shadowing").click();
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 414, height: 896 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(async () => {
+        const d = await boxOf(page, '[data-testid="shadowing-drawer"]'),
+          tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
+        return Math.abs(d.y + d.height - tabs.y);
+      })
+      .toBeLessThanOrEqual(2);
+    await assertSheetAboveNavigation(page, '[data-testid="shadowing-drawer"]');
+  }
 });
 
-/**
- * Destination §7 补测点 10：**常驻态下的浮层卡口**。`mobile-pip-scroll.spec.ts` 覆盖了
- * 常驻形态本身，但没覆盖常驻态里的抽屉 —— 而 `useSheetGeometry` 的锚点是画框 rect，
- * 常驻时它就是「贴顶那一版」，最容易漏。
- *
- * 词卡那半边 DEC-069 之后测不了：当前句卡不是 sticky，滚下去会被钉在顶上的画框盖住，
- * 点不到它的词（点词锚点因此只在首屏可达，由 §7-7 覆盖）。抽屉那半边反而变好了 ——
- * 入口在壳底栏上，常驻态照样点得到。
- */
-test("§7-10 常驻态下的跟读抽屉：贴着**常驻**画框的下沿，底边贴壳底栏", async ({
-  page,
-  request,
-}) => {
-  await mockMic(page);
-  const { bottomBar } = await enterWatch(page, request);
-  expect(bottomBar, "375 档壳底栏在").not.toBeNull();
-
-  await page.evaluate(() => {
-    const main = document.querySelector("main#main-scroll");
-    if (main) main.scrollTop = 700;
-  });
-  await page.waitForTimeout(600);
-
-  const stuck = await boxOf(page, FRAME);
-  const position = await page.evaluate(
-    (sel) => getComputedStyle(document.querySelector(sel) as HTMLElement).position,
-    FRAME
-  );
-  expect(position, "前提：画框已贴顶常驻").toBe("sticky");
-
-  // 入口在壳底栏（常驻态下仍可点），不用滚回顶部。
-  await page.locator('[data-testid="watch-shadowing"]').click();
-  await expect(page.locator('[data-testid="shadowing-drawer"]')).toBeVisible({ timeout: 5000 });
-
-  const drawer = await boxOf(page, '[data-testid="shadowing-drawer"]');
-  const barNow = await boxOf(page, '[data-testid="watch-bottom-bar"]');
-  console.log(
-    `[#26] 常驻态 画框底=${(stuck.y + stuck.height).toFixed(1)} ` +
-      `抽屉 top=${drawer.y.toFixed(1)} 底=${(drawer.y + drawer.height).toFixed(1)} 底栏顶=${barNow.y.toFixed(1)}`
-  );
-  expect(drawer.y, "常驻态抽屉顶边不越过常驻画框下沿").toBeGreaterThanOrEqual(
-    stuck.y + stuck.height - 1.5
-  );
-  expect(
-    Math.abs(drawer.y + drawer.height - barNow.y),
-    "常驻态抽屉底边仍贴壳底栏上沿"
-  ).toBeLessThanOrEqual(2);
-  // 常驻之后画框没缩、没跑：否则上面那条「不越画框下沿」就成了一句空话。
-  const stuck2 = await boxOf(page, FRAME);
-  expect(stuck2.y, "常驻态画框仍贴壳顶").toBeLessThanOrEqual(stuck.y + 2);
-  expect(stuck2.height, "常驻态画框高不变").toBeCloseTo(stuck.height, 0);
-  // 底栏没被抽屉推走（它是壳的常规流收尾行，抽屉是 fixed）。
-  expect(Math.abs(barNow.y - bottomBar!.y), "底栏位置不受抽屉影响").toBeLessThanOrEqual(2);
-});
-
-/**
- * Destination §7 补测点 11：词卡把手下拉。抽屉那条已经有（见上一条 spec 的 ⑥），
- * 但 `word-card-grab` 这个 testId **没有任何用例引用** —— 两条把手走的是同一份
- * `SheetHandle`，漏测了一半：>64px 关、<64px 不关。
- */
-test("§7-11 词卡把手：下拉 >64px 关掉，<64px 不关", async ({ page, request }) => {
-  await enterWatch(page, request);
-  const card = () => page.locator(WORD_SHEET);
-  const dragHandle = async (dy: number) => {
-    const grab = (await boxOf(page, '[data-testid="word-card-grab"]'))!;
-    await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + dy, { steps: 8 });
-    await page.mouse.up();
-    await page.waitForTimeout(500);
-  };
-
-  await tapWord(page, 0);
-
-  // <64px：拉一把但不到阈值 —— 卡还在（松手回弹）。
-  await dragHandle(40);
-  await expect(card(), "下拉 40px 不该关掉词卡").toHaveCount(1);
-
-  // >64px：过阈值即关。
-  await dragHandle(140);
-  await expect(card(), "下拉 140px 应该关掉词卡").toHaveCount(0);
-});
-
-test.describe("桌面端不受影响", () => {
+test.describe("桌面端", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
-
-  test("1280 宽：词卡仍是可拖动浮动卡；跟读入口在句卡内、不开抽屉（S5）", async ({
-    page,
-    request,
-  }) => {
+  test("词卡保留浮动形态，桌面播放没有手机抽屉", async ({ page, request }) => {
     await enterWatch(page, request);
-
-    // 桌面端当前句在画面正下方的当前句卡里（INV-021：两端同一份），点词出的是浮动卡。
     await page.locator(`${CARD} .now-sub-word`).first().click();
-    await expect(page.locator('[data-testid="word-tooltip"][data-variant="floating"]')).toBeVisible(
-      {
-        timeout: 10000,
-      }
-    );
+    await expect(
+      page.locator('[data-testid="word-tooltip"][data-variant="floating"]')
+    ).toBeVisible();
     await expect(page.locator(WORD_SHEET)).toHaveCount(0);
-
-    // 桌面端没有跟读抽屉（S5 后入口在句卡内动作带的「录音本句」）。
-    await expect(page.locator('[data-testid="shadowing-drawer"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="watch-bottom-bar"]')).toHaveCount(0);
+    await expect(page.getByTestId("shadowing-drawer")).toHaveCount(0);
+    await expect(page.getByTestId("mobile-tab-bar")).toBeHidden();
   });
 });

@@ -46,9 +46,7 @@ export function VocabWordCard({
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-copy-lg font-bold tracking-tight text-ink">{word}</span>
             {ipa && <span className="text-meta text-muted font-mono">{ipa}</span>}
-            {partOfSpeech && (
-              <span className="text-meta text-muted-soft italic">{partOfSpeech}</span>
-            )}
+            {partOfSpeech && <span className="text-meta text-muted italic">{partOfSpeech}</span>}
           </div>
           <p className="text-copy text-body leading-relaxed mt-1 line-clamp-2">{meaning}</p>
         </div>
@@ -74,7 +72,7 @@ export function VocabWordCard({
             {sentenceHref && (
               <Link
                 href={sentenceHref}
-                className="inline-flex items-center gap-1 text-brand-500 hover:underline"
+                className="inline-flex items-center gap-1 text-brand-700 hover:underline"
               >
                 回到对应句子 →
               </Link>
@@ -107,8 +105,8 @@ export function VocabWordAction({
 }) {
   const TONE: Record<"muted" | "success" | "danger", string> = {
     muted: "text-meta text-muted hover:text-ink hover:underline",
-    success: "text-meta font-semibold text-success hover:underline",
-    danger: "text-meta text-muted hover:text-error hover:underline",
+    success: "text-meta font-semibold text-success-text hover:underline",
+    danger: "text-meta text-muted hover:text-error-text hover:underline",
   };
   return (
     <button

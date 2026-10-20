@@ -93,7 +93,8 @@ export async function registerViaUi(page: Page, phone: string): Promise<void> {
   await page.locator('input[placeholder="请输入手机号"]').fill(phone);
   await page.getByRole("button", { name: "获取验证码" }).click();
   await fillSmsOtp(page);
-  await page.locator('input[type="checkbox"]').check();
+  await page.getByRole("checkbox").focus();
+  await page.getByRole("checkbox").press("Space");
   await page.locator('button[type="submit"]').click();
 
   // New users land on the set-password step (from=register); save a password.

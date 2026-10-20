@@ -4,22 +4,33 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
+import { isCefrLevel } from "@/lib/cefrLevels";
 import { TOPIC_CATEGORY_LABELS } from "@/lib/topicCategories";
+import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
 import type { Paginated, VideoCard } from "@/types";
 
-type Platform = "browse" | "home";
-
-/** Feed ordering. "recommended" is the personalized home mix and only applies
- *  to the unfiltered home view; every other value maps to /browse/feed?sort=…
- *  and composes with category/level filters. */
+/** Feed ordering. "recommended" is the personalized mix for the unfiltered home
+ *  view; every other value maps to /browse/feed?sort=… and composes with
+ *  category/level filters. */
 const SORT_VALUES = ["recommended", "hot", "latest", "favorite", "weekly_favorite"] as const;
 
 /** The array is the single source of truth: a value cannot be part of this type
  *  and yet be missing from `SORT_VALUES` — `isFeedSort` would then quietly drop
  *  the `?sort=` a link carries and fall back to the default order. */
 export type FeedSort = (typeof SORT_VALUES)[number];
+
+/** Sort options for the feed toolbar. 「推荐」 is the personalized order and is
+ *  only meaningful while no category/level filter is active (the caller hides
+ *  it otherwise) — the backend has no personalized variant of /browse/feed. */
+export const FEED_SORT_OPTIONS: { id: FeedSort; label: string }[] = [
+  { id: "recommended", label: "推荐" },
+  { id: "latest", label: "最新" },
+  { id: "hot", label: "热播" },
+  { id: "favorite", label: "收藏最多" },
+  { id: "weekly_favorite", label: "本周收藏" },
+];
 
 function isFeedSort(value: string | null): value is FeedSort {
   return value !== null && (SORT_VALUES as readonly string[]).includes(value);
@@ -43,32 +54,32 @@ function browseSortParam(sort: FeedSort): string | null {
   return BROWSE_SORT_PARAM[sort];
 }
 
-/** 各平台默认排序：首页个性化推荐，频道页最新（也是后端默认）。 */
-const DEFAULT_SORT: Record<Platform, FeedSort> = { home: "recommended", browse: "latest" };
-
-interface UsePlatformFeedOptions {
-  platform: Platform;
-  initialCategory?: string;
-  initialLevel?: string;
-}
+/** 首页默认排序：个性化推荐；动手筛选后实际按最新排。 */
+const DEFAULT_SORT: FeedSort = "recommended";
 
 interface CategoryResponse {
   categories: Category[];
 }
 
-// Fallback categories if API fails. Home labels the "all" tab as 推荐.
-// Labels come from lib/topicCategories (single source shared with VideoCard);
-// ids must stay in sync with the backend taxonomy
-// (services/video_classification.TOPIC_CATEGORIES).
+// Fallback categories if the API fails. Labels come from lib/topicCategories
+// (single source shared with VideoCard); ids must stay in sync with the backend
+// taxonomy (services/video_classification.TOPIC_CATEGORIES).
 const TOPIC_TABS = Object.entries(TOPIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label }));
 
-const FALLBACK_CATEGORIES: Record<Platform, Category[]> = {
-  browse: [{ id: "all", label: "全部" }, ...TOPIC_TABS],
-  home: [{ id: "all", label: "推荐" }, ...TOPIC_TABS],
-};
+const FALLBACK_CATEGORIES: Category[] = [{ id: "all", label: "全部" }, ...TOPIC_TABS];
+
+/** 后端 categories 的 label 是英文（All / TED Talks…），展示一律用中文标签；
+ *  后端将来新增、前端还没收录的 id 才回退到它自己的 label。 */
+function localizeCategories(categories: Category[]): Category[] {
+  return categories.map((category) =>
+    category.id === "all"
+      ? { ...category, label: "全部" }
+      : { ...category, label: TOPIC_CATEGORY_LABELS[category.id] ?? category.label }
+  );
+}
 
 /** Map a home-recommendation Video (from /recommendations/home) to VideoItem
- *  so the grid + VideoCard contract stays uniform across browse/home. */
+ *  so the grid + VideoCard contract stays uniform across feeds. */
 function homeVideoToItem(v: VideoCard): VideoItem {
   return {
     video_id: v.id,
@@ -79,6 +90,7 @@ function homeVideoToItem(v: VideoCard): VideoItem {
     channel_slug: v.channel_slug ?? undefined,
     thumbnail_url: v.thumbnail_url ?? "",
     duration: v.duration,
+    wpm: v.wpm,
     view_count: v.view_count,
     favorite_count: v.favorite_count,
     description: v.description,
@@ -92,35 +104,34 @@ function homeVideoToItem(v: VideoCard): VideoItem {
 
 const PAGE_SIZE = 20;
 
-export function usePlatformFeed({
-  platform,
-  initialCategory = "all",
-  initialLevel = "all",
-}: UsePlatformFeedOptions) {
+/**
+ * 首页下滑流（原 `/browse` 的能力并入首页）。
+ *
+ * 筛选的唯一真相是 URL：`?category=` / `?level=` / `?sort=`，未筛选时不写参数。
+ * 默认视图（无筛选 + 推荐）走 `/recommendations/home` 的个性化混合流；一旦选了
+ * 分类或难度，就落到 `/browse/feed`，而那条路没有 "recommended"（browse.py 的
+ * Literal 只有四种），所以展示层用 `effectiveSort`（= 最新）。
+ */
+export function usePlatformFeed() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES[platform] || []);
+  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES);
   const [addingId, setAddingId] = useState<string | null>(null);
 
-  // 筛选的唯一真相是 URL（读取即派生，不做 state↔URL 双向同步 —— 那会竞态）：
-  // 返回时 URL 上带着来时的筛选，列表、滚动位置、返回按钮三者才对得上。
-  const defaultSort = DEFAULT_SORT[platform];
+  // 读取即派生，不做 state↔URL 双向同步 —— 那会竞态。返回时 URL 上带着来时的
+  // 筛选，列表、滚动位置、返回按钮三者才对得上。
   const sortParam = searchParams.get("sort");
-  const activeCategory = searchParams.get("category") ?? initialCategory;
-  const activeLevel = searchParams.get("level") ?? initialLevel;
-  const sort: FeedSort = isFeedSort(sortParam) ? sortParam : defaultSort;
+  const rawCategory = searchParams.get("category");
+  const activeCategory = rawCategory || "all";
+  const rawLevel = searchParams.get("level") ?? "all";
+  // 非法档位当作「全部」：否则下拉显示第一个选项、请求却按非法值筛，页面会
+  // 一直空着且看不出为什么（旧链接 / 手改 URL 都能触发）。
+  const activeLevel = rawLevel === "all" || isCefrLevel(rawLevel) ? rawLevel : "all";
+  const sort: FeedSort = isFeedSort(sortParam) ? sortParam : DEFAULT_SORT;
 
-  // 首页默认视图（推荐 + 全部 + 全等级）才走个性化推荐流；一旦动了分类或难度就切到
-  // /browse/feed，而那条路没有 "recommended"（browse.py 的 Literal 只有四种），后端
-  // 回落到 latest。URL 里的 sort=recommended 要保留（清回「全部」得回到个性化流），
-  // 所以「实际在按什么排」是另一个派生值，展示层用它。
-  const isHomeDefault =
-    platform === "home" &&
-    sort === "recommended" &&
-    activeCategory === "all" &&
-    activeLevel === "all";
+  const isHomeDefault = sort === "recommended" && activeCategory === "all" && activeLevel === "all";
   const effectiveSort: FeedSort = isHomeDefault
     ? "recommended"
     : sort === "recommended"
@@ -128,9 +139,9 @@ export function usePlatformFeed({
       : sort;
 
   const query = searchParams.toString();
-  // 已请求写入的 query。首页「清除筛选」会连续调用三个 setter，而 replace 落地的
-  // searchParams 要等下一次 render 才更新 —— 没有这个 ref，三次调用会各自基于同一个
-  // 旧 URL 计算，互相覆盖成「只清掉最后一个」。
+  // 已请求写入的 query。「清除筛选」会连续调用两个 setter，而 replace 落地的
+  // searchParams 要等下一次 render 才更新 —— 没有这个 ref，两次调用会各自基于
+  // 同一个旧 URL 计算，互相覆盖成「只清掉最后一个」。
   const pendingQueryRef = useRef(query);
   useEffect(() => {
     pendingQueryRef.current = query;
@@ -147,12 +158,12 @@ export function usePlatformFeed({
       };
       apply("category", patch.category, "all");
       apply("level", patch.level, "all");
-      apply("sort", patch.sort, defaultSort);
+      apply("sort", patch.sort, DEFAULT_SORT);
       const nextQuery = next.toString();
       pendingQueryRef.current = nextQuery;
-      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     },
-    [defaultSort, pathname, router]
+    [pathname, router]
   );
 
   const setActiveCategory = useCallback(
@@ -164,6 +175,11 @@ export function usePlatformFeed({
     [updateFilters]
   );
   const setSort = useCallback((value: FeedSort) => updateFilters({ sort: value }), [updateFilters]);
+  /** 清掉分类与难度（排序保留用户显式选过的值；默认推荐会自动回到个性化流）。 */
+  const clearFilters = useCallback(
+    () => updateFilters({ category: "all", level: "all" }),
+    [updateFilters]
+  );
 
   const {
     items: videos,
@@ -176,9 +192,8 @@ export function usePlatformFeed({
     loaderRef,
   } = usePaginatedList<VideoItem>({
     fetcher: async (pg) => {
-      // Home default view (推荐 + 全部级别): personalized 40/30/20/10 mix.
-      // Any filter active on home: fall back to browse/feed (supports category+level+sort).
-      // Browse: always /browse/feed.
+      // 默认视图（全部 + 推荐）: personalized 40/30/20/10 mix.
+      // 任何筛选生效: /browse/feed（支持 category+level+sort）。
       if (isHomeDefault) {
         const data = await api<Paginated<VideoCard>>(
           `/api/v1/recommendations/home?page=${pg}&page_size=${PAGE_SIZE}`
@@ -197,30 +212,25 @@ export function usePlatformFeed({
         page: String(pg),
         page_size: String(PAGE_SIZE),
       });
-      if (activeLevel && activeLevel !== "all") params.set("level", activeLevel);
+      if (activeLevel !== "all") params.set("level", activeLevel);
       const browseSort = browseSortParam(sort);
       if (browseSort) params.set("sort", browseSort);
       return api<Paginated<VideoItem>>(`/api/v1/browse/feed?${params.toString()}`);
     },
     mode: "append",
-    filters: [activeCategory, activeLevel, platform, sort],
+    filters: [activeCategory, activeLevel, sort],
   });
 
-  // Fetch categories on mount - only once. Home reuses the browse categories
-  // endpoint (no /home/categories), overriding the "all" label to 推荐.
+  const metadata = useVideoMetadata(videos);
+  // Fetch categories on mount - only once. The feed and the browse filter bar
+  // share /browse/categories; labels are localized to the Chinese taxonomy.
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const data = await api<CategoryResponse>(`/api/v1/browse/categories`);
         if (!cancelled && data.categories?.length) {
-          if (platform === "home") {
-            setCategories(
-              data.categories.map((c) => (c.id === "all" ? { ...c, label: "推荐" } : c))
-            );
-          } else {
-            setCategories(data.categories);
-          }
+          setCategories(localizeCategories(data.categories));
         }
       } catch {
         // Use fallback categories - don't show error for categories
@@ -231,13 +241,13 @@ export function usePlatformFeed({
     return () => {
       cancelled = true;
     };
-  }, [platform]);
+  }, []);
 
   // Start learning: add video then navigate
-  // For browse videos (already in DB with `id`), navigate directly
+  // For feed videos (already in DB with `id`), navigate directly
   const startLearning = useCallback(
     async (item: VideoItem) => {
-      // Browse videos already have a database ID - navigate directly
+      // Feed videos already have a database ID - navigate directly
       if (item.id) {
         router.push(`/watch/${item.id}`);
         return;
@@ -266,7 +276,9 @@ export function usePlatformFeed({
     sort,
     effectiveSort,
     setSort,
-    videos,
+    clearFilters,
+    isFiltered: activeCategory !== "all" || activeLevel !== "all",
+    videos: videos.map((v) => ({ ...v, ...metadata[v.id || v.video_id] })),
     loading,
     hasMore,
     total,

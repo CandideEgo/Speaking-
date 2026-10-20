@@ -6,18 +6,11 @@ import { Radio } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
+import type { ChannelSummary } from "@/types/channels";
 
-export interface ChannelSummary {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  cover_url: string | null;
-  video_count: number;
-  /** 上游频道统计（详情响应携带，列表不返回）：抓取时的粉丝数快照 + 认证标记。 */
-  follower_count?: number | null;
-  is_verified?: boolean | null;
-}
+// 频道数据契约的家在 `types/channels.ts`；这里保留 re-export，避免既有调用点
+// 为了一个纯类型搬家产生无意义 diff。
+export type { ChannelLatestVideo, ChannelSummary } from "@/types/channels";
 
 /**
  * Horizontal strip of channels (ADR-0014, full author pages) for the browse

@@ -37,3 +37,19 @@ class OrderStatusResponse(BaseModel):
     plan: str
     paid_at: datetime | None = None
     created_at: datetime
+
+
+class JinshujuPurchaseTier(BaseModel):
+    """一个可购买档位（价格单位：分）。"""
+
+    name: str
+    days: int
+    price_fen: int
+
+
+class JinshujuPurchaseLinkResponse(BaseModel):
+    """站内购买入口返回的带签名收款页链接。"""
+
+    url: str
+    expires_in_seconds: int
+    tiers: list[JinshujuPurchaseTier]

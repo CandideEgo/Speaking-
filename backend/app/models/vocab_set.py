@@ -28,7 +28,9 @@ class VocabSet(Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    video_id: Mapped[str] = mapped_column(String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    video_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("videos.id", ondelete="CASCADE"), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(10), default="video", server_default="video", nullable=False)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Resolved level key (app.core.exam_levels); nullable only so the unique
     # constraint shape matches the spec — the service always sets a level.
     exam_level: Mapped[str | None] = mapped_column(String(20), nullable=True)

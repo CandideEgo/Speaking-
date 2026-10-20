@@ -30,6 +30,8 @@ export function WordCardSheet({
   onClose,
   onPronounce,
   onSave,
+  sourceLabel = null,
+  onRevealSource = null,
 }: {
   /** 画框元素（视频槽位）—— 词卡顶边的锚。 */
   anchorRef: RefObject<HTMLElement | null>;
@@ -38,6 +40,10 @@ export function WordCardSheet({
   onClose: () => void;
   onPronounce: () => void;
   onSave: () => Promise<void>;
+  /** 设计 `.word-pop-src`：「《视频名》第 N 句」。 */
+  sourceLabel?: string | null;
+  /** 设计 `.word-pop-actions .undo`「回看原句」：关词卡并滚回当前句。 */
+  onRevealSource?: (() => void) | null;
 }) {
   const geo = useSheetGeometry(anchorRef, true);
   const [dy, setDy] = useState(0);
@@ -89,6 +95,8 @@ export function WordCardSheet({
         onSave={onSave}
         scrollClassName="flex-1 min-h-0 max-h-none"
         touchTargets
+        sourceLabel={sourceLabel}
+        onRevealSource={onRevealSource}
       />
     </div>
   );

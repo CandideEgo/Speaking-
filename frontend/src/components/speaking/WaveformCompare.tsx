@@ -293,7 +293,7 @@ export function WaveformCompare({
           )}
           <div className="flex items-center gap-2">
             <PlayButton
-              label="我的"
+              label="我的录音"
               onPlay={recordingUrl ? toggleRecording : undefined}
               playing={playing}
               className={btnClass}

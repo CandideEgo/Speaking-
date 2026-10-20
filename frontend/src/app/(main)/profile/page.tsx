@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, isProUser } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { User as UserIcon, Settings, TrendingUp } from "lucide-react";
+import { User as UserIcon, Settings, TrendingUp, CalendarRange, Sparkles } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
@@ -39,6 +39,7 @@ import type {
 interface VocabStats {
   total: number;
   mastered_count: number;
+  due_count?: number;
 }
 
 /** 手机号掩码：138****8855（原型 07 user-meta）。 */
@@ -59,19 +60,24 @@ function targetLabel(preferences: UserPreferences | null): string | null {
   return EXAM_LEVELS.find((l) => l.key === key)?.label ?? null;
 }
 
-// 1B 设计减法：原「账户设置」「学习偏好」两个低频小表单 Tab 合并为单个「设置」。
+// 设计稿三组（个人资料 / 学习设置 / 账号）；产品把学习统计拆成「学习进度」，
+// 这里保留 4 个 tab，但补齐账号分组（改密/通知/导出/注销）与设计一致的键盘语义。
 const TABS = [
-  { key: "profile", label: "个人资料", icon: UserIcon },
-  { key: "progress", label: "学习进度", icon: TrendingUp },
-  { key: "settings", label: "设置", icon: Settings },
+  { key: "profile", label: "资料", longLabel: "个人资料", icon: UserIcon },
+  { key: "progress", label: "进度", longLabel: "学习进度", icon: TrendingUp },
+  { key: "account", label: "账号", longLabel: "账号", icon: Settings },
+  { key: "settings", label: "设置", longLabel: "学习设置", icon: Settings },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function ProfilePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useRequireAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const rawTab = searchParams.get("tab");
+  const activeTab: TabKey = TABS.find((tab) => tab.key === rawTab)?.key ?? "profile";
+  const setActiveTab = (tab: TabKey) => router.replace(`/profile?tab=${tab}`, { scroll: false });
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -132,7 +138,7 @@ export default function ProfilePage() {
     async function loadData() {
       try {
         const [u, p, m, vs, rec, lp] = await Promise.allSettled([
-          api<User>("/api/v1/users/me"),
+          api<User>("/api/v1/users/me", { cacheTtlMs: 30_000 }),
           api<UserPreferences>("/api/v1/users/me/preferences"),
           api<Milestone[]>("/api/v1/plan/milestones"),
           api<VocabStats>("/api/v1/vocabulary/stats"),
@@ -141,7 +147,6 @@ export default function ProfilePage() {
         ]);
         if (cancelled) return;
         if (u.status === "fulfilled") applyUser(u.value);
-        else router.push("/login");
         if (p.status === "fulfilled") setPreferences(p.value);
         if (m.status === "fulfilled") setMilestones(m.value);
         if (vs.status === "fulfilled") setVocabStats(vs.value);
@@ -159,7 +164,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isLoading, router, applyUser]);
+  }, [isAuthenticated, isLoading, applyUser]);
 
   if (isLoading || loading) {
     return (
@@ -169,20 +174,51 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) {
+  if (!user || (!preferences && activeTab === "settings")) {
     return (
       <ErrorState title="加载账户信息失败" onRetry={() => window.location.reload()} fullPage />
     );
   }
 
+  const vocabDue = vocabStats?.due_count ?? 0;
+  const vocabMastered = vocabStats?.mastered_count ?? 0;
+  const vocabLater = Math.max(0, (vocabStats?.total ?? 0) - vocabDue - vocabMastered);
+  const dailyMinutes = weeklyStats?.daily_minutes ?? [];
+  const dailyMax = Math.max(1, ...dailyMinutes.map((d) => d.minutes));
+
+  function onTabKeyDown(e: React.KeyboardEvent, index: number) {
+    let next = -1;
+    if (e.key === "ArrowRight") next = (index + 1) % TABS.length;
+    else if (e.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = TABS.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    const key = TABS[next].key;
+    setActiveTab(key);
+    requestAnimationFrame(() => document.getElementById(`profile-tab-${key}`)?.focus());
+  }
+
   return (
     <PageTransition>
-      <main className="py-6 sm:py-12">
-        {/* Header */}
-        <PageHeader crumb="个人设置" title="账户管理" />
+      <main className="pt-6 pb-18">
+        <PageHeader
+          crumb="我的"
+          title="账户与学习设置"
+          description="管理个人资料、学习偏好与账户安全。"
+          actions={
+            <Link
+              href="/weekly-report"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-4 py-2.5 text-copy font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft"
+            >
+              <Sparkles size={16} />
+              看本周周报
+            </Link>
+          }
+        />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
-        <Card padding={5} className="flex items-center gap-4 mb-7">
+        <Card padding={5} className="mt-6 flex items-center gap-4">
           <Avatar
             src={user.avatar_url}
             name={user}
@@ -194,9 +230,9 @@ export default function ProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="text-copy-lg font-bold text-ink flex items-center gap-2 flex-wrap">
               {user.name || "学习者"}
-              {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念。 */}
-              <span className="inline-flex items-center text-caption font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-600">
-                内测免费
+              {/* 会员状态由 plan + plan_expires_at 决定（isProUser 与后端 /payments/status 同口径）。 */}
+              <span className="inline-flex items-center text-caption font-semibold px-2.5 py-0.5 rounded-pill bg-brand-50 text-brand-700">
+                {isProUser(user) ? "会员" : "免费版"}
               </span>
             </div>
             <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
@@ -225,148 +261,303 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-hairline mb-8">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-3 text-copy font-medium border-b-2 transition-colors cursor-pointer",
-                activeTab === tab.key
-                  ? "border-brand-500 text-brand-500"
-                  : "border-transparent text-muted hover:text-ink"
-              )}
+        <div className="user-page-layout has-aside">
+          <div className="user-page-main">
+            {/* Tabs（设计稿 aria-tablist 语义 + 方向键；375 短标签避免竖排换行） */}
+            <div
+              role="tablist"
+              aria-label="账户与学习设置分组"
+              className="flex gap-1 overflow-x-auto border-b border-hairline"
             >
-              <tab.icon size={16} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+              {TABS.map((tab, index) => (
+                <button
+                  key={tab.key}
+                  id={`profile-tab-${tab.key}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === tab.key}
+                  aria-controls={`profile-panel-${tab.key}`}
+                  tabIndex={activeTab === tab.key ? 0 : -1}
+                  onClick={() => setActiveTab(tab.key)}
+                  onKeyDown={(e) => onTabKeyDown(e, index)}
+                  className={cn(
+                    "flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-copy font-medium transition-colors sm:px-4",
+                    activeTab === tab.key
+                      ? "border-brand-500 text-brand-700"
+                      : "border-transparent text-muted hover:text-ink"
+                  )}
+                >
+                  <tab.icon size={16} />
+                  <span className="sm:hidden">{tab.label}</span>
+                  <span className="hidden sm:inline">{tab.longLabel}</span>
+                </button>
+              ))}
+            </div>
 
-        {/* Tab content */}
-        {activeTab === "profile" && <ProfileTab user={user} onUpdate={applyUser} />}
-        {activeTab === "progress" && (
-          <div className="max-w-2xl space-y-6">
-            {/* D9：周报入口（有报告才显示，不足一周不出现） */}
-            {latestReport && (
-              <Card
-                as={Link}
-                href="/weekly-report"
-                padding={5}
-                className="flex items-center justify-between hover:border-brand-500/40 transition-colors group"
-              >
-                <div>
-                  <h2 className="text-copy font-semibold text-ink">学习周报</h2>
-                  <p className="text-meta text-muted mt-1">
-                    最新一期：{latestReport.week_start} 周 · 每周一自动生成，可保存分享卡片
-                  </p>
+            {/* Tab content */}
+            <div className="mt-6">
+              {activeTab === "profile" && (
+                <div
+                  id="profile-panel-profile"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-profile"
+                >
+                  <ProfileTab user={user} onUpdate={applyUser} />
                 </div>
-                <span className="text-brand-500 text-copy font-semibold group-hover:translate-x-0.5 transition-transform">
-                  查看 →
-                </span>
-              </Card>
-            )}
-            {/* D3a：周循环回顾（从首页移入，只回顾不施压）：
-                一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">学习闭环</h2>
-              <Card padding={5}>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {[
-                    { icon: "🎬", label: "看视频" },
-                    { icon: "📚", label: "查词汇" },
-                    { icon: "✍️", label: "做练习" },
-                    { icon: "🔁", label: "复习" },
-                  ].map((t, i) => (
-                    <span key={t.label} className="inline-flex items-center gap-1">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-copy font-medium text-ink">
-                        <span aria-hidden>{t.icon}</span>
-                        {t.label}
+              )}
+              {activeTab === "progress" && (
+                <div
+                  id="profile-panel-progress"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-progress"
+                  className="max-w-2xl space-y-6"
+                >
+                  {/* D9：周报入口（有报告才显示，不足一周不出现） */}
+                  {latestReport && (
+                    <Link
+                      href="/weekly-report"
+                      className="group flex items-center justify-between rounded-md border border-hairline bg-canvas p-5 transition-colors hover:border-brand-500/40"
+                    >
+                      <div>
+                        <h2 className="text-copy font-semibold text-ink">学习周报</h2>
+                        <p className="text-meta text-muted mt-1">
+                          最新一期：{latestReport.week_start} 周 · 每周一自动生成，可保存分享卡片
+                        </p>
+                      </div>
+                      <span className="text-brand-700 text-copy font-semibold group-hover:translate-x-0.5 transition-transform">
+                        查看 →
                       </span>
-                      {i < 3 && <span className="text-muted-soft text-meta">+</span>}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-3 text-copy text-muted">
-                  一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
-                  <span className="font-semibold text-ink">
-                    {learningProfile?.weekly_cycles_completed ?? 0}
-                  </span>{" "}
-                  个闭环。
-                </p>
-              </Card>
-            </div>
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">掌握度趋势</h2>
-              <MasteryTrend weeks={8} />
-            </div>
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">本周学习时长</h2>
-              <Card padding={5}>
-                {weeklyStats ? (
-                  <div className="space-y-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-display font-extrabold text-ink tabular-nums">
-                        {weeklyStats.this_week_minutes}
-                      </span>
-                      <span className="text-copy text-muted">分钟</span>
-                      {weeklyStats.week_delta_pct !== null && weeklyStats.last_week_minutes > 0 && (
-                        <span
-                          className={
-                            "text-meta font-semibold ml-auto " +
-                            (weeklyStats.week_delta_pct >= 0 ? "text-success" : "text-error")
-                          }
-                        >
-                          {weeklyStats.week_delta_pct >= 0 ? "↑" : "↓"}{" "}
-                          {Math.abs(weeklyStats.week_delta_pct)}% vs 上周
-                        </span>
-                      )}
+                    </Link>
+                  )}
+
+                  {/* 学习统计（设计稿 profile「学习统计」四个数字：词库总量 / 今天到期 / 之后到期 / 已掌握） */}
+                  <section>
+                    <div className="user-sec-head">
+                      <div>
+                        <h2 className="user-sec-title">学习统计</h2>
+                        <p className="user-sec-sub mt-1">查看词汇积累与复习安排。</p>
+                      </div>
                     </div>
-                    <div className="flex items-end gap-1.5 h-12">
-                      {weeklyStats.daily_minutes.map((d, i) => {
-                        const max = Math.max(1, ...weeklyStats.daily_minutes.map((x) => x.minutes));
-                        const h = (d.minutes / max) * 100;
-                        const labels = ["一", "二", "三", "四", "五", "六", "日"];
-                        return (
-                          <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
-                            <div
-                              className="w-full bg-brand-500 rounded-t-md"
-                              style={{ height: h + "%", minHeight: 2 }}
-                              title={d.date + " · " + d.minutes + " 分钟"}
-                            />
-                            <span className="text-caption text-muted-soft">{labels[i] ?? ""}</span>
+                    <div className="user-stat-grid mt-4">
+                      {[
+                        { n: vocabStats?.total, l: "词库总量", note: "词" },
+                        { n: vocabDue, l: "今天到期", note: "词" },
+                        { n: vocabLater, l: "之后到期", note: "词" },
+                        { n: vocabMastered, l: "已掌握", note: "词" },
+                      ].map((s) => (
+                        <div key={s.l} className="user-stat">
+                          <p className="user-stat-num tabular-nums">
+                            {s.n ?? "–"}
+                            <span className="ml-1 text-meta font-semibold text-muted">
+                              {s.note}
+                            </span>
+                          </p>
+                          <p className="user-stat-label">{s.l}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* D3a：周循环回顾（只回顾不施压）：
+                      一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
+                  <section>
+                    <div className="user-sec-head">
+                      <h2 className="user-sec-title">学习闭环</h2>
+                    </div>
+                    <Card padding={5} className="mt-4">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        {[
+                          { icon: "🎬", label: "看视频" },
+                          { icon: "📚", label: "查词汇" },
+                          { icon: "✍️", label: "做练习" },
+                          { icon: "🔁", label: "复习" },
+                        ].map((t, i) => (
+                          <span key={t.label} className="inline-flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-copy font-medium text-ink">
+                              <span aria-hidden>{t.icon}</span>
+                              {t.label}
+                            </span>
+                            {i < 3 && <span className="text-muted text-meta">+</span>}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-copy text-muted">
+                        一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
+                        <span className="font-semibold text-ink">
+                          {learningProfile?.weekly_cycles_completed ?? 0}
+                        </span>{" "}
+                        个闭环。
+                      </p>
+                    </Card>
+                  </section>
+
+                  <section>
+                    <div className="user-sec-head">
+                      <div>
+                        <h2 className="user-sec-title">词库增长与掌握度（近 8 周）</h2>
+                        <p className="user-sec-sub mt-1">
+                          每周一快照；总词汇、已掌握与学习中的变化。
+                        </p>
+                      </div>
+                    </div>
+                    <Card padding={5} className="mt-4">
+                      <MasteryTrend weeks={8} />
+                    </Card>
+                  </section>
+
+                  <section>
+                    <div className="user-sec-head">
+                      <h2 className="user-sec-title">本周学习时长</h2>
+                    </div>
+                    <Card padding={5} className="mt-4">
+                      {weeklyStats ? (
+                        <div className="space-y-3">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-display font-extrabold text-ink tabular-nums">
+                              {weeklyStats.this_week_minutes}
+                            </span>
+                            <span className="text-copy text-muted">分钟</span>
+                            {weeklyStats.week_delta_pct !== null &&
+                              weeklyStats.last_week_minutes > 0 && (
+                                <span
+                                  className={
+                                    "text-meta font-semibold ml-auto " +
+                                    (weeklyStats.week_delta_pct >= 0
+                                      ? "text-success-text"
+                                      : "text-error-text")
+                                  }
+                                >
+                                  {weeklyStats.week_delta_pct >= 0 ? "↑" : "↓"}{" "}
+                                  {Math.abs(weeklyStats.week_delta_pct)}% vs 上周
+                                </span>
+                              )}
                           </div>
-                        );
-                      })}
+                          {/* 柱状图：外层固定高度，柱高百分比才有基准（此前父级未定高 →
+                              百分比解析为 0，只剩 2px 基线）。 */}
+                          <div className="flex items-end gap-1.5">
+                            {dailyMinutes.map((d, i) => {
+                              const h = (d.minutes / dailyMax) * 100;
+                              const labels = ["一", "二", "三", "四", "五", "六", "日"];
+                              return (
+                                <div
+                                  key={d.date}
+                                  className="flex flex-1 flex-col items-center gap-1"
+                                >
+                                  <div className="flex h-12 w-full items-end">
+                                    <div
+                                      className="w-full bg-brand-500 rounded-t-md"
+                                      style={{ height: `${h}%`, minHeight: 2 }}
+                                      title={d.date + " · " + d.minutes + " 分钟"}
+                                    />
+                                  </div>
+                                  <span className="text-caption text-muted">{labels[i] ?? ""}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-meta text-muted text-center py-4">加载中…</div>
+                      )}
+                    </Card>
+                  </section>
+
+                  <section>
+                    <div className="user-sec-head">
+                      <h2 className="user-sec-title">事件占比（近 30 天）</h2>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-meta text-muted text-center py-4">加载中…</div>
-                )}
-              </Card>
-            </div>
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">事件占比（近 30 天）</h2>
-              <Card padding={5}>
-                <EventDistributionChart data={eventDist} />
-              </Card>
-            </div>
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">活动热力图（90 天）</h2>
-              <Card padding={5}>
-                <HeatmapCalendar days={heatmap} range={90} />
-              </Card>
-            </div>
-            <div>
-              <h2 className="text-copy font-semibold text-ink mb-4">成就徽章</h2>
-              <MilestoneGrid milestones={milestones} />
+                    <Card padding={5} className="mt-4">
+                      <EventDistributionChart data={eventDist} />
+                    </Card>
+                  </section>
+
+                  <section>
+                    <div className="user-sec-head">
+                      <h2 className="user-sec-title">活动热力图（90 天）</h2>
+                    </div>
+                    <Card padding={5} className="mt-4">
+                      <HeatmapCalendar days={heatmap} range={90} />
+                    </Card>
+                  </section>
+
+                  <section>
+                    <div className="user-sec-head">
+                      <h2 className="user-sec-title">成就徽章</h2>
+                    </div>
+                    <div className="mt-4">
+                      <MilestoneGrid milestones={milestones} />
+                    </div>
+                  </section>
+                </div>
+              )}
+              {activeTab === "account" && (
+                <div
+                  id="profile-panel-account"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-account"
+                >
+                  <SettingsTab
+                    key="account"
+                    section="account"
+                    user={user}
+                    preferences={preferences}
+                    onUpdatePreferences={setPreferences}
+                  />
+                </div>
+              )}
+              {activeTab === "settings" && (
+                <div
+                  id="profile-panel-settings"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-settings"
+                >
+                  <SettingsTab
+                    key="learning"
+                    section="learning"
+                    user={user}
+                    preferences={preferences}
+                    onUpdatePreferences={setPreferences}
+                  />
+                </div>
+              )}
             </div>
           </div>
-        )}
-        {activeTab === "settings" && (
-          <SettingsTab user={user} preferences={preferences} onUpdatePreferences={setPreferences} />
-        )}
+
+          <aside className="user-page-aside">
+            <section className="user-aside-sec">
+              <h2 className="user-aside-title">相关页面</h2>
+              <ul className="space-y-2">
+                <li>
+                  <Link
+                    href="/weekly-report"
+                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
+                  >
+                    <CalendarRange size={14} />
+                    学习周报
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/upgrade"
+                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
+                  >
+                    <Sparkles size={14} />
+                    会员套餐
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/vocabulary"
+                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
+                  >
+                    <TrendingUp size={14} />
+                    词汇与复习
+                  </Link>
+                </li>
+              </ul>
+            </section>
+          </aside>
+        </div>
       </main>
       <Confetti
         fire={!!celebration.current}

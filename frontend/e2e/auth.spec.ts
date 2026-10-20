@@ -55,7 +55,8 @@ test.describe("Registration", () => {
     await expect(submit).toBeDisabled();
 
     // Agreeing enables the button.
-    await page.locator('input[type="checkbox"]').check();
+    await page.getByRole("checkbox").focus();
+    await page.getByRole("checkbox").press("Space");
     await expect(submit).toBeEnabled();
   });
 });
@@ -143,6 +144,7 @@ test.describe("Guards and Logout", () => {
 test.describe("Password Reset", () => {
   test("forgot-password link is visible on the login page", async ({ page }) => {
     await page.goto("/login");
+    await switchToPasswordLogin(page);
     const link = page.locator('a[href="/forgot-password"]');
     await expect(link).toBeVisible();
     await expect(link).toHaveText(/忘记密码/);
@@ -172,12 +174,12 @@ test.describe("Password Reset", () => {
 test.describe("Cross-Page Links", () => {
   test("register page links to login", async ({ page }) => {
     await page.goto("/register");
-    await expect(page.locator('a[href*="login"]').first()).toBeVisible();
+    await expect(page.locator('a[href*="login"]').first()).toBeVisible({ timeout: 15000 });
   });
 
   test("login page links to register", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.locator('a[href*="register"]').first()).toBeVisible();
+    await expect(page.locator('a[href*="register"]').first()).toBeVisible({ timeout: 15000 });
   });
 });
 

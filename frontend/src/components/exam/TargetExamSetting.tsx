@@ -52,7 +52,7 @@ export function TargetExamSetting({ value, onSaved, compact, className }: Target
       <div className="flex items-center gap-1.5 text-meta text-muted">
         <Target size={13} className="text-brand-500" />
         <span>设置目标考试</span>
-        {!current && <span className="text-muted-soft">· 未设置时默认按四级高亮</span>}
+        {!current && <span className="text-muted">· 未设置时默认按四级高亮</span>}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {TARGET_LEVEL_OPTIONS.map((opt) => {

@@ -93,6 +93,33 @@ class TestSecretGuards:
                 transcription_callback_secret="c",
             )
 
+    def test_production_accepts_commandcode_key_without_openai_key(self):
+        """生产可以只用 Command Code 供应商：守卫是「有 LLM key」，不是「有 OpenAI key」。"""
+        s = _settings(
+            env="production",
+            jwt_secret="s",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
+            redis_url="redis://localhost:6379/0",
+            openai_api_key="",
+            commandcode_api_key="cc-key",
+            transcription_callback_secret="c",
+        )
+        assert s.commandcode_api_key == "cc-key"
+
+    def test_production_rejects_both_llm_keys_missing(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("COMMANDCODE_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="COMMANDCODE_API_KEY"):
+            _settings(
+                env="production",
+                jwt_secret="s",
+                database_url="postgresql+asyncpg://u:p@localhost/db",
+                redis_url="redis://localhost:6379/0",
+                openai_api_key="",
+                commandcode_api_key="",
+                transcription_callback_secret="c",
+            )
+
     def test_testing_rejects_empty_jwt_secret(self):
         """``ENV=testing`` must not be a way around the empty-secret guard."""
         with pytest.raises(RuntimeError, match="JWT_SECRET"):

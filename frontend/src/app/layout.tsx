@@ -1,12 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./user-ui.css";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
 import { ThemedToaster } from "@/components/common/ThemedToaster";
 import { AuthInitializer } from "@/components/common/AuthInitializer";
+import { siteConfig } from "@/lib/siteConfig";
 
 export const metadata: Metadata = {
-  title: "SeeWord — 用真实视频背单词",
+  metadataBase: new URL(siteConfig.siteUrl),
+  title: "SeeWord — 用真实视频学英语",
   description: "在真实视频里点词、看释义、跟读巩固；四六级词汇与阅读真题一起练。",
+  robots: { index: false, follow: false },
+  openGraph: {
+    title: "SeeWord — 用真实视频学英语",
+    description: "视频点词、逐句跟读、词汇复习与阅读练习。",
+    siteName: "SeeWord",
+    locale: "zh_CN",
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "SeeWord 英语学习" }],
+  },
 };
 
 // viewport-fit=cover 让页面铺到刘海 / Home indicator 下（iOS 26 起 Safari 的浮动底栏

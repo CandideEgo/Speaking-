@@ -9,7 +9,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { useWatchChrome, type WatchChromeState } from "@/components/watch/WatchChromeProvider";
+import { type WatchChromeState } from "@/components/watch/WatchChromeProvider";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import type { VideoDetail } from "@/types";
@@ -146,6 +146,5 @@ export function useWatchChromeBridge({
       videoEl,
     ]
   );
-  useWatchChrome(chrome);
   return chrome;
 }

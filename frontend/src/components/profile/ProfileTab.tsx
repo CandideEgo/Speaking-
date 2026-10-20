@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Camera, Phone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
 import { Modal } from "@/components/common/Modal";
-import { api } from "@/lib/api";
+import { api, isProUser } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { AVATAR_GENDERS, type AvatarGender } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
@@ -186,7 +187,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
                 className={cn(
                   "rounded-pill border px-3.5 py-1.5 text-copy transition-colors disabled:opacity-60",
                   user.gender === p
-                    ? "border-brand-500 bg-brand-50 text-brand-600 font-semibold"
+                    ? "border-brand-500 bg-brand-50 text-brand-700 font-semibold"
                     : "border-hairline text-body hover:border-brand-300"
                 )}
               >
@@ -226,12 +227,20 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
         </div>
 
         <div className="flex items-center justify-between border-t border-hairline pt-4">
-          <p className="text-copy font-semibold text-ink">会员</p>
-          {/* 内测期免费开放（需求 §2.3）：不引入 Pro 概念，统一显示「内测免费」。
-              plan 字段保留 dormant，未来收费可复用。 */}
-          <span className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-copy font-medium bg-surface-card text-muted">
-            内测免费 · 全功能开放
-          </span>
+          <div>
+            <p className="text-copy font-semibold text-ink">会员</p>
+            <p className="mt-0.5 text-meta text-muted">
+              {isProUser(user) && user.plan_expires_at
+                ? `有效期至 ${new Date(user.plan_expires_at).toLocaleDateString("zh-CN")}`
+                : "免费账号"}
+            </p>
+          </div>
+          <Link
+            href="/upgrade"
+            className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-canvas px-3 py-1 text-meta font-semibold text-ink transition-colors hover:border-ink"
+          >
+            {isProUser(user) ? "续费" : "升级会员"} →
+          </Link>
         </div>
       </Card>
 
@@ -296,7 +305,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             required
             className="w-full"
           />
-          {smsError && <p className="text-copy text-error">{smsError}</p>}
+          {smsError && <p className="text-copy text-error-text">{smsError}</p>}
         </form>
       </Modal>
     </div>

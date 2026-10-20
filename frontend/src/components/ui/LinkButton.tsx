@@ -42,6 +42,7 @@ export function LinkButton({
   return (
     <Link
       href={href}
+      data-variant={variant}
       className={cn(
         "inline-flex items-center justify-center rounded-sm font-semibold transition-all duration-150",
         variant === "ghost" || variant === "ghostDark" || variant === "text"

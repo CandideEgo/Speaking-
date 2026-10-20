@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import { desktopFollowScroll, mobileFollowScroll } from "@/lib/subtitleFollow";
@@ -20,6 +20,13 @@ export interface SubtitleFollowResult {
   subtitleListRef: RefObject<HTMLDivElement | null>;
   /** 把跟随拉回来（显式句导航时调用：上一句/下一句/点文稿行/深链落点）。 */
   resumeFollow: () => void;
+  /**
+   * 用户可见的「跟随」开关（设计 `.w-follow` 有这一项，产品此前只有自动跟随）。
+   * 默认 true；关掉后句子变化不再滚文稿，打开时立刻对齐当前句。
+   * 与「手动滚动暂停」共用 `followPausedRef`：打开开关等于一次显式恢复跟随。
+   */
+  followEnabled: boolean;
+  setFollowEnabled: (enabled: boolean) => void;
 }
 
 /**
@@ -34,6 +41,9 @@ export interface SubtitleFollowResult {
  * 都会把用户刚滚到的位置抢回去。程序自己的 `scrollBy` 不会触发这两个事件，所以不需要
  * 「是不是我在滚」的判据。
  *
+ * 另有一个**用户可见的跟随开关**（设计 `.w-follow`）：`followEnabled=false` 时句子变化
+ * 完全不滚文稿；重新打开会清掉手动暂停并立刻对齐当前句。默认 true，行为与旧版一致。
+ *
  * 「追到哪、什么时候追」的算术在 `lib/subtitleFollow` 里（可单测）；这里只留 DOM 与生命周期。
  */
 export function useSubtitleFollow({
@@ -44,9 +54,18 @@ export function useSubtitleFollow({
 }: SubtitleFollowArgs): SubtitleFollowResult {
   const subtitleListRef = useRef<HTMLDivElement>(null);
   const followPausedRef = useRef(false);
+  // 设计稿的「跟随」开关：用户显式关掉后，句子变化不再滚动文稿；手动滚动的暂停
+  // 仍走 followPausedRef（两者互不覆盖：开关是意图，暂停是这一次滚动的效果）。
+  const [followEnabled, setFollowEnabledState] = useState(true);
 
   const resumeFollow = useCallback(() => {
     followPausedRef.current = false;
+  }, []);
+
+  const setFollowEnabled = useCallback((enabled: boolean) => {
+    setFollowEnabledState(enabled);
+    // 重新打开 = 用户要求跟着走：清掉「手动滚动暂停」，让下面的 effect 立刻对齐当前句。
+    if (enabled) followPausedRef.current = false;
   }, []);
 
   // 手动滚动 = 暂停跟随。只监听用户输入事件，程序自己的 scrollBy 不会触发这两个。
@@ -68,6 +87,7 @@ export function useSubtitleFollow({
   useEffect(() => {
     const el = document.getElementById(`subtitle-${currentSubtitleIndex}`);
     if (!el) return;
+    if (!followEnabled) return;
     if (isMobile) {
       const scroller = document.getElementById(SCROLL_CONTAINER_ID);
       const frame = slotRef.current;
@@ -86,7 +106,7 @@ export function useSubtitleFollow({
       { top: container.getBoundingClientRect().top, height: container.clientHeight }
     );
     if (offset !== null) container.scrollBy({ top: offset, behavior: "smooth" });
-  }, [currentSubtitleIndex, isMobile, isStuck, slotRef]);
+  }, [currentSubtitleIndex, followEnabled, isMobile, isStuck, slotRef]);
 
-  return { subtitleListRef, resumeFollow };
+  return { subtitleListRef, resumeFollow, followEnabled, setFollowEnabled };
 }

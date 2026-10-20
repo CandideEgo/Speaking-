@@ -10,24 +10,20 @@ export interface SheetGeometry {
 }
 
 /**
- * 底栏的选择器链：观看页（`/watch/*`）的最后一行是 `WatchBottomBar`（DEC-069 / #31），
- * 其他路由才是 5 Tab 的 `MobileTabBar`；两个都在时以观看页底栏为准。
- * 桌面端两个都不渲染 → `bar` 为 null，退回把可视区底边当底栏上沿。
+ * 手机的壳底部始终是五项全站导航；观看操作位于页面内容中，不参与浮层定位。
+ * 桌面导航隐藏时，退回可视区底边。
  */
-const WATCH_BAR_SELECTOR = '[data-shell-bottom-bar="watch"]';
 const TAB_BAR_SELECTOR = '[data-testid="mobile-tab-bar"]';
 /** 画框量不到时的兜底顶边（视口底往上 400px ≈ 半屏，见 #26 决议的默认档）。 */
 const FALLBACK_HEIGHT = 400;
 /** 浮层最少留这么多高度，避免极短视口下把内容全挤没。 */
-const MIN_SHEET_HEIGHT = 120;
+const MIN_SHEET_HEIGHT = 240;
 
 /**
  * 移动端浮层锚点 —— #27（词卡贴画面下沿）与 #26（跟读底部抽屉）共用同一条线。
  *
  * 底边钉在**壳的最后一行常规流底栏**上沿：底栏是壳的常规流收尾行，天然贴住可视区底边
- * （INV-019），所以浮层不会压住底栏，也不会被 iOS 地址栏拽出可视区。观看页的那个收尾行
- * 是 `WatchBottomBar`（`data-shell-bottom-bar="watch"`），别的路由是 `MobileTabBar`。
- * 顶边（INV-022 修订）取**当前句卡下沿**：词卡只覆盖后续文稿，不再盖住当前句。
+ * 所以浮层不会压住导航。顶边优先取当前句卡下沿；短视口至少留出 240px 供操作。
  * 句卡尚未渲染时退回画框下沿，再退到屏高兜底。
  *
  * 滚动监听必须走捕获阶段：播放页滚的是壳里的 <main>，scroll 事件不冒泡。
@@ -47,8 +43,8 @@ export function useSheetGeometry(
     let raf = 0;
 
     const measure = () => {
-      const bar =
-        document.querySelector(WATCH_BAR_SELECTOR) ?? document.querySelector(TAB_BAR_SELECTOR);
+      const candidate = document.querySelector(TAB_BAR_SELECTOR);
+      const bar = candidate?.getClientRects().length ? candidate : null;
       const viewportBottom = window.innerHeight;
       const barTop = bar ? bar.getBoundingClientRect().top : viewportBottom;
       // 底栏可能被安全区推高；夹一下，别让浮层底边跑到可视区外。
@@ -61,7 +57,7 @@ export function useSheetGeometry(
           : frame
             ? frame.bottom
             : bottom - FALLBACK_HEIGHT,
-        bottom
+        Math.max(0, bottom - MIN_SHEET_HEIGHT)
       );
       setGeo((prev) =>
         prev &&

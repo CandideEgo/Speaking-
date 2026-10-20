@@ -28,8 +28,8 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 
 const SCREENSHOT_DIR = "test-results/mobile-d1-d10";
 
-const TOP_BAR = '[data-testid="watch-top-bar"]';
-const BOTTOM_BAR = '[data-testid="watch-bottom-bar"]';
+const TOP_BAR = ".user-topbar";
+const BOTTOM_BAR = '[data-testid="mobile-tab-bar"]';
 const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
 const DRAWER = '[data-testid="shadowing-drawer"]';
@@ -142,7 +142,7 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
     // ① 顶栏 44px（§2 第 3 条）：老文件没量过，新形态下这条是「首屏还给画面」的根。
     const topBar = await page.locator(TOP_BAR).boundingBox();
     expect(topBar, "顶栏有盒子").not.toBeNull();
-    expect(Math.round(topBar!.height), "顶栏高 44px（不再吃 64px）").toBe(44);
+    expect(Math.round(topBar!.height), "全站手机顶栏高 56px").toBe(56);
 
     // ② 底栏在位、在视口内 —— 老断言量的是 `mobile-actions` 行的 x/宽/高，
     //    那行已经进 ⋯ 面板（§2 第 6 条），换成量壳底栏。

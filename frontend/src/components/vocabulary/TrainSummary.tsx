@@ -47,13 +47,13 @@ export function TrainSummary({
       <Card padding={0} className="shadow-lift px-6 py-10 animate-fade-in">
         {nothing ? (
           <>
-            <CheckCircle2 size={44} className="mx-auto text-success" />
+            <CheckCircle2 size={44} className="mx-auto text-success-text" />
             <h2 className="text-title font-extrabold text-ink mt-4">今天的词都练完了</h2>
             <p className="text-copy text-muted mt-2">保持节奏，明天继续。去频道看看新视频吧。</p>
           </>
         ) : (
           <>
-            <Sparkles size={44} className="mx-auto text-brand-500" />
+            <Sparkles size={44} className="mx-auto text-brand-700" />
             <h2 className="text-title font-extrabold text-ink mt-4">今日训练完成</h2>
             {accuracy != null && (
               <p className="text-copy text-muted mt-2">
@@ -61,7 +61,7 @@ export function TrainSummary({
                 <span
                   className={cn(
                     "font-extrabold text-display-sm",
-                    accuracy >= 80 ? "text-success" : "text-warning"
+                    accuracy >= 80 ? "text-success-text" : "text-warning-text"
                   )}
                 >
                   {accuracy}%
@@ -76,7 +76,7 @@ export function TrainSummary({
               </div>
               <div className="px-5 py-3 rounded-lg bg-surface-soft">
                 <div className="text-title font-extrabold text-ink flex items-center gap-1">
-                  <Target size={16} className="text-brand-500" />
+                  <Target size={16} className="text-brand-700" />
                   {quizTotal > 0 ? `${quizCorrect}/${quizTotal}` : "—"}
                 </div>
                 <div className="text-caption text-muted mt-0.5">作答正确</div>
@@ -85,7 +85,9 @@ export function TrainSummary({
 
             {weakWords.length > 0 && (
               <div className="mt-6 text-left">
-                <p className="text-meta font-semibold text-muted mb-2">薄弱词，明天会优先出现</p>
+                <p className="text-meta font-semibold text-muted mb-2">
+                  这些词这次没答对，稍后会再问一次
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {weakWords.map((w) => (
                     <span
@@ -122,7 +124,7 @@ export function TrainSummary({
             onClick={() => router.push("/vocabulary")}
             icon={Home}
           >
-            返回首页
+            回到词汇页
           </Button>
         </div>
       </Card>

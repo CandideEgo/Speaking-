@@ -33,7 +33,7 @@ export function LearningActions({
         className={cn(
           "inline-flex items-center rounded-md transition-colors cursor-pointer",
           box,
-          vocabSet ? "text-brand-500" : "text-muted hover:bg-surface-card hover:text-ink"
+          vocabSet ? "text-brand-700" : "text-muted hover:bg-surface-card hover:text-ink"
         )}
         onClick={(e) => {
           e.stopPropagation();

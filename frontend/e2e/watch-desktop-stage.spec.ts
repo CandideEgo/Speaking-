@@ -1,27 +1,8 @@
 /**
- * S4/S5 桌面播放页 —— 高度护栏 + 动作带 —— 1280×720 / 1366×768 / 2560×1440 / 2560×1080。
- *
- * 问题：画框是 `aspect-video` 且无高度上限。S2 把容器放宽到 2400 后，左列在宽屏
- * 可达 1500px+，16:9 就是 850px+ 高 —— 当前句卡被挤出首屏。
- *
- * 护栏：`.watch-stage-cap`（globals.css）把「画框 + 当前句卡」夹在
- * `(100dvh - --watch-stage-chrome) × 16/9`。本 spec 既验版式，也是那个常量的
- * **校准尺**：护栏生效档（三个，见下）的 `slack = innerHeight - 卡底边`
- * 若明显偏离 0，按 `T = C - slack` 反推 `--watch-stage-chrome` 的真实值。
- *
- * S5 增补：跟读动作带从「画面下的第二张卡」搬进句卡（`desktopActions`），
- * 卡高 76 → 136.5，常量随之校准为 315；1280×720 档也从「不介入」变为「介入」。
- * DEC-080 又往 `desktopActions` 里加了一行「本句词条 + 学习动作」，卡高继续增加；
- * **常量 315 尚未跟着改**（本机没有真实可播媒体，不能凭估算改），本 spec 的校准日志
- * 就是下一次实测的入口：先看 slack，再按 `T = C − slack` 反推，不许把估算值写进
- * globals.css。
- * 本 spec 顺带断言：跟读动作带在卡内、占内容区整宽、两段等宽；学习动作也在卡内；
- * 本句词条若有则同样在卡内；新用户 0 条跟读时 chips 历史整块不渲染。
- *
- * 与 mobile-current-sentence-card.spec.ts 的分工：那边管「卡与点词」的桌面档
- * （只测默认视口），这边管「护栏在四档下都成立」。
- *
- * 需要本地库里有**真能播**的视频（CI seed 的 /media/<id>.mp4 是占位 URL 404）→ skip。
+ * 桌面观看页在四档尺寸下，当前句卡与播放器同宽并完整落在首屏。
+ * useWatchStageWidth 读取实际非媒体高度，兼容换行、学习动作和已保存的跟读历史；
+ * CSS 中的高度预算只负责测量前首绘。动作带、学习动作和词条都应被句卡包住。
+ * 需要本地真实可播媒体；缺少媒体时明确跳过。
  */
 
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
@@ -30,7 +11,7 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 test.describe.configure({ mode: "serial" });
 let token = "";
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 const FRAME = '[data-testid="video-frame"]';
@@ -99,14 +80,32 @@ test.describe("S4/S5 桌面档：句卡整块在首屏内、动作带在卡内�
       expect(pb.y + pb.height, "动作带在卡内（S5 合并）").toBeLessThanOrEqual(
         card.y + card.height + 0.5
       );
-      // 整宽：动作带 = 卡内容区整宽（卡 px-3.5 → 左右各缩 14，容 2px 误差）。
-      expect(card.width - pb.width, "动作带占卡内容区整宽").toBeLessThanOrEqual(30);
+      // 随根字号计算卡片内边距与边框，动作带应占满实际内容宽。
+      const inset = await page.locator(CARD).evaluate((el) => {
+        const style = getComputedStyle(el);
+        return (
+          parseFloat(style.paddingLeft) +
+          parseFloat(style.paddingRight) +
+          parseFloat(style.borderLeftWidth) +
+          parseFloat(style.borderRightWidth)
+        );
+      });
+      expect(Math.abs(card.width - inset - pb.width), "动作带占卡内容区整宽").toBeLessThanOrEqual(
+        1
+      );
       // 两段等宽（grid-cols-2）。
       const seg1 = (await practice.locator("> button").nth(0).boundingBox())!;
       const seg2 = (await practice.locator("> button").nth(1).boundingBox())!;
       expect(Math.abs(seg1.width - seg2.width), "动作带两段等宽").toBeLessThanOrEqual(1);
-      // 新用户 0 条跟读 → chips 历史整块不渲染（不留空盒子）。
-      await expect(page.getByText("最近跟读")).toHaveCount(0);
+      // 空历史不留占位；已有录音时，历史应随真实数据展示并被卡片包住。
+      const videoId = new URL(page.url()).pathname.split("/").pop();
+      const attempts = await request.get(`/api/v1/shadowing/attempts?video_id=${videoId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(attempts.ok()).toBe(true);
+      await expect(page.getByText("最近跟读", { exact: true })).toHaveCount(
+        (await attempts.json()).items.length ? 1 : 0
+      );
 
       // ⑤ DEC-080：学习动作住在句卡内；本句词条有数据时也必须被卡包住。
       const learning = page.locator('[data-testid="learning-actions"]');

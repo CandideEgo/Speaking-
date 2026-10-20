@@ -128,6 +128,7 @@ frontend/yt_cookies.mjs
 # Debug screenshots (generated during dev)
 .debug-shots/
 frontend/.debug-shots/
+.production-smoke/
 backend/watch-current.png
 
 # Project planning notes (not code) — moved to knowledge/plans/

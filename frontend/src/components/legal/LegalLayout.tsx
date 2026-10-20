@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { siteConfig } from "@/lib/siteConfig";
+import { AuthThemeToggle } from "@/components/auth/AuthThemeToggle";
 import { cn } from "@/lib/utils";
+import { ComplianceInfo } from "@/components/common/ComplianceInfo";
 
 export interface LegalSection {
   id: string;
@@ -15,13 +19,23 @@ interface LegalLayoutProps {
   updatedAt: string;
   sections: LegalSection[];
   children: ReactNode;
+  /** 同组另一份协议（设计页脚「查看隐私政策 / 查看用户协议」互链）。 */
+  siblingHref: string;
+  siblingLabel: string;
 }
 
 /**
- * 法律页共享布局（原型 20/21）：左 sticky TOC + 顶部阅读进度条 + active 高亮。
- * 接收章节 id/标题列表驱动 TOC，正文由 children 渲染（每个 <section id=...> 对应一项）。
+ * 法律页共享布局（设计 20/21）：品牌页头 + 顶部阅读进度条 + 左侧 240px 目录卡片
+ * （手机端目录卡片在正文上方，不隐藏）+ 384px 正文列；正文用 16/28 读宽。
  */
-export function LegalLayout({ title, updatedAt, sections, children }: LegalLayoutProps) {
+export function LegalLayout({
+  title,
+  updatedAt,
+  sections,
+  children,
+  siblingHref,
+  siblingLabel,
+}: LegalLayoutProps) {
   const [activeId, setActiveId] = useState<string>(sections[0]?.id ?? "");
   const [progress, setProgress] = useState(0);
   const articleRef = useRef<HTMLElement>(null);
@@ -72,64 +86,84 @@ export function LegalLayout({ title, updatedAt, sections, children }: LegalLayou
   }
 
   return (
-    <main className="min-h-dvh bg-canvas">
+    <main className="user-ui relative min-h-dvh bg-canvas">
       {/* Reading progress bar (顶部) */}
-      <div className="fixed top-0 left-0 right-0 h-1 z-40 bg-hairline-soft">
+      <div className="fixed top-0 left-0 right-0 z-40 h-1 bg-hairline-soft">
         <div
           className="h-full bg-brand-500 transition-[width] duration-150"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      <div className="container-page max-w-5xl py-10 px-4 sm:px-7">
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-10">
-          {/* TOC - sticky on desktop, hidden on mobile */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-10">
-              <div className="text-meta font-semibold text-muted-soft uppercase tracking-wider mb-3">
-                目录
-              </div>
-              <nav className="space-y-1 border-l border-hairline">
+      <div className="mx-auto w-full max-w-[44rem] px-5 pt-6 pb-10 md:px-6">
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <Link
+            href="/"
+            aria-label={`${siteConfig.brandName} 首页`}
+            className="flex min-w-0 items-center gap-2 rounded-sm"
+          >
+            <Image src="/logo.png" alt="" width={26} height={26} className="rounded-sm" priority />
+            <span className="font-display text-[17px] font-extrabold tracking-[-0.03em] text-ink">
+              {siteConfig.brandName}
+            </span>
+          </Link>
+          <AuthThemeToggle />
+        </div>
+
+        <h1 className="font-display text-display-sm font-bold leading-8 tracking-display-md text-ink md:text-display md:leading-[38px]">
+          {title}
+        </h1>
+        <p className="mt-2 text-meta text-muted">最后更新：{updatedAt}</p>
+
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+          {/* TOC：手机端在正文上方，桌面 240px 卡片 + sticky */}
+          <aside className="order-first">
+            <nav
+              aria-label="条款目录"
+              className="rounded-lg border border-hairline bg-surface-soft p-5 lg:sticky lg:top-6"
+            >
+              <p className="mb-3 text-meta font-bold tracking-[0.04em] text-muted">目录</p>
+              <ol className="flex flex-col gap-1.5">
                 {sections.map((s) => (
-                  <a
-                    key={s.id}
-                    href={`#${s.id}`}
-                    onClick={(e) => handleClick(e, s.id)}
-                    className={cn(
-                      "block text-copy py-1.5 -ml-px border-l-2 transition-colors",
-                      activeId === s.id
-                        ? "border-brand-500 text-brand-600 font-medium pl-3"
-                        : "border-transparent text-muted hover:text-ink pl-3"
-                    )}
-                  >
-                    {s.title}
-                  </a>
+                  <li key={s.id}>
+                    <a
+                      href={`#${s.id}`}
+                      onClick={(e) => handleClick(e, s.id)}
+                      className={cn(
+                        "block rounded-sm border-l-2 py-0.5 pl-3 text-copy leading-6 transition-colors",
+                        activeId === s.id
+                          ? "border-brand-700 font-medium text-ink"
+                          : "border-transparent text-body hover:text-ink"
+                      )}
+                    >
+                      {s.title}
+                    </a>
+                  </li>
                 ))}
-              </nav>
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1 mt-6 text-meta text-muted hover:text-ink transition-colors"
-              >
-                <ArrowLeft size={13} />
-                返回首页
-              </Link>
-            </div>
+              </ol>
+              <span className="mt-3 block text-caption text-muted">共 {sections.length} 节</span>
+            </nav>
           </aside>
 
           {/* Article body */}
-          <article ref={articleRef}>
-            <h1 className="font-display text-display font-normal text-ink tracking-display-md">
-              {title}
-            </h1>
-            <p className="mt-2 text-copy text-muted">最后更新：{updatedAt}</p>
-            <div className="mt-8 space-y-6 text-copy leading-relaxed text-body">{children}</div>
-            <div className="mt-10 border-t border-hairline pt-6 text-copy text-muted lg:hidden">
-              <Link href="/" className="text-brand-500 hover:underline">
-                ← 返回首页
+          <article ref={articleRef} className="min-w-0">
+            <div className="space-y-7 text-copy-lg leading-7 text-body">{children}</div>
+            <div className="mt-10 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline pt-6 text-copy text-muted">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1 text-muted transition-colors hover:text-ink"
+              >
+                <ArrowLeft size={13} aria-hidden="true" />
+                返回首页
+              </Link>
+              <span aria-hidden="true">·</span>
+              <Link href={siblingHref} className="text-muted transition-colors hover:text-ink">
+                {siblingLabel}
               </Link>
             </div>
           </article>
         </div>
+        <ComplianceInfo className="mt-8 text-center" />
       </div>
     </main>
   );

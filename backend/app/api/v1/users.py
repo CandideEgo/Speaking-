@@ -155,6 +155,7 @@ async def get_preferences(
             subtitle_font_size=pref_row.subtitle_font_size or "medium",
             preferred_difficulty=pref_row.preferred_difficulty,
             target_exam=pref_row.target_exam,
+            interest_categories=pref_row.interest_categories or [],
         )
 
     # Return defaults
@@ -189,6 +190,11 @@ async def update_preferences(
             setattr(pref, key, value)
 
     await commit_refresh(db, pref)
+    if "interest_categories" in update_data:
+        from app.core.cache import cache_delete
+
+        await cache_delete(f"recommend:home:{current_user.id}:*")
+        await cache_delete(f"recommend:category:{current_user.id}:*")
 
     return UserPreferencesResponse(
         daily_goal_type=pref.daily_goal_type or "words",
@@ -202,6 +208,7 @@ async def update_preferences(
         subtitle_font_size=pref.subtitle_font_size or "medium",
         preferred_difficulty=pref.preferred_difficulty,
         target_exam=pref.target_exam,
+        interest_categories=pref.interest_categories or [],
     )
 
 

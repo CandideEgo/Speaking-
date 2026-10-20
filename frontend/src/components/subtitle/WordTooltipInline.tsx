@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   X,
@@ -12,6 +12,7 @@ import {
   BookOpen,
   AlertTriangle,
   Info,
+  AlignLeft,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,8 @@ export function WordCardBody({
   headerDrag,
   scrollClassName,
   touchTargets = false,
+  sourceLabel,
+  onRevealSource,
 }: {
   word: string;
   gloss: WordGloss | null;
@@ -106,10 +109,29 @@ export function WordCardBody({
   scrollClassName?: string;
   /** 触屏外壳：底部两个操作按钮撑到 44px（#26 的触控目标基线）。 */
   touchTargets?: boolean;
+  /** 设计 `.word-pop-src`：「《视频名》第 N 句」。没传就不渲染这一行。 */
+  sourceLabel?: string | null;
+  /** 设计 `.word-pop-actions .undo`「回看原句」：把文稿滚到该句高亮（不新建弹层）。 */
+  onRevealSource?: (() => void) | null;
 }) {
   const loading = !gloss;
   const senses = parseSenses(gloss?.translation ?? null);
   const showFormBar = !!(gloss?.lemma && gloss?.inflection);
+  // 「有词条」判定：ECDICT/词库给了任何一条可读信息才算。设计稿只让有词条的词可点；
+  // 产品允许点任意词，于是没词条的词必须走**空态 + 下一步**，不能留一张只有
+  // 「发音 / 加入词库」的空卡（audit D-watch P1 #3）。
+  const hasContent =
+    !!gloss &&
+    (!!gloss.contextual_note ||
+      !!gloss.translation ||
+      !!gloss.definition ||
+      senses.length > 0 ||
+      !!gloss.example_sentence ||
+      !!gloss.pitfalls ||
+      !!gloss.knowledge ||
+      gloss.levels.length > 0 ||
+      gloss.is_high_freq);
+  const isEmpty = !loading && !hasContent;
 
   return (
     <>
@@ -124,9 +146,9 @@ export function WordCardBody({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {/* 显示字幕中的原词（surface form），而非 lemma */}
-            <div className="text-display-sm font-extrabold tracking-tight text-ink leading-tight break-words">
+            <h2 className="text-display-sm font-extrabold tracking-tight text-ink leading-tight break-words">
               {word}
-            </div>
+            </h2>
             {gloss?.phonetic && (
               <div className="text-meta text-muted font-mono mt-1">/{gloss.phonetic}/</div>
             )}
@@ -194,15 +216,17 @@ export function WordCardBody({
               </div>
             )}
 
-            {/* 第一焦点：本视频语境释义 */}
-            <div className="bg-brand-50 border-l-[3px] border-brand-500 rounded-r-lg rounded-l-md p-3.5 mb-4">
-              <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wide text-brand-600 mb-1.5">
-                <Video size={12} /> 在本视频中
+            {/* 第一焦点：本视频语境释义（空词条时整块不渲染，改走下面的空态） */}
+            {!isEmpty && (
+              <div className="bg-brand-50 border-l-[3px] border-brand-500 rounded-r-lg rounded-l-md p-3.5 mb-4">
+                <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wide text-brand-700 mb-1.5">
+                  <Video size={12} /> 在本视频中
+                </div>
+                <p className="text-copy text-ink font-medium leading-relaxed">
+                  {gloss?.contextual_note || gloss?.translation || "暂无语境释义"}
+                </p>
               </div>
-              <p className="text-copy text-ink font-medium leading-relaxed">
-                {gloss?.contextual_note || gloss?.translation || "暂无语境释义"}
-              </p>
-            </div>
+            )}
 
             {/* 词典释义 */}
             {(senses.length > 0 || gloss?.definition) && (
@@ -275,11 +299,26 @@ export function WordCardBody({
               </div>
             )}
 
-            {/* 无释义兜底 */}
-            {!gloss?.contextual_note &&
-              !gloss?.translation &&
-              !gloss?.definition &&
-              senses.length === 0 && <p className="text-copy text-muted">暂无释义</p>}
+            {/* 来源句（设计 .word-pop-src） */}
+            {sourceLabel && !isEmpty && (
+              <div className="mt-4 flex items-start gap-1.5 text-caption text-muted">
+                <AlignLeft size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{sourceLabel}</span>
+              </div>
+            )}
+
+            {/* 无词条空态：给下一步，不再渲染「暂无释义」+ 加入词库的组合 */}
+            {isEmpty && (
+              <div className="rounded-lg border border-dashed border-hairline-strong px-4 py-5 text-center">
+                <p className="text-copy font-semibold text-ink">这个词暂无词典释义</p>
+                <p className="mt-1 text-meta leading-relaxed text-muted">
+                  换一个带下划线的词试试 —— 带下划线的词都有词典释义。
+                </p>
+                <Button variant="outline" size="sm" onClick={onClose} className="mt-3 min-h-[36px]">
+                  换一个词
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -296,6 +335,9 @@ export function WordCardBody({
         >
           发音
         </Button>
+        {/* 空词条也保留「加入词库」：设计没有这个词条时不给入口，但产品允许先把词收进
+            词库再补释义（`mobile-wordcard-drawer.spec.ts` 也依赖这个按钮存在）；空态的
+            区别只是正文换成「暂无词典释义 + 换一个词」，不再是一张没有内容的空卡。 */}
         <Button
           size="sm"
           fullWidth
@@ -306,13 +348,64 @@ export function WordCardBody({
           加入词库
         </Button>
       </div>
+      {/* 设计 `.word-pop-actions .undo`：回看原句是词卡的第二出口。文稿面板常显，所以
+          不新建 modal——桌面滚右栏、移动滚回当前句卡（由页面注入回调）。 */}
+      {onRevealSource && !isEmpty && (
+        <button
+          type="button"
+          onClick={onRevealSource}
+          className="flex min-h-[36px] w-full flex-shrink-0 items-center justify-center gap-1 border-t border-hairline bg-canvas text-meta text-muted transition-colors hover:text-ink cursor-pointer"
+        >
+          <AlignLeft size={13} aria-hidden="true" />
+          回看原句
+        </button>
+      )}
     </>
   );
 }
 
+type WordAnchorRect = { left: number; top: number; bottom: number; width: number; height: number };
+
+/** 左侧壳侧栏的右边界（无侧栏的窄桌面/移动返回 0）。词卡不许盖住一级导航。 */
+function sidebarRightEdge(): number {
+  if (typeof document === "undefined") return 0;
+  const el = document.querySelector(".user-sidebar");
+  if (!el) return 0;
+  const r = el.getBoundingClientRect();
+  return r.width > 1 ? r.right : 0;
+}
+
+function clampCardX(x: number, cardWidth: number): number {
+  const min = Math.max(8, sidebarRightEdge() + 8);
+  const max = Math.max(min, window.innerWidth - cardWidth - 8);
+  return Math.min(Math.max(x, min), max);
+}
+
+function clampCardY(y: number, cardHeight: number): number {
+  return Math.min(Math.max(y, 8), Math.max(8, window.innerHeight - cardHeight - 8));
+}
+
+/** 被点词的锚定位置：卡片横跨词的中心、优先落在词下方，放不下按**真实卡高**翻到上方。
+ *  没有锚点（深链 / 外部入口）不走这里 → 右下停泊，**不再默认 left:24**（那会压侧栏）。 */
+function placementForAnchor(
+  anchor: WordAnchorRect,
+  cardW: number,
+  cardH: number
+): { x: number; y: number } {
+  const x = clampCardX(anchor.left + anchor.width / 2 - cardW / 2, cardW);
+  const gap = 10;
+  let y = anchor.bottom + gap;
+  if (y + cardH > window.innerHeight - 8) {
+    const above = anchor.top - cardH - gap;
+    y = above >= 8 ? above : Math.max(8, window.innerHeight - cardH - 8);
+  }
+  return { x, y: clampCardY(y, cardH) };
+}
+
 /** Word card — 方案 B · 学习卡式。
  *  信息分层：词头 → 词形变化 → 本视频语境释义（第一焦点）→ 词典释义 → 真题例句 → 易错/拓展。
- *  可拖动浮动卡：默认停泊（展开=左下避字幕，收起=右下），pointer 拖动改位置，边界自动夹紧。
+ *  可拖动浮动卡：**锚定被点词**（`anchorRect`，与设计 `.word-pop` 一致），拖动后改位置、
+ *  边界自动夹紧；无锚点时停右下，避免像旧版那样固定 left:24 压住左侧一级导航。
  *  桌面外壳；移动端走 `WordCardSheet`（#27 决议乙：贴画面下沿升起）。 */
 export function WordTooltipInline({
   word,
@@ -320,20 +413,45 @@ export function WordTooltipInline({
   onClose,
   onPronounce,
   onSave,
-  panelCollapsed = false,
+  anchorRect = null,
+  sourceLabel = null,
+  onRevealSource = null,
 }: {
   word: string;
   gloss: WordGloss | null;
   onClose: () => void;
   onPronounce: () => void;
   onSave: () => Promise<void>;
-  /** 右栏字幕面板是否折叠为窄轨。展开时词卡停左下避开字幕；收起时停右下。 */
-  panelCollapsed?: boolean;
+  /** 被点词的视口矩形（触发元素 getBoundingClientRect）。 */
+  anchorRect?: WordAnchorRect | null;
+  /** 设计 `.word-pop-src`：「《视频名》第 N 句」。 */
+  sourceLabel?: string | null;
+  /** 设计 `.word-pop-actions .undo`「回看原句」。 */
+  onRevealSource?: (() => void) | null;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
-  // pos 为 null 时使用默认停泊位（展开=左下避字幕，收起=右下）；拖动后切换为 left/top 定位。
+  // pos 为 null 时停右下（无锚点路径）；有锚点时由下面的 layout effect 按**真实卡高**
+  // 计算「词下方 / 词上方」，拖动后改由拖动坐标接管。
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragOffset = useRef<{ dx: number; dy: number } | null>(null);
+  const userMovedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    if (!anchorRect || userMovedRef.current) {
+      if (!pos) return;
+      const x = clampCardX(pos.x, card.offsetWidth);
+      const y = clampCardY(pos.y, card.offsetHeight);
+      if (Math.abs(x - pos.x) > 0.5 || Math.abs(y - pos.y) > 0.5) setPos({ x, y });
+      return;
+    }
+    // 空词条/长释义的卡高差很大：必须量完再放，否则估算值会把卡推到顶栏或屏幕外。
+    const next = placementForAnchor(anchorRect, card.offsetWidth, card.offsetHeight);
+    if (!pos || Math.abs(next.x - pos.x) > 0.5 || Math.abs(next.y - pos.y) > 0.5) {
+      setPos(next);
+    }
+  }, [anchorRect, gloss, pos, word]);
 
   function onPointerDown(e: React.PointerEvent) {
     // 从按钮上发起的按压不触发拖动
@@ -350,6 +468,7 @@ export function WordTooltipInline({
 
   function onPointerMove(e: React.PointerEvent) {
     if (!dragOffset.current) return;
+    userMovedRef.current = true;
     const card = cardRef.current;
     const w = card?.offsetWidth ?? 400;
     const h = card?.offsetHeight ?? 320;
@@ -371,9 +490,7 @@ export function WordTooltipInline({
 
   const style: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : panelCollapsed
-      ? { right: 24, bottom: 24, left: "auto", top: "auto" }
-      : { left: 24, bottom: 24, right: "auto", top: "auto" };
+    : { right: 24, bottom: 24, left: "auto", top: "auto" };
 
   return (
     <div
@@ -381,7 +498,7 @@ export function WordTooltipInline({
       style={style}
       data-testid="word-tooltip"
       data-variant="floating"
-      className="fixed z-50 flex flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
+      className="fixed z-50 flex max-h-[calc(100dvh-16px)] flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
     >
       <WordCardBody
         word={word}
@@ -390,6 +507,11 @@ export function WordTooltipInline({
         onPronounce={onPronounce}
         onSave={onSave}
         headerDrag={{ onPointerDown, onPointerMove, onPointerUp }}
+        // 浮动卡限高后让内容区自己滚：卡高超过视口时保住底部动作行不被裁
+        // （1280×720 实测卡片 753px > 720，旧版会把「回看原句」裁掉）。
+        scrollClassName="flex-1 min-h-0 max-h-none"
+        sourceLabel={sourceLabel}
+        onRevealSource={onRevealSource}
       />
     </div>
   );

@@ -44,7 +44,8 @@ test.describe("Exam Runner - full answer journey", () => {
     page,
     request,
   }) => {
-    const { token } = await registerUserViaApi(request, uniquePhone());
+    const token =
+      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
     const paperId = await firstPaperId(request, token);
     if (!paperId) {
       test.skip(true, "题库为空，无试卷可作答");
@@ -78,15 +79,20 @@ test.describe("Exam Runner - full answer journey", () => {
     // Submit — the header button (desktop) and bottom-bar button (mobile)
     // share the label; exactly one is visible per viewport.
     await page.getByRole("button", { name: "交卷", exact: true }).locator("visible=true").click();
+    const submitted = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/submit")
+    );
     await page.getByRole("button", { name: "确认交卷" }).click();
+    const outcome = await (await submitted).json();
 
-    await page.waitForURL(/\/practice\/exams\/result\//, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/practice\/exams\/result\//, { timeout: 15000 });
     await expect(page.getByText(/答对 \d+ \/ \d+ 题/)).toBeVisible({ timeout: 10000 });
 
     // Wrong book: when at least one answer was wrong, the result page links
     // into a redo session that must also render answerable options.
     const redoLink = page.getByRole("link", { name: /只练错题/ });
-    if (await redoLink.isVisible().catch(() => false)) {
+    if (outcome.correct_count < outcome.total) {
+      await expect(redoLink).toBeVisible();
       await redoLink.click();
       await page.waitForURL(/\/practice\/exams\/redo/);
       await expect(page.locator("button[data-testid='exam-option']").first()).toBeVisible({

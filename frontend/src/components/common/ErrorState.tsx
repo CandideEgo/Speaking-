@@ -46,13 +46,15 @@ export function ErrorState({
         className
       )}
     >
-      <Icon size={48} className="text-muted mb-4" />
-      <p className="text-ink font-medium">{title}</p>
-      {message && <p className="mt-1 text-copy text-muted">{message}</p>}
+      <span className="mb-4 inline-grid size-12 place-items-center rounded-full bg-red-soft text-error">
+        <Icon size={24} />
+      </span>
+      <p className="text-copy font-semibold text-ink">{title}</p>
+      {message && <p className="mt-1 max-w-[32rem] text-copy text-muted">{message}</p>}
       {action ? (
-        <div className="mt-5">{action}</div>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">{action}</div>
       ) : onRetry ? (
-        <Button onClick={onRetry} className="mt-5">
+        <Button onClick={onRetry} className="mt-3">
           {retryLabel}
         </Button>
       ) : null}

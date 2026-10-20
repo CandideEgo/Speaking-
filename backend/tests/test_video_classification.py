@@ -73,7 +73,7 @@ def _fake_ai(monkeypatch, payload):
     calls = []
 
     class _FakeAI:
-        async def chat_json(self, system, user, temperature=0.3):
+        async def chat_json(self, system, user, temperature=0.3, task="default"):
             calls.append({"system": system, "user": user})
             return payload
 

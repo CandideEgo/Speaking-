@@ -13,7 +13,7 @@ const PHONE = uniquePhone();
 let token = "";
 
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, PHONE));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, PHONE)).token;
 });
 
 /** 壳的实测高度、可视高度、以及文档层的溢出量。 */
@@ -92,7 +92,7 @@ test.describe("Viewport height - app shell", () => {
 
   test("every shell route keeps the shell at the visible height", async ({ page }) => {
     await loginViaToken(page, token);
-    for (const route of ["/", "/browse", "/vocabulary", "/practice", "/history", "/profile"]) {
+    for (const route of ["/", "/channels", "/vocabulary", "/practice", "/history", "/profile"]) {
       await page.goto(route);
       await expect(page.locator("div.h-dvh").first()).toBeVisible({ timeout: 15000 });
       const m = await shellMetrics(page);
@@ -104,13 +104,14 @@ test.describe("Viewport height - app shell", () => {
   /**
    * 底栏上沿 == 滚动区下沿、底栏不 fixed —— 与上面那条同款，抽出来给短视口档复用。
    * 观看页（`/watch/*`）的最后一行是 `WatchBottomBar`（DEC-069 / #31），其他路由是 5 Tab；
-   * 所以选择器走**链**：先找 `[data-shell-bottom-bar="watch"]`，没有再退回 `nav.md:hidden`。
+   * 所以选择器走**链**：先找 `[data-testid="mobile-tab-bar"]`，没有再退回 `nav.md:hidden`。
    * 返回读数，调用方可以断言命中的是哪一个。
    */
   async function assertTabBarClosesTheShell(page: import("@playwright/test").Page, label: string) {
+    await expect(page.getByTestId("mobile-tab-bar")).toBeVisible();
     const m = await page.evaluate(() => {
       const el =
-        (document.querySelector('[data-shell-bottom-bar="watch"]') as HTMLElement | null) ??
+        (document.querySelector('[data-testid="mobile-tab-bar"]') as HTMLElement | null) ??
         (document.querySelector("nav.md\\:hidden") as HTMLElement | null);
       const main = document.querySelector("main") as HTMLElement | null;
       if (!el || !main) return null;
@@ -140,7 +141,7 @@ test.describe("Viewport height - app shell", () => {
 
   /**
    * Destination §7 补测点 1：播放页是壳层清单里唯一带出血（`-mt-6` / `w-screen`）
-   * 与贴顶常驻的路由，而上面那份清单只列了 `/ /browse /vocabulary /practice /history /profile`
+   * 与贴顶常驻的路由，而上面那份清单只列了 `/ /channels /vocabulary /practice /history /profile`
    * —— 播放页恰恰是最可能把壳撑破的那一页，不能不在里面。
    * 不需要能播的视频：壳与滚动容器先于媒体渲染，拿不到 id 才 skip。
    *
@@ -162,11 +163,11 @@ test.describe("Viewport height - app shell", () => {
     expect(m.docOverflow, "/watch 文档溢出").toBeLessThanOrEqual(1);
 
     const bar = await assertTabBarClosesTheShell(page, "/watch");
-    expect(bar!.which, "/watch 的收尾行是 WatchBottomBar，不是 5 Tab").toBe("watch");
+    expect(bar!.which, "/watch 的收尾行是 WatchBottomBar，不是 5 Tab").toBe("tabs");
 
     // 显式那半条：`WatchBottomBar` 非 fixed + 贴可视区底边 + 就是壳的最后一行。
     const explicit = await page.evaluate(() => {
-      const el = document.querySelector('[data-testid="watch-bottom-bar"]') as HTMLElement | null;
+      const el = document.querySelector('[data-testid="mobile-tab-bar"]') as HTMLElement | null;
       const shell = document.querySelector("div.h-dvh") as HTMLElement | null;
       if (!el) return null;
       const r = el.getBoundingClientRect();

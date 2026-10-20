@@ -9,6 +9,7 @@ import { watchSentenceHref } from "@/lib/watchEntry";
 import { cn } from "@/lib/utils";
 import { DRILL_KIND_LABEL, type DrillQuestion } from "@/lib/drillQuestions";
 import { Card } from "@/components/ui/Card";
+import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence";
 
 /**
  * 选择题卡（S5，设计文档 §4）：全程选择题取代旧的自评双按钮闪卡。
@@ -30,10 +31,16 @@ export function WordQuizCard({
   question,
   onAnswer,
   onNext,
+  onSkip,
+  onExit,
 }: {
   question: DrillQuestion;
   onAnswer: (correct: boolean) => void;
   onNext: () => void;
+  /** 跳过当前词（记为未答对、稍后再问），设计 drill 会话的「跳过」。 */
+  onSkip?: () => void;
+  /** Esc 退出训练（设计 drill 会话的「Esc 退出训练」）。 */
+  onExit?: () => void;
 }) {
   const { speak } = useSpeech();
   const [selected, setSelected] = useState<string | null>(null);
@@ -60,6 +67,11 @@ export function WordQuizCard({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && onExit) {
+        e.preventDefault();
+        onExit();
+        return;
+      }
       if (selected === null) {
         const idx = Number(e.key) - 1;
         if (Number.isInteger(idx) && idx >= 0 && idx < question.options.length) {
@@ -71,14 +83,14 @@ export function WordQuizCard({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selected, question, handleSelect, onNext]);
+  }, [selected, question, handleSelect, onNext, onExit]);
 
   return (
     <div className="w-full max-w-[640px] mx-auto">
       <Card padding={0} className="shadow-lift px-6 py-7 sm:px-8 animate-fade-in">
         {/* 眉标：题型 + 重听（听音题的题面就是播放钮，不重复摆一个） */}
         <div className="flex items-center justify-between gap-3 text-caption">
-          <span className="font-semibold text-brand-500">{DRILL_KIND_LABEL[question.kind]}</span>
+          <span className="font-semibold text-brand-700">{DRILL_KIND_LABEL[question.kind]}</span>
           {question.kind !== "listen2word" && (
             <button
               type="button"
@@ -99,7 +111,7 @@ export function WordQuizCard({
               <button
                 type="button"
                 onClick={() => speak(word.word, { rate: 0.9 })}
-                className="flex items-center justify-center w-20 h-20 rounded-full border border-hairline text-brand-500 hover:bg-brand-50 transition-colors cursor-pointer"
+                className="flex items-center justify-center w-20 h-20 rounded-full border border-hairline text-brand-700 hover:bg-brand-50 transition-colors cursor-pointer"
                 aria-label="播放单词发音"
               >
                 <Volume2 size={32} />
@@ -164,7 +176,7 @@ export function WordQuizCard({
             <p
               className={cn(
                 "flex items-center gap-1.5 text-copy font-bold",
-                correct ? "text-success" : "text-error"
+                correct ? "text-success-text" : "text-error-text"
               )}
             >
               {correct ? <Check size={15} /> : <X size={15} />}
@@ -174,7 +186,7 @@ export function WordQuizCard({
               <span className="text-copy-lg font-bold text-ink">{word.word}</span>
               {word.ipa && <span className="text-meta text-muted font-mono">{word.ipa}</span>}
               {word.part_of_speech && (
-                <span className="text-meta text-muted-soft italic">{word.part_of_speech}</span>
+                <span className="text-meta text-muted italic">{word.part_of_speech}</span>
               )}
             </div>
             <p className="text-copy text-ink font-medium leading-relaxed mt-1">
@@ -202,7 +214,7 @@ export function WordQuizCard({
                   { from: "drill" },
                   { subtitleId: word.subtitle_id, word: word.word }
                 )}
-                className="inline-flex items-center gap-1 mt-2 text-meta text-brand-500 hover:underline"
+                className="inline-flex items-center gap-1 mt-2 text-meta text-brand-700 hover:underline"
               >
                 <ExternalLink size={12} />
                 去原视频 →
@@ -211,30 +223,23 @@ export function WordQuizCard({
           </div>
         )}
 
-        {/* 下一个：必须手动点击才推进（§4.2）。放卡内，卡就是一道题的整体。 */}
-        <Button size="lg" fullWidth className="mt-6" disabled={!answered} onClick={onNext}>
-          下一个
-          <ArrowRight size={16} className="ml-1" />
-        </Button>
-        <p className="text-center text-caption text-muted-soft mt-3">
-          键盘 1-4 选择 · Enter 下一个
+        {/* 跳过 / 下一个：设计 drill 会话的卡内两枚动作。下一个必须手动点击才推进（§4.2）；
+            跳过按「未答对」处理（稍后还会再问一次），不必等作答。 */}
+        <div className="mt-6 flex items-center gap-3">
+          {onSkip && (
+            <Button variant="text" size="md" onClick={onSkip}>
+              跳过
+            </Button>
+          )}
+          <Button size="lg" className="flex-1" disabled={!answered} onClick={onNext}>
+            下一个
+            <ArrowRight size={16} className="ml-1" />
+          </Button>
+        </div>
+        <p className="text-center text-caption text-muted mt-3">
+          键盘 1-4 选择 · Enter 下一个 · Esc 退出训练
         </p>
       </Card>
     </div>
-  );
-}
-
-/** 原句里高亮目标词（大小写不敏感的首个匹配，匹配不到就原样显示）。 */
-function HighlightedSentence({ sentence, word }: { sentence: string; word: string }) {
-  const idx = sentence.toLowerCase().indexOf(word.toLowerCase());
-  if (idx < 0 || !word) return <>{sentence}</>;
-  return (
-    <>
-      {sentence.slice(0, idx)}
-      <mark className="bg-brand-50 text-brand-700 rounded-md px-0.5 font-semibold">
-        {sentence.slice(idx, idx + word.length)}
-      </mark>
-      {sentence.slice(idx + word.length)}
-    </>
   );
 }

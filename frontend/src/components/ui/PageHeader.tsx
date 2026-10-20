@@ -14,26 +14,33 @@ export interface PageHeaderProps {
   centered?: boolean;
   /** Additional className for the outer wrapper. */
   className?: string;
+  actions?: ReactNode;
 }
 
+/**
+ * 用户端内容页的统一页头。
+ *
+ * 版式规则（下边线、间距、字号、crumb 前的小横线）全部在 `user-ui.css` 的
+ * `.user-page-header/.user-page-crumb/.user-page-title/.user-page-desc`，
+ * 与 stage-3 的 `shared/page.css` 一档对齐；页面只传内容，不再各自写
+ * padding/字号。首页不使用页头（原型 `home.html` 没有标题区，直接进本周精听）。
+ */
 export function PageHeader({
   crumb,
   title,
   description,
   centered = false,
   className,
+  actions,
 }: PageHeaderProps) {
   return (
-    <div className={cn("pt-2 pb-5", centered && "text-center", className)}>
-      {crumb && (
-        <div className="text-meta font-semibold text-muted uppercase tracking-caption-wide mb-2.5">
-          {crumb}
-        </div>
-      )}
-      <h1 className="text-display-sm sm:text-display font-extrabold tracking-display-lg">
-        {title}
-      </h1>
-      {description && <p className="text-copy text-muted mt-2 max-w-measure">{description}</p>}
-    </div>
+    <header className={cn("user-page-header", centered && "text-center", className)}>
+      <div className="min-w-0">
+        {crumb && <div className="user-page-crumb">{crumb}</div>}
+        <h1 className="user-page-title">{title}</h1>
+        {description && <p className="user-page-desc">{description}</p>}
+      </div>
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+    </header>
   );
 }

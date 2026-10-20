@@ -131,14 +131,14 @@ export function AccountLifecycleSettings() {
           {exportStatus?.status === "ready" && exportStatus.download_url && (
             <a
               href={exportStatus.download_url}
-              className="mt-1.5 inline-flex items-center gap-1.5 text-meta font-semibold text-brand-600 hover:text-brand-500"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-meta font-semibold text-brand-700 hover:underline"
             >
               <Download size={13} />
               下载导出包（15 分钟内有效，仅可下载一次）
             </a>
           )}
           {exportStatus?.status === "failed" && (
-            <p className="mt-1.5 text-meta text-error">导出失败，请重新发起</p>
+            <p className="mt-1.5 text-meta text-error-text">导出失败，请重新发起</p>
           )}
           {exportPreparing && (
             <p className="mt-1.5 text-meta text-muted inline-flex items-center gap-1.5">
@@ -182,7 +182,7 @@ export function AccountLifecycleSettings() {
               icon={Trash2}
               onClick={() => setConfirmOpen(true)}
               disabled={busy}
-              className="text-error border-error/40 hover:bg-red-soft"
+              className="text-error-text border-error/40 hover:bg-red-soft"
             >
               注销
             </Button>
@@ -194,7 +194,14 @@ export function AccountLifecycleSettings() {
         open={confirmOpen}
         tone="danger"
         title="确认注销账户？"
-        message="提交后进入 30 天冷静期，期间仍可登录并随时撤销；到期将删除个人数据、上传媒体，手机号一并释放。"
+        message={
+          <ul className="list-disc space-y-1 pl-5">
+            <li>提交后进入 30 天冷静期，期间仍可登录、继续学习。</li>
+            <li>冷静期内随时可以「撤销注销」，不会自动恢复。</li>
+            <li>到期后删除个人数据与上传的媒体原件，手机号释放，词汇与学习记录不可恢复。</li>
+            <li>已支付的会员期不因注销而退款；需要留档请先「导出我的数据」。</li>
+          </ul>
+        }
         confirmLabel="提交注销"
         busy={busy}
         onConfirm={requestDeletion}

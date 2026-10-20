@@ -6,13 +6,14 @@ import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
 import type { RankingRowMode } from "@/components/rankings/RankingRow";
+import { isFreshPublished } from "@/components/rankings/RankingRow";
 import type { VideoCard } from "@/types";
 
-/** 名次配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮）。 */
+/** 名次配色：1 品牌橙 / 2 琥珀 / 3 深橙（文字色用加深档，保证对比度）。 */
 function rankClass(rank: number): string {
-  if (rank === 1) return "text-brand-500";
-  if (rank === 2) return "text-accent-amber";
-  return "text-brand-700";
+  if (rank === 1) return "text-brand-700";
+  if (rank === 2) return "text-warning-text";
+  return "text-brand-800";
 }
 
 /** 榜单指标块：微标签 + 数值；time 模式显示 NEW 标签 + 相对时间。 */
@@ -30,27 +31,35 @@ function PodiumMetric({
   accent: boolean;
 }) {
   if (mode === "time") {
+    const publishedAt = video.published_at ?? video.created_at;
+    const fresh = isFreshPublished(publishedAt);
     return (
       <div>
-        <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-600">
-          NEW
-        </span>
-        <p className={cn("mt-1 tabular-nums text-muted", big ? "text-copy" : "text-caption")}>
-          {relativeTime(video.published_at ?? video.created_at)}
+        {fresh && (
+          <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-700">
+            NEW
+          </span>
+        )}
+        <p
+          className={cn(
+            "tabular-nums text-body",
+            fresh && "mt-1",
+            big ? "text-copy" : "text-caption"
+          )}
+        >
+          {relativeTime(publishedAt)}
         </p>
       </div>
     );
   }
   return (
     <div>
-      <p className="text-caption font-semibold uppercase tracking-wider text-muted-soft">
-        {metricLabel}
-      </p>
+      <p className="text-caption font-semibold uppercase tracking-wider text-body">{metricLabel}</p>
       <p
         className={cn(
           "font-display font-extrabold tabular-nums tracking-display-sm",
           big ? "text-display-sm sm:text-display" : "text-copy-lg",
-          accent ? "text-brand-500" : "text-ink"
+          accent ? "text-brand-700" : "text-ink"
         )}
       >
         {formatCount(video.metric ?? 0)}
@@ -118,7 +127,7 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
           {video.title}
         </h3>
         {video.channel_name && (
-          <p className="mt-1 line-clamp-1 text-meta text-muted">{video.channel_name}</p>
+          <p className="mt-1 line-clamp-1 text-meta text-body">{video.channel_name}</p>
         )}
         <div className={featured ? "mt-3" : "mt-1.5"}>
           <PodiumMetric

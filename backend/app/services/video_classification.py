@@ -27,6 +27,7 @@ from app.core.logging import get_logger
 from app.models.subtitle import Subtitle
 from app.models.video import Video
 from app.services.ai_service import AIServiceError, get_ai_service
+from app.services.llm_provider import TASK_CLASSIFICATION
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -135,7 +136,7 @@ async def classify_video(db: AsyncSession, video: Video) -> dict:
     if not sample and not video.description:
         raise VideoClassificationError(f"video {video.id} has no subtitles/description to classify")
     system, user = build_classification_prompt(video.title, video.description, sample)
-    parsed = await get_ai_service().chat_json(system, user)
+    parsed = await get_ai_service().chat_json(system, user, task=TASK_CLASSIFICATION)
     return {
         "topics": validate_topics(parsed.get("topics")),
         "difficulty": validate_cefr(parsed.get("difficulty")),

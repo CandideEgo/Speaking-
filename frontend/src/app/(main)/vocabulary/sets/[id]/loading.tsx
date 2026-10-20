@@ -1,6 +1,6 @@
 export default function VocabSetLoading() {
   return (
-    <main className="py-6 sm:py-12">
+    <main className="pt-6 pb-18">
       {/* Header skeleton */}
       <div className="flex items-center gap-3.5 mb-6">
         <div className="w-28 aspect-video rounded-lg skeleton-shimmer bg-surface-soft flex-shrink-0" />

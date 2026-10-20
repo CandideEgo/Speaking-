@@ -1,4 +1,5 @@
 import { createApiClient, ApiClientError, type AuthAdapter } from "@/lib/createApiClient";
+import { publicErrorMessage } from "@/lib/publicError";
 
 // Empty string = relative paths (e.g. "/api/v1/..."). In production, nginx
 // proxies /api/ and /media/ to the backend. In development, next.config.js
@@ -16,7 +17,7 @@ export class ApiError extends ApiClientError {
     code: string | null = null,
     response: Response | null = null
   ) {
-    super(message, status, code, response);
+    super(publicErrorMessage(message, status), status, code, response);
     this.name = "ApiError";
   }
 }

@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   CreditCard,
   LayoutDashboard,
+  LayoutTemplate,
   Megaphone,
   Menu,
   Radio,
@@ -46,6 +47,7 @@ const NAV: NavSection[] = [
     title: "内容",
     items: [
       { label: "视频管理", href: "/admin/videos", icon: Video },
+      { label: "首页编排", href: "/admin/home-editorial", icon: LayoutTemplate },
       { label: "频道管理", href: "/admin/channels", icon: Radio },
     ],
   },

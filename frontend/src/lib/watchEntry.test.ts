@@ -49,6 +49,12 @@ describe("buildWatchEntryQuery", () => {
 });
 
 describe("watchHref", () => {
+  it("returns vocabulary sentence lookups to the vocabulary page", () => {
+    expect(resolveWatchReturn(params("from=vocabulary&word=habit"))).toEqual({
+      href: "/vocabulary",
+      label: "返回词汇",
+    });
+  });
   it("returns the bare path without an entry", () => {
     expect(watchHref("abc-123")).toBe("/watch/abc-123");
   });
@@ -64,6 +70,14 @@ describe("sentenceFocusParams / watchSentenceHref (S7b)", () => {
       sub: "s1",
       t: "12",
       word: "cat",
+    });
+  });
+
+  it("can request playback when a sentence deep link opens", () => {
+    expect(sentenceFocusParams({ subtitleId: "s1", startTime: 12.7, autoplay: true })).toEqual({
+      sub: "s1",
+      t: "12",
+      autoplay: "1",
     });
   });
 
@@ -158,6 +172,11 @@ describe("resolveWatchFocus (S7b consuming half)", () => {
     expect(resolveWatchFocus(params("?sub=s2"), list)?.key).not.toBe(bare?.key);
   });
 
+  it("treats autoplay as a distinct deep-link action", () => {
+    expect(resolveWatchFocus(params("?sub=s1&autoplay=1"), list)?.key).toBe("s1|||play");
+    expect(resolveWatchFocus(params("?sub=s1"), list)?.key).toBe("s1||");
+  });
+
   it("returns null when there is nothing to focus on", () => {
     expect(resolveWatchFocus(params(""), list)).toBeNull();
     expect(resolveWatchFocus(params("?from=favorites"), list)).toBeNull();
@@ -181,6 +200,14 @@ describe("resolveWatchFocus (S7b consuming half)", () => {
 });
 
 describe("resolveWatchReturn", () => {
+  it("preserves a grouped search page without accepting arbitrary return paths", () => {
+    expect(
+      resolveWatchReturn(params("?from=search&q=good%20habit&group=subtitles&page=3&t=12"))?.href
+    ).toBe("/search?q=good%20habit&group=subtitles&page=3");
+    expect(
+      resolveWatchReturn(params("?from=search&q=habit&group=https://evil.example&page=-1"))?.href
+    ).toBe("/search?q=habit");
+  });
   it("maps every source to its target and label", () => {
     expect(resolveWatchReturn(params("?from=channel&slug=ted-daily"))).toEqual({
       href: "/channels/ted-daily",
@@ -211,8 +238,13 @@ describe("resolveWatchReturn", () => {
       label: "返回排行榜",
     });
     expect(resolveWatchReturn(params("?from=browse"))).toEqual({
-      href: "/browse",
-      label: "返回频道",
+      href: "/",
+      label: "返回首页",
+    });
+    // 旧链接兼容：`/browse` 已并入首页，筛选参数原样带到 `/`。
+    expect(resolveWatchReturn(params("?from=browse&category=ted&sort=hot"))).toEqual({
+      href: "/?category=ted&sort=hot",
+      label: "返回首页",
     });
   });
 
@@ -239,6 +271,15 @@ describe("resolveWatchReturn", () => {
       href: "/search",
       label: "返回搜索",
     });
+  });
+
+  it("returns to the transcript document when the video id is known", () => {
+    expect(resolveWatchReturn(params("?from=transcript"), "abc-123")).toEqual({
+      href: "/watch/abc-123/transcript",
+      label: "返回文稿",
+    });
+    // 没有 id 就拼不出文稿地址 —— 退化为「没有可用标记」，由调用方走浏览器后退。
+    expect(resolveWatchReturn(params("?from=transcript"))).toBeNull();
   });
 
   it("falls back to null when the marker is missing, unknown or incomplete", () => {

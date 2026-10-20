@@ -3,7 +3,7 @@
  *
  * Every link into `/watch/{id}` carries a `?from=` origin so the watch page can
  * send the user back where they came from (and restore that page's URL state)
- * instead of a hardcoded `/browse`. `from` is an enum, never a free-form return
+ * instead of a hardcoded `/`. `from` is an enum, never a free-form return
  * URL, so the mapping below cannot be turned into an open redirect — the same
  * reasoning as `lib/authHelpers.safeNext`, solved by enumeration instead of
  * validation.
@@ -16,7 +16,25 @@
 import type { Subtitle } from "@/types";
 
 export type WatchSource =
-  "home" | "channel" | "set" | "drill" | "search" | "favorites" | "history" | "rankings" | "browse";
+  | "home"
+  | "channel"
+  | "set"
+  | "drill"
+  | "vocabulary"
+  | "search"
+  | "favorites"
+  | "history"
+  | "rankings"
+  /**
+   * 旧标记：卡片曾来自 `/browse`，该页已并入首页。仍保留映射，让旧链接的
+   * 「返回」落在首页（带筛选）而不是无处可去。
+   */
+  | "browse"
+  /**
+   * 全文文稿页（`/watch/{id}/transcript`）。这是唯一一个需要视频 id 才能拼出
+   * 返回目标的来源，所以 `resolveWatchReturn` 必须拿到 id 才能解析它。
+   */
+  | "transcript";
 
 export interface WatchEntry {
   /** Surface the link was clicked on. */
@@ -41,19 +59,20 @@ export interface WatchReturn {
 const SOURCE_LABELS: Record<WatchSource, string> = {
   home: "返回首页",
   channel: "返回频道",
-  // `/browse` is the nav tab titled 频道 (MobileTabBar / TopBar), so the same
-  // label is correct for both channel-ish origins; only the target differs.
-  browse: "返回频道",
+  // 旧链接：卡片曾来自已并入首页的 `/browse`，返回目标与标签都按首页走。
+  browse: "返回首页",
   set: "返回词库",
   drill: "返回训练",
+  vocabulary: "返回词汇",
   search: "返回搜索",
   favorites: "返回收藏",
   history: "返回历史",
   rankings: "返回排行榜",
+  transcript: "返回文稿",
 };
 
-/** Home filter keys carried round-trip; every other param is ignored on return. */
-const HOME_FILTER_KEYS = ["category", "level", "sort"] as const;
+/** Feed filter keys carried round-trip（首页列表页契约）。 */
+const FEED_FILTER_KEYS = ["category", "level", "sort"] as const;
 
 function appendParam(
   parts: string[],
@@ -96,6 +115,8 @@ export interface SentenceFocus {
   subtitleId?: string | null;
   startTime?: number | null;
   word?: string | null;
+  /** Play after resolving this deep link (browser policy may still require a tap). */
+  autoplay?: boolean;
 }
 
 export function sentenceFocusParams(focus: SentenceFocus): Record<string, string> {
@@ -109,6 +130,7 @@ export function sentenceFocusParams(focus: SentenceFocus): Record<string, string
     params.t = String(Math.floor(focus.startTime));
   }
   if (focus.word) params.word = focus.word;
+  if (focus.autoplay) params.autoplay = "1";
   return params;
 }
 
@@ -156,8 +178,9 @@ export interface WatchFocus {
  * drift with re-transcription — and a `sub` that no longer resolves degrades to
  * `t` instead of dropping the seek. Empty values do not count as a focus
  * (`?t=` alone resolves to `null`), which is what the watch page's own
- * truthiness guard used to decide. Unrelated params (`from`, `slug`, `note`)
- * are ignored, so they do not affect `key` and cannot re-trigger a focus.
+ * truthiness guard used to decide. Origin params (`from`, `slug`, `note`) do not
+ * affect `key`; autoplay does, because it changes the requested action even
+ * when the sentence location is identical.
  */
 export function resolveWatchFocus(
   params: URLSearchParams,
@@ -182,7 +205,7 @@ export function resolveWatchFocus(
     if (!Number.isNaN(parsed) && parsed >= 0) seconds = parsed;
   }
   return {
-    key: `${sub ?? ""}|${word ?? ""}|${t ?? ""}`,
+    key: `${sub ?? ""}|${word ?? ""}|${t ?? ""}${params.get("autoplay") === "1" ? "|play" : ""}`,
     subtitleIndex,
     seconds,
     word: word || null,
@@ -197,16 +220,26 @@ function isWatchSource(value: string | null): value is WatchSource {
  * Return target for the watch page, derived from its own search params.
  * `null` means "no usable marker" — the caller should fall back to
  * `router.back()` (and `/` when there is no history to pop).
+ *
+ * `videoId` is only needed by `from=transcript`: the doc page lives under the
+ * same video (`/watch/{id}/transcript`), and the watch URL's id is its own path,
+ * not a query param. Callers that never link from the transcript page may omit
+ * it; that source then degrades to `null` like every other incomplete marker.
  */
-export function resolveWatchReturn(params: URLSearchParams): WatchReturn | null {
+export function resolveWatchReturn(
+  params: URLSearchParams,
+  videoId?: string | null
+): WatchReturn | null {
   const from = params.get("from");
   if (!isWatchSource(from)) return null;
   const label = SOURCE_LABELS[from];
 
   switch (from) {
+    case "transcript":
+      return videoId ? { href: `/watch/${encodeURIComponent(videoId)}/transcript`, label } : null;
     case "home": {
       const parts: string[] = [];
-      for (const key of HOME_FILTER_KEYS) appendParam(parts, key, params.get(key));
+      for (const key of FEED_FILTER_KEYS) appendParam(parts, key, params.get(key));
       return { href: parts.length ? `/?${parts.join("&")}` : "/", label };
     }
     case "channel": {
@@ -219,17 +252,30 @@ export function resolveWatchReturn(params: URLSearchParams): WatchReturn | null 
     }
     case "search": {
       const q = params.get("q");
-      return { href: q ? `/search?q=${encodeURIComponent(q)}` : "/search", label };
+      const parts: string[] = [];
+      appendParam(parts, "q", q);
+      const group = params.get("group");
+      if (group && ["videos", "subtitles", "words", "channels"].includes(group))
+        appendParam(parts, "group", group);
+      const page = params.get("page");
+      if (page && /^[1-9]\d*$/.test(page)) appendParam(parts, "page", page);
+      return { href: parts.length ? `/search?${parts.join("&")}` : "/search", label };
     }
     case "drill":
       return { href: "/vocabulary/drill", label };
+    case "vocabulary":
+      return { href: "/vocabulary", label };
     case "favorites":
       return { href: "/favorites", label };
     case "history":
       return { href: "/history", label };
     case "rankings":
       return { href: "/rankings", label };
-    case "browse":
-      return { href: "/browse", label };
+    case "browse": {
+      // 旧链接兼容：`/browse` 已并入首页（307），返回目标直接落首页并带回筛选。
+      const parts: string[] = [];
+      for (const key of FEED_FILTER_KEYS) appendParam(parts, key, params.get(key));
+      return { href: parts.length ? `/?${parts.join("&")}` : "/", label };
+    }
   }
 }

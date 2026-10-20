@@ -17,12 +17,26 @@ export const RANKING_METRIC_LABELS: Record<RankingScope, string> = {
   weekly_favorites: "本周收藏",
 };
 
-/** 名次数字配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮），其余浅灰。 */
+/**
+ * 名次数字配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮），其余中性。
+ * 文字色一律用加深档（brand-700/brand-800/warning-text/muted）——
+ * 原始主色（brand-500 3.12:1、accent-amber 1.95:1）做 16px 文字对比不足。
+ */
 function rankClass(rank: number): string {
-  if (rank === 1) return "text-brand-500";
-  if (rank === 2) return "text-accent-amber";
-  if (rank === 3) return "text-brand-700";
-  return "text-muted-soft";
+  if (rank === 1) return "text-brand-700";
+  if (rank === 2) return "text-warning-text";
+  if (rank === 3) return "text-brand-800";
+  return "text-muted";
+}
+
+/** NEW 只表示“刚上架”：48 小时内；更早的条目只给相对时间，避免满屏 NEW。 */
+const NEW_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+export function isFreshPublished(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= NEW_WINDOW_MS;
 }
 
 export interface RankingRowProps {
@@ -49,10 +63,9 @@ export function RankingRow({
     mode === "metric" && metric > 0 && maxMetric
       ? Math.max(4, Math.round((metric / maxMetric) * 100))
       : 0;
-  const meta = [
-    video.channel_name,
-    mode === "metric" ? relativeTime(video.published_at ?? video.created_at) : null,
-  ]
+  const publishedAt = video.published_at ?? video.created_at;
+  const fresh = isFreshPublished(publishedAt);
+  const meta = [video.channel_name, mode === "metric" ? relativeTime(publishedAt) : null]
     .filter(Boolean)
     .join(" · ");
 
@@ -83,13 +96,13 @@ export function RankingRow({
         <p className="line-clamp-2 text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1">
           {video.title}
         </p>
-        {meta && <p className="mt-1 line-clamp-1 text-meta text-muted">{meta}</p>}
+        {meta && <p className="mt-1 line-clamp-1 text-meta text-body">{meta}</p>}
       </div>
 
       <div className="w-14 flex-shrink-0 text-right sm:w-20">
         {mode === "metric" ? (
           <>
-            <p className="hidden text-caption font-semibold uppercase tracking-wider text-muted-soft sm:block">
+            <p className="hidden text-caption font-semibold uppercase tracking-wider text-body sm:block">
               {metricLabel}
             </p>
             <p className="text-copy font-bold tabular-nums text-ink">{formatCount(metric)}</p>
@@ -102,11 +115,13 @@ export function RankingRow({
           </>
         ) : (
           <>
-            <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-600">
-              NEW
-            </span>
-            <p className="mt-1 text-caption tabular-nums text-muted">
-              {relativeTime(video.published_at ?? video.created_at)}
+            {fresh && (
+              <span className="inline-block rounded-sm bg-brand-50 px-1.5 py-0.5 font-mono text-caption font-bold tracking-[0.12em] text-brand-700">
+                NEW
+              </span>
+            )}
+            <p className={cn("text-caption tabular-nums text-body", fresh && "mt-1")}>
+              {relativeTime(publishedAt)}
             </p>
           </>
         )}

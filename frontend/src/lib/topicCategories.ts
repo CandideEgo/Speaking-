@@ -7,7 +7,7 @@
  */
 
 export const TOPIC_CATEGORY_LABELS: Record<string, string> = {
-  ted: "TED 演讲",
+  ted: "TED",
   interview: "名人访谈",
   news: "新闻",
   vlog: "生活 Vlog",

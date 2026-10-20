@@ -50,9 +50,36 @@ class Settings(BaseSettings):
     # Dypnsapi 短信认证服务 endpoint（SendSmsVerifyCode / CheckSmsVerifyCode）。
     aliyun_sms_endpoint: str = "dypnsapi.aliyuncs.com"
 
+    # Legacy OpenAI-compatible gateway (kept as a fallback provider). AIService
+    # prefers COMMANDCODE_* below when that key is set.
     openai_api_key: str = ""
     openai_base_url: str = ""
     openai_model: str = "gpt-4o"
+
+    # Command Code LLM provider (OpenAI-compatible ``/chat/completions``).
+    # Defaults to the provider's free model so the video pipeline and the
+    # homepage draft generator work without per-token spend; the model catalog
+    # (free flags, context windows, ZDR support) lives in
+    # ``app/services/llm_provider.py`` — one fact, one home.
+    # Free models are promotional (provider may withdraw them at any time):
+    # re-run ``python scripts/check_llm_provider.py --list`` to audit.
+    commandcode_api_key: str = ""
+    commandcode_base_url: str = "https://api.commandcode.ai/provider/v1"
+    commandcode_model: str = "minimax/minimax-m3.1-flash:free"
+    # Per-request zero-data-retention (``x-cmd-zdr: 1``). Opt-in: some free
+    # models cannot run under ZDR and the gateway hard-fails rather than
+    # degrading, so enable it only with a ZDR-capable model pinned above.
+    commandcode_zdr: bool = False
+    # Per-task model overrides (empty = commandcode_model). Tasks are defined in
+    # ``app/services/llm_provider.py``: translation / word_notes /
+    # classification / editorial. Lets cheap batch work and editorial drafts
+    # use different models without touching call sites.
+    llm_model_translation: str = ""
+    llm_model_word_notes: str = ""
+    llm_model_classification: str = ""
+    llm_model_editorial: str = ""
+    # Hard timeout (seconds) for a single LLM chat call (AIService).
+    llm_call_timeout: int = 90
 
     local_media_path: str = "./media"
 
@@ -140,6 +167,27 @@ class Settings(BaseSettings):
     # ICP 合规：个体工商户无 ICP 经营许可证，不能站内收款。默认禁用站内支付，
     # create-order 端点返回合规提示；取得相应资质后置 True 恢复站内支付链路。
     payments_enabled: bool = False
+
+    # 金数据（外部收款页）→ 自动开通 Pro。站内仍不开收款（ICP 合规），会员在
+    # 托管于金数据的收款页成交后，由 Celery beat 定时同步 + 可选的数据推送
+    # webhook 落账，并按买家手机号延长对应账号的 plan_expires_at。
+    # Access Token 与表单 token 只允许放服务端 env，不要进前端或仓库。
+    jinshuju_enabled: bool = False
+    jinshuju_access_token: str = ""
+    jinshuju_form_token: str = ""  # 表单 token，例如 ed8TXL
+    # 数据推送 URL 上要求的共享密钥；为空时 webhook 一律拒绝（fail-closed）。
+    jinshuju_webhook_secret: str = ""
+    # 表单里「档位」商品字段与「手机号」字段的 api_code（表单字段改版时同步改）。
+    jinshuju_tier_field: str = "field_2"
+    jinshuju_phone_field: str = "field_5"
+    # 每轮同步回看多少小时内的数据（补漏 webhook；公测量级下一次请求足够）。
+    jinshuju_sync_lookback_hours: int = 72
+    # 站内购买：快捷收款页地址 + 写在 x_field_1 里的签名 token。
+    # x_field_1 本身没有签名保护，所以值做成「user_id + 过期时间 + HMAC」的
+    # 紧凑 token：篡改/过期都会验签失败，不会把会员发错人。
+    jinshuju_purchase_url: str = ""  # 例如 https://xxx.jsjform.com/p/ed8TXL
+    jinshuju_purchase_token_secret: str = ""  # 空则回退 JWT_SECRET
+    jinshuju_purchase_token_ttl_minutes: int = 1440
 
     # Redeem code lifecycle (ADR-0007). Pro is sold via WeChat mini-shop +
     # redeem codes (no on-site payment per ICP compliance).
@@ -337,8 +385,11 @@ class Settings(BaseSettings):
                 f"DATABASE_URL must be set when ENV={env!r} (development is the only env with a fallback)"
             )
         if env == "production":
-            if not self.openai_api_key:
-                raise RuntimeError("OPENAI_API_KEY must be set in production")
+            # The guard is "an LLM key must exist", not "the OpenAI key must
+            # exist": production may run entirely on the Command Code provider.
+            # An empty pair is still fatal — features would fail at call time.
+            if not (self.openai_api_key.strip() or self.commandcode_api_key.strip()):
+                raise RuntimeError("OPENAI_API_KEY or COMMANDCODE_API_KEY must be set in production")
             # ``redis_url`` carries a working localhost default (Celery broker,
             # rate-limit storage, cache client), so a forgotten REDIS_URL reaches
             # here as a non-empty string; require it to have been provided.

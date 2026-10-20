@@ -58,6 +58,7 @@ class UserPreferences(Base):
     # User's target exam level (canonical key from app.core.exam_levels, e.g. "cet4").
     # Drives which annotated words are highlighted on the watch page.
     target_exam: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    interest_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

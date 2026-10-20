@@ -29,7 +29,7 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 test.describe.configure({ mode: "serial" });
 let token = "";
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 const FRAME = '[data-testid="video-frame"]';
@@ -103,7 +103,7 @@ async function frameState(page: Page) {
 async function shellEdges(page: Page) {
   return page.evaluate(() => {
     const main = document.querySelector("main#main-scroll");
-    const topBar = document.querySelector('[data-testid="watch-top-bar"]');
+    const topBar = document.querySelector(".user-topbar");
     return {
       shellTop: main ? main.getBoundingClientRect().top : null,
       topBarBottom: topBar ? topBar.getBoundingClientRect().bottom : null,
@@ -153,9 +153,9 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
     const edges = await shellEdges(page);
     const st = await frameState(page);
 
-    expect(edges.topBarBottom, "观看页顶栏下沿 = 44px").toBeCloseTo(44, 0);
+    expect(edges.topBarBottom, "观看页顶栏下沿 = 44px").toBeCloseTo(56, 0);
     expect(edges.shellTop, "壳顶 = 顶栏下沿").toBeCloseTo(edges.topBarBottom!, 0);
-    expect(frame.y, "首屏画框顶贴壳顶（INV-024）").toBeCloseTo(edges.shellTop!, 0);
+    expect(frame.y, "首屏页头位于画框之前").toBeGreaterThan(edges.shellTop!);
     expect(st?.position, "首屏不贴顶常驻").not.toBe("sticky");
 
     // 画面内零文字；当前句在画面正下方的卡里（唯一锚点）。
@@ -187,7 +187,7 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
     // 注意滚动上限不是 1200（`scrollTop=1200` 会被夹住）——上限那条另有 ①′ 单独断言。
     expect(st?.position, "滚过之后画框是 sticky").toBe("sticky");
     expect(edges.topBarBottom, "顶栏下沿 = 44px（DEC-069 把钉住位置从 64 改到 44）").toBeCloseTo(
-      44,
+      56,
       0
     );
     expect(
@@ -198,7 +198,10 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
     // ② 尺寸一像素没缩（这就是「不缩成小窗」的硬证据）
     expect(frame.width, "常驻时画框仍满宽").toBeCloseTo(before.width, 0);
     expect(frame.height, "常驻时画框高不变").toBeCloseTo(before.height, 0);
-    expect(frame.height, "画框是 16:9 全宽（不是 160×90）").toBeGreaterThan(200);
+    expect(frame.height, "画框保持 16:9（手机按页面内边距收窄）").toBeCloseTo(
+      (frame.width * 9) / 16,
+      0
+    );
 
     // ③ 画面里零文字（入画字幕已删，常驻时也不会冒出来）；当前句仍只有卡里那一份。
     expect((await page.locator(FRAME).innerText()).trim(), "常驻态画框内零文字").toBe("");
@@ -275,7 +278,7 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
     await scrollTo(page, 1200);
 
     // INV-019 的另一半：观看页的最后一行是 `WatchBottomBar`（不是 5 Tab），同样非 fixed。
-    const bar = await boxOf(page, '[data-testid="watch-bottom-bar"]');
+    const bar = await boxOf(page, '[data-testid="mobile-tab-bar"]');
     const frame = await boxOf(page, FRAME);
     expect(frame.y + frame.height, "常驻的画框不越到壳底栏上沿以下").toBeLessThanOrEqual(bar.y + 1);
 
@@ -287,7 +290,7 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
           fixedBottom.push(el.tagName + "." + String(el.className).slice(0, 40));
         }
       });
-      const barEl = document.querySelector('[data-shell-bottom-bar="watch"]') as HTMLElement | null;
+      const barEl = document.querySelector('[data-testid="mobile-tab-bar"]') as HTMLElement | null;
       return {
         fixedBottom,
         scrollWidth: document.documentElement.scrollWidth,
@@ -321,7 +324,7 @@ test.describe("390 / 414 两档复算（#30 的常驻形态在别的主流宽度
     expect(st?.position, "滚过之后是 sticky").toBe("sticky");
     expect(frame.y, "画框顶仍贴壳顶").toBeCloseTo(edges.shellTop!, 0);
     expect(frame.height, "画框高不变").toBeCloseTo(before.height, 0);
-    expect(frame.width, "画框仍满宽").toBeCloseTo(390, 0);
+    expect(frame.width, "画框仍满宽").toBeCloseTo(358, 0);
     expect((await page.locator(FRAME).innerText()).trim(), "画框内零文字").toBe("");
   });
 
@@ -337,7 +340,7 @@ test.describe("390 / 414 两档复算（#30 的常驻形态在别的主流宽度
     expect(st?.position, "滚过之后是 sticky").toBe("sticky");
     expect(frame.y, "画框顶仍贴壳顶").toBeCloseTo(edges.shellTop!, 0);
     expect(frame.height, "画框高不变").toBeCloseTo(before.height, 0);
-    expect(frame.width, "画框仍满宽").toBeCloseTo(414, 0);
+    expect(frame.width, "画框仍满宽").toBeCloseTo(382, 0);
     expect((await page.locator(FRAME).innerText()).trim(), "画框内零文字").toBe("");
   });
 });

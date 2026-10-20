@@ -27,6 +27,10 @@ export interface DeepLinkArgs {
   onSentenceFocus: (index: number) => void;
   /** 词高亮：字幕列表的 selectedWord 联动 + 词卡。 */
   onWordFocus: (word: string) => void;
+  /** Called only when the link explicitly requests autoplay. */
+  onAutoplay?: () => void;
+  /** Seek through the active playback backend; optionally starts playback. */
+  onSeek?: (seconds: number, playAfterSeek: boolean) => void;
 }
 
 /**
@@ -45,11 +49,13 @@ export function useDeepLink({
   videoRef,
   onSentenceFocus,
   onWordFocus,
+  onAutoplay,
+  onSeek,
 }: DeepLinkArgs): void {
   const appliedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (playbackMode !== "ready" || !videoRef.current) return;
+    if (playbackMode !== "ready") return;
     const focus = resolveWatchFocus(params, subtitles ?? []);
     if (!focus) return;
     if (appliedRef.current === focus.key) return;
@@ -57,10 +63,15 @@ export function useDeepLink({
 
     // 顺序与拆分前一致：先恢复跟随+高亮当前句，再 seek，最后点词。
     if (focus.subtitleIndex !== null) onSentenceFocus(focus.subtitleIndex);
-    if (focus.seconds !== null) videoRef.current.currentTime = focus.seconds;
+    const autoplay = params.get("autoplay") === "1";
+    if (focus.seconds !== null) {
+      if (onSeek) onSeek(focus.seconds, autoplay);
+      else if (videoRef.current) videoRef.current.currentTime = focus.seconds;
+    }
     if (focus.word) onWordFocus(focus.word);
-    // videoRef 是稳定 ref，两个回调也只在应用那一刻读一次（每个 key 只跑一次），
-    // 故意都不进依赖：进了会让每次渲染都重跑一遍这套判定。
+    if (autoplay && focus.seconds === null) onAutoplay?.();
+    // videoRef 是稳定 ref；焦点回调只在应用那一刻读取。key 去重保证依赖变化
+    // 或字幕刷新不会把播放位置反复拽回句子。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackMode, subtitles, params]);
+  }, [playbackMode, subtitles, params, onAutoplay, onSeek]);
 }

@@ -43,6 +43,11 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   favorite_count?: number | null;
   /** 视频简介（列表接口已截断到 200 字符）；本地视频可能为 null。 */
   description?: string | null;
+  wpm?: number | null;
+  subtitle_count?: number | null;
+  exam_word_count?: number | null;
+  sample_text_en?: string | null;
+  sample_text_zh?: string | null;
 };
 
 export interface VideoCardProps {
@@ -66,7 +71,6 @@ function clickSource(): string {
   if (typeof window === "undefined") return "unknown";
   const p = window.location.pathname;
   if (p === "/" || p === "") return "home";
-  if (p.startsWith("/browse")) return "browse";
   if (p.startsWith("/search")) return "search";
   if (p.startsWith("/vocabulary")) return "vocabulary";
   return "other";
@@ -122,8 +126,12 @@ export function VideoCard({
           alt=""
           fill
           fallback={
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Play size={32} className="text-muted-soft" />
+            // 无封面占位：手机列表卡只有 ~96px 宽，图标+文案+时长角标会互相压住，
+            // 所以小屏只留图标（设计 .row-thumb-empty 也是纯居中文案），
+            // 文案从 sm 起才出现，给右下角时长角标让位。
+            <div className="absolute inset-0 flex flex-col items-start justify-start gap-2 p-2 sm:items-center sm:justify-center sm:p-0">
+              <Play className="size-6 text-muted sm:size-8" />
+              <span className="hidden text-caption text-body sm:inline">暂无封面</span>
             </div>
           }
         />
@@ -182,6 +190,16 @@ export function VideoCard({
           {video.title}
         </p>
         {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
+        {video.sample_text_en && (
+          <p className="text-meta text-muted line-clamp-2 mb-2">“{video.sample_text_en}”</p>
+        )}
+        {video.subtitle_count != null && (
+          <p className="text-meta text-muted mb-2">
+            {video.subtitle_count} 句字幕 ·{" "}
+            {video.exam_word_count == null ? "考试词待统计" : `${video.exam_word_count} 个考试词`}
+            {video.wpm ? ` · ${Math.round(video.wpm)} wpm` : " · 语速待评估"}
+          </p>
+        )}
         {video.description && (
           // DEC-073：卡片摘要跟着移动端基线走 13px（卡内嵌摘要允许 11–13px，正文才要求 ≥14px）
           <p className="text-copy leading-relaxed text-muted line-clamp-2 mb-2">

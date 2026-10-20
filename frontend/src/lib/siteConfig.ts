@@ -1,17 +1,13 @@
 /**
  * 站点级合规与运营配置（构建时注入，前端可见）。
  *
- * 这些值通过 NEXT_PUBLIC_* 环境变量在构建期注入，用于 ICP 合规公示与
- * "微信小商店购买"跳转。未配置时为空字符串，前端按"备案/开店中"占位渲染。
- *
- * 个体户无 ICP 经营许可证，网站为非经营性工具展示平台，不在站内收款；
- * 会员通过微信小商店购买后用兑换码激活。取得备案/开店后填入以下变量。
+ * NEXT_PUBLIC_* 在镜像构建时注入；可选公示信息缺失时不显示占位。
+ * 会员价格和购买链接由已认证的后端接口返回，不在此处配置。
  */
 export const siteConfig = {
   /** 产品品牌名（构建期固定常量，非 env 注入）。UI 品牌显示一律引用此常量。 */
   brandName: "SeeWord",
-  /** 微信小商店商品/店铺链接，未开店时留空。 */
-  miniStoreUrl: process.env.NEXT_PUBLIC_MINI_STORE_URL || "",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://seeword.top",
   /** 个体工商户名称。 */
   companyName: process.env.NEXT_PUBLIC_COMPANY_NAME || "",
   /** 统一社会信用代码。 */

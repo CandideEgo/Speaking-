@@ -2,287 +2,391 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, FileText, ArrowRight, Sparkles, RotateCcw, Flame } from "lucide-react";
 import { api } from "@/lib/api";
-import { usePlan } from "@/hooks/usePlan";
-import { EmptyState } from "@/components/common/EmptyState";
+import { subjectLabel } from "@/lib/examSubjects";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/common/ErrorState";
 
-/**
- * 练习专题 —— 真题试卷 / 每日水平检测 / 错题本已上线（阅读客观题，服务端自动判分）。
- * 视频试卷已砍：不再保留「暂停开发」占位卡（S8-5），正向引导由真题试卷卡承担。
- */
+interface Summary {
+  types: Record<string, { group_count: number; question_count: number }>;
+  recent: { id: string; title: string; correct: number; total: number; submitted_at: string }[];
+}
+interface Wrong {
+  question_id: string;
+  question: string | null;
+  section: string | null;
+  paper_title: string | null;
+  wrong_count: number;
+}
+interface PaperItem {
+  id: string;
+  level: string;
+  year: number;
+  month: number;
+  set_no: number;
+  total_questions: number;
+}
 
-const LIVE_SECTIONS = [
+const TYPES = [
   {
-    key: "real",
-    title: "真题试卷",
-    icon: FileText,
-    desc: "四六级阅读真题（选词填空 / 段落匹配 / 仔细阅读），交卷自动判分 + 错题解析。",
-    href: "/practice/exams",
-    cta: "去刷真题",
+    key: "reading",
+    title: "仔细阅读",
+    tag: "推荐",
+    description: "先读文章，再定位细节、推断和词义；交卷后查看解析。",
+  },
+  {
+    key: "cloze",
+    title: "选词填空",
+    description: "从词库里选词填进短文，先判断词性，再看前后搭配。",
+  },
+  {
+    key: "matching",
+    title: "长篇阅读",
+    description: "把陈述匹配到对应段落，练快速定位和同义替换。",
   },
 ];
 
-const SECTION_SHORT: Record<string, string> = {
-  use_of_english: "完形填空",
-  reading_A: "选词填空",
-  reading_B: "段落匹配",
-  reading_C: "仔细阅读",
-  new_type: "新题型",
-};
+const LINK_PRIMARY =
+  "inline-flex items-center gap-1.5 rounded-sm bg-brand-500 px-4 py-2 text-copy font-semibold text-on-primary transition-colors hover:bg-brand-600";
+const LINK_OUTLINE =
+  "inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-3 py-1.5 text-meta font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft";
+const LINK_TEXT = "text-copy font-medium text-ink underline underline-offset-4";
 
-interface ExamStats {
-  month_completed: number;
-  avg_score: number | null;
-  last_daily_score: number | null;
-  week_daily_count: number;
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
-interface WrongItem {
-  question_id: string;
-  number: number | null;
-  section: string | null;
-  question: string | null;
-  wrong_count: number;
-  paper_title: string | null;
-  year: number | null;
-  month: number | null;
-  level: string | null;
+function formatShortDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+/** 建议用时：按真题阅读 30 题 / 40 分钟折算（设计 practice.html「按套卷练」的口径）。 */
+function suggestedMinutesFor(count: number): number {
+  return Math.max(4, Math.round((count * 40) / 30));
+}
+
+/**
+ * 练习专题（stage-3 保真版）。
+ *
+ * 结构与设计 practice.html 对齐：
+ * 页头（自由练习 / 日期）→ 上次练习（日期 + 标题 + 题量/用时口径 + 成绩 + 回看/再做）
+ * → 按题型练（序号 + 标题 + 推荐 tag + 描述 + 题组规模 + 级别/开始）
+ * → 按套卷练（最近一套的年份/级别/套/题量/建议用时 + 开始作答）
+ * → 右栏（最近练习 / 这一版包含 / 关于结果）。
+ */
 export default function PracticePage() {
-  const { profile } = usePlan();
-  const [stats, setStats] = useState<ExamStats | null>(null);
-  const [wrongs, setWrongs] = useState<WrongItem[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [wrongs, setWrongs] = useState<Wrong[]>([]);
   const [wrongTotal, setWrongTotal] = useState(0);
+  const [papers, setPapers] = useState<PaperItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    api<ExamStats>("/api/v1/exams/stats")
-      .then(setStats)
-      .catch(() => {});
-    api<{ items: WrongItem[]; total: number }>("/api/v1/exams/wrong?page=1&page_size=5")
-      .then((data) => {
-        setWrongs(data.items);
-        setWrongTotal(data.total);
+    const controller = new AbortController();
+    setError(null);
+    Promise.all([
+      api<Summary>("/api/v1/discovery/practice-summary", { signal: controller.signal }),
+      api<{ items: Wrong[]; total: number }>("/api/v1/exams/wrong?page=1&page_size=5", {
+        signal: controller.signal,
+      }),
+      api<{ items: PaperItem[]; total: number }>("/api/v1/exams?level=cet6&page=1&page_size=3", {
+        signal: controller.signal,
+      }).catch(() => ({ items: [], total: 0 })),
+    ])
+      .then(([data, wrong, paperList]) => {
+        setSummary(data);
+        setWrongs(wrong.items);
+        setWrongTotal(wrong.total);
+        setPapers(paperList.items);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => {
+        if (!controller.signal.aborted)
+          setError(err instanceof Error ? err.message : "练习加载失败");
+      });
+    return () => controller.abort();
+  }, [retry]);
 
-  const streak = profile?.current_streak ?? 0;
+  const latest = summary?.recent[0];
+  const today = new Date();
+  const todayLabel = `${today.getMonth() + 1} 月 ${today.getDate()} 日 星期${
+    "日一二三四五六"[today.getDay()]
+  }`;
+  const typeEntries = summary
+    ? TYPES.map((t) => ({
+        ...t,
+        groupCount: summary.types[t.key]?.group_count ?? 0,
+        questionCount: summary.types[t.key]?.question_count ?? 0,
+      }))
+    : [];
 
   return (
-    <main className="min-h-full bg-surface-soft">
-      <div className="py-8 pb-24">
-        {/* 页头 + 学习统计条（原型 08 page-head stats-row） */}
-        <div className="mb-6">
-          <PageHeader
-            className="pt-0 pb-0"
-            crumb="练习专题"
-            title="真题实战 + 单词训练"
-            description="四六级阅读真题已上线，交卷自动判分；错题本沉淀薄弱点，单词训练正常开放。"
-          />
-          <div className="flex gap-6 mt-4 flex-wrap">
-            <span className="inline-flex items-center gap-2 text-copy text-muted">
-              <span className="w-2 h-2 rounded-full bg-brand-500" />
-              本月完成{" "}
-              <strong className="text-copy-lg font-bold text-ink font-mono">
-                {stats?.month_completed ?? 0}
-              </strong>{" "}
-              份
-            </span>
-            <span className="inline-flex items-center gap-2 text-copy text-muted">
-              <span className="w-2 h-2 rounded-full bg-success" />
-              平均正确率{" "}
-              <strong className="text-copy-lg font-bold text-ink font-mono">
-                {stats?.avg_score != null ? `${Math.round(stats.avg_score * 100)}%` : "--"}
-              </strong>
-            </span>
-            <span className="inline-flex items-center gap-2 text-copy text-muted">
-              <span className="w-2 h-2 rounded-full bg-indigo" />
-              连续学习{" "}
-              <strong className="text-copy-lg font-bold text-ink font-mono">{streak}</strong> 天
-            </span>
+    <div className="pt-6 pb-18">
+      <PageHeader
+        crumb="练习"
+        title="今天，练哪一部分？"
+        description="真题阅读的三类题，按题型开始。每组 3–4 题，交卷后立刻看解析；不预测分数，也不安排每日任务。"
+        actions={
+          <div className="hidden flex-col items-end gap-1 text-right md:flex">
+            <span className="text-meta font-semibold text-body">自由练习</span>
+            <span className="text-caption text-muted">{todayLabel}</span>
+            <Link href="/practice/daily" className="mt-1 text-meta font-medium text-brand-700">
+              看看今天推荐的一组 →
+            </Link>
           </div>
-        </div>
+        }
+      />
 
-        {/* 每日水平检测特色卡（原型 08 check-card 深色卡） */}
-        <Link
-          href="/practice/daily"
-          className="group grid grid-cols-1 sm:grid-cols-[1.4fr_1fr] rounded-lg overflow-hidden mb-6 bg-ink text-canvas hover:shadow-lift transition-all"
-        >
-          <div className="p-6 sm:p-7">
-            <span className="inline-flex items-center gap-1.5 text-caption font-semibold px-2.5 py-1 rounded-pill bg-brand-500/20 text-brand-400 uppercase tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-              每日水平检测
-            </span>
-            <h2 className="text-title font-extrabold tracking-tight mt-3 mb-1.5 text-canvas">
-              今天，直接来一套卷子
-            </h2>
-            {/* 描述与右列一律用 canvas 系（随主题翻转）：卡底是 bg-ink，
-                暗色下整卡翻成浅色，静态 on-dark 文字会与浅底撞成隐形（S8 深色验证）。 */}
-            <p className="text-copy text-canvas/70 leading-relaxed max-w-[42ch]">
-              不看视频，直接做题。系统从真题题库随机抽 10 题，提交后给出对错、解析与得分——每天打开
-              App 的第一件事，检验学习成果。
-            </p>
-            <span className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand group-hover:bg-brand-600 transition-colors">
-              开始今日检测
-              <ArrowRight size={14} />
-            </span>
-          </div>
-          <div className="flex flex-col justify-center gap-3.5 px-6 py-5 border-t sm:border-t-0 sm:border-l border-canvas/10 bg-canvas/[0.03]">
-            <div className="flex items-center justify-between text-copy text-canvas/60">
-              <span>上次成绩</span>
-              <strong className="text-copy-lg font-bold text-canvas font-mono">
-                {stats?.last_daily_score != null
-                  ? `${Math.round(stats.last_daily_score * 100)} / 100`
-                  : "--"}
-              </strong>
-            </div>
-            <div className="flex items-center justify-between text-copy text-canvas/60">
-              <span>本周检测</span>
-              <strong className="text-copy-lg font-bold text-canvas font-mono">
-                {stats?.week_daily_count ?? 0} 次
-              </strong>
-            </div>
-            <div className="flex items-center justify-between text-copy text-canvas/60">
-              <span>连续打卡</span>
-              <span className="inline-flex items-center gap-1.5">
-                <Flame size={16} className="text-brand-400" />
-                <strong className="text-copy-lg font-bold text-canvas font-mono">
-                  {streak} 天
-                </strong>
-              </span>
-            </div>
-          </div>
-        </Link>
-
-        {/* 错题本（原型 08 wrong-block） */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-3.5 flex-wrap gap-3">
-            <h2 className="text-copy-lg font-bold text-ink">
-              错题本{" "}
-              <span className="text-copy font-medium text-muted font-mono">
-                {wrongTotal} 题待重做
-              </span>
-            </h2>
-            {wrongTotal > 0 && (
-              <Link
-                href="/practice/exams/redo"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-copy font-semibold hover:bg-brand-500 transition-colors"
-              >
-                <RotateCcw size={14} />
-                重做全部错题
-              </Link>
-            )}
-          </div>
-          {wrongTotal === 0 ? (
-            <EmptyState
-              title="还没有错题，继续保持！"
-              className="rounded-lg border border-dashed border-hairline-strong bg-canvas py-6"
-              action={
-                <Link
-                  href="/practice/exams"
-                  className="inline-flex items-center gap-1.5 text-copy font-semibold text-brand-500 hover:underline"
-                >
-                  去做真题
-                  <ArrowRight size={14} />
-                </Link>
-              }
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {wrongs.map((w) => (
-                <Card
-                  key={w.question_id}
-                  padding={0}
-                  className="flex items-center gap-3.5 px-4 py-3 hover:bg-surface-soft transition-colors"
-                >
-                  <span className="text-caption font-semibold text-error bg-red-soft px-2 py-0.5 rounded-pill flex-shrink-0">
-                    {SECTION_SHORT[w.section ?? ""] ?? "错题"}
-                  </span>
-                  <span className="flex-1 min-w-0 text-copy text-ink truncate">
-                    {w.question ?? `第 ${w.number} 题`}
-                  </span>
-                  <span className="text-caption text-muted-soft flex-shrink-0 hidden sm:block">
-                    {w.paper_title ? `来自《${w.paper_title}》` : ""}
-                    {w.wrong_count > 1 ? ` · 错 ${w.wrong_count} 次` : ""}
-                  </span>
-                  <Link
-                    href={`/practice/exams/redo?ids=${w.question_id}`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-surface-card text-ink text-meta font-semibold hover:bg-brand-500 hover:text-on-primary transition-colors flex-shrink-0"
-                  >
-                    重做
-                    <ArrowRight size={11} />
-                  </Link>
-                </Card>
-              ))}
-              {wrongTotal > wrongs.length && (
-                <Link
-                  href="/practice/exams/redo"
-                  className="text-center text-copy text-muted hover:text-ink transition-colors py-1"
-                >
-                  查看全部 {wrongTotal} 道错题
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 已上线区块 */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          {LIVE_SECTIONS.map((s) => (
-            <Card
-              as={Link}
-              key={s.key}
-              href={s.href}
-              padding={6}
-              className="group flex flex-col gap-3 hover:border-brand-400 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <span className="w-10 h-10 rounded-lg bg-brand-500 text-on-primary flex items-center justify-center">
-                  <s.icon size={18} />
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-caption font-semibold px-2.5 py-1 rounded-pill bg-brand-50 text-brand-600">
-                  <Sparkles size={11} />
-                  已上线
-                </span>
-              </div>
-              <div>
-                <h2 className="text-copy-lg font-bold text-ink group-hover:text-brand-600 transition-colors">
-                  {s.title}
-                </h2>
-                <p className="text-copy text-muted leading-relaxed mt-1.5">{s.desc}</p>
-              </div>
-              <span className="inline-flex items-center gap-1.5 text-copy font-semibold text-brand-600 group-hover:gap-2.5 transition-all">
-                {s.cta}
-                <ArrowRight size={14} />
-              </span>
-            </Card>
-          ))}
-        </div>
-
-        {/* 单词训练入口 */}
-        <Card padding={5} className="mt-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <span className="w-10 h-10 rounded-lg bg-ink text-canvas flex items-center justify-center flex-shrink-0">
-              <BookOpen size={18} />
-            </span>
-            <div className="min-w-0">
-              <div className="text-copy font-bold text-ink">单词训练</div>
-              <div className="text-meta text-muted mt-0.5">新词闪卡 + SM-2 间隔复习，每日推送</div>
-            </div>
-          </div>
-          <Link
-            href="/vocabulary"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-copy font-semibold hover:bg-brand-500 transition-colors flex-shrink-0"
+      {error ? (
+        <ErrorState title={error} onRetry={() => setRetry((v) => v + 1)} />
+      ) : !summary ? (
+        <p role="status" className="py-12 text-muted">
+          正在读取题库与练习记录…
+        </p>
+      ) : (
+        <>
+          {/* 上次练习 */}
+          <section
+            aria-label="上次练习"
+            className="flex flex-col gap-3 border-y border-hairline py-4 md:flex-row md:items-center md:justify-between md:gap-5"
           >
-            去复习
-            <ArrowRight size={14} />
-          </Link>
-        </Card>
-      </div>
-    </main>
+            <div className="min-w-0 md:flex-1">
+              <p className="text-caption font-bold tracking-caption-wide text-muted">
+                上次练习{latest ? ` · ${formatDate(latest.submitted_at)}` : ""}
+              </p>
+              <h2 className="mt-1 truncate text-copy-lg font-bold text-ink">
+                {latest?.title || "还没有练习记录"}
+              </h2>
+              <p className="mt-1 text-caption text-muted">
+                {latest
+                  ? `共 ${latest.total} 题 · 只记答对题数，不折算等级。`
+                  : "选一种题型开始，不用一次做完整套。"}
+              </p>
+            </div>
+            {latest ? (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <p className="text-copy text-muted">
+                  <strong className="text-display-sm font-bold text-ink">{latest.correct}</strong>
+                  <span className="mx-1 text-meta">/</span>
+                  <span className="text-meta">{latest.total} 答对</span>
+                </p>
+                {wrongTotal > 0 ? (
+                  <Link href="/practice/exams/redo" className={LINK_PRIMARY}>
+                    回看 {wrongTotal} 道错题
+                  </Link>
+                ) : null}
+                <Link href={`/practice/exams/result/${latest.id}`} className={LINK_TEXT}>
+                  回看结果 →
+                </Link>
+              </div>
+            ) : wrongTotal > 0 ? (
+              <Link href="/practice/exams/redo" className={LINK_PRIMARY}>
+                回看 {wrongTotal} 道错题
+              </Link>
+            ) : null}
+          </section>
+
+          <div className="user-page-layout has-aside">
+            <div className="user-page-main">
+              {/* 按题型练 */}
+              <section aria-labelledby="practice-types-title">
+                <div className="user-sec-head">
+                  <h2 id="practice-types-title" className="user-sec-title">
+                    按题型练
+                  </h2>
+                  <span className="user-sec-sub">每组只取一小段 · 不计时</span>
+                </div>
+                <ul className="divide-y divide-hairline">
+                  {typeEntries.map((type, index) => (
+                    <li key={type.key} className="flex items-start gap-3 py-6 sm:gap-4">
+                      <span className="mt-1 w-5 flex-none font-mono text-caption text-muted">
+                        0{index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-copy-lg font-bold text-ink">{type.title}</h3>
+                          {type.tag && (
+                            <span className="rounded-sm bg-brand-50 px-1.5 py-0.5 text-caption font-semibold text-brand-700">
+                              {type.tag}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-copy leading-relaxed text-muted">
+                          {type.description}
+                        </p>
+                        <p className="mt-2 text-caption text-muted">
+                          {type.groupCount} 个完整题组 · {type.questionCount} 题
+                        </p>
+                      </div>
+                      <div className="flex flex-none flex-col items-end gap-2">
+                        <span className="hidden text-caption text-muted sm:inline">真题</span>
+                        {type.groupCount > 0 ? (
+                          <Link href={`/practice/daily?type=${type.key}`} className={LINK_OUTLINE}>
+                            开始
+                          </Link>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
+                            题库未接入
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {/* 按套卷练 */}
+              <section aria-labelledby="practice-papers-title">
+                <div className="user-sec-head">
+                  <h2 id="practice-papers-title" className="user-sec-title">
+                    按套卷练
+                  </h2>
+                  <Link href="/practice/exams" className="user-sec-sub hover:text-ink">
+                    全部套卷 →
+                  </Link>
+                </div>
+                {papers.length ? (
+                  <ul className="divide-y divide-hairline">
+                    {papers.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
+                      >
+                        <div className="min-w-0">
+                          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted">
+                            <span>
+                              {p.year} 年 {p.month} 月
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>{subjectLabel(p.level)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>第 {p.set_no} 套</span>
+                          </p>
+                          <h3 className="mt-1 text-copy-lg font-semibold text-ink">
+                            阅读部分 · {p.total_questions} 题
+                          </h3>
+                          <p className="mt-1 text-caption text-muted">
+                            选词填空 / 段落匹配 / 仔细阅读 · 建议用时约{" "}
+                            {suggestedMinutesFor(p.total_questions)} 分钟
+                          </p>
+                        </div>
+                        <div className="flex flex-none items-center gap-3">
+                          <Link href={`/practice/exams/${p.id}`} className={LINK_OUTLINE}>
+                            开始作答
+                          </Link>
+                          <Link href="/practice/exams" className={LINK_TEXT}>
+                            看构成
+                          </Link>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-4 text-copy text-muted">
+                    完整套卷已接入题库，去套卷列表挑一套开始。
+                  </p>
+                )}
+                <p className="mt-4 border-t border-hairline pt-3 text-caption leading-relaxed text-muted">
+                  按题型练都是节选；完整套卷在「套卷列表」里，交卷后自动判分并保留结果。
+                </p>
+              </section>
+            </div>
+
+            <aside className="user-page-aside" aria-label="练习信息">
+              <section className="user-aside-sec">
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h2 className="user-aside-title mb-0">最近练习</h2>
+                  <span className="text-caption text-muted">只记答对题数</span>
+                </div>
+                {summary.recent.length ? (
+                  <ul className="flex flex-col gap-3">
+                    {summary.recent.map((s) => (
+                      <li key={s.id}>
+                        <Link href={`/practice/exams/result/${s.id}`} className="group block">
+                          <p className="flex items-baseline justify-between gap-3 text-meta">
+                            <span className="truncate text-body group-hover:text-ink">
+                              {s.title}
+                            </span>
+                            <span className="flex-none font-mono text-caption text-muted">
+                              {s.correct} / {s.total}
+                            </span>
+                          </p>
+                          <p className="mt-0.5 text-caption text-muted">
+                            {formatShortDate(s.submitted_at)}
+                          </p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-copy text-muted">开始第一组后，结果会保存在这里。</p>
+                )}
+                <p className="mt-3 text-caption leading-relaxed text-muted">
+                  只记答对题数，不折算等级。
+                </p>
+              </section>
+
+              <section className="user-aside-sec">
+                <h2 className="user-aside-title">这一版包含</h2>
+                <ul className="flex flex-col gap-2 text-meta text-body">
+                  {typeEntries.map((t) => (
+                    <li key={t.key} className="flex items-baseline justify-between gap-3">
+                      <span>{t.title}</span>
+                      <span className="font-mono text-caption text-muted">
+                        {t.groupCount} 组 · {t.questionCount} 题
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-caption leading-relaxed text-muted">
+                  听力、翻译、写作与完整套卷不在按题型练里；完整套卷见套卷列表。
+                </p>
+              </section>
+
+              <section className="user-aside-sec">
+                <h2 className="user-aside-title">关于结果</h2>
+                <p className="text-meta leading-relaxed text-body">
+                  答对题数帮助你回顾本次表现，不代表考试预测分数。
+                </p>
+              </section>
+
+              {wrongs.length > 0 && (
+                <section className="user-aside-sec">
+                  <h2 className="user-aside-title">错题回看</h2>
+                  <ul className="flex flex-col gap-2">
+                    {wrongs.slice(0, 2).map((w) => (
+                      <li key={w.question_id}>
+                        <Link
+                          href={`/practice/exams/redo?ids=${w.question_id}`}
+                          className="block text-meta text-body hover:text-ink"
+                        >
+                          <span className="line-clamp-2">{w.question || "回看原文章和题目"}</span>
+                          <span className="mt-0.5 block text-caption text-muted">
+                            {w.paper_title} · 错 {w.wrong_count} 次
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/practice/exams/redo"
+                    className="mt-3 inline-block text-meta font-medium text-ink underline underline-offset-2"
+                  >
+                    重做全部错题 →
+                  </Link>
+                </section>
+              )}
+            </aside>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

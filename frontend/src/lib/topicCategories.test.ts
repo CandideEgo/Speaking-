@@ -4,12 +4,12 @@ import { TOPIC_CATEGORY_LABELS, topicLabel } from "@/lib/topicCategories";
 
 describe("topicLabel", () => {
   it("maps canonical ids to Chinese labels", () => {
-    expect(topicLabel("ted")).toBe("TED 演讲");
+    expect(topicLabel("ted")).toBe("TED");
     expect(topicLabel("speech")).toBe("演讲");
   });
 
   it("is case-insensitive for legacy uppercase values", () => {
-    expect(topicLabel("TED")).toBe("TED 演讲");
+    expect(topicLabel("TED")).toBe("TED");
     expect(topicLabel(" Tech ")).toBe("科技");
   });
 

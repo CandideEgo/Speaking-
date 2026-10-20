@@ -21,6 +21,10 @@ interface WrongRedoStart {
  * 错题重做（原型 08 wrong-block「重做全部错题」+ 结果页「只练错题」的落地页）。
  * 启动后 POST /exams/wrong/redo（缺省重做全部错题；结果页通过 ?ids= 传入子集），
  * 用 ExamRunner 作答，交卷后复用统一成绩页。
+ *
+ * 注意：本页保持「进入即开始」——e2e（exam.spec.ts）从结果页点「只练错题」后
+ * 直接在 /practice/exams/redo 上等 `[data-testid=exam-option]`，加前置入口会破坏它。
+ * 设计稿的「上次错题清单」信息改由成绩页的「每题对错与回看」承担（见 exam-result）。
  */
 export default function WrongRedoPage() {
   const router = useRouter();
@@ -55,8 +59,8 @@ export default function WrongRedoPage() {
 
   if (!attempt) {
     return (
-      <main className="min-h-full bg-surface-soft">
-        <div className="py-16 text-center space-y-5">
+      <div className="pt-6 pb-18">
+        <div className="flex flex-col items-center gap-5 py-16 text-center">
           <p className="text-copy text-muted">
             {loading ? "正在生成错题重做…" : (error ?? "错题重做不可用")}
           </p>
@@ -64,36 +68,45 @@ export default function WrongRedoPage() {
             <>
               <button
                 onClick={start}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-ink text-canvas text-copy font-semibold hover:bg-brand-500 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-ink px-4 py-2 text-copy font-semibold text-canvas transition-colors hover:bg-brand-500 hover:text-on-primary"
               >
                 <RotateCcw size={14} />
                 重新生成
               </button>
-              <div>
+              <div className="flex items-center gap-4 text-copy">
                 <Link
-                  href="/practice"
-                  className="inline-flex items-center gap-1 text-copy text-muted hover:text-ink transition-colors"
+                  href="/practice/exams"
+                  className="inline-flex items-center gap-1 text-muted transition-colors hover:text-ink"
                 >
                   <ArrowLeft size={14} />
+                  去套卷列表
+                </Link>
+                <Link
+                  href="/practice"
+                  className="inline-flex items-center gap-1 text-muted transition-colors hover:text-ink"
+                >
                   返回练习专题
                 </Link>
               </div>
             </>
           )}
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <ExamRunner
-      questions={attempt.questions}
-      submitPath={`/api/v1/exams/attempts/${attempt.session_id}/submit`}
-      accent="错题重做"
-      onSubmitted={(result: ExamSubmitResponse) => {
-        router.push(`/practice/exams/result/${result.session_id}`);
-      }}
-      onQuit={() => router.push("/practice")}
-    />
+    <div className="pt-6 pb-18">
+      <ExamRunner
+        questions={attempt.questions}
+        submitPath={`/api/v1/exams/attempts/${attempt.session_id}/submit`}
+        accent="错题重做"
+        suggestedMinutes={5}
+        onSubmitted={(result: ExamSubmitResponse) => {
+          router.push(`/practice/exams/result/${result.session_id}`);
+        }}
+        onQuit={() => router.push("/practice")}
+      />
+    </div>
   );
 }

@@ -25,13 +25,13 @@ import { registerUserViaApi, loginViaToken, uniquePhone } from "./helpers";
 test.describe.configure({ mode: "serial" });
 let token = "";
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, uniquePhone()));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
 const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
 const BAR = '[data-testid="watch-bottom-bar"]';
-const TOP_BAR = '[data-testid="watch-top-bar"]';
+const TOP_BAR = ".user-topbar";
 
 /** 登录 → 打开第一条 ready 视频 → 跳过教程浮层 → 等到真能播。 */
 async function enterWatch(page: Page, request: APIRequestContext, { mobile = true } = {}) {
@@ -113,130 +113,28 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
     expect(probe.burnWords, "入画字幕的点词热区已删").toBe(0);
   });
 
-  /**
-   * 判据 2：**不滚动**的首屏里，底栏完整、当前句卡完整、文稿至少 3 条。
-   *
-   * 量法：全部走 `getBoundingClientRect()` 对 `window.innerHeight`；
-   * 文稿是右侧面板（`[data-coach="subtitles"]`）里的 `#subtitle-0/1/…` 按钮，
-   * 面板自己有 `max-height` + `overflow-y-auto`，所以「完整可见」= 按钮矩形整条落在
-   * 「面板矩形 ∩ `main#main-scroll` 矩形 ∩ 视口」里 —— 被滚动区下沿切掉半条的**不算**。
-   */
-  test("判据 2：首屏不滚动可见完整底栏 + 完整当前句卡 + ≥3 条文稿", async ({ page, request }) => {
+  test("全站底栏完整可见，页面内播放操作和完整当前句可滚动到达", async ({ page, request }) => {
     await enterWatch(page, request);
-
-    const m = await page.evaluate(
-      ({ cardSel, barSel, topBarSel }) => {
-        const rect = (el: Element | null) => {
-          if (!el) return null;
-          const r = el.getBoundingClientRect();
-          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height };
-        };
-        const main = document.querySelector("main#main-scroll") as HTMLElement | null;
-        const list = document.querySelector('[data-coach="subtitles"]');
-        const clipTop = Math.max(0, rect(list)?.top ?? 0, rect(main)?.top ?? 0);
-        const clipBottom = Math.min(
-          window.innerHeight,
-          rect(list)?.bottom ?? window.innerHeight,
-          rect(main)?.bottom ?? window.innerHeight
-        );
-        const lines = Array.from(
-          document.querySelectorAll('[data-coach="subtitles"] button[id^="subtitle-"]')
-        ).map((el) => {
-          const r = el.getBoundingClientRect();
-          return { id: el.id, top: r.top, bottom: r.bottom, height: r.height };
-        });
-        // DEC-073：带上不再有 `max-h-[92px] overflow-hidden` 裁切容器（它在 WebKit 的 flex
-        // 子项里不生效，实测把中文行整条顶出可视区）。这里量的是「中文行在不在、有没有被
-        // 卡的下沿切掉」——旧版只是打印诊断，现在改成断言（判据 1）。
-        const zh = document.querySelector('[data-testid="current-sentence-zh"]');
-        const cardEl = document.querySelector(cardSel);
-        const zhInfo = {
-          present: !!zh,
-          height: zh ? zh.getBoundingClientRect().height : 0,
-          bottom: zh ? zh.getBoundingClientRect().bottom : null,
-          cardBottom: cardEl ? cardEl.getBoundingClientRect().bottom : null,
-        };
-        return {
-          innerHeight: window.innerHeight,
-          scrollTop: main ? main.scrollTop : null,
-          topBar: rect(document.querySelector(topBarSel)),
-          bar: rect(document.querySelector(barSel)),
-          card: rect(document.querySelector(cardSel)),
-          sentenceEn: (
-            document.querySelector('[data-testid="current-sentence-en"]')?.textContent ?? ""
-          ).trim(),
-          counter: (
-            document.querySelector('[data-testid="subtitle-counter"]')?.textContent ?? ""
-          ).trim(),
-          zhInfo,
-          clipTop,
-          clipBottom,
-          lineCount: lines.length,
-          fullyVisible: lines.filter(
-            (l) => l.height > 0 && l.top >= clipTop - 0.5 && l.bottom <= clipBottom + 0.5
-          ),
-        };
-      },
-      { cardSel: CARD, barSel: BAR, topBarSel: TOP_BAR }
-    );
-
-    // 前提：这一屏**没滚过**（滚动容器是壳里的 main#main-scroll）。
-    expect(m.scrollTop, "首屏没有滚动").toBe(0);
-    expect(m.topBar, "观看页顶栏在").not.toBeNull();
-    expect(m.bar, "观看页底栏在").not.toBeNull();
-    expect(m.card, "当前句卡在").not.toBeNull();
-
-    // 完整底栏：整块在可视区内，且底边贴住可视区底边。
-    expect(m.bar!.top, "底栏上沿在可视区内").toBeGreaterThanOrEqual(0);
-    expect(m.bar!.bottom, "底栏下沿不越可视区").toBeLessThanOrEqual(m.innerHeight + 1);
-    expect(Math.abs(m.bar!.bottom - m.innerHeight), "底栏底边贴可视区底边").toBeLessThanOrEqual(1);
-
-    // 完整当前句卡：整块在可视区内，且整个在底栏之上（不压底栏、不被底栏压）。
-    expect(m.card!.top, "当前句卡上沿在可视区内").toBeGreaterThanOrEqual(0);
-    expect(m.card!.bottom, "当前句卡下沿在可视区内").toBeLessThanOrEqual(m.innerHeight);
-    expect(m.card!.bottom, "当前句卡在底栏之上").toBeLessThan(m.bar!.top);
-    expect(m.card!.height, "当前句卡有实际高度（不是空壳）").toBeGreaterThan(40);
-    expect(m.sentenceEn.length, "当前句卡里真的有那句英文").toBeGreaterThan(0);
-
-    // 「完整当前句」的内容那一半：卡里的英文行 = 该视频第 n 句的**全文**（不是片段）。
-    const videoId = new URL(page.url()).pathname.split("/").filter(Boolean).pop()!;
-    const subRes = await request.get(`/api/v1/videos/${videoId}`, {
+    const tabs = page.getByTestId("mobile-tab-bar");
+    await expect(tabs.getByRole("link")).toHaveCount(5);
+    const tabBox = (await tabs.boundingBox())!;
+    expect(tabBox.y + tabBox.height).toBeCloseTo(896, 0);
+    await page.locator(CARD).scrollIntoViewIfNeeded();
+    const counter = await page.getByTestId("subtitle-counter").innerText();
+    const videoId = new URL(page.url()).pathname.split("/").pop();
+    const response = await request.get(`/api/v1/videos/${videoId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    expect(subRes.ok(), `取字幕失败：${subRes.status()}`).toBe(true);
-    const subs: { text_en: string; text_zh: string | null }[] =
-      (await subRes.json())?.subtitles ?? [];
-    const idx = Number(/^(\d+)\s*\/\s*\d+$/.exec(m.counter)?.[1] ?? "0") - 1;
-    expect(idx, `字幕计数「${m.counter}」读得出当前句序号`).toBeGreaterThanOrEqual(0);
-    expect(subs[idx], `第 ${idx + 1} 句在字幕表里`).toBeTruthy();
-    expect(m.sentenceEn.replace(/\s+/g, " "), "卡里是当前句全文").toBe(
-      subs[idx].text_en.replace(/\s+/g, " ").trim()
-    );
-
-    // DEC-073 判据 1：这一句有译文时，中文行**必须在**带上，且没有被卡的边界切掉。
-    if (subs[idx]?.text_zh) {
-      expect(m.zhInfo.present, "当前句有中文译文 ⇒ 带上必须有中文行").toBe(true);
-      expect(m.zhInfo.height, "中文行有真实行高（不是被压成 0）").toBeGreaterThanOrEqual(16);
-      expect(
-        m.zhInfo.bottom!,
-        `中文行底 ${m.zhInfo.bottom?.toFixed(0)} 不得越出卡底 ${m.zhInfo.cardBottom?.toFixed(0)}`
-      ).toBeLessThanOrEqual(m.zhInfo.cardBottom! + 1);
-    }
-    console.log(
-      `[DEC-073 判据 1] 中文行 present=${m.zhInfo.present} 高 ${m.zhInfo.height.toFixed(0)}px ` +
-        `底 ${m.zhInfo.bottom?.toFixed(0) ?? "--"} / 卡底 ${m.zhInfo.cardBottom?.toFixed(0) ?? "--"}`
-    );
-
-    // ≥3 条文稿完整落在可视区里。
-    console.log(
-      `[#31 判据 2] 414×896 顶栏 ${m.topBar!.height.toFixed(0)}px 底栏 ${m.bar!.height.toFixed(0)}px ` +
-        `当前句卡 ${m.card!.height.toFixed(0)}px 文稿可见区 ${m.clipTop.toFixed(0)}..${m.clipBottom.toFixed(0)} ` +
-        `完整可见 ${m.fullyVisible.length}/${m.lineCount} 条`
-    );
+    expect(response.ok()).toBe(true);
+    const subtitles = (await response.json()).subtitles;
+    const index = Number(counter.split("/")[0].trim()) - 1;
     expect(
-      m.fullyVisible.length,
-      `首屏不滚动可见的文稿条数（实测 ${m.fullyVisible.length}/${m.lineCount}）`
-    ).toBeGreaterThanOrEqual(3);
+      (await page.getByTestId("current-sentence-en").innerText()).replace(/\s+/g, " ").trim()
+    ).toBe(subtitles[index].text_en.replace(/\s+/g, " ").trim());
+    if (subtitles[index].text_zh)
+      await expect(page.getByTestId("current-sentence-zh")).toBeVisible();
+    expect(await page.locator(BAR).getAttribute("data-shell-bottom-bar")).toBeNull();
+    await expect(page.getByTestId("watch-toggle-play")).toBeVisible();
   });
 
   /**
@@ -315,18 +213,18 @@ test.describe("桌面端守卫（DEC-069 不动 ≥1024px）", () => {
     await enterWatch(page, request, { mobile: false });
 
     // ① 桌面端不走观看页形态：两个栏都不在。
-    await expect(page.locator(TOP_BAR)).toHaveCount(0);
+    await expect(page.locator(TOP_BAR)).toBeVisible();
     await expect(page.locator(BAR)).toHaveCount(0);
     await expect(page.locator(`${TOP_BAR} [data-testid="level-selector"]`)).toHaveCount(0);
 
     // ② 全局顶栏照旧：h-16 = 64px、可见。
-    const header = page.locator("header.h-16").first();
+    const header = page.locator(TOP_BAR);
     await expect(header, "桌面端仍是全局 TopBar").toBeVisible();
     expect(Math.round((await header.boundingBox())!.height), "桌面顶栏仍是 64px").toBe(64);
 
     // ③ 桌面端播放页的底栏槽位不渲染 5 Tab（`WatchBottomBar` 在 ≥1024px 返回 null，
     //    而壳已经不再渲染 `MobileTabBar`）—— 桌面控制条在画面里，由 VideoControls 负责。
-    await expect(page.locator('[data-testid="mobile-tab-bar"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="mobile-tab-bar"]')).toBeHidden();
 
     // ④ `MobileTabBar` 本身的行为不变：非观看路由上照旧渲染，且仍是 `md:hidden`（桌面 display:none）。
     await page.goto("/");
@@ -337,7 +235,7 @@ test.describe("桌面端守卫（DEC-069 不动 ≥1024px）", () => {
     expect(await tabBar.evaluate((el) => getComputedStyle(el).display), "md:hidden 的计算值").toBe(
       "none"
     );
-    await expect(page.locator(TOP_BAR)).toHaveCount(0);
+    await expect(page.locator(TOP_BAR)).toBeVisible();
     await expect(page.locator(BAR)).toHaveCount(0);
   });
 });

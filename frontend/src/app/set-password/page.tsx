@@ -2,21 +2,16 @@
 
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertCircle, Lock, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
-import {
-  PASSWORD_HINT,
-  PASSWORD_RE,
-  PASSWORD_RULE_MESSAGE,
-  passwordStrength,
-} from "@/lib/password";
+import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
-import { cn } from "@/lib/utils";
+import { PasswordField } from "@/components/auth/PasswordField";
 
 type Origin = "register" | "login" | "";
 
@@ -25,9 +20,6 @@ const SUBTITLE: Record<Origin, string> = {
   login: "已登录，设置后可用手机号 + 密码登录。",
   "": "设置后可用手机号 + 密码登录。",
 };
-
-const STRENGTH_LABEL = ["强度", "弱", "中", "强"] as const;
-const STRENGTH_COLOR = ["", "bg-error", "bg-warning", "bg-success"] as const;
 
 /**
  * 设置登录密码（原型「设置登录密码」视图）。
@@ -57,13 +49,11 @@ function SetPasswordForm() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   // 错误归属于哪个字段：只有它该红的那个框才红（空串 = 表单级错误，不染红任何输入框）。
   const [errorField, setErrorField] = useState<"" | "password" | "confirm">("");
+  const [fieldError, setFieldError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const strength = passwordStrength(password);
 
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
@@ -79,15 +69,16 @@ function SetPasswordForm() {
     // 回车提交不受按钮 disabled 约束，所以在途要在这里再挡一次。
     if (loading) return;
     setError("");
+    setFieldError("");
     setErrorField("");
 
     if (!PASSWORD_RE.test(password)) {
-      setError(PASSWORD_RULE_MESSAGE);
+      setFieldError(PASSWORD_RULE_MESSAGE);
       setErrorField("password");
       return;
     }
     if (password !== confirm) {
-      setError("两次输入的密码不一致");
+      setFieldError("两次输入的密码不一致，请检查第二遍输入是否有多余空格。");
       setErrorField("confirm");
       return;
     }
@@ -109,98 +100,52 @@ function SetPasswordForm() {
 
   return (
     <AuthCard title="设置登录密码" subtitle={SUBTITLE[from]}>
+      <div className="mt-4 flex items-start gap-2 rounded-md border border-hairline bg-surface-soft px-3 py-2.5 text-meta leading-relaxed text-body">
+        <Lock size={15} className="mt-0.5 flex-none text-muted" aria-hidden="true" />
+        <span>
+          <strong className="font-semibold text-ink">密码只用于本站登录</strong>
+          ，服务器只存加盐哈希。忘记密码可以随时用验证码找回，不会被锁在账号外。
+        </span>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <label htmlFor="setpw-password" className="block text-copy font-medium text-ink">
-            新密码
-          </label>
-          <div
-            className={cn(
-              "flex h-[46px] items-stretch overflow-hidden rounded-md border-[1.5px] bg-surface-card transition-colors focus-within:border-brand-500 focus-within:bg-canvas focus-within:ring-4 focus-within:ring-brand-500/15",
-              errorField === "password" ? "border-error" : "border-hairline hover:border-muted"
-            )}
-          >
-            <input
-              id="setpw-password"
-              name="new-password"
-              type={show ? "text" : "password"}
-              autoComplete="new-password"
-              disabled={loading}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError("");
-                setErrorField("");
-              }}
-              placeholder="请输入新密码"
-              aria-invalid={errorField === "password"}
-              aria-describedby={error ? "setpw-error" : undefined}
-              className="min-w-0 flex-1 bg-transparent px-3.5 text-copy text-ink outline-none placeholder:text-muted-soft"
-            />
-            <button
-              type="button"
-              onClick={() => setShow((s) => !s)}
-              aria-label={show ? "隐藏密码" : "显示密码"}
-              aria-pressed={show}
-              className="flex items-center pr-3.5 pl-2 text-muted transition-colors hover:text-ink"
-            >
-              {show ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </div>
+        <PasswordField
+          id="setpw-password"
+          label="新密码"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            setError("");
+            setErrorField("");
+            setFieldError("");
+          }}
+          placeholder="请输入新密码"
+          disabled={loading}
+          error={errorField === "password" ? fieldError : undefined}
+          showMeter
+          showRules
+          hint="强度条第三档 = 可直接提交，两处口径完全一致，不会出现「显示强却被拒」。"
+        />
 
-          <div className="flex items-center gap-2 pt-0.5">
-            <div
-              className="flex flex-1 gap-1"
-              role="img"
-              aria-label={`密码强度：${STRENGTH_LABEL[strength]}`}
-            >
-              {[1, 2, 3].map((seg) => (
-                <span
-                  key={seg}
-                  className={cn(
-                    "h-1 flex-1 rounded-full transition-colors",
-                    seg <= strength ? STRENGTH_COLOR[strength] : "bg-surface-card"
-                  )}
-                />
-              ))}
-            </div>
-            <span className="text-caption text-muted">{STRENGTH_LABEL[strength]}</span>
-          </div>
-
-          <p className="text-meta leading-relaxed text-muted">{PASSWORD_HINT}</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="setpw-confirm" className="block text-copy font-medium text-ink">
-            确认密码
-          </label>
-          <input
-            id="setpw-confirm"
-            name="confirm-password"
-            type={show ? "text" : "password"}
-            autoComplete="new-password"
-            disabled={loading}
-            value={confirm}
-            onChange={(e) => {
-              setConfirm(e.target.value);
-              setError("");
-              setErrorField("");
-            }}
-            placeholder="再次输入密码"
-            aria-invalid={errorField === "confirm"}
-            aria-describedby={error ? "setpw-error" : undefined}
-            className={cn(
-              "h-[46px] w-full rounded-md border-[1.5px] bg-surface-card px-3.5 text-copy text-ink outline-none transition-colors placeholder:text-muted-soft focus:border-brand-500 focus:bg-canvas focus:ring-4 focus:ring-brand-500/15",
-              errorField === "confirm" ? "border-error" : "border-hairline hover:border-muted"
-            )}
-          />
-        </div>
+        <PasswordField
+          id="setpw-confirm"
+          label="确认密码"
+          value={confirm}
+          onChange={(value) => {
+            setConfirm(value);
+            setError("");
+            setErrorField("");
+            setFieldError("");
+          }}
+          placeholder="再次输入密码"
+          disabled={loading}
+          error={errorField === "confirm" ? fieldError : undefined}
+        />
 
         {error && (
           <div
-            id="setpw-error"
             role="alert"
-            className="flex items-start gap-2 rounded-sm border border-error/20 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error"
+            className="flex items-start gap-2 rounded-sm border border-error/30 bg-red-soft px-3 py-2.5 text-meta leading-relaxed text-error-text"
           >
             <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>{error}</span>
@@ -224,15 +169,18 @@ function SetPasswordForm() {
         </Button>
       </form>
 
-      <div className="mt-5 text-center">
+      <div className="mt-5 flex flex-col items-center gap-1.5">
         <button
           type="button"
           onClick={finish}
           disabled={loading}
-          className="text-copy font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:text-muted-soft"
+          className="text-copy font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed"
         >
           暂时跳过
         </button>
+        <p className="text-caption text-muted">
+          跳过不影响验证码登录，之后可在「我的 → 学习设置」补密码。
+        </p>
       </div>
     </AuthCard>
   );

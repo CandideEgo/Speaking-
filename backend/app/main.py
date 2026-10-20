@@ -14,15 +14,18 @@ from sqlalchemy import text
 
 from app.api.v1 import (
     admin,
+    admin_home_content,
     auth,
     behavior,
     browse,
     catalog,
     channels,
+    discovery,
     exam_pdfs,
     exams,
     favorites,
     feedback,
+    home_editorial,
     internal,
     learning,
     learning_plan,
@@ -301,9 +304,14 @@ def create_app() -> FastAPI:
     app.include_router(vocab_sets.router, prefix="/api/v1")
     app.include_router(words.router, prefix="/api/v1")
     app.include_router(browse.router, prefix="/api/v1")
+    # 首页编辑内容：公共读取（无缓存，见 services.home_content_service.resolve_public_page）
+    app.include_router(home_editorial.router, prefix="/api/v1")
     app.include_router(recommendations.router, prefix="/api/v1")
     app.include_router(channels.router, prefix="/api/v1")
+    app.include_router(discovery.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
+    # 管理员首页编辑内容（草稿/生成/发布/布局）；鉴权在路由内用 get_admin_user。
+    app.include_router(admin_home_content.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")
     app.include_router(feedback.router, prefix="/api/v1")
     app.include_router(feedback.admin_router, prefix="/api/v1")

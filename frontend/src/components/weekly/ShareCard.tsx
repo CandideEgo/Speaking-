@@ -28,10 +28,10 @@ interface ShareCardProps {
 
 const W = 1080;
 const H = 1920;
-const CREAM = "#FDF8F3";
-const BRAND = "#FF6B4A";
-const INK = "#2B2118";
-const MUTED = "#8A7F74";
+const CREAM = "#ffffff";
+const BRAND = "#ff5a1f";
+const INK = "#0a0a0a";
+const MUTED = "#71717a";
 
 const FONT = '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
@@ -162,7 +162,7 @@ export function ShareCard({ report, onReady }: ShareCardProps) {
       ctx.fillStyle = INK;
       ctx.font = `bold 44px ${FONT}`;
       ctx.textAlign = "center";
-      ctx.fillText(`“${report.highlight ?? "坚持就是胜利"}”`, W / 2, 1330);
+      ctx.fillText(`“${report.highlight ?? "在真实语境中，慢慢积累"}”`, W / 2, 1330);
       ctx.textAlign = "left";
 
       // ── 底部品牌区：slogan + 二维码 + 引导语 ──

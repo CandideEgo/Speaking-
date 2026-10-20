@@ -38,6 +38,25 @@ export function timeAgo(dateStr: string): string {
 }
 
 /**
+ * Format a timestamp as a relative *day* label: 今天 / 昨天 / N 天前 / 10月18日.
+ * Segment differences are computed on local calendar days, so a record touched
+ * at 23:59 and one at 00:01 are "昨天" and "今天" even though both are minutes ago.
+ * Returns null for missing/invalid values (callers hide the sentence).
+ */
+export function formatRelativeDay(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const startOfDay = (input: Date) =>
+    new Date(input.getFullYear(), input.getMonth(), input.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
+  if (days <= 0) return "今天";
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+/**
  * Format a view count to compact string (e.g. 1.2M, 3.4K)
  */
 export function formatViews(n: number | null): string {

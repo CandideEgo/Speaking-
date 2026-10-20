@@ -12,6 +12,7 @@ export interface VideoItem {
   channel_slug?: string | null;
   thumbnail_url: string;
   duration: number | null;
+  wpm?: number | null;
   view_count: number | null;
   /** 站内收藏总数（/browse/feed 下发；搜索等来源可能缺省）。 */
   favorite_count?: number | null;

@@ -5,26 +5,10 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
-import type { LucideIcon } from "lucide-react";
-import { Sparkles, Radio, GraduationCap, BookOpen, User } from "lucide-react";
+import { MAIN_NAV, navigationActive } from "@/lib/navigation";
 
-interface TabItem {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-  showBadge?: boolean;
-}
-
-/** Mobile bottom tab bar - 5 direct links (首页/频道/练习/词汇/我的).
- * P1-4 导航 IA：与桌面 TopBar 同顺序、同文案、同高亮。
- * 退出登录已迁入 TopBar 头像菜单，故「我的」为直链 /profile。 */
-const TABS: TabItem[] = [
-  { label: "首页", href: "/", icon: Sparkles },
-  { label: "频道", href: "/browse", icon: Radio },
-  { label: "练习", href: "/practice", icon: GraduationCap },
-  { label: "词汇", href: "/vocabulary", icon: BookOpen, showBadge: true },
-  { label: "我的", href: "/profile", icon: User },
-];
+/** 手机底部导航与桌面侧栏共用五个**一级**入口，顺序和页面归属一致。 */
+const TABS = MAIN_NAV;
 
 export function MobileTabBar() {
   const pathname = usePathname();
@@ -50,16 +34,10 @@ export function MobileTabBar() {
   }, [fetchStats]);
 
   function isActive(href: string) {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    return navigationActive(pathname, href);
   }
 
   if (isExamFlow) return null;
-
-  // DEC-069 / #31：观看页的底栏槽位让给 `WatchBottomBar`（进度 + 上一句/播放/下一句/跟读），
-  // 5 Tab 在观看时零用途 —— 与 `isExamFlow` 同一个先例：壳按路由换掉这一行，
-  // 两个底栏不会叠加（壳在 `/watch/*` 上根本不渲染这个组件，这里再挡一道）。
-  if (pathname.startsWith("/watch/")) return null;
 
   // 底栏是壳里的常规流元素，**不是** `fixed bottom-0`：
   // iOS Safari 上 fixed 锚的是 layout viewport（= 工具栏收起时的高度 100lvh），
@@ -69,6 +47,7 @@ export function MobileTabBar() {
   return (
     <nav
       data-testid="mobile-tab-bar"
+      aria-label="底部导航"
       className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden"
     >
       <div className="flex items-center justify-around">
@@ -80,15 +59,15 @@ export function MobileTabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[44px] transition-colors",
-                active ? "text-brand-500" : "text-muted hover:text-ink"
+                "relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[60px] transition-colors",
+                active ? "text-brand-700" : "text-muted hover:text-ink"
               )}
             >
               <div className="relative">
                 <tab.icon size={20} />
                 {/* 计数徽标走主色（S8-1）：与 TopBar 到期词徽标同一语言；error 红只留给真错误态 */}
                 {tab.showBadge && mounted && dueCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-brand-500 text-on-primary text-caption font-bold leading-none">
+                  <span className="absolute -top-1.5 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-500 px-1 text-caption font-bold leading-none text-on-primary">
                     {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}

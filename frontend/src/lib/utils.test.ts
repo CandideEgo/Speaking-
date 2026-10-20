@@ -11,6 +11,23 @@ describe("cn", () => {
   it("skips falsy values", () => {
     expect(cn("a", false, null, undefined, 0, "b")).toBe("a b");
   });
+
+  // 回归：tailwind-merge 默认不认 @theme 里的自定义字号刻度，会把
+  // `text-meta text-muted` 归到同一组、丢掉字号类。Globals 里 12/13/15/24/30
+  // 的字号层级全靠这几条不被吃掉。
+  it("keeps custom font-size tokens when a text color is present", () => {
+    expect(cn("text-meta", "text-muted")).toBe("text-meta text-muted");
+    expect(cn("text-copy", "text-ink")).toBe("text-copy text-ink");
+    expect(cn("text-caption", "text-muted-soft")).toBe("text-caption text-muted-soft");
+    expect(cn("font-mono", "text-copy-lg", "text-brand-700")).toBe(
+      "font-mono text-copy-lg text-brand-700"
+    );
+  });
+
+  it("still lets a later custom font-size win", () => {
+    expect(cn("text-copy", "text-copy-lg")).toBe("text-copy-lg");
+    expect(cn("text-display-sm", "sm:text-display")).toBe("text-display-sm sm:text-display");
+  });
 });
 
 describe("classNames", () => {

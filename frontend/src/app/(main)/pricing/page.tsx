@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 
 /**
- * 内测期免费开放（需求 §2.3）：不引入 Pro 概念，定价页退役 → 首页。
+ * 定价页并入会员购买页（/upgrade）。
+ * 公测起会员在站内登录后购买，购买链接带签名标识，付款后自动开通。
  */
 export default function PricingPage() {
-  redirect("/");
+  redirect("/upgrade");
 }

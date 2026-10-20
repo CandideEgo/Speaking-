@@ -10,12 +10,12 @@ export function ShellSkeleton() {
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas">
       {/* Sidebar placeholder */}
-      <aside className="hidden md:flex w-[248px] flex-col border-r border-hairline bg-canvas">
-        <div className="h-16 border-b border-hairline flex items-center px-5">
+      <aside className="hidden md:flex w-52 shrink-0 flex-col border-r border-hairline bg-canvas">
+        <div className="h-20 flex items-center px-5">
           <div className="h-5 w-24 rounded-md bg-surface-card animate-pulse" />
         </div>
         <div className="flex-1 px-3 py-4 space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 px-3 py-2.5">
               <div className="w-[18px] h-[18px] rounded-md bg-surface-card animate-pulse" />
               <div
@@ -25,6 +25,9 @@ export function ShellSkeleton() {
             </div>
           ))}
         </div>
+        <div className="mx-3 mb-3 border-t border-hairline pt-3">
+          <div className="h-12 rounded-md bg-surface-card animate-pulse" />
+        </div>
       </aside>
 
       {/* Main area */}
@@ -33,12 +36,12 @@ export function ShellSkeleton() {
         <header className="h-16 flex-shrink-0 border-b border-hairline">
           <div className="container-page flex items-center gap-4 h-full">
             <div className="md:hidden w-9 h-9 rounded-md bg-surface-card animate-pulse" />
-            <div className="flex-1 flex justify-center">
-              <div className="w-full max-w-[360px] h-10 rounded-sm bg-surface-card animate-pulse" />
+            <div className="flex-1 flex justify-start">
+              <div className="w-full max-w-[320px] h-9 rounded-md bg-surface-card animate-pulse" />
             </div>
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-surface-card animate-pulse" />
-              <div className="w-8 h-8 rounded-full bg-surface-card animate-pulse" />
+              <div className="md:hidden w-8 h-8 rounded-full bg-surface-card animate-pulse" />
             </div>
           </div>
         </header>
