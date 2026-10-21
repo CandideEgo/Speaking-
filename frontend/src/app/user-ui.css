@@ -1345,7 +1345,29 @@
 .user-ui a.bg-brand-500,
 .user-ui button.bg-brand-500 {
   color: #fff;
+  background-color: var(--color-action-primary);
   box-shadow: none;
+}
+.user-ui :is(a, button).bg-brand-500:hover {
+  background-color: var(--color-action-primary-hover);
+}
+.user-ui .watch-mobile-heading.user-page-header {
+  margin-block: 0.25rem 0.5rem;
+  padding-block: 0;
+  border: 0;
+  gap: 0.25rem;
+}
+.user-ui .watch-mobile-heading .user-page-title {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.user-ui .watch-mobile-heading .user-page-desc {
+  margin-top: 0;
+}
+@media (max-width: 1023px) and (max-height: 700px) {
+  .user-ui [data-testid="video-frame"] {
+    max-height: 24dvh;
+  }
 }
 .user-ui :is(button, a)[data-variant="dark"] {
   color: var(--canvas);

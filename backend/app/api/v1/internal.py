@@ -86,7 +86,12 @@ async def transcription_callback(
     """
     settings = get_settings()
     expected = settings.transcription_callback_secret
-    if not expected or not secrets.compare_digest(x_callback_secret, expected):
+    # 常量时间比较必须比 **bytes**：``secrets.compare_digest`` 对非 ASCII 的
+    # str 会抛 TypeError（"comparing strings with non-ASCII characters is not
+    # supported"）。``x_callback_secret`` 来自 HTTP Header（latin-1 解码，
+    # 任何字节都能进来），非 ASCII 时同样的 TypeError 会把 401 变成 500。
+    # 先编成 UTF-8 字节再比：既保留常量时间语义，又不会抛异常。
+    if not expected or not secrets.compare_digest(x_callback_secret.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(status_code=401, detail="Invalid callback secret")
 
     result = await db.execute(select(Video).where(Video.id == payload.video_id))

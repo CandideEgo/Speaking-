@@ -27,14 +27,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 设计系统门（`npm run check` 的第一关）
 
-`frontend/scripts/check-design-system.mjs` 是**四条设计不变量唯一的机器执行点**。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
+`frontend/scripts/check-design-system.mjs` 是**六条设计不变量唯一的机器执行点**。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
 
 1. `src/app` 下**不得**出现 `container-page` / `container-wide`——容器归壳层所有
 2. `src` 下 `.ts`/`.tsx` **不得**出现原始调色板工具类（`bg-blue-100`、`text-slate-700` 之类）——用语义 token
 3. `src` 下 `.tsx` **不得**出现允许集外的 `rounded-*`——允许集仅 `sm|md|lg|pill|full|none`（含方向角）
-4. `src/app` 下的 `page.tsx` **不得**自己写 `<h1>`——用 `ui/PageHeader`
+4. `src/app` 下的 `page.tsx` **不得**自己写 `<h1>`——页面级 h1 只能来自 `ui/PageHeader`（通用）与 `components/home/HomeEditorialHero.tsx` 的 `HomeEditorialHeader`（首页专用）这两个组件；规则只管 page.tsx，组件内部不受限
+5. `src` 下 `.ts`/`.tsx` **不得**写任意值 hex 颜色（`border-[#2c2c2c]`）——用语义 token
+6. `src` 下 `.ts`/`.tsx` 的无色阶 `white`/`black` **不得当「面」用**：裸 `bg-white`/`bg-black` 要走语义 token；带透明度的叠加层（`bg-black/45`）与前景白字（深底上的 `text-white`）允许
 
-白名单**点名文件并写理由**，不允许通配（逼着人解释"为什么这个文件例外"）。被列进白名单的文件在该条规则下整文件豁免。**要加白名单之前先想清楚是不是在绕门禁**——根规则是「永不为让检查变绿而放宽检查器」。
+> 规则 6 按「作用面」分三档：叠加层（带透明度）允许；面（裸 `bg-white`/`bg-black`）违规；前景/描边（`text-white`/`border-white`）允许。
+> **前景白字不设卡的理由**：深底白字是本仓常态，语义 token `text-on-dark`(#fafafa) 不是逐字等价替换，且白字是否可读取决于**祖先**底色，静态扫不准——要设卡只能靠整文件豁免，那口子更大。
+
+白名单**点名文件并写理由**，不允许通配（逼着人解释"为什么这个文件例外"）。被列进白名单的文件在该条规则下整文件豁免。**要加白名单之前先想清楚是不是在绕门禁**——根规则是「永不为让检查变绿而放宽检查器」。门禁输出会把**生效中的白名单连理由一起打印**出来，方便评审直接看到每条例外为什么存在。
 
 ## 会话写入门（`npm run check` 的第二关）
 
@@ -46,9 +51,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **容器归属**：全站唯一的 `.container-page` 在 [`src/app/(main)/MainLayoutInner.tsx`](<src/app/(main)/MainLayoutInner.tsx>) 渲染一次。页面**不得**自己再加容器——这正是设计系统第 1 条拦的东西。
 
-**用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页与其他用户页面共享导航；播放、逐句跳转、跟读位于页面内容中。手机词卡与跟读抽屉以全站底部导航为下边界，短视口至少保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
+**用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页与其他用户页面共享导航；播放、逐句跳转与本句重听位于页面内容中。手机词卡以全站底部导航为下边界，短视口至少保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
 
-桌面播放器的高度预算跟随实际句卡尺寸：保存跟读后出现的历史行会增加卡高，固定常量会把句卡再次挤出首屏。调整观看动作时同时运行 `watch-desktop-stage.spec.ts`，覆盖已有录音的账号。
+桌面播放器的高度预算跟随当前句与操作区实际尺寸。调整观看动作时同时运行 `watch-desktop-stage.spec.ts`；观看闭环与四种浏览器的隔离测试见 `e2e/watch-baseline-mobile.spec.ts`。旧录音表和文件只供历史数据保留、导出与注销清理，观看页不再读取录音记录。
 
 **`devIndicators: false` 是故意的，不是随手关的**（[`next.config.js`](next.config.js)）：Next 的 dev 徽标正好压在观看页底栏「上一句」的中心点上（实测 `elementFromPoint(52, 868)` 命中 `NEXTJS-PORTAL`），挪到右下角又压「跟读」，而底栏四角没有一个位置不压按钮——所以唯一能同时保住真机可点性与自动化判据的取值是整个关掉。编译/运行时错误浮层不受影响。
 
@@ -60,7 +65,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## e2e
 
-**生产验收独立运行**：`scripts/production-smoke.ps1` 在专用 Compose 项目中创建临时数据库、生成可播放媒体和 localhost 测试证书；用 `playwright.production.config.ts` 验证生产镜像经过 HTTPS nginx 的行为。`PRODUCTION_REGRESSION=1` 复用观看页与移动端回归，`PLAYWRIGHT_BASE_URL` 要与 `PRODUCTION_SMOKE_URL` 同设为该本机地址（旧测试 helper 读取前者）。结束后用脚本的 `-Stop` 清理专用容器与测试卷。该配置拒绝远程主机，不能用于向线上账户写入测试数据。常规 e2e 仍用下面的开发环境配置；两种方式都要保留，因为开发代理不会覆盖生产响应头、录音权限与静态资源问题。
+**生产验收独立运行**：`scripts/production-smoke.ps1` 在专用 Compose 项目中创建临时数据库、生成可播放媒体和 localhost 测试证书；用 `playwright.production.config.ts` 验证生产镜像经过 HTTPS nginx 的行为。`PRODUCTION_REGRESSION=1` 复用观看页与移动端回归，`PLAYWRIGHT_BASE_URL` 要与 `PRODUCTION_SMOKE_URL` 同设为该本机地址（旧测试 helper 读取前者）。结束后用脚本的 `-Stop` 清理专用容器与测试卷。该配置拒绝远程主机，不能用于向线上账户写入测试数据。常规 e2e 仍用下面的开发环境配置；两种方式都要保留，因为开发代理不会覆盖生产响应头、媒体访问与静态资源问题。
 
 **公开配置在构建时固定**：Docker 的 `NEXT_PUBLIC_*` 构建参数负责站点地址和已有公示信息；修改 Compose 运行时变量不会改变已构建的浏览器包。API 与媒体继续同源。会员链接、价格、期限从后端读取，公示字段为空时不补占位文字。
 

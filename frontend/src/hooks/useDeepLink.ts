@@ -3,10 +3,14 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 import type { PlaybackMode } from "@/hooks/useVideoPlayer";
-import { resolveWatchFocus } from "@/lib/watchEntry";
+import { resolveWatchFocus, watchFocusIssue } from "@/lib/watchEntry";
+import { findSubtitleIndex } from "@/lib/subtitles";
 import type { Subtitle } from "@/types";
 
 export interface DeepLinkArgs {
+  enabled?: boolean;
+  videoId?: string;
+  duration?: number | null;
   /** Player mode. The link only applies once the video can be seeked. */
   playbackMode: PlaybackMode;
   /**
@@ -26,7 +30,7 @@ export interface DeepLinkArgs {
    */
   onSentenceFocus: (index: number) => void;
   /** 词高亮：字幕列表的 selectedWord 联动 + 词卡。 */
-  onWordFocus: (word: string) => void;
+  onWordFocus: (word: string, subtitleIndex?: number | null) => void;
   /** Called only when the link explicitly requests autoplay. */
   onAutoplay?: () => void;
   /** Seek through the active playback backend; optionally starts playback. */
@@ -43,6 +47,9 @@ export interface DeepLinkArgs {
  * 播放位置拽回深链落点。
  */
 export function useDeepLink({
+  enabled = true,
+  videoId,
+  duration,
   playbackMode,
   subtitles,
   params,
@@ -55,11 +62,13 @@ export function useDeepLink({
   const appliedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (playbackMode !== "ready") return;
+    if (!enabled || playbackMode !== "ready") return;
     const focus = resolveWatchFocus(params, subtitles ?? []);
     if (!focus) return;
-    if (appliedRef.current === focus.key) return;
-    appliedRef.current = focus.key;
+    if (watchFocusIssue(params, subtitles ?? [], duration)) return;
+    const key = `${videoId ?? ""}|${focus.key}`;
+    if (appliedRef.current === key) return;
+    appliedRef.current = key;
 
     // 顺序与拆分前一致：先恢复跟随+高亮当前句，再 seek，最后点词。
     if (focus.subtitleIndex !== null) onSentenceFocus(focus.subtitleIndex);
@@ -68,10 +77,15 @@ export function useDeepLink({
       if (onSeek) onSeek(focus.seconds, autoplay);
       else if (videoRef.current) videoRef.current.currentTime = focus.seconds;
     }
-    if (focus.word) onWordFocus(focus.word);
+    if (focus.word) {
+      const index =
+        focus.subtitleIndex ??
+        (focus.seconds !== null ? findSubtitleIndex(subtitles ?? [], focus.seconds) : null);
+      onWordFocus(focus.word, index);
+    }
     if (autoplay && focus.seconds === null) onAutoplay?.();
     // videoRef 是稳定 ref；焦点回调只在应用那一刻读取。key 去重保证依赖变化
     // 或字幕刷新不会把播放位置反复拽回句子。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackMode, subtitles, params, onAutoplay, onSeek]);
+  }, [enabled, playbackMode, subtitles, params, onAutoplay, onSeek, duration, videoId]);
 }

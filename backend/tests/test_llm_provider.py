@@ -34,6 +34,11 @@ from app.services.llm_provider import (
     resolve_provider,
 )
 
+# 明显伪造的 provider key：形状与真 key 一致（``user_`` 前缀 + 32 位），
+# 但**不含任何真实片段**。真 key 一旦进仓库，推送前就必须轮换；
+# 而历史里那 37 字符片段仍然是泄露，换掉字面量不等于撤销泄露。
+FAKE_COMMANDCODE_KEY = "user_FAKE0000fake1111FAKE2222fake3333"
+
 
 def _settings(**overrides) -> Settings:
     """Build ``Settings`` from explicit kwargs only (no repo ``.env``).
@@ -212,11 +217,15 @@ def test_zdr_header_only_when_explicitly_enabled():
 
 
 def test_mask_secret_never_leaks_raw_key():
-    raw = "user_4CqwhXUJPDMEXg2oJU32uzsXhdYkJjWg"
+    # 明显伪造的 key：形状与真 key 一致（``user_`` 前缀 + 32 位），但**不含任何真实片段**。
+    # 真 key 一旦进仓库，推送前就必须轮换，而历史里那份片段仍然是泄露。
+    raw = FAKE_COMMANDCODE_KEY
     masked = mask_secret(raw)
-    assert masked.startswith("user_4")
-    assert masked.endswith("JjWg")
+    assert masked.startswith("user_F")
+    assert masked.endswith("3333")
     assert raw not in masked
+    # 中段必须被抹掉，只留前缀 6 位与后缀 4 位。
+    assert "FAKE0000fake1111" not in masked
     assert mask_secret("short") == "***"
     assert mask_secret("") == ""
 
@@ -262,10 +271,10 @@ def test_audit_reports_withdrawn_and_new_free_models():
 
 
 def test_provider_summary_masks_the_key():
-    s = _settings(commandcode_api_key="user_4CqwhXUJPDMEXg2oJU32uzsXhdYkJjWg")
+    s = _settings(commandcode_api_key=FAKE_COMMANDCODE_KEY)
     summary = provider_summary(s)
     assert summary["configured"] is True
-    assert "user_4CqwhXUJPDMEXg2oJU32uzsXhdYkJjWg" not in str(summary)
+    assert FAKE_COMMANDCODE_KEY not in str(summary)
     assert set(summary["tasks"]) == {TASK_TRANSLATION, TASK_WORD_NOTES, TASK_CLASSIFICATION, TASK_EDITORIAL}
 
 

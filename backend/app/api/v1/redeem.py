@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import _to_aware_utc, get_admin_user, get_current_user
+from app.api.dependencies import get_admin_user, get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.core.time_utils import to_aware_utc
 from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, User
 from app.schemas.pagination import paginated
@@ -183,7 +184,7 @@ async def redeem_code(
     # Enforce expiry in real time instead of relying on the daily
     # expire-unused beat task (a stale/stopped beat would leave expired
     # codes redeemable indefinitely).
-    if code.expires_at is not None and _to_aware_utc(code.expires_at) <= _utcnow():
+    if code.expires_at is not None and to_aware_utc(code.expires_at) <= _utcnow():
         raise HTTPException(status_code=400, detail="This code has expired")
 
     # Apply the code.
@@ -200,7 +201,7 @@ async def redeem_code(
     new_expires: datetime | None = None
     if code.duration_days and code.duration_days > 0:
         now = _utcnow()
-        current_expires = _to_aware_utc(current_user.plan_expires_at) if current_user.plan_expires_at else now
+        current_expires = to_aware_utc(current_user.plan_expires_at) if current_user.plan_expires_at else now
         new_expires = max(current_expires, now) + timedelta(days=code.duration_days)
         current_user.plan_expires_at = new_expires
 

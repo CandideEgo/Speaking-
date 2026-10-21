@@ -241,7 +241,12 @@ def provider_headers(provider: ProviderSpec) -> dict[str, str]:
 
 
 def mask_secret(secret: str) -> str:
-    """``user_4Cqw...FtgZ``-style masking so logs/diagnostics never carry a key."""
+    """``abcd12...wxyz``-style masking so logs/diagnostics never carry a key.
+
+    The example here is deliberately **not** a real key: a docstring that shows
+    a live prefix/suffix leaks those bytes into the repo (and into every clone
+    and CI log) even though the key itself is never written down.
+    """
     value = (secret or "").strip()
     if len(value) <= 10:
         return "***" if value else ""

@@ -14,7 +14,8 @@ from app.models.favorite import UserFavorite
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.video import VideoResponse
-from app.services.video_card import CARD_SHAPE_VERSION, serialize_video_card
+from app.services.ranking_service import current_week_start_utc
+from app.services.video_card import CARD_SHAPE_VERSION, video_card_payload
 from app.services.video_classification import TOPIC_CATEGORIES
 
 logger = structlog.get_logger()
@@ -69,12 +70,6 @@ async def _browse_feed_query(
         Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
     )
     if sort == "weekly_favorite":
-        # Imported here, not at module level: ranking_service imports
-        # channel_service, which imports _video_to_dict from this module — a
-        # module-level import would close that cycle. Same reason _channel_slug_map
-        # imports channel_service lazily.
-        from app.services.ranking_service import current_week_start_utc
-
         weekly = (
             select(UserFavorite.video_id.label("video_id"), func.count().label("metric"))
             .where(UserFavorite.created_at >= current_week_start_utc())
@@ -115,7 +110,7 @@ async def _browse_feed_query(
 
     slug_map = await _channel_slug_map(db, videos)
     return paginated(
-        [_video_to_dict(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
+        [video_card_payload(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
         page=page,
         page_size=page_size,
         total=total,
@@ -171,7 +166,7 @@ async def _browse_featured_query(*, db: AsyncSession, limit: int) -> dict:
 
     slug_map = await _channel_slug_map(db, videos)
     return {
-        "items": [_video_to_dict(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
+        "items": [video_card_payload(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in videos],
     }
 
 
@@ -184,19 +179,6 @@ async def browse_featured(
 ):
     """Return featured/highlighted videos for homepage hero section."""
     return await _browse_featured_query(db=db, limit=limit)
-
-
-def _video_to_dict(v: Video, channel_slug: str | None = None) -> dict:
-    """One browse card, as a plain dict. Delegates to services/video_card.
-
-    ``channel_slug`` (author page link, ADR-0014 rev.) is passed in by callers
-    that resolved the video's channel - keep it a parameter rather than a
-    per-row query so paged feeds resolve slugs in one batch.
-
-    Dumped to a dict because both callers sit behind ``@cached`` and the payload
-    goes straight into Redis as JSON.
-    """
-    return serialize_video_card(v, scope="feed", channel_slug=channel_slug).model_dump()
 
 
 async def _channel_slug_map(db: AsyncSession, videos) -> dict[str, str]:

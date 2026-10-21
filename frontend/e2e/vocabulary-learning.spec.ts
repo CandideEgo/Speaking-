@@ -1,9 +1,38 @@
 import { expect, test } from "@playwright/test";
 import { loginViaToken, registerUserViaApi, uniquePhone } from "./helpers";
 
+/**
+ * 考试词库（ECDICT）闭环。
+ *
+ * **外部数据依赖**：本 spec 依赖本机/测试环境的 ECDICT 词库——「添加词条」面板
+ * 的候选词全部来自 `GET /api/v1/discovery/dictionary?exam_level=cet4`，词库没下载
+ * 或没挂载时面板里一个候选都没有，断言必然失败。按 `e2e/watch.spec.ts` 的既有
+ * 约定，这种情况整条 skip 并写明原因（`backend/scripts/download_ecdict.py` 是
+ * 准备词库的脚本），而不是让 CI 必红。
+ *
+ * skip 只发生在「外部数据不满足」时：词库可用时，下面每一步产品断言都真跑。
+ */
+
 test("考试词库分批加入、筛词断点和掌握进度持久化，移出保留学习记录", async ({ page, request }) => {
   const { token } = await registerUserViaApi(request, uniquePhone());
   const headers = { Authorization: `Bearer ${token}` };
+
+  // 数据依赖守卫：先问一次词库接口，词库为空就跳过（同一个接口、同一个
+  // exam_level，前端「添加词条」面板用的就是它）。
+  const dictionary = await request.get("/api/v1/discovery/dictionary?exam_level=cet4&page_size=2", {
+    headers,
+  });
+  expect(dictionary.ok(), `dictionary probe -> ${await dictionary.text()}`).toBeTruthy();
+  const dictionaryBody = (await dictionary.json()) as { items?: unknown[]; total?: number };
+  if (!dictionaryBody.items?.length) {
+    test.skip(
+      true,
+      "外部数据依赖不满足：本机/测试环境没有可用的 ECDICT 词库（考试词库候选为空），" +
+        "本 spec 的「从词库挑词加入」无从谈起（词库准备脚本：backend/scripts/download_ecdict.py）。"
+    );
+    return;
+  }
+
   await page.addInitScript(() => localStorage.setItem("seeword_coach_done", "true"));
   await loginViaToken(page, token);
   await page.goto("/vocabulary/sets");

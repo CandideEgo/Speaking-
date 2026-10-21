@@ -12,9 +12,9 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import _to_aware_utc
 from app.core.database import commit_refresh
 from app.core.errors import BadRequestError, NotFoundError
+from app.core.time_utils import to_aware_utc
 from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
@@ -601,7 +601,7 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
     user.plan = PlanType(plan)
     if plan == "pro":
         now = datetime.now(UTC)
-        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+        current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
         base = max(current_expires, now)
         user.plan_expires_at = base + timedelta(days=duration_days)
     else:
@@ -681,7 +681,7 @@ async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode
         raise BadRequestError("Redeem code's user no longer exists; revoked without plan change")
 
     now = datetime.now(UTC)
-    current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+    current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
     new_expires = current_expires - timedelta(days=code.duration_days)
     if new_expires <= now:
         user.plan = PlanType.free

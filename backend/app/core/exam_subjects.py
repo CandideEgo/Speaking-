@@ -13,8 +13,23 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
+
+class ExamSubject(TypedDict):
+    """一条科目记录：展示名 + 排序权重（``order`` 越小越靠前）。
+
+    用 TypedDict 而不是 ``dict[str, object]``：后者会把 ``order`` 退化成
+    ``object``，于是「按 order 排序」在类型层面就无从比较（``sorted`` 的
+    key 回调要求可比较类型）。
+    """
+
+    label: str
+    order: int
+
+
 # 科目 key -> 展示名与排序（order 越小越靠前）。
-EXAM_SUBJECTS: dict[str, dict[str, object]] = {
+EXAM_SUBJECTS: dict[str, ExamSubject] = {
     "cet4": {"label": "四级", "order": 1},
     "cet6": {"label": "六级", "order": 2},
     "ky1": {"label": "考研英语一", "order": 3},
@@ -29,4 +44,7 @@ EXAM_SUBJECT_KEYS: list[str] = [k for k, _ in sorted(EXAM_SUBJECTS.items(), key=
 
 def subject_label(key: str) -> str:
     """中文名；表里没有的原样返回，免得新科目在界面上变成空白。"""
-    return str(EXAM_SUBJECTS.get(key, {}).get("label") or key)
+    subject = EXAM_SUBJECTS.get(key)
+    if subject is None:
+        return key
+    return subject["label"] or key

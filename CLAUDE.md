@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目速览
 
-**SeeWord** — 视频 + 字幕逐词点读的英语学习站。用户看视频、点单词查义、跟读练习、做词汇复习与四六级试卷。
+**SeeWord** — 视频 + 字幕逐词点读的英语学习站。用户看视频、点单词查义、重听原句、做词汇复习与四六级试卷。
 
 - 后端：FastAPI(Python 3.12) + SQLAlchemy 2.0 async + Celery + Alembic，源码在 `backend/`
 - 前端：Next.js 16 App Router + React 19 + Tailwind v4 + Zustand，源码在 `frontend/`
@@ -101,7 +101,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、管线看门狗、失败下载重试、评分（小时/天）、榜单快照、每小时提醒、周报、注销账号清理。
+`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、管线看门狗、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理；旧周报任务保留空操作入口，供已入队消息安全结束。
 
 Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`、`run_gpu_worker.ps1`）。
 
@@ -131,11 +131,11 @@ Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`
 
 ### 前端装配
 
-Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户壳）与 `(admin)`（管理壳），另有裸路由 `login` / `register` / `forgot-password` / `set-password` / `onboarding` / `terms` / `privacy`。
+Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户壳，其下有 20+ 个子 `layout.tsx`）与 `(admin)`（管理壳），另有裸路由 `login` / `register` / `forgot-password` / `set-password` / `onboarding` / `terms` / `privacy`——其中 `forgot-password` / `set-password` / `onboarding` 各有自己的 `layout.tsx`；`(main)/browse` 是 `route.ts` 307 重定向到 `/`。
 
 **手写 fetch 封装，没有 React Query 也没有 SWR。** `frontend/src/lib/createApiClient.ts` 是工厂，提供：仅对 GET/HEAD 的 5xx 重试（1s/2s 退避）、发请求前的 JWT 过期预检、401 单次刷新、解析上面的错误 envelope、GET 在途去重与可选 `cacheTtlMs` TTL 缓存。用户端实例是 `lib/api.ts`，管理端是 `lib/adminApi.ts`——**两套 token、两套会话**。
 
-**token 双重存放**：真身在 Zustand `authStore` 的 localStorage，请求时带 `Authorization: Bearer`；同时镜像到 cookie `seeword_token`，让 `frontend/src/proxy.ts`（Next 16 把 middleware 改名 proxy）的边缘登录墙能读到。**登录墙只查 cookie 是否存在**，不解析 JWT、不查库，所以它挡的是"完全未登录"，真正鉴权仍在后端。因为 `<video>`/`<audio>` 发不了请求头，`mediaUrl()` 用 `?token=` 附 token（跟读/字幕音频走这条路）。
+**token 双重存放**：真身在 Zustand `authStore` 的 localStorage，请求时带 `Authorization: Bearer`；同时镜像到 cookie `seeword_token`，让 `frontend/src/proxy.ts`（Next 16 把 middleware 改名 proxy）的边缘登录墙能读到。**登录墙只查 cookie 是否存在**，不解析 JWT、不查库，所以它挡的是"完全未登录"，真正鉴权仍在后端。因为 `<video>`/`<audio>` 发不了请求头，`mediaUrl()` 用 `?token=` 附 token（媒体及受保护的历史音频走这条路）。
 
 **样式**：Tailwind v4 CSS-first，**没有 `tailwind.config`**。token 定义在 `frontend/src/app/globals.css` 的 `@theme {}`，语义色（`--color-canvas` / `surface-*` / `ink` / `body` / `muted` / `hairline` / `brand-*`）靠 `:root` 与 `.dark` 两套变量切换，所以暗色模式是"换变量"而不是"改类名"。`hooks/useTheme.ts` + `layout.tsx` 里的内联脚本负责防闪烁。
 

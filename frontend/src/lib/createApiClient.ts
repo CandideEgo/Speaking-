@@ -86,6 +86,17 @@ export interface CreateApiClientOptions {
   ErrorClass?: typeof ApiClientError;
   /** Whether to handle 204 No Content and non-JSON responses (admin client needs this) */
   handleNonJsonResponses?: boolean;
+  /**
+   * Identity of this client for cache / in-flight isolation (defaults to an
+   * auto-generated per-instance id).
+   *
+   * The user client (`lib/api.ts`) and the admin client (`lib/adminApi.ts`) are
+   * two separate sessions with two separate tokens, but the GET cache and the
+   * in-flight dedupe live at module level. Give each client its own scope so
+   * one session can never read another's cached payload or borrow its
+   * Authorization header — see the "key composition" note below.
+   */
+  cacheScope?: string;
 }
 
 export interface ApiClientRequestOptions extends Omit<RequestInit, "signal"> {
@@ -107,10 +118,50 @@ export interface ApiClientRequestOptions extends Omit<RequestInit, "signal"> {
 // - TTL cache: opt-in via `cacheTtlMs`; useful for near-static payloads.
 // Any non-GET request invalidates the whole TTL cache (crude but safe —
 // mutations are rare relative to reads).
+//
+// **键里必须带身份**（G2 / checklist 6.1）：`lib/api.ts`（用户端）与
+// `lib/adminApi.ts`（管理端）是两套会话、两套 token，却共用本模块的模块级缓存。
+// 键只有 url 时会出两个真故障：
+//   1) 用户端登录后 `/api/v1/users/me` 进 30s TTL 缓存；管理端再请求同一 URL
+//      会**命中用户端的缓存**（不校验 admin token）→ `u.role !== "admin"`
+//      → 管理员被弹回 `/admin/login`，表现为「明明是管理员却登不进后台」；
+//   2) `_inflightGets` 无条件对所有 GET 生效：两个 client 同时请求同一 URL 时
+//      共用同一个 in-flight promise，只发一次请求、带的是先发起那次的 token。
+// 现在键 = `<scope>|<session token>|<url>`：
+//   - scope：每个 client 实例一个（可用 `cacheScope` 显式命名，如 user/admin），
+//     两套会话的缓存与在途请求天然不互通；
+//   - session token：同一 client 里换人登录（token 变了）也不会读到上一个人的缓存；
+//   - url：请求本身。
+//
+// 存储仍是一个模块级 Map（不是每 client 一个实例）：这样任何非 GET 写操作
+// 依旧能一次性作废全部 TTL 缓存（见 request() 里的 clear），不会因为隔离而
+// 让「管理端改了内容、用户端还拿着旧缓存」。
 
-const _getCache = new Map<string, { value: unknown; expiresAt: number }>();
+type CacheEntry = { value: unknown; expiresAt: number; url: string };
+
+const _getCache = new Map<string, CacheEntry>();
 const _inflightGets = new Map<string, Promise<unknown>>();
 const _GET_CACHE_MAX = 200;
+
+/** Auto-incrementing id: gives every client instance an independent scope. */
+let _clientSeq = 0;
+
+/**
+ * Session identity for cache keys — the access token itself.
+ *
+ * The token *is* the session identity: a hash would only trade a (tiny but
+ * real) collision risk — i.e. one session reading another session's payload —
+ * for a shorter key. The key never leaves this module's in-memory Map: it is
+ * not logged, not persisted and not sent anywhere.
+ */
+function _sessionIdentity(token: string | null): string {
+  return token ?? "anon";
+}
+
+/** Cache key: client identity + session identity + request. */
+function _cacheKey(scope: string, token: string | null, url: string): string {
+  return `${scope}|${_sessionIdentity(token)}|${url}`;
+}
 
 /** Drop cached GET responses (all of them, or those whose URL starts with `prefix`). */
 export function clearApiCache(prefix?: string) {
@@ -118,8 +169,11 @@ export function clearApiCache(prefix?: string) {
     _getCache.clear();
     return;
   }
-  for (const key of _getCache.keys()) {
-    if (key.startsWith(prefix)) _getCache.delete(key);
+  // The key is now composite, so match on the URL it was stored with — the
+  // documented semantics ("drop cached GETs whose URL starts with prefix")
+  // stay the same for callers.
+  for (const [key, entry] of _getCache) {
+    if (entry.url.startsWith(prefix)) _getCache.delete(key);
   }
 }
 
@@ -143,6 +197,9 @@ async function _dedupedGet<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 export function createApiClient(options: CreateApiClientOptions) {
   const { baseUrl, auth, ErrorClass = ApiClientError, handleNonJsonResponses = false } = options;
+  // Each client instance gets its own scope, so the user session and the admin
+  // session never share a cached payload or an in-flight request.
+  const scope = options.cacheScope ?? `client-${++_clientSeq}`;
 
   async function request<T = unknown>(
     path: string,
@@ -153,18 +210,21 @@ export function createApiClient(options: CreateApiClientOptions) {
     const url = path.startsWith("http") ? path : `${baseUrl}${path}`;
 
     if (method === "GET" && !rest.body && !rest.signal) {
+      // Identity-aware key: same URL under a different client or a different
+      // session is a different entry (and a different in-flight request).
+      const key = _cacheKey(scope, auth.getToken(), url);
       const fetchFn = () => performRequest<T>(url, rest);
       if (cacheTtlMs && cacheTtlMs > 0) {
-        const hit = _getCache.get(url);
+        const hit = _getCache.get(key);
         if (hit && hit.expiresAt > Date.now()) {
           return _clone(hit.value) as T;
         }
-        const value = await _dedupedGet(url, fetchFn);
+        const value = await _dedupedGet(key, fetchFn);
         if (_getCache.size >= _GET_CACHE_MAX) _getCache.clear();
-        _getCache.set(url, { value, expiresAt: Date.now() + cacheTtlMs });
+        _getCache.set(key, { value, expiresAt: Date.now() + cacheTtlMs, url });
         return _clone(value) as T;
       }
-      return _dedupedGet(url, fetchFn);
+      return _dedupedGet(key, fetchFn);
     }
 
     // Mutations invalidate cached GET payloads.

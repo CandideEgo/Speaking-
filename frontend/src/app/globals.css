@@ -27,6 +27,9 @@
   --color-brand-400: #ff7a45;
   --color-brand-500: #ff5a1f;
   --color-brand-600: #e84a10;
+  /* 白字按钮专用，保留品牌主色用于图形与强调。两主题同值。 */
+  --color-action-primary: #c2410c;
+  --color-action-primary-hover: #9a3412;
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
   --color-brand-900: #7d2c12;

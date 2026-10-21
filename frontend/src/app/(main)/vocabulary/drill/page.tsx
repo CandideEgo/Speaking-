@@ -10,7 +10,8 @@ import { useDailySession } from "@/hooks/useDailySession";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useVocabularyPractice } from "@/hooks/usePractice";
 import { api } from "@/lib/api";
-import { watchSentenceHref } from "@/lib/watchEntry";
+import { vocabularySource, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
+import { DictionaryMeaning } from "@/components/vocabulary/DictionaryMeaning";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
 import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { WordQuizCard } from "@/components/vocabulary/WordFlashcard";
@@ -240,7 +241,6 @@ function DailyTraining() {
     }
     return rows;
   }, [daily.session?.reviewWords, round.round?.items]);
-  const dueTotal = daily.session?.totals.due_total ?? 0;
 
   // 轮次与到期词就绪后一次性建队（加练开新轮时 sched 已被置空，走同一入口）。
   useEffect(() => {
@@ -392,7 +392,7 @@ function DailyTraining() {
     return (
       <DrillIntro
         words={previewWords}
-        dueTotal={dueTotal}
+        reviewCount={daily.session?.reviewWords.length ?? 0}
         expanded={previewExpanded}
         onToggleExpand={() => setPreviewExpanded((v) => !v)}
         onStart={() => setStarted(true)}
@@ -461,14 +461,14 @@ function DailyTraining() {
 /** 今日训练入口页（设计 drill.html 未带 ?start=1 的那一屏）。 */
 function DrillIntro({
   words,
-  dueTotal,
+  reviewCount,
   expanded,
   onToggleExpand,
   onStart,
   stats,
 }: {
   words: VocabularyWord[];
-  dueTotal: number;
+  reviewCount: number;
   expanded: boolean;
   onToggleExpand: () => void;
   onStart: () => void;
@@ -496,13 +496,7 @@ function DrillIntro({
       <div className="pt-6 pb-18">
         <PageHeader
           crumb="词汇 · 训练"
-          title={
-            dueTotal > 0 && words.length === dueTotal
-              ? `今日训练 · ${dueTotal} 个到期词`
-              : words.length > 0
-                ? `今日训练 · ${words.length} 个词`
-                : "今日训练"
-          }
+          title={words.length ? `本轮训练 · ${words.length} 个词` : "今日训练"}
           description="认词、巩固、听音选词三种题型轮换；答错或跳过的词会再问一次。随时可以退出。"
           actions={
             <>
@@ -527,16 +521,18 @@ function DrillIntro({
                   本次要练的 {words.length} 个词
                 </h2>
                 <span className="user-sec-sub">
-                  {dueTotal > 0 ? `今天到期 · ${dueTotal} 个复习词` : "今日队列"}
+                  {`本轮复习 ${reviewCount} 个 · 新词 ${words.length - reviewCount} 个`}
                 </span>
               </div>
               <p className="mt-3 text-meta leading-relaxed text-muted">
-                结合释义和原句记忆，点词可返回视频重温语境。
+                累计到期 {stats.due_count ?? 0} 个；本轮取 {reviewCount} 个复习词，另含{" "}
+                {words.length - reviewCount} 个新词。当前展示 {visible.length}/{words.length}{" "}
+                个，其余到期词留待后续轮次。
               </p>
               <ul className="mt-1 divide-y divide-hairline">
                 {visible.map((word) => {
                   const level = levelLabel(word.difficulty_level);
-                  const meaning = word.translation || word.definition || "释义待补充";
+                  const source = vocabularySource(word, "drill");
                   return (
                     <li key={word.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-3">
                       <div className="min-w-0 flex-1">
@@ -546,7 +542,9 @@ function DrillIntro({
                             <span className="font-mono text-meta text-muted">{word.ipa}</span>
                           )}
                           {word.part_of_speech && (
-                            <span className="text-meta text-muted">{word.part_of_speech}</span>
+                            <span className="text-meta text-muted">
+                              {partOfSpeechLabel(word.part_of_speech)}
+                            </span>
                           )}
                           {level && (
                             <span className="inline-flex items-center gap-1 text-meta text-muted">
@@ -555,22 +553,18 @@ function DrillIntro({
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-copy text-body">{meaning}</p>
+                        <DictionaryMeaning
+                          translation={word.translation}
+                          definition={word.definition}
+                          partOfSpeech={word.part_of_speech}
+                        />
                       </div>
-                      {word.video_id && (
+                      {source && (
                         <Link
-                          href={
-                            word.subtitle_id
-                              ? watchSentenceHref(
-                                  word.video_id,
-                                  { from: "drill" },
-                                  { word: word.word, subtitleId: word.subtitle_id }
-                                )
-                              : `/watch/${word.video_id}?from=drill`
-                          }
+                          href={source.href}
                           className="flex-none pt-1 text-meta text-brand-700 hover:underline"
                         >
-                          去原句 →
+                          {source.label}
                         </Link>
                       )}
                     </li>

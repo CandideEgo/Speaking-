@@ -13,13 +13,12 @@ import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { SetEditor } from "@/components/vocabulary/SetEditor";
 import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence";
-import { SetCelebrationModal } from "@/components/vocabulary/SetCelebrationModal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { api } from "@/lib/api";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import { relativeTime } from "@/lib/utils";
-import type { Paginated, VocabSetCelebration, VocabSetWord, VocabularyWord } from "@/types";
+import type { Paginated, VocabSetWord, VocabularyWord } from "@/types";
 
 /** 后端集合词行暂不返回等级；前端用词库第一页做 best-effort 补全，缺失时显示「—」。 */
 type SetWord = VocabSetWord & { difficulty_level?: string | null };
@@ -99,7 +98,6 @@ export default function VocabSetDetailPage() {
   const [levelMap, setLevelMap] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<VocabStats | null>(null);
   const [dueWords, setDueWords] = useState<Set<string> | null>(null);
-  const [celebration, setCelebration] = useState<VocabSetCelebration["card"] | null>(null);
 
   // 等级补全：集合词都来自用户词库，词库列表带 difficulty_level（最多取前 100 词）。
   useEffect(() => {
@@ -165,22 +163,6 @@ export default function VocabSetDetailPage() {
   const currentBatch = Math.min(batch, totalBatches);
   const visible = filtered.slice(0, currentBatch * BATCH);
   const rest = filtered.length - visible.length;
-
-  const fullyMastered = !!(detail && detail.total > 0 && masteredCount >= detail.total);
-  useEffect(() => {
-    if (!fullyMastered) return;
-    let cancelled = false;
-    api<VocabSetCelebration>(`/api/v1/vocab-sets/${id}/celebrate`, { method: "POST" })
-      .then((res) => {
-        if (!cancelled && res.first_time) setCelebration(res.card);
-      })
-      .catch(() => {
-        /* 庆祝失败不阻塞集合页 */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fullyMastered, id]);
 
   if (isLoading || !isAuthenticated) return <FullPageSpinner />;
 
@@ -608,7 +590,6 @@ export default function VocabSetDetailPage() {
         </div>
 
         <SetEditor detail={detail} onChange={reload} />
-        <SetCelebrationModal card={celebration} onClose={() => setCelebration(null)} />
       </main>
     </PageTransition>
   );

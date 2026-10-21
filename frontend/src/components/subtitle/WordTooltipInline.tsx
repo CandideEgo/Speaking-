@@ -15,10 +15,19 @@ import {
   AlignLeft,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { dictionaryPreview, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { cn } from "@/lib/utils";
 import { levelMeta, levelDotClass, wordHighlightClass } from "@/lib/examLevels";
 import { Button } from "@/components/ui/Button";
 import type { WordGloss } from "@/types";
+
+export interface WordHelpActions {
+  lookupError?: string | null;
+  enrichmentError?: boolean;
+  onRetry?: () => void;
+  onReplay?: () => void;
+  onReduceReplay?: () => void;
+}
 
 /** Split an ECDICT ``translation`` ("n. 十亿\nnum. 十亿") into {pos, text} senses. */
 function parseSenses(translation: string | null): { pos: string; text: string }[] {
@@ -27,22 +36,11 @@ function parseSenses(translation: string | null): { pos: string; text: string }[
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .slice(0, 3)
     .map((line) => {
       const m = line.match(/^([a-z]+)\.\s*(.*)$/i);
       if (m) return { pos: m[1].toLowerCase(), text: m[2] || line };
       return { pos: "", text: line };
     });
-}
-
-/** First line of a (possibly multi-line) English definition. */
-function firstLine(def: string): string {
-  return (
-    def
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)[0] ?? def
-  );
 }
 
 /** Wrap case-insensitive occurrences of ``target`` in ``text`` with a <mark>. */
@@ -98,6 +96,11 @@ export function WordCardBody({
   touchTargets = false,
   sourceLabel,
   onRevealSource,
+  lookupError,
+  enrichmentError,
+  onRetry,
+  onReplay,
+  onReduceReplay,
 }: {
   word: string;
   gloss: WordGloss | null;
@@ -113,8 +116,8 @@ export function WordCardBody({
   sourceLabel?: string | null;
   /** 设计 `.word-pop-actions .undo`「回看原句」：把文稿滚到该句高亮（不新建弹层）。 */
   onRevealSource?: (() => void) | null;
-}) {
-  const loading = !gloss;
+} & WordHelpActions) {
+  const loading = !gloss && !lookupError;
   const senses = parseSenses(gloss?.translation ?? null);
   const showFormBar = !!(gloss?.lemma && gloss?.inflection);
   // 「有词条」判定：ECDICT/词库给了任何一条可读信息才算。设计稿只让有词条的词可点；
@@ -131,7 +134,7 @@ export function WordCardBody({
       !!gloss.knowledge ||
       gloss.levels.length > 0 ||
       gloss.is_high_freq);
-  const isEmpty = !loading && !hasContent;
+  const isEmpty = !loading && !hasContent && !lookupError;
 
   return (
     <>
@@ -139,32 +142,64 @@ export function WordCardBody({
       <div
         {...(headerDrag ?? {})}
         className={cn(
-          "px-4 pt-4 pb-2 select-none",
+          "shrink-0 px-4 pt-2 pb-2 select-none",
           headerDrag && "cursor-grab active:cursor-grabbing"
         )}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {/* 显示字幕中的原词（surface form），而非 lemma */}
-            <h2 className="text-display-sm font-extrabold tracking-tight text-ink leading-tight break-words">
+            <h2
+              title={word}
+              className="line-clamp-2 text-title font-extrabold tracking-tight text-ink leading-tight break-words"
+            >
               {word}
             </h2>
             {gloss?.phonetic && (
-              <div className="text-meta text-muted font-mono mt-1">/{gloss.phonetic}/</div>
+              <div className="truncate text-meta text-muted font-mono mt-1">/{gloss.phonetic}/</div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-ink transition-colors shrink-0 p-1 -m-1"
-            aria-label="关闭"
-          >
-            <X size={17} />
-          </button>
+          <div className="flex shrink-0 items-center">
+            {onReplay && (
+              <Button
+                variant="text"
+                size="compact"
+                className="min-h-11 min-w-11"
+                onClick={onReplay}
+                aria-label="重听本句"
+              >
+                重听
+              </Button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-muted hover:text-ink transition-colors shrink-0 min-h-11 min-w-11 flex items-center justify-center"
+              aria-label="关闭"
+            >
+              <X size={17} />
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* 考试等级 + 真题高频 */}
+      <div
+        data-testid="word-card-content"
+        className={cn("overflow-y-auto max-h-[min(72vh,560px)]", scrollClassName)}
+      >
+        {(gloss?.translation || gloss?.definition || gloss?.contextual_note) && (
+          <p data-testid="word-brief-meaning" className="px-4 pb-2 text-copy font-medium text-ink">
+            {
+              dictionaryPreview(
+                gloss!.translation,
+                gloss!.definition || gloss!.contextual_note,
+                gloss!.pos
+              ).summary
+            }
+          </p>
+        )}
+        {/* 标签属于可滚动内容，不能挤占词义与操作区。 */}
         {gloss && (gloss.levels.length > 0 || gloss.is_high_freq) && (
-          <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap px-4 pb-2">
             {gloss.levels.map((lv) => {
               const meta = levelMeta(lv);
               if (!meta) return null;
@@ -188,9 +223,22 @@ export function WordCardBody({
             )}
           </div>
         )}
-      </div>
-
-      <div className={cn("overflow-y-auto max-h-[min(72vh,560px)]", scrollClassName)}>
+        {lookupError && (
+          <div role="alert" className="px-4 py-3 text-meta text-error-text">
+            {lookupError}
+            <Button variant="text" size="sm" onClick={onRetry}>
+              重试查询
+            </Button>
+          </div>
+        )}
+        {enrichmentError && (
+          <div role="status" className="px-4 py-2 text-meta text-muted">
+            增强内容暂不可用，基础词义仍可查看。
+            <Button variant="text" size="sm" onClick={onRetry}>
+              重试增强内容
+            </Button>
+          </div>
+        )}
         {loading ? (
           <div className="px-4 pb-4 space-y-2.5">
             <div className="h-16 bg-surface-card rounded-lg animate-pulse" />
@@ -217,28 +265,29 @@ export function WordCardBody({
             )}
 
             {/* 第一焦点：本视频语境释义（空词条时整块不渲染，改走下面的空态） */}
-            {!isEmpty && (
+            {gloss?.contextual_note && (
               <div className="bg-brand-50 border-l-[3px] border-brand-500 rounded-r-lg rounded-l-md p-3.5 mb-4">
                 <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wide text-brand-700 mb-1.5">
-                  <Video size={12} /> 在本视频中
+                  <Video size={12} />{" "}
+                  {gloss?.note_scope === "video" ? "视频用法提示" : "通用用法提示"}
                 </div>
                 <p className="text-copy text-ink font-medium leading-relaxed">
-                  {gloss?.contextual_note || gloss?.translation || "暂无语境释义"}
+                  {gloss?.contextual_note}
                 </p>
               </div>
             )}
 
             {/* 词典释义 */}
             {(senses.length > 0 || gloss?.definition) && (
-              <div className="mb-4">
-                <SectionLabel>词典释义</SectionLabel>
+              <details className="mb-4">
+                <summary className="cursor-pointer text-meta text-muted mb-2">完整词典释义</summary>
                 {senses.length > 0 && (
                   <div className="space-y-1.5">
                     {senses.map((s, i) => (
                       <div key={i} className="flex gap-2 text-copy leading-relaxed items-start">
                         {s.pos && (
                           <span className="flex-shrink-0 text-caption font-bold bg-indigo-soft text-indigo rounded-md px-1.5 py-0.5 mt-0.5">
-                            {s.pos}
+                            {partOfSpeechLabel(s.pos)}
                           </span>
                         )}
                         <span className="text-ink">{s.text}</span>
@@ -247,11 +296,11 @@ export function WordCardBody({
                   </div>
                 )}
                 {gloss?.definition && (
-                  <p className="text-meta text-muted italic mt-2 leading-relaxed">
-                    {firstLine(gloss.definition)}
+                  <p className="whitespace-pre-line text-meta text-muted italic mt-2 leading-relaxed">
+                    {gloss.definition}
                   </p>
                 )}
-              </div>
+              </details>
             )}
 
             {/* 真题例句 */}
@@ -312,7 +361,7 @@ export function WordCardBody({
               <div className="rounded-lg border border-dashed border-hairline-strong px-4 py-5 text-center">
                 <p className="text-copy font-semibold text-ink">这个词暂无词典释义</p>
                 <p className="mt-1 text-meta leading-relaxed text-muted">
-                  换一个带下划线的词试试 —— 带下划线的词都有词典释义。
+                  可以查看整句上下文，或换一个词。
                 </p>
                 <Button variant="outline" size="sm" onClick={onClose} className="mt-3 min-h-[36px]">
                   换一个词
@@ -321,10 +370,26 @@ export function WordCardBody({
             )}
           </div>
         )}
+        {onReduceReplay && (
+          <div className="flex flex-wrap gap-2 px-4 py-2 border-t border-hairline">
+            <Button size="sm" variant="outline" onClick={onReduceReplay}>
+              少一点辅助再听
+            </Button>
+          </div>
+        )}
+        {onRevealSource && !isEmpty && (
+          <button
+            type="button"
+            onClick={onRevealSource}
+            className="flex min-h-11 w-full items-center justify-center gap-1 text-meta text-muted hover:text-ink"
+          >
+            <AlignLeft size={13} aria-hidden="true" />
+            回看原句
+          </button>
+        )}
       </div>
-
       {/* 底部操作（固定不随内容滚动） */}
-      <div className="flex gap-2 px-4 py-3 border-t border-hairline bg-canvas flex-shrink-0">
+      <div className="flex gap-2 px-4 py-2 border-t border-hairline bg-canvas flex-shrink-0">
         <Button
           variant="outline"
           size="sm"
@@ -350,16 +415,6 @@ export function WordCardBody({
       </div>
       {/* 设计 `.word-pop-actions .undo`：回看原句是词卡的第二出口。文稿面板常显，所以
           不新建 modal——桌面滚右栏、移动滚回当前句卡（由页面注入回调）。 */}
-      {onRevealSource && !isEmpty && (
-        <button
-          type="button"
-          onClick={onRevealSource}
-          className="flex min-h-[36px] w-full flex-shrink-0 items-center justify-center gap-1 border-t border-hairline bg-canvas text-meta text-muted transition-colors hover:text-ink cursor-pointer"
-        >
-          <AlignLeft size={13} aria-hidden="true" />
-          回看原句
-        </button>
-      )}
     </>
   );
 }
@@ -416,6 +471,11 @@ export function WordTooltipInline({
   anchorRect = null,
   sourceLabel = null,
   onRevealSource = null,
+  lookupError,
+  enrichmentError,
+  onRetry,
+  onReplay,
+  onReduceReplay,
 }: {
   word: string;
   gloss: WordGloss | null;
@@ -428,8 +488,11 @@ export function WordTooltipInline({
   sourceLabel?: string | null;
   /** 设计 `.word-pop-actions .undo`「回看原句」。 */
   onRevealSource?: (() => void) | null;
-}) {
+} & WordHelpActions) {
   const cardRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    cardRef.current?.focus({ preventScroll: true });
+  }, [word]);
   // pos 为 null 时停右下（无锚点路径）；有锚点时由下面的 layout effect 按**真实卡高**
   // 计算「词下方 / 词上方」，拖动后改由拖动坐标接管。
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -498,7 +561,16 @@ export function WordTooltipInline({
       style={style}
       data-testid="word-tooltip"
       data-variant="floating"
-      className="fixed z-50 flex max-h-[calc(100dvh-16px)] flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
+      role="dialog"
+      aria-label={`${word} 词卡`}
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      className="fixed z-50 flex max-h-[min(72dvh,580px)] flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
     >
       <WordCardBody
         word={word}
@@ -512,6 +584,11 @@ export function WordTooltipInline({
         scrollClassName="flex-1 min-h-0 max-h-none"
         sourceLabel={sourceLabel}
         onRevealSource={onRevealSource}
+        lookupError={lookupError}
+        enrichmentError={enrichmentError}
+        onRetry={onRetry}
+        onReplay={onReplay}
+        onReduceReplay={onReduceReplay}
       />
     </div>
   );

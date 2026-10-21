@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app.api.v1.browse import _video_to_dict
 from app.core.errors import BadRequestError
 from app.models.channel import Channel
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import paginated
 from app.services import channel_learning
+from app.services.video_card import video_card_payload
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -248,7 +248,7 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
     start_video, basis = await _recommended_start_video(db, channel.id)
     if start_video is not None:
         recommended_start = {
-            "video": _video_to_dict(start_video, channel.slug),
+            "video": video_card_payload(start_video, channel.slug),
             "basis": basis,
         }
 
@@ -256,7 +256,7 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
         "channel": channel_dict,
         "recommended_start": recommended_start,
         "videos": paginated(
-            [_video_to_dict(v, channel.slug) for v in videos], page=page, page_size=page_size, total=total
+            [video_card_payload(v, channel.slug) for v in videos], page=page, page_size=page_size, total=total
         ),
     }
 

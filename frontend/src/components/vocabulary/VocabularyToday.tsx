@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
+import { watchHref } from "@/lib/watchEntry";
+import { vocabularySource, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
+import { DictionaryMeaning } from "@/components/vocabulary/DictionaryMeaning";
 import { toastApiError } from "@/lib/errors";
 import { Button } from "@/components/ui/Button";
 import { BookOpen, Volume2 } from "lucide-react";
@@ -83,7 +85,7 @@ export function VocabularyToday({
   const emptyState = !loading && stats.total === 0;
   const later = Math.max(0, stats.total - stats.due - stats.mastered);
 
-  // 「这些词从哪来」：按 video_id 聚合当日队列里的词，再补视频标题。
+  // 「这批预览词从哪来」：按 video_id 聚合当日队列里的词，再补视频标题。
   const videoIds = useMemo(
     () => Array.from(new Set(words.map((w) => w.video_id).filter((id): id is string => !!id))),
     [words]
@@ -190,42 +192,37 @@ export function VocabularyToday({
           <section aria-labelledby="vocab-list-title">
             <div className="user-sec-head">
               <h2 id="vocab-list-title" className="user-sec-title">
-                {noneState ? "接下来可以记的词" : "今天到期"}
+                {noneState ? "接下来可以记的词" : "本轮复习词预览"}
               </h2>
               <span className="user-sec-sub">
                 {noneState
                   ? nextBatch
                     ? `下一批 ${nextBatch.label} · ${nextBatch.count} 个`
                     : "今天没有到期词"
-                  : `${stats.due} 个 · 来自 ${Math.max(1, sourceRows.length)} 段视频`}
+                  : `预览 ${words.length} 个 · 来自 ${sourceRows.length} 段视频`}
               </span>
             </div>
             <p className="mt-3 text-meta leading-relaxed text-muted">
-              先看看单词和原句，再开始学习；进度会自动保存。
+              累计到期 {stats.due} 个；本轮复习 {session?.reviewWords.length ?? 0} 个、新词{" "}
+              {session?.newWords.length ?? 0} 个。这里预览
+              {session?.reviewWords.length ? "复习词" : "新词"}，当前展示 {visible.length}/
+              {words.length} 个；其余到期词留在后续轮次，进度会自动保存。
             </p>
 
             <ul className="mt-1 divide-y divide-hairline">
               {visible.map((word) => {
                 const level = levelLabel(word.difficulty_level);
                 const ipa = ipaText(word.ipa);
-                const meaning = word.translation || word.definition || "释义待补充";
-                const sentenceHref =
-                  word.video_id && word.subtitle_id
-                    ? watchSentenceHref(
-                        word.video_id,
-                        { from: "vocabulary" },
-                        { word: word.word, subtitleId: word.subtitle_id }
-                      )
-                    : word.video_id
-                      ? watchHref(word.video_id, { from: "vocabulary" })
-                      : null;
+                const source = vocabularySource(word, "vocabulary");
                 return (
                   <li key={word.id} className="py-5">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <strong className="text-title font-semibold text-ink">{word.word}</strong>
                       {ipa && <span className="font-mono text-meta text-muted">{ipa}</span>}
                       {word.part_of_speech && (
-                        <span className="text-meta text-muted">{word.part_of_speech}</span>
+                        <span className="text-meta text-muted">
+                          {partOfSpeechLabel(word.part_of_speech)}
+                        </span>
                       )}
                       {level && (
                         <span className="inline-flex items-center gap-1 text-meta text-muted">
@@ -242,18 +239,22 @@ export function VocabularyToday({
                         <Volume2 size={15} />
                       </button>
                     </div>
-                    <p className="mt-1.5 text-copy text-body">{meaning}</p>
+                    <DictionaryMeaning
+                      translation={word.translation}
+                      definition={word.definition}
+                      partOfSpeech={word.part_of_speech}
+                    />
                     {word.context_sentence && (
                       <p className="mt-3 text-meta leading-relaxed text-muted">
                         “<HighlightedSentence sentence={word.context_sentence} word={word.word} />”
                       </p>
                     )}
-                    {sentenceHref && (
+                    {source && (
                       <Link
-                        href={sentenceHref}
+                        href={source.href}
                         className="mt-3 inline-block text-meta text-brand-700 hover:underline"
                       >
-                        {word.subtitle_id ? "回到出现这个词的原句 →" : "回到来源视频 →"}
+                        {source.label}
                       </Link>
                     )}
                   </li>
@@ -262,7 +263,7 @@ export function VocabularyToday({
             </ul>
             {words.length > 6 && !expanded && (
               <Button variant="outline" className="mt-4" onClick={() => setExpanded(true)}>
-                还有 {words.length - 6} 个词 · 展开
+                预览中还有 {words.length - 6} 个词 · 展开
               </Button>
             )}
           </section>
@@ -307,7 +308,7 @@ export function VocabularyToday({
               </div>
               <div className="user-kv">
                 <div className="user-kv-row">
-                  <span className="user-kv-key">今天到期</span>
+                  <span className="user-kv-key">累计到期</span>
                   <span className="user-kv-val text-brand-700">{loading ? "—" : stats.due}</span>
                 </div>
                 {nextBatch && (

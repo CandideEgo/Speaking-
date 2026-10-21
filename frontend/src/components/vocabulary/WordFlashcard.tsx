@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowRight, Check, ExternalLink, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useSpeech } from "@/hooks/useSpeech";
-import { watchSentenceHref } from "@/lib/watchEntry";
+import { vocabularySource, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
+import { DictionaryMeaning } from "@/components/vocabulary/DictionaryMeaning";
 import { cn } from "@/lib/utils";
 import { DRILL_KIND_LABEL, type DrillQuestion } from "@/lib/drillQuestions";
 import { Card } from "@/components/ui/Card";
@@ -186,12 +187,16 @@ export function WordQuizCard({
               <span className="text-copy-lg font-bold text-ink">{word.word}</span>
               {word.ipa && <span className="text-meta text-muted font-mono">{word.ipa}</span>}
               {word.part_of_speech && (
-                <span className="text-meta text-muted italic">{word.part_of_speech}</span>
+                <span className="text-meta text-muted italic">
+                  {partOfSpeechLabel(word.part_of_speech)}
+                </span>
               )}
             </div>
-            <p className="text-copy text-ink font-medium leading-relaxed mt-1">
-              {word.translation || word.definition || "—"}
-            </p>
+            <DictionaryMeaning
+              translation={word.translation}
+              definition={word.definition}
+              partOfSpeech={word.part_of_speech}
+            />
             {word.example_sentences && word.example_sentences.length > 0 && (
               <ul className="mt-3 space-y-1">
                 {word.example_sentences.slice(0, 2).map((sentence, i) => (
@@ -209,15 +214,11 @@ export function WordQuizCard({
             )}
             {word.video_id && word.context_sentence && (
               <Link
-                href={watchSentenceHref(
-                  word.video_id,
-                  { from: "drill" },
-                  { subtitleId: word.subtitle_id, word: word.word }
-                )}
+                href={vocabularySource(word, "drill")!.href}
                 className="inline-flex items-center gap-1 mt-2 text-meta text-brand-700 hover:underline"
               >
                 <ExternalLink size={12} />
-                去原视频 →
+                {vocabularySource(word, "drill")!.label}
               </Link>
             )}
           </div>

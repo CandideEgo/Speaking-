@@ -133,21 +133,32 @@ jobs:
         working-directory: frontend
         run: npm ci --legacy-peer-deps
 
-      - name: Format check
+      - name: Frontend gate (npm run check)
         working-directory: frontend
-        run: npm run format:check
-
-      - name: Type check
-        working-directory: frontend
-        run: npx tsc --noEmit
+        # `npm run check` = check-design-system + check-session-writes + tsc --noEmit
+        # + eslint + prettier --check（组成见 frontend/package.json，那是这条门禁的
+        # 唯一事实源）。
+        #
+        # 为什么整条跑，而不是像以前那样在 YAML 里逐条列 format:check / tsc / eslint：
+        # 逐条列等于把门禁的组成抄成**第二份清单**，以后往 `check` 里加一道检查，
+        # CI 不会跟着变 —— 那正是本文件顶部注释里说的「job 绿着但没跑测试」那一类
+        # 静默失效。整条跑就没有第二份清单可漂移，新增检查自动进 CI。
+        #
+        # 覆盖变化（本次改动的要点）：改动前 CI 逐条跑了 format:check / tsc / vitest /
+        # eslint，**唯独没跑** scripts/check-design-system.mjs 与
+        # scripts/check-session-writes.mjs —— 根 CLAUDE.md 把这两段脚本称为「机器执行的
+        # 不变量」「不许为了让检查变绿而放宽检查器」，但它们既不在 CI 也不在
+        # pre-commit，于是违规可以照常合进 master。`npm run check` 的头两步就是它们。
+        #
+        # 失败定位不丢：两段脚本各自打印门禁名与逐条规则结果（design-system 会列出
+        # 违规文件与行号），tsc / eslint / prettier 的报错也原样在日志里。另外
+        # GitHub Actions 本来就在第一个失败步骤处停下，所以拆成多步并不能多看到
+        # 别的失败 —— 整条跑的失败面与拆开跑是一样的。
+        run: npm run check
 
       - name: Unit tests
         working-directory: frontend
         run: npm run test:unit
-
-      - name: Lint
-        working-directory: frontend
-        run: npm run lint
 
       - name: Vulnerability scan (npm audit)
         working-directory: frontend

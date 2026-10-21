@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { partOfSpeechLabel } from "@/lib/vocabularyPresentation";
+import { DictionaryMeaning } from "@/components/vocabulary/DictionaryMeaning";
 import { Volume2 } from "lucide-react";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { Card } from "@/components/ui/Card";
@@ -46,9 +48,11 @@ export function VocabWordCard({
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-copy-lg font-bold tracking-tight text-ink">{word}</span>
             {ipa && <span className="text-meta text-muted font-mono">{ipa}</span>}
-            {partOfSpeech && <span className="text-meta text-muted italic">{partOfSpeech}</span>}
+            {partOfSpeech && (
+              <span className="text-meta text-muted italic">{partOfSpeechLabel(partOfSpeech)}</span>
+            )}
           </div>
-          <p className="text-copy text-body leading-relaxed mt-1 line-clamp-2">{meaning}</p>
+          <DictionaryMeaning translation={meaning} definition={null} partOfSpeech={partOfSpeech} />
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">

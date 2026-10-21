@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiClientError, createApiClient, type AuthAdapter } from "@/lib/createApiClient";
+import {
+  ApiClientError,
+  clearApiCache,
+  createApiClient,
+  type AuthAdapter,
+} from "@/lib/createApiClient";
 
 /** Build a non-cryptographic three-part JWT string with the given payload. */
 function makeToken(payload: Record<string, unknown>): string {
@@ -61,6 +66,10 @@ function makeAdapter(opts: {
 
 const clientWith = (auth: AuthAdapter) =>
   createApiClient({ baseUrl: "", auth, ErrorClass: ApiClientError });
+
+/** A client with an explicit cache scope — the user/admin split, named. */
+const scopedClientWith = (auth: AuthAdapter, cacheScope: string) =>
+  createApiClient({ baseUrl: "", auth, ErrorClass: ApiClientError, cacheScope });
 
 const loginRequest = (auth: AuthAdapter) =>
   clientWith(auth).request("/api/v1/auth/phone-login", { method: "POST", body: "{}" });
@@ -141,5 +150,105 @@ describe("createApiClient 401 handling", () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The GET cache and the in-flight dedupe live at module level, but the user
+ * client (`lib/api.ts`) and the admin client (`lib/adminApi.ts`) are two
+ * sessions with two different tokens. Before the cache key carried an
+ * identity, the admin shell's `/api/v1/users/me` could hit the *user* session's
+ * cached payload (never checking the admin token) and bounce a real admin out
+ * of `/admin`; and two clients hitting the same URL concurrently shared one
+ * in-flight promise, sending only the first caller's Authorization header.
+ */
+describe("createApiClient GET cache isolation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearApiCache();
+  });
+
+  it("两个 client 不共用同一份 TTL 缓存", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, { who: "user" }))
+      .mockResolvedValueOnce(jsonResponse(200, { who: "admin" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = scopedClientWith(makeAdapter({ token: liveToken() }).adapter, "user");
+    const admin = scopedClientWith(makeAdapter({ token: liveToken() }).adapter, "admin");
+
+    expect(await user.request("/api/v1/users/me", { cacheTtlMs: 30_000 })).toEqual({ who: "user" });
+    expect(await admin.request("/api/v1/users/me", { cacheTtlMs: 30_000 })).toEqual({
+      who: "admin",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("同一个 client 内仍然命中缓存（既有行为不被破坏）", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(200, { ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = scopedClientWith(makeAdapter({ token: liveToken() }).adapter, "user");
+    await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 });
+    await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("同一个 client 换人登录后不会读到上一个人的缓存", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, { who: "u1" }))
+      .mockResolvedValueOnce(jsonResponse(200, { who: "u2" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    let token = liveToken();
+    const client = createApiClient({
+      baseUrl: "",
+      auth: {
+        getToken: () => token,
+        refreshToken: async () => false,
+        onSessionExpired: () => {},
+      },
+      ErrorClass: ApiClientError,
+    });
+
+    expect(await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 })).toEqual({ who: "u1" });
+    token = makeToken({ sub: "u2", exp: Math.floor(Date.now() / 1000) + 3600 });
+    expect(await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 })).toEqual({ who: "u2" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("两个 client 的并发 GET 不共用 in-flight promise（各带各的 token）", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse(200, { ok: true })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const userToken = liveToken();
+    const adminToken = makeToken({ sub: "admin", exp: Math.floor(Date.now() / 1000) + 3600 });
+    const user = scopedClientWith(makeAdapter({ token: userToken }).adapter, "user");
+    const admin = scopedClientWith(makeAdapter({ token: adminToken }).adapter, "admin");
+
+    await Promise.all([user.request("/api/v1/users/me"), admin.request("/api/v1/users/me")]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const sent = fetchMock.mock.calls.map((call) =>
+      (call[1]?.headers as Headers).get("Authorization")
+    );
+    expect(sent.sort()).toEqual([`Bearer ${adminToken}`, `Bearer ${userToken}`].sort());
+  });
+
+  it("clearApiCache(prefix) 仍按 URL 匹配", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(200, { ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = scopedClientWith(makeAdapter({ token: liveToken() }).adapter, "user");
+    await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 });
+    clearApiCache("/api/v1/users/me");
+    await client.request("/api/v1/users/me", { cacheTtlMs: 30_000 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

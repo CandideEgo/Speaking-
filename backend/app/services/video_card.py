@@ -132,6 +132,24 @@ def serialize_video_card(
     return card
 
 
+def video_card_payload(v: Video, channel_slug: str | None = None) -> dict:
+    """One browse card as a plain dict — the service-level entry point.
+
+    Lives here (not in ``api/v1/browse.py``) so service-layer callers — e.g.
+    ``channel_service`` rendering an author page — can build the same card
+    without importing the HTTP layer. A service importing ``app.api`` is an
+    inverted dependency: it closes an import cycle back to the routes.
+
+    ``channel_slug`` (author page link, ADR-0014 rev.) is passed in by callers
+    that resolved the video's channel - keep it a parameter rather than a
+    per-row query so paged feeds resolve slugs in one batch.
+
+    Dumped to a dict because callers sit behind ``@cached`` and the payload
+    goes straight into Redis as JSON.
+    """
+    return serialize_video_card(v, scope="feed", channel_slug=channel_slug).model_dump()
+
+
 def _excerpt(note: str | None, limit: int = 60) -> str | None:
     """The first ``limit`` characters of a note, ellipsised when cut.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ export type ButtonSize = "xs" | "sm" | "compact" | "md" | "nav" | "lg" | "icon";
 
 export const VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-500 text-on-primary shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted",
+    "bg-action-primary text-on-primary shadow-brand hover:bg-action-primary-hover hover:-translate-y-0.5 disabled:bg-surface-card disabled:text-muted",
   // 品牌色「浅底」按钮：看得见是按钮，但不和页面里唯一的实心主操作抢注意力
   //（首页 hero 的「从这一段开始」用它，实心橙只留给真正的主操作）。
   tonal:
@@ -30,7 +30,7 @@ export const VARIANT: Record<ButtonVariant, string> = {
     "bg-canvas text-ink border border-hairline hover:border-ink hover:bg-surface-soft disabled:opacity-50",
   ghost: "text-body hover:bg-surface-card",
   ghostDark:
-    "text-on-dark border border-[#2c2c2c] hover:border-[#4a4a4a] hover:bg-surface-dark-soft",
+    "text-on-dark border border-surface-dark-soft hover:border-on-dark/25 hover:bg-surface-dark-soft",
   text: "text-body hover:text-ink",
   destructive:
     "bg-canvas text-error border border-error/40 hover:border-error hover:bg-red-soft disabled:opacity-50",
@@ -77,6 +77,7 @@ export function Button({
   iconRight?: boolean;
   className?: string;
   children?: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
   const iconSize =
     size === "xs"

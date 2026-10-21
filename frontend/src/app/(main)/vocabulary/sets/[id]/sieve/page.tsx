@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, X } from "lucide-react";
-import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useVocabSieve } from "@/hooks/useVocabSieve";
 import { useVocabSetDetail } from "@/hooks/useVocabSetDetail";
-import { SetCelebrationModal } from "@/components/vocabulary/SetCelebrationModal";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence";
 import { Card } from "@/components/ui/Card";
 import { watchSentenceHref } from "@/lib/watchEntry";
-import type { VocabSetCelebration } from "@/types";
 
 /**
  * 快速过筛（全屏沉浸，壳层对齐 /vocabulary/drill）：
@@ -49,23 +46,6 @@ export default function VocabSievePage() {
   const unknownWords = unknownDetail?.words ?? null;
   // 两阶段：第一遍过筛（pending）→ 待学清单（unknown）→ 标记已掌握闭环。
   const inPendingList = !inSievePass && (state?.unknown_count ?? 0) > 0;
-
-  // P1-6 集合闭环庆祝：状态切到 completed 才调幂等端点，first_time 才弹成就卡。
-  const [celebration, setCelebration] = useState<VocabSetCelebration["card"] | null>(null);
-  useEffect(() => {
-    if (!state?.completed) return;
-    let cancelled = false;
-    api<VocabSetCelebration>(`/api/v1/vocab-sets/${id}/celebrate`, { method: "POST" })
-      .then((res) => {
-        if (!cancelled && res.first_time) setCelebration(res.card);
-      })
-      .catch(() => {
-        /* 庆祝失败不阻塞闭环页 */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [state?.completed, id]);
 
   // 键盘 shortcut：1=不会 / 2=会（←/→ 同义），判定飞行中忽略。
   useEffect(() => {
@@ -355,8 +335,6 @@ export default function VocabSievePage() {
           </div>
         )}
       </div>
-
-      <SetCelebrationModal card={celebration} onClose={() => setCelebration(null)} />
     </main>
   );
 }

@@ -313,7 +313,7 @@ export default function VocabularyPage() {
               : stats.total === 0
                 ? "词库还是空的"
                 : stats.due > 0
-                  ? `今天有 ${stats.due} 个词到期`
+                  ? `累计到期 ${stats.due} 个词`
                   : "今天没有到期词"
           }
           description={

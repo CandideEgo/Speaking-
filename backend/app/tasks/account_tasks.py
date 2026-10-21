@@ -23,7 +23,7 @@ import csv
 import io
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import structlog
@@ -58,12 +58,16 @@ def _resolve_media(url: str | None) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def _iso(value) -> str | None:
+def _iso(value: datetime | date | None) -> str | None:
+    """ISO-8601 字符串；``None`` 原样返回。
+
+    调用点全是 ``Mapped[datetime]`` / ``Mapped[datetime | None]`` 的时间列，
+    所以这里把参数标成真正的类型，``value.isoformat()`` 就不再是 ``Any``
+    （原先参数没标注类型，才需要 ``hasattr``/``str()`` 兜底）。
+    """
     if value is None:
         return None
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return str(value)
+    return value.isoformat()
 
 
 def _csv_bytes(rows: list[dict]) -> bytes:
@@ -414,7 +418,11 @@ async def _purge_user(db, user) -> None:
         await db.execute(sa_delete(table).where(table.columns["user_id"] == user.id))
 
     # 4. Delete the user row — this is where the phone number is released.
-    await db.execute(sa_delete(UserModel.__table__).where(UserModel.__table__.columns["id"] == user.id))
+    #    用映射类本身（而不是 ``UserModel.__table__``）：SQLAlchemy 2.0 里
+    #    ``delete(实体)`` 是正规写法，且生成的 SQL 与 Core 写法一致
+    #    （``DELETE FROM users WHERE users.id = ?``），而 ``__table__`` 的静态
+    #    类型是 ``FromClause``（为 join 继承准备），传给 ``delete()`` 就不被接受。
+    await db.execute(sa_delete(UserModel).where(UserModel.id == user.id))
     await db.commit()
 
     # 5. Best-effort media + export ZIP cleanup, then the per-user directory.

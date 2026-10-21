@@ -141,3 +141,12 @@ backend/watch-current.png
 # Codex/Claude 本机配置（机器绑定，勿提交）
 .codex/
 .claude/settings.local.json
+
+# 本机一次性产物（不入库）
+# .agents/ 是 .claude/skills/ 的旧副本（deploy/dev skill 副本 + tmp/ 下的 pytest 全量
+# 日志、模型目录、分享页抓取脚本）。事实源是 .claude/skills/，副本不入库。
+.agents/
+# 一次性探针脚本（yt-dlp 元数据探测）与 mypy 输出/差异脚本：跑完即弃，不进版本库。
+backend/.tmp-*
+# Playwright 无障碍树快照（对比用的一次性产物）
+/channels-before.yml

@@ -8,24 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.time_utils import to_aware_utc
 from app.core.token_blacklist import is_token_blacklisted
 from app.models.user import PlanType, RoleType, User
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()
-
-
-def _to_aware_utc(dt: datetime) -> datetime:
-    """Return ``dt`` as a timezone-aware UTC datetime.
-
-    Defensive helper: SQLAlchemy returns aware datetimes for ``DateTime(timezone=True)``
-    columns on Postgres, but naive ones on SQLite (and naive values may appear in
-    hand-crafted rows). Comparing a naive ``plan_expires_at`` against
-    ``datetime.now(UTC)`` raises TypeError, so normalise before comparing.
-    """
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
 
 
 def _token_issued_before_password_change(payload: dict, user: User) -> bool:
@@ -45,7 +33,7 @@ def _token_issued_before_password_change(payload: dict, user: User) -> bool:
     if iat is None or user.password_changed_at is None:
         return False
     issued_at = datetime.fromtimestamp(float(iat), tz=UTC)
-    changed_at = _to_aware_utc(user.password_changed_at)
+    changed_at = to_aware_utc(user.password_changed_at)
     return issued_at + timedelta(seconds=2) < changed_at
 
 
@@ -171,7 +159,7 @@ async def require_pro_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Pro subscription required.",
         )
-    if user.plan == PlanType.pro and user.plan_expires_at and _to_aware_utc(user.plan_expires_at) < datetime.now(UTC):
+    if user.plan == PlanType.pro and user.plan_expires_at and to_aware_utc(user.plan_expires_at) < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Pro subscription has expired.",

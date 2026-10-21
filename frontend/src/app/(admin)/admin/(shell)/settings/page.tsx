@@ -32,7 +32,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       <span
         className={cn(
           "absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-sm transition-all",
-          on ? "left-[20px] bg-white" : "left-[2px] bg-canvas"
+          on ? "left-[20px] bg-on-primary" : "left-[2px] bg-canvas"
         )}
       />
     </button>

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from app.core.time_utils import to_aware_utc
 from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
 
@@ -50,7 +51,7 @@ def downgrade_expired_pro():
                 # past now while we waited for the row lock.
                 if u.plan != PlanType.pro:
                     continue
-                if u.plan_expires_at is not None and _to_aware(u.plan_expires_at) >= now:
+                if u.plan_expires_at is not None and to_aware_utc(u.plan_expires_at) >= now:
                     continue
                 u.plan = PlanType.free
                 u.plan_expires_at = None
@@ -115,14 +116,3 @@ def expire_unused_redeem_codes():
     except Exception:
         logger.exception("expire_unused_redeem_codes failed")
         return 0
-
-
-def _to_aware(dt) -> datetime:
-    """Normalise a possibly-naive datetime to aware UTC for comparison.
-
-    Postgres returns aware datetimes for ``DateTime(timezone=True)``; SQLite
-    (tests) may return naive. Mirrors ``app.api.dependencies._to_aware_utc``.
-    """
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
+import { useModalFocus } from "@/hooks/useModalFocus";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,53 +31,7 @@ export function Modal({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useEffect(() => {
-    if (!open) return;
-    const previousFocus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = dialogRef.current;
-    const focusable = () =>
-      Array.from(
-        dialog?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
-        ) ?? []
-      ).filter((element) => element.getClientRects().length > 0);
-    (focusable()[0] ?? dialog)?.focus();
-    const trapFocus = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const elements = focusable();
-      const first = elements[0];
-      const last = elements[elements.length - 1];
-      if (!first) {
-        event.preventDefault();
-        dialog?.focus();
-        return;
-      }
-      if (
-        event.shiftKey &&
-        (document.activeElement === first || document.activeElement === dialog)
-      ) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", trapFocus);
-    return () => {
-      document.removeEventListener("keydown", trapFocus);
-      previousFocus?.focus();
-    };
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && closeOnBackdrop) onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose, closeOnBackdrop]);
+  useModalFocus(dialogRef, open, onClose, closeOnBackdrop);
 
   if (!open) return null;
 

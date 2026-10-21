@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * check-design-system.mjs — DEC-075 前端设计系统门禁（4 条规则）
+ * check-design-system.mjs — DEC-075 前端设计系统门禁（6 条规则）
  *
  * 为什么需要它：P1–P5 把容器、页头、圆角、字号、卡片各自收敛成「唯一写法」，但那只是
  * 一次性整理。没有机器检查，下一个人照样可以在页面里写 `container-page`、在组件里写
  * `bg-blue-100`，收敛会在两次改动内回到起点。本脚本是那几条不变量的唯一执行点。
  *
- * 四条规则（DEC-075 ⑤ 末条）：
+ * 六条规则（DEC-075 ⑤ 末条 + G14 / checklist 5.2 补的两条）：
  *   1) src/app 下所有文件        不得出现 `container-page` / `container-wide`
  *                                破坏示例：页面自己选容器（P1 已把这活收进壳层）
  *   2) src 下所有 .ts / .tsx     不得出现原始调色板工具类
@@ -16,6 +16,28 @@
  *                                破坏示例：`rounded-2xl`、任意值 `rounded-[10px]`
  *   4) src/app 下的 page.tsx     不得自写 `<h1`
  *                                破坏示例：第三套页头（P2 已归一为 ui/PageHeader）
+ *   5) src 下所有 .ts / .tsx     不得写任意值 hex 颜色
+ *                                破坏示例：`border-[#2c2c2c]`——绕过 token 体系私设颜色
+ *   6) src 下所有 .ts / .tsx     无色阶的 white/black 不得当「面」用
+ *                                破坏示例：区块底色直接写 `bg-white`（暗色模式必炸）
+ *
+ * 规则 5/6 的判定口径（写清楚是为了让下一个人能自己判断新写法对不对）：
+ *   规则 5 只看「颜色工具类 + 任意值 hex」。用 token 变量的写法
+ *           （`shadow-[inset_0_0_0_1px_var(--color-brand-500)]`）不算违规；
+ *           尺寸/布局类任意值（`w-[42px]`、`grid-cols-[1fr_2fr]`）本来就不在射程内。
+ *   规则 6 把 white/black 按「作用面」分三档：
+ *           - 叠加层（带透明度修饰符：`bg-white/10`、`bg-black/45`）：**允许**。
+ *             半透明叠层与任意底色兼容，是遮罩/浮层的标准写法。
+ *           - 面（裸 `bg-white` / `bg-black` / 渐变端点 `from-black` …）：**违规**。
+ *             白色/黑色作为背景必须走语义 token（`bg-canvas` / `bg-surface-card` /
+ *             `bg-surface-dark*` / `bg-on-primary`…），否则暗色模式下这块会变成白斑。
+ *           - 前景/描边（裸 `text-white` / `border-white` / `accent-white`）：**允许**。
+ *             本仓 23 处裸用白字都是「深底上的白字」（品牌块、播放器控件、媒体角标）；
+ *             语义 token `text-on-dark` 是 #fafafa、不是逐字等价的 #ffffff，改写会动视觉；
+ *             而白字是否可读取决于祖先底色（媒体层/遮罩层），静态扫不准。要把它变成
+ *             硬规则只能靠「整文件豁免」兜底——那是更大的口子，故不设卡。
+ *           - 黑色一律违规（面与前景都算）：黑面/黑字必须走 `text-ink` /
+ *             `bg-surface-dark*` 一类的语义 token（存量 0 处）。
  *
  * 白名单**点名文件 + 写理由**，不允许通配：写理由才逼着人解释「为什么这个文件例外」，
  * 通配会让例外悄悄扩散。被列入白名单的文件在该条规则下整文件豁免。
@@ -96,6 +118,14 @@ const WHITELISTS = {
       "登录页是独立入口（无壳层、无 ui/PageHeader 可挂），自带两段标题。",
     ],
   ]),
+  5: new Map(),
+  6: new Map([
+    [
+      "frontend/src/app/(main)/upgrade/page.tsx",
+      "微信扫码支付的二维码底板：扫码识别要求纯白底 + 静区，暗色模式下也必须是白纸，" +
+        "没有语义 token 能表达「一张白纸」（bg-on-primary 语义是「品牌面上的前景」，不是纸）。",
+    ],
+  ]),
 };
 
 // ---------------------------------------------------------------- 规则定义
@@ -115,6 +145,36 @@ const RAW_PALETTE = new RegExp(
 // 「允许集外的 `rounded-*`」），也就不会被英文散文里的 "rounded" 误伤。
 const ROUNDED_TOKEN = /\brounded-[A-Za-z0-9_.\[\]%/:-]+/g;
 const ROUNDED_ALLOWED = /^rounded-(?:(?:t|r|b|l|ss|se|ee|es)-)?(?:sm|md|lg|pill|full|none)$/;
+
+// 规则 5：任意值 hex 颜色。`border-[#2c2c2c]` / `hover:border-[#4a4a4a]` 一类——
+// 绕过 token 体系私设颜色，暗色模式翻不了，也不受设计评审约束。
+const HEX_COLOR = new RegExp(`\\b(?:${COLOR_PREFIX})-\\[#[0-9a-fA-F]{3,8}\\]`, "g");
+
+// 规则 6：无色阶的 white/black。分三档判定（叠加层 / 面 / 前景），口径见文件头。
+// 组：1=变体前缀(hover:…) 2=颜色工具类前缀 3=颜色 4=透明度修饰符（含斜杠）
+// 结尾用 `(?![-\w])` 而不是 `\b`：`bg-white/[0.06]` 的结尾是 `]`，`]` 与空格之间
+// 没有词边界，用 `\b` 会把透明度修饰符吃掉、误判成裸用。
+const WHITE_BLACK = new RegExp(
+  `\\b((?:[a-z-]+:)*)(${COLOR_PREFIX})-(white|black)(/(\\[[^\\]]+\\]|\\d{1,3}))?(?![-\\w])`,
+  "g"
+);
+// 这些前缀的颜色落在「面」上（背景 / 渐变端点），不是字色
+const SURFACE_PREFIXES = new Set(["bg", "from", "via", "to"]);
+
+/**
+ * 规则 6 的判定：返回 true = 违规。
+ * - 带透明度修饰符 → 叠加层，允许。
+ * - 黑色 → 面与前景都要走语义 token，违规。
+ * - 白色且是「面」→ 违规；白色且是前景/描边 → 允许（深底白字是本仓常态）。
+ */
+function isWhiteBlackViolation(_token, match) {
+  const prefix = match[2];
+  const color = match[3];
+  const opacity = match[4];
+  if (opacity) return false;
+  if (color === "black") return true;
+  return SURFACE_PREFIXES.has(prefix);
+}
 
 const RULES = [
   {
@@ -142,6 +202,19 @@ const RULES = [
     files: (f) => isPage(f),
     pattern: /<h1[\s>]/g,
   },
+  {
+    id: 5,
+    name: "不得写任意值 hex 颜色",
+    files: (f) => f.startsWith(SRC) && isTs(f),
+    pattern: HEX_COLOR,
+  },
+  {
+    id: 6,
+    name: "无色阶 white/black 不得当面用",
+    files: (f) => f.startsWith(SRC) && isTs(f),
+    pattern: WHITE_BLACK,
+    filter: (token, match) => isWhiteBlackViolation(token, match),
+  },
 ];
 
 // ---------------------------------------------------------------- 执行
@@ -164,7 +237,7 @@ for (const rule of RULES) {
     lines.forEach((line, i) => {
       rule.pattern.lastIndex = 0;
       for (const m of line.matchAll(rule.pattern)) {
-        if (rule.filter && !rule.filter(m[0])) continue;
+        if (rule.filter && !rule.filter(m[0], m)) continue;
         fileHit = true;
         if (wl.has(file)) continue; // 白名单：命中只用来提示，不报违规
         violations.push({
@@ -184,7 +257,7 @@ for (const rule of RULES) {
 
 // ---------------------------------------------------------------- 输出
 
-console.log("check-design-system：DEC-075 前端设计系统门禁（4 条规则）");
+console.log(`check-design-system：DEC-075 前端设计系统门禁（${RULES.length} 条规则）`);
 console.log(`扫描 src/ 共 ${scanned.size} 个文件（按规则去重前）`);
 for (const rule of RULES) {
   const n = violations.filter((v) => v.rule === rule.id).length;
@@ -196,6 +269,22 @@ if (violations.length) {
   for (const v of violations) {
     console.log(`  ✗ [规则 ${v.rule}] ${v.file}:${v.line}:${v.col}  ${v.token}`);
     console.log(`      ${v.text}`);
+  }
+}
+
+const activeWhitelists = [];
+for (const rule of RULES) {
+  const wl = WHITELISTS[rule.id];
+  if (!wl) continue;
+  for (const [file, reason] of wl) {
+    if (whitelistHits.get(`${rule.id}:${file}`)) activeWhitelists.push({ id: rule.id, file, reason });
+  }
+}
+if (activeWhitelists.length) {
+  console.log("\n生效中的白名单（点名文件 + 理由）：");
+  for (const entry of activeWhitelists) {
+    console.log(`  · 规则 ${entry.id} · ${entry.file}`);
+    console.log(`      ${entry.reason}`);
   }
 }
 
@@ -212,4 +301,4 @@ if (violations.length) {
   console.log(`\nFAIL：${violations.length} 处违规。`);
   process.exit(1);
 }
-console.log("\nPASS：四条规则全部通过。");
+console.log(`\nPASS：${RULES.length} 条规则全部通过。`);

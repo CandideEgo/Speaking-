@@ -7,7 +7,8 @@ image at ingest/backfill time removes the runtime dependency: the cover
 becomes a plain local static file served by nginx/backend like any media.
 
 Host allowlist and Referer spoofing rules are shared with the proxy endpoint
-(``app.api.v1.media``) so both surfaces stay in sync.
+via ``app.core.media_hosts`` so both surfaces stay in sync — and so this
+service does not have to import the HTTP layer to get them.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.media_hosts import host_allowed, referer_for
 
 logger = get_logger(__name__)
 
@@ -117,18 +119,16 @@ async def download_thumbnail(url: str, dest: Path, proxy: str | None = None) -> 
     ``/media/proxy`` endpoint this runs in a trusted ingest/backfill context,
     and CDNs (ytimg/hdslb) occasionally redirect between edge hosts.
     """
-    from app.api.v1.media import _host_allowed, _referer_for
-
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         return False
-    if not _host_allowed(parsed.hostname):
+    if not host_allowed(parsed.hostname):
         logger.warning("Thumbnail host not in allowlist: %s", parsed.hostname)
         return False
 
     headers = {
         "User-Agent": "Mozilla/5.0 SeeWord/1.0 (thumbnail fetch)",
-        "Referer": _referer_for(parsed.hostname),
+        "Referer": referer_for(parsed.hostname),
         "Accept": "image/*,*/*;q=0.8",
     }
     settings = get_settings()
