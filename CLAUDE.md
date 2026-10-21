@@ -36,6 +36,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `npm run check` = design-system 检查 + 会话写入检查 + `tsc --noEmit` + ESLint + Prettier `--check`。后两个检查器都是「机器执行的不变量」，见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 
+> 本机是中文 Windows：启动任何后端 Python 进程都要带 `PYTHONUTF8=1`（并用 `backend/.venv/Scripts/python.exe`），否则读取 UTF-8 的 `.env` 会直接 `UnicodeDecodeError: 'gbk' codec` 启动失败。原因与其余本机坑见 [`backend/CLAUDE.md`](backend/CLAUDE.md)。`/dev` skill 已内置。
+
 ### 优先用 skill，别照上表手敲
 
 `.claude/skills/` 里三个 skill **已入库**，本机（中文 Windows + NSSM 服务）的坑都在里面，别自己重新踩：
@@ -54,12 +56,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 后端装配与错误契约
 
-`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:361`；行号会漂，认符号别认数字）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
+`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:369`；行号会漂，认符号别认数字）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
 
 **所有错误响应都是统一 envelope** `{code, message, detail?}`：
 
 - 业务代码抛 `AppError(status_code, code, message, detail?)`，`code` 取 `backend/app/core/errors.py::ErrorCode`
-- 存量 `HTTPException`（约 140 处）由全局 handler 兜底转 envelope，`code = HTTP_{status}`
+- 存量 `HTTPException`（约 110 处 `raise`）由全局 handler 兜底转 envelope，`code = HTTP_{status}`
 - 422 校验错误 → `code = VALIDATION_ERROR`，`detail` 是 pydantic errors 数组
 - `AIServiceError` → 502 + `AI_SERVICE_UNAVAILABLE`，绝不退化成 500 或静默假分值
 
@@ -68,6 +70,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 路由
 
 全部在 `backend/app/api/v1/*.py`，注册时统一加 `prefix="/api/v1"`。**唯一例外**是 `media.router` 挂在根——它是 Range-aware 的视频服务，因为 Starlette 的 `StaticFiles` 会吞掉 Range 头，导致 `<video>` 无法拖进度。另 `mock_payments` 只在 `env in (development, testing)` 时挂载。
+
+**已下线功能不是死代码**：跟读/成就/热力图/周报的后端入口统一由 `app/services/retired_features.py::feature_gone` 返回 410 `FEATURE_RETIRED`（`api/v1/shadowing.py`、`learning.py` 的 heatmap/weekly-reports），前端 `/weekly-report` 则重定向到个人页进度 tab；这些都是兼容壳。相关表保留只为历史数据导出与注销清理，不要「恢复」这些端点。
 
 `backend/app/api/dependencies.py` 提供鉴权依赖（见下）。
 
@@ -78,9 +82,11 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 - engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。这是为了让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块。
 - FastAPI 路由用 `get_db()` 依赖；Celery 任务等非依赖场景用 `get_async_session_maker()`——后者同时是测试 monkeypatch 的缝。
 
-模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 75 个 revision 在 `backend/migrations/versions/`。
+模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 79 个 revision 在 `backend/migrations/versions/`。
 
 核心实体：`User` 拥有 `Video` / `Vocabulary` / `LearningRecord` / `Order` / `UserFavorite` / `UserNote` / `UserVideoUnlock` / `Notification`；`Video` 拥有 `Subtitle`（按 `sentence_index` 排序，含 `text_en` / `text_zh` / 逐词时间戳 `words` / `word_levels`），并冗余 `like_count` / `favorite_count` / `view_count` / `score`，以及管线状态 `status` + `processing_step` + `step_started_at`。
+
+另有两组容易混淆的数据：`UserLearningProfile` + `LearningEvent`（结构化学习事件，喂学习档案/目标/推荐；`learning_event_service.py` 增量更新计数与 streak，`profile_service.py` 负责按需重算 mastery/CEFR。模块名仍叫 `learning_plan`，但 ADR-0012 的每日计划已在 `d1e2f3a4b5c6` 连同表一起删除）与真题语料/试卷（`ExamSentence` / `ExamSentenceWord` / `ExamWordFreq` 供例句与高频词，`ExamPaper` / `ExamQuestion` / `ExamSession` / `ExamAnswer` 供试卷作答；原卷 PDF 走 `exam_pdfs.py`）。
 
 ### 鉴权
 
@@ -101,7 +107,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、管线看门狗、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理；旧周报任务保留空操作入口，供已入队消息安全结束。
+`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理；Pro/兑换码三个 beat 在内测免费期**已摘掉调度但任务体保留**，旧周报任务保留空操作入口，供已入队消息安全结束。
 
 Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`、`run_gpu_worker.ps1`）。
 
@@ -173,5 +179,5 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 **两个例外——这两个路径现在确实存在，别当成已删的：**
 
-- **`docs/` 已回归**（2026-10-15 `0b85160` 入库，只有进行中的计划与调研，不是被删的那批）：`docs/architecture-fix-plan-2026-10.md`、`docs/product-review-2026-10.md`、`docs/oss-reference-2026-10.md`（同类开源项目调研，含跟读评测选型结论）。可以读。
+- **`docs/` 已回归**（2026-10-15 `0b85160` 入库）：里面是 2026-10 起的产品/架构计划、调研、代码与 UI 评审、实施契约和验证记录（如 `architecture-fix-plan-2026-10.md`、`product-review-2026-10.md`、`oss-reference-2026-10.md`、`code-review-2026-10-20.md`、`ui-review-2026-10-21.md`、`home-editorial-content-implementation-2026-10.md`），不是被删的那批知识层。可以读。
 - **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则仍然只有三个家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`。
