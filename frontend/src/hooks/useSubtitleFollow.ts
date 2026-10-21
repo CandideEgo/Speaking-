@@ -94,7 +94,10 @@ export function useSubtitleFollow({
       if (!scroller || !frame || !isStuck || followPausedRef.current) return;
       const delta = mobileFollowScroll(
         el.getBoundingClientRect().top,
-        frame.getBoundingClientRect().bottom
+        // Focusing an in-page control can briefly unstick the frame before
+        // this scroll completes. Aim at its final sticky position, otherwise
+        // the selected row is left below the player by that temporary offset.
+        scroller.getBoundingClientRect().top + frame.getBoundingClientRect().height
       );
       if (delta !== null) scroller.scrollBy({ top: delta, behavior: "smooth" });
       return;

@@ -22,10 +22,8 @@ export interface WatchChromeBridgeArgs {
   /** ⋯ 面板开合（面板由页面渲染）。 */
   moreOpen: boolean;
   setMoreOpen: Dispatch<SetStateAction<boolean>>;
-  /** 移动端练习抽屉（#26 乙）。关它 = 退出练习，逻辑还在页面。 */
-  practiceOpen: boolean;
-  setPracticeOpen: Dispatch<SetStateAction<boolean>>;
-  closePractice: () => void;
+  onReplay: () => void;
+  onSeek: (time: number, playAfterSeek?: boolean) => void;
   /** 考试词高亮的目标分级（store）。 */
   selectedExamLevel: string | null;
   onExamLevelChange: (level: string) => void;
@@ -60,9 +58,8 @@ export function useWatchChromeBridge({
   videoRef,
   moreOpen,
   setMoreOpen,
-  practiceOpen,
-  setPracticeOpen,
-  closePractice,
+  onReplay,
+  onSeek,
   selectedExamLevel,
   onExamLevelChange,
   onBack,
@@ -89,13 +86,6 @@ export function useWatchChromeBridge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const chromeShadowing = useCallback(() => {
-    if (practiceOpen) closePractice();
-    else setPracticeOpen(true);
-    // closePractice 是每次渲染新建的普通函数，故意不进依赖（它只碰 ref 与稳定 setter）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [practiceOpen]);
-
   const chrome: WatchChromeState = useMemo(
     () => ({
       title: video?.title ?? "",
@@ -121,9 +111,9 @@ export function useWatchChromeBridge({
       // 见页面上的 `nextRef` / `onNextStable`。**别**把 `currentSubtitleIndex` 之类随状态
       // 变的东西加进依赖表：那会让壳每句重渲染 4 次（INV-025）。
       onNext,
-      sentenceNavDisabled: isYtMode,
-      onShadowing: chromeShadowing,
-      shadowingActive: practiceOpen,
+      sentenceNavDisabled: !video?.subtitles?.length,
+      onReplay,
+      onSeek,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -137,8 +127,8 @@ export function useWatchChromeBridge({
       navigateSubtitle,
       resumeFollow,
       isYtMode,
-      chromeShadowing,
-      practiceOpen,
+      onReplay,
+      onSeek,
       onNext,
       attachVideo,
       // `attachVideo` 是稳定 useCallback；`videoEl` 只用来给「元素接上了」这次低频变化

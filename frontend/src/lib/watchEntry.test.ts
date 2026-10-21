@@ -6,6 +6,7 @@ import {
   resolveWatchReturn,
   sentenceFocusParams,
   watchHref,
+  watchFocusIssue,
   watchSentenceHref,
 } from "@/lib/watchEntry";
 import type { Subtitle } from "@/types";
@@ -288,5 +289,21 @@ describe("resolveWatchReturn", () => {
     expect(resolveWatchReturn(params("?from=somewhere-else"))).toBeNull();
     expect(resolveWatchReturn(params("?from=channel"))).toBeNull();
     expect(resolveWatchReturn(params("?from=set"))).toBeNull();
+  });
+});
+
+describe("watch focus validation", () => {
+  it("rejects nonfinite and partially numeric times", () => {
+    for (const input of ["Infinity", "NaN", "5junk", "-1"]) {
+      expect(resolveWatchFocus(params("?t=" + input), [])?.seconds).toBeNull();
+      expect(watchFocusIssue(params("?t=" + input), [], 20)).not.toBeNull();
+    }
+  });
+  it("requires an explicit choice when a sentence was replaced", () => {
+    expect(watchFocusIssue(params("?sub=gone&t=10"), [], 20)).toEqual({
+      message: "原句位置已变化，请选择备用位置或从头观看",
+      fallback: 10,
+    });
+    expect(watchFocusIssue(params("?t=25"), [], 20)?.fallback).toBeNull();
   });
 });

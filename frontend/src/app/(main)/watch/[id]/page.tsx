@@ -4,16 +4,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { CoachMark } from "@/components/common/CoachMark";
-import { useCoachMark } from "@/hooks/useCoachMark";
 import { useDeepLink } from "@/hooks/useDeepLink";
-import { EndScreen, type ShadowingSentence } from "@/components/watch/EndScreen";
-import { useWatchStore } from "@/stores/watchStore";
+import { useWatchClip } from "@/hooks/useWatchClip";
+import { validWatchClip } from "@/lib/watchClip";
+import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
-import { useShadowing, type ShadowingAttempt } from "@/hooks/useShadowing";
-import { useSentenceShadowing } from "@/hooks/useSentenceShadowing";
 import { useStickyPip } from "@/hooks/useStickyPip";
 import { useSubtitleFollow } from "@/hooks/useSubtitleFollow";
 import { useWatchChromeBridge } from "@/hooks/useWatchChromeBridge";
@@ -24,14 +20,13 @@ import { api, mediaUrl } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
-import { resolveWatchReturn } from "@/lib/watchEntry";
-import type { VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
+import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
+import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
 import { formatDuration, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { WordCardSheet } from "@/components/watch/WordCardSheet";
-import { ShadowingDrawer } from "@/components/watch/ShadowingDrawer";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
 import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
@@ -39,27 +34,20 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useWatchStageWidth } from "@/hooks/useWatchStageWidth";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
-import { SentenceWordStrip } from "@/components/watch/SentenceWordStrip";
 import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
-import { AudioWaveform } from "@/components/speaking/AudioWaveform";
-import { WaveformCompare } from "@/components/speaking/WaveformCompare";
-import { ShadowingHistory } from "@/components/watch/ShadowingHistory";
 import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
-import { selectSentenceWords } from "@/lib/sentenceWords";
+import { reducedAid, validInterval } from "@/lib/watchSession";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
   ArrowLeft,
   Loader2,
   Play,
-  Mic,
   Bookmark,
   Heart,
   Pencil,
   X,
   AlertCircle,
-  Check,
   ChevronRight,
-  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -188,60 +176,47 @@ export default function WatchPage() {
     }
     return true;
   };
-  const {
-    speakingActive,
-    speakingState,
-    audioUrl,
-    audioBlob,
-    recordingStream,
-    seconds,
-    startRecording,
-    stopRecording,
-    stopSpeaking,
-    reRecord,
-  } = useSpeakingRecorder(requireAuth, { timer: true });
-  const { uploadAndSave, uploading, attempts, deleteAttempt, setSatisfied } = useShadowing(id);
-  const [shadowingSaved, setShadowingSaved] = useState(false);
-  const [shadowingSatisfied, setShadowingSatisfied] = useState(false);
-  // 当前句已上传录音的 attempt id —— 「满意」按钮靠它 PATCH 持久化。
-  const [lastAttemptId, setLastAttemptId] = useState<string | null>(null);
+  const [acceptedFocus, setAcceptedFocus] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   // ⋯ 面板（DEC-069 / #31）：来源/版权/语言/字号/倍速/动作行全收进这里，首屏那 355px
   // 次要信息归零。面板由页面渲染（在滚动容器里），开关状态经壳顶栏的 ⋯ 来回。
   const [moreOpen, setMoreOpen] = useState(false);
-  // #26 乙：移动端练习区搬进底部抽屉；桌面端仍在字幕卡里就地展开（本轮不动桌面）。
-  const [practiceOpen, setPracticeOpen] = useState(false);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
+  const [titleExpanded, setTitleExpanded] = useState(false);
 
   // D13: deep link from /favorites with ?note=1 opens the note drawer
   // immediately so the user lands on their saved note.
   const searchParams = useSearchParams();
+  const clipId = searchParams.get("clip");
+  const clipResult = useWatchClip(id, clipId);
+  const clipSlot = clipResult?.slot;
+  const clipRange = clipSlot?.content.clip;
+  const [invalidClip, setInvalidClip] = useState<string | null>(null);
+  const [endedClip, setEndedClip] = useState<string | null>(null);
+  const [clipPosition, setClipPosition] = useState(0);
+  const appliedClip = useRef<string | null>(null);
   const back = useWatchReturn(id);
   useEffect(() => {
     if (searchParams.get("note") === "1") setNoteOpen(true);
   }, [searchParams]);
 
-  // Auto-upload recording when entering reviewing state
-  useEffect(() => {
-    if (speakingState === "reviewing" && audioBlob && !shadowingSaved) {
-      setShadowingSaved(true); // prevent double-upload
-      setLastAttemptId(null);
-      uploadAndSave(audioBlob, {
-        videoId: id,
-        subtitleId: video?.subtitles?.[currentSubtitleIndex]?.id ?? null,
-        // D10: 上报录音时长，后端按秒累计进 LearningEvent。
-        durationMs: seconds > 0 ? seconds * 1000 : null,
-        isSatisfied: false,
-      }).then((attempt) => {
-        if (attempt) setLastAttemptId(attempt.id);
-      });
-    }
-  }, [speakingState, audioBlob]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // 时间同步回调通过 ref 读取最新 video / setter（避免与 useVideoPlayer 返回值的前向引用）。
   const videoForTickRef = useRef<VideoDetail | null>(null);
   const setSubtitleIndexRef = useRef<(idx: number) => void>(() => {});
-  // D10 逐句跟读：句尾检测回调（钩子在 useVideoPlayer 之后创建，经 ref 接入）。
-  const sentenceHandleTimeRef = useRef<(t: number) => void>(() => {});
+  const currentIndexRef = useRef(0);
+  const [temporaryMode, setTemporaryMode] = useState<SubtitleMode | null>(null);
+  const preferredMode = useWatchStore((s) => s.subtitleMode);
+  const persistSubtitleMode = useWatchStore((s) => s.setSubtitleMode);
+  const subtitleMode = temporaryMode ?? preferredMode;
+  const [replayTarget, setReplayTarget] = useState<Subtitle | null>(null);
+  const clearOnIntentRef = useRef<() => void>(() => {});
+  const handleUserIntent = useCallback((clearAid = true) => {
+    if (clearAid) {
+      setTemporaryMode(null);
+      setReplayTarget(null);
+    }
+    clearOnIntentRef.current();
+  }, []);
 
   // Playback-time tick shared by both backends (HTML5 timeupdate / YouTube
   // poll): keeps the current-subtitle highlight and watch-time tracking in sync.
@@ -252,9 +227,10 @@ export default function WatchPage() {
       const idx = findSubtitleIndex(v.subtitles, t);
       if (idx !== -1) setSubtitleIndexRef.current(idx);
       trackWatchTime(id, t);
-      sentenceHandleTimeRef.current(t);
+      if (clipId) setClipPosition(t);
+      currentIndexRef.current = idx === -1 ? currentIndexRef.current : idx;
     },
-    [id]
+    [id, clipId]
   );
 
   const {
@@ -266,6 +242,12 @@ export default function WatchPage() {
     ytContainerRef,
     isYtMode,
     isPlaying,
+    mediaState,
+    mediaError,
+    saveState,
+    pauseForHelp,
+    closeHelp,
+    replaySentence,
     play,
     togglePlayPause,
     navigateSubtitle,
@@ -280,115 +262,43 @@ export default function WatchPage() {
     fullscreenElRef,
     toggleFullscreen,
   } = useVideoPlayer({
+    playbackRange: clipRange
+      ? { start: clipRange.start_time, end: clipRange.end_time, onEnd: () => setEndedClip(clipId) }
+      : null,
+    playbackBlocked: !!clipId && (!clipRange || invalidClip === clipId),
     videoId: id,
     onTimeTick: handleTimeTick,
+    hasExplicitFocus: !!(clipId || searchParams.get("sub") || searchParams.get("t")),
+    subtitleModeOverride: subtitleMode,
+    onUserIntent: handleUserIntent,
   });
+
+  useEffect(() => {
+    if (!clipId) {
+      appliedClip.current = null;
+      return;
+    }
+    if (!clipId || !clipSlot || !clipRange || !video || playbackMode !== "ready") return;
+    if (!validWatchClip(clipSlot, video.subtitles, video.duration)) {
+      setInvalidClip(clipId);
+      return;
+    }
+    const key = `${id}|${clipId}`;
+    if (appliedClip.current === key) return;
+    appliedClip.current = key;
+    setEndedClip(null);
+    seekTo(clipRange.start_time, searchParams.get("autoplay") === "1");
+  }, [clipId, clipSlot, clipRange, video, playbackMode, id, seekTo, searchParams]);
+
+  useEffect(() => {
+    if (clipId && clipRange && mediaState === "ended") setEndedClip(clipId);
+  }, [clipId, clipRange, mediaState]);
 
   // Keep the tick callback's video reference in sync.
   useEffect(() => {
     videoForTickRef.current = video;
     setSubtitleIndexRef.current = setCurrentSubtitleIndex;
   }, [video, setCurrentSubtitleIndex]);
-
-  // D10 逐句跟读：状态机（仅 HTML5 本地播放可用）。与手动跟读共用
-  // useSpeakingRecorder，退出模式即回到手动流程。
-  const pauseVideo = useCallback(() => {
-    videoRef.current?.pause();
-  }, [videoRef]);
-
-  const handleSentenceAdvance = useCallback(() => {
-    setShadowingSaved(false);
-    setShadowingSatisfied(false);
-    setLastAttemptId(null);
-  }, []);
-
-  const sentenceShadow = useSentenceShadowing({
-    subtitles: video?.subtitles,
-    currentIndex: currentSubtitleIndex,
-    setCurrentIndex: setCurrentSubtitleIndex,
-    seekTo,
-    play,
-    pause: pauseVideo,
-    speakingState,
-    startRecording,
-    stopSpeaking,
-    reRecord,
-    onAdvance: handleSentenceAdvance,
-  });
-
-  // 句尾检测从播放 tick 接入状态机（handleTime 内部经 ref 自稳）。
-  useEffect(() => {
-    sentenceHandleTimeRef.current = sentenceShadow.handleTime;
-  }, [sentenceShadow.handleTime]);
-
-  // #26 乙：练习流程一开就把抽屉推上来。桌面端抽屉不渲染，这个状态只是空转。
-  useEffect(() => {
-    if (speakingActive || sentenceShadow.active) setPracticeOpen(true);
-  }, [speakingActive, sentenceShadow.active]);
-
-  /** 关抽屉 = 退出练习：逐句模式退出、麦克风释放，高亮留在刚才练的那一句（#26 决议④）。 */
-  function closePractice() {
-    setPracticeOpen(false);
-    if (sentenceShadow.active) sentenceShadow.exit();
-    if (speakingActive) stopSpeaking();
-  }
-
-  // D10 跟读时间线：进度条绿点（点击定位到对应句并回放该句录音）。
-  const replayAttempt = useCallback(
-    (a: ShadowingAttempt) => {
-      const subs = video?.subtitles;
-      if (typeof a.subtitle_start_time === "number" && subs) {
-        const idx = findSubtitleIndex(subs, a.subtitle_start_time);
-        if (idx !== -1) setCurrentSubtitleIndex(idx);
-        seekTo(a.subtitle_start_time);
-      }
-      const audio = new Audio(mediaUrl(a.audio_url, { withToken: true }));
-      audio.play().catch(() => {});
-    },
-    [video, seekTo, setCurrentSubtitleIndex]
-  );
-
-  const shadowMarkers = useMemo(() => {
-    if (!video?.duration) return [];
-    return attempts
-      .filter((a) => typeof a.subtitle_start_time === "number")
-      .map((a) => ({
-        position: a.subtitle_start_time as number,
-        onClick: () => replayAttempt(a),
-      }));
-  }, [attempts, video, replayAttempt]);
-
-  // D10 波形对比：原声取视频文件尽力解码切片；稳定对象标识避免重复拉取。
-  const originalSourceUrl = useMemo(() => {
-    if (isYtMode || !video) return null;
-    const url = bestVideoUrl(video);
-    return url ? mediaUrl(url, { withToken: true }) : null;
-  }, [video, isYtMode]);
-
-  const originalClip = useMemo(() => {
-    const sub = video?.subtitles?.[currentSubtitleIndex];
-    return sub ? { start: sub.start_time, end: sub.end_time } : null;
-  }, [video, currentSubtitleIndex]);
-
-  // D2: first-time coach mark tour. Only shows when the watch page is
-  // fully ready (subtitles loaded, video URL known) so the spotlight
-  // rects aren't zero. The hook writes seeword_coach_done on finish/skip.
-  const isFirstLesson = searchParams.get("first_lesson") === "1";
-  const coach = useCoachMark({
-    isAuthenticated,
-    isReady: playbackMode === "ready" && !!video && (video.subtitles?.length ?? 0) > 0,
-    isFirstLesson,
-    onEvent: (event, payload) => track(event, payload, id),
-  });
-
-  // D3b: EndScreen state. Activated when the <video> fires onEnded.
-  const [ended, setEnded] = useState(false);
-  const [videoVocabCount, setVideoVocabCount] = useState(0);
-  const [shadowingSentences, setShadowingSentences] = useState<ShadowingSentence[]>([]);
-  // Session-scoped stats. Lookups/adds are tracked by useWordLookup;
-  // watch time is approximated from videoRef.currentTime on ended.
-  const sessionLookupsRef = useRef(0);
-  const sessionAddsRef = useRef(0);
 
   // 字幕跟随（DEC-073）的两条路与暂停/恢复规则在 useSubtitleFollow 里；这里只安排
   // 「跟随哪个元素」与「画框贴顶了没有」两件事。
@@ -420,28 +330,22 @@ export default function WatchPage() {
     saveNote,
     clearNote,
   } = useVideoMeta(id, video?.like_count ?? 0);
-  const { selectedWord, wordGloss, handleWordClick, saveToVocabulary, speakWord, clearWord } =
-    useWordLookup({
-      requireAuth,
-      getSubtitles: () => video?.subtitles,
-      videoId: id,
-    });
-
-  // First-lesson tour advances on the real actions, not only the "next" button.
+  const {
+    selectedWord,
+    wordGloss,
+    context: wordContext,
+    lookupError,
+    enrichmentError,
+    retryLookup,
+    handleWordClick,
+    saveToVocabulary,
+    speakWord,
+    clearWord,
+  } = useWordLookup({ requireAuth, videoId: id });
   useEffect(() => {
-    if (selectedWord) coach.advanceFromFirstWordClick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWord]);
-
-  useEffect(() => {
-    if (sentenceShadow.active) coach.advanceFromShadowing();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sentenceShadow.active]);
-
-  const handleSaveWord = useCallback(async () => {
-    await saveToVocabulary();
-    coach.advanceFromWordSaved();
-  }, [saveToVocabulary, coach.advanceFromWordSaved]);
+    clearOnIntentRef.current = clearWord;
+  }, [clearWord]);
+  const handleSaveWord = saveToVocabulary;
 
   // ---- 词卡锚点 / 来源句（audit D-watch P1 #9、#13）----------------------------
   // 桌面词卡此前固定 left:24 / bottom:24，400px 宽、内容长时 765px 高，整块压住左侧
@@ -456,29 +360,40 @@ export default function WatchPage() {
   } | null>(null);
   const [wordSource, setWordSource] = useState<{ index: number; line: number } | null>(null);
 
-  const openWordCard = useCallback(
-    (word: string, anchor?: HTMLElement | null) => {
-      setWordAnchorRect(anchor ? anchor.getBoundingClientRect() : null);
-      // 「词 → 来源句」与 useWordLookup 的 ctx 同口径：第一个包含该词的句子。
-      const clean = cleanToken(word);
-      let idx: number;
-      try {
-        const re = new RegExp(`\\b${clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-        idx = (video?.subtitles ?? []).findIndex((s) => re.test(s.text_en));
-      } catch {
-        idx = -1;
-      }
-      setWordSource(idx >= 0 ? { index: idx, line: idx + 1 } : null);
-      handleWordClick(word);
-    },
-    [handleWordClick, video]
-  );
-
+  const wordTriggerRef = useRef<HTMLElement | null>(null);
   const closeWordCard = useCallback(() => {
     clearWord();
     setWordAnchorRect(null);
     setWordSource(null);
-  }, [clearWord]);
+    closeHelp();
+    wordTriggerRef.current?.focus({ preventScroll: true });
+  }, [clearWord, closeHelp]);
+  const openWordCard = useCallback(
+    (word: string, anchor?: HTMLElement | null, sourceOverride?: Subtitle | null) => {
+      const source =
+        sourceOverride ??
+        replayTarget ??
+        wordContext ??
+        video?.subtitles[currentIndexRef.current] ??
+        null;
+      if (
+        selectedWord === word.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "") &&
+        wordContext?.id === source?.id
+      ) {
+        closeWordCard();
+        return;
+      }
+      wordTriggerRef.current = anchor ?? null;
+      setWordAnchorRect(anchor ? anchor.getBoundingClientRect() : null);
+      const sourceIndex = source
+        ? (videoForTickRef.current?.subtitles.findIndex((s) => s.id === source.id) ?? -1)
+        : -1;
+      setWordSource(sourceIndex >= 0 ? { index: sourceIndex, line: sourceIndex + 1 } : null);
+      pauseForHelp();
+      void handleWordClick(word, source);
+    },
+    [selectedWord, wordContext, replayTarget, video, closeWordCard, pauseForHelp, handleWordClick]
+  );
 
   /** 设计 `.word-pop-actions .undo`「回看原句」：不新建弹层，把文稿滚到该句（桌面滚右栏、
    *  移动滚回当前句卡），并恢复字幕跟随。 */
@@ -506,7 +421,7 @@ export default function WatchPage() {
   }, [wordSource, closeWordCard, resumeFollow, isMobile]);
 
   const wordSourceLabel = wordSource
-    ? `《${video?.title ?? "本视频"}》第 ${wordSource.line} 句`
+    ? `《${video?.title ?? "本视频"}》第 ${wordSource.line} 句 · ${wordContext?.text_en ?? ""}`
     : null;
 
   // D3b/S7b: deep-link focus — ?sub=<subtitle id> lands on one sentence
@@ -516,23 +431,48 @@ export default function WatchPage() {
   const handleSentenceFocus = useCallback(
     (index: number) => {
       resumeFollow(); // 深链落点算一次显式导航：把跟随拉回来
+      currentIndexRef.current = index;
       setCurrentSubtitleIndex(index); // 句高亮 + 字幕跟随联动
     },
     [resumeFollow, setCurrentSubtitleIndex]
   );
   useDeepLink({
+    enabled: !clipId,
+    videoId: id,
+    duration: video?.duration,
     playbackMode,
     subtitles: video?.subtitles,
     params: searchParams,
     videoRef,
     onSentenceFocus: handleSentenceFocus,
-    onWordFocus: handleWordClick,
+    onWordFocus: (word, index) =>
+      openWordCard(word, null, index != null && index >= 0 ? video?.subtitles[index] : null),
     onAutoplay: play,
     onSeek: seekTo,
   });
 
-  const subtitleMode = useWatchStore((s) => s.subtitleMode);
-  const setSubtitleMode = useWatchStore((s) => s.setSubtitleMode);
+  const setSubtitleMode = (mode: SubtitleMode) => {
+    setTemporaryMode(null);
+    persistSubtitleMode(mode);
+  };
+  useEffect(() => {
+    setTemporaryMode(null);
+  }, [preferredMode]);
+  function handleReplay(reduce = false) {
+    const source = replayTarget ?? wordContext ?? video?.subtitles[currentIndexRef.current];
+    if (!source) return;
+    clearWord();
+    closeHelp(false);
+    if (replaySentence(source.start_time, source.end_time)) {
+      setReplayTarget(source);
+      if (reduce) setTemporaryMode(reducedAid(subtitleMode));
+    }
+  }
+  const replayRef = useRef(handleReplay);
+  useEffect(() => {
+    replayRef.current = handleReplay;
+  });
+  const replayStable = useCallback(() => replayRef.current(), []);
   const panelCollapsed = useWatchStore((s) => s.panelCollapsed);
   const setPanelCollapsed = useWatchStore((s) => s.setPanelCollapsed);
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
@@ -702,12 +642,6 @@ export default function WatchPage() {
     if (currentSubtitleIndex < video.subtitles.length - 1) {
       const next = video.subtitles[currentSubtitleIndex + 1];
       if (!next) return;
-      // Reset speaking state before advancing — otherwise the user is stuck
-      // in the result view of the old sentence.
-      if (speakingActive) reRecord();
-      setShadowingSaved(false);
-      setShadowingSatisfied(false);
-      setLastAttemptId(null);
       resumeFollow(); // 显式「下一句」= 恢复跟随
       setCurrentSubtitleIndex(currentSubtitleIndex + 1);
       seekTo(next.start_time);
@@ -722,30 +656,6 @@ export default function WatchPage() {
     nextRef.current = handleNextSubtitle;
   });
   const onNextStable = useCallback(() => nextRef.current(), []);
-
-  /** 重录：除录音钩子自身重置外，同步清掉上传/满意标记 ——
-   * 否则重录后的新录音因 shadowingSaved 仍为 true 而永不上传。 */
-  function handleReRecord() {
-    reRecord();
-    setShadowingSaved(false);
-    setShadowingSatisfied(false);
-    setLastAttemptId(null);
-  }
-
-  /** 「满意」：本地立即翻转 + PATCH 持久化（失败时 hook 内部回滚并提示）。 */
-  function handleToggleSatisfied() {
-    const next = !shadowingSatisfied;
-    setShadowingSatisfied(next);
-    if (lastAttemptId) void setSatisfied(lastAttemptId, next);
-  }
-
-  /** Play the original audio by seeking the video to the current subtitle. */
-  function playOriginal() {
-    const sub = video?.subtitles?.[currentSubtitleIndex];
-    if (!sub) return;
-    seekTo(sub.start_time);
-    play();
-  }
 
   // 考试词高亮 —— DEC-073 的四档，从强到弱：
   //   ① learning/reviewing（正在学）→ 品牌实底 + 实线（Sprint 3 语义不变，最强档）
@@ -786,9 +696,8 @@ export default function WatchPage() {
     videoRef,
     moreOpen,
     setMoreOpen,
-    practiceOpen,
-    setPracticeOpen,
-    closePractice,
+    onReplay: replayStable,
+    onSeek: seekTo,
     selectedExamLevel,
     onExamLevelChange: handleExamLevelChange,
     onBack: back.go,
@@ -801,7 +710,7 @@ export default function WatchPage() {
   });
 
   // --- Keyboard shortcuts: 页面层不再持有快捷键 —— D1 后统一由
-  // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；「下一句」由录音展开态按钮承担。
+  // useVideoPlayer 处理（空格/←→/↑↓音量/M/F/C/S）；句子导航通过统一播放器协调。
 
   // --- Loading / Error states ---
   // 终态处理失败先于通用加载失败态：playbackMode === "error" 也会由处理中轮询到的
@@ -881,15 +790,14 @@ export default function WatchPage() {
     );
   }
 
-  const currentSubtitle = video.subtitles[currentSubtitleIndex];
-  // W1：桌面「本句词」条目的数据源。纯函数，不进 hook —— 它必须放在早退之后，
-  // 而早退之后不能再加 hook（React 规则）。句子级数据量小，每次渲染直接算即可。
-  const sentenceWords = selectSentenceWords(
-    currentSubtitle.text_en,
-    currentSubtitle.word_levels ?? null,
-    selectedExamLevel
-  );
-
+  const focusIssue =
+    acceptedFocus === `${id}|${searchParams}`
+      ? null
+      : watchFocusIssue(searchParams, video.subtitles, video.duration);
+  const currentSubtitle = replayTarget ?? wordContext ?? video.subtitles[currentSubtitleIndex];
+  const displayedIndex = currentSubtitle
+    ? video.subtitles.findIndex((s) => s.id === currentSubtitle.id)
+    : currentSubtitleIndex;
   /**
    * 学习笔记面板。抽出来是因为它现在有两个落点（DEC-069 第 6 条把移动端的笔记入口
    * 收进了 ⋯ 面板）：桌面端仍在页头原位，移动端由 `WatchMoreSheet` 的 `extra` 渲染。
@@ -946,6 +854,7 @@ export default function WatchPage() {
                 variant="text"
                 size="sm"
                 data-testid="watch-more-button"
+                ref={moreTriggerRef}
                 onClick={chrome.onMore}
                 aria-expanded={chrome.moreOpen}
               >
@@ -954,10 +863,98 @@ export default function WatchPage() {
             </div>
           </div>
           <PageHeader
-            title={video.title}
+            className="watch-mobile-heading"
+            title={
+              <span className="flex items-start gap-2">
+                <span className={cn("min-w-0 flex-1", !titleExpanded && "line-clamp-1")}>
+                  {video.title}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-meta font-normal text-muted"
+                  aria-expanded={titleExpanded}
+                  onClick={() => setTitleExpanded((v) => !v)}
+                >
+                  {titleExpanded ? "收起" : "展开标题"}
+                </button>
+              </span>
+            }
             description={`${video.difficulty_level || "难度待评估"} · ${video.subtitles.length} 句字幕 · ${formatDuration(video.duration)}`}
           />
         </div>
+      )}
+      {clipId && (
+        <section
+          aria-label="片段任务"
+          className="mb-3 rounded-md border border-hairline bg-surface-soft px-3 py-2 text-meta"
+        >
+          {clipRange && invalidClip !== clipId ? (
+            <>
+              <h2 className="font-semibold text-ink">{clipSlot!.content.headline}</h2>
+              <p className="text-muted">
+                片段 {formatTime(clipRange.start_time)}–{formatTime(clipRange.end_time)} · 剩余{" "}
+                {Math.ceil(
+                  Math.max(0, clipRange.end_time - Math.max(clipRange.start_time, clipPosition))
+                )}{" "}
+                秒
+              </p>
+              <progress
+                aria-label="片段播放进度"
+                className="h-1 w-full accent-brand-500"
+                max={clipRange.end_time - clipRange.start_time}
+                value={Math.max(
+                  0,
+                  Math.min(clipRange.end_time, clipPosition) - clipRange.start_time
+                )}
+              />
+              {endedClip === clipId && (
+                <div role="status" className="mt-1 text-ink">
+                  <p>已到片段终点。可以重听，或选择继续完整视频。</p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEndedClip(null);
+                      seekTo(clipRange.start_time);
+                    }}
+                  >
+                    重听片段
+                  </Button>
+                  <Button
+                    variant="text"
+                    size="sm"
+                    onClick={() =>
+                      router.replace(
+                        watchHref(id, {
+                          from: "home",
+                          extra: { t: clipRange.end_time, autoplay: 1 },
+                        })
+                      )
+                    }
+                  >
+                    继续完整视频
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p role="status">
+              {invalidClip === clipId
+                ? "字幕位置已变化，片段已失效。请回首页选择新片段，或打开完整视频。"
+                : (clipResult?.error ?? "正在验证片段信息…")}
+            </p>
+          )}
+          <div className="flex gap-3">
+            <Link
+              className="min-h-9 inline-flex items-center text-brand-700"
+              href={watchHref(id, { from: "home" })}
+            >
+              看完整视频
+            </Link>
+            <Link className="min-h-9 inline-flex items-center text-muted" href="/">
+              回首页
+            </Link>
+          </div>
+        </section>
       )}
       {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
           动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
@@ -1021,7 +1018,7 @@ export default function WatchPage() {
         {notesPanel}
       </div>
 
-      {/* ===== 双列：左视频+字幕+录音，右字幕面板（可折叠） ===== */}
+      {/* ===== 双列：左视频+当前句，右字幕面板（可折叠） ===== */}
       <div
         className={cn(
           "grid grid-cols-1 items-start transition-[grid-template-columns] duration-200",
@@ -1071,7 +1068,6 @@ export default function WatchPage() {
                 // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
                 // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
                 "w-full rounded-lg",
-                isMobile && !noteOpen && "-mt-6",
                 // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
                 // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
                 // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
@@ -1116,24 +1112,6 @@ export default function WatchPage() {
                       }
                       onEnded={() => {
                         track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id);
-                        // D3b: trigger the EndScreen. Fetch this video's vocab
-                        // count + top-3 shadowing sentences in parallel; both
-                        // are best-effort — failures are silent.
-                        setEnded(true);
-                        const vid = video?.id;
-                        if (!vid) return;
-                        Promise.all([
-                          api<{ total?: number }>(
-                            `/api/v1/videos/${vid}/vocabulary?page=1&page_size=1`
-                          )
-                            .then((d) => setVideoVocabCount(d.total ?? 0))
-                            .catch(() => {}),
-                          api<ShadowingSentence[]>(
-                            `/api/v1/videos/${vid}/shadowing-sentences?limit=3`
-                          )
-                            .then(setShadowingSentences)
-                            .catch(() => {}),
-                        ]);
                       }}
                     />
                     {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
@@ -1154,36 +1132,8 @@ export default function WatchPage() {
                         subtitleFontSize={subtitleFontSize}
                         onFontSizeChange={handleFontSizeChange}
                         toggleFullscreen={toggleFullscreen}
-                        markers={shadowMarkers}
-                      />
-                    )}
-                    {/* D3b EndScreen — only when the <video> has fired onEnded. */}
-                    {ended && video?.id && (
-                      <EndScreen
-                        stats={{
-                          watchSeconds: Math.round(videoRef.current?.currentTime ?? 0),
-                          wordsLookedUp: sessionLookupsRef.current,
-                          wordsAdded: sessionAddsRef.current,
-                        }}
-                        videoVocabCount={videoVocabCount}
-                        shadowingSentences={shadowingSentences}
-                        onReplay={() => {
-                          setEnded(false);
-                          videoRef.current?.play().catch(() => {});
-                        }}
-                        onReviewVocab={() => router.push(`/vocabulary/drill?video_id=${video.id}`)}
-                        onShadowing={() => {
-                          // Jump back to the first shadowing sentence and resume
-                          // playback so the user can immediately start shadowing.
-                          if (shadowingSentences[0]) {
-                            if (videoRef.current && shadowingSentences[0]) {
-                              videoRef.current.currentTime = shadowingSentences[0].start_time;
-                            }
-                            setEnded(false);
-                            videoRef.current?.play().catch(() => {});
-                          }
-                        }}
-                        onGoHome={() => router.push("/")}
+                        onTogglePlay={togglePlayPause}
+                        onSeek={(t) => seekTo(t, isPlaying)}
                       />
                     )}
                   </>
@@ -1202,13 +1152,42 @@ export default function WatchPage() {
             </div>
 
             {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
-              点词 → 词卡；点卡片空白 → 播放/暂停。S5 起桌面端的跟读动作带也住进卡内
-              （`desktopActions`，移动端不传——移动端跟读仍在底栏/抽屉）。
+              点词打开帮助；点卡片空白播放/暂停；主操作位于卡片下方。
               R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
               （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
               （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
               基类的 `mt-3 / border / rounded-lg`。 */}
-            <WatchBottomBar chrome={chrome} inline />
+            {currentSubtitle && (
+              <CurrentSentenceCard
+                // DEC-074：移动端是齐平字幕带（无外框、计数与展开开关进元信息行），
+                // 桌面端仍是卡片（12px 间距 + 圆角 + 边框、计数在右上角）。
+                variant={isMobile ? "band" : "card"}
+                // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
+                // 卡跟着出血；桌面端两者都留在容器内）。
+                className={cn(isMobile && "mt-0 rounded-none border-0 px-0")}
+                textEn={currentSubtitle.text_en}
+                textZh={currentSubtitle.text_zh ?? null}
+                wordLevels={currentSubtitle.word_levels ?? null}
+                subtitleMode={subtitleMode}
+                fontSize={subtitleFontSize}
+                isSelected={isSelectedWord}
+                levelClassFor={levelClassFor}
+                onWordClick={openWordCard}
+                onTogglePlay={togglePlayPause}
+                counter={`${displayedIndex + 1} / ${video.subtitles.length}`}
+              />
+            )}
+            {isMobile && <WatchBottomBar chrome={chrome} inline />}
+            {currentSubtitle && (
+              <div className="flex items-center justify-between border-t border-hairline py-1.5">
+                <span className="text-meta text-muted">
+                  当前句 · {displayedIndex + 1} / {video.subtitles.length}
+                  {" · "}
+                  {formatTime(currentSubtitle.start_time)}
+                </span>
+                <SaveSentenceButton subtitleId={currentSubtitle.id} />
+              </div>
+            )}
             {isMobile && (
               <div className="flex flex-wrap items-center gap-3 py-2 text-meta">
                 <label>
@@ -1243,250 +1222,108 @@ export default function WatchPage() {
                 </Button>
               </div>
             )}
-            {currentSubtitle && (
-              <div className="flex items-center justify-between border-t border-hairline py-3">
-                <span className="text-meta text-muted">
-                  当前句 · {currentSubtitleIndex + 1} / {video.subtitles.length}
-                  {" · "}
-                  {formatTime(currentSubtitle.start_time)}
-                </span>
-                <SaveSentenceButton subtitleId={currentSubtitle.id} />
+            <div
+              className="flex flex-wrap items-center gap-2 border-y border-hairline py-2"
+              data-testid="sentence-actions"
+            >
+              <div className="hidden lg:contents">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    resumeFollow();
+                    navigateSubtitle(-1);
+                  }}
+                  disabled={!video.subtitles.length}
+                >
+                  上一句
+                </Button>
+                <Button
+                  onClick={() => handleReplay()}
+                  disabled={
+                    !currentSubtitle ||
+                    !validInterval(
+                      currentSubtitle.start_time,
+                      currentSubtitle.end_time,
+                      video.duration
+                    )
+                  }
+                >
+                  重听本句
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    resumeFollow();
+                    navigateSubtitle(1);
+                  }}
+                  disabled={!video.subtitles.length}
+                >
+                  下一句
+                </Button>
+              </div>
+              <Button variant="text" onClick={() => handleReplay(true)} disabled={!currentSubtitle}>
+                少一点辅助再听
+              </Button>
+              <Button variant="text" onClick={play}>
+                继续播放
+              </Button>
+              {temporaryMode !== null && (
+                <Button variant="outline" onClick={() => setTemporaryMode(null)}>
+                  恢复辅助
+                </Button>
+              )}
+            </div>
+            {focusIssue && (
+              <div role="alert" className="py-2 text-meta text-muted">
+                {focusIssue.message}
+                {focusIssue.fallback !== null && (
+                  <Button
+                    variant="text"
+                    size="sm"
+                    onClick={() => {
+                      setAcceptedFocus(`${id}|${searchParams}`);
+                      seekTo(focusIssue.fallback!, false);
+                    }}
+                  >
+                    使用备用时间
+                  </Button>
+                )}
+                <Button
+                  variant="text"
+                  size="sm"
+                  onClick={() => {
+                    setAcceptedFocus(`${id}|${searchParams}`);
+                    seekTo(0, false);
+                  }}
+                >
+                  从头观看
+                </Button>
               </div>
             )}
-            {currentSubtitle && (
-              <CurrentSentenceCard
-                // DEC-074：移动端是齐平字幕带（无外框、计数与展开开关进元信息行），
-                // 桌面端仍是卡片（12px 间距 + 圆角 + 边框、计数在右上角）。
-                variant={isMobile ? "band" : "card"}
-                // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
-                // 卡跟着出血；桌面端两者都留在容器内）。
-                className={cn(isMobile && "mt-0 rounded-none border-0 px-0")}
-                textEn={currentSubtitle.text_en}
-                textZh={currentSubtitle.text_zh ?? null}
-                wordLevels={currentSubtitle.word_levels ?? null}
-                subtitleMode={subtitleMode}
-                fontSize={subtitleFontSize}
-                isSelected={isSelectedWord}
-                levelClassFor={levelClassFor}
-                onWordClick={openWordCard}
-                onTogglePlay={togglePlayPause}
-                counter={`${currentSubtitleIndex + 1} / ${video.subtitles.length}`}
-                desktopActions={
-                  isMobile ? undefined : (
-                    <>
-                      {/* S5：桌面动作带——原来「画面下的第二张卡」整块搬进句卡自身。
-                          `isMobile ? undefined` 保证移动端**不传**、DOM 零变化
-                          （`hidden lg:flex` 是第二条保险）。状态与回调逐字沿用原卡。 */}
-
-                      {/* W1/W2（DEC-080）：本句词条 + 学习动作。句卡是桌面唯一的学习焦点，
-                          词条点开同一个词卡，学习动作从页头搬到这里；视频级动作仍留在页头。 */}
-                      <div className="mb-1.5 flex items-center gap-2">
-                        <SentenceWordStrip
-                          words={sentenceWords}
-                          targetLevel={selectedExamLevel}
-                          isSelected={isSelectedWord}
-                          onWordClick={openWordCard}
-                        />
-                        {/* 设计的「点带下划线的词看释义」：不单独占一行，作为本行动内
-                            后缀（与词条/学习动作同一行），保住句卡高度预算。 */}
-                        <span className="hidden shrink-0 truncate text-caption text-muted xl:inline">
-                          点带下划线的词看释义
-                        </span>
-                        <LearningActions
-                          compact={false}
-                          vocabSet={vocabSet}
-                          addingVocabSet={addingVocabSet}
-                          onVocabSet={handleVocabSetClick}
-                          onDrill={() => router.push("/vocabulary")}
-                        />
-                      </div>
-
-                      {/* 动作带：整宽 2 段（TabPills 视觉语言）。逐句跟读与手动录音
-                          互斥：进逐句前若手动录音在跑，先收掉（同一支麦克风）。 */}
-                      <div
-                        data-coach="practice"
-                        className="grid grid-cols-2 gap-1 rounded-pill bg-surface-card p-1"
-                      >
-                        <button
-                          className={cn(
-                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-copy font-semibold transition-colors duration-150 cursor-pointer",
-                            sentenceShadow.active
-                              ? "bg-success text-white"
-                              : "text-body hover:text-ink",
-                            isYtMode && "opacity-50 cursor-not-allowed hover:text-muted"
-                          )}
-                          onClick={() => {
-                            if (isYtMode) return;
-                            if (sentenceShadow.active) {
-                              sentenceShadow.exit();
-                            } else {
-                              if (speakingActive) stopSpeaking();
-                              sentenceShadow.start();
-                            }
-                          }}
-                          disabled={isYtMode}
-                          title={
-                            isYtMode ? "YouTube 视频暂不支持逐句跟读" : "播一句自动录音，逐句循环"
-                          }
-                          aria-label={sentenceShadow.active ? "退出逐句跟读" : "开始逐句跟读"}
-                        >
-                          <Repeat size={15} />
-                          {sentenceShadow.active ? "退出逐句" : "逐句跟读"}
-                        </button>
-
-                        <button
-                          className={cn(
-                            "inline-flex items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-copy font-semibold transition-colors duration-150 cursor-pointer",
-                            speakingActive ? "bg-brand-500 text-white" : "text-body hover:text-ink"
-                          )}
-                          onClick={() => {
-                            if (speakingActive) {
-                              stopSpeaking();
-                            } else {
-                              startRecording();
-                            }
-                          }}
-                          aria-label={speakingActive ? "停止录音" : "录音本句"}
-                        >
-                          <Mic size={15} />
-                          {speakingActive ? "停止" : "录音本句"}
-                        </button>
-                      </div>
-
-                      {/* D10 逐句模式状态行（播放中/录音中/回放引导） */}
-                      {sentenceShadow.active && (
-                        <div className="mt-3 flex items-center gap-2 bg-brand-50 rounded-lg px-3 py-2 text-meta text-brand-600">
-                          <Repeat size={13} className="shrink-0" />
-                          <span className="font-medium">
-                            {sentenceShadow.phase === "playing"
-                              ? "正在播放本句，播完自动开始录音"
-                              : sentenceShadow.phase === "recording"
-                                ? "正在录音，读完后点击上方停止"
-                                : "录音完成，回放后点「下一句」继续"}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* 录音展开态：录音 / 回放 / 下一句 */}
-                      {speakingActive && (
-                        <div className="mt-4 pt-4 border-t border-hairline">
-                          {speakingState === "idle" && (
-                            <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                              <button
-                                className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-brand cursor-pointer"
-                                onClick={startRecording}
-                                aria-label="开始录音"
-                              >
-                                <Mic size={20} />
-                              </button>
-                              <div className="flex-1">
-                                <p className="text-copy font-semibold text-ink">
-                                  点击麦克风开始录音
-                                </p>
-                                <p className="text-meta text-muted mt-0.5">朗读上方高亮字幕</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {speakingState === "listening" && (
-                            <div className="flex items-center gap-3 bg-surface-soft rounded-lg p-3">
-                              <button
-                                className="w-11 h-11 rounded-full bg-error text-on-primary flex items-center justify-center shadow-brand animate-pulse cursor-pointer"
-                                onClick={stopRecording}
-                                aria-label="停止录音"
-                              >
-                                <Mic size={20} />
-                              </button>
-                              <div className="flex-1">
-                                <p className="text-copy font-semibold text-ink">录音中…</p>
-                                <div className="mt-1">
-                                  <AudioWaveform stream={recordingStream} barCount={24} />
-                                </div>
-                              </div>
-                              <button
-                                className="text-copy font-semibold text-muted hover:text-ink cursor-pointer"
-                                onClick={stopSpeaking}
-                              >
-                                取消
-                              </button>
-                            </div>
-                          )}
-
-                          {speakingState === "reviewing" && (
-                            <div className="bg-surface-soft rounded-lg p-3 space-y-3">
-                              {/* Status row */}
-                              <div className="flex items-center gap-2 text-copy">
-                                {uploading ? (
-                                  <>
-                                    <Loader2 size={14} className="animate-spin text-brand-500" />
-                                    <span className="text-muted">正在保存跟读录音…</span>
-                                  </>
-                                ) : shadowingSaved ? (
-                                  <>
-                                    <Check size={14} className="text-success" />
-                                    <span className="text-success font-medium">已保存</span>
-                                  </>
-                                ) : (
-                                  <span className="text-muted">录音完成，回放听自己的发音</span>
-                                )}
-                              </div>
-
-                              {/* D10 波形对比（原声/录音），自带播放按钮 */}
-                              <WaveformCompare
-                                recordingBlob={audioBlob}
-                                recordingUrl={audioUrl}
-                                originalUrl={originalSourceUrl}
-                                originalClip={originalClip}
-                                onPlayOriginal={playOriginal}
-                              />
-
-                              {/* Action buttons */}
-                              <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={handleReRecord}>
-                                  重录
-                                </Button>
-                                <Button
-                                  variant={shadowingSatisfied ? "primary" : "outline"}
-                                  size="sm"
-                                  onClick={handleToggleSatisfied}
-                                  disabled={uploading || !lastAttemptId}
-                                  title={
-                                    uploading || !lastAttemptId ? "录音保存后可标记" : undefined
-                                  }
-                                  className={
-                                    shadowingSatisfied
-                                      ? "bg-success hover:bg-success/90 shadow-none"
-                                      : ""
-                                  }
-                                >
-                                  <Check size={13} className="mr-1" />
-                                  满意
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={
-                                    sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle
-                                  }
-                                >
-                                  下一句
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 最近跟读（紧凑 chips，最多 3 条；0 条时不渲染） */}
-                      <ShadowingHistory
-                        variant="chips"
-                        attempts={attempts}
-                        onDelete={deleteAttempt}
-                      />
-                    </>
-                  )
-                }
-              />
-            )}
+            <div role="status" className="py-1 text-meta text-muted" data-testid="watch-status">
+              {mediaError ||
+                (mediaState === "loading"
+                  ? "正在加载媒体…"
+                  : mediaState === "buffering"
+                    ? "正在缓冲…"
+                    : mediaState === "ended"
+                      ? "播放已结束，可以重看或返回"
+                      : "")}
+              {mediaError && (
+                <>
+                  <Button variant="text" size="sm" onClick={retry}>
+                    重试媒体
+                  </Button>
+                  <Button variant="text" size="sm" onClick={back.go}>
+                    {back.label}
+                  </Button>
+                </>
+              )}
+              {saveState === "saving" && " 正在保存位置…"}
+              {saveState === "error" && " 位置保存失败，网络恢复后将重试"}
+              {!video.subtitles.length && " 本段暂无字幕，可以继续观看"}
+              {temporaryMode !== null && " 本次已减少辅助；视频内嵌文字不受站内开关控制"}
+            </div>
           </div>
 
           {/* 移动端动作行（#24/#28 乙）已并入 ⋯ 面板（DEC-069 第 6 条）：首屏不再有它。 */}
@@ -1500,7 +1337,11 @@ export default function WatchPage() {
               免得将来有人把折叠键放回移动端时，页面直接落进窄轨分支（DEC-070 T4d）。 */}
           {panelCollapsed && !isMobile ? (
             // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
-            <SubtitleModeRail onExpand={() => setPanelCollapsed(false)} />
+            <SubtitleModeRail
+              mode={subtitleMode}
+              onModeChange={setSubtitleMode}
+              onExpand={() => setPanelCollapsed(false)}
+            />
           ) : (
             <>
               {/* 设计 .w-aside-head：标题 + 句数 + 跟随开关。桌面放在模式行之上（设计的
@@ -1523,6 +1364,8 @@ export default function WatchPage() {
               {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
               <div className="border-b border-hairline">
                 <SubtitleModeTabs
+                  mode={subtitleMode}
+                  onModeChange={setSubtitleMode}
                   collapsed={false}
                   onToggleCollapse={() => setPanelCollapsed(true)}
                 />
@@ -1657,6 +1500,11 @@ export default function WatchPage() {
               onSave={handleSaveWord}
               sourceLabel={wordSourceLabel}
               onRevealSource={revealWordSource}
+              lookupError={lookupError}
+              enrichmentError={enrichmentError}
+              onRetry={retryLookup}
+              onReplay={() => handleReplay()}
+              onReduceReplay={() => handleReplay(true)}
             />
           ) : (
             <WordTooltipInline
@@ -1669,6 +1517,11 @@ export default function WatchPage() {
               anchorRect={wordAnchorRect}
               sourceLabel={wordSourceLabel}
               onRevealSource={revealWordSource}
+              lookupError={lookupError}
+              enrichmentError={enrichmentError}
+              onRetry={retryLookup}
+              onReplay={() => handleReplay()}
+              onReduceReplay={() => handleReplay(true)}
             />
           )}
         </div>
@@ -1677,6 +1530,7 @@ export default function WatchPage() {
       {/* ⋯ 面板（DEC-069 第 6 条）：来源 / 版权 / 语言 / 字号 / 倍速 / 动作行全部搬进来。
           入口是壳顶栏的 ⋯（44×44），开关状态经 `WatchChromeStore` 来回。 */}
       <WatchMoreSheet
+        triggerRef={moreTriggerRef}
         open={moreOpen}
         onClose={() => setMoreOpen(false)}
         subtitleMode={subtitleMode}
@@ -1710,53 +1564,6 @@ export default function WatchPage() {
         }
         extra={noteOpen ? notesPanel : null}
       />
-
-      {/* 跟读抽屉（#26 决议乙）：移动端练习区，入口搬到了壳底栏的「跟读」 */}
-      {isMobile && practiceOpen && currentSubtitle && (
-        <ShadowingDrawer
-          anchorRef={slotRef}
-          onClose={closePractice}
-          index={currentSubtitleIndex}
-          total={video.subtitles.length}
-          textEn={currentSubtitle.text_en}
-          textZh={currentSubtitle.text_zh}
-          speakingState={speakingState}
-          seconds={seconds}
-          recordingStream={recordingStream}
-          audioBlob={audioBlob}
-          audioUrl={audioUrl}
-          uploading={uploading}
-          saved={shadowingSaved}
-          satisfied={shadowingSatisfied}
-          canSatisfy={!!lastAttemptId}
-          originalUrl={originalSourceUrl}
-          originalClip={originalClip}
-          onPlayOriginal={playOriginal}
-          onStart={startRecording}
-          onStop={stopRecording}
-          onReRecord={handleReRecord}
-          onToggleSatisfied={handleToggleSatisfied}
-          onNext={sentenceShadow.active ? sentenceShadow.next : handleNextSubtitle}
-          sentenceActive={sentenceShadow.active}
-          sentencePhase={sentenceShadow.phase}
-          autoAdvance={sentenceShadow.autoAdvance}
-          onAutoAdvanceChange={sentenceShadow.setAutoAdvance}
-          attempts={attempts}
-          onDeleteAttempt={deleteAttempt}
-          ytMode={isYtMode}
-        />
-      )}
-
-      {/* D2 CoachMark — only renders when active (gated by localStorage flag). */}
-      {coach.active && (
-        <CoachMark
-          steps={coach.steps}
-          stepIndex={coach.stepIndex}
-          onNext={coach.next}
-          onSkip={coach.skip}
-          onFinish={coach.finish}
-        />
-      )}
     </div>
   );
 }

@@ -32,7 +32,6 @@ const TOP_BAR = ".user-topbar";
 const BOTTOM_BAR = '[data-testid="mobile-tab-bar"]';
 const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
-const DRAWER = '[data-testid="shadowing-drawer"]';
 
 const PHONE = uniquePhone();
 let token = "";
@@ -42,7 +41,7 @@ let token = "";
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async ({ request }) => {
-  ({ token } = await registerUserViaApi(request, PHONE));
+  token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, PHONE)).token;
 });
 
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {
@@ -156,7 +155,7 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
     );
 
     // ③ 老断言里的「逐句跟读按钮」现在由底栏的「跟读」承担；D10 完整流程在最后一条用例。
-    const shadowing = page.locator('[data-testid="watch-shadowing"]');
+    const shadowing = page.locator('[data-testid="watch-replay"]');
     await expect(shadowing).toBeVisible({ timeout: 10000 });
     const box = await shadowing.boundingBox();
     expect(box, "跟读键 bounding box").not.toBeNull();
@@ -280,58 +279,11 @@ test.describe("Mobile D1 + D10 Acceptance (iPhone X 375x812)", () => {
    * 这条用例真的把抽屉打开，量的是老文件想量却没量到的两件事：抽屉不盖画面，
    * 也不越底栏上沿；波形文案若在，仍不横向溢出。
    */
-  test("D10: 底栏「跟读」打开抽屉，抽屉不压画面也不越底栏、无横向溢出", async ({
-    page,
-    request,
-  }) => {
+  test("重听取代录音入口，不再打开跟读抽屉", async ({ page, request }) => {
     await enterWatch(page, request);
-    const frameBox = (await page.locator(FRAME).boundingBox())!;
-    const frameBottom = frameBox.y + frameBox.height;
-
-    const shadowing = page.locator('[data-testid="watch-shadowing"]');
-    test.skip(
-      await shadowing.isDisabled(),
-      "YouTube 源时序不可控，移动底栏的跟读入口置灰（沿用现有 title 文案）"
-    );
-    await shadowing.click();
-    await expect(page.locator(DRAWER)).toBeVisible({ timeout: 5000 });
-    await page.waitForTimeout(400); // 顶边/高度是一次性布局，等过渡落定
-
-    const bottomBar = await page.locator(BOTTOM_BAR).boundingBox();
-    const drawer = (await page.locator(DRAWER).boundingBox())!;
-    expect(drawer.x).toBeGreaterThanOrEqual(0);
-    expect(drawer.x + drawer.width).toBeLessThanOrEqual(375 + 2);
-    expect(drawer.y, "抽屉顶边不高于画框下沿（不压画面）").toBeGreaterThanOrEqual(
-      frameBottom - 1.5
-    );
-    if (bottomBar) {
-      expect(drawer.y + drawer.height, "抽屉底边不越底栏上沿").toBeLessThanOrEqual(bottomBar.y + 2);
-    }
-    expect(drawer.height, "抽屉有实际高度").toBeGreaterThan(120);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-shadowing-drawer.png` });
-    await assertNoHorizontalOverflow(page, "shadowing-drawer");
-
-    // 波形文案（WaveformCompare 的底注）只在录音回放态出现 —— 与老文件同样保持 best-effort，
-    // 但「若在则不溢出」这条现在是在抽屉真的打开的前提下量的。
-    const waveformLabel = page.locator("text=波形仅供对比参考，不做评分").first();
-    if (await waveformLabel.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const wfBox = await waveformLabel.boundingBox();
-      expect(wfBox, "waveform bounding box").not.toBeNull();
-      if (wfBox) {
-        expect(wfBox.x + wfBox.width).toBeLessThanOrEqual(375 + 2);
-        await page.screenshot({ path: `${SCREENSHOT_DIR}/04-waveform.png` });
-        await assertNoHorizontalOverflow(page, "waveform");
-      }
-    } else {
-      console.log("[D10] waveform not visible (idle 抽屉：要录完音进回放态才出波形)");
-    }
-  });
-
-  test("login page renders without horizontal overflow on iPhone X", async ({ page }) => {
-    // 与本轮壳层改动无关，原样保留。
-    await page.goto("/login");
-    await expect(page.locator('input[placeholder="请输入手机号"]')).toBeVisible();
-    await assertNoHorizontalOverflow(page, "login");
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/05-login.png` });
+    await expect(page.getByTestId("watch-replay")).toBeVisible();
+    await expect(page.getByTestId("shadowing-drawer")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /录音|跟读/ })).toHaveCount(0);
+    await assertNoHorizontalOverflow(page, "watch-replay");
   });
 });

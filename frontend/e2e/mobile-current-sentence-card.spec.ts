@@ -162,9 +162,10 @@ test.describe("当前句卡（414×896 移动端）", () => {
       frame.y + frame.height - 1.5
     );
     const controls = (await page.getByTestId("watch-bottom-bar").boundingBox())!;
-    expect(card!.y, "当前句位于页面内播放控制之后").toBeGreaterThanOrEqual(
-      controls.y + controls.height
+    expect(Math.abs(card!.y - (frame.y + frame.height)), "当前句紧接画面下沿").toBeLessThanOrEqual(
+      2
     );
+    expect(controls.y, "播放控制位于当前句之后").toBeGreaterThanOrEqual(card!.y + card!.height);
 
     // 文稿在卡之下：进页面未滚动时，卡在视口里、文稿顶边在卡底之下。
     const transcribed = await transcriptBox(page);

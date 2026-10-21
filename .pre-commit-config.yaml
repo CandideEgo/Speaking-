@@ -21,6 +21,40 @@ repos:
         files: ^frontend/
         types_or: [ts, tsx, css, json, markdown]
 
+  # 前端两条「机器执行的不变量」门禁（frontend/CLAUDE.md）：
+  #   check-design-system.mjs —— DEC-075 设计系统规则
+  #   check-session-writes.mjs —— 会话写入只能走 lib/authHelpers
+  # 根 CLAUDE.md 说这两段脚本是「机器执行的不变量」「永不为让检查变绿而放宽检查器」，
+  # 但它们此前既不在 CI 也不在 pre-commit —— 违规可以照常提交并合入 master。
+  #
+  # 执行环境（为什么不会误报失败）：
+  #   - 两段脚本只 import Node 内置模块（node:fs / node:path / node:url），
+  #     **不依赖 frontend/node_modules**，所以不需要先 `npm ci`；没装依赖不会
+  #     造成「找不到模块」式的假失败。
+  #   - 两段脚本按自身位置（import.meta.url）解析仓库路径，pre-commit 把工作目录
+  #     设成仓库根也不影响它们。
+  #   - 它们扫的是整个 frontend/src（不是被暂存的文件），所以即使违规文件不是本次
+  #     暂存的那一个也会被拦下。
+  #
+  # 为什么也不能静默跳过：
+  #   - Node 本身缺失时钩子**直接失败**（pre-commit 报找不到可执行文件），而不是
+  #     悄悄跳过 —— 门禁跑不了时放行，等于把「机器执行的不变量」降级成口头约定。
+  #   - 因此不写任何 `|| true` / `SKIP=` 之类的旁路，也不给这两段脚本加豁免条目。
+  - repo: local
+    hooks:
+      - id: check-design-system
+        name: check-design-system (前端设计系统门禁)
+        entry: node frontend/scripts/check-design-system.mjs
+        language: system
+        files: ^frontend/src/
+        pass_filenames: false
+      - id: check-session-writes
+        name: check-session-writes (会话写入唯一入口门禁)
+        entry: node frontend/scripts/check-session-writes.mjs
+        language: system
+        files: ^frontend/src/
+        pass_filenames: false
+
 
   # General checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

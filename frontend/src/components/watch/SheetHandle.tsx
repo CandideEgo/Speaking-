@@ -56,6 +56,12 @@ export function SheetHandle({
       tabIndex={0}
       aria-label={label}
       title={label}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onRelease(SHEET_CLOSE_DRAG_PX + 1);
+        }
+      }}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}

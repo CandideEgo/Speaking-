@@ -8,6 +8,8 @@ corpus. AI notes are produced by the video pipeline; there is no live LLM
 fallback — a cache miss simply returns no note fields.
 """
 
+from typing import Literal
+
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
@@ -39,6 +41,7 @@ class WordGloss(BaseModel):
     example_sentence_zh: str | None = None  # 真题例句译文
     example_source: str | None = None  # 真题来源标注
     is_high_freq: bool = False  # 真题高频徽标
+    note_scope: Literal["video", "general"] | None = None
     contextual_note: str | None = None  # AI: meaning in this context
     pitfalls: str | None = None  # AI: common mistakes
     knowledge: str | None = None  # AI: usage extension
@@ -150,6 +153,7 @@ async def gloss_enrich(
     lemma: str = Query(default="", max_length=100),
     context_sentence: str = Query(default="", max_length=2000),
     video_id: str | None = Query(default=None),
+    subtitle_id: str | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -158,6 +162,11 @@ async def gloss_enrich(
     ``lemma`` 由第一级返回（已做词形归一），缺失时用 ``word`` 兜底。
     静态字段不在此填充——前端只合并本端点拥有的字段。
     """
+    if subtitle_id:
+        from app.services.subtitle_context import resolve_context
+
+        await resolve_context(db, current_user, video_id, subtitle_id)
+
     clean = word.strip().strip(".,!?;:'\"()[]")
     norm = (lemma or "").strip().strip(".,!?;:'\"()[]") or clean
 
@@ -185,9 +194,11 @@ async def gloss_enrich(
     # get_best_note 内部将视频层/全局 × lemma/surface 四个候选合并为单次
     # IN 查询并按优先级取最优（此前最多 4 次串行 SELECT）。
     contextual_note = pitfalls = knowledge = None
+    note_scope: Literal["video", "general"] | None = None
     try:
         cached = await word_notes.get_best_note(db, norm, video_id, surface=clean)
         if cached:
+            note_scope = "video" if cached.get("source", "").startswith("video:") else "general"
             contextual_note = cached["contextual_note"]
             pitfalls = cached["pitfalls"]
             knowledge = cached["knowledge"]
@@ -201,6 +212,7 @@ async def gloss_enrich(
         example_sentence_zh=example_sentence_zh,
         example_source=example_source,
         is_high_freq=is_high_freq,
+        note_scope=note_scope,
         contextual_note=contextual_note,
         pitfalls=pitfalls,
         knowledge=knowledge,

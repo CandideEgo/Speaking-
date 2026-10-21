@@ -17,29 +17,6 @@ const FRAME = '[data-testid="video-frame"]';
 const CARD = '[data-testid="current-sentence-card"]';
 const WORD_SHEET = '[data-testid="word-tooltip"][data-variant="sheet"]';
 
-/** 使用浏览器真实 MediaRecorder 录制合成音频，验证可解码的回放文件。 */
-async function mockMic(page: Page) {
-  await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => {
-      const context = new AudioContext();
-      const source = context.createOscillator();
-      const destination = context.createMediaStreamDestination();
-      source.frequency.value = 220;
-      source.connect(destination);
-      source.start();
-      await context.resume();
-      const track = destination.stream.getAudioTracks()[0];
-      const stop = track.stop.bind(track);
-      track.stop = () => {
-        stop();
-        source.stop();
-        void context.close();
-      };
-      return destination.stream;
-    };
-  });
-}
-
 async function openFirstReadyVideo(request: APIRequestContext): Promise<string | null> {
   const res = await request.get("/api/v1/videos/public?page=1&page_size=1");
   if (!res.ok()) return null;
@@ -156,60 +133,11 @@ test("加入词库保留词卡，短拉回弹、长拉关闭", async ({ page, re
   await expect(page.locator(WORD_SHEET)).toHaveCount(0);
 });
 
-test("跟读抽屉保持画面位置，真实录音计时、回放、重录和拖动关闭", async ({ page, request }) => {
-  await mockMic(page);
+test("观看页不再提供录音或跟读抽屉", async ({ page, request }) => {
   await enterWatch(page, request);
-  const action = page.getByTestId("watch-shadowing");
-  await action.scrollIntoViewIfNeeded();
-  const frame = await boxOf(page, FRAME);
-  const sentence = await page.getByTestId("current-sentence-en").innerText();
-  await action.click();
-  const drawer = page.getByTestId("shadowing-drawer");
-  await expect(drawer).toBeVisible();
-  await assertSheetAboveNavigation(page, '[data-testid="shadowing-drawer"]');
-  const after = await boxOf(page, FRAME);
-  expect(after.y).toBeCloseTo(frame.y, 0);
-  expect(after.height).toBeCloseTo(frame.height, 0);
-  await expect(page.getByTestId("drawer-sentence-en")).toHaveText(sentence);
-  await expect(page.getByTestId("auto-advance")).toHaveAttribute("aria-checked", "false");
-  await drawer.getByRole("button", { name: "开始跟读本句" }).click();
-  await expect(page.getByTestId("recording-timer")).toBeVisible({ timeout: 15000 });
-  await expect(page.getByTestId("recording-timer")).not.toHaveText("0:00", { timeout: 5000 });
-  await drawer.getByRole("button", { name: "停止录音" }).click();
-  const replay = drawer.getByRole("button", { name: "播放我的录音", exact: true });
-  await expect(replay).toBeVisible({ timeout: 10000 });
-  await replay.click();
-  await expect(drawer.getByRole("button", { name: "暂停我的录音", exact: true })).toBeVisible();
-  await drawer.getByRole("button", { name: "暂停我的录音", exact: true }).click();
-  for (const button of await page.getByTestId("drawer-actions").getByRole("button").all())
-    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  await drawer.getByRole("button", { name: "重录", exact: true }).click();
-  await expect(drawer.getByRole("button", { name: "开始跟读本句" })).toBeVisible();
-  const grab = await boxOf(page, '[data-testid="shadowing-drawer-grab"]');
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 140, { steps: 12 });
-  await page.mouse.up();
-  await expect(drawer).toHaveCount(0);
-});
-
-test("抽屉旋转后仍贴全站导航上沿", async ({ page, request }) => {
-  await enterWatch(page, request);
-  await page.getByTestId("watch-shadowing").click();
-  for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 414, height: 896 },
-  ]) {
-    await page.setViewportSize(viewport);
-    await expect
-      .poll(async () => {
-        const d = await boxOf(page, '[data-testid="shadowing-drawer"]'),
-          tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
-        return Math.abs(d.y + d.height - tabs.y);
-      })
-      .toBeLessThanOrEqual(2);
-    await assertSheetAboveNavigation(page, '[data-testid="shadowing-drawer"]');
-  }
+  await expect(page.getByTestId("watch-replay")).toBeVisible();
+  await expect(page.getByRole("button", { name: /录音|跟读/ })).toHaveCount(0);
+  await expect(page.getByTestId("shadowing-drawer")).toHaveCount(0);
 });
 
 test.describe("桌面端", () => {

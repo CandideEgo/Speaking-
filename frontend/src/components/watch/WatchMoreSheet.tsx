@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useState } from "react";
-import { Check } from "lucide-react";
+import type { ReactNode, RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Check, X } from "lucide-react";
+import { useModalFocus } from "@/hooks/useModalFocus";
 import { cn } from "@/lib/utils";
 import { SheetHandle, SHEET_CLOSE_DRAG_PX } from "@/components/watch/SheetHandle";
 import type { SubtitleFontSize } from "@/components/watch/VideoControls";
@@ -25,7 +26,7 @@ import { SUBTITLE_MODE_LABEL, SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
  * 形态复用 `SheetHandle` + 下拉关闭手势（与 `WordCardSheet` / `ShadowingDrawer` 同一套），
  * 但它不引用画框：它锚的是**可视区底边**（`position: fixed`，尺寸自己撑），不是 `main` 里的
  * 绝对定位层 —— 所以不参与 `useSheetGeometry` 那套「上沿 = 画框下沿」的约束。
- * 跟读抽屉与词卡是**页面的浮层**（要贴画框），这一张是**页面的面板**（可以铺到屏底）。
+ * 词卡是**页面的浮层**（要贴画框），这一张是**页面的面板**（可以铺到屏底）。
  */
 export function WatchMoreSheet({
   open,
@@ -40,6 +41,7 @@ export function WatchMoreSheet({
   sourceUrl,
   actions,
   extra,
+  triggerRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -56,15 +58,24 @@ export function WatchMoreSheet({
   actions: ReactNode;
   /** 笔记编辑区等页面自带的补充内容。 */
   extra?: ReactNode;
+  triggerRef?: RefObject<HTMLElement | null>;
 }) {
   const [dy, setDy] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, open, onClose, true, triggerRef);
+  useEffect(() => {
+    if (open) setDy(0);
+  }, [open]);
   if (!open) return null;
 
   return (
     <div data-testid="watch-more-sheet" className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/45" aria-hidden="true" onClick={onClose} />
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         aria-label="更多设置"
         style={{ transform: dy ? `translateY(${dy}px)` : undefined }}
         className="absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col overflow-hidden rounded-t-lg border-t border-hairline bg-canvas pb-4 shadow-lift"
@@ -77,6 +88,17 @@ export function WatchMoreSheet({
             if (d > SHEET_CLOSE_DRAG_PX) onClose();
           }}
         />
+        <div className="flex shrink-0 items-center justify-between px-4">
+          <h2 className="text-copy font-semibold text-ink">更多设置</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭更多设置"
+            className="flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-ink"
+          >
+            <X size={20} />
+          </button>
+        </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pt-1">
           <Row label="语言">
             {SUBTITLE_MODE_ORDER.map((key) => (

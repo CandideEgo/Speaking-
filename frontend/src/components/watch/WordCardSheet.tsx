@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
-import { WordCardBody } from "@/components/subtitle/WordTooltipInline";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { WordCardBody, type WordHelpActions } from "@/components/subtitle/WordTooltipInline";
 import { SheetHandle, SHEET_CLOSE_DRAG_PX } from "@/components/watch/SheetHandle";
 import { useSheetGeometry } from "@/hooks/useSheetGeometry";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,11 @@ export function WordCardSheet({
   onSave,
   sourceLabel = null,
   onRevealSource = null,
+  lookupError,
+  enrichmentError,
+  onRetry,
+  onReplay,
+  onReduceReplay,
 }: {
   /** 画框元素（视频槽位）—— 词卡顶边的锚。 */
   anchorRef: RefObject<HTMLElement | null>;
@@ -44,8 +49,9 @@ export function WordCardSheet({
   sourceLabel?: string | null;
   /** 设计 `.word-pop-actions .undo`「回看原句」：关词卡并滚回当前句。 */
   onRevealSource?: (() => void) | null;
-}) {
+} & WordHelpActions) {
   const geo = useSheetGeometry(anchorRef, true);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [dy, setDy] = useState(0);
   const [entered, setEntered] = useState(false);
 
@@ -59,6 +65,10 @@ export function WordCardSheet({
     const id = window.requestAnimationFrame(() => setEntered(true));
     return () => window.cancelAnimationFrame(id);
   }, [geo]);
+  const measured = geo !== null;
+  useEffect(() => {
+    if (measured) cardRef.current?.focus({ preventScroll: true });
+  }, [measured]);
 
   if (!geo) return null;
 
@@ -67,10 +77,18 @@ export function WordCardSheet({
 
   return (
     <div
+      ref={cardRef}
+      tabIndex={-1}
       data-testid="word-tooltip"
       data-variant="sheet"
       role="dialog"
       aria-label={`${word} 词卡`}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
       style={{ top, maxHeight, transform: dy ? `translateY(${dy}px)` : undefined }}
       className={cn(
         "fixed inset-x-0 z-50 flex flex-col overflow-hidden bg-canvas",
@@ -97,6 +115,11 @@ export function WordCardSheet({
         touchTargets
         sourceLabel={sourceLabel}
         onRevealSource={onRevealSource}
+        lookupError={lookupError}
+        enrichmentError={enrichmentError}
+        onRetry={onRetry}
+        onReplay={onReplay}
+        onReduceReplay={onReduceReplay}
       />
     </div>
   );

@@ -89,11 +89,9 @@ test.describe("用户端观看布局", () => {
       );
     });
   }
-  test("首访引导可跳过，词卡仍可点开且不盖住五项导航", async ({ page, request }) => {
+  test("首访直接观看，词卡可点开且不盖住五项导航", async ({ page, request }) => {
     await openWatch(page, request, 375, 812, { firstVisit: true });
     const tour = page.getByRole("dialog", { name: "新手引导" });
-    await expect(tour).toBeVisible();
-    await page.getByRole("button", { name: "跳过教程" }).click();
     await expect(tour).toHaveCount(0);
     await page.locator(`${CARD} .now-sub-word`).first().click();
     const word = page.getByTestId("word-tooltip");

@@ -30,6 +30,8 @@ const modes: { key: SubtitleMode; label: string; icon: React.ReactNode }[] =
   }));
 
 interface SubtitleModeTabsProps {
+  mode?: SubtitleMode;
+  onModeChange?: (mode: SubtitleMode) => void;
   /** 折叠状态；传入后渲染右侧折叠/展开按钮，常驻头部不随模式切换跳位 */
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -41,8 +43,12 @@ export default function SubtitleModeTabs({
   collapsed = false,
   onToggleCollapse,
   compact = false,
+  mode,
+  onModeChange,
 }: SubtitleModeTabsProps) {
-  const { subtitleMode, setSubtitleMode } = useWatchStore();
+  const store = useWatchStore();
+  const subtitleMode = mode ?? store.subtitleMode;
+  const setSubtitleMode = onModeChange ?? store.setSubtitleMode;
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -128,8 +134,18 @@ export default function SubtitleModeTabs({
  * full width and activates that mode. The expand button at the bottom reopens
  * the panel without changing the mode.
  */
-export function SubtitleModeRail({ onExpand }: { onExpand: () => void }) {
-  const { subtitleMode, setSubtitleMode } = useWatchStore();
+export function SubtitleModeRail({
+  onExpand,
+  mode,
+  onModeChange,
+}: {
+  onExpand: () => void;
+  mode?: SubtitleMode;
+  onModeChange?: (mode: SubtitleMode) => void;
+}) {
+  const store = useWatchStore();
+  const subtitleMode = mode ?? store.subtitleMode;
+  const setSubtitleMode = onModeChange ?? store.setSubtitleMode;
 
   return (
     <div className="flex flex-col items-center gap-1 py-2">

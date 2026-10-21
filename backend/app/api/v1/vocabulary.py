@@ -364,6 +364,10 @@ async def add_word(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a word to personal vocabulary."""
+    if subtitle_id:
+        from app.services.subtitle_context import resolve_context
+
+        context_sentence = await resolve_context(db, current_user, video_id, subtitle_id)
     existing = await db.execute(
         select(Vocabulary).where(
             Vocabulary.user_id == current_user.id,

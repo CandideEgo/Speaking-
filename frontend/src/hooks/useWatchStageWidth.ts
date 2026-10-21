@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type RefObject } from "react";
 
-/** 给桌面播放器留出实际句卡高度，包括换行、词条与跟读历史。 */
+/** 给桌面播放器留出实际句卡高度，包括换行、词条与观看操作。 */
 export function useWatchStageWidth(
   stageRef: RefObject<HTMLElement | null>,
   frameRef: RefObject<HTMLElement | null>,

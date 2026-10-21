@@ -4,7 +4,7 @@
  * VideoControls — 自定义播放器控制条（D1，产品设计规划 §D1）。
  *
  * **桌面端专属**（≥1024px）。移动端（≤1023px）的观看控制由壳承载：
- * 顶栏 44px + `WatchBottomBar`（进度与上一句/播放/下一句/跟读），页面内不再渲染本组件
+ * 顶栏 44px + `WatchBottomBar`（进度与上一句/播放/下一句/重听），页面内不再渲染本组件
  * （DEC-069：入画字幕、点出式控制条、3s 自收一并删除）。
  *
  * 仅用于 HTML5 本地播放（YouTube IFrame 保留原生控件）。覆盖在 <video> 上：
@@ -33,6 +33,8 @@ const FONT_SIZE_LABEL: Record<SubtitleFontSize, string> = {
 const HIDE_DELAY_MS = 3000;
 
 interface VideoControlsProps {
+  onTogglePlay?: () => void;
+  onSeek?: (time: number) => void;
   videoRef: React.RefObject<HTMLVideoElement>;
   /** 视频总时长（秒），来自视频数据。 */
   duration: number | null;
@@ -49,9 +51,6 @@ interface VideoControlsProps {
   subtitleFontSize: SubtitleFontSize;
   onFontSizeChange: (size: SubtitleFontSize) => void;
   toggleFullscreen: () => void;
-  /** PiP 小窗时不渲染控制条（由调用方决定）。 */
-  /** D10 跟读时间线：绿点标记已跟读句子的位置（秒），点击回到对应句。 */
-  markers?: { position: number; onClick: () => void }[];
 }
 
 export function VideoControls({
@@ -68,7 +67,8 @@ export function VideoControls({
   subtitleFontSize,
   onFontSizeChange,
   toggleFullscreen,
-  markers,
+  onTogglePlay,
+  onSeek,
 }: VideoControlsProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolumeUi] = useState(1);
@@ -127,7 +127,8 @@ export function VideoControls({
   function togglePlayPause() {
     const el = videoRef.current;
     if (!el) return;
-    if (el.paused) el.play().catch(() => {});
+    if (onTogglePlay) onTogglePlay();
+    else if (el.paused) el.play().catch(() => {});
     else el.pause();
     handleActivity();
   }
@@ -144,7 +145,8 @@ export function VideoControls({
   function handleSeek(value: number) {
     const el = videoRef.current;
     if (!el || !Number.isFinite(value)) return;
-    el.currentTime = value;
+    if (onSeek) onSeek(value);
+    else el.currentTime = value;
     setCurrentTime(value);
     handleActivity();
   }
@@ -177,7 +179,7 @@ export function VideoControls({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 进度条（D10：绿点标记已跟读句子，点击回到对应句） */}
+        {/* 播放进度条 */}
         <div className="relative">
           <input
             type="range"
@@ -189,27 +191,6 @@ export function VideoControls({
             onChange={(e) => handleSeek(Number(e.target.value))}
             className="w-full h-1.5 cursor-pointer accent-brand-500"
           />
-          {markers && total > 0 && (
-            <div className="absolute inset-x-0 -top-1 h-2 pointer-events-none">
-              {markers.map((m, i) => (
-                <button
-                  key={`${i}-${m.position}`}
-                  type="button"
-                  aria-label={`已跟读，回到 ${formatDuration(m.position)}`}
-                  title="已跟读，点击回到这一句"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    m.onClick();
-                    handleActivity();
-                  }}
-                  className="absolute w-2 h-2 -translate-x-1/2 rounded-full bg-success
-                    ring-1 ring-black/20 hover:scale-125 transition-transform
-                    pointer-events-auto cursor-pointer"
-                  style={{ left: `${(Math.min(m.position, total) / total) * 100}%` }}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="mt-1 flex items-center gap-2.5 text-white">

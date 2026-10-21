@@ -39,8 +39,6 @@ export interface WatchChromeState {
   onNext?: () => void;
   /** YouTube 源时序不可控 → 上一句/下一句置灰，`title` 说明原因。 */
   sentenceNavDisabled?: boolean;
-  /** 底栏「跟读」入口。 */
-  onShadowing?: () => void;
-  /** 跟读抽屉是否打开（打开时按钮呈激活态）。 */
-  shadowingActive?: boolean;
+  onReplay?: () => void;
+  onSeek?: (time: number, playAfterSeek?: boolean) => void;
 }

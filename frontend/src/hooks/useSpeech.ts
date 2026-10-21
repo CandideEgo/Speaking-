@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 
 interface UseSpeechOptions {
   lang?: string;
@@ -31,6 +32,13 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
   const speak = useCallback(
     (text: string, options?: { rate?: number }) => {
       if (!text) return;
+      if (
+        typeof speechSynthesis === "undefined" ||
+        typeof SpeechSynthesisUtterance === "undefined"
+      ) {
+        toast.error("当前浏览器不支持词典发音，可以重听视频原声");
+        return;
+      }
 
       utteranceRef.current = null;
       speechSynthesis.cancel();
@@ -63,7 +71,8 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
   );
 
   const stop = useCallback(() => {
-    speechSynthesis.cancel();
+    utteranceRef.current = null;
+    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
     setIsPlaying(false);
     setCurrentText(null);
   }, []);
@@ -72,7 +81,7 @@ export function useSpeech(defaultOptions: UseSpeechOptions = {}): UseSpeechRetur
   useEffect(() => {
     return () => {
       utteranceRef.current = null;
-      speechSynthesis.cancel();
+      if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
     };
   }, []);
 

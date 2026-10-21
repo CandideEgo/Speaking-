@@ -4,7 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
-import { useWatchStore } from "@/stores/watchStore";
+import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
+import { WatchSession, validInterval } from "@/lib/watchSession";
+import { WatchProgressQueue, type ProgressSaveState } from "@/lib/watchProgressQueue";
 import type { VideoDetail } from "@/types";
 
 export type PlaybackMode = "ready" | "processing" | "loading" | "error" | "offline";
@@ -84,9 +86,14 @@ interface YTPlayerClass {
 }
 
 interface UseVideoPlayerOptions {
+  playbackRange?: { start: number; end: number; onEnd: () => void } | null;
+  playbackBlocked?: boolean;
   videoId: string;
   /** Playback-time tick (HTML5 timeupdate / YouTube poll) for subtitle sync. */
   onTimeTick?: (time: number) => void;
+  hasExplicitFocus?: boolean;
+  subtitleModeOverride?: SubtitleMode;
+  onUserIntent?: (clearAid: boolean) => void;
 }
 
 interface UseVideoPlayerReturn {
@@ -101,6 +108,13 @@ interface UseVideoPlayerReturn {
   isYtMode: boolean;
   /** 是否正在播放（原生事件快速路径 + 播放时钟轮询校正的单一事实源）。 */
   isPlaying: boolean;
+  mediaState: "loading" | "buffering" | "paused" | "playing" | "ended" | "error";
+  mediaError: string | null;
+  saveState: ProgressSaveState;
+  currentTime: () => number;
+  pauseForHelp: () => void;
+  closeHelp: (resume?: boolean) => void;
+  replaySentence: (start: number, end: number) => boolean;
   isDesktop: boolean;
   play: () => void;
   togglePlayPause: () => void;
@@ -135,9 +149,36 @@ interface UseVideoPlayerReturn {
  *    subtitle in the right panel now jumps the YouTube video too.
  */
 export function useVideoPlayer({
+  playbackRange = null,
+  playbackBlocked = false,
   videoId,
   onTimeTick,
+  hasExplicitFocus = false,
+  subtitleModeOverride,
+  onUserIntent,
 }: UseVideoPlayerOptions): UseVideoPlayerReturn {
+  const sessionRef = useRef(new WatchSession());
+  const boundsRef = useRef({ playbackRange, playbackBlocked });
+  useEffect(() => {
+    boundsRef.current = { playbackRange, playbackBlocked };
+  }, [playbackRange, playbackBlocked]);
+  const intentCallbackRef = useRef(onUserIntent);
+  const captionModeRef = useRef(subtitleModeOverride);
+  useEffect(() => {
+    intentCallbackRef.current = onUserIntent;
+    captionModeRef.current = subtitleModeOverride;
+  }, [onUserIntent, subtitleModeOverride]);
+  const [mediaState, setMediaState] = useState<UseVideoPlayerReturn["mediaState"]>("loading");
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<ProgressSaveState>("idle");
+  const progressRef = useRef<WatchProgressQueue | null>(null);
+  const positionTouchedRef = useRef(false);
+  const expectedSeekRef = useRef<number | null>(null);
+  const seekRevisionRef = useRef(0);
+  const nativeSeekAppliedRef = useRef(false);
+  const seekRetryRef = useRef(false);
+  const pendingPlayRef = useRef(false);
+  const playRequestRef = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null!);
   const ytContainerRef = useRef<HTMLDivElement>(null!);
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
@@ -188,6 +229,75 @@ export function useVideoPlayer({
     onTimeTickRef.current = onTimeTick;
   }, [onTimeTick]);
 
+  const rawPause = useCallback(() => {
+    playRequestRef.current++;
+    pendingPlayRef.current = false;
+    if (pendingYtSeekRef.current) pendingYtSeekRef.current.playAfterSeek = false;
+    videoRef.current?.pause();
+    ytPlayerRef.current?.pauseVideo();
+  }, []);
+  const rawPlay = useCallback(() => {
+    if (sessionRef.current.helpOpen) return;
+    const { playbackBlocked: blocked, playbackRange: bounds } = boundsRef.current;
+    if (blocked) return;
+    const position =
+      expectedSeekRef.current ??
+      videoRef.current?.currentTime ??
+      ytPlayerRef.current?.getCurrentTime() ??
+      0;
+    if (bounds && position >= bounds.end) {
+      bounds.onEnd();
+      return;
+    }
+    if (bounds && position < bounds.start - 0.1) return;
+    const request = ++playRequestRef.current;
+    const revision = sessionRef.current.revision;
+    const el = videoRef.current;
+    pendingPlayRef.current = true;
+    if (pendingYtSeekRef.current) pendingYtSeekRef.current.playAfterSeek = true;
+    window.speechSynthesis?.cancel();
+    setMediaError(null);
+    if (el)
+      void el.play().catch(() => {
+        if (
+          request !== playRequestRef.current ||
+          revision !== sessionRef.current.revision ||
+          el !== videoRef.current
+        )
+          return;
+        setIsPlaying(false);
+        setMediaState("paused");
+        setMediaError("播放未能开始，请点击播放重试");
+      });
+    else if (ytReadyRef.current) ytPlayerRef.current?.playVideo();
+  }, []);
+  const markIntent = useCallback((clearRange = true, preservePosition = false) => {
+    sessionRef.current.command(clearRange);
+    if (!preservePosition) {
+      seekRevisionRef.current++;
+      pendingYtSeekRef.current = null;
+      expectedSeekRef.current = null;
+      nativeSeekAppliedRef.current = false;
+      seekRetryRef.current = false;
+    }
+    intentCallbackRef.current?.(clearRange);
+  }, []);
+  useEffect(() => {
+    const session = sessionRef.current;
+    const seekRevision = seekRevisionRef;
+    session.command();
+    seekRevision.current++;
+    positionTouchedRef.current = false;
+    expectedSeekRef.current = null;
+    setMediaState("loading");
+    setMediaError(null);
+    setSaveState("idle");
+    return () => {
+      session.command();
+      seekRevision.current++;
+    };
+  }, [videoId]);
+
   // Detect desktop layout
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
@@ -198,10 +308,16 @@ export function useVideoPlayer({
   }, []);
 
   // Load video data
+  const loadRequestRef = useRef(0);
   const loadVideo = useCallback(() => {
+    const request = ++loadRequestRef.current;
+    sessionRef.current.command();
+    setVideo(null);
+    setCurrentSubtitleIndex(0);
     setPlaybackMode("loading");
     api<VideoDetail>(`/api/v1/videos/${videoId}`)
       .then((v) => {
+        if (request !== loadRequestRef.current) return;
         setVideo(v);
         // 已下线（需求 §5.1 offline）：媒体已删除，不再可播；字幕/学习记录保留，
         // 由 watch 页渲染「已下架」态（收藏夹与集合页入口不断链）。
@@ -217,21 +333,28 @@ export function useVideoPlayer({
         else setPlaybackMode("loading");
       })
       .catch(() => {
+        if (request !== loadRequestRef.current) return;
         setPlaybackMode("error");
         toast.error("加载视频失败");
       });
   }, [videoId]);
 
+  const cancelLoad = useCallback(() => {
+    loadRequestRef.current++;
+  }, []);
   useEffect(() => {
     loadVideo();
-  }, [loadVideo]);
+    return cancelLoad;
+  }, [loadVideo, cancelLoad]);
 
   // Poll for video status when processing
   useEffect(() => {
     if (!video || (video.status !== "processing" && video.status !== "ready_subtitles")) return;
+    let active = true;
     const interval = setInterval(async () => {
       try {
         const updated = await api<VideoDetail>(`/api/v1/videos/${videoId}`);
+        if (!active) return;
         setVideo(updated);
         const unlocked = updated.access ? updated.access.unlocked : true;
         if (updated.status === "ready" && canPlay(updated) && unlocked) setPlaybackMode("ready");
@@ -245,7 +368,10 @@ export function useVideoPlayer({
         /* ignore polling errors */
       }
     }, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [video, videoId]);
 
   // ---------------------------------------------------------------------------
@@ -281,64 +407,59 @@ export function useVideoPlayer({
     });
   }, []);
 
-  const resumeFromSavedPosition = useCallback(() => {
-    api<{ position_seconds: number | null }>(`/api/v1/learning/progress/${videoId}`)
-      .then((d) => {
-        const pos = d.position_seconds;
-        if (
-          typeof pos === "number" &&
-          pos > 5 &&
-          ytReadyRef.current &&
-          ytPlayerRef.current?.seekTo
-        ) {
-          ytPlayerRef.current.seekTo(pos, true);
-        }
-      })
-      .catch(() => {
-        /* first-time viewers have no saved position */
-      });
-  }, [videoId]);
-
-  const createYouTubePlayer = useCallback(
-    (ytId: string): boolean => {
-      if (!ytContainerRef.current || !window.YT?.Player) return false;
-      ytReadyRef.current = false;
-      ytPlayingRef.current = false;
-      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
-        videoId: ytId,
-        playerVars: { rel: 0, playsinline: 1 },
-        events: {
-          onReady: () => {
-            ytReadyRef.current = true;
-            const pendingSeek = pendingYtSeekRef.current;
-            const player = ytPlayerRef.current;
-            if (pendingSeek && player?.seekTo) {
-              pendingYtSeekRef.current = null;
-              player.seekTo(pendingSeek.time, true);
-              if (pendingSeek.playAfterSeek) player.playVideo();
-            } else {
-              resumeFromSavedPosition();
-            }
-          },
-          onStateChange: (e: { data?: number }) => {
-            // 1 = playing, 2 = paused, 0 = ended
-            ytPlayingRef.current = e?.data === 1;
-            setIsPlaying(e?.data === 1);
-            if (e?.data === 2) {
-              // Surface the final position once when pausing (time ticks keep
-              // running so subtitle highlight stays in sync during pause too).
-              onTimeTickRef.current?.(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
-            }
-          },
-          onError: () => {
-            toast.error("视频播放出错，请稍后重试");
-          },
+  const createYouTubePlayer = useCallback((ytId: string): boolean => {
+    if (!ytContainerRef.current || !window.YT?.Player) return false;
+    ytReadyRef.current = false;
+    ytPlayingRef.current = false;
+    ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+      videoId: ytId,
+      playerVars: { rel: 0, playsinline: 1 },
+      events: {
+        onReady: () => {
+          ytReadyRef.current = true;
+          setMediaState("paused");
+          const pendingSeek = pendingYtSeekRef.current;
+          const player = ytPlayerRef.current;
+          if (pendingSeek && player?.seekTo) {
+            pendingYtSeekRef.current = null;
+            player.seekTo(pendingSeek.time, true);
+            if (pendingSeek.playAfterSeek) player.playVideo();
+          }
         },
-      });
-      return true;
-    },
-    [resumeFromSavedPosition]
-  );
+        onStateChange: (e: { data?: number }) => {
+          // 1 = playing, 2 = paused, 0 = ended
+          if (e?.data === 1) {
+            window.speechSynthesis?.cancel();
+            positionTouchedRef.current = true;
+          }
+          setMediaState(
+            e.data === 1
+              ? "playing"
+              : e.data === 3
+                ? "buffering"
+                : e.data === 0
+                  ? "ended"
+                  : "paused"
+          );
+          ytPlayingRef.current = e?.data === 1;
+          setIsPlaying(e?.data === 1);
+          if (e?.data === 2) {
+            // Surface the final position once when pausing (time ticks keep
+            // running so subtitle highlight stays in sync during pause too).
+            onTimeTickRef.current?.(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
+            if (positionTouchedRef.current)
+              progressRef.current?.enqueue(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
+          }
+        },
+        onError: () => {
+          sessionRef.current.command();
+          setMediaState("error");
+          setMediaError("视频暂时无法播放，请重试或返回来源");
+        },
+      },
+    });
+    return true;
+  }, []);
 
   /** Mount the YouTube IFrame player into ytContainerRef (idempotent per video). */
   const mountYouTube = useCallback(
@@ -408,8 +529,71 @@ export function useVideoPlayer({
     const el = videoRef.current;
     if (!el) return;
 
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPlay = () => {
+      window.speechSynthesis?.cancel();
+      positionTouchedRef.current = true;
+      setIsPlaying(true);
+      setMediaState("playing");
+      setMediaError(null);
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      setMediaState(el.ended ? "ended" : "paused");
+      if (positionTouchedRef.current && expectedSeekRef.current === null)
+        progressRef.current?.enqueue(el.currentTime);
+    };
+    const onReady = () => {
+      setMediaState(el.paused ? "paused" : "playing");
+      setMediaError(null);
+    };
+    const onWaiting = () => {
+      if (!el.paused) setMediaState("buffering");
+    };
+    const onError = () => {
+      sessionRef.current.command();
+      setMediaState("error");
+      setMediaError("媒体加载失败，请重试或返回来源");
+    };
+    const onSeeking = () => {
+      positionTouchedRef.current = true;
+      if (expectedSeekRef.current !== null) return;
+      markIntent();
+    };
+    const onSeeked = () => {
+      const target = expectedSeekRef.current;
+      if (target !== null && !nativeSeekAppliedRef.current) return;
+      if (target !== null && Math.abs(el.currentTime - target) > 0.25) {
+        if (isIOS() && !seekRetryRef.current) {
+          seekRetryRef.current = true;
+          const revision = seekRevisionRef.current;
+          requestAnimationFrame(() => {
+            if (seekRevisionRef.current !== revision) return;
+            el.currentTime = target;
+            if (pendingPlayRef.current) rawPlay();
+          });
+          return;
+        }
+        setMediaError("句子定位未完成，请重新选择目标句");
+        sessionRef.current.command();
+      }
+      if (target !== null && Math.abs(el.currentTime - target) <= 0.25)
+        sessionRef.current.confirmSeek(el.currentTime);
+      expectedSeekRef.current = null;
+      onTimeTickRef.current?.(el.currentTime);
+    };
+    const listeners = {
+      playing: onPlay,
+      canplay: onReady,
+      loadedmetadata: onReady,
+      waiting: onWaiting,
+      stalled: onWaiting,
+      error: onError,
+      seeking: onSeeking,
+      seeked: onSeeked,
+      ended: onPause,
+    };
+    for (const [name, fn] of Object.entries(listeners)) el.addEventListener(name, fn);
+    if (el.readyState >= 2) onReady();
     el.addEventListener("play", onPlay);
     el.addEventListener("pause", onPause);
     // 初始同步：例如从保存进度恢复、或元素重建后的事件兜底。
@@ -419,15 +603,16 @@ export function useVideoPlayer({
       const v = videoRef.current;
       if (!v) return;
       const t = v.currentTime;
-      if (Number.isFinite(t)) onTimeTickRef.current?.(t);
+      if (Number.isFinite(t) && expectedSeekRef.current === null) onTimeTickRef.current?.(t);
       setIsPlaying(!v.paused);
     }, 250);
     return () => {
       el.removeEventListener("play", onPlay);
       el.removeEventListener("pause", onPause);
+      for (const [name, fn] of Object.entries(listeners)) el.removeEventListener(name, fn);
       clearInterval(interval);
     };
-  }, [playbackMode, isYtMode]);
+  }, [playbackMode, isYtMode, markIntent, rawPlay]);
 
   // Clean up the IFrame player on unmount.
   useEffect(() => {
@@ -447,70 +632,130 @@ export function useVideoPlayer({
   }, []);
 
   const play = useCallback(() => {
-    if (videoRef.current) videoRef.current.play().catch(() => {});
-    else if (ytReadyRef.current && ytPlayerRef.current?.playVideo) ytPlayerRef.current.playVideo();
-  }, []);
-
+    markIntent(true, true);
+    rawPlay();
+  }, [markIntent, rawPlay]);
   const togglePlayPause = useCallback(() => {
-    if (videoRef.current) {
-      if (videoRef.current.paused) videoRef.current.play();
-      else videoRef.current.pause();
-    } else if (ytPlayerRef.current) {
-      if (ytPlayingRef.current) ytPlayerRef.current.pauseVideo();
-      else ytPlayerRef.current.playVideo();
-    }
-  }, []);
+    const playing = videoRef.current ? !videoRef.current.paused : ytPlayingRef.current;
+    markIntent(!playing, true);
+    if (playing) rawPause();
+    else rawPlay();
+  }, [markIntent, rawPause, rawPlay]);
 
-  const seekBy = useCallback((delta: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + delta);
-    } else if (ytReadyRef.current && ytPlayerRef.current) {
-      const t = Math.max(0, (ytPlayerRef.current.getCurrentTime?.() ?? 0) + delta);
-      ytPlayerRef.current.seekTo(t, true);
-    }
-  }, []);
+  const seekTo = useCallback(
+    (time: number, playAfterSeek = true) => {
+      if (!Number.isFinite(time) || time < 0) return;
+      const bounds = boundsRef.current.playbackRange;
+      if (bounds) time = Math.max(bounds.start, Math.min(time, bounds.end));
+      markIntent();
+      positionTouchedRef.current = true;
+      const revision = seekRevisionRef.current;
+      pendingPlayRef.current = playAfterSeek;
+      expectedSeekRef.current = time;
+      const el = videoRef.current;
+      if (el) {
+        const apply = () => {
+          if (seekRevisionRef.current !== revision) return;
+          const t = Number.isFinite(el.duration) ? Math.min(time, el.duration) : time;
+          expectedSeekRef.current = t;
+          nativeSeekAppliedRef.current = true;
+          if (isIOS() || !pendingPlayRef.current) el.pause();
+          if (Math.abs(el.currentTime - t) < 0.01 && !el.seeking) {
+            expectedSeekRef.current = null;
+          } else el.currentTime = t;
+          if (pendingPlayRef.current) rawPlay();
+        };
+        if (el.readyState >= (isIOS() ? 2 : 1)) apply();
+        else {
+          const cleanup = () => {
+            el.removeEventListener("loadedmetadata", ready);
+            el.removeEventListener("canplay", ready);
+            el.removeEventListener("error", cleanup);
+          };
+          const ready = (event?: Event) => {
+            if (isIOS() && event?.type === "loadedmetadata") return;
+            if (el.readyState < (isIOS() ? 2 : 1)) return;
+            cleanup();
+            // Leave the initial media event stack before seeking: WebKit may
+            // otherwise finish its initial position reset after our assignment.
+            requestAnimationFrame(apply);
+          };
+          el.addEventListener("loadedmetadata", ready);
+          el.addEventListener("canplay", ready);
+          el.addEventListener("error", cleanup, { once: true });
+        }
+      } else if (ytReadyRef.current && ytPlayerRef.current) {
+        expectedSeekRef.current = time;
+        ytPlayerRef.current.seekTo(time, true);
+        if (playAfterSeek) rawPlay();
+        else rawPause();
+      } else pendingYtSeekRef.current = { time, playAfterSeek };
+    },
+    [markIntent, rawPlay, rawPause]
+  );
 
-  const seekTo = useCallback((time: number, playAfterSeek = true) => {
-    const el = videoRef.current;
-    if (el) {
-      const applySeek = () => {
-        // iOS 防御：伪 pause 事件会让内部播放态与实际不符，直接赋值
-        // currentTime 可能被吞（表现为点击字幕不跳转）——先强制 pause
-        // 再 seek 再 play，确保跳转生效。desktop/Android 保持原路径。
-        if (isIOS()) el.pause();
-        el.currentTime = time;
-        if (playAfterSeek) el.play().catch(() => {});
-      };
-      if (el.readyState >= 1) {
-        // HAVE_METADATA 及以上才能接受 seek；元数据未就绪时直接赋值会被
-        // 静默忽略（iOS 尤甚）——等就绪后再跳。
-        applySeek();
-      } else {
-        const cleanup = () => {
-          el.removeEventListener("loadedmetadata", onReady);
-          el.removeEventListener("canplay", onReady);
-          el.removeEventListener("error", onError);
-        };
-        const onReady = () => {
-          cleanup();
-          applySeek();
-        };
-        const onError = () => {
-          // 元数据始终未就绪（加载失败）：清掉挂起监听，避免下次加载
-          // 成功后残留回调造成非预期跳转。
-          cleanup();
-        };
-        el.addEventListener("loadedmetadata", onReady);
-        el.addEventListener("canplay", onReady);
-        el.addEventListener("error", onError);
+  const seekBy = useCallback(
+    (delta: number) => {
+      seekTo(
+        Math.max(0, currentTime() + delta),
+        videoRef.current ? !videoRef.current.paused : ytPlayingRef.current
+      );
+    },
+    [seekTo, currentTime]
+  );
+  const pauseForHelp = useCallback(() => {
+    sessionRef.current.openHelp(videoRef.current ? !videoRef.current.paused : ytPlayingRef.current);
+    rawPause();
+  }, [rawPause]);
+  const closeHelp = useCallback(
+    (resume = true) => {
+      const shouldResume = sessionRef.current.closeHelp();
+      if (resume && shouldResume) rawPlay();
+    },
+    [rawPlay]
+  );
+  const replaySentence = useCallback(
+    (start: number, end: number) => {
+      const duration = videoRef.current?.duration || videoDataRef.current?.duration;
+      if (!validInterval(start, end, duration)) {
+        setMediaError("本段暂无可用句子定位");
+        return false;
       }
-    } else if (ytReadyRef.current && ytPlayerRef.current?.seekTo) {
-      ytPlayerRef.current.seekTo(time, true);
-      if (playAfterSeek) ytPlayerRef.current.playVideo();
-    } else {
-      pendingYtSeekRef.current = { time, playAfterSeek };
-    }
-  }, []);
+      seekTo(start);
+      sessionRef.current.range = { start, end, armed: false };
+      if (expectedSeekRef.current === null) sessionRef.current.confirmSeek(currentTime());
+      return true;
+    },
+    [seekTo, currentTime]
+  );
+
+  // A separate fast boundary clock prevents the 250ms subtitle clock cutting into the next sentence.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const time = currentTime();
+      const target = expectedSeekRef.current;
+      if (target !== null) {
+        const el = videoRef.current;
+        if (!el && ytReadyRef.current && Math.abs(time - target) <= 0.25) {
+          sessionRef.current.confirmSeek(time);
+          expectedSeekRef.current = null;
+        } else return;
+      }
+      const playing = videoRef.current ? !videoRef.current.paused : ytPlayingRef.current;
+      const { playbackRange: bounds, playbackBlocked: blocked } = boundsRef.current;
+      if (blocked && playing) {
+        rawPause();
+        return;
+      }
+      if (bounds && playing && time >= bounds.end) {
+        rawPause();
+        bounds.onEnd();
+        return;
+      }
+      if (sessionRef.current.shouldStop(time, playing)) rawPause();
+    }, 40);
+    return () => clearInterval(timer);
+  }, [currentTime, rawPause]);
 
   const navigateSubtitle = useCallback(
     (delta: number) => {
@@ -524,6 +769,13 @@ export function useVideoPlayer({
         Math.min(vd.subtitles.length - 1, currentSubtitleIndexRef.current + delta)
       );
       if (newIndex === currentSubtitleIndexRef.current) return;
+      const bounds = boundsRef.current.playbackRange;
+      if (
+        bounds &&
+        (vd.subtitles[newIndex].start_time < bounds.start ||
+          vd.subtitles[newIndex].start_time >= bounds.end)
+      )
+        return;
       currentSubtitleIndexRef.current = newIndex;
       setCurrentSubtitleIndex(newIndex);
       seekTo(vd.subtitles[newIndex].start_time);
@@ -582,7 +834,7 @@ export function useVideoPlayer({
   const cycleSubtitleMode = useCallback(() => {
     const { subtitleMode, setSubtitleMode } = useWatchStore.getState();
     // S 键循环顺序与模式行、⋯ 面板同源（lib/subtitleModes）：双语 → 英文 → 中文 → 关闭。
-    const idx = SUBTITLE_MODE_ORDER.indexOf(subtitleMode);
+    const idx = SUBTITLE_MODE_ORDER.indexOf(captionModeRef.current ?? subtitleMode);
     const next = SUBTITLE_MODE_ORDER[(idx + 1) % SUBTITLE_MODE_ORDER.length];
     setSubtitleMode(next);
   }, []);
@@ -676,53 +928,71 @@ export function useVideoPlayer({
     cycleSubtitleMode,
   ]);
 
-  // Resume from last saved position on first ready (HTML5 backend).
+  // Both backends use the same guarded restore. Explicit links own the initial position.
   useEffect(() => {
-    if (playbackMode !== "ready" || isYtMode) return;
+    if (playbackMode !== "ready" || hasExplicitFocus) return;
+    const revision = sessionRef.current.revision;
     let cancelled = false;
-    (async () => {
-      try {
-        const data = await api<{ position_seconds: number | null }>(
-          `/api/v1/learning/progress/${videoId}`
-        );
-        if (cancelled) return;
+    void api<{ position_seconds: number | null }>(`/api/v1/learning/progress/${videoId}`)
+      .then((data) => {
+        if (cancelled || revision !== sessionRef.current.revision) return;
         const pos = data.position_seconds;
-        if (typeof pos === "number" && pos > 5 && videoRef.current) {
-          videoRef.current.currentTime = pos;
+        if (typeof pos === "number" && Number.isFinite(pos) && pos > 0) {
+          seekTo(pos, false);
+          positionTouchedRef.current = false;
         }
-      } catch {
-        // First-time viewers have no saved position — ignore.
-      }
-    })();
+      })
+      .catch(() => {
+        /* No restore is claimed on failure. */
+      });
     return () => {
       cancelled = true;
     };
-  }, [playbackMode, videoId, isYtMode]);
+  }, [playbackMode, videoId, hasExplicitFocus, seekTo]);
 
-  // Periodic position save (every 10s while playing) → PATCH /learning/progress.
-  // This populates LearningRecord.position_seconds / progress_percentage, which
-  // feed the P1 Retention score factor.
   useEffect(() => {
     if (playbackMode !== "ready") return;
-    const interval = setInterval(async () => {
-      const playing = videoRef.current ? !videoRef.current.paused : ytPlayingRef.current;
-      if (!playing) return;
-      const t = currentTime();
-      if (t <= 0) return;
-      try {
+    let active = true;
+    const queue = new WatchProgressQueue(
+      async (position, keepalive) => {
         await api("/api/v1/learning/progress", {
           method: "PATCH",
-          body: JSON.stringify({
-            video_id: videoId,
-            position_seconds: t,
-          }),
+          keepalive,
+          body: JSON.stringify({ video_id: videoId, position_seconds: position }),
         });
-      } catch {
-        // Non-blocking — position save is best-effort.
+      },
+      (state) => {
+        if (active) setSaveState(state);
       }
-    }, 10000);
-    return () => clearInterval(interval);
+    );
+    progressRef.current = queue;
+    const save = () => {
+      if (positionTouchedRef.current && expectedSeekRef.current === null)
+        queue.enqueue(currentTime(), true);
+    };
+    const interval = setInterval(save, 10000);
+    const hidden = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      save();
+      active = false;
+      progressRef.current = null;
+      clearInterval(interval);
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", hidden);
+      // Allow a serialized final write to drain after a same-tab navigation.
+      setTimeout(() => queue.dispose(), 15000);
+    };
   }, [playbackMode, videoId, currentTime]);
+
+  useEffect(() => {
+    if (mediaState !== "buffering") return;
+    const timer = setTimeout(() => setMediaError("缓冲时间较长，请检查网络或重试"), 12000);
+    return () => clearTimeout(timer);
+  }, [mediaState]);
 
   return {
     video,
@@ -733,13 +1003,23 @@ export function useVideoPlayer({
     ytContainerRef,
     isYtMode,
     isPlaying,
+    mediaState,
+    mediaError,
+    saveState,
+    currentTime,
+    pauseForHelp,
+    closeHelp,
+    replaySentence,
     isDesktop,
     play,
     togglePlayPause,
     seekBy,
     seekTo,
     navigateSubtitle,
-    retry: loadVideo,
+    retry: () => {
+      markIntent();
+      loadVideo();
+    },
     rate,
     setRate,
     cycleRate,

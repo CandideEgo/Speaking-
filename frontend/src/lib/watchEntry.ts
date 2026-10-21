@@ -201,8 +201,8 @@ export function resolveWatchFocus(
     }
   }
   if (seconds === null && t) {
-    const parsed = parseFloat(t);
-    if (!Number.isNaN(parsed) && parsed >= 0) seconds = parsed;
+    const parsed = Number(t);
+    if (Number.isFinite(parsed) && parsed >= 0) seconds = parsed;
   }
   return {
     key: `${sub ?? ""}|${word ?? ""}|${t ?? ""}${params.get("autoplay") === "1" ? "|play" : ""}`,
@@ -210,6 +210,28 @@ export function resolveWatchFocus(
     seconds,
     word: word || null,
   };
+}
+
+/** Explain stale links before offering a fallback; never silently claim a hit. */
+export function watchFocusIssue(
+  params: URLSearchParams,
+  subtitles: Subtitle[],
+  duration?: number | null
+): { message: string; fallback: number | null } | null {
+  const sub = params.get("sub");
+  const raw = params.get("t");
+  const t = raw ? Number(raw) : NaN;
+  const validTime = Number.isFinite(t) && t >= 0 && (!duration || t < duration);
+  if (sub && !subtitles.some((s) => s.id === sub))
+    return { message: "原句位置已变化，请选择备用位置或从头观看", fallback: validTime ? t : null };
+  const source = sub ? subtitles.find((s) => s.id === sub) : null;
+  const position = source?.start_time ?? t;
+  if (
+    (source || raw) &&
+    (!Number.isFinite(position) || position < 0 || (!!duration && position >= duration))
+  )
+    return { message: "链接中的时间位置无效，可以从头观看", fallback: null };
+  return null;
 }
 
 function isWatchSource(value: string | null): value is WatchSource {

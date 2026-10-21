@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import { Mic, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { RotateCcw, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { WatchChromeState } from "@/components/watch/WatchChromeProvider";
 
 /** 页面内播放操作。高频进度仍由 rAF 直读媒体，避免整页随播放重渲染。 */
@@ -44,8 +44,8 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
     onPrev,
     onNext,
     sentenceNavDisabled,
-    onShadowing,
-    shadowingActive,
+    onReplay,
+    onSeek,
   } = chrome;
 
   /**
@@ -174,7 +174,8 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
     const video = videoRef?.current;
     const seconds = secondsAt(clientX);
     if (!video || seconds === null) return;
-    video.currentTime = seconds;
+    if (onSeek) onSeek(seconds, false);
+    else video.currentTime = seconds;
     // 立刻回写一次，别等下一帧（拖动时观感才跟手）。
     if (playedRef.current && railRef.current) {
       const rect = railRef.current.getBoundingClientRect();
@@ -237,10 +238,10 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           if (!video) return;
           if (e.key === "ArrowRight") {
             e.preventDefault();
-            video.currentTime = Math.min(video.duration || 0, video.currentTime + seekStep);
+            onSeek?.(Math.min(video.duration || 0, video.currentTime + seekStep), isPlaying);
           } else if (e.key === "ArrowLeft") {
             e.preventDefault();
-            video.currentTime = Math.max(0, video.currentTime - seekStep);
+            onSeek?.(Math.max(0, video.currentTime - seekStep), isPlaying);
           }
         }}
         className="relative h-11 cursor-pointer touch-none select-none"
@@ -268,7 +269,7 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           onClick={onPrev}
           disabled={sentenceNavDisabled}
           aria-label="上一句"
-          title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跳转" : "上一句"}
+          title="上一句"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           <SkipBack size={19} />
@@ -296,7 +297,7 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           onClick={onNext}
           disabled={sentenceNavDisabled}
           aria-label="下一句"
-          title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跳转" : "下一句"}
+          title="下一句"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           下一句
@@ -305,17 +306,17 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
 
         <button
           type="button"
-          data-testid="watch-shadowing"
-          onClick={onShadowing}
-          aria-label={shadowingActive ? "关闭跟读" : "跟读"}
-          title={sentenceNavDisabled ? "YouTube 视频暂不支持逐句跟读" : "跟读练习"}
+          data-testid="watch-replay"
+          onClick={onReplay}
+          aria-label="重听本句"
+          title="重听本句，到句末暂停"
           className={cn(
             "flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold transition-colors cursor-pointer",
-            shadowingActive ? "text-brand-500" : "text-muted hover:text-ink"
+            "text-muted hover:text-ink"
           )}
         >
-          <Mic size={19} />
-          跟读
+          <RotateCcw size={19} />
+          重听
         </button>
       </div>
 

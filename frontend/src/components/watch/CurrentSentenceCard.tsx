@@ -185,7 +185,9 @@ export function CurrentSentenceCard({
               {textEn.split(" ").map((word, i) => (
                 <Fragment key={i}>
                   {i > 0 && " "}
-                  <span
+                  <button
+                    type="button"
+                    aria-label={`查看 ${word} 的词义`}
                     className={cn(
                       // 热区（§4 当前句卡）：行高 32px，词热区 = 该行整条带再向下扩 4px，
                       // **行与行不重叠**。做法是 `inline-block` + `-mb-1 pb-1`：盒子高
@@ -208,7 +210,7 @@ export function CurrentSentenceCard({
                     }}
                   >
                     {word}
-                  </span>
+                  </button>
                 </Fragment>
               ))}
             </div>

@@ -600,6 +600,7 @@ export interface VocabSetCelebration {
 
 /** Rich gloss for a clicked subtitle word (GET /api/v1/words/gloss). */
 export interface WordGloss {
+  note_scope?: "video" | "general" | null;
   word: string;
   lemma: string | null;
   /** Word-form label, e.g. "复数形式" — present when word is an inflected form of lemma. */

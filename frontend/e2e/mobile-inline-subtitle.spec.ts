@@ -112,8 +112,8 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
     const frameBottom = frame.y + frame.height;
     expect(card.y, "当前句卡顶边在画框下沿之下").toBeGreaterThanOrEqual(frameBottom - 1);
     const controls = await boxOf(page, '[data-testid="watch-bottom-bar"]');
-    expect(controls.y, "播放操作位于画面与当前句之间").toBeGreaterThanOrEqual(frameBottom - 1);
-    expect(card.y, "当前句位于播放操作之后").toBeGreaterThanOrEqual(controls.y + controls.height);
+    expect(Math.abs(card.y - frameBottom), "当前句紧接画面下沿").toBeLessThanOrEqual(2);
+    expect(controls.y, "播放操作位于当前句之后").toBeGreaterThanOrEqual(card.y + card.height);
     await expect(page.locator('[data-testid="current-sentence-en"]')).toBeVisible();
 
     // 旧形态的两个画面内锚点都不在了。
@@ -184,7 +184,7 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
       ["watch-prev", "上一句"],
       ["watch-toggle-play", "播放/暂停"],
       ["watch-next", "下一句"],
-      ["watch-shadowing", "跟读"],
+      ["watch-replay", "重听"],
     ] as const) {
       const b = await boxOf(page, `[data-testid="${id}"]`);
       expect(b.height, `${label} 触控目标高`).toBeGreaterThanOrEqual(44);
@@ -222,10 +222,18 @@ test.describe("移动端当前句卡（#31，375×812）", () => {
         .locator("video")
         .first()
         .evaluate((v) => (v as HTMLVideoElement).paused),
-      "点词不该顺带切换播放/暂停"
-    ).toBe(false);
+      "点词打开帮助应暂停原声"
+    ).toBe(true);
     await sheet.locator('[aria-label="关闭"]').click();
     await expect(page.locator('[data-testid="word-tooltip"]')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page
+          .locator("video")
+          .first()
+          .evaluate((v) => (v as HTMLVideoElement).paused)
+      )
+      .toBe(false);
 
     // ⑥ 点卡片空白 = 播放/暂停（卡内不放按钮）。先把播放头停住：不然句子可能在
     // 「量点」与「点下去」之间翻页，卡高一变那个相对坐标就落到别的行上。

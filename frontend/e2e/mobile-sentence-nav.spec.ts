@@ -32,7 +32,7 @@ const PREV = '[data-testid="watch-prev"]';
 const NEXT = '[data-testid="watch-next"]';
 const PROGRESS = '[data-testid="watch-progress"]';
 /** 底栏四个键：中心点必须各自命中自己（顺序 = 屏幕从左到右）。 */
-const BOTTOM_KEYS = ["watch-prev", "watch-toggle-play", "watch-next", "watch-shadowing"] as const;
+const BOTTOM_KEYS = ["watch-prev", "watch-toggle-play", "watch-next", "watch-replay"] as const;
 
 test.use({ viewport: { width: 414, height: 896 } });
 
