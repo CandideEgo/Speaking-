@@ -15,11 +15,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import _to_aware_utc, get_current_user
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.database import commit_refresh, get_db
 from app.core.errors import AppError, ErrorCode
 from app.core.limiter import rate_limit
+from app.core.time_utils import to_aware_utc
 from app.models.order import Order, OrderStatus
 from app.models.user import PlanType, User
 from app.schemas.payment import (
@@ -47,7 +48,7 @@ def _utcnow() -> datetime:
     All DB DateTime columns use timezone=True; using aware datetimes
     avoids naive-vs-aware comparison errors on PostgreSQL.
     For values read back from SQLite (which drops tzinfo), use
-    _to_aware_utc() to restore the timezone.
+    ``app.core.time_utils.to_aware_utc()`` to restore the timezone.
     """
     return datetime.now(UTC)
 
@@ -78,7 +79,7 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
         # otherwise, start from now.
         duration_days = PLAN_DURATIONS.get(order.plan, 30)
         now = datetime.now(UTC)
-        current_expires = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+        current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
         base = max(current_expires, now)
         user.plan_expires_at = base + timedelta(days=duration_days)
         logger.info(
@@ -118,7 +119,7 @@ async def create_order(
     if (
         current_user.plan == PlanType.pro
         and current_user.plan_expires_at
-        and _to_aware_utc(current_user.plan_expires_at) > _utcnow()
+        and to_aware_utc(current_user.plan_expires_at) > _utcnow()
     ):
         raise HTTPException(status_code=400, detail="Already a Pro member")
 
@@ -294,7 +295,12 @@ async def jinshuju_webhook(request: Request):
         raise HTTPException(status_code=503, detail="Webhook secret not configured")
 
     provided = request.query_params.get("secret", "")
-    if not hmac.compare_digest(provided, expected):
+    # 常量时间比较必须比 **bytes**：``hmac.compare_digest`` 对非 ASCII 的 str
+    # 会抛 TypeError（"comparing strings with non-ASCII characters is not
+    # supported"）。``provided`` 完全由匿名请求方控制，于是 ``?secret=中``
+    # 会把端点稳定打成 500，把真正的「签名不符」淹没在 500 里，排障方向被带偏。
+    # 先编成 UTF-8 字节再比：既保留常量时间语义，又不会抛异常。
+    if not hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8")):
         logger.warning(
             "jinshuju_webhook_bad_secret",
             client=request.client.host if request.client else None,
@@ -341,7 +347,7 @@ async def payment_status(request: Request, current_user: User = Depends(get_curr
         plan=current_user.plan.value,
         is_pro=current_user.plan == PlanType.pro
         and current_user.plan_expires_at is not None
-        and _to_aware_utc(current_user.plan_expires_at) > datetime.now(UTC),
+        and to_aware_utc(current_user.plan_expires_at) > datetime.now(UTC),
         plan_expires_at=current_user.plan_expires_at,
     )
 

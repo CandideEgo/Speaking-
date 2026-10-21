@@ -186,7 +186,10 @@ class Settings(BaseSettings):
     # x_field_1 本身没有签名保护，所以值做成「user_id + 过期时间 + HMAC」的
     # 紧凑 token：篡改/过期都会验签失败，不会把会员发错人。
     jinshuju_purchase_url: str = ""  # 例如 https://xxx.jsjform.com/p/ed8TXL
-    jinshuju_purchase_token_secret: str = ""  # 空则回退 JWT_SECRET
+    # 站内购买 token 的 HMAC 密钥。**不回退 JWT_SECRET**：一把密钥同时保护
+    # 「用户会话」与「购买凭证」两个不同用途，密钥分离就没了。缺失时签发与
+    # 验签一律失败（见 ``jinshuju_service._purchase_secret``）。
+    jinshuju_purchase_token_secret: str = ""
     jinshuju_purchase_token_ttl_minutes: int = 1440
 
     # Redeem code lifecycle (ADR-0007). Pro is sold via WeChat mini-shop +
@@ -397,6 +400,22 @@ class Settings(BaseSettings):
                 raise RuntimeError("REDIS_URL must be set in production")
             if not self.transcription_callback_secret:
                 raise RuntimeError("TRANSCRIPTION_CALLBACK_SECRET must be set in production")
+            # 金数据站内购买 token 的 HMAC 密钥：必须显式配置，且不得复用
+            # JWT_SECRET —— 同一把密钥保护「用户会话」与「购买凭证」两个不同
+            # 用途就是密钥分离被破坏。只在开启金数据时要求（关着就无所谓）。
+            if self.jinshuju_enabled:
+                if not self.jinshuju_purchase_token_secret:
+                    raise RuntimeError(
+                        "JINSHUJU_PURCHASE_TOKEN_SECRET must be set in production "
+                        "when JINSHUJU_ENABLED=true (it does NOT fall back to JWT_SECRET)"
+                    )
+                if self.jinshuju_purchase_token_secret == self.jwt_secret:
+                    raise RuntimeError("JINSHUJU_PURCHASE_TOKEN_SECRET must differ from JWT_SECRET in production")
+                if not (self.jinshuju_access_token.strip() and self.jinshuju_form_token.strip()):
+                    raise RuntimeError(
+                        "JINSHUJU_ACCESS_TOKEN and JINSHUJU_FORM_TOKEN must be set in production "
+                        "when JINSHUJU_ENABLED=true"
+                    )
 
 
 @lru_cache

@@ -1,9 +1,15 @@
 """金数据（Jinshuju）外部收款记录 —— 自动开通 Pro 的落账表。
 
 站内不收款（ICP 合规，见 ``settings.payments_enabled``）：会员在被托管在
-金数据的收款页成交后，由后台同步任务把订单落到本表，再按买家手机号找到
-SeeWord 账号延长 Pro 有效期。账号还没注册的订单保持 ``pending``，等该手机号
-首次短信登录时补发（见 ``jinshuju_service.apply_pending_grants``）。
+金数据的收款页成交后，由后台同步任务把订单落到本表，再延长 SeeWord 账号的
+Pro 有效期。
+
+**主路径是 token，不是手机号**：站内购买链接在 ``x_field_1`` 里带一个签名
+token（HMAC，见 ``jinshuju_service.verify_purchase_token``），落账时据此直接
+定位 ``user_id`` —— 买家不需要填手机号。**手机号匹配是兼容分支**：只服务老的
+「按手机号找到 SeeWord 账号」的订单（人工补单 / 历史数据）。账号还没注册的
+订单保持 ``pending``，等该用户首次短信登录时补发（见
+``jinshuju_service.apply_pending_grants``）。
 
 幂等键是金数据的数据记录 ``entry_token``：同一笔订单无论被 webhook 推送、
 轮询同步处理多少次，都只会发放一次。

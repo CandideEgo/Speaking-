@@ -49,12 +49,37 @@ services:
       dockerfile: Dockerfile.cloud
     # The image ENTRYPOINT runs `alembic upgrade head` first, then execs the
     # command below. Keep the entrypoint so migrations run on every start.
+    #
+    # 访问日志：**故意不开** `--access-logfile`。理由（已按源码核实，不是猜的）：
+    #   - 这里的 worker 是 uvicorn.workers.UvicornWorker，**访问日志行是 uvicorn 打的，
+    #     不是 gunicorn**。uvicorn 的行格式是
+    #     '%s - "%s %s HTTP/%s" %d'，其中路径取 get_path_with_query_string(scope)
+    #     —— **带 query string**（uvicorn/protocols/utils.py:53）。
+    #   - frontend 的 mediaUrl() 把用户 access token 拼成 `?token=<JWT>`
+    #     （<video>/<audio> 发不了请求头），所以每次跟读播放都会把**可冒充用户的凭证**
+    #     写进容器 stdout → docker json-file → 日志轮转/外发/备份长期留存
+    #     （token 有效期 30 分钟，日志留存期远长于此）。
+    #   - gunicorn 的 `--access-logformat`（含 `%(U)s` 这种只取 path 的写法）在这里
+    #     **是空操作**：gunicorn 的 atom 替换只发生在它自己的 WSGI 请求路径
+    #     （gunicorn/glogging.py:345 `Logger.access()`），而 uvicorn worker 直接跑 ASGI
+    #     循环，压根不经过那条路径。加 `--access-logformat` 只会得到「以为改了、其实
+    #     没改」的假安全感。
+    #   - 去掉 `--access-logfile` 之后，gunicorn 不再给 `uvicorn.access` 挂 handler，
+    #     而 uvicorn worker 又把该 logger 的 propagate 关掉 → uvicorn 的访问日志
+    #     彻底不输出（已实测：带 --access-logfile 时日志行里有
+    #     `GET /media/video/1.mp4?token=eyJ...`，去掉后没有任何访问日志行）。
+    # - 请求轨迹并没有丢，两处都还在且都不含 query：
+    #   - nginx（nginx.conf / nginx.ssl.conf）的 log_format 用 `$uri`，不含 query；
+    #   - 应用自己的请求日志中间件（backend/app/main.py）记 method / path / status /
+    #     request_id，path 取 `request.url.path`（无 query），生产是 JSON 结构化输出。
+    # - 想恢复一份「后端自己的访问日志」时，正确做法是加一个剥掉 query 的日志
+    #   filter（uvicorn.access 的 message 里第三个参数就是带 query 的路径），
+    #   而不是靠 gunicorn 的 --access-logformat —— 见 backend/app/core/logging.py。
     command: >
       gunicorn app.main:app
         -w 2
         -k uvicorn.workers.UvicornWorker
         -b 0.0.0.0:8000
-        --access-logfile -
         --error-logfile -
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
@@ -99,6 +124,27 @@ services:
       ALIYUN_SMS_TEMPLATE_REGISTER: ${ALIYUN_SMS_TEMPLATE_REGISTER:-}
       ALIYUN_SMS_TEMPLATE_CHANGE_PHONE: ${ALIYUN_SMS_TEMPLATE_CHANGE_PHONE:-}
       ALIYUN_SMS_TEMPLATE_RESET_PASSWORD: ${ALIYUN_SMS_TEMPLATE_RESET_PASSWORD:-}
+      # 金数据（站外收款页）→ 自动开通 Pro。配置项见
+      # backend/app/core/config.py::Settings（jinshuju_* 那一组）。
+      # 本文件此前一个 JINSHUJU_* 都没传，而 prod compose 的 environment 是白名单式
+      # （没有 env_file）——生产环境这组变量全部取不到默认值，支付链路根本没法启用。
+      # 值一律从宿主环境 / .env 透传，真值不写进本文件（变量名见 backend/.env.example）。
+      JINSHUJU_ENABLED: ${JINSHUJU_ENABLED:-false}
+      JINSHUJU_ACCESS_TOKEN: ${JINSHUJU_ACCESS_TOKEN:-}
+      JINSHUJU_FORM_TOKEN: ${JINSHUJU_FORM_TOKEN:-}
+      JINSHUJU_WEBHOOK_SECRET: ${JINSHUJU_WEBHOOK_SECRET:-}
+      JINSHUJU_TIER_FIELD: ${JINSHUJU_TIER_FIELD:-field_2}
+      JINSHUJU_PHONE_FIELD: ${JINSHUJU_PHONE_FIELD:-field_5}
+      JINSHUJU_SYNC_LOOKBACK_HOURS: ${JINSHUJU_SYNC_LOOKBACK_HOURS:-72}
+      JINSHUJU_PURCHASE_URL: ${JINSHUJU_PURCHASE_URL:-}
+      JINSHUJU_PURCHASE_TOKEN_TTL_MINUTES: ${JINSHUJU_PURCHASE_TOKEN_TTL_MINUTES:-1440}
+      # 站内购买 token（写在 x_field_1 的 HMAC 签名）用的密钥 —— **必须显式配置**。
+      # ${VAR:?msg} 是 compose 的「缺失即失败」写法：变量未设置或为空时
+      # `docker compose up` / `config` 直接报错退出，而不是留空让
+      # jinshuju_service._purchase_secret() 静默回退到 JWT_SECRET —— 同一把密钥
+      # 同时保护「用户会话」和「购买凭证」两个不同用途，密钥分离就没了。
+      # 生成：openssl rand -hex 32（必须与 JWT_SECRET 不同）。
+      JINSHUJU_PURCHASE_TOKEN_SECRET: ${JINSHUJU_PURCHASE_TOKEN_SECRET:?JINSHUJU_PURCHASE_TOKEN_SECRET is required in production - generate one with openssl rand -hex 32 and it must differ from JWT_SECRET}
       # Trust X-Forwarded-For from the nginx container so per-IP rate
       # limiting (app.core.limiter) sees real client IPs instead of the
       # nginx container IP for every request. Safe: backend is only
@@ -176,6 +222,17 @@ services:
       TRANSLATION_CONCURRENT: ${TRANSLATION_CONCURRENT:-false}
       ENV: ${ENV:-production}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # 金数据同步在这个 worker 里跑（beat 每 5 分钟排一次 sync_jinshuju_payments，
+      # webhook 触发的 process_jinshuju_entry 也落在这个队列），所以 worker 至少要有
+      # 「能不能同步」和「怎么认表单项」这一组；purchase_url / purchase token secret
+      # 只服务站内的购买链接（API 用），不放进 worker —— 少一份密钥多一份密钥副本。
+      # celery-beat 不需要这组变量：它只按任务名排程，任务体在 worker 里执行。
+      JINSHUJU_ENABLED: ${JINSHUJU_ENABLED:-false}
+      JINSHUJU_ACCESS_TOKEN: ${JINSHUJU_ACCESS_TOKEN:-}
+      JINSHUJU_FORM_TOKEN: ${JINSHUJU_FORM_TOKEN:-}
+      JINSHUJU_TIER_FIELD: ${JINSHUJU_TIER_FIELD:-field_2}
+      JINSHUJU_PHONE_FIELD: ${JINSHUJU_PHONE_FIELD:-field_5}
+      JINSHUJU_SYNC_LOOKBACK_HOURS: ${JINSHUJU_SYNC_LOOKBACK_HOURS:-72}
     volumes:
       - media:/app/media
       - ./backend/data:/app/data:ro

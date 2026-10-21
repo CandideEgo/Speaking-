@@ -28,7 +28,9 @@
   桌面付款发生在手机上，本页会轮询账号状态，开通后自动刷新。
 - 付款成功后金数据不会自动跳回 SeeWord：成功页文案要提示「回到 SeeWord 刷新」，
   轮询最多延迟 5 分钟。
-- 手机号匹配路径保留（兼容旧数据/人工补单），但 B 流程默认不需要它。
+- 手机号匹配路径保留，但它是**兼容分支**（兼容旧数据/人工补单），不是主路径：
+  站内购买链接在 `x_field_1` 里带一个签名 token（HMAC），落账时据此直接定位
+  `user_id` —— **买家不需要填手机号**。手机号只在老订单与人工补单时才是主定位手段。
 
 ## 已验证的事实（2026-10-18 实测）
 
@@ -125,6 +127,10 @@ JINSHUJU_PURCHASE_TOKEN_TTL_MINUTES=1440
 - webhook 的 secret 在 URL 上，别贴进公开仓库/截图。
 - 伪造推送发不出会员：任务会按 `serial_number` 重新拉取 entry 核对，不信任推送内容。
 - 退款不自动回收会员，只把落账行标成 `refunded`，由人工决定是否追回。
+- **同步窗口限制**：定时同步只扫 `[现在 - max(1, JINSHUJU_SYNC_LOOKBACK_HOURS), 现在]` 内创建的 entry。
+  服务停机超过该窗口时，更早的已付款订单不会自动开通。恢复后人工补：
+  临时调大 `JINSHUJU_SYNC_LOOKBACK_HOURS` 跑一次同步，或用 `fetch_entry(serial_number)` 按单号拉取，
+  经 `process_entry` 重新处理（`sync_recent_entries` 只认窗口内的 entry，窗口外要靠这一条）。
 - 需要人工核对的数据：`SELECT * FROM jinshuju_payments WHERE status IN ('ignored','error');`
   - `x_field_1` 缺失/无效/账号不存在 → `ignored`（可能是从站外直接买的）
   - 金额不符 → `ignored`（可能改价后表单与代码不一致）

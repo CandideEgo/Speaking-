@@ -12,6 +12,9 @@
 调用入口有两个：Celery beat 的定时同步（``tasks.payment_tasks``，补漏）和
 金数据的数据推送 webhook（``api/v1/payments.py``，秒级）。两者都走
 ``process_entry``，幂等键是金数据的数据记录 ``entry_token``。
+
+**并发放发的锁序是本模块的硬不变式**（见下面「并发放发：统一锁序」一节）：
+两条发放路径必须同序加锁，否则 Postgres 会按 ABBA 判定死锁。
 """
 
 import base64
@@ -25,11 +28,12 @@ from urllib.parse import quote
 
 import httpx
 import structlog
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.time_utils import to_aware_utc
 from app.models.jinshuju_payment import JinshujuPayment, JinshujuPaymentStatus
 from app.models.user import PlanType, User
 
@@ -74,11 +78,95 @@ def _beijing_now() -> datetime:
     return datetime.now(_BEIJING)
 
 
-def _to_aware_utc(value: datetime) -> datetime:
-    """SQLite 读回来可能丢 tzinfo；统一成 aware UTC 再比较。"""
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
+# ---------------------------------------------------------------------------
+# 并发放发：统一锁序
+# ---------------------------------------------------------------------------
+# 两条发放路径会并发跑在同一个用户身上：
+#
+#   路径 A：``process_entry`` —— webhook / 定时同步收到「已付款」后立即开通；
+#   路径 B：``apply_pending_grants`` —— 该手机号首次登录时补发挂起的订单。
+#
+# 旧实现两条路径的锁序相反：
+#   A：锁 users → 锁 jinshuju_payments
+#   B：锁 jinshuju_payments →（commit 时 flush）UPDATE users
+# A 与 B 并发时各持一把对方要等的锁 ⇒ Postgres 判定 ABBA 死锁
+# （DeadlockDetectedError）。被杀的那条事务如果发生在 Celery 任务里会被
+# 吞掉不再重试 —— 那笔已付款订单就永远开不了通。
+#
+# 现在两条路径统一成**同一条锁序**：
+#
+#     先锁 users 行 → 再按 id 升序锁 jinshuju_payments 行
+#
+# 由此得到两个不变式：
+#
+#   1. 不会死锁：users 锁永远是第一把；订单锁按全局顺序（id 升序）获取，
+#      任何时刻都不存在「持有后面的锁却等前面的锁」的环形等待。
+#   2. 不漏单：**不使用 skip_locked**。拿不到锁就静默跳过等于让已付款用户
+#      「登录了却没有 Pro」，必须等下次登录 —— 付费用户必须保证拿到会员。
+#      拿不到锁时改为**等**（阻塞到前一个事务提交），并在拿到锁之后复核
+#      行内容（等待期间它可能已被另一条路径改成 applied）。
+#
+# 由此还带出一条实现约束：**需要先知道「哪几笔订单待发」时，只能用不加锁
+# 的快照读**（拿 id），拿到锁之后才复核内容。快照读里加 FOR UPDATE 就等于
+# 又把锁序反过来了。
+
+#: 补发时最多扫几轮候选订单。第一轮快照读之后、提交之前，仍可能有并发路径
+#: 把订单置为 pending；多扫一轮能把它捞进来，不必等下一次登录。
+_PENDING_SCAN_ROUNDS = 3
+
+
+async def _lock_user(db: AsyncSession, condition: ColumnElement[bool]) -> User | None:
+    """按条件锁住 users 行，返回**加锁时刻**的最新状态。
+
+    ``populate_existing`` 不能省：``User`` 往往已经在 session 的 identity
+    map 里（登录流程拿到的对象），而 SQLAlchemy 默认**不会**用查询结果覆盖
+    已加载的属性 —— 不刷新就会拿着加锁之前的旧 ``plan_expires_at`` 去算续期，
+    把并发写入的时长覆盖掉。
+    """
+    result = await db.execute(select(User).where(condition).with_for_update().execution_options(populate_existing=True))
+    return result.scalar_one_or_none()
+
+
+async def _lock_payment(db: AsyncSession, payment_id: str) -> JinshujuPayment | None:
+    """锁住订单行，并**强制刷新**它的内容。
+
+    刷新（``populate_existing``）是幂等的关键：不刷新的话 SQLAlchemy 会把
+    identity map 里那份旧对象原样返回，我们就会拿着过期的 ``status`` 判断
+    「还没发放」而重复延长会员。
+    """
+    result = await db.execute(
+        select(JinshujuPayment)
+        .where(JinshujuPayment.id == payment_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _pending_payment_ids(db: AsyncSession, user: User) -> list[str]:
+    """**不加锁**地快照读出该账号名下待发放的订单 id。
+
+    必须是快照读：调用方随后要按「先锁 users、再锁 jinshuju_payments」的统一
+    顺序加锁；这里带上 ``FOR UPDATE`` 就变成先锁订单再锁用户 —— 正是原来那条
+    ABBA 死锁的成因。
+
+    账号归属按「手机号匹配」或「记录上的 user_id 指向本账号」二者取一：
+    站内购买（B 方案）走签名 token，记录上可能已经带着具体的 user_id。
+    """
+    owner_conditions: list[ColumnElement[bool]] = []
+    if user.phone:
+        owner_conditions.append(JinshujuPayment.phone == user.phone)
+    if user.id:
+        owner_conditions.append(JinshujuPayment.user_id == user.id)
+    if not owner_conditions:
+        return []
+    result = await db.execute(
+        select(JinshujuPayment.id).where(
+            JinshujuPayment.status == JinshujuPaymentStatus.PENDING,
+            or_(*owner_conditions),
+        )
+    )
+    return list(result.scalars().all())
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +352,7 @@ def _parse_entry_created_at(entry: dict[str, Any]) -> datetime | None:
 def _extend_pro(user: User, days: int) -> None:
     """延长 Pro；续费从「当前到期时间与现在较晚者」起算（与站内支付一致）。"""
     now = _utcnow()
-    current = _to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
+    current = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
     base = max(current, now)
     user.plan = PlanType.pro
     user.plan_expires_at = base + timedelta(days=days)
@@ -332,22 +420,33 @@ async def _mark_ignored(
 async def _grant_and_mark_applied(
     db: AsyncSession, record: JinshujuPayment, *, phone: str | None = None, user_id: str | None = None
 ) -> str:
-    """在行锁下发放：先锁用户，再回读订单状态，避免并发重复延长。
+    """在行锁下发放：**先锁 users，再锁 jinshuju_payments**（统一锁序）。
 
     账号来源二选一：站内购买的签名 token 给出 ``user_id``（B 方案，零填写），
     或老链路的手机号匹配 ``phone``。两者都没有时返回 ``pending``。
+
+    锁序与 ``apply_pending_grants`` 完全一致，两条路径并发时不会形成 ABBA
+    死锁（见模块内「并发放发：统一锁序」）。订单行是**拿到锁之后**才复核
+    内容的 —— 等待锁期间它可能已被另一条路径改成 applied/ignored。
     """
+    user: User | None = None
     if user_id:
-        user = (await db.execute(select(User).where(User.id == user_id).with_for_update())).scalar_one_or_none()
+        user = await _lock_user(db, User.id == user_id)
     elif phone:
-        user = (await db.execute(select(User).where(User.phone == phone).with_for_update())).scalar_one_or_none()
-    else:
-        return "pending"
+        user = await _lock_user(db, User.phone == phone)
+
     if user is None:
+        # 账号还不存在（先付款后注册）：把订单留在 pending，等该手机号首次
+        # 登录时由 ``apply_pending_grants`` 补发。
+        fresh = await _lock_payment(db, record.id)
+        if fresh is None:
+            return "error"
+        if fresh.status != JinshujuPaymentStatus.APPLIED:
+            fresh.status = JinshujuPaymentStatus.PENDING
+            await db.commit()
         return "pending"
-    fresh = (
-        await db.execute(select(JinshujuPayment).where(JinshujuPayment.id == record.id).with_for_update())
-    ).scalar_one_or_none()
+
+    fresh = await _lock_payment(db, record.id)
     if fresh is None:
         return "error"
     if fresh.status == JinshujuPaymentStatus.APPLIED:
@@ -429,11 +528,13 @@ async def process_entry(db: AsyncSession, entry: dict[str, Any]) -> str:
     record = await _upsert_record(db, entry)
     if record.status == JinshujuPaymentStatus.APPLIED:
         return "already_applied"
+    # 业务字段落库；**状态不在这里改**。状态由拿到行锁之后的
+    # ``_grant_and_mark_applied`` 决定 —— 在这里无条件写 pending 会把并发
+    # 路径刚写下的 applied 覆盖掉，同一笔订单就会被发放两次。
     record.phone = phone
     record.tier_name = tier_name
     record.amount_fen = amount_fen
     record.duration_days = days
-    record.status = JinshujuPaymentStatus.PENDING
     record.error_message = None
     await db.commit()
     outcome = await _grant_and_mark_applied(db, record, phone=phone, user_id=purchase_user_id)
@@ -449,40 +550,53 @@ async def apply_pending_grants(db: AsyncSession, user: User) -> int:
     """该手机号首次登录时，把此前挂起的已付款订单补发成 Pro。
 
     返回本次发放的订单数。调用方负责吞异常 —— 补发失败不能挡住登录。
+
+    锁序：**先锁 users 行，再按 id 升序锁 jinshuju_payments 行**，与
+    ``_grant_and_mark_applied`` 完全一致（见模块内「并发放发：统一锁序」）。
+    不使用 ``skip_locked``：拿不到锁就静默跳过，等于让已付款用户「登录了
+    却没有 Pro」，只能等下次登录；这里改为**等**（阻塞到前一个事务提交），
+    拿到锁之后再复核行内容。
     """
     settings = get_settings()
-    if not settings.jinshuju_enabled or not user.phone:
+    if not settings.jinshuju_enabled:
         return 0
-    rows = (
-        (
-            await db.execute(
-                select(JinshujuPayment)
-                .where(
-                    JinshujuPayment.phone == user.phone,
-                    JinshujuPayment.status == JinshujuPaymentStatus.PENDING,
-                )
-                .with_for_update(skip_locked=True)
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # 快速路径：没有待发放订单就不必锁用户行（登录是高频路径）。
+    if not await _pending_payment_ids(db, user):
+        return 0
+
+    locked_user = await _lock_user(db, User.id == user.id)
+    if locked_user is None:
+        return 0
+
     applied = 0
-    for record in rows:
-        days = record.duration_days or 0
-        if days <= 0:
-            record.status = JinshujuPaymentStatus.IGNORED
-            record.error_message = "订单缺少有效时长"
-            continue
-        _extend_pro(user, days)
-        record.status = JinshujuPaymentStatus.APPLIED
-        record.user_id = user.id
-        record.applied_at = _utcnow()
-        applied += 1
-    if rows:
+    handled: set[str] = set()
+    for _ in range(_PENDING_SCAN_ROUNDS):
+        candidates = [pid for pid in await _pending_payment_ids(db, locked_user) if pid not in handled]
+        if not candidates:
+            break
+        for payment_id in sorted(candidates):
+            handled.add(payment_id)
+            record = await _lock_payment(db, payment_id)
+            # 等待锁期间行可能被别的路径改过（已发放/已忽略）——复核后再动。
+            if record is None or record.status != JinshujuPaymentStatus.PENDING:
+                continue
+            if record.user_id and record.user_id != locked_user.id:
+                # 已归属别的账号，不抢。
+                continue
+            days = record.duration_days or 0
+            if days <= 0:
+                record.status = JinshujuPaymentStatus.IGNORED
+                record.error_message = "订单缺少有效时长"
+                continue
+            _extend_pro(locked_user, days)
+            record.status = JinshujuPaymentStatus.APPLIED
+            record.user_id = locked_user.id
+            record.applied_at = _utcnow()
+            applied += 1
+    if handled:
         await db.commit()
     if applied:
-        logger.info("jinshuju_pending_grants_applied", user_id=user.id, count=applied)
+        logger.info("jinshuju_pending_grants_applied", user_id=locked_user.id, count=applied)
     return applied
 
 
