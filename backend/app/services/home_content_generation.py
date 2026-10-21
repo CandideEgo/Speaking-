@@ -621,6 +621,9 @@ def fallback_candidate_indices(segment: TranscriptSegment, *, limit: int = 5) ->
     lines = list(segment.lines)
     if not lines:
         return []
+    if limit <= 1:
+        # 只留一条代表句时「均匀取样」退化为段首句（否则下面会除零）。
+        return [lines[0].sentence_index]
     if len(lines) <= limit:
         return [line.sentence_index for line in lines]
     step = (len(lines) - 1) / (limit - 1)
@@ -1082,10 +1085,16 @@ async def generate_draft(
             calls += 1
             picked = parse_candidate_response(raw, segment)[:MAX_CANDIDATES_PER_SEGMENT]
             if not picked:
+                # 模型给了不可用的候选编号 → 退回确定性兜底：取本段真实字幕句
+                # （不是伪造内容，也不是静默降级——这里打 warning，兜底结果进终稿提示词）。
+                picked = fallback_candidate_indices(segment, limit=MAX_CANDIDATES_PER_SEGMENT)[
+                    :MAX_CANDIDATES_PER_SEGMENT
+                ]
                 logger.warning(
-                    "home_content candidate stage returned no usable index; segment omitted from final candidates",
+                    "home_content candidate stage returned no usable index; fell back to deterministic sample",
                     segment=segment.ordinal,
                     sentence_range=[segment.first_sentence_index, segment.last_sentence_index],
+                    fallback_sentence_indices=picked,
                 )
             by_index = {line.sentence_index: line for line in segment.lines}
             candidates_by_segment.append([by_index[index] for index in picked])

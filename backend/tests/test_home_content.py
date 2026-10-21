@@ -150,6 +150,30 @@ async def public_page(client) -> dict | None:
     return response.json()["editorial"]
 
 
+def admin_endpoint_calls(video_id: str, subtitles: list[Subtitle]) -> list[tuple[str, str, dict | None]]:
+    """admin 端点全集：``(method, path, body)``，每条都要有一次越权断言。
+
+    写路径（保存草稿 / 发布 / 恢复草稿 / 布局发布与回滚）**一个都不能漏**：
+    越权写入的后果比越权读取更重（能把首页内容替换掉）。
+    """
+    return [
+        # --- 读 ---
+        ("get", f"{ADMIN}/videos/{video_id}", None),
+        ("get", f"{ADMIN}/videos/{video_id}/generation", None),
+        ("get", f"{ADMIN}/videos/{video_id}/preview", None),
+        ("get", f"{ADMIN}/layout", None),
+        ("get", f"{ADMIN}/layout/preview", None),
+        # --- 写 ---
+        ("post", f"{ADMIN}/videos/{video_id}/generate", {"expected_revision": 0}),
+        ("put", f"{ADMIN}/videos/{video_id}/draft", {"payload": draft_payload(subtitles), "expected_revision": 0}),
+        ("post", f"{ADMIN}/videos/{video_id}/publish", {"expected_revision": 0}),
+        ("post", f"{ADMIN}/videos/{video_id}/restore-draft", {"revision_id": "rev-1", "expected_revision": 0}),
+        ("put", f"{ADMIN}/layout/draft", {"layout": {}, "expected_revision": 0}),
+        ("post", f"{ADMIN}/layout/publish", {"expected_revision": 0}),
+        ("post", f"{ADMIN}/layout/rollback", {"expected_revision": 0}),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 指纹与校验（纯函数）
 # ---------------------------------------------------------------------------
@@ -237,23 +261,35 @@ async def test_public_endpoint_needs_no_auth_and_defaults_to_null(client):
 
 @pytest.mark.asyncio
 async def test_non_admin_cannot_read_or_write_admin_home_content(client, auth_headers, db_session):
-    video, _ = await make_video(db_session)
-    calls = [
-        ("get", f"{ADMIN}/videos/{video.id}", None),
-        ("get", f"{ADMIN}/videos/{video.id}/generation", None),
-        ("get", f"{ADMIN}/videos/{video.id}/preview", None),
-        ("get", f"{ADMIN}/layout", None),
-        ("get", f"{ADMIN}/layout/preview", None),
-        ("post", f"{ADMIN}/videos/{video.id}/generate", {"expected_revision": 0}),
-        ("put", f"{ADMIN}/layout/draft", {"layout": {}, "expected_revision": 0}),
-    ]
-    for method, path, body in calls:
+    video, subtitles = await make_video(db_session)
+    for method, path, body in admin_endpoint_calls(video.id, subtitles):
         kwargs = {"headers": auth_headers}
         if body is not None:
             kwargs["json"] = body
         response = await getattr(client, method)(path, **kwargs)
         assert response.status_code == 403, (path, response.text)
         assert response.json()["code"] == "HTTP_403"
+
+
+@pytest.mark.asyncio
+async def test_every_admin_endpoint_has_a_forbidden_assertion(client, auth_headers, db_session):
+    """admin 端点全集必须逐个有越权断言：新增端点忘了加，这里就红。
+
+    只靠人肉数 ``calls`` 列表会漏（这正是之前漏掉 5 个写路径的原因），
+    所以把「断言覆盖的路径」与「应用真实注册的 admin 路由」直接对表。
+    """
+    from app.main import create_app
+
+    video, subtitles = await make_video(db_session)
+    asserted = {
+        path.replace(video.id, "{video_id}") for _method, path, _body in admin_endpoint_calls(video.id, subtitles)
+    }
+    # 用应用自己的 OpenAPI 视图取「真实注册的 admin 路由」，
+    # 不去数 router.routes（FastAPI 新版本那里是嵌套结构，取不到 path）。
+    registered = {path for path in create_app().openapi()["paths"] if path.startswith(f"{ADMIN}/")}
+
+    assert registered == asserted
+    assert len(asserted) == 12
 
 
 # ---------------------------------------------------------------------------

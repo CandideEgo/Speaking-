@@ -40,7 +40,8 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import Update, select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import AppError, ErrorCode
 from app.models.channel import Channel
@@ -139,6 +140,11 @@ POSITION_ORDER: tuple[HomeContentSlotPosition, ...] = ("lead", "secondary", "exp
 #: 词边界匹配用的字符类：英文 + 数字 + 撇号/连字符都算词内字符。
 _WORD_CHAR = "A-Za-z0-9'’"
 
+#: 「先查后插」撞唯一约束时的重试次数（并发建草稿/建布局单例行）。
+_INSERT_ATTEMPTS = 3
+#: 版本号分配撞唯一约束时的重试次数（并发发布抢到同一个 version）。
+_VERSION_ALLOC_ATTEMPTS = 3
+
 
 def empty_layout() -> dict:
     """空布局常量（与契约 §2 一致）。"""
@@ -165,6 +171,39 @@ def _iso(value: datetime | None) -> str | None:
 
 def _issue(field_name: str, code: str, message: str) -> HomeLayoutIssue:
     return HomeLayoutIssue(field=field_name, code=code, message=message)
+
+
+# ---------------------------------------------------------------------------
+# 并发控制：乐观锁的统一出口
+# ---------------------------------------------------------------------------
+#
+# 本模块所有「读-改-写」都走**条件 UPDATE + rowcount 判定**（和 ``claim_generation``
+# 的生成占位去重同一套写法）：
+#
+# - 判定与写入是**同一条语句**，所以「读到旧值 → 校验通过 → 写回」之间不再有窗口；
+#   两个管理员同时保存不可能都成功，后到的那个拿到 409，而不是静默覆盖对方。
+# - 不用 ``SELECT ... FOR UPDATE``：本项目的默认测试库是内存 SQLite，``FOR UPDATE``
+#   在那里被静默忽略（见 tests/conftest.py），条件 UPDATE 在两种库上都真的生效，
+#   也更容易被测试钉住。
+# - 不用「先 SELECT 再 UPDATE」的两段式：判定必须落在写入的那条语句上，否则
+#   TOCTOU 窗口照旧存在。
+
+
+def _revision_conflict(message: str) -> AppError:
+    """乐观锁冲突 → 409 + ``HOME_CONTENT_REVISION_CONFLICT``（前端按 code 分支）。"""
+    return AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, message)
+
+
+async def _cas_update(db: AsyncSession, statement: Update, message: str) -> None:
+    """执行条件 UPDATE；命中 0 行 = 期间被别处改过 → 409。
+
+    冲突时**先回滚本次事务**再抛错：调用方可能已经写了别的行（例如发布路径上的
+    版本插入），留着半套写入比直接失败更危险。
+    """
+    result = await db.execute(statement)
+    if result.rowcount == 0:
+        await db.rollback()
+        raise _revision_conflict(message)
 
 
 # ---------------------------------------------------------------------------
@@ -658,9 +697,17 @@ async def _get_draft(db: AsyncSession, video_id: str) -> HomeContentDraft | None
 
 
 async def _get_or_create_draft(db: AsyncSession, video_id: str) -> HomeContentDraft:
+    """取草稿；没有就建一行（每视频一份）。
+
+    并发建行会撞唯一约束（``video_id``）：输的那笔重读对方建好的行，不把
+    ``IntegrityError`` 泄成 500。先查后插的窗口用 SAVEPOINT 包住，撞了只回滚
+    这一段插入，不动整个事务。
+    """
     draft = await _get_draft(db, video_id)
-    if draft is None:
-        draft = HomeContentDraft(
+    if draft is not None:
+        return draft
+    for _ in range(_INSERT_ATTEMPTS):
+        candidate = HomeContentDraft(
             video_id=video_id,
             payload=None,
             schema_version=CONTENT_SCHEMA_VERSION,
@@ -668,9 +715,19 @@ async def _get_or_create_draft(db: AsyncSession, video_id: str) -> HomeContentDr
             status=HomeContentGenerationStatus.IDLE,
             generation_calls=0,
         )
-        db.add(draft)
-        await db.flush()
-    return draft
+        try:
+            async with db.begin_nested():
+                db.add(candidate)
+                await db.flush()
+            return candidate
+        except IntegrityError:
+            if candidate in db:  # SAVEPOINT 回滚后仍挂在 session 上的残留对象
+                db.expunge(candidate)
+            existing = await _get_draft(db, video_id)
+            if existing is not None:
+                return existing
+            # 对方还没提交：重试（INSERT 会等到对方提交后再判定唯一约束）。
+    raise AppError(409, ErrorCode.CONFLICT, "草稿初始化冲突，请重试")
 
 
 async def _get_config(db: AsyncSession) -> HomePageConfig | None:
@@ -680,12 +737,27 @@ async def _get_config(db: AsyncSession) -> HomePageConfig | None:
 
 
 async def _get_or_create_config(db: AsyncSession) -> HomePageConfig:
+    """取布局单例行；没有就建（``id='singleton'``，主键即天然去重）。
+
+    并发建行撞主键时重读对方建好的行（同 :func:`_get_or_create_draft`）。
+    """
     config = await _get_config(db)
-    if config is None:
-        config = HomePageConfig(id=LAYOUT_SINGLETON_ID, revision=0, draft_layout=empty_layout())
-        db.add(config)
-        await db.flush()
-    return config
+    if config is not None:
+        return config
+    for _ in range(_INSERT_ATTEMPTS):
+        candidate = HomePageConfig(id=LAYOUT_SINGLETON_ID, revision=0, draft_layout=empty_layout())
+        try:
+            async with db.begin_nested():
+                db.add(candidate)
+                await db.flush()
+            return candidate
+        except IntegrityError:
+            if candidate in db:
+                db.expunge(candidate)
+            existing = await _get_config(db)
+            if existing is not None:
+                return existing
+    raise AppError(409, ErrorCode.CONFLICT, "首页编排初始化冲突，请重试")
 
 
 def _parse_layout(raw: object) -> HomeLayoutPlacement:
@@ -880,11 +952,7 @@ async def save_draft(
         raise AppError(422, ErrorCode.HOME_CONTENT_NO_SUBTITLES, "该视频没有字幕，无法制作首页内容")
     draft = await _get_or_create_draft(db, video_id)
     if draft.revision != expected_revision:
-        raise AppError(
-            409,
-            ErrorCode.HOME_CONTENT_REVISION_CONFLICT,
-            "内容已在别处修改，请刷新后重试",
-        )
+        raise _revision_conflict("内容已在别处修改，请刷新后重试")
     issues = collect_issues(payload, subtitles, strict=False)
     if issues:
         raise AppError(
@@ -893,12 +961,29 @@ async def save_draft(
             "草稿内容校验失败",
             detail=[issue.model_dump() for issue in issues],
         )
-    draft.payload = payload.model_dump(mode="json")
-    draft.schema_version = CONTENT_SCHEMA_VERSION
-    draft.revision += 1
-    draft.source_fingerprint = fingerprint
-    draft.updated_by = actor_id
-    draft.updated_at = _now()
+    # 乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    # 上面读到的 draft.revision 可能已经过期（另一个管理员刚保存过），所以判定
+    # 必须落在写入这条语句上，而不是靠内存里那份快照。
+    await _cas_update(
+        db,
+        update(HomeContentDraft)
+        .where(
+            HomeContentDraft.id == draft.id,
+            HomeContentDraft.revision == expected_revision,
+        )
+        .values(
+            payload=payload.model_dump(mode="json"),
+            schema_version=CONTENT_SCHEMA_VERSION,
+            revision=expected_revision + 1,
+            source_fingerprint=fingerprint,
+            updated_by=actor_id,
+            updated_at=_now(),
+        ),
+        "内容已在别处修改，请刷新后重试",
+    )
+    # Core UPDATE 不经过 ORM：identity map 里还是旧 payload / 旧 revision，
+    # 不显式重读的话后面的 get_video_state 会读到旧值。
+    await db.refresh(draft)
     await db.commit()
     return await get_video_state(db, video_id)
 
@@ -912,6 +997,10 @@ async def publish_content(
 ) -> dict:
     """校验并创建不可变版本；可选在同事务内替换首页位置（「发布并替换主推」）。"""
     video = await _get_video(db, video_id)
+    # 布局乐观锁的基准：请求开始时编排的 revision。发布期间别人改过编排
+    # （保存草稿/发布/回滚），下面的布局条件 UPDATE 就会失配 → 409。
+    config_snapshot = await _get_config(db)
+    expected_config_revision = config_snapshot.revision if config_snapshot is not None else 0
     fingerprint, subtitles = await current_source_fingerprint(db, video_id)
     if not subtitles:
         raise AppError(422, ErrorCode.HOME_CONTENT_NO_SUBTITLES, "该视频没有字幕，无法发布首页内容")
@@ -919,7 +1008,7 @@ async def publish_content(
     if draft is None or draft.payload is None:
         raise AppError(422, ErrorCode.HOME_CONTENT_INVALID, "该视频还没有草稿，无法发布")
     if draft.revision != expected_revision:
-        raise AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, "内容已在别处修改，请刷新后重试")
+        raise _revision_conflict("内容已在别处修改，请刷新后重试")
     if draft.source_fingerprint != fingerprint:
         raise AppError(
             422,
@@ -944,36 +1033,94 @@ async def publish_content(
             detail=[_issue("video_id", "VIDEO_NOT_PUBLIC", "视频未公开或已下线").model_dump()],
         )
 
+    # 草稿乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    # 顺带把同一视频的并发发布串行化（行锁持有到提交），后面的版本号分配因此
+    # 不会撞唯一约束。revision 自赋值 = 不改草稿内容，只做判定 + 取行锁；
+    # updated_at 显式写出（该列有 onupdate 默认值）。
+    await _cas_update(
+        db,
+        update(HomeContentDraft)
+        .where(
+            HomeContentDraft.id == draft.id,
+            HomeContentDraft.revision == expected_revision,
+        )
+        .values(revision=expected_revision, updated_at=_now()),
+        "内容已在别处修改，请刷新后重试",
+    )
+    revision = await _allocate_revision(
+        db,
+        video_id=video.id,
+        payload=payload,
+        fingerprint=fingerprint,
+        draft=draft,
+        actor_id=actor_id,
+    )
+
+    layout_revision: int | None = None
+    if place in ("lead", "secondary"):
+        layout_revision = await _place_content(  # type: ignore[arg-type]
+            db,
+            revision,
+            video.id,
+            place,
+            actor_id,
+            expected_config_revision=expected_config_revision,
+        )
+    await db.commit()
+    return {"revision_id": revision.id, "version": revision.version, "layout_revision": layout_revision}
+
+
+async def _next_version(db: AsyncSession, video_id: str) -> int:
+    """下一个可用版本号（同一视频从 1 递增）。"""
     latest_version = (
         await db.execute(
             select(HomeContentRevision.version)
-            .where(HomeContentRevision.video_id == video.id)
+            .where(HomeContentRevision.video_id == video_id)
             .order_by(HomeContentRevision.version.desc())
             .limit(1)
         )
     ).scalar_one_or_none()
-    version = (latest_version or 0) + 1
-    revision = HomeContentRevision(
-        video_id=video.id,
-        version=version,
-        payload=payload.model_dump(mode="json"),
-        schema_version=CONTENT_SCHEMA_VERSION,
-        source_fingerprint=fingerprint,
-        generation_model=draft.generation_model,
-        generation_prompt_version=draft.generation_prompt_version,
-        generated_by=draft.generated_by,
-        generated_at=draft.generated_at,
-        published_by=actor_id,
-        published_at=_now(),
-    )
-    db.add(revision)
-    await db.flush()
+    return (latest_version or 0) + 1
 
-    layout_revision: int | None = None
-    if place in ("lead", "secondary"):
-        layout_revision = await _place_content(db, revision, video.id, place, actor_id)  # type: ignore[arg-type]
-    await db.commit()
-    return {"revision_id": revision.id, "version": revision.version, "layout_revision": layout_revision}
+
+async def _allocate_revision(
+    db: AsyncSession,
+    *,
+    video_id: str,
+    payload: HomeContentDraftSchema,
+    fingerprint: str,
+    draft: HomeContentDraft,
+    actor_id: str | None,
+) -> HomeContentRevision:
+    """分配版本号并插入不可变版本（已发布版本只追加）。
+
+    版本号取 ``max(version)+1``：没有行锁时两个并发发布会算到同一个号，撞唯一
+    约束 ``(video_id, version)``。这里用 SAVEPOINT 包住 INSERT，撞了就重算重试；
+    重试仍失败则 409——绝不把 ``IntegrityError`` 泄成 500 ``INTERNAL_ERROR``。
+    """
+    for _ in range(_VERSION_ALLOC_ATTEMPTS):
+        revision = HomeContentRevision(
+            video_id=video_id,
+            version=await _next_version(db, video_id),
+            payload=payload.model_dump(mode="json"),
+            schema_version=CONTENT_SCHEMA_VERSION,
+            source_fingerprint=fingerprint,
+            generation_model=draft.generation_model,
+            generation_prompt_version=draft.generation_prompt_version,
+            generated_by=draft.generated_by,
+            generated_at=draft.generated_at,
+            published_by=actor_id,
+            published_at=_now(),
+        )
+        try:
+            async with db.begin_nested():
+                db.add(revision)
+                await db.flush()
+            return revision
+        except IntegrityError:
+            if revision in db:  # SAVEPOINT 回滚后仍挂在 session 上的残留对象
+                db.expunge(revision)
+    raise _revision_conflict("发布冲突，请刷新后重试")
 
 
 async def _revision_video_map(db: AsyncSession, revision_ids: Iterable[str]) -> dict[str, str]:
@@ -1008,8 +1155,18 @@ async def _place_content(
     video_id: str,
     place: str,
     actor_id: str | None,
+    *,
+    expected_config_revision: int | None = None,
 ) -> int:
+    """把已发布版本放进首页位置（主推/次推）。
+
+    布局乐观锁：配置行也走条件 UPDATE（``WHERE revision = 读到的 revision``），
+    与 :func:`publish_layout` 同一套标准——别人刚改过编排时返回 409，而不是
+    静默覆盖别人的编排草稿。``expected_config_revision`` 由调用方在请求开始
+    时取好（``publish_content``），这样「请求期间编排被改过」也能被发现。
+    """
     config = await _get_or_create_config(db)
+    expected_revision = config.revision if expected_config_revision is None else expected_config_revision
     published = config.published_layout or empty_layout()
     draft_layout = config.draft_layout or empty_layout()
     all_revision_ids = set(_layout_revision_ids(_parse_layout(published)))
@@ -1036,16 +1193,28 @@ async def _place_content(
         # 草稿布局与线上保持一致；替换/去重已在上面做过。
         draft_layout["secondary"] = [*draft_secondary, {"content_revision_id": revision.id}]
     now = _now()
-    config.previous_published_layout = config.published_layout
-    config.published_layout = published
-    config.draft_layout = draft_layout
-    config.revision = (config.revision or 0) + 1
-    config.published_revision = config.revision
-    config.updated_by = actor_id
-    config.updated_at = now
-    config.published_by = actor_id
-    config.published_at = now
-    return config.revision
+    new_revision = expected_revision + 1
+    await _cas_update(
+        db,
+        update(HomePageConfig)
+        .where(
+            HomePageConfig.id == LAYOUT_SINGLETON_ID,
+            HomePageConfig.revision == expected_revision,
+        )
+        .values(
+            previous_published_layout=config.published_layout,
+            published_layout=published,
+            draft_layout=draft_layout,
+            revision=new_revision,
+            published_revision=new_revision,
+            updated_by=actor_id,
+            updated_at=now,
+            published_by=actor_id,
+            published_at=now,
+        ),
+        "首页编排已在别处修改，请刷新后重试",
+    )
+    return new_revision
 
 
 async def restore_draft(
@@ -1062,7 +1231,7 @@ async def restore_draft(
         raise AppError(422, ErrorCode.HOME_CONTENT_NO_SUBTITLES, "该视频没有字幕，无法制作首页内容")
     draft = await _get_or_create_draft(db, video_id)
     if draft.revision != expected_revision:
-        raise AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, "内容已在别处修改，请刷新后重试")
+        raise _revision_conflict("内容已在别处修改，请刷新后重试")
     revision = (
         await db.execute(
             select(HomeContentRevision).where(
@@ -1076,14 +1245,27 @@ async def restore_draft(
     payload = _try_parse_draft(revision.payload)
     if payload is None:
         raise AppError(422, ErrorCode.HOME_CONTENT_INVALID, "该历史版本内容与当前结构不兼容，无法复制")
-    draft.payload = revision.payload
-    draft.schema_version = revision.schema_version or CONTENT_SCHEMA_VERSION
-    # 保留历史版本的来源指纹：字幕若已变化，后台会显示「来源已变更」并阻止发布，
-    # 直到管理员重新核对保存或重新生成（任务文档 §8）。
-    draft.source_fingerprint = revision.source_fingerprint
-    draft.revision += 1
-    draft.updated_by = actor_id
-    draft.updated_at = _now()
+    # 乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    await _cas_update(
+        db,
+        update(HomeContentDraft)
+        .where(
+            HomeContentDraft.id == draft.id,
+            HomeContentDraft.revision == expected_revision,
+        )
+        .values(
+            payload=revision.payload,
+            schema_version=revision.schema_version or CONTENT_SCHEMA_VERSION,
+            # 保留历史版本的来源指纹：字幕若已变化，后台会显示「来源已变更」并阻止发布，
+            # 直到管理员重新核对保存或重新生成（任务文档 §8）。
+            source_fingerprint=revision.source_fingerprint,
+            revision=expected_revision + 1,
+            updated_by=actor_id,
+            updated_at=_now(),
+        ),
+        "内容已在别处修改，请刷新后重试",
+    )
+    await db.refresh(draft)
     await db.commit()
     return await get_video_state(db, video_id)
 
@@ -1441,11 +1623,24 @@ async def save_layout_draft(
     """保存布局草稿（乐观锁）。允许保存「还没排好」的草稿，问题在发布时拦截。"""
     config = await _get_or_create_config(db)
     if config.revision != expected_revision:
-        raise AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, "布局已在别处修改，请刷新后重试")
-    config.draft_layout = layout.model_dump(mode="json")
-    config.revision += 1
-    config.updated_by = actor_id
-    config.updated_at = _now()
+        raise _revision_conflict("布局已在别处修改，请刷新后重试")
+    # 乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    await _cas_update(
+        db,
+        update(HomePageConfig)
+        .where(
+            HomePageConfig.id == LAYOUT_SINGLETON_ID,
+            HomePageConfig.revision == expected_revision,
+        )
+        .values(
+            draft_layout=layout.model_dump(mode="json"),
+            revision=expected_revision + 1,
+            updated_by=actor_id,
+            updated_at=_now(),
+        ),
+        "布局已在别处修改，请刷新后重试",
+    )
+    await db.refresh(config)
     await db.commit()
     return await get_layout_state(db)
 
@@ -1454,7 +1649,7 @@ async def publish_layout(db: AsyncSession, expected_revision: int, actor_id: str
     """校验并原子发布整版布局（不暴露半套内容）。"""
     config = await _get_or_create_config(db)
     if config.revision != expected_revision:
-        raise AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, "布局已在别处修改，请刷新后重试")
+        raise _revision_conflict("布局已在别处修改，请刷新后重试")
     layout = _parse_layout(config.draft_layout)
     issues = await _validate_layout(db, layout)
     if issues:
@@ -1465,16 +1660,30 @@ async def publish_layout(db: AsyncSession, expected_revision: int, actor_id: str
             detail=[issue.model_dump() for issue in issues],
         )
     now = _now()
-    config.previous_published_layout = config.published_layout
-    config.published_layout = layout.model_dump(mode="json")
-    config.revision += 1
-    config.published_revision = config.revision
-    config.published_by = actor_id
-    config.published_at = now
-    config.updated_by = actor_id
-    config.updated_at = now
+    new_revision = expected_revision + 1
+    # 乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    await _cas_update(
+        db,
+        update(HomePageConfig)
+        .where(
+            HomePageConfig.id == LAYOUT_SINGLETON_ID,
+            HomePageConfig.revision == expected_revision,
+        )
+        .values(
+            previous_published_layout=config.published_layout,
+            published_layout=layout.model_dump(mode="json"),
+            revision=new_revision,
+            published_revision=new_revision,
+            published_by=actor_id,
+            published_at=now,
+            updated_by=actor_id,
+            updated_at=now,
+        ),
+        "布局已在别处修改，请刷新后重试",
+    )
+    await db.refresh(config)
     await db.commit()
-    return {"layout_revision": config.revision}
+    return {"layout_revision": new_revision}
 
 
 async def rollback_layout(db: AsyncSession, expected_revision: int, actor_id: str | None) -> dict:
@@ -1487,20 +1696,33 @@ async def rollback_layout(db: AsyncSession, expected_revision: int, actor_id: st
     """
     config = await _get_or_create_config(db)
     if config.revision != expected_revision:
-        raise AppError(409, ErrorCode.HOME_CONTENT_REVISION_CONFLICT, "布局已在别处修改，请刷新后重试")
+        raise _revision_conflict("布局已在别处修改，请刷新后重试")
 
     if config.previous_published_layout is None:
         now = _now()
-        config.previous_published_layout = config.published_layout
-        config.published_layout = None
-        config.revision += 1
-        config.published_revision = config.revision
-        config.published_by = actor_id
-        config.published_at = now
-        config.updated_by = actor_id
-        config.updated_at = now
+        new_revision = expected_revision + 1
+        await _cas_update(
+            db,
+            update(HomePageConfig)
+            .where(
+                HomePageConfig.id == LAYOUT_SINGLETON_ID,
+                HomePageConfig.revision == expected_revision,
+            )
+            .values(
+                previous_published_layout=config.published_layout,
+                published_layout=None,
+                revision=new_revision,
+                published_revision=new_revision,
+                published_by=actor_id,
+                published_at=now,
+                updated_by=actor_id,
+                updated_at=now,
+            ),
+            "布局已在别处修改，请刷新后重试",
+        )
+        await db.refresh(config)
         await db.commit()
-        return {"layout_revision": config.revision, "cleared": True}
+        return {"layout_revision": new_revision, "cleared": True}
 
     previous = _parse_layout(config.previous_published_layout)
     issues = await _validate_layout(db, previous)
@@ -1512,16 +1734,30 @@ async def rollback_layout(db: AsyncSession, expected_revision: int, actor_id: st
             detail=[issue.model_dump() for issue in issues],
         )
     now = _now()
-    config.previous_published_layout = config.published_layout
-    config.published_layout = previous.model_dump(mode="json")
-    config.revision += 1
-    config.published_revision = config.revision
-    config.published_by = actor_id
-    config.published_at = now
-    config.updated_by = actor_id
-    config.updated_at = now
+    new_revision = expected_revision + 1
+    # 乐观锁的原子判定：条件 UPDATE（WHERE revision = expected_revision）。
+    await _cas_update(
+        db,
+        update(HomePageConfig)
+        .where(
+            HomePageConfig.id == LAYOUT_SINGLETON_ID,
+            HomePageConfig.revision == expected_revision,
+        )
+        .values(
+            previous_published_layout=config.published_layout,
+            published_layout=previous.model_dump(mode="json"),
+            revision=new_revision,
+            published_revision=new_revision,
+            published_by=actor_id,
+            published_at=now,
+            updated_by=actor_id,
+            updated_at=now,
+        ),
+        "布局已在别处修改，请刷新后重试",
+    )
+    await db.refresh(config)
     await db.commit()
-    return {"layout_revision": config.revision, "cleared": False}
+    return {"layout_revision": new_revision, "cleared": False}
 
 
 async def preview_layout(db: AsyncSession) -> HomeLayoutPreview:
@@ -1729,6 +1965,10 @@ async def complete_generation(
 ) -> bool:
     """worker 成功写回：三重断言（任务 ID / 草稿 revision / 来源指纹）后才替换 payload。
 
+    写回是**条件 UPDATE**（``WHERE id AND active_generation_id AND revision``）：
+    判定与写入在同一条语句里，管理员在本函数读到草稿之后、提交之前保存草稿，
+    也不会被 AI 结果盖掉（rowcount == 0 → 判冲突）。
+
     返回 True = 已写回；False = 有冲突或输出非法，此时草稿已被标 failed 并保留旧
     内容（调用方不需要再调 ``fail_generation``）。绝不覆盖管理员的新修改。
     """
@@ -1775,42 +2015,73 @@ async def complete_generation(
         return False
 
     now = _now()
-    draft.payload = parsed.model_dump(mode="json")
-    draft.schema_version = CONTENT_SCHEMA_VERSION
-    draft.revision += 1
-    draft.source_fingerprint = fingerprint
-    draft.status = HomeContentGenerationStatus.SUCCEEDED
-    draft.active_generation_id = None
-    draft.last_generation_id = generation_id
-    draft.generation_finished_at = now
-    draft.generation_error_code = None
-    draft.generation_error_message = None
+    values: dict[str, object] = {
+        "payload": parsed.model_dump(mode="json"),
+        "schema_version": CONTENT_SCHEMA_VERSION,
+        "revision": draft.revision + 1,
+        "source_fingerprint": fingerprint,
+        "status": HomeContentGenerationStatus.SUCCEEDED,
+        "active_generation_id": None,
+        "last_generation_id": generation_id,
+        "generation_finished_at": now,
+        "generation_error_code": None,
+        "generation_error_message": None,
+        "generation_usage": usage,
+        "generation_coverage": coverage,
+        "generation_calls": max(int(calls or 0), 0),
+        "updated_by": draft.generated_by,
+        "updated_at": now,
+    }
     if model is not None:
-        draft.generation_model = model
+        values["generation_model"] = model
     if prompt_version is not None:
-        draft.generation_prompt_version = prompt_version
-    draft.generation_usage = usage
-    draft.generation_coverage = coverage
-    draft.generation_calls = max(int(calls or 0), 0)
-    draft.updated_by = draft.generated_by
-    draft.updated_at = now
+        values["generation_prompt_version"] = prompt_version
+    # 写回用**条件 UPDATE**：判定与写入是同一条语句，SELECT 之后管理员再保存草稿
+    # 也不会被覆盖（rowcount == 0 = 期间草稿变了 → 冲突）。这里校验的 revision 是
+    # 本函数读到的那个快照值——它可能已经过期，正因如此才要把判定写进 WHERE。
+    result = await db.execute(
+        update(HomeContentDraft)
+        .where(
+            HomeContentDraft.id == draft.id,
+            HomeContentDraft.active_generation_id == generation_id,
+            HomeContentDraft.revision == draft.revision,
+        )
+        .values(**values)
+    )
+    if result.rowcount == 0:
+        # 草稿在生成期间被改过：保留管理员的内容，把任务标成冲突失败。
+        await db.rollback()
+        await fail_generation(
+            db,
+            generation_id,
+            ErrorCode.HOME_CONTENT_CONFLICT,
+            "生成期间草稿已被修改，结果未写回",
+        )
+        return False
     await db.commit()
     return True
 
 
 async def fail_generation(db: AsyncSession, generation_id: str, code: str, message: str) -> bool:
-    """把当前任务标 failed（保留旧 payload / revision）；不是当前任务则返回 False。"""
-    draft = (
-        await db.execute(select(HomeContentDraft).where(HomeContentDraft.active_generation_id == generation_id))
-    ).scalar_one_or_none()
-    if draft is None:
+    """把当前任务标 failed（保留旧 payload / revision）；不是当前任务则返回 False。
+
+    条件 UPDATE（``WHERE active_generation_id = generation_id``）：占位已经被
+    换成新任务时，这一笔不会把新任务误标成失败。
+    """
+    result = await db.execute(
+        update(HomeContentDraft)
+        .where(HomeContentDraft.active_generation_id == generation_id)
+        .values(
+            status=HomeContentGenerationStatus.FAILED,
+            last_generation_id=generation_id,
+            active_generation_id=None,
+            generation_error_code=(code or "UNKNOWN")[:40],
+            generation_error_message=(message or "生成失败")[:500],
+            generation_finished_at=_now(),
+        )
+    )
+    if result.rowcount == 0:
         return False
-    draft.status = HomeContentGenerationStatus.FAILED
-    draft.last_generation_id = generation_id
-    draft.active_generation_id = None
-    draft.generation_error_code = (code or "UNKNOWN")[:40]
-    draft.generation_error_message = (message or "生成失败")[:500]
-    draft.generation_finished_at = _now()
     await db.commit()
     return True
 

@@ -24,7 +24,7 @@ const TITLE_RULES: ThemeRule[] = [
   {
     id: "pronunciation",
     label: "发音",
-    benefit: "练清容易混淆的音，跟读时把口型和重音一次弄明白",
+    benefit: "辨清容易混淆的音，结合口型和重音理解原声",
     pattern: /pronounc|pronunciation|accent|phonetic|minimal pair/i,
   },
   {
@@ -80,8 +80,8 @@ const TITLE_RULES: ThemeRule[] = [
 ];
 
 const TOPIC_THEMES: Record<string, VideoLearningTheme> = {
-  ted: { id: "speech", label: "演讲", benefit: "跟读演讲的节奏、重音与观点结构" },
-  speech: { id: "speech", label: "演讲", benefit: "跟读演讲的节奏、重音与观点结构" },
+  ted: { id: "speech", label: "演讲", benefit: "听辨演讲的节奏、重音与观点结构" },
+  speech: { id: "speech", label: "演讲", benefit: "听辨演讲的节奏、重音与观点结构" },
   interview: { id: "interview", label: "访谈", benefit: "跟上真实访谈的追问、停顿和口语节奏" },
   news: { id: "news", label: "新闻", benefit: "听懂新闻里的数字、立场和常用表达" },
   vlog: { id: "daily", label: "日常", benefit: "学会日常生活里的自然表达" },
@@ -93,7 +93,7 @@ const TOPIC_THEMES: Record<string, VideoLearningTheme> = {
 const FALLBACK_THEME: VideoLearningTheme = {
   id: "general",
   label: "真实视频",
-  benefit: "用一段真实视频练听力、积累表达，并逐句跟读",
+  benefit: "用一段真实视频练听力、理解表达，并重听原声",
 };
 
 export interface LearningThemeInput {

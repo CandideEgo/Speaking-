@@ -16,7 +16,13 @@ import { api } from "@/lib/api";
 import { fallbackTask } from "@/lib/homeTask";
 import type { VideoCard } from "@/types";
 
-export function FeaturedListening() {
+export function FeaturedListening({
+  primary = true,
+  continueVideoId,
+}: {
+  primary?: boolean;
+  continueVideoId?: string;
+}) {
   const [videos, setVideos] = useState<VideoCard[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -105,7 +111,8 @@ export function FeaturedListening() {
       <TodayTaskCard
         key={`feature:${video.id}`}
         task={fallbackTask(video, metadata[video.id])}
-        primary
+        primary={primary}
+        hideCover={continueVideoId === video.id}
       />
     </section>
   );

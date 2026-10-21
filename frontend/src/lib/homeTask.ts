@@ -22,6 +22,7 @@ export interface HomeTaskSentence {
 }
 
 export interface HomeTaskClip {
+  revisionId?: string;
   start: number;
   end: number;
   duration: number;
@@ -68,6 +69,7 @@ export function editorialTask(slot: HomeEditorialVideoSlot): HomeTask {
           end: clip.end_time,
           duration: clip.duration,
           subtitleId: clip.start_subtitle_id || null,
+          revisionId: content.content_revision_id,
         }
       : null;
 
@@ -133,7 +135,7 @@ export function taskPrimaryAction(task: HomeTask): { href: string; label: string
     return {
       href: watchSentenceHref(
         task.video.id,
-        { from: "home" },
+        { from: "home", extra: { clip: task.clip.revisionId } },
         {
           subtitleId: task.clip.subtitleId,
           startTime: task.clip.start,

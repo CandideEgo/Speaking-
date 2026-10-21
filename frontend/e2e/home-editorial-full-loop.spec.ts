@@ -39,19 +39,35 @@ import type {
  *     这里直接用它做「编辑草稿」的基底；没有则用真实字幕手写一份，AI 不可用也不阻塞。
  *   - 真实 AI 生成只授权一次，已由 `.tmp-diag/real_generation_probe.py` 单独执行；
  *     本 spec 不再触发真实生成，避免重复消耗额度。
+ *
+ * **外部数据依赖（CI 适配）**：本 spec 依赖下面三项仓库外的数据，因此
+ * **不把任何真实账号口令或视频 ID 写进仓库**，全部由环境变量注入：
+ *   - `E2E_ADMIN_PHONE` / `E2E_ADMIN_PASSWORD`：专用管理员账号；
+ *   - `E2E_HOME_EDITORIAL_VIDEO_A` / `_B` / `_C` / `_D`：四条真实已发布视频；
+ *   - 数据库基线：三张编排表为空（未发布编排）。
+ * 任一项不满足 → 按 `e2e/watch.spec.ts` 的既有约定整组 `test.skip()` 并写明原因，
+ * CI 因此不会必红；条件满足时 12 步的产品断言一条不少地真跑。
  */
 
 test.describe.configure({ mode: "serial" });
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 const EVIDENCE_DIR = path.resolve(process.cwd(), "../docs/evidence/home-editorial");
-const ADMIN_PHONE = "15580607003";
-const ADMIN_PASSWORD = "AdminPass123";
-const A = "28091082-12e9-47dd-ab0c-8533e3bc27a8";
-const B = "8f1f8f1a-8f7e-4b18-b740-ff684db20d5a";
+/** 管理员账号：只从环境变量读，仓库里不留任何真实手机号/口令。 */
+const ADMIN_PHONE = process.env.E2E_ADMIN_PHONE ?? "";
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "";
+/** 四条真实已发布视频（A/B/C/D）：同样只从环境变量读。 */
+const VIDEO_IDS = {
+  A: process.env.E2E_HOME_EDITORIAL_VIDEO_A ?? "",
+  B: process.env.E2E_HOME_EDITORIAL_VIDEO_B ?? "",
+  C: process.env.E2E_HOME_EDITORIAL_VIDEO_C ?? "",
+  D: process.env.E2E_HOME_EDITORIAL_VIDEO_D ?? "",
+};
+const A = VIDEO_IDS.A;
+const B = VIDEO_IDS.B;
 /** 两条真实已发布视频，用来做「次推最多 2 条」的真实位置验证（保存内容版本但不占主推）。 */
-const C = "fd0bed6c-109d-444a-8075-663beb783f3d";
-const D = "63288cd3-2789-47d7-ba66-a83c982f33a9";
+const C = VIDEO_IDS.C;
+const D = VIDEO_IDS.D;
 
 const A_HEADLINE = "点头和摇头，英语怎么说？";
 const A_DEK = "从动作视频里学会用英语描述同意与不同意，听清一句短句的节奏。";
@@ -536,6 +552,75 @@ async function captureAdminPage(
   await page.waitForTimeout(500);
   await page.screenshot({ path: evidencePath(name) });
 }
+
+// ---------------------------------------------------------------------------
+// 外部数据依赖守卫（CI 适配）
+// ---------------------------------------------------------------------------
+//
+// 这个 spec 依赖仓库外的三样东西：管理员账号、四条真实已发布视频、以及
+// 「编排三表为空」的库基线。缺任何一样都跑不出有意义的断言，因此按
+// e2e/watch.spec.ts 的既有约定整组 skip 并写明原因——而不是让 CI 必红。
+//
+// 只在「外部数据不满足」时 skip：本 spec 自己的产品断言（发布、回滚、乐观锁、
+// 来源失效、互动反馈、响应式…）在条件满足时一条不少地真跑。
+
+interface DataDependency {
+  ok: boolean;
+  reason: string;
+}
+
+let dataDependency: DataDependency = { ok: false, reason: "外部数据依赖尚未检查" };
+
+async function checkDataDependencies(request: APIRequestContext): Promise<DataDependency> {
+  const missing: string[] = [];
+  if (!ADMIN_PHONE || !ADMIN_PASSWORD) missing.push("E2E_ADMIN_PHONE / E2E_ADMIN_PASSWORD");
+  for (const key of ["A", "B", "C", "D"] as const) {
+    if (!VIDEO_IDS[key]) missing.push(`E2E_HOME_EDITORIAL_VIDEO_${key}`);
+  }
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `外部数据依赖不满足（缺少环境变量注入：${missing.join("、")}）。` +
+        "本 spec 需要专用管理员账号与四条真实已发布视频；账号口令与视频 ID 一律由环境变量注入，仓库里不留明文。",
+    };
+  }
+
+  // 库基线：三张编排表必须为空（未发布编排），否则第 1 步的基线断言必失败。
+  adminToken = await adminLogin(request);
+  const editorial = await getPublicEditorial(request);
+  if (editorial !== null) {
+    return {
+      ok: false,
+      reason:
+        "外部数据依赖不满足：库里已经有已发布的首页编排（home_page_config / home_content_revisions 非空），" +
+        "本 spec 的基线前提（未发布编排）不成立。请按 docs/home-editorial-verification-2026-10.md 的清理记录复原后再跑。",
+    };
+  }
+  for (const key of ["A", "B", "C", "D"] as const) {
+    const state = await getVideoState(request, VIDEO_IDS[key]);
+    if (state.draft !== null || state.revisions.length > 0) {
+      return {
+        ok: false,
+        reason:
+          `外部数据依赖不满足：视频 ${key}（${VIDEO_IDS[key]}）已有草稿或已发布版本` +
+          "（home_content_drafts / home_content_revisions 非空），本 spec 的基线前提不成立。" +
+          "请按 docs/home-editorial-verification-2026-10.md 的清理记录复原后再跑。",
+      };
+    }
+  }
+  return { ok: true, reason: "" };
+}
+
+test.beforeAll(async ({ request }) => {
+  dataDependency = await checkDataDependencies(request);
+});
+
+test.beforeEach(() => {
+  if (!dataDependency.ok) {
+    test.skip(true, dataDependency.reason);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 用例

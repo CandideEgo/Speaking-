@@ -22,11 +22,13 @@ export function TodayTaskCard({
   task,
   primary = false,
   className,
+  hideCover = false,
 }: {
   task: HomeTask;
   /** 没有可继续记录时，这张卡就是首屏主行动。 */
   primary?: boolean;
   className?: string;
+  hideCover?: boolean;
 }) {
   const action = taskPrimaryAction(task);
   const fullHref = taskFullVideoHref(task);
@@ -43,35 +45,42 @@ export function TodayTaskCard({
       )}
       aria-label="今日学习任务"
     >
-      <div className="grid gap-5 md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] md:items-center">
-        <div className="relative aspect-video overflow-hidden rounded-sm bg-surface-card">
-          <Image
-            src={task.video.thumbnail_url}
-            alt=""
-            loading="eager"
-            sizes="(max-width: 767px) 100vw, 42vw"
-            fallback={
-              <span className="absolute inset-0 grid place-items-center text-muted">
-                <Play size={28} aria-hidden />
-              </span>
-            }
-          />
-          {task.video.difficulty_level && (
-            <DifficultyBadge
-              level={task.video.difficulty_level}
-              size="sm"
-              className="absolute left-2 top-2"
+      <div
+        className={cn(
+          "grid gap-5 md:items-center",
+          !hideCover && "md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]"
+        )}
+      >
+        {!hideCover && (
+          <div className="relative aspect-video overflow-hidden rounded-sm bg-surface-card">
+            <Image
+              src={task.video.thumbnail_url}
+              alt=""
+              loading="eager"
+              sizes="(max-width: 767px) 100vw, 42vw"
+              fallback={
+                <span className="absolute inset-0 grid place-items-center text-muted">
+                  <Play size={28} aria-hidden />
+                </span>
+              }
             />
-          )}
-          {(clipLabel || task.video.duration) && (
-            <span
-              className="absolute bottom-2 right-2 rounded-sm px-1.5 py-0.5 font-mono text-caption font-semibold text-white"
-              style={{ background: "rgba(10, 10, 10, 0.78)" }}
-            >
-              {clipLabel ?? formatDuration(task.video.duration)}
-            </span>
-          )}
-        </div>
+            {task.video.difficulty_level && (
+              <DifficultyBadge
+                level={task.video.difficulty_level}
+                size="sm"
+                className="absolute left-2 top-2"
+              />
+            )}
+            {(clipLabel || task.video.duration) && (
+              <span
+                className="absolute bottom-2 right-2 rounded-sm px-1.5 py-0.5 font-mono text-caption font-semibold text-white"
+                style={{ background: "rgba(10, 10, 10, 0.78)" }}
+              >
+                {clipLabel ?? formatDuration(task.video.duration)}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="min-w-0">
           <p className="text-meta font-semibold text-brand-700">{eyebrow}</p>
@@ -109,32 +118,12 @@ export function TodayTaskCard({
               ))}
           </div>
 
-          {task.sentence && (
-            <blockquote className="mt-3 border-l-2 border-brand-200 pl-3">
-              <p className="line-clamp-2 text-copy leading-relaxed text-ink">
-                {task.sentence.text_en}
-              </p>
-              {task.sentence.text_zh && (
-                <p className="mt-0.5 line-clamp-2 text-meta leading-relaxed text-muted">
-                  {task.sentence.text_zh}
-                </p>
-              )}
-            </blockquote>
-          )}
-
-          {task.videoTitle && task.videoTitle !== task.headline && (
-            <p className="mt-3 line-clamp-1 text-meta text-muted" title={task.videoTitle}>
-              原片：{task.videoTitle}
-            </p>
-          )}
-
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <LinkButton
               href={action.href}
-              variant="primary"
+              variant={primary ? "primary" : "outline"}
               size="md"
               icon={Play}
-              data-variant="primary"
             >
               {action.label}
             </LinkButton>
@@ -153,6 +142,25 @@ export function TodayTaskCard({
               </Link>
             )}
           </div>
+
+          {task.sentence && (
+            <blockquote className="mt-3 border-l-2 border-brand-200 pl-3">
+              <p className="line-clamp-2 text-copy leading-relaxed text-ink">
+                {task.sentence.text_en}
+              </p>
+              {task.sentence.text_zh && (
+                <p className="mt-0.5 line-clamp-2 text-meta leading-relaxed text-muted">
+                  {task.sentence.text_zh}
+                </p>
+              )}
+            </blockquote>
+          )}
+
+          {task.videoTitle && task.videoTitle !== task.headline && (
+            <p className="mt-3 line-clamp-1 text-meta text-muted" title={task.videoTitle}>
+              原片：{task.videoTitle}
+            </p>
+          )}
         </div>
       </div>
     </article>

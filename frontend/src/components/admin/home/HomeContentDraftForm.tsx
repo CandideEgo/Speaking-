@@ -264,7 +264,7 @@ function ScenarioRow({
           />
         </Field>
       </div>
-      <Field label="锚定原句（可空）" hint="有锚定句时，公共页可展开查看原句/跟读。">
+      <Field label="锚定原句（可空）" hint="有锚定句时，公共页可展开查看原句并返回观看。">
         <SubtitleSelect
           subtitles={subtitles}
           value={scenario.subtitle_id}

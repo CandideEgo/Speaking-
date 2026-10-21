@@ -422,7 +422,7 @@ test.describe("已发布编排：一个明确的学习任务", () => {
     // 主按钮文案里的秒数来自 clip.duration，落点来自真实字幕与时间。
     await expect(lead.getByRole("link", { name: "听懂这段 · 42 秒" })).toHaveAttribute(
       "href",
-      "/watch/video-lead?from=home&sub=sub-lead-1&t=12&autoplay=1"
+      "/watch/video-lead?from=home&clip=rev-lead&sub=sub-lead-1&t=12&autoplay=1"
     );
     // 完整视频只做次级入口，App 内不再出现第二个「开始观看」或封面播放键。
     await expect(lead.getByRole("link", { name: /看完整视频/ })).toHaveAttribute(

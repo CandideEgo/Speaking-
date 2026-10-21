@@ -42,7 +42,7 @@
 - 干净基线：三表 **0 / 0 / 0**；`GET /api/v1/browse/home-editorial` = `{"editorial": null}`；`GET /api/v1/browse/featured?limit=6` 首条 = `A = 28091082-12e9-47dd-ab0c-8533e3bc27a8`（Learn English with Bob the Canadian，A2，218 句字幕，720p 本地媒体）。
 - 候选 B = `8f1f8f1a-8f7e-4b18-b740-ff684db20d5a`（TED《Inside the Mind of a Master Procrastinator》，B2，279 句，720p）。
 - 次推真实视频：C = `fd0bed6c-…`（English with Lucy，B1，168 句）、D = `63288cd3-…`（CNBC，C1，187 句）。
-- 管理员：`15580607003 / AdminPass123`（`POST /api/v1/auth/phone-login`，role=admin）；普通用户：`e2e/helpers.ts::registerUserViaApi`（dev 短信码 `1234`）现场注册。
+- 管理员：生产管理员账号（手机号与密码**按凭据处置要求打码**，不再入库；原始值只在本机 `.tmp-diag/` 等未跟踪目录里，用 `POST /api/v1/auth/phone-login` 登录，role=admin）；普通用户：`e2e/helpers.ts::registerUserViaApi`（dev 短信码 `1234`）现场注册。
 
 ## 2. 后端验证（backend/，全部带 `PYTHONUTF8=1`，`backend/.venv/Scripts/python.exe`）
 
@@ -170,9 +170,9 @@ npx playwright test e2e/home-editorial-full-loop.spec.ts --project=chromium --re
 ```
 
 - 修复前（复用真实 AI 草稿做编辑基底）：**12/12 passed（26.2s / 36.6s 两轮）**，日志
-  `docs/evidence/home-editorial/14-e2e-full-loop.log`（含 `reused_generated_draft:true`）。
+  `docs/evidence/home-editorial/14-e2e-full-loop.txt`（含 `reused_generated_draft:true`）。
 - **最终确认轮（实现者 dev-abort 修复后，从三表 0 行干净基线起跑）**：
-  `12/12 passed (35.9s)`，日志 `docs/evidence/home-editorial/15-e2e-full-loop-final.log`。
+  `12/12 passed (35.9s)`，日志 `docs/evidence/home-editorial/15-e2e-full-loop-final.txt`。
   该轮 `reused_generated_draft:false`（不重复消耗真实额度），走 spec 内置的「真实字幕手写草稿」
   兜底路径，同时覆盖了任务原文 §11 第 7 条「AI 不可用时人工编辑也能发布」。
 - spec 覆盖：基线旧兜底 → 管理员发布 A（含换说法/场景/2 条次推位置）→ B 草稿编辑+预览 →
@@ -196,14 +196,14 @@ Running 25 tests using 10 workers
 25 passed (8.5s)
 ```
 
-其中包含实现者 spec 的「真实 dev 后端未发布编排时继续走旧首页（布局发布后自动跳过）」一条，真实后端走了旧兜底。该轮在最终清理之后执行，日志：`docs/evidence/home-editorial/16-old-home-regression.log`。
+其中包含实现者 spec 的「真实 dev 后端未发布编排时继续走旧首页（布局发布后自动跳过）」一条，真实后端走了旧兜底。该轮在最终清理之后执行，日志：`docs/evidence/home-editorial/16-old-home-regression.txt`。
 
 ## 4. 真实 AI 生成尝试（本任务授权一次；只记录事实，不评价质量）
 
 执行方式：`POST /api/v1/admin/home-content/videos/{B}/generate`（管理员 token）→ 轮询
 `GET /api/v1/admin/home-content/videos/{B}/generation`。脚本为 gitignored 临时脚本
 `.tmp-diag/real_generation_probe.py`，原始记录已复制到
-`docs/evidence/home-editorial/11-real-generation-probe.json` / `.log`。
+`docs/evidence/home-editorial/11-real-generation-probe.json` / `.txt`。
 
 ```text
 POST /generate -> HTTP 202  {"generation":{"status":"queued",...,"reused":false}}  (0.11s)
@@ -223,10 +223,10 @@ error_message : null
 生成结果落库草稿（`draft_revision=1`）摘要（不评价内容质量）：标题「没有截止日期，为什么更容易拖延」；
 3 条表达（均多词、`word=null`）；互动 3 个选项；3 个场景；片段起止为真实字幕 id。
 
-这一版草稿随后被修复前的全链路 e2e 用作「编辑草稿」的基底（`14-e2e-full-loop.log` 中
+这一版草稿随后被修复前的全链路 e2e 用作「编辑草稿」的基底（`14-e2e-full-loop.txt` 中
 `reused_generated_draft:true`，`draft_revision` 逐步编辑到 12）；**最终确认轮**从干净基线起跑、
 不再复用该草稿（避免第二次消耗真实额度），改走 spec 内置的真实字幕手写路径
-（`15-e2e-full-loop-final.log` 中 `reused_generated_draft:false`）。两条路径都通过，
+（`15-e2e-full-loop-final.txt` 中 `reused_generated_draft:false`）。两条路径都通过，
 AI 生成成功这一事实与手工编辑兜底能力分别有据可查；本报告不评价模型生成质量。
 
 ## 5. §11 七步验收矩阵
@@ -251,7 +251,7 @@ AI 生成成功这一事实与手工编辑兜底能力分别有据可查；本�
 | 来源变化（PATCH 改一句真实字幕） | spec 7/12：改 B 一句字幕 → 已发布卡从公共接口消失、次推按设计提升为主推、发布 422 `HOME_CONTENT_SOURCE_CHANGED`；原样改回后 lead 回到 B、次推恢复 C/D |
 | 下线视频后旧卡不出现、回滚被拒且说明 | spec 12/12：A 下线后公共 slots 不含 A、lead 仍是 B；回滚 409 且给出原因；不暴露已下线视频 |
 | 无编排用旧兜底 / 缺可选卡不造假 | spec 1/12（旧兜底）、spec 2/12（只有主推时 `secondary=[] expression=null scenarios=[]`，DOM `.home-editorial-secondary` 0 条；随后编排 2 条次推→DOM 2 条且文本正确） |
-| 互动点击只显示保存反馈、不发 AI 请求 | spec 9/12：点击两个选项，`aria-pressed` 正确，反馈来自发布 DTO；监听 `request` 事件 800ms 内无 `/api/` 请求，更无 openai/chat/completion 调用；同时断言 console.error/pageerror/4xx-5xx 为 0（本轮 requestfailed 也是 0），写入 `12-homepage-console.log` |
+| 互动点击只显示保存反馈、不发 AI 请求 | spec 9/12：点击两个选项，`aria-pressed` 正确，反馈来自发布 DTO；监听 `request` 事件 800ms 内无 `/api/` 请求，更无 openai/chat/completion 调用；同时断言 console.error/pageerror/4xx-5xx 为 0（本轮 requestfailed 也是 0），写入 `12-homepage-console.txt` |
 | 收词/定位/跟读参数 | spec 10/12：真实 `POST /api/v1/vocabulary?word=…&video_id=B&subtitle_id=…&context_sentence=…` 参数逐项等于公共 DTO；「跟读这句」href 指向 `/watch/B?from=home&sub=<真实字幕id>`；「全文文稿」`/watch/B/transcript`；「看完整视频」`/watch/B?from=home`；片段按钮文案 = 服务端 `clip.duration` 计算值（不是写死 90 秒） |
 | 1440 与 320–390 无横向溢出 | spec 10/12：1440/390/320 三档 `document.documentElement.scrollWidth <= innerWidth` 且 `.home-discovery` 内容宽不溢出；390 场景展开后详情框底边在移动端 tab bar 之上 |
 | 生成失败/重新生成不改变当前首页 | 后端 pytest 已覆盖生成状态机与失败路径（`test_home_content_generation.py`）；e2e 侧验证了「已有草稿再生成需显式覆盖」：POST generate → 409 `HOME_CONTENT_OVERWRITE_CONFIRM`，随后公共页与草稿均未变（spec 5/12） |
@@ -270,13 +270,13 @@ AI 生成成功这一事实与手工编辑兜底能力分别有据可查；本�
 | `08-首页-恢复后-A-1440.png`（1440×1600） | 「恢复上一版」后首页回到 A（真实 A 视频/字幕/侧位卡）；**修复后重拍，已无 dev overlay 徽标** |
 | `09-恢复上一版-被拒绝.png`（1440×2200） | A 下线后点「恢复上一版」：顶部 toast「上一版布局已不可恢复：内容来源或视频可见性发生变化，请重新编排」+ 字段级 `VIDEO_NOT_PUBLIC` 问题 + 线上仍是 B、2 条次推仍在 |
 | `10-首页-新编排-320.png`（320×2985） | 320 手机全页，无横向溢出 |
-| `11-real-generation-probe.json/.log` | 唯一一次真实 AI 生成的原始记录（状态转移/耗时/model/usage/error；§4） |
-| `12-homepage-console.log` | 新编排首页运行时证据：spec 本轮 console.error=0、pageerror=0、http≥400=0、requestfailed=0；**文件后半部分追加了修复后 6 轮 console 探针汇总** |
+| `11-real-generation-probe.json/.txt` | 唯一一次真实 AI 生成的原始记录（状态转移/耗时/model/usage/error；§4） |
+| `12-homepage-console.txt` | 新编排首页运行时证据：spec 本轮 console.error=0、pageerror=0、http≥400=0、requestfailed=0；**文件后半部分追加了修复后 6 轮 console 探针汇总** |
 | `12-homepage-console-probe.json` | 修复后 6 轮探针的原始 JSON（3 轮直接加载 + 3 轮导航离开再回来） |
 | `13-nextjs-dev-issue-evidence.txt` | 「1 Issue」dev overlay 调查的原始 message、复现方法与结论（§9.1） |
-| `14-e2e-full-loop.log` | 修复前全链路 e2e 输出（12/12，含 `reused_generated_draft:true` 与 `[real-generation]` 行） |
-| `15-e2e-full-loop-final.log` | **最终确认轮**全链路 e2e 输出（12/12 passed，35.9s，从 0 行基线、`reused_generated_draft:false`） |
-| `16-old-home-regression.log` | 最终清理后旧首页 + 实现者 home-editorial spec 的 25 passed 输出（8.5s） |
+| `14-e2e-full-loop.txt` | 修复前全链路 e2e 输出（12/12，含 `reused_generated_draft:true` 与 `[real-generation]` 行） |
+| `15-e2e-full-loop-final.txt` | **最终确认轮**全链路 e2e 输出（12/12 passed，35.9s，从 0 行基线、`reused_generated_draft:false`） |
+| `16-old-home-regression.txt` | 最终清理后旧首页 + 实现者 home-editorial spec 的 25 passed 输出（8.5s） |
 
 > 说明：同目录还有实现者早期留下的未编号截图（`home-desktop-1440.png`、`admin-*` 等），
 > 不属于本验证的交付图，本报告编号 01–10 才是验收截图。
@@ -308,7 +308,7 @@ AI 生成成功这一事实与手工编辑兜底能力分别有据可查；本�
   - 直接加载 3/3 轮：`requestfailed=0`、`console.error=0`、`pageerror=0`、`http>=400=0`，Next dev tools 徽标不出现（`badgeRootDisplay=none`）；
   - 导航离开 3 轮：仅出现由探针主动离页造成的 `net::ERR_ABORTED`（media 缩略图 / `users/me` / 字体 / `learning-metadata`），属真实离页的预期行为；所有轮次 `console.error/pageerror/4xx` 均为 0，徽标全部不出现；
   - 此前跑 4 轮偶发出现的 `browse/featured`、`learning-metadata` 首页加载 abort **不再出现**。
-  - 原始结果追加在 `12-homepage-console.log`，原始 JSON 见 `12-homepage-console-probe.json`。
+  - 原始结果追加在 `12-homepage-console.txt`，原始 JSON 见 `12-homepage-console-probe.json`。
 - **截图**：`08` 已由最终轮重拍且无徽标；其余 01/02/07/09/10 同轮重拍。
 
 ### 9.2 【低 / 证据流程】管理端 sonner toast 有 0.4s 入场动画
@@ -387,11 +387,11 @@ npx playwright test e2e/home-learning-stories.spec.ts e2e/home-continue-learning
 | 项 | 命令 / 动作 | 真实结果 |
 |---|---|---|
 | 1. 干净基线 | 三表 DELETE 后复核 | cfg=0 / revs=0 / drafts=0；`{"editorial":null}`；A/B `is_published=t` |
-| 2. 全链路重跑 | `npx playwright test e2e/home-editorial-full-loop.spec.ts --project=chromium` | **12 passed (35.9s)**；日志 `15-e2e-full-loop-final.log`；`reused_generated_draft:false`（人工编辑路径） |
-| 3. console 探针 | 6 轮（3 轮直接加载 + 3 轮导航离开再回来） | 直接加载 3/3：`requestfailed=0`、`console.error=0`、`pageerror=0`、`http>=400=0`、dev 徽标不出现；导航离开 3 轮：仅预期内的离页 `ERR_ABORTED`，其余全 0；追加到 `12-homepage-console.log`，原始 JSON `12-homepage-console-probe.json` |
+| 2. 全链路重跑 | `npx playwright test e2e/home-editorial-full-loop.spec.ts --project=chromium` | **12 passed (35.9s)**；日志 `15-e2e-full-loop-final.txt`；`reused_generated_draft:false`（人工编辑路径） |
+| 3. console 探针 | 6 轮（3 轮直接加载 + 3 轮导航离开再回来） | 直接加载 3/3：`requestfailed=0`、`console.error=0`、`pageerror=0`、`http>=400=0`、dev 徽标不出现；导航离开 3 轮：仅预期内的离页 `ERR_ABORTED`，其余全 0；追加到 `12-homepage-console.txt`，原始 JSON `12-homepage-console-probe.json` |
 | 4. 截图复核 | 01/02/07/08/10 等全量重拍 | 01（1440×1807）、02（390×2908，新 390 样式）、07（1440×1600）、08（1440×1600，无徽标）、10（320×2985）均为真实数据、无横向溢出；03/04/05/06/09 同轮重拍 |
 | 5. 清理 | `DELETE FROM home_page_config / home_content_revisions / home_content_drafts` | cfg=0 / revs=0 / drafts=0；`{"editorial":null}`；A/B 可见性复原；`%[verify-source-change]%` 字幕计数 0 |
-| 6. 旧首页回归 | 清理后跑旧三件套 + 实现者 spec | **25 passed (8.5s)**；日志 `16-old-home-regression.log` |
+| 6. 旧首页回归 | 清理后跑旧三件套 + 实现者 spec | **25 passed (8.5s)**；日志 `16-old-home-regression.txt` |
 | 7. 前端门禁 | `npm run check` | EXIT 0：design-system/session-writes 通过，tsc 无错，eslint 0 error（3 个既有 warning），prettier 全通过 |
 
 最终版结论：**管理员换首页主推闭环在真实后端 + dev 代理下可复现通过；AI 生成成功一次并如实记录；

@@ -123,13 +123,20 @@ export default function HomePage() {
       ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start">
-        <div className="min-w-0" id="home-listening">
+        <div className="min-w-0 order-2 xl:order-1" id="home-listening">
           {editorial.status === "editorial" ? (
-            <HomeEditorialHero page={editorial.page} primary={!hasContinue} />
+            <HomeEditorialHero
+              page={editorial.page}
+              primary={!hasContinue}
+              continueVideoId={continueLearning.record?.video_id}
+            />
           ) : editorial.status === "loading" ? (
             <EditorialSkeleton />
           ) : (
-            <FeaturedListening />
+            <FeaturedListening
+              primary={!hasContinue}
+              continueVideoId={continueLearning.record?.video_id}
+            />
           )}
 
           {editorial.status === "editorial" && editorial.page.lead && (
@@ -152,7 +159,7 @@ export default function HomePage() {
       >
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-title font-bold tracking-tight text-ink">发现更多视频</h2>
-          <p className="text-meta text-muted">按主题、难度筛一段；每段都能点词、跟读。</p>
+          <p className="text-meta text-muted">按主题、难度筛一段，点词理解，再听原声。</p>
         </div>
         <Suspense fallback={<FeedSkeleton />}>
           <HomeFeed />

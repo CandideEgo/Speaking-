@@ -37,12 +37,12 @@ export function ContinueLearningCard({ record }: { record: LearningRecord }) {
       aria-label="继续学习"
       className="rounded-md border border-hairline bg-surface-soft p-4 sm:p-5"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="flex flex-wrap gap-3 sm:flex-nowrap sm:items-center">
         <Link
           href={href}
           tabIndex={-1}
           aria-hidden
-          className="relative block w-full max-w-[13rem] shrink-0 overflow-hidden rounded-sm bg-surface-card aspect-video"
+          className="relative block w-20 sm:w-40 shrink-0 self-start overflow-hidden rounded-sm bg-surface-card aspect-video"
         >
           <Image
             src={record.video?.thumbnail_url}
@@ -68,9 +68,13 @@ export function ContinueLearningCard({ record }: { record: LearningRecord }) {
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted">
             {record.video?.channel_name && (
-              <span className="max-w-[18rem] truncate">{record.video.channel_name}</span>
+              <span className="hidden sm:block max-w-[18rem] truncate">
+                {record.video.channel_name}
+              </span>
             )}
-            {record.video?.difficulty_level && <span>{record.video.difficulty_level}</span>}
+            {record.video?.difficulty_level && (
+              <span className="hidden sm:block">{record.video.difficulty_level}</span>
+            )}
             <span className="tabular-nums">已看 {progress}%</span>
             {remaining !== null && (
               <span className="tabular-nums">还剩 {formatDuration(remaining)}</span>
@@ -90,7 +94,7 @@ export function ContinueLearningCard({ record }: { record: LearningRecord }) {
             />
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-col sm:items-stretch">
           <LinkButton href={href} variant="primary" size="md" icon={Play}>
             继续学习{position !== null ? ` · ${formatDuration(position)}` : ""}
           </LinkButton>

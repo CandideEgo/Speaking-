@@ -34,15 +34,21 @@ export function HomeEditorialHeader(): ReactElement {
 export function HomeEditorialHero({
   page,
   primary = false,
+  continueVideoId,
 }: {
   page: HomeEditorialPage;
   mode?: HomeEditorialMode;
   primary?: boolean;
+  continueVideoId?: string;
 }): ReactElement | null {
   if (!page.lead) return null;
   return (
     <section aria-label="今日精选">
-      <TodayTaskCard task={editorialTask(page.lead)} primary={primary} />
+      <TodayTaskCard
+        task={editorialTask(page.lead)}
+        primary={primary}
+        hideCover={continueVideoId === page.lead.video.id}
+      />
     </section>
   );
 }

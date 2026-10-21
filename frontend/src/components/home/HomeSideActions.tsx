@@ -19,9 +19,15 @@ interface VocabularyStats {
  */
 export function HomeSideActions() {
   return (
-    <aside aria-label="其他学习入口" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+    <aside
+      aria-label="其他学习入口"
+      className="order-1 xl:order-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-1"
+    >
       <ReviewCard />
       <FindVideoCard />
+      <Link href="#feed" className="sm:hidden justify-self-end text-meta text-muted hover:text-ink">
+        按主题 / 难度找视频 →
+      </Link>
     </aside>
   );
 }
@@ -46,8 +52,11 @@ function ReviewCard() {
 
   const due = stats ? Math.max(0, stats.due_count) : null;
   return (
-    <section aria-label="词汇复习" className="rounded-md border border-hairline bg-canvas p-4">
-      <div className="flex items-center justify-between gap-2">
+    <section
+      aria-label="词汇复习"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:block rounded-md border border-hairline bg-canvas p-3 sm:p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-copy font-bold text-ink">
           <BookOpen size={15} className="text-brand-700" aria-hidden />
           词汇复习
@@ -77,7 +86,7 @@ function ReviewCard() {
         </div>
       ) : (
         <>
-          <p className="mt-2 text-meta leading-relaxed text-body">
+          <p className="hidden sm:block mt-2 text-meta leading-relaxed text-body">
             {stats.due_count > 0
               ? `今天到期 ${stats.due_count} 个词，先过 5 个就好。`
               : `今天没有到期词。词库共 ${stats.total} 个词，可以去听一段新的。`}
@@ -87,7 +96,7 @@ function ReviewCard() {
             variant="outline"
             size="sm"
             fullWidth
-            className="mt-3"
+            className="sm:mt-3 whitespace-nowrap"
           >
             {stats.due_count > 0 ? `先复习 ${Math.min(5, stats.due_count)} 个词` : "翻翻我的词库"}
           </LinkButton>
@@ -99,7 +108,10 @@ function ReviewCard() {
 
 function FindVideoCard() {
   return (
-    <section aria-label="找视频" className="rounded-md border border-hairline bg-canvas p-4">
+    <section
+      aria-label="找视频"
+      className="hidden sm:block rounded-md border border-hairline bg-canvas p-4"
+    >
       <h2 className="flex items-center gap-1.5 text-copy font-bold text-ink">
         <Compass size={15} className="text-brand-700" aria-hidden />
         找视频
