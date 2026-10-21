@@ -26,6 +26,7 @@ class ErrorCode:
 
     # 资源
     NOT_FOUND = "NOT_FOUND"
+    FEATURE_RETIRED = "FEATURE_RETIRED"
     CONFLICT = "CONFLICT"
 
     # 限流
@@ -65,8 +66,11 @@ class ErrorCode:
     # 没点名 code；用一个专门的码比复用 SOURCE_CHANGED 更准确。
     HOME_CONTENT_INVALID = "HOME_CONTENT_INVALID"
     # 生成任务的两个通用失败原因（写进 generation_error_code，不是 HTTP code）。
-    HOME_CONTENT_TIMEOUT = "TIMEOUT"
-    HOME_CONTENT_CONFLICT = "CONFLICT"
+    # 值与枚举名一致：整个 ErrorCode 里只有这两个原本是短名（"TIMEOUT"/"CONFLICT"），
+    # 枚举名说 HOME_CONTENT_ 而线上字符串说别的 —— 前端按字面量判断就会踩坑。
+    # 本特性尚未上线（未推送），没有历史数据与外部消费者，改值零兼容成本。
+    HOME_CONTENT_TIMEOUT = "HOME_CONTENT_TIMEOUT"
+    HOME_CONTENT_CONFLICT = "HOME_CONTENT_CONFLICT"
 
     # 兜底
     INTERNAL_ERROR = "INTERNAL_ERROR"

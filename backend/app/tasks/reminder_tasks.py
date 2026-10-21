@@ -98,7 +98,6 @@ def send_hourly_reminders(now: datetime | None = None):
     async def _process():
         from sqlalchemy import select
 
-        from app.models.learning_plan import UserLearningProfile
         from app.models.preferences import UserPreferences
         from app.models.user import User
         from app.services.notification_service import create_notification
@@ -113,15 +112,16 @@ def send_hourly_reminders(now: datetime | None = None):
                     select(User, UserPreferences).outerjoin(UserPreferences, UserPreferences.user_id == User.id)
                 )
             ).all()
-            profiles = {p.user_id: p for p in (await db.execute(select(UserLearningProfile))).scalars()}
 
             for user, prefs in rows:
                 nprefs = _merged_prefs(prefs)
                 local_now = _to_local(now_utc, prefs.reminder_timezone if prefs else None)
 
                 # ── Vocabulary review reminder (user's chosen hour) ──
-                if nprefs.get("vocabulary_reminder", True):
-                    reminder_time = nprefs.get("vocabulary_reminder_time") or "20:00"
+                if nprefs.get("vocabulary_reminder", False):
+                    reminder_time = (
+                        (prefs.reminder_time if prefs else None) or nprefs.get("vocabulary_reminder_time") or "20:00"
+                    )
                     try:
                         reminder_hour = int(str(reminder_time).split(":")[0])
                     except ValueError:
@@ -140,33 +140,6 @@ def send_hourly_reminders(now: datetime | None = None):
                                     related_url="/vocabulary",
                                 )
                                 sent["vocabulary_reminder"] += 1
-
-                # ── Streak-at-risk warning (local 21:00) ──
-                if local_now.hour == _STREAK_WARNING_HOUR and nprefs.get("streak_warning_enabled", True):
-                    profile = profiles.get(user.id)
-                    if profile is not None and profile.last_active_date is not None:
-                        yesterday = local_now.date() - timedelta(days=1)
-                        if profile.current_streak >= _STREAK_MIN and profile.last_active_date == yesterday:
-                            # Warn only on the first day the streak is at risk:
-                            # once last_active_date falls behind yesterday the
-                            # streak is already broken and the "已连续 N 天" copy
-                            # would be false (and nag forever).
-                            key = f"reminder:streak_warning:{user.id}:{local_now.date().isoformat()}"
-                            if await _claim_daily_slot(key):
-                                await create_notification(
-                                    user_id=user.id,
-                                    type="streak_warning",
-                                    title="连续学习提醒",
-                                    message=f"已连续学习 {profile.current_streak} 天，今天还没有学习记录，别让记录中断",
-                                    db=db,
-                                    related_url="/",
-                                )
-                                sent["streak_warning"] += 1
-                        elif profile.last_active_date < yesterday and profile.current_streak > 0:
-                            # Streak already broken — reset the stale counter
-                            # (normally updated lazily on the next learning event).
-                            profile.current_streak = 0
-                            streak_resets += 1
 
             if sent["vocabulary_reminder"] or sent["streak_warning"] or streak_resets:
                 await db.commit()

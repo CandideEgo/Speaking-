@@ -51,7 +51,7 @@ MASTERY_TO_CATEGORY = {
 CATEGORY_TYPES = {
     "recognition": ["listen_choose_meaning", "see_word_choose_meaning"],
     "production": ["see_meaning_spell_word", "listen_spell_word"],
-    "context": ["sentence_repeat"],
+    "context": ["context_fill"],
 }
 
 
@@ -346,7 +346,7 @@ def _build_production_item(word: str, translation: str, phonetic: str) -> dict:
     }
 
 
-def _build_sentence_repeat_item(
+def _build_context_item(
     word: str,
     translation: str,
     phonetic: str,
@@ -354,14 +354,17 @@ def _build_sentence_repeat_item(
     start_time: float | None,
     end_time: float | None,
 ) -> dict:
-    """Build a sentence_repeat item from the word's saved context sentence."""
+    """Build a spelling question from the saved source sentence."""
+    if not re.search(r"\b" + re.escape(word) + r"\b", full_sentence, flags=re.IGNORECASE):
+        return _build_production_item(word, translation, phonetic)
     return {
         "word": word,
         "category": "context",
-        "type": "sentence_repeat",
+        "type": "context_fill",
+        "sentence_template": re.sub(r"\b" + re.escape(word) + r"\b", "___", full_sentence, flags=re.IGNORECASE),
         "translation": translation,
         "options": None,
-        "answer": full_sentence,
+        "answer": word,
         "full_sentence": full_sentence,
         "start_time": start_time,
         "end_time": end_time,
@@ -495,7 +498,7 @@ async def build_vocabulary_drill(
             # For vocabulary page, use sentence_repeat with context_sentence if available
             if w.context_sentence:
                 start = subtitle_starts.get(w.subtitle_id) if w.subtitle_id else None
-                item = _build_sentence_repeat_item(
+                item = _build_context_item(
                     word=word,
                     translation=translation,
                     phonetic=phonetic,

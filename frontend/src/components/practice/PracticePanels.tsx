@@ -3,10 +3,9 @@
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Volume2, Check, X, RotateCcw, Loader2, Trophy, Mic, MicOff } from "lucide-react";
+import { Volume2, RotateCcw, Loader2, Trophy } from "lucide-react";
 import type { GradedResult, PracticeItem } from "@/types";
 import { usePracticeAudio } from "@/hooks/usePracticeAudio";
-import { useSpeakingRecorder } from "@/hooks/useSpeakingRecorder";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -203,75 +202,6 @@ function SentenceWithBlank({ template }: { template: string }) {
   );
 }
 
-function SelfEvaluateButtons({
-  onCorrect,
-  onWrong,
-}: {
-  onCorrect: () => void;
-  onWrong: () => void;
-}) {
-  return (
-    <div className="flex gap-2">
-      <Button
-        variant="outline"
-        size="compact"
-        onClick={onCorrect}
-        icon={Check}
-        className="text-success border-success/40 hover:bg-success-soft"
-      >
-        读对了
-      </Button>
-      <Button
-        variant="outline"
-        size="compact"
-        onClick={onWrong}
-        icon={X}
-        className="text-error border-error/40 hover:bg-red-soft"
-      >
-        需练习
-      </Button>
-    </div>
-  );
-}
-
-function RecordAndEvaluate({ onResult }: { onResult: (correct: boolean) => void }) {
-  const { speakingState, startRecording, stopRecording, audioUrl } = useSpeakingRecorder(
-    () => true
-  );
-  const isRecording = speakingState === "listening";
-  const [hasRecorded, setHasRecorded] = useState(false);
-
-  const handleRecord = () => {
-    if (isRecording) {
-      stopRecording();
-      setHasRecorded(true);
-    } else {
-      startRecording();
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <Button
-        variant="outline"
-        size="compact"
-        onClick={handleRecord}
-        icon={isRecording ? MicOff : Mic}
-        className={isRecording ? "text-error" : ""}
-      >
-        {isRecording ? "停止录音" : "录音"}
-      </Button>
-      {hasRecorded && audioUrl && (
-        <div className="space-y-2">
-          <audio controls src={audioUrl} className="h-8 w-full" />
-          <div className="text-copy text-muted mb-1">回放你的录音，然后自评：</div>
-          <SelfEvaluateButtons onCorrect={() => onResult(true)} onWrong={() => onResult(false)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Per-item renderer
 // ---------------------------------------------------------------------------
@@ -465,34 +395,6 @@ function PracticeItemRenderer({
         </QuestionCard>
       );
 
-    case "sentence_repeat":
-      return (
-        <QuestionCard
-          prompt={
-            <div className="flex items-center gap-2">
-              <AudioPlayButton
-                onPlay={() => audio.playSentence(item.full_sentence ?? item.word)}
-                isPlaying={audio.playingText === (item.full_sentence ?? item.word)}
-              />
-              <span className="text-copy text-muted">听句子，跟读并自评</span>
-            </div>
-          }
-          hint={item.full_sentence ?? undefined}
-          graded={graded}
-          grading={grading}
-        >
-          {!locked && (
-            <RecordAndEvaluate
-              onResult={(correct) => {
-                const ans = correct ? "self_correct" : "self_wrong";
-                onAnswer(ans);
-                onGrade(ans);
-              }}
-            />
-          )}
-        </QuestionCard>
-      );
-
     default:
       return null;
   }
@@ -675,7 +577,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
         >
           <span
             className={cn(
-              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-on-primary shadow ring-0 transition duration-200 ease-in-out",
               autoAdvance ? "translate-x-4" : "translate-x-0"
             )}
           />

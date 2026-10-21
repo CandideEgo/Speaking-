@@ -350,7 +350,8 @@ async def test_custom_set_reuses_owned_words_and_deletion_preserves_vocabulary(c
     assert created.status_code == 201
     sid = created.json()["id"]
     empty_celebration = await client.post(f"/api/v1/vocab-sets/{sid}/celebrate", headers=auth_headers)
-    assert empty_celebration.status_code == 404
+    assert empty_celebration.status_code == 410
+    assert empty_celebration.json()["code"] == "FEATURE_RETIRED"
     assert (
         await client.post(
             f"/api/v1/discovery/sets/{sid}/words", headers=auth_headers, json={"vocabulary_ids": [foreign_word.id]}

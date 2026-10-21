@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
-from app.core.database import commit_refresh, get_db
+from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
@@ -140,57 +140,9 @@ async def save_watch_progress(
     current playback position. Also updates progress_percentage
     based on position vs video duration.
     """
-    # Find or create the learning record (lock to prevent duplicate creation)
-    result = await db.execute(
-        select(LearningRecord)
-        .where(
-            LearningRecord.user_id == current_user.id,
-            LearningRecord.video_id == body.video_id,
-        )
-        .with_for_update()
-    )
-    record = result.scalar_one_or_none()
+    from app.services.watch_progress_service import save_position
 
-    if not record:
-        record = LearningRecord(
-            user_id=current_user.id,
-            video_id=body.video_id,
-            position_seconds=body.position_seconds,
-            last_accessed_at=datetime.now(UTC),
-        )
-        db.add(record)
-        try:
-            async with db.begin_nested():
-                await db.flush()
-        except Exception as exc:
-            if "uq_learning_record_user_video" in str(exc):
-                # Concurrent request created it — re-fetch (outer txn still valid)
-                result = await db.execute(
-                    select(LearningRecord).where(
-                        LearningRecord.user_id == current_user.id,
-                        LearningRecord.video_id == body.video_id,
-                    )
-                )
-                record = result.scalar_one_or_none()
-                if not record:
-                    raise
-            else:
-                raise
-    else:
-        record.position_seconds = body.position_seconds
-        record.last_accessed_at = datetime.now(UTC)
-
-    # Update progress_percentage based on position vs video duration.
-    # 分母是 DB 的 `videos.duration`，其正确性归 ingest（ffprobe 实测，
-    # BUG-19）；此处的进度展示若与真实时长有出入，修数据侧而非在展示时猜。
-    # 取不到 duration 时保持既有百分比不动——宁可停在旧值，也不按 position
-    # 猜一个看起来像真值的分母。
-    video_result = await db.execute(select(Video).where(Video.id == body.video_id))
-    video = video_result.scalar_one_or_none()
-    if video and video.duration and video.duration > 0:
-        record.progress_percentage = round(min(100, (body.position_seconds / video.duration) * 100), 1)
-
-    await commit_refresh(db, record)
+    record = await save_position(db, current_user.id, body.video_id, body.position_seconds)
 
     return SaveProgressResponse(
         position_seconds=record.position_seconds or 0.0,
@@ -363,38 +315,9 @@ async def stats_heatmap(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Daily activity count for the last N days, zero-filled for missing days.
+    from app.services.retired_features import feature_gone
 
-    `count` is the number of distinct LearningEvent rows for that date; the
-    frontend's HeatmapCalendar bins it into 4 intensity tiers.
-    """
-    cutoff = (datetime.now(UTC) - timedelta(days=days)).date()
-    rows = (
-        await db.execute(
-            select(
-                LearningEvent.event_date,
-                func.count(LearningEvent.id).label("n"),
-            )
-            .where(
-                LearningEvent.user_id == current_user.id,
-                LearningEvent.event_date >= cutoff,
-            )
-            .group_by(LearningEvent.event_date)
-        )
-    ).all()
-    by_day: dict[str, int] = {str(r.event_date): int(r.n) for r in rows}
-    today = date.today()
-    out: list[dict] = []
-    for i in range(days):
-        d = (today - timedelta(days=days - 1 - i)).isoformat()
-        n = by_day.get(d, 0)
-        out.append({"date": d, "count": n, "active": n > 0})
-    return out
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Phase 2 D9 — 学习周报（weekly_reports，周一 08:00 beat 生成）
-# ──────────────────────────────────────────────────────────────────────
+    feature_gone()
 
 
 def _weekly_report_payload(r: WeeklyReport) -> dict:
@@ -424,30 +347,9 @@ async def list_weekly_reports(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """用户的历史周报，按周倒序（最新在前）。"""
-    offset = (page - 1) * page_size
-    total = (
-        await db.execute(select(func.count(WeeklyReport.id)).where(WeeklyReport.user_id == current_user.id))
-    ).scalar()
-    rows = (
-        (
-            await db.execute(
-                select(WeeklyReport)
-                .where(WeeklyReport.user_id == current_user.id)
-                .order_by(WeeklyReport.week_start.desc())
-                .offset(offset)
-                .limit(page_size)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return {
-        "items": [_weekly_report_payload(r) for r in rows],
-        "page": page,
-        "page_size": page_size,
-        "total": total or 0,
-    }
+    from app.services.retired_features import feature_gone
+
+    feature_gone()
 
 
 @router.get("/weekly-reports/latest")
@@ -457,15 +359,6 @@ async def latest_weekly_report(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """最新一期周报；无报告返 404（前端显示「学习满一周后生成」空状态）。"""
-    report = (
-        await db.execute(
-            select(WeeklyReport)
-            .where(WeeklyReport.user_id == current_user.id)
-            .order_by(WeeklyReport.week_start.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if report is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no_weekly_report_yet")
-    return _weekly_report_payload(report)
+    from app.services.retired_features import feature_gone
+
+    feature_gone()

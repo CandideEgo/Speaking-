@@ -38,8 +38,6 @@ const TYPE_TABS: { key: string; label: string; value: string | null }[] = [
   { key: "video", label: "视频", value: "video_ready" },
   { key: "pro", label: "会员", value: "pro_expiring" },
   { key: "vocab", label: "词汇", value: "vocabulary_reminder" },
-  { key: "streak", label: "学习提醒", value: "streak_warning" },
-  { key: "achievement", label: "成就", value: "achievement_unlocked" },
   { key: "system", label: "系统", value: "system" },
 ];
 
@@ -48,8 +46,6 @@ const TYPE_LABELS: Record<string, string> = {
   video_ready: "视频就绪",
   pro_expiring: "会员",
   vocabulary_reminder: "词汇提醒",
-  streak_warning: "学习提醒",
-  achievement_unlocked: "成就",
   comment_reply: "互动",
   social_follow: "互动",
   post_liked: "互动",
@@ -58,7 +54,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 /** 通知设置预览（与 profile→设置里的 NotificationPreferences 同一组开关）。 */
-const PREF_PREVIEW = ["推送通知", "连续学习提醒", "学习周报"];
+const PREF_PREVIEW = ["系统通知", "视频就绪", "词汇复习提醒"];
 
 function formatNotifyTime(iso: string): string {
   const d = new Date(iso);
@@ -171,7 +167,7 @@ export default function NotificationsPage() {
   const activeTabKey = TYPE_TABS.find((t) => t.value === type)?.key ?? "all";
   const filteredUnread = items.filter((n) => !n.is_read).length;
   const sectionUnread = type === null ? unread : filteredUnread;
-  const learningReminderCount = (counts.vocabulary_reminder ?? 0) + (counts.streak_warning ?? 0);
+  const learningReminderCount = counts.vocabulary_reminder ?? 0;
 
   if (isLoading) return <FullPageSpinner />;
 
@@ -181,7 +177,7 @@ export default function NotificationsPage() {
         <PageHeader
           crumb="我的"
           title="通知"
-          description="查看系统消息、学习提醒与成就通知。"
+          description="查看系统消息、视频就绪与词汇复习提醒。"
           actions={
             <Button
               variant="primary"
@@ -230,7 +226,7 @@ export default function NotificationsPage() {
                 <div className="mt-4 rounded-lg border border-dashed border-hairline-strong bg-surface-soft p-5">
                   <p className="text-copy font-semibold text-ink">暂无通知</p>
                   <p className="mt-1 max-w-[44ch] text-copy leading-relaxed text-body">
-                    新视频就绪、词汇复习提醒和成就达成时会出现在这里；也可以先去首页挑一段开始学。
+                    新视频就绪和自愿开启的词汇复习提醒会出现在这里；也可以先去首页挑一段开始学。
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <LinkButton href="/" variant="outline" size="sm">

@@ -101,8 +101,8 @@ class TestShadowingAttemptModel:
 
 
 class TestShadowingEventType:
-    async def test_emit_event_accepts_shadowed_sentences(self):
-        """emit_event with shadowed_sentences should write a LearningEvent row."""
+    async def test_retired_shadowing_event_does_not_write(self):
+        """Retired event types must not produce new learning records."""
         user_id = await _seed_user()
 
         async with TestSessionLocal() as db:
@@ -128,14 +128,13 @@ class TestShadowingEventType:
                 )
             )
             event = result.scalar_one_or_none()
-            assert event is not None
-            assert event.event_value == 3
+            assert event is None
 
-    async def test_emit_event_shadowed_sentences_in_valid_types(self):
+    async def test_retired_shadowing_not_in_valid_types(self):
         """shadowed_sentences is in VALID_EVENT_TYPES (no warning path)."""
         from app.services.learning_event_service import VALID_EVENT_TYPES
 
-        assert EVENT_SHADOWED_SENTENCES in VALID_EVENT_TYPES
+        assert EVENT_SHADOWED_SENTENCES not in VALID_EVENT_TYPES
 
 
 class TestProfileShadowingCount:

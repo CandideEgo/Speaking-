@@ -22,7 +22,6 @@ const LABELS: Record<string, string> = {
   completed_video: "看完",
   practiced_items: "练习",
   reviewed_words: "复习",
-  shadowed_sentences: "跟读",
 };
 
 const COLORS = ["#FF6B4A", "#5BC0BE", "#9BC1FF", "#FFC857", "#F4A6C0"];

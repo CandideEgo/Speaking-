@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 # schema compat, OFF by default.
 DEFAULT_NOTIFICATION_PREFS: dict[str, bool] = {
     "push_notifications": True,
-    "streak_reminder": True,
-    "weekly_report": True,
+    "vocabulary_reminder": False,
+    "streak_reminder": False,
+    "weekly_report": False,
     "community_updates": False,
     "new_follower": False,
     "comment_reply": False,
@@ -38,6 +39,7 @@ class UnreadCountResponse(BaseModel):
 
 class NotificationPreferencesResponse(BaseModel):
     push_notifications: bool = DEFAULT_NOTIFICATION_PREFS["push_notifications"]
+    vocabulary_reminder: bool = DEFAULT_NOTIFICATION_PREFS["vocabulary_reminder"]
     streak_reminder: bool = DEFAULT_NOTIFICATION_PREFS["streak_reminder"]
     weekly_report: bool = DEFAULT_NOTIFICATION_PREFS["weekly_report"]
     # Community-typed prefs are dormant (ADR-0012) — OFF by default.
@@ -50,6 +52,7 @@ class NotificationPreferencesResponse(BaseModel):
 
 class NotificationPreferencesUpdate(BaseModel):
     push_notifications: bool | None = None
+    vocabulary_reminder: bool | None = None
     streak_reminder: bool | None = None
     weekly_report: bool | None = None
     community_updates: bool | None = None

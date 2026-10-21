@@ -88,169 +88,20 @@ async def _add_learning_events(db, user_id: str, event_type: str, count: int) ->
     await db.commit()
 
 
-# ---------------------------------------------------------------------------
-# Milestone rule tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
-async def test_vocab_50_awarded():
-    """vocab_50 milestone is awarded when user has >= 50 words."""
+async def test_activity_no_longer_awards_milestones_or_removes_history():
     async with TestSessionLocal() as db:
         user_id = await _create_user(db)
-        await _create_profile(db, user_id)
-        await _add_vocab(db, user_id, 50)
-
-        awarded = await check_and_award(db, user_id)
+        await _create_profile(db, user_id, streak=30)
+        await _add_vocab(db, user_id, 200, mastery_level="mastered")
+        old = UserMilestone(user_id=user_id, milestone_type="vocab_50")
+        db.add(old)
         await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "vocab_50" in types
-
-
-@pytest.mark.asyncio
-async def test_vocab_50_not_awarded():
-    """vocab_50 milestone is NOT awarded when user has < 50 words."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000002")
-        await _create_profile(db, user_id)
-        await _add_vocab(db, user_id, 49)
-
-        awarded = await check_and_award(db, user_id)
+        assert await check_and_award(db, user_id) == []
         await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "vocab_50" not in types
-
-
-@pytest.mark.asyncio
-async def test_streak_7_awarded():
-    """streak_7_days milestone is awarded when current_streak >= 7."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000003")
-        await _create_profile(db, user_id, streak=7)
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "streak_7_days" in types
-
-
-@pytest.mark.asyncio
-async def test_streak_7_not_awarded():
-    """streak_7_days is NOT awarded when streak < 7."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000004")
-        await _create_profile(db, user_id, streak=6)
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "streak_7_days" not in types
-
-
-@pytest.mark.asyncio
-async def test_first_shadowing_awarded():
-    """first_shadowing awarded when ShadowingAttempt exists."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000005")
-        await _create_profile(db, user_id)
-
-        # ShadowingAttempt requires video_id (FK) — use a fake UUID since
-        # SQLite doesn't enforce FK by default in tests.
-        attempt = ShadowingAttempt(
-            user_id=user_id,
-            video_id=str(uuid.uuid4()),
-            audio_url="https://example.com/audio.mp3",
-        )
-        db.add(attempt)
-        await db.commit()
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "first_shadowing" in types
-
-
-@pytest.mark.asyncio
-async def test_first_review_awarded():
-    """first_review awarded when reviewed_words event exists."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000006")
-        await _create_profile(db, user_id)
-        await _add_learning_events(db, user_id, "reviewed_words", 1)
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "first_review" in types
-
-
-@pytest.mark.asyncio
-async def test_completed_10_videos_awarded():
-    """completed_10_videos awarded when >= 10 completed_video events."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000007")
-        await _create_profile(db, user_id)
-        await _add_learning_events(db, user_id, "completed_video", 10)
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "completed_10_videos" in types
-
-
-@pytest.mark.asyncio
-async def test_mastered_100_awarded():
-    """mastered_100_words awarded when >= 100 words with mastery_level='mastered'."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000008")
-        await _create_profile(db, user_id)
-        await _add_vocab(db, user_id, 100, mastery_level="mastered")
-
-        awarded = await check_and_award(db, user_id)
-        await db.commit()
-
-        types = {m["milestone_type"] for m in awarded}
-        assert "mastered_100_words" in types
-
-
-# ---------------------------------------------------------------------------
-# No duplicate award
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_no_duplicate_award():
-    """Running check_and_award twice does NOT duplicate milestones."""
-    async with TestSessionLocal() as db:
-        user_id = await _create_user(db, phone="13800000009")
-        await _create_profile(db, user_id, streak=7)
-
-        # First call awards streak_7_days
-        awarded1 = await check_and_award(db, user_id)
-        await db.commit()
-        assert any(m["milestone_type"] == "streak_7_days" for m in awarded1)
-
-        # Second call should NOT award again
-        awarded2 = await check_and_award(db, user_id)
-        await db.commit()
-        assert not any(m["milestone_type"] == "streak_7_days" for m in awarded2)
-
-        # Verify only 1 row in DB
-        result = await db.execute(
-            select(UserMilestone).where(
-                UserMilestone.user_id == user_id,
-                UserMilestone.milestone_type == "streak_7_days",
-            )
-        )
-        rows = result.scalars().all()
+        rows = (await db.execute(select(UserMilestone).where(UserMilestone.user_id == user_id))).scalars().all()
         assert len(rows) == 1
+        assert rows[0].milestone_type == "vocab_50"
 
 
 # ---------------------------------------------------------------------------
@@ -360,11 +211,7 @@ async def test_milestones_api(client: AsyncClient, auth_headers: dict):
         await db.commit()
 
     resp = await client.get("/api/v1/plan/milestones", headers=auth_headers)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert isinstance(data, list)
-    assert len(data) == 1
-    assert data[0]["milestone_type"] == "vocab_50"
+    assert resp.status_code == 410
 
 
 @pytest.mark.asyncio
@@ -394,5 +241,4 @@ async def test_profile_includes_milestones(client: AsyncClient, auth_headers: di
     assert resp.status_code == 200
     data = resp.json()
     assert "milestones" in data
-    assert len(data["milestones"]) == 1
-    assert data["milestones"][0]["milestone_type"] == "first_review"
+    assert data["milestones"] == []

@@ -27,6 +27,7 @@ from app.schemas.notification import (
     UnreadCountResponse,
 )
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
+from app.services.retired_features import RETIRED_NOTIFICATION_TYPES, sanitize_notification_preferences
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 logger = structlog.get_logger(__name__)
@@ -73,6 +74,9 @@ class ConnectionManager:
 
     async def send_to_user(self, user_id: str, message: dict):
         """Send a JSON message to all of a user's active connections."""
+        notification = message.get("notification")
+        if isinstance(notification, dict) and notification.get("type") in RETIRED_NOTIFICATION_TYPES:
+            return
         # Snapshot the list: it is mutated by other tasks (a socket's own
         # endpoint cleaning up) while this loop is suspended on ``send_json``,
         # and a removal mid-iteration makes the iterator step over the socket
@@ -304,7 +308,7 @@ async def list_notifications(
     db: AsyncSession = Depends(get_db),
 ):
     """List current user's notifications, newest first, optionally by type."""
-    filters = [Notification.user_id == current_user.id]
+    filters = [Notification.user_id == current_user.id, Notification.type.not_in(RETIRED_NOTIFICATION_TYPES)]
     if type_filter:
         filters.append(Notification.type == type_filter)
     total = (await db.execute(select(func.count()).where(*filters))).scalar() or 0
@@ -328,7 +332,11 @@ async def unread_count(
 ):
     """Return the number of unread notifications for the current user."""
     result = await db.execute(
-        select(func.count()).where(Notification.user_id == current_user.id, Notification.is_read == False)
+        select(func.count()).where(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False,
+            Notification.type.not_in(RETIRED_NOTIFICATION_TYPES),
+        )
     )
     count = result.scalar() or 0
     return UnreadCountResponse(count=count)
@@ -390,13 +398,13 @@ async def get_notification_preferences(
     pref = result.scalar_one_or_none()
 
     if not pref or not pref.notification_preferences:
-        return DEFAULT_NOTIFICATION_PREFS.copy()
+        return sanitize_notification_preferences(DEFAULT_NOTIFICATION_PREFS.copy())
 
     # Merge with defaults (in case new keys were added)
     merged = DEFAULT_NOTIFICATION_PREFS.copy()
     if isinstance(pref.notification_preferences, dict):
         merged.update(pref.notification_preferences)
-    return merged
+    return sanitize_notification_preferences(merged)
 
 
 @router.put("/preferences")
@@ -421,6 +429,7 @@ async def update_notification_preferences(
         current = DEFAULT_NOTIFICATION_PREFS.copy()
     update_data = data.model_dump(exclude_none=True)
     current.update(update_data)
+    current = sanitize_notification_preferences(current)
     pref.notification_preferences = current
 
     await commit_refresh(db, pref)

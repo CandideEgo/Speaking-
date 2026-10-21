@@ -22,12 +22,11 @@ interface NotificationType {
 const NOTIFICATION_TYPES: NotificationType[] = [
   { id: "push_notifications", label: "推送通知", description: "站内消息提醒总开关", icon: Bell },
   {
-    id: "streak_reminder",
-    label: "连续学习提醒",
-    description: "学习连续记录即将中断时提醒",
+    id: "vocabulary_reminder",
+    label: "词汇复习提醒",
+    description: "按你设置的时间提醒复习，可随时关闭",
     icon: Bell,
   },
-  { id: "weekly_report", label: "学习周报", description: "每周学习总结生成时通知", icon: Bell },
 ];
 
 interface Preferences {
@@ -131,7 +130,7 @@ export function NotificationPreferences() {
                   >
                     <span
                       className={cn(
-                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-on-primary shadow ring-0 transition duration-200 ease-in-out",
                         enabled ? "translate-x-5" : "translate-x-0"
                       )}
                     />

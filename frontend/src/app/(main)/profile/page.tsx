@@ -10,31 +10,20 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { User as UserIcon, Settings, TrendingUp, CalendarRange, Sparkles } from "lucide-react";
+import { User as UserIcon, Settings, TrendingUp, Sparkles } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
-import { MilestoneGrid } from "@/components/profile/MilestoneBadge";
-import { Confetti } from "@/components/common/Confetti";
-import { HeatmapCalendar, type HeatmapDay } from "@/components/profile/HeatmapCalendar";
 import {
   EventDistributionChart,
   type EventDistributionItem,
 } from "@/components/profile/EventDistributionChart";
-import { useMilestoneCelebration } from "@/hooks/useMilestoneCelebration";
 import { useProfileStore } from "@/stores/profileStore";
 
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
-import type {
-  User,
-  UserPreferences,
-  Milestone,
-  Paginated,
-  LearningRecord,
-  LearningProfile,
-} from "@/types";
+import type { User, UserPreferences, Paginated, LearningRecord } from "@/types";
 
 interface VocabStats {
   total: number;
@@ -80,9 +69,8 @@ export default function ProfilePage() {
   const setActiveTab = (tab: TabKey) => router.replace(`/profile?tab=${tab}`, { scroll: false });
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
 
-  // D5: weekly stats, event distribution, heatmap (all best-effort)
+  // Basic activity records; no comprehension or achievement claims.
   const [weeklyStats, setWeeklyStats] = useState<{
     this_week_minutes: number;
     last_week_minutes: number;
@@ -90,9 +78,6 @@ export default function ProfilePage() {
     daily_minutes: { date: string; minutes: number }[];
   } | null>(null);
   const [eventDist, setEventDist] = useState<EventDistributionItem[]>([]);
-  const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
-  // D9: 最新一期周报（有报告才显示入口）
-  const [latestReport, setLatestReport] = useState<{ week_start: string } | null>(null);
   useEffect(() => {
     if (activeTab !== "progress") return;
     api<typeof weeklyStats>("/api/v1/learning/stats/weekly")
@@ -101,18 +86,9 @@ export default function ProfilePage() {
     api<EventDistributionItem[]>("/api/v1/learning/stats/event-distribution?days=30")
       .then(setEventDist)
       .catch(() => {});
-    api<HeatmapDay[]>("/api/v1/learning/stats/heatmap?days=90")
-      .then(setHeatmap)
-      .catch(() => {});
-    api<{ week_start: string }>("/api/v1/learning/weekly-reports/latest")
-      .then(setLatestReport)
-      .catch(() => setLatestReport(null));
   }, [activeTab]);
 
-  // D5: milestone celebration (confetti)
-  const celebration = useMilestoneCelebration();
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
-  const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -137,21 +113,17 @@ export default function ProfilePage() {
 
     async function loadData() {
       try {
-        const [u, p, m, vs, rec, lp] = await Promise.allSettled([
+        const [u, p, vs, rec] = await Promise.allSettled([
           api<User>("/api/v1/users/me", { cacheTtlMs: 30_000 }),
           api<UserPreferences>("/api/v1/users/me/preferences"),
-          api<Milestone[]>("/api/v1/plan/milestones"),
           api<VocabStats>("/api/v1/vocabulary/stats"),
           api<Paginated<LearningRecord>>("/api/v1/learning/records?page=1&page_size=1"),
-          api<LearningProfile>("/api/v1/plan/profile"),
         ]);
         if (cancelled) return;
         if (u.status === "fulfilled") applyUser(u.value);
         if (p.status === "fulfilled") setPreferences(p.value);
-        if (m.status === "fulfilled") setMilestones(m.value);
         if (vs.status === "fulfilled") setVocabStats(vs.value);
         if (rec.status === "fulfilled") setRecordsTotal(rec.value.total ?? null);
-        if (lp.status === "fulfilled") setLearningProfile(lp.value);
       } catch {
         toast.error("加载失败");
       } finally {
@@ -201,20 +173,16 @@ export default function ProfilePage() {
 
   return (
     <PageTransition>
+      {searchParams.get("retired") === "weekly-report" && (
+        <p role="status" className="px-4 py-2 text-meta text-muted">
+          周报功能已下线，观看记录和词汇仍保留。
+        </p>
+      )}
       <main className="pt-6 pb-18">
         <PageHeader
           crumb="我的"
           title="账户与学习设置"
           description="管理个人资料、学习偏好与账户安全。"
-          actions={
-            <Link
-              href="/weekly-report"
-              className="inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-4 py-2.5 text-copy font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft"
-            >
-              <Sparkles size={16} />
-              看本周周报
-            </Link>
-          }
         />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
@@ -251,7 +219,6 @@ export default function ProfilePage() {
             {[
               { n: recordsTotal, l: "已学视频" },
               { n: vocabStats?.mastered_count, l: "掌握词汇" },
-              { n: learningProfile?.current_streak, l: "连续天数" },
             ].map((s) => (
               <div key={s.l} className="text-center">
                 <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
@@ -312,24 +279,6 @@ export default function ProfilePage() {
                   aria-labelledby="profile-tab-progress"
                   className="max-w-2xl space-y-6"
                 >
-                  {/* D9：周报入口（有报告才显示，不足一周不出现） */}
-                  {latestReport && (
-                    <Link
-                      href="/weekly-report"
-                      className="group flex items-center justify-between rounded-md border border-hairline bg-canvas p-5 transition-colors hover:border-brand-500/40"
-                    >
-                      <div>
-                        <h2 className="text-copy font-semibold text-ink">学习周报</h2>
-                        <p className="text-meta text-muted mt-1">
-                          最新一期：{latestReport.week_start} 周 · 每周一自动生成，可保存分享卡片
-                        </p>
-                      </div>
-                      <span className="text-brand-700 text-copy font-semibold group-hover:translate-x-0.5 transition-transform">
-                        查看 →
-                      </span>
-                    </Link>
-                  )}
-
                   {/* 学习统计（设计稿 profile「学习统计」四个数字：词库总量 / 今天到期 / 之后到期 / 已掌握） */}
                   <section>
                     <div className="user-sec-head">
@@ -356,39 +305,6 @@ export default function ProfilePage() {
                         </div>
                       ))}
                     </div>
-                  </section>
-
-                  {/* D3a：周循环回顾（只回顾不施压）：
-                      一天内集齐 观看/词汇/练习/复习 四类行为 = 1 个完整闭环。 */}
-                  <section>
-                    <div className="user-sec-head">
-                      <h2 className="user-sec-title">学习闭环</h2>
-                    </div>
-                    <Card padding={5} className="mt-4">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        {[
-                          { icon: "🎬", label: "看视频" },
-                          { icon: "📚", label: "查词汇" },
-                          { icon: "✍️", label: "做练习" },
-                          { icon: "🔁", label: "复习" },
-                        ].map((t, i) => (
-                          <span key={t.label} className="inline-flex items-center gap-1">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-copy font-medium text-ink">
-                              <span aria-hidden>{t.icon}</span>
-                              {t.label}
-                            </span>
-                            {i < 3 && <span className="text-muted text-meta">+</span>}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-3 text-copy text-muted">
-                        一天内集齐四类学习行为即完成 1 个闭环，你已累计完成{" "}
-                        <span className="font-semibold text-ink">
-                          {learningProfile?.weekly_cycles_completed ?? 0}
-                        </span>{" "}
-                        个闭环。
-                      </p>
-                    </Card>
                   </section>
 
                   <section>
@@ -470,24 +386,6 @@ export default function ProfilePage() {
                       <EventDistributionChart data={eventDist} />
                     </Card>
                   </section>
-
-                  <section>
-                    <div className="user-sec-head">
-                      <h2 className="user-sec-title">活动热力图（90 天）</h2>
-                    </div>
-                    <Card padding={5} className="mt-4">
-                      <HeatmapCalendar days={heatmap} range={90} />
-                    </Card>
-                  </section>
-
-                  <section>
-                    <div className="user-sec-head">
-                      <h2 className="user-sec-title">成就徽章</h2>
-                    </div>
-                    <div className="mt-4">
-                      <MilestoneGrid milestones={milestones} />
-                    </div>
-                  </section>
                 </div>
               )}
               {activeTab === "account" && (
@@ -529,15 +427,6 @@ export default function ProfilePage() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    href="/weekly-report"
-                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
-                  >
-                    <CalendarRange size={14} />
-                    学习周报
-                  </Link>
-                </li>
-                <li>
-                  <Link
                     href="/upgrade"
                     className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
                   >
@@ -559,10 +448,6 @@ export default function ProfilePage() {
           </aside>
         </div>
       </main>
-      <Confetti
-        fire={!!celebration.current}
-        onDone={() => celebration.current && celebration.acknowledge(celebration.current)}
-      />
     </PageTransition>
   );
 }

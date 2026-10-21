@@ -983,69 +983,9 @@ async def list_shadowing_sentences(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Pick the top `limit` subtitles with the most exam-tagged words.
+    from app.services.retired_features import feature_gone
 
-    The target exam comes from the user's preferences (target_exam); if not
-    set, defaults to cet4. When the video has no exam-tagged subtitles at
-    all, return the first `limit` sentences by sentence_index so the
-    EndScreen still surfaces something useful.
-    """
-    from app.models.preferences import UserPreferences
-    from app.models.subtitle import Subtitle
-
-    video = await db.get(Video, video_id)
-    if video is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    # 内测免费期：门控解除，登录用户即可读字幕（需求 §2.3）。
-    # get_video_access_info 现对登录用户恒为 unlocked；保留调用以便未来收费
-    # 复用同一处判断（见 unlock_service）。
-    from app.services.unlock_service import get_video_access_info
-
-    access = await get_video_access_info(db, current_user, video)
-    if not access["unlocked"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Video not unlocked")
-
-    # Read the user's target exam (defaults to cet4).
-    target_exam = (
-        await db.execute(select(UserPreferences.target_exam).where(UserPreferences.user_id == current_user.id))
-    ).scalar_one_or_none() or "cet4"
-
-    subtitles = (
-        (
-            await db.execute(
-                select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index.asc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    def _exam_count(sub: Subtitle) -> int:
-        # Shape tolerance for historical rows lives in one place now
-        # (app.core.exam_levels.normalize_word_levels) — this function used to
-        # carry its own copy of the list-or-str branch.
-        by_token = normalize_word_levels(sub.word_levels)
-        return sum(1 for levels in by_token.values() if target_exam in levels)
-
-    scored = sorted(subtitles, key=_exam_count, reverse=True)
-    if scored and _exam_count(scored[0]) > 0:
-        picked = scored[:limit]
-    else:
-        picked = subtitles[:limit]  # fallback: first N
-
-    return [
-        {
-            "subtitle_id": s.id,
-            "sentence_index": s.sentence_index,
-            "text_en": s.text_en,
-            "text_zh": s.text_zh,
-            "start_time": s.start_time,
-            "end_time": s.end_time,
-            "exam_word_count": _exam_count(s),
-        }
-        for s in picked
-    ]
+    feature_gone()
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)

@@ -17,14 +17,14 @@ DEFAULT_NOTIFICATION_PREFS: dict = {
     "comment": True,
     "like": True,
     "video_ready": True,
-    "speaking_feedback": True,
-    "achievement": True,
+    "speaking_feedback": False,
+    "achievement": False,
     "marketing": False,
     # Phase 1 D6 — vocabulary review reminder
-    "vocabulary_reminder": True,
+    "vocabulary_reminder": False,
     "vocabulary_reminder_time": "20:00",
     # Phase 1 D5/D6 — streak warning at 21:00 when streak ≥ 2
-    "streak_warning_enabled": True,
+    "streak_warning_enabled": False,
 }
 
 

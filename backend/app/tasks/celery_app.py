@@ -107,11 +107,6 @@ celery_app.conf.update(
             "task": "app.tasks.reminder_tasks.send_hourly_reminders",
             "schedule": crontab(minute=0),  # every hour on the hour
         },
-        # D9 周报：周一 00:00 UTC（= 北京周一 08:00）生成上一周的学习周报。
-        "generate-weekly-reports": {
-            "task": "app.tasks.report_tasks.generate_weekly_reports",
-            "schedule": crontab(minute=0, hour=0, day_of_week=1),
-        },
         # P1-7 注销：每日清理已到期（30 天冷静期结束）的账号。
         "purge-deleted-accounts": {
             "task": "app.tasks.account_tasks.purge_deleted_accounts",

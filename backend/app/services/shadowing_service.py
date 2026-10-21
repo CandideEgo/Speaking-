@@ -29,42 +29,9 @@ async def create_attempt(
     duration_ms: int | None = None,
     is_satisfied: bool = False,
 ) -> dict:
-    """Create a shadowing attempt, emit learning event, update profile counter."""
-    attempt = ShadowingAttempt(
-        user_id=user_id,
-        video_id=video_id,
-        subtitle_id=subtitle_id,
-        audio_url=audio_url,
-        duration_ms=duration_ms,
-        is_satisfied=is_satisfied,
-    )
-    db.add(attempt)
-    await db.flush()
+    from app.services.retired_features import feature_gone
 
-    # Emit learning event (non-blocking). Value = shadowed seconds when the
-    # client reports a duration (D10: cumulative shadowing time tracking),
-    # falling back to 1 sentence for legacy/durationless attempts.
-    event_value = max(1, duration_ms // 1000) if duration_ms else 1
-    await learning_event_service.emit_event(
-        db,
-        user_id=user_id,
-        event_type=learning_event_service.EVENT_SHADOWED_SENTENCES,
-        event_value=event_value,
-        video_id=video_id,
-    )
-
-    # Increment profile counter (created by emit_event above). Atomic update:
-    # a read-modify-write would lose one of two concurrent increments.
-    await db.execute(
-        update(UserLearningProfile)
-        .where(UserLearningProfile.user_id == user_id)
-        .values(total_shadowing_count=func.coalesce(UserLearningProfile.total_shadowing_count, 0) + 1)
-    )
-
-    await db.commit()
-    await db.refresh(attempt)
-
-    return _attempt_to_dict(attempt)
+    feature_gone()
 
 
 async def list_by_video(

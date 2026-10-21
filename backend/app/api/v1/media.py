@@ -15,20 +15,19 @@ mounted unconditionally but costs nothing there since nginx serves media first.
 import mimetypes
 import re
 import time
-import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_async_session_maker
 from app.core.limiter import rate_limit
+from app.core.media_hosts import host_allowed, referer_for
 from app.core.security import decode_token
-from app.core.uploads import read_upload_bounded
 from app.models.user import User
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -64,30 +63,13 @@ _SERVE_EXT_ALLOWLIST = {
 # through this endpoint makes them load reliably on any platform.
 # ---------------------------------------------------------------------------
 
-# Hostname suffixes whose URLs we will proxy. Keep in sync with the frontend
-# allowlist in frontend/src/lib/api.ts (mediaUrl).
-# NOTE: aliyuncs.com is deliberately NOT here — OSS bucket domains are
+# The allowlist itself lives in ``app/core/media_hosts.py`` — the thumbnail
+# service needs the same policy, and a service must not import the HTTP layer.
+# Keep in sync with the frontend allowlist in frontend/src/lib/api.ts (mediaUrl).
+# NOTE: aliyuncs.com is deliberately NOT in the list — OSS bucket domains are
 # attacker-controllable ({bucket}.oss-{region}.aliyuncs.com), and with
 # redirect-following disabled upstreams cannot jump to internal hosts anyway.
 # OSS-hosted images should be served directly via signed/CDN URLs instead.
-_PROXY_HOST_SUFFIXES = (
-    "ytimg.com",
-    "hdslb.com",
-    "biliimg.com",
-    "douyinpic.com",
-    "douyincdn.com",
-    "douyinstatic.com",
-)
-
-# Per-host Referer to satisfy hotlink protection. Bilibili's CDN rejects
-# requests whose Referer isn't a bilibili.com origin.
-_PROXY_REFERER = {
-    "hdslb.com": "https://www.bilibili.com/",
-    "biliimg.com": "https://www.bilibili.com/",
-    "douyinpic.com": "https://www.douyin.com/",
-    "douyincdn.com": "https://www.douyin.com/",
-    "douyinstatic.com": "https://www.douyin.com/",
-}
 
 _PROXY_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap — thumbnails are tiny
 _PROXY_TIMEOUT = 8.0
@@ -125,16 +107,11 @@ async def close_proxy_client() -> None:
 
 
 def _host_allowed(host: str) -> bool:
-    host = host.lower()
-    return any(host == suf or host.endswith("." + suf) for suf in _PROXY_HOST_SUFFIXES)
+    return host_allowed(host)
 
 
 def _referer_for(host: str) -> str:
-    host = host.lower()
-    for suf, ref in _PROXY_REFERER.items():
-        if host == suf or host.endswith("." + suf):
-            return ref
-    return f"https://{host}/"
+    return referer_for(host)
 
 
 @router.get("/proxy")
@@ -185,64 +162,21 @@ async def proxy_image(
 
 
 # ---------------------------------------------------------------------------
-# Shadowing audio upload — persists user recording blobs for read-along.
+# Retired recording upload compatibility route.
 # Must be defined BEFORE the catch-all serve_media route.
 # ---------------------------------------------------------------------------
-
-_SHADOWING_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap
-_SHADOWING_ALLOWED_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"}
 
 
 @router.post("/shadowing-audio")
 @rate_limit("30/minute")
 async def upload_shadowing_audio(
     request: Request,
-    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a shadowing recording blob. Returns the media URL for playback."""
-    # Chromium MediaRecorder sends "audio/webm;codecs=opus" — strip MIME
-    # parameters before validating against the allow-list.
-    content_type = (file.content_type or "").split(";")[0].strip().lower()
-    if content_type not in _SHADOWING_ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported audio type: {content_type}. Allowed: webm, ogg, mp4, mpeg, wav",
-        )
+    """Compatibility endpoint. Never reads or writes a recording blob."""
+    from app.services.retired_features import feature_gone
 
-    # Determine file extension from content type
-    ext_map = {
-        "audio/webm": ".webm",
-        "audio/ogg": ".ogg",
-        "audio/mp4": ".mp4",
-        "audio/mpeg": ".mp3",
-        "audio/wav": ".wav",
-    }
-    ext = ext_map.get(content_type, ".webm")
-
-    # Size is enforced while reading, so an oversized blob never lands in memory.
-    data = await read_upload_bounded(
-        request,
-        file,
-        _SHADOWING_MAX_BYTES,
-        status_code=413,
-        detail="Audio file too large (max 5MB)",
-    )
-    if len(data) == 0:
-        raise HTTPException(status_code=400, detail="Empty audio file")
-
-    # Write to media/shadowing/{user_id}/{uuid}{ext}
-    settings = get_settings()
-    base = Path(settings.local_media_path).resolve()
-    user_dir = base / "shadowing" / current_user.id
-    user_dir.mkdir(parents=True, exist_ok=True)
-
-    filename = f"{uuid.uuid4()}{ext}"
-    file_path = user_dir / filename
-    file_path.write_bytes(data)
-
-    url = f"/media/shadowing/{current_user.id}/{filename}"
-    return {"url": url}
+    feature_gone()
 
 
 def _shadowing_token_ok(owner_user_id: str, request: Request) -> bool:

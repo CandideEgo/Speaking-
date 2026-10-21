@@ -41,7 +41,7 @@ export default function TermsPage() {
         <p>
           SeeWord（以下简称“本站”）由 {operatorName}
           {uscc ? `（统一社会信用代码：${uscc}）` : ""}{" "}
-          运营，是面向中文用户的英语学习工具，提供视频字幕、词汇学习、跟读与阅读练习等服务。
+          运营，是面向中文用户的英语学习工具，提供视频字幕、词汇学习、原声重听与阅读练习等服务。
         </p>
       </section>
 

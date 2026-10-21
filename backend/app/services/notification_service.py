@@ -66,6 +66,10 @@ async def create_notification(
     improvement, and (3) adding row-level locking would add contention on a
     high-write table.
     """
+    from app.services.retired_features import RETIRED_NOTIFICATION_TYPES, feature_gone
+
+    if type in RETIRED_NOTIFICATION_TYPES:
+        feature_gone()
     data_json = _make_data(actor_id=actor_id)
 
     # Dedup check: look for an existing unread notification with same key

@@ -44,7 +44,7 @@ def test_notification_prefs_defaults_include_phase1_keys():
     assert "vocabulary_reminder_time" in DEFAULT_NOTIFICATION_PREFS
     assert DEFAULT_NOTIFICATION_PREFS["vocabulary_reminder_time"] == "20:00"
     assert "streak_warning_enabled" in DEFAULT_NOTIFICATION_PREFS
-    assert DEFAULT_NOTIFICATION_PREFS["streak_warning_enabled"] is True
+    assert DEFAULT_NOTIFICATION_PREFS["streak_warning_enabled"] is False
 
 
 def test_vocabulary_response_schema_includes_subtitle_id():

@@ -140,9 +140,9 @@ class TestListNotifications:
         assert [i["title"] for i in body["items"]] == ["Video"]
         assert body["total"] == 1
 
-        # No filter — every type comes back
+        # Retired types stay hidden in the unfiltered list too
         unfiltered = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
-        assert unfiltered["total"] == 3
+        assert unfiltered["total"] == 2
 
         # A type nobody used yet is an empty list, not an error
         empty = (await client.get("/api/v1/notifications?type=streak_warning", headers=auth_headers)).json()
@@ -239,7 +239,7 @@ class TestPreferences:
         prefs = resp.json()
         # Defaults from the route
         assert prefs["push_notifications"] is True
-        assert prefs["streak_reminder"] is True
+        assert prefs["streak_reminder"] is False
 
     async def test_update_preferences(self, client: AsyncClient, auth_headers: dict):
         resp = await client.put(

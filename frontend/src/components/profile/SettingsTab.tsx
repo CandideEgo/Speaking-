@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { MessageSquare, Bell } from "lucide-react";
@@ -84,7 +84,18 @@ export default function SettingsTab({
   const [timezone, setTimezone] = useState(user.timezone || browserTz);
 
   // Learning reminder（设计稿：每日提醒开关 + 提醒时间；时区与学习设置共用）
-  const [reminderEnabled, setReminderEnabled] = useState(preferences?.reminder_enabled ?? true);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void api<{ vocabulary_reminder?: boolean }>("/api/v1/notifications/preferences")
+      .then((p) => {
+        if (active) setReminderEnabled(p.vocabulary_reminder === true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const reminderTimeOptions = [
     ...new Set([preferences?.reminder_time || "20:00", ...REMINDER_TIMES]),
   ];
@@ -108,6 +119,10 @@ export default function SettingsTab({
           // 提醒与统计共用同一个时区：与页面上的时区选择保持同步。
           reminder_timezone: timezone,
         }),
+      });
+      await api("/api/v1/notifications/preferences", {
+        method: "PUT",
+        body: JSON.stringify({ vocabulary_reminder: reminderEnabled }),
       });
       onUpdatePreferences(updated);
       if (timezone !== user.timezone) {
@@ -285,15 +300,7 @@ export default function SettingsTab({
               <Bell size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden />
               <div>
                 <strong className="text-ink">提醒与统计共用同一个时区。</strong>
-                换时区会同时改变提醒时刻和「今天 / 本周」的切分点：本周从周一 00:00
-                起算，周报也按这个时区生成， 规则见{" "}
-                <Link
-                  href="/weekly-report"
-                  className="font-semibold text-brand-700 hover:underline"
-                >
-                  学习周报
-                </Link>
-                。
+                换时区会同时改变复习提醒时刻和每天的词汇计数边界。
               </div>
             </div>
           </Card>

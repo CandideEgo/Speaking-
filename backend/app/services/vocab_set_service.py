@@ -659,47 +659,8 @@ async def unmark_learned(db: AsyncSession, user: User, set_id: str, set_word_id:
     }
 
 
-async def _celebration_card(db: AsyncSession, vocab_set: VocabSet, total: int, mastered: int) -> dict:
-    """Card payload for the set-closure celebration (P1-6).
-
-    Reuses the weekly-report share card's shape at the field level: the
-    frontend renders it with the same Canvas component by passing a
-    set-scoped subset. Deliberately does NOT touch UserMilestone — that table
-    is one-per-user-per-type and this celebration is one-per-set.
-    """
-    video = await db.get(Video, vocab_set.video_id)
-    return {
-        "set_id": vocab_set.id,
-        "video_id": vocab_set.video_id,
-        "title": video.title if video else None,
-        "thumbnail_url": video.thumbnail_url if video else None,
-        "exam_level": vocab_set.exam_level,
-        "exam_label": _level_label(vocab_set.exam_level) if vocab_set.exam_level else None,
-        "total": total,
-        "mastered_count": mastered,
-    }
-
-
 async def celebrate(db: AsyncSession, user: User, set_id: str) -> dict | None:
-    """Return the set's closure celebration card; idempotent per set.
+    """Compatibility service; historical celebrated_at is preserved."""
+    from app.services.retired_features import feature_gone
 
-    A set is only celebrated once it is genuinely closed (no pending and no
-    unknown words). ``first_time`` is True on the first call after closure and
-    False on every repeat, so the frontend can fire confetti exactly once per
-    set without extending ``UserMilestone``. Returns None when the set isn't
-    the user's, or when it isn't closed yet.
-    """
-    vocab_set = await _get_owned_set(db, user, set_id)
-    if vocab_set is None:
-        return None
-    total, mastered, pending, unknown = await _progress_counts(db, vocab_set.id)
-    if total == 0 or pending != 0 or unknown != 0:
-        return None
-
-    card = await _celebration_card(db, vocab_set, total, mastered)
-    first_time = vocab_set.celebrated_at is None
-    if first_time:
-        vocab_set.celebrated_at = _now()
-        vocab_set.last_activity_at = vocab_set.celebrated_at
-        await db.flush()
-    return {"first_time": first_time, "card": card}
+    feature_gone()

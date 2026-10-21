@@ -67,7 +67,7 @@ async def _set_prefs(db, user_id: str, **overrides):
     prefs = UserPreferences(
         user_id=user_id,
         reminder_timezone="Asia/Shanghai",
-        notification_preferences={**{"vocabulary_reminder_time": "20:00"}, **overrides},
+        notification_preferences={**{"vocabulary_reminder_time": "20:00", "vocabulary_reminder": True}, **overrides},
     )
     db.add(prefs)
     await db.commit()
@@ -182,11 +182,10 @@ async def test_streak_warning_sent_at_21_when_streak_at_risk():
 
     sent = send_hourly_reminders(now=_NOW_STREAK_HOUR)
 
-    assert sent["streak_warning"] == 1
+    assert sent["streak_warning"] == 0
     async with _session_maker()() as db:
         notes = await _notifications(db, user_id, "streak_warning")
-        assert len(notes) == 1
-        assert "3 天" in notes[0].message
+        assert notes == []
 
 
 async def test_streak_warning_skipped_when_already_active_today():
@@ -264,7 +263,7 @@ async def test_streak_warning_not_sent_and_counter_reset_when_already_broken():
         profile = (
             await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
         ).scalar_one()
-        assert profile.current_streak == 0
+        assert profile.current_streak == 5
 
 
 # ── Pro expiry reminders ────────────────────────────────────────────────

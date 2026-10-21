@@ -126,9 +126,8 @@ export default function OnboardingPage() {
   const [level, setLevel] = useState<string | null>(null);
   const [targetExam, setTargetExam] = useState<string | null>(null);
   const [dailyMinutes, setDailyMinutes] = useState<number>(30);
-  // 设计第 3 步的两个提醒开关：每日学习提醒默认关闭、连续学习提醒默认开启。
+  // 仅保留自愿开启的到期词汇提醒。
   const [dailyReminder, setDailyReminder] = useState(false);
-  const [streakReminder, setStreakReminder] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
@@ -159,7 +158,7 @@ export default function OnboardingPage() {
     try {
       await api("/api/v1/notifications/preferences", {
         method: "PUT",
-        body: JSON.stringify({ streak_reminder: streakReminder }),
+        body: JSON.stringify({ vocabulary_reminder: dailyReminder }),
       });
     } catch (err) {
       // 提醒偏好失败不阻塞引导完成，但必须让用户知道（可在通知页重设）。
@@ -346,17 +345,10 @@ export default function OnboardingPage() {
 
             <div>
               <SwitchRow
-                title="每日学习提醒"
+                title="词汇复习提醒"
                 description="到点在站内通知里提醒今天到期的词，不推送营销内容。"
                 checked={dailyReminder}
                 onChange={setDailyReminder}
-                disabled={saving}
-              />
-              <SwitchRow
-                title="连续学习提醒"
-                description="连续记录即将中断时提醒一次；不催、不惩罚。"
-                checked={streakReminder}
-                onChange={setStreakReminder}
                 disabled={saving}
               />
             </div>

@@ -40,7 +40,6 @@ async def get_learning_profile(
 ):
     """Get the user's learning profile with milestones."""
     profile = await profile_service.get_or_create_profile(db, current_user.id)
-    milestones = await milestone_service.get_user_milestones(db, current_user.id)
     # today_words_learned comes from the same source the 今日 tab reads, so the
     # two can never disagree (the counter is per-user-local-date, and a stale
     # profile row means zero rather than yesterday's number).
@@ -55,7 +54,7 @@ async def get_learning_profile(
         mastery_by_level=profile.mastery_by_level,
         strengths=profile.strengths,
         weaknesses=profile.weaknesses,
-        milestones=[MilestoneResponse(**m) for m in milestones],
+        milestones=[],
         today_words_learned=today["words_learned"],
         local_date=local_now.date().isoformat(),
         local_hour=local_now.hour,
@@ -78,6 +77,7 @@ async def refresh_learning_profile(
     local_now = await get_user_local_now(db, current_user.id)
     return LearningProfileResponse(
         **profile_dict,
+        milestones=[],
         today_words_learned=today["words_learned"],
         local_date=local_now.date().isoformat(),
         local_hour=local_now.hour,
@@ -104,6 +104,6 @@ async def get_milestones(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all milestones achieved by the user."""
-    milestones = await milestone_service.get_user_milestones(db, current_user.id)
-    return [MilestoneResponse(**m) for m in milestones]
+    from app.services.retired_features import feature_gone
+
+    feature_gone()

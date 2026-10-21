@@ -9,11 +9,11 @@ import { siteConfig } from "@/lib/siteConfig";
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: "SeeWord — 用真实视频学英语",
-  description: "在真实视频里点词、看释义、跟读巩固；四六级词汇与阅读真题一起练。",
+  description: "在真实视频里点词、看释义、重听原声；四六级词汇与阅读真题一起练。",
   robots: { index: false, follow: false },
   openGraph: {
     title: "SeeWord — 用真实视频学英语",
-    description: "视频点词、逐句跟读、词汇复习与阅读练习。",
+    description: "视频点词、原句重听、词汇复习与阅读练习。",
     siteName: "SeeWord",
     locale: "zh_CN",
     type: "website",

@@ -212,9 +212,8 @@ class TestShadowingSentencesGate:
     async def test_logged_in_user_gets_sentences(self, client: AsyncClient, auth_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="LockedSentences")
         resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=auth_headers)
-        assert resp.status_code == 200
-        items = resp.json()
-        assert items and items[0]["text_en"] == "Hello world"
+        assert resp.status_code == 410
+        assert resp.json()["code"] == "FEATURE_RETIRED"
 
     async def test_anonymous_requires_auth(self, client: AsyncClient, db_session):
         video = await _seed_ready_video(db_session, title="AnonSentences")
@@ -224,7 +223,7 @@ class TestShadowingSentencesGate:
     async def test_pro_sees_sentences(self, client: AsyncClient, pro_headers: dict, db_session):
         video = await _seed_ready_video(db_session, title="ProSentences")
         resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=pro_headers)
-        assert resp.status_code == 200
+        assert resp.status_code == 410
 
 
 class TestRedeemDuringTrial:
