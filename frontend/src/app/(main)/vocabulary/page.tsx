@@ -184,6 +184,7 @@ export default function VocabularyPage() {
   const [masteryFilter, setMasteryFilter] = useState<string>("all");
   // 统计是否到过一次（首启判断依赖它，见 loadStats）。
   const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // 搜索防抖：避免每次击键都请求后端。
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -222,6 +223,8 @@ export default function VocabularyPage() {
   }, [isLoading, isAuthenticated]);
 
   async function loadStats() {
+    setStatsLoaded(false);
+    setStatsError(null);
     try {
       const data = await api<VocabStatsResponse>(`/api/v1/vocabulary/stats`);
       setStats({
@@ -230,8 +233,8 @@ export default function VocabularyPage() {
         mastered: data.mastered_count,
         learning: data.learning_count + data.reviewing_count,
       });
-    } catch {
-      // keep existing stats on error
+    } catch (error) {
+      setStatsError(error instanceof Error ? error.message : "词库统计加载失败");
     } finally {
       // 首启判断要等统计回来，否则会先闪一张「词库还是空的」再跳回正常 Hero。
       setStatsLoaded(true);
@@ -300,9 +303,6 @@ export default function VocabularyPage() {
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const showEmpty = !list.loading && !list.error && list.items.length === 0;
   // 首启（一个词都没有）：Hero 换成收词引导，统计行不再摆一排 0。
-  const newTarget = preferences?.daily_new_target ?? 10;
-  const primaryLabel =
-    stats.total === 0 ? "去视频里收词" : stats.due > 0 ? "开始复习" : `提前复习 ${newTarget} 个`;
 
   return (
     <PageTransition>
@@ -310,29 +310,12 @@ export default function VocabularyPage() {
         {/* Page head: crumb → h1 → desc → actions（桌面 actions 右对齐），视图切换单独一行 */}
         <PageHeader
           crumb="词汇"
-          title={
-            !statsLoaded
-              ? "今天，记几个词？"
-              : stats.total === 0
-                ? "词库还是空的"
-                : stats.due > 0
-                  ? `累计到期 ${stats.due} 个词`
-                  : "今天没有到期词"
-          }
-          description={
-            stats.total === 0
-              ? "在观看页点一个字幕里的词，就能把它和原句一起收进来。之后按间隔回来复习。"
-              : "先看看词和原句，也可以直接开始。之后的词会按复习间隔出现。"
-          }
+          title="词汇"
+          description="带着原句复习，再回到内容中遇见这些词。"
           actions={
             <>
-              {stats.total > 0 && (
-                <Link href="/" className="text-copy text-muted hover:text-ink">
-                  去看视频
-                </Link>
-              )}
-              <LinkButton href={stats.total === 0 ? "/" : "/vocabulary/drill"} size="md">
-                {primaryLabel}
+              <LinkButton href="/vocabulary/sets" variant="outline" size="md">
+                词单
               </LinkButton>
             </>
           }
@@ -356,7 +339,15 @@ export default function VocabularyPage() {
             session={daily.session ? { ...daily.session, preferences } : null}
             stats={stats}
             loading={daily.loading || !statsLoaded}
-            onQuotaSaved={setQuota}
+            error={daily.error ?? statsError}
+            onRetry={() => {
+              void daily.refresh();
+              void loadStats();
+            }}
+            onQuotaSaved={(next) => {
+              setQuota(next);
+              void daily.refresh();
+            }}
           />
         ) : (
           <>

@@ -62,7 +62,7 @@ export default function VocabDrillPage() {
   if (searchParams.get("review_count") === "5") {
     return <QuickReview />;
   }
-  return <DailyTraining />;
+  return <DailyTraining directStart={searchParams.get("start") === "1"} />;
 }
 
 /**
@@ -177,11 +177,11 @@ const REVIEW_FLUSH_SIZE = 5;
  * 因后端更新 `next_review_at` 自然退出到期队列（复习词结果攒批提交，未 flush
  * 的批次刷新后会重现，属已知小窗口）。
  */
-function DailyTraining() {
+function DailyTraining({ directStart }: { directStart: boolean }) {
   const daily = useDailySession(true);
   const round = useStudySession(true);
   const router = useRouter();
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(directStart);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [sched, setSched] = useState<DrillSchedulerState | null>(null);
   const [pool, setPool] = useState<VocabularyWord[]>([]);
@@ -235,7 +235,7 @@ function DailyTraining() {
       }
     }
     for (const item of round.round?.items ?? []) {
-      if (item.word && !seen.has(item.word.id)) {
+      if (item.word && item.status !== "graduated" && !seen.has(item.word.id)) {
         seen.add(item.word.id);
         rows.push(item.word);
       }
@@ -376,7 +376,13 @@ function DailyTraining() {
       <div className="min-h-full bg-surface-soft">
         <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
         <div className="max-w-[880px] mx-auto px-4 py-16">
-          <ErrorState title={error} onRetry={round.reload} />
+          <ErrorState
+            title={error}
+            onRetry={() => {
+              void round.reload();
+              void daily.refresh();
+            }}
+          />
         </div>
       </div>
     );

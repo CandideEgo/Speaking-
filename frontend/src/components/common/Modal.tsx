@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode, type RefObject } from "react";
 import { useModalFocus } from "@/hooks/useModalFocus";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ export function Modal({
   footer,
   closeOnBackdrop = true,
   maxWidth = "max-w-md",
+  returnFocusRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -28,10 +29,11 @@ export function Modal({
   /** Dismiss on backdrop click or Escape (disable while a request is busy). */
   closeOnBackdrop?: boolean;
   maxWidth?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useModalFocus(dialogRef, open, onClose, closeOnBackdrop);
+  useModalFocus(dialogRef, open, onClose, closeOnBackdrop, returnFocusRef);
 
   if (!open) return null;
 

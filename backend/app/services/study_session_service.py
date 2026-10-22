@@ -222,6 +222,17 @@ async def _pick_new_words(
     return list((await db.execute(stmt)).scalars().all())
 
 
+async def preview_new_words(db: AsyncSession, user_id: str, limit: int) -> tuple[str | None, list[Vocabulary]]:
+    """Read the next round without creating it or changing existing progress."""
+    active = await get_active_session(db, user_id)
+    if active is not None:
+        rows = await session_rows(db, active.id)
+        return active.id, [word for item, word in rows if item.status != ITEM_GRADUATED]
+    today = await get_user_local_date(db, user_id)
+    excluded = await _recent_session_vocab_ids(db, user_id, today)
+    return None, await _pick_new_words(db, user_id, limit, excluded)
+
+
 async def start_session(db: AsyncSession, user_id: str, kind: str = KIND_DAILY) -> dict:
     """Get the resumable round, or open a new one.
 

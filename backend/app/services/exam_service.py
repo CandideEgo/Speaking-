@@ -524,6 +524,8 @@ async def list_papers(
     level: str | None = None,
     page: int = 1,
     page_size: int = 12,
+    year: int | None = None,
+    status: str = "all",
 ) -> tuple[list[dict], int]:
     """List papers (newest first) with the current user's attempt stats."""
     stmt = select(ExamPaper)
@@ -531,8 +533,26 @@ async def list_papers(
     if level:
         stmt = stmt.where(ExamPaper.level == level)
         count_stmt = count_stmt.where(ExamPaper.level == level)
+    filters = []
+    if year is not None:
+        filters.append(ExamPaper.year == year)
+    submitted = (
+        select(ExamSession.id)
+        .where(
+            ExamSession.paper_id == ExamPaper.id,
+            ExamSession.user_id == user_id,
+            ExamSession.submitted_at.is_not(None),
+        )
+        .exists()
+    )
+    if status == "submitted":
+        filters.append(submitted)
+    elif status == "unsubmitted":
+        filters.append(~submitted)
+    stmt = stmt.where(*filters)
+    count_stmt = count_stmt.where(*filters)
     total = (await db.execute(count_stmt)).scalar() or 0
-    stmt = stmt.order_by(ExamPaper.year.desc(), ExamPaper.month.desc(), ExamPaper.set_no.asc())
+    stmt = stmt.order_by(ExamPaper.year.desc(), ExamPaper.month.desc(), ExamPaper.set_no.asc(), ExamPaper.id)
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     papers = (await db.execute(stmt)).scalars().all()
 
@@ -555,10 +575,25 @@ async def list_papers(
     for a in attempts:
         by_paper.setdefault(a.paper_id or "", []).append(a)
 
+    last_by_paper = {
+        paper_id: max(mine, key=lambda a: (_as_naive_utc(a.submitted_at), a.id)) for paper_id, mine in by_paper.items()
+    }
+    correct_counts: dict[str, int] = {}
+    if last_by_paper:
+        rows = await db.execute(
+            select(ExamAnswer.session_id, func.count(ExamAnswer.id))
+            .where(
+                ExamAnswer.session_id.in_([a.id for a in last_by_paper.values()]),
+                ExamAnswer.correct.is_(True),
+            )
+            .group_by(ExamAnswer.session_id)
+        )
+        correct_counts = {session_id: count for session_id, count in rows.all()}
+
     items: list[dict] = []
     for p in papers:
         mine = by_paper.get(p.id, [])
-        last = mine[-1] if mine else None  # insertion order == started order
+        last = last_by_paper.get(p.id)
         best = max((a.score or 0) for a in mine) if mine else None
         items.append(
             {
@@ -572,11 +607,21 @@ async def list_papers(
                 "total_questions": p.total_questions,
                 "last_score": last.score if last else None,
                 "last_submitted_at": last.submitted_at if last else None,
+                "last_session_id": last.id if last else None,
+                "last_correct_count": correct_counts.get(last.id, 0) if last else None,
+                "last_question_count": last.question_count if last else None,
                 "attempt_count": len(mine),
                 "best_score": best,
             }
         )
     return items, total
+
+
+async def paper_years(db: AsyncSession, level: str | None) -> list[int]:
+    stmt = select(ExamPaper.year).distinct().order_by(ExamPaper.year.desc())
+    if level:
+        stmt = stmt.where(ExamPaper.level == level)
+    return list((await db.execute(stmt)).scalars().all())
 
 
 async def get_attempt_detail(db: AsyncSession, session_id: str, user_id: str) -> ExamSession | None:

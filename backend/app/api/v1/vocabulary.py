@@ -134,7 +134,19 @@ async def get_daily_session(
         new_count if new_count is not None else prefs["daily_new_target"],
         review_count if review_count is not None else prefs["daily_review_target"],
     )
+    active_id, training_new = await study_session_service.preview_new_words(
+        db, current_user.id, prefs["daily_new_target"]
+    )
+    active_word_ids = set()
+    if active_id:
+        active_word_ids = {word.id for _, word in await study_session_service.session_rows(db, active_id)}
+    review_words = [w for w in session["review_words"] if w.id not in active_word_ids]
     return {
+        "training_preview": {
+            "active_session_id": active_id,
+            "new_words": [VocabularyResponse.model_validate(w) for w in training_new],
+            "review_words": [VocabularyResponse.model_validate(w) for w in review_words],
+        },
         "new_words": [VocabularyResponse.model_validate(w) for w in session["new_words"]],
         "review_words": [VocabularyResponse.model_validate(w) for w in session["review_words"]],
         "totals": session["totals"],

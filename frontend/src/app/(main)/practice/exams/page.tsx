@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, FileDown, FileText } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, mediaUrl } from "@/lib/api";
-import { subjectLabel, subjectOrder } from "@/lib/examSubjects";
+import { subjectLabel, PAPER_LEVELS } from "@/lib/examSubjects";
+import { suggestedMinutesFor } from "@/lib/examPresentation";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ErrorState } from "@/components/common/ErrorState";
-import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 
 interface PaperListItem {
@@ -18,307 +19,326 @@ interface PaperListItem {
   year: number;
   month: number;
   set_no: number;
-  title: string;
-  source: string | null;
   total_questions: number;
-  last_score: number | null;
+  last_session_id: string | null;
+  last_correct_count: number | null;
+  last_question_count: number | null;
   last_submitted_at: string | null;
-  attempt_count: number;
-  best_score: number | null;
 }
-
-/** 一份原卷 PDF（`GET /api/v1/exam-pdfs`）。专四专八只有这个，没有题库。 */
+interface PaperList {
+  items: PaperListItem[];
+  total: number;
+  available_years: number[];
+}
 interface ExamPdfItem {
   slug: string;
   title: string;
   subject: string;
   year: number;
-  month: number | null;
-  set_no: number;
-  bytes: number;
 }
 
-/**
- * 试卷列表的科目页签。专四/专八没有题库数据，所以不在这里 —— 它们只出现在
- * 页面底部的「试卷原件（PDF）」区块里。
- */
-const LEVEL_TABS = [
-  { key: "cet4", sections: "选词填空 / 段落匹配 / 仔细阅读" },
-  { key: "cet6", sections: "选词填空 / 段落匹配 / 仔细阅读" },
-  { key: "ky1", sections: "完形填空 / 阅读理解 Part A / 新题型 Part B" },
-  { key: "ky2", sections: "完形填空 / 阅读理解 Part A / 新题型 Part B" },
-].map((t) => ({ ...t, label: subjectLabel(t.key) }));
-
-// CET 的卷有真实月份（一年两考），考研卷源里没有月份 —— 导入时统一填了 12，
-// 拿出来当「12 月」展示是编的。所以按科目决定要不要显示月份。
-const MONTHED_LEVELS = new Set(["cet4", "cet6"]);
-
-/** 建议用时：按真题阅读 30 题 / 40 分钟折算（与设计 exams.html/exam.html 同口径）。 */
-function suggestedMinutesFor(count: number): number {
-  return Math.max(4, Math.round((count * 40) / 30));
-}
-
-/** 「已完成」状态用答对题数，不做百分制换算。 */
-function completedCorrect(p: PaperListItem): number {
-  return Math.max(
-    0,
-    Math.min(p.total_questions, Math.round((p.last_score ?? 0) * p.total_questions))
-  );
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
-}
-
-function groupPdfsBySubject(items: ExamPdfItem[]) {
-  const bySubject = new Map<string, ExamPdfItem[]>();
-  for (const item of items) {
-    const group = bySubject.get(item.subject);
-    if (group) group.push(item);
-    else bySubject.set(item.subject, [item]);
-  }
-  return [...bySubject.entries()]
-    .sort((a, b) => subjectOrder(a[0]) - subjectOrder(b[0]))
-    .map(([subject, group]) => ({ subject, items: group }));
-}
-
-/**
- * 真题套卷列表（stage-3 保真版）。
- *
- * 信息层级按设计 exams.html：年份/月份 + 第 N 套 + 级别 + 题量 + 构成 +
- * 建议用时 + 完成状态 + 开始作答；完成状态只记答对题数（不换算百分制）。
- * 页头给一个橙色主操作「开始最近一套」；375 的级别页签改为横向滚动，不再逐字折行。
- */
 export default function ExamPapersPage() {
   const { isAuthenticated, isLoading } = useRequireAuth();
-  const [level, setLevel] = useState<string>("cet4");
-  const [papers, setPapers] = useState<PaperListItem[]>([]);
-  const [total, setTotal] = useState(0);
+  const router = useRouter();
+  const search = useSearchParams();
+  const level = PAPER_LEVELS.includes(search.get("level") ?? "") ? search.get("level")! : "cet4";
+  const year = /^\d{4}$/.test(search.get("year") ?? "") ? search.get("year")! : "";
+  const status = ["submitted", "unsubmitted"].includes(search.get("status") ?? "")
+    ? search.get("status")!
+    : "all";
+  const page = Math.max(1, Math.floor(Number(search.get("page")) || 1));
+  const query = new URLSearchParams({ level, status, page: String(page), page_size: "12" });
+  if (year) query.set("year", year);
+  const queryKey = query.toString();
+  const returnTo = `/practice/exams?${queryKey}`;
+  const [data, setData] = useState<PaperList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [pdfs, setPdfs] = useState<ExamPdfItem[]>([]);
+  const [retry, setRetry] = useState(0);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfs, setPdfs] = useState<ExamPdfItem[] | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfRetry, setPdfRetry] = useState(0);
+  const [pdfSubject, setPdfSubject] = useState("all");
+  const [pdfYear, setPdfYear] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api<{ items: PaperListItem[]; total: number }>(
-      `/api/v1/exams?level=${level}&page=1&page_size=50`
-    )
-      .then((data) => {
-        if (cancelled) return;
-        setPapers(data.items);
-        setTotal(data.total);
+    api<PaperList>(`/api/v1/exams?${queryKey}`)
+      .then((next) => {
+        if (!cancelled) setData(next);
       })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setPapers([]);
-        setTotal(0);
-        setError(e instanceof Error ? e.message : "加载失败");
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
       })
-      .finally(() => !cancelled && setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [level, isAuthenticated, isLoading, reloadKey]);
-
-  // 原卷 PDF 清单与页签无关（一次拉全），失败就当没有这一块 —— 它是附加资源，
-  // 不该因为一个次要请求失败而把整页打成错误态。
+  }, [queryKey, isAuthenticated, isLoading, retry]);
   useEffect(() => {
-    if (!isAuthenticated || isLoading) return;
+    if (!pdfOpen || !isAuthenticated) return;
     let cancelled = false;
-    api<{ count: number; items: ExamPdfItem[] }>("/api/v1/exam-pdfs")
-      .then((data) => !cancelled && setPdfs(data.items))
-      .catch(() => !cancelled && setPdfs([]));
+    setPdfError(null);
+    api<{ items: ExamPdfItem[] }>("/api/v1/exam-pdfs")
+      .then((next) => {
+        if (!cancelled) setPdfs(next.items);
+      })
+      .catch((e) => {
+        if (!cancelled) setPdfError(e instanceof Error ? e.message : "原卷加载失败");
+      });
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isLoading]);
+  }, [pdfOpen, isAuthenticated, pdfRetry]);
 
+  function filter(patch: Record<string, string>, nextPage = 1) {
+    const params = new URLSearchParams({ level, status, page: String(nextPage) });
+    if (year) params.set("year", year);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    router.replace(`/practice/exams?${params}`, { scroll: false });
+  }
   if (isLoading || !isAuthenticated) return <FullPageSpinner />;
-
-  const activeTab = LEVEL_TABS.find((t) => t.key === level) ?? LEVEL_TABS[0];
-  const levelLabel = activeTab.label;
-  const showsMonth = MONTHED_LEVELS.has(level);
-  const pdfGroups = groupPdfsBySubject(pdfs);
-  const firstPaper = papers[0];
-
+  const groups = new Map<string, PaperListItem[]>();
+  for (const paper of data?.items ?? []) {
+    const label = `${paper.year} 年${["cet4", "cet6"].includes(paper.level) ? ` ${paper.month} 月` : ""}`;
+    groups.set(label, [...(groups.get(label) ?? []), paper]);
+  }
+  const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 12));
+  const subjectPdfs = (pdfs ?? []).filter((p) => pdfSubject === "all" || p.subject === pdfSubject);
+  const pdfYears = [...new Set(subjectPdfs.map((p) => p.year))].sort((a, b) => b - a);
+  const visiblePdfs = subjectPdfs.filter((p) => !pdfYear || String(p.year) === pdfYear);
   return (
     <div className="user-page">
-      <Link
-        href="/practice"
-        className="inline-flex items-center gap-1 text-copy text-muted transition-colors hover:text-ink"
-      >
-        <ArrowLeft size={14} />
+      <Link href="/practice" className="text-copy text-muted hover:text-ink">
         返回练习
       </Link>
-
       <PageHeader
         className="mt-4"
-        crumb="真题套卷"
-        title={
-          <>
-            {levelLabel}历年真题{" "}
-            <span className="text-copy font-semibold text-muted">{total} 套</span>
-          </>
-        }
-        description={
-          <>
-            历年 {levelLabel} 真题（{activeTab.sections}
-            ），交卷后自动判分。列表只显示题量、建议用时与完成状态；
-            只记答对题数，不预测考试分数、不折算等级。
-          </>
-        }
-        actions={
-          firstPaper ? (
-            <LinkButton href={`/practice/exams/${firstPaper.id}`} size="nav">
-              开始最近一套
-            </LinkButton>
-          ) : undefined
-        }
+        crumb="历年真题"
+        title="历年真题 · 阅读部分"
+        description="在线练习阅读客观题，交卷后核对答案。听力、写作、翻译暂未接入。"
       />
-
-      {/* 级别页签：横向滚动，避免 375 下被压成逐字折行 */}
-      <div className="custom-scrollbar -mx-1 mt-5 overflow-x-auto px-1 pb-1">
-        <div
-          className="inline-flex min-w-max items-center gap-1 rounded-pill border border-hairline bg-surface-soft p-1"
-          role="tablist"
-          aria-label="选择级别"
-        >
-          {LEVEL_TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={level === t.key}
-              onClick={() => setLevel(t.key)}
-              className={`inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-pill px-3.5 text-meta font-medium transition-colors ${
-                level === t.key ? "bg-ink text-canvas" : "text-muted hover:bg-canvas hover:text-ink"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-5">
-        {loading ? (
-          <p className="py-16 text-center text-copy text-muted">加载中…</p>
-        ) : error ? (
-          <ErrorState title={error} onRetry={() => setReloadKey((k) => k + 1)} className="py-10" />
-        ) : papers.length === 0 ? (
-          <EmptyState icon={FileText} title="暂无符合条件的试卷" />
-        ) : (
-          <ul className="divide-y divide-hairline border-y border-hairline">
-            {papers.map((p) => {
-              const done = p.attempt_count > 0 && p.last_score != null;
-              const minutes = suggestedMinutesFor(p.total_questions);
-              return (
-                <li
-                  key={p.id}
-                  className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
-                >
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted">
-                      <span>
-                        {p.year} 年{showsMonth ? ` ${p.month} 月` : ""}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>第 {p.set_no} 套</span>
-                      <span className="rounded-sm bg-brand-50 px-1.5 py-0.5 font-semibold text-brand-700">
-                        {levelLabel}
-                      </span>
-                      <span
-                        className={`rounded-sm border px-1.5 py-0.5 font-medium ${
-                          done ? "border-hairline-strong text-ink" : "border-hairline text-muted"
-                        }`}
-                      >
-                        {done ? "已完成" : "未作答"}
-                      </span>
-                    </p>
-                    <h3 className="mt-1.5 text-copy-lg font-semibold text-ink">
-                      阅读部分 · {p.total_questions} 题
-                    </h3>
-                    <p className="mt-1 text-meta text-muted">
-                      {activeTab.sections} · 建议用时约 {minutes} 分钟（按真题 30 题 / 40 分钟折算）
-                    </p>
-                    <p className="mt-1.5 text-meta text-body">
-                      {done ? (
-                        <>
-                          上次成绩{" "}
-                          <strong className="font-semibold text-ink">
-                            {completedCorrect(p)} / {p.total_questions}
-                          </strong>
-                          {p.last_submitted_at ? `，${formatDate(p.last_submitted_at)}` : ""}
-                          {p.attempt_count > 1 ? ` · 已考 ${p.attempt_count} 次` : ""}
-                          。只记答对题数，不折算等级。
-                        </>
-                      ) : (
-                        "还没有作答记录；交卷后自动判分并保留结果。"
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
-                    <LinkButton
-                      href={`/practice/exams/${p.id}`}
-                      variant="outline"
-                      size="sm"
-                      iconRight
-                      icon={ArrowRight}
-                    >
-                      开始作答
-                    </LinkButton>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+      <nav aria-label="真题科目" className="mt-5 flex gap-2 overflow-x-auto pb-2">
+        {PAPER_LEVELS.map((key) => (
+          <Button
+            key={key}
+            size="sm"
+            variant={key === level ? "primary" : "outline"}
+            aria-pressed={key === level}
+            onClick={() => filter({ level: key, year: "" })}
+          >
+            {subjectLabel(key)}
+          </Button>
+        ))}
+      </nav>
+      <div className="my-4 flex flex-wrap items-center gap-4">
+        <label className="text-meta text-muted">
+          年份{" "}
+          <select
+            aria-label="年份"
+            value={year}
+            onChange={(e) => filter({ year: e.target.value })}
+            className="rounded-sm border border-hairline bg-canvas p-2 text-ink"
+          >
+            <option value="">全部</option>
+            {(data?.available_years ?? []).map((y) => (
+              <option key={y} value={y}>
+                {y} 年
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-meta text-muted">
+          状态{" "}
+          <select
+            aria-label="状态"
+            value={status}
+            onChange={(e) => filter({ status: e.target.value })}
+            className="rounded-sm border border-hairline bg-canvas p-2 text-ink"
+          >
+            <option value="all">全部</option>
+            <option value="unsubmitted">未完成</option>
+            <option value="submitted">已完成</option>
+          </select>
+        </label>
+        {!loading && !error && (
+          <span className="text-meta text-muted">共 {data?.total ?? 0} 套</span>
         )}
       </div>
-
-      {/* 原卷 PDF —— 放在试卷列表下方：206 份的清单插在页签与试卷之间会把
-          主要内容推到首屏之外。这块登录即可下载，无 Pro 门控。 */}
-      {pdfGroups.length > 0 && (
-        <section className="mt-12">
-          <div className="user-sec-head">
-            <h2 className="user-sec-title">试卷原件（PDF）</h2>
-            <span className="user-sec-sub">共 {pdfs.length} 份</span>
-          </div>
-          <p className="mt-2 text-copy text-muted">
-            历年原卷扫描件，登录后可直接下载对照 —— 含专四、专八与考研英语，
-            后两者本站暂无在线题库。
-          </p>
-          {pdfGroups.map((group) => (
-            <div key={group.subject} className="mt-5">
-              <h3 className="mb-3 text-copy font-semibold text-ink">
-                {subjectLabel(group.subject)}
-                <span className="ml-2 text-meta font-normal text-muted">
-                  {group.items.length} 份
-                </span>
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {group.items.map((pdf) => (
-                  <a
-                    key={pdf.slug}
-                    href={mediaUrl(`/api/v1/exam-pdfs/${pdf.slug}/file`, { withToken: true })}
-                    download
-                    className="inline-flex items-center gap-2 rounded-sm border border-hairline bg-canvas px-3 py-2 text-meta text-body transition-colors hover:border-ink hover:text-ink"
-                  >
-                    <FileDown size={14} className="flex-shrink-0" />
-                    <span className="truncate">{pdf.title}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </section>
+      {error ? (
+        <ErrorState title="试卷加载失败" message={error} onRetry={() => setRetry((v) => v + 1)} />
+      ) : loading ? (
+        <p role="status" className="py-8 text-muted">
+          正在读取试卷…
+        </p>
+      ) : (
+        <>
+          {data?.items.length ? (
+            [...groups.entries()].map(([label, papers]) => (
+              <section key={label} className="mt-6" aria-label={label}>
+                <h2 className="border-b border-hairline pb-3 text-copy-lg font-semibold text-ink">
+                  {label}
+                </h2>
+                <ul>
+                  {papers.map((p) => {
+                    const paperHref = `/practice/exams/${p.id}?return_to=${encodeURIComponent(returnTo)}`;
+                    return (
+                      <li
+                        key={p.id}
+                        className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline-soft py-4"
+                      >
+                        <div>
+                          <h3 className="text-copy font-semibold text-ink">
+                            {subjectLabel(p.level)} · 第 {p.set_no} 套
+                          </h3>
+                          <p className="mt-1 text-meta text-muted">
+                            {p.total_questions} 题 · 建议约 {suggestedMinutesFor(p.total_questions)}{" "}
+                            分钟
+                            {p.last_session_id
+                              ? ` · 已完成 · 上次答对 ${p.last_correct_count}/${p.last_question_count}`
+                              : " · 未完成"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {p.last_session_id ? (
+                            <>
+                              <LinkButton
+                                size="sm"
+                                href={`/practice/exams/result/${p.last_session_id}?return_to=${encodeURIComponent(returnTo)}`}
+                              >
+                                看结果
+                              </LinkButton>
+                              <LinkButton size="sm" variant="outline" href={paperHref}>
+                                重做
+                              </LinkButton>
+                            </>
+                          ) : (
+                            <LinkButton size="sm" href={paperHref}>
+                              开始
+                            </LinkButton>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))
+          ) : (
+            <p className="py-8 text-muted">没有符合筛选条件的试卷。</p>
+          )}
+          {pages > 1 && (
+            <nav aria-label="试卷分页" className="mt-5 flex items-center justify-center gap-4">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => filter({}, page - 1)}
+              >
+                上一页
+              </Button>
+              <span className="text-meta text-muted">
+                第 {page} / {pages} 页
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page >= pages}
+                onClick={() => filter({}, page + 1)}
+              >
+                下一页
+              </Button>
+            </nav>
+          )}
+        </>
       )}
+      <details
+        className="mt-10 border-t border-hairline pt-5"
+        open={pdfOpen}
+        onToggle={(e) => setPdfOpen(e.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-copy-lg font-semibold text-ink">原卷 PDF</summary>
+        <p className="mt-3 text-meta text-muted">
+          专四、专八仅提供原卷 PDF。考研原卷按“考研英语”归类。
+        </p>
+        {pdfOpen && (
+          <>
+            <div className="my-4 flex flex-wrap gap-4">
+              <label className="text-meta text-muted">
+                PDF 科目{" "}
+                <select
+                  aria-label="PDF 科目"
+                  value={pdfSubject}
+                  onChange={(e) => {
+                    setPdfSubject(e.target.value);
+                    setPdfYear("");
+                  }}
+                  className="rounded-sm border border-hairline bg-canvas p-2 text-ink"
+                >
+                  <option value="all">全部</option>
+                  {[...new Set((pdfs ?? []).map((p) => p.subject))].map((key) => (
+                    <option key={key} value={key}>
+                      {subjectLabel(key)}
+                      {["tem4", "tem8"].includes(key) ? " · 仅原卷 PDF" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-meta text-muted">
+                PDF 年份{" "}
+                <select
+                  aria-label="PDF 年份"
+                  value={pdfYear}
+                  onChange={(e) => setPdfYear(e.target.value)}
+                  className="rounded-sm border border-hairline bg-canvas p-2 text-ink"
+                >
+                  <option value="">全部</option>
+                  {pdfYears.map((y) => (
+                    <option key={y} value={y}>
+                      {y} 年
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {pdfError ? (
+              <ErrorState
+                title="原卷加载失败"
+                message={pdfError}
+                onRetry={() => setPdfRetry((v) => v + 1)}
+              />
+            ) : !pdfs ? (
+              <p role="status" className="text-muted">
+                正在读取原卷…
+              </p>
+            ) : (
+              <ul className="max-h-96 overflow-y-auto">
+                {visiblePdfs.map((p) => (
+                  <li key={p.slug} className="border-b border-hairline-soft py-3">
+                    <a
+                      className="text-copy text-brand-700 hover:underline"
+                      href={mediaUrl(`/api/v1/exam-pdfs/${p.slug}/file`)}
+                      download
+                    >
+                      {p.title}
+                    </a>
+                  </li>
+                ))}
+                {!visiblePdfs.length && <li className="text-muted">没有符合条件的原卷。</li>}
+              </ul>
+            )}
+          </>
+        )}
+      </details>
     </div>
   );
 }

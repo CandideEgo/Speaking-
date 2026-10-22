@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
+import { catalogReturnHref } from "@/lib/examPresentation";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -23,12 +24,13 @@ interface WrongRedoStart {
  * 启动后 POST /exams/wrong/redo（缺省重做全部错题；结果页通过 ?ids= 传入子集），
  * 用 ExamRunner 作答，交卷后复用统一成绩页。
  *
- * 注意：本页保持「进入即开始」——e2e（exam.spec.ts）从结果页点「只练错题」后
- * 直接在 /practice/exams/redo 上等 `[data-testid=exam-option]`，加前置入口会破坏它。
- * 设计稿的「上次错题清单」信息改由成绩页的「每题对错与回看」承担（见 exam-result）。
+ * 进入即创建重做会话；窄屏先读当前题组原文，再切到题目作答。
+ * 错题清单与解析由结果页承担。
  */
 export default function WrongRedoPage() {
   const router = useRouter();
+  const search = useSearchParams();
+  const returnTo = catalogReturnHref(search.get("return_to"));
   const { isAuthenticated, isLoading } = useRequireAuth();
   const [attempt, setAttempt] = useState<WrongRedoStart | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,9 +102,11 @@ export default function WrongRedoPage() {
         accent="错题重做"
         suggestedMinutes={5}
         onSubmitted={(result: ExamSubmitResponse) => {
-          router.push(`/practice/exams/result/${result.session_id}`);
+          router.push(
+            `/practice/exams/result/${result.session_id}?return_to=${encodeURIComponent(returnTo)}`
+          );
         }}
-        onQuit={() => router.push("/practice")}
+        onQuit={() => router.push(returnTo)}
       />
     </div>
   );

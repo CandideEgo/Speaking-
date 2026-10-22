@@ -55,30 +55,24 @@ test.describe("Exam Runner - full answer journey", () => {
     await loginViaToken(page, token);
     await page.goto(`/practice/exams/${paperId}`);
 
-    // Question cards — each must render at least one derived/stored option.
-    const cards = page.locator("div.rounded-md:has(button[data-testid='exam-option'])");
-    await expect(cards.first()).toBeVisible({ timeout: 15000 });
-    const cardCount = await cards.count();
-    expect(cardCount).toBeGreaterThan(0);
-
-    // Header counter "answered/total": total must equal the number of cards,
-    // i.e. no question renders without answerable options (the old bug showed
-    // a text hint for Section A/B, leaving them unanswerable).
-    const counter = page.locator("span.font-mono", { hasText: "/" }).first();
-    await expect(counter).toBeVisible();
-    const total = Number(((await counter.textContent()) ?? "").split("/")[1]?.trim());
-    expect(total).toBe(cardCount);
-
-    // Answer every question with its first option (some right, some wrong —
-    // the seeded demo paper guarantees at least one wrong answer).
-    for (let i = 0; i < cardCount; i++) {
-      await cards.nth(i).locator("button[data-testid='exam-option']").first().click();
+    const detail = await request.get(`/api/v1/exams/${paperId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const questions: { id: string; number: number }[] = (await detail.json()).questions;
+    const counter = page.getByTestId("exam-progress");
+    await expect(counter).toHaveText(`已答 0/${questions.length}`);
+    for (const question of questions) {
+      await page.getByRole("button", { name: "答题卡", exact: true }).click();
+      await page
+        .getByRole("dialog", { name: "答题卡", exact: true })
+        .getByRole("button", { name: new RegExp(`第 ${question.number} 题，`) })
+        .click();
+      const card = page.locator(`#exam-question-${question.id}`);
+      await expect(card.getByTestId("exam-option").first()).toBeVisible();
+      await card.getByTestId("exam-option").first().click();
     }
-    await expect(counter).toHaveText(`${cardCount}/${cardCount}`);
-
-    // Submit — the header button (desktop) and bottom-bar button (mobile)
-    // share the label; exactly one is visible per viewport.
-    await page.getByRole("button", { name: "交卷", exact: true }).locator("visible=true").click();
+    await expect(counter).toHaveText(`已答 ${questions.length}/${questions.length}`);
+    await page.getByRole("button", { name: "交卷", exact: true }).click();
     const submitted = page.waitForResponse(
       (response) => response.request().method() === "POST" && response.url().includes("/submit")
     );
@@ -90,11 +84,14 @@ test.describe("Exam Runner - full answer journey", () => {
 
     // Wrong book: when at least one answer was wrong, the result page links
     // into a redo session that must also render answerable options.
-    const redoLink = page.getByRole("link", { name: /只练错题/ });
+    const redoLink = page.getByRole("link", { name: /重做错题/ });
     if (outcome.correct_count < outcome.total) {
       await expect(redoLink).toBeVisible();
       await redoLink.click();
       await page.waitForURL(/\/practice\/exams\/redo/);
+      await expect(page.getByTestId("exam-workspace")).toBeVisible();
+      if (await page.getByRole("button", { name: "题目", exact: true }).isVisible())
+        await page.getByRole("button", { name: "题目", exact: true }).click();
       await expect(page.locator("button[data-testid='exam-option']").first()).toBeVisible({
         timeout: 15000,
       });

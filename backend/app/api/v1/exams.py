@@ -19,6 +19,8 @@ Static paths (/daily/start, /attempts*) must be registered BEFORE the dynamic
 /{paper_id} route or FastAPI would match "attempts" as a paper id.
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,14 +55,20 @@ def _create_payload(session, questions: list) -> dict:
 @router.get("")
 async def list_exams(
     level: str | None = Query(default=None),
+    year: int | None = Query(default=None, ge=1900, le=2200),
+    status: Literal["all", "unsubmitted", "submitted"] = Query(default="all"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List past papers, newest first, with the caller's attempt stats."""
-    items, total = await exam_service.list_papers(db, current_user.id, level=level, page=page, page_size=page_size)
-    return paginated(items=items, total=total, page=page, page_size=page_size)
+    items, total = await exam_service.list_papers(
+        db, current_user.id, level=level, year=year, status=status, page=page, page_size=page_size
+    )
+    result = paginated(items=items, total=total, page=page, page_size=page_size)
+    result["available_years"] = await exam_service.paper_years(db, level)
+    return result
 
 
 @router.get("/daily/start", response_model=ExamAttemptCreateResponse)
