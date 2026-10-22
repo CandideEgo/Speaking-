@@ -190,6 +190,8 @@ export async function updateVideo(id: string, patch: Partial<VideoAdmin>): Promi
   // Map admin-only fields to the VideoAdminUpdate schema
   const body: Record<string, unknown> = {};
   if (patch.title !== undefined) body.title = patch.title;
+  // "" clears the Chinese title (backend normalizes it to NULL).
+  if (patch.title_zh !== undefined) body.title_zh = patch.title_zh ?? "";
   if (patch.difficulty_level !== undefined) body.difficulty_level = patch.difficulty_level;
   if (patch.topic_tags !== undefined) body.topic_tags = patch.topic_tags;
   if (patch.is_official !== undefined) body.is_official = patch.is_official;

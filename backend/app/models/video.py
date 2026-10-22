@@ -51,6 +51,10 @@ class Video(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Chinese display title (translated by the pipeline, editable by admins).
+    # Kept separate from ``title`` so the original English title stays the
+    # canonical source for search, dedup and standard-version matching.
+    title_zh: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_url: Mapped[str] = mapped_column(String(2000), nullable=False)
     video_source: Mapped[str] = mapped_column(
         SAEnum(VideoSource, name="videosource"), default=VideoSource.local, nullable=False

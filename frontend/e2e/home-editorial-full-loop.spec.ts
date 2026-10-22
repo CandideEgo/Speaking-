@@ -116,9 +116,15 @@ interface AdminSubtitle {
 interface AdminVideoDetail {
   id: string;
   title: string;
+  title_zh?: string | null;
   is_published: boolean;
   is_official: boolean;
   subtitles: AdminSubtitle[];
+}
+
+/** 公共卡显示的主标题：后端 title_zh 优先，英文原名回退。 */
+function displayTitle(video: AdminVideoDetail): string {
+  return video.title_zh?.trim() || video.title;
 }
 
 interface FeaturedBody {
@@ -743,7 +749,7 @@ test("2/12 管理员为 A 制作并发布主推，并在编排页摆好换说法
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await page.locator(".home-editorial-lead").getByRole("button", { name: "学前预览" }).click();
@@ -865,7 +871,8 @@ test("4/12 草稿对普通用户不可见；非管理员访问管理接口 403",
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  const detailA = await getAdminVideoDetail(request, A);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await expect(page.getByText(B_HEADLINE)).toHaveCount(0);
@@ -978,8 +985,8 @@ test("6/12 管理员点击「发布并替换主推」→ 刷新公共首页立�
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-heading")).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator(".home-editorial-lead")).toContainText(B_HEADLINE, {
+  const detailB = await getAdminVideoDetail(request, B);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailB), {
     timeout: 60_000,
   });
   await expect(page.getByRole("article", { name: "换个说法" })).toHaveCount(0);
@@ -1032,7 +1039,8 @@ test("7/12 来源变化：改一句 B 字幕 → 公共卡失效且发布被拒�
     // 首页不再是 B，也没有半套编排：次推 C 被提升为主推
     await loginUser(page);
     await page.goto("/");
-    await expect(page.locator(".home-editorial-lead")).toContainText(C_HEADLINE, {
+    const detailC = await getAdminVideoDetail(request, C);
+    await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailC), {
       timeout: 60_000,
     });
     await expect(page.getByText(B_HEADLINE)).toHaveCount(0);
@@ -1082,7 +1090,8 @@ test("8/12 再改 B 草稿不改变线上；普通用户仍看已发布 B", asyn
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(B_HEADLINE, {
+  const detailB = await getAdminVideoDetail(request, B);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailB), {
     timeout: 60_000,
   });
   await expect(page.getByText("草稿里的新反馈")).toHaveCount(0);
@@ -1319,7 +1328,8 @@ test("11/12 首页编排页恢复上一版回到 A", async ({ request, page }) =
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  const detailA = await getAdminVideoDetail(request, A);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await captureEditorialHome(page, 1440, 1600, "08-首页-恢复后-A-1440.png");

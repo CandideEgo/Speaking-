@@ -78,6 +78,8 @@ Windows 的生产验收把参考词典原样复制到专用 Linux 卷再只读�
 
 **CI 只跑 `--project=chromium`，并且必须先把库迁到 head 再 `python scripts/seed_e2e.py` 播种**——否则首页没有视频，观看页那批 spec 会整片 `skip()`（看着绿，其实一条没跑）。
 
+**本地跑全量 e2e 要用 testing 形态的后端**：`ENV=testing` 会把限流装饰器变成 no-op。用 dev 形态的后端起 e2e 时，并行 worker 撞上注册/登录 `20/minute` 会整片 `429`（看起来像认证坏了，实际一条业务请求都没进去）。所以后端要显式给 `ENV=testing` 与 `DATABASE_URL`（非 development 环境缺它会 fail closed、启动失败）；启动命令见 `/dev` skill，只换这两个环境变量。`playwright.config.ts` 自动拉起的 backend 已带 `--timeout-keep-alive 120`，手工起后端时不要省——原因写在该文件注释里。
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

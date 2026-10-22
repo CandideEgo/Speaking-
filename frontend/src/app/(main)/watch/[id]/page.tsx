@@ -31,6 +31,7 @@ import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoCo
 import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { useWatchStageWidth } from "@/hooks/useWatchStageWidth";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
@@ -866,9 +867,12 @@ export default function WatchPage() {
             className="watch-mobile-heading"
             title={
               <span className="flex items-start gap-2">
-                <span className={cn("min-w-0 flex-1", !titleExpanded && "line-clamp-1")}>
-                  {video.title}
-                </span>
+                <VideoTitle
+                  video={video}
+                  as="span"
+                  className="min-w-0 flex-1"
+                  clampZh={titleExpanded ? 0 : 1}
+                />
                 <button
                   type="button"
                   className="shrink-0 text-meta font-normal text-muted"
@@ -969,9 +973,13 @@ export default function WatchPage() {
             {back.label}
           </button>
           <div className="h-4 w-px bg-hairline shrink-0" />
-          <h1 className="text-copy-lg font-semibold text-ink truncate flex-1 min-w-0">
-            {video.title}
-          </h1>
+          <VideoTitle
+            video={video}
+            as="h1"
+            className="flex-1 min-w-0"
+            clampZh={1}
+            zhClassName="text-copy-lg font-semibold text-ink"
+          />
           <VideoActions
             compact={false}
             isLiked={isLiked}

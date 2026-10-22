@@ -20,8 +20,10 @@ import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { formatTimeSpent } from "@/lib/date";
+import { videoTitleZh } from "@/lib/videoDisplay";
 import type { LearningRecord, Paginated } from "@/types";
 
 type FilterKey = "all" | "active" | "completed";
@@ -204,7 +206,8 @@ export default function HistoryPage() {
                 variant="primary"
                 icon={Play}
               >
-                继续《{(resume.video?.title || "上一段").slice(0, 18)}》
+                继续《
+                {(resume.video ? videoTitleZh(resume.video) : "上一段").slice(0, 18)}》
               </LinkButton>
             ) : undefined
           }
@@ -390,12 +393,13 @@ function RecordRow({ record }: { record: LearningRecord }) {
   const remaining =
     duration && !record.completed ? Math.max(0, Math.round(duration * (1 - pct / 100))) : null;
   const href = watchHref(record.video_id, { from: "history" });
+  const titleZh = record.video ? videoTitleZh(record.video) : "未知视频";
 
   return (
     <li className="grid grid-cols-1 items-center gap-3 py-4 md:grid-cols-[10rem_minmax(0,1fr)_13rem]">
       <Link
         href={href}
-        aria-label={`继续观看 ${record.video?.title || "这个视频"}`}
+        aria-label={`继续观看 ${titleZh}`}
         className="relative block aspect-video overflow-hidden rounded-md border border-hairline bg-surface-card"
       >
         <Image
@@ -414,11 +418,17 @@ function RecordRow({ record }: { record: LearningRecord }) {
       </Link>
 
       <div className="min-w-0">
-        <p className="text-copy font-semibold leading-snug text-ink">
-          <Link href={href} className="hover:text-brand-700">
-            {record.video?.title || "未知视频"}
+        {record.video ? (
+          <Link href={href} className="block hover:text-brand-700">
+            <VideoTitle
+              video={record.video}
+              as="span"
+              zhClassName="text-copy font-semibold leading-snug text-ink"
+            />
           </Link>
-        </p>
+        ) : (
+          <p className="text-copy font-semibold leading-snug text-ink">未知视频</p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted">
           <span>{record.words_learned} 个生词</span>
           {record.time_spent_seconds > 0 && (

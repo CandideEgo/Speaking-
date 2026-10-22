@@ -89,6 +89,7 @@ _CARD_ITEM_KEYS = [
     "subtitle_count",
     "thumbnail_url",
     "title",
+    "title_zh",
     "topic_tags",
     "upload_date",
     "video_source",

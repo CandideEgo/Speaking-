@@ -38,6 +38,7 @@ from app.services.video_access import (
     should_use_snapshot,
 )
 from app.services.video_card import serialize_video_card
+from app.services.video_title import normalize_title_zh
 
 
 async def count_subtitles(db: AsyncSession, video_id: str) -> int:
@@ -480,6 +481,9 @@ async def update_video(
     publish_changed = payload.is_published is not None and payload.is_published != video.is_published
     # "" clears the assignment, so both sides normalize through `or None`.
     channel_changed = payload.channel_ref is not None and (payload.channel_ref or None) != video.channel_ref
+    title_changed = payload.title is not None and payload.title != video.title
+    next_title_zh = normalize_title_zh(payload.title_zh) if payload.title_zh is not None else None
+    title_zh_changed = payload.title_zh is not None and next_title_zh != video.title_zh
 
     for field in (
         "title",
@@ -495,6 +499,10 @@ async def update_video(
         value = getattr(payload, field)
         if value is not None:
             setattr(video, field, value)
+
+    # Empty string clears a bad translation; the next pipeline run can refill it.
+    if payload.title_zh is not None:
+        video.title_zh = next_title_zh
 
     # ADR-0014 channel assignment — "" explicitly clears (the generic loop
     # skips None, so clearing needs its own branch).
@@ -527,11 +535,12 @@ async def update_video(
         await invalidate_browse_cache()
 
     # Publish/unpublish changes which videos surface on the homepage/browse feed,
-    # and a channel_ref change rewrites the author link (`channel_slug`) embedded
-    # in every cached browse card — invalidate those caches too. (Subtitle edits
-    # don't need this; browse only caches video metadata.) The detail cache above
-    # is dropped separately because it is keyed per video.
-    if publish_changed or channel_changed:
+    # a channel_ref change rewrites the author link (`channel_slug`) embedded in
+    # every cached browse card, and title/title_zh changes rewrite the cached
+    # card text itself. (Subtitle edits don't need this; browse only caches video
+    # metadata.) The detail cache above is dropped separately because it is
+    # keyed per video.
+    if publish_changed or channel_changed or title_changed or title_zh_changed:
         from app.services.video_cache import invalidate_browse_cache
 
         await invalidate_browse_cache()

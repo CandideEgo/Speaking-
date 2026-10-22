@@ -7,9 +7,12 @@ import pytest
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
 
-async def _make_video(db, *, title: str, official=True, published=True, ready=True) -> Video:
+async def _make_video(
+    db, *, title: str, title_zh: str | None = None, official=True, published=True, ready=True
+) -> Video:
     video = Video(
         title=title,
+        title_zh=title_zh,
         source_url=f"https://example.com/{title}.mp4",
         video_source=VideoSource.imported,
         status=VideoStatus.ready if ready else VideoStatus.processing,
@@ -101,6 +104,18 @@ async def test_search_empty_query_returns_empty(client):
     resp = await client.get("/api/v1/videos/search", params={"q": ""})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+async def test_search_matches_chinese_title(client, db_session):
+    """The search box promises Chinese titles; title_zh is searchable too."""
+    await _make_video(db_session, title="How to Be a Good Listener", title_zh="如何成为好的倾听者")
+    await _make_video(db_session, title="Unrelated Cooking Show", title_zh="无关的烹饪节目")
+
+    resp = await client.get("/api/v1/videos/search", params={"q": "倾听"})
+    assert resp.status_code == 200
+    cards = resp.json()
+    assert [v["title"] for v in cards] == ["How to Be a Good Listener"]
+    assert cards[0]["title_zh"] == "如何成为好的倾听者"
 
 
 # ── hot searches ────────────────────────────────────────────────────────

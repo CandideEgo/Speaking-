@@ -5,6 +5,7 @@ import { Play } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { userInitial } from "@/lib/avatar";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
@@ -103,9 +104,13 @@ function SubscriptionCard({ item }: { item: ChannelSubscriptionSummary }) {
           <Link
             href={resumeHref}
             title={continueVideo.title}
-            className="mt-1 block line-clamp-2 text-meta font-medium leading-snug text-ink transition-colors hover:text-brand-700"
+            className="mt-1 block transition-colors hover:text-brand-700"
           >
-            {continueVideo.title}
+            <VideoTitle
+              video={continueVideo}
+              as="span"
+              zhClassName="text-meta font-medium leading-snug text-ink"
+            />
           </Link>
           <div
             className="mt-2 h-1.5 overflow-hidden rounded-pill bg-surface-card"
@@ -150,12 +155,12 @@ function SubscriptionCard({ item }: { item: ChannelSubscriptionSummary }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-caption font-semibold text-muted">最近收录</p>
-            <p
-              className="mt-0.5 line-clamp-2 text-meta font-medium leading-snug text-ink"
-              title={latest.title}
-            >
-              {latest.title}
-            </p>
+            <VideoTitle
+              video={latest}
+              as="span"
+              className="mt-0.5"
+              zhClassName="text-meta font-medium leading-snug text-ink"
+            />
             {latest.duration != null && (
               <p className="mt-1 text-caption tabular-nums text-muted">
                 {formatDuration(latest.duration)}

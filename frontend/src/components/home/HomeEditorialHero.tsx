@@ -11,6 +11,7 @@
 import type { ReactElement } from "react";
 import { HomeEditorialScenarios } from "@/components/home/HomeEditorialScenarios";
 import { TodayTaskCard } from "@/components/home/TodayTaskCard";
+import { homeScenarioCards } from "@/lib/homeScenarios";
 import { editorialTask } from "@/lib/homeTask";
 import type { HomeEditorialPage, HomeLayoutIssue } from "@/types/homeContent";
 
@@ -42,12 +43,27 @@ export function HomeEditorialHero({
   continueVideoId?: string;
 }): ReactElement | null {
   if (!page.lead) return null;
+  const task = editorialTask(page.lead);
+  const [scene] = homeScenarioCards({
+    videoId: page.lead.video.id,
+    scenarios: page.scenarios,
+    content: page.lead.content,
+  });
+  // 场景卡就在旁边且用的是同一句时，任务卡不再重复一段 blockquote。
+  const sceneSentence = scene?.scenario.sentence ?? null;
+  const hideSentence = Boolean(
+    sceneSentence &&
+    task.sentence &&
+    sceneSentence.text_en.trim() === task.sentence.text_en.trim() &&
+    sceneSentence.start_time === task.sentence.start_time
+  );
   return (
     <section aria-label="今日精选">
       <TodayTaskCard
-        task={editorialTask(page.lead)}
+        task={task}
         primary={primary}
         hideCover={continueVideoId === page.lead.video.id}
+        hideSentence={hideSentence}
       />
     </section>
   );

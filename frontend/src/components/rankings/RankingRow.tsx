@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
 import type { RankingScope } from "@/hooks/useRankings";
@@ -93,9 +94,12 @@ export function RankingRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1">
-          {video.title}
-        </p>
+        <VideoTitle
+          video={video}
+          as="span"
+          zhClassName="text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1"
+          enClassName="hidden sm:block"
+        />
         {meta && <p className="mt-1 line-clamp-1 text-meta text-body">{meta}</p>}
       </div>
 

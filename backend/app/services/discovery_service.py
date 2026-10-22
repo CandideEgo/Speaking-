@@ -247,6 +247,7 @@ async def channel_subscriptions(db: AsyncSession, user: User) -> list[dict]:
                     {
                         "id": continuation[1].id,
                         "title": continuation[1].title,
+                        "title_zh": continuation[1].title_zh,
                         "thumbnail_url": continuation[1].thumbnail_url,
                         "duration": continuation[1].duration,
                         "progress_percentage": round(continuation[0].progress_percentage or 0, 1),

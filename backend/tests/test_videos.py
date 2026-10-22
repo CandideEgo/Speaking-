@@ -156,6 +156,29 @@ class TestAdminUpdateVideo:
         assert data["is_featured"] is True
         assert data["admin_notes"] == "note"
 
+    async def test_update_title_zh_and_clear(self, client: AsyncClient, admin_headers: dict):
+        """title_zh is editable; an empty string clears it for a re-translate."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            (v,) = await _seed_video_rows(db, count=1)
+
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{v.id}",
+            headers=admin_headers,
+            json={"title_zh": "  如何成为好的倾听者  "},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["title_zh"] == "如何成为好的倾听者"
+
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{v.id}",
+            headers=admin_headers,
+            json={"title_zh": ""},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["title_zh"] is None
+
     async def test_update_invalid_difficulty(self, client: AsyncClient, admin_headers: dict):
         from tests.conftest import TestSessionLocal
 

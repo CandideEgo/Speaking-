@@ -6,111 +6,108 @@ import { ArrowUpRight, Play } from "lucide-react";
 import { homeScenarioCards } from "@/lib/homeScenarios";
 import type { VideoLearningMetadata } from "@/hooks/useVideoMetadata";
 import { watchSentenceHref } from "@/lib/watchEntry";
+import { cn } from "@/lib/utils";
 import type {
   HomeEditorialContent,
-  HomeEditorialScenario,
   HomeEditorialScenarioSlot,
+  HomeEditorialSentence,
 } from "@/types/homeContent";
 
 /**
- * 「今天就能用」：场景 + 可直接说出口的英文 + 中文解释。
+ * 「今天就能用」：只展示原片里真实存在的句子。
  *
- * 只显示编辑场景（有真实字幕锚点）；没有编辑场景时不拿原句硬凑，避免和
- * 今日任务的句子重复。点卡片跳到本片对应句并播放，和任务主按钮的落点不同。
+ * 场景标签可以来自 AI 编排，但句子本身必须带 subtitle_id 与起止时间；AI
+ * 写的 reply_en/reply_zh 不再出现在公共首页。点卡片跳到该句并播放。
  */
 export function HomeEditorialScenarios({
   scenarios,
   videoId,
   content,
+  metadata,
 }: {
   scenarios: HomeEditorialScenarioSlot[];
   videoId: string;
   content?: HomeEditorialContent;
   metadata?: VideoLearningMetadata;
 }): ReactElement | null {
-  const cards = homeScenarioCards({ videoId, scenarios, content }).filter(
-    (card) => card.kind === "scenario"
-  );
-  if (!cards.length) return null;
+  const [card] = homeScenarioCards({ videoId, scenarios, content, metadata });
+  if (!card) return null;
   return (
-    <section id="home-scenarios" aria-label="今天就能用" className="mt-6">
+    <section id="home-scenarios" aria-label="今天就能用" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-title font-bold tracking-tight text-ink">今天就能用</h2>
-        <p className="text-meta text-muted">把这段里的说法放进真实场景</p>
+        <p className="text-meta text-muted">跳到原片，听清这句在语境里的意思</p>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {cards.map(({ key, scenario }) => (
-          <ScenarioCard key={key} scenario={scenario} videoId={videoId} />
-        ))}
-      </div>
+      <SceneSentenceCard
+        videoId={videoId}
+        sentence={card.scenario.sentence}
+        label={card.scenario.situation_zh}
+      />
     </section>
   );
 }
 
-function ScenarioCard({
-  scenario,
+/** 真实原句卡：英文原句 + 中文译文 + 跳转到该秒。今日任务的兜底也复用它。 */
+export function SceneSentenceCard({
   videoId,
+  sentence,
+  label,
+  className,
 }: {
-  scenario: HomeEditorialScenario;
-  videoId?: string;
-}): ReactElement {
-  const sentence = scenario.sentence;
-  const href =
-    sentence && videoId
-      ? watchSentenceHref(
-          videoId,
-          { from: "home" },
-          {
-            subtitleId: sentence.subtitle_id,
-            startTime: sentence.start_time,
-            autoplay: true,
-          }
-        )
-      : null;
+  videoId: string;
+  sentence: HomeEditorialSentence | null | undefined;
+  label: string;
+  className?: string;
+}): ReactElement | null {
+  if (!isRenderableSentence(sentence)) return null;
+  const href = watchSentenceHref(
+    videoId,
+    { from: "home" },
+    {
+      subtitleId: sentence.subtitle_id,
+      startTime: sentence.start_time,
+      autoplay: true,
+    }
+  );
 
-  const body = (
-    <>
-      <span className="text-meta font-semibold text-brand-700">{scenario.situation_zh}</span>
-      <strong className="mt-1 line-clamp-3 text-copy-lg font-bold leading-snug text-ink">
-        {scenario.reply_en}
-      </strong>
-      {scenario.reply_zh && (
-        <span className="mt-1 line-clamp-2 text-meta leading-relaxed text-body">
-          {scenario.reply_zh}
-        </span>
-      )}
-      {sentence && (
-        <span className="mt-3 inline-flex items-center gap-1 text-meta font-semibold text-brand-700">
+  return (
+    <article aria-label={label} className={cn("min-w-0", className)}>
+      <Link
+        href={href}
+        aria-label={`${label}：${sentence.text_en}，跳转到原视频 ${formatSeconds(
+          sentence.start_time
+        )} 并播放`}
+        className="flex h-full min-h-[10rem] flex-col rounded-md border border-hairline bg-canvas p-4 transition-colors hover:border-hairline-strong hover:bg-surface-soft"
+      >
+        <span className="text-meta font-semibold text-brand-700">{label}</span>
+        <strong className="mt-1 line-clamp-3 text-copy-lg font-bold leading-snug text-ink">
+          {sentence.text_en}
+        </strong>
+        {sentence.text_zh?.trim() && (
+          <span className="mt-1 line-clamp-2 text-meta leading-relaxed text-body">
+            {sentence.text_zh}
+          </span>
+        )}
+        <span className="mt-auto pt-3 inline-flex items-center gap-1 text-meta font-semibold text-brand-700">
           <Play size={13} fill="currentColor" aria-hidden />
           在原片 {formatSeconds(sentence.start_time)} 听这句
           <ArrowUpRight size={12} aria-hidden />
         </span>
-      )}
-    </>
-  );
-
-  if (href && sentence) {
-    return (
-      <article aria-label={scenario.situation_zh}>
-        <Link
-          href={href}
-          aria-label={`${scenario.situation_zh}：${sentence.text_en}，跳转到原视频 ${formatSeconds(
-            sentence.start_time
-          )} 并播放`}
-          className="flex h-full min-h-[10rem] flex-col rounded-md border border-hairline bg-canvas p-4 transition-colors hover:border-hairline-strong hover:bg-surface-soft"
-        >
-          {body}
-        </Link>
-      </article>
-    );
-  }
-  return (
-    <article
-      aria-label={scenario.situation_zh}
-      className="flex h-full min-h-[10rem] flex-col rounded-md border border-hairline bg-canvas p-4"
-    >
-      {body}
+      </Link>
     </article>
+  );
+}
+
+function isRenderableSentence(
+  sentence: HomeEditorialSentence | null | undefined
+): sentence is HomeEditorialSentence {
+  return Boolean(
+    sentence?.subtitle_id &&
+    sentence.text_en.trim() &&
+    Number.isFinite(sentence.start_time) &&
+    Number.isFinite(sentence.end_time) &&
+    sentence.start_time >= 0 &&
+    sentence.end_time > sentence.start_time
   );
 }
 

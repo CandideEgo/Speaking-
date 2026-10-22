@@ -5,7 +5,9 @@ import { Play } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { learningBenefit, videoLearningTheme } from "@/lib/learningBenefit";
+import { VideoStats } from "@/components/video/VideoStats";
+import { VideoTitle } from "@/components/video/VideoTitle";
+import { videoLearningTheme } from "@/lib/learningBenefit";
 import { formatDuration } from "@/lib/format";
 import { watchHref, type WatchEntry } from "@/lib/watchEntry";
 import { trackClick } from "@/lib/analytics";
@@ -14,13 +16,12 @@ import type { VideoCardData } from "@/components/ui/VideoCard";
 /**
  * 首页发现流的视频卡：默认只给做决定需要的信息。
  *
- * 主题、难度、时长、一句中文学习收益；字幕数/词汇数/语速/长简介留在播放页，
- * 0 播放/0 收藏这类没有决策价值的互动数字不渲染。
+ * 中文主标题 + 英文原名、主题、难度、时长与站内互动数；字幕数/词汇数/语速/
+ * 长简介留在播放页。不再用通用「学习收益」替用户总结视频。
  */
 export function HomeFeedCard({ video, entry }: { video: VideoCardData; entry?: WatchEntry }) {
   const videoId = String(video.id || video.video_id || "");
   const theme = videoLearningTheme(video);
-  const title = video.title;
 
   return (
     <Card
@@ -58,12 +59,17 @@ export function HomeFeedCard({ video, entry }: { video: VideoCardData; entry?: W
         )}
       </div>
       <div className="min-w-0">
-        <p className="line-clamp-2 text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700">
-          {title}
-        </p>
-        <p className="mt-1 line-clamp-2 text-meta leading-relaxed text-body">
-          {learningBenefit(video)}
-        </p>
+        <VideoTitle
+          video={video}
+          zhClassName="text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700"
+        />
+        <VideoStats
+          likeCount={video.like_count}
+          viewCount={video.view_count}
+          favoriteCount={video.favorite_count}
+          size="sm"
+          className="mt-1.5"
+        />
         <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-caption text-muted">
           <span className="shrink-0 rounded-pill bg-surface-card px-2 py-0.5 font-semibold text-body">
             {theme.label}

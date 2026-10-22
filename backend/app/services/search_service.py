@@ -141,28 +141,39 @@ async def search_videos(
         ts_query = func.plainto_tsquery("english", q)
         search_vector = func.to_tsvector(
             "english",
-            func.concat(func.coalesce(Video.title, ""), " ", func.coalesce(Video.topic_tags, "")),
+            func.concat(
+                func.coalesce(Video.title, ""),
+                " ",
+                func.coalesce(Video.title_zh, ""),
+                " ",
+                func.coalesce(Video.topic_tags, ""),
+            ),
         )
         # Relevance: ts_rank for FTS + small ILIKE bonus for partial matches
         relevance = func.ts_rank(search_vector, ts_query) + case(
             (Video.title.ilike(pattern, escape="\\"), 0.5),
+            (Video.title_zh.ilike(pattern, escape="\\"), 0.5),
             else_=0,
         )
         # Match via tsvector OR ILIKE fallback (for partial/non-English queries)
         match_filter = or_(
             search_vector.op("@@")(ts_query),
             Video.title.ilike(pattern, escape="\\"),
+            Video.title_zh.ilike(pattern, escape="\\"),
             Video.topic_tags.ilike(pattern, escape="\\"),
         )
     else:
         # No tsvector support: title prefix > title substring > tag hit
         relevance = case(
             (Video.title.ilike(f"{escaped_q}%", escape="\\"), 2.0),
+            (Video.title_zh.ilike(f"{escaped_q}%", escape="\\"), 2.0),
             (Video.title.ilike(pattern, escape="\\"), 1.0),
+            (Video.title_zh.ilike(pattern, escape="\\"), 1.0),
             else_=0.0,
         )
         match_filter = or_(
             Video.title.ilike(pattern, escape="\\"),
+            Video.title_zh.ilike(pattern, escape="\\"),
             Video.topic_tags.ilike(pattern, escape="\\"),
         )
 

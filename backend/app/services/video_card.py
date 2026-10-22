@@ -67,7 +67,7 @@ Scope = Literal["feed", "card", "detail"]
 #: change to what a card serializes to.** Renaming or adding a key is enough.
 #: (Cache invalidation patterns use the family prefix and a trailing ``*``, e.g.
 #: ``browse:feed:*``, so the version has to sit after the family, not before it.)
-CARD_SHAPE_VERSION = "3"
+CARD_SHAPE_VERSION = "4"
 
 #: Scopes that show the full description (everything else truncates a card).
 _FULL_DESCRIPTION_SCOPES: frozenset[str] = frozenset({"detail"})

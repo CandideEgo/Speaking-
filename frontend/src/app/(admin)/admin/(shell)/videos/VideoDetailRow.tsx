@@ -81,6 +81,7 @@ export function VideoDetailRow({
 
   // Edit form state.
   const [title, setTitle] = useState(video.title);
+  const [titleZh, setTitleZh] = useState(video.title_zh || "");
   const [difficulty, setDifficulty] = useState(video.difficulty_level || "");
   const [topicTags, setTopicTags] = useState(video.topic_tags || "");
   const [isOfficial, setIsOfficial] = useState(video.is_official);
@@ -116,6 +117,7 @@ export function VideoDetailRow({
     try {
       const updated = await updateVideo(video.id, {
         title,
+        title_zh: titleZh.trim() || null,
         difficulty_level: difficulty || null,
         topic_tags: topicTags || null,
         is_official: isOfficial,
@@ -379,6 +381,17 @@ export function VideoDetailRow({
         <div>
           <label className="block text-meta font-medium text-muted mb-1">标题</label>
           <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+        </div>
+
+        <div>
+          <label className="block text-meta font-medium text-muted mb-1">中文标题</label>
+          <Input
+            type="text"
+            value={titleZh}
+            onChange={(e) => setTitleZh(e.target.value)}
+            placeholder="留空则全站回退英文标题"
+          />
+          <p className="mt-1 text-caption text-muted">管线会自动翻译；这里可手改或清空。</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

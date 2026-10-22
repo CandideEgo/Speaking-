@@ -578,6 +578,15 @@ async def _run_translating(ctx: PipelineCtx) -> None:
             ctx.stop()
             return
         video.quality_flag = decision  # "quality_warning" or None
+
+    # Best-effort Chinese title for every card surface. It runs inside the same
+    # transaction as the subtitle translations but must never fail the step —
+    # translate_video_title already swallows engine errors and returns None.
+    if not video.title_zh:
+        from app.services.video_title import translate_video_title
+
+        video.title_zh = await translate_video_title(video.title, engine=ctx.engine)
+
     video.processing_step = "translating"
     touch_step_started_at(video)
     video.processing_progress = STEP_PROGRESS["translating"]

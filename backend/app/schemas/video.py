@@ -30,6 +30,7 @@ CARD_DESCRIPTION_LIMIT = 200
 class VideoResponse(BaseModel):
     id: str
     title: str
+    title_zh: str | None = None
     source_url: str
     video_source: str
     thumbnail_url: str | None
@@ -193,6 +194,9 @@ class VideoAdminUpdate(BaseModel):
     """
 
     title: str | None = None
+    # Empty string clears the translation (the admin can remove a bad one and
+    # let the next re-translate fill it again).
+    title_zh: str | None = None
     difficulty_level: str | None = None
     topic_tags: str | None = None
     is_official: bool | None = None

@@ -1,13 +1,15 @@
 /**
  * 首页「今日学习任务」的纯数据视图模型。
  *
- * 编辑精选与普通精选各构建一次 HomeTask，页面只消费它：任务标题、中文收益、
- * 难度、片段真实时长和跳转位置都来自真实 DTO/字幕，组件不自己猜。
+ * 编辑精选与普通精选各构建一次 HomeTask，页面只消费它：中英文标题、难度、
+ * 片段真实时长和跳转位置都来自真实 DTO/字幕，组件不自己猜，也不用 AI 摘要
+ * 或通用学习收益替用户「总结」视频。
  */
 
 import { formatDuration } from "@/lib/format";
 import { clipDurationLabel, mediaSource, videoDurationLabel } from "@/lib/homeEditorial";
-import { learningBenefit, videoLearningTheme } from "@/lib/learningBenefit";
+import { videoLearningTheme } from "@/lib/learningBenefit";
+import { videoTitleEn, videoTitleZh } from "@/lib/videoDisplay";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import type { VideoLearningMetadata } from "@/hooks/useVideoMetadata";
 import type { VideoCard } from "@/types";
@@ -31,10 +33,10 @@ export interface HomeTaskClip {
 
 export interface HomeTask {
   video: VideoCard;
+  /** 中文主标题（无中文标题时就是英文原名）。 */
   headline: string;
-  dek: string | null;
-  /** 原片标题（编辑任务里作为次级信息；普通精选标题本身就是 headline）。 */
-  videoTitle: string | null;
+  /** 英文原名；与主标题相同时为 null，避免同一句显示两遍。 */
+  titleEn: string | null;
   themeLabel: string | null;
   sourceLabel: string | null;
   clip: HomeTaskClip | null;
@@ -86,9 +88,8 @@ export function editorialTask(slot: HomeEditorialVideoSlot): HomeTask {
 
   return {
     video,
-    headline: content.headline?.trim() || video.title,
-    dek: content.dek?.trim() || null,
-    videoTitle: video.title,
+    headline: videoTitleZh(video),
+    titleEn: videoTitleEn(video),
     themeLabel: content.topic_label || videoLearningTheme(video).label,
     sourceLabel: content.source_label || video.channel_name || null,
     clip: validClip && mediaSource(video) ? validClip : null,
@@ -117,9 +118,8 @@ export function fallbackTask(video: VideoCard, metadata?: VideoLearningMetadata)
       : null;
   return {
     video,
-    headline: video.title,
-    dek: learningBenefit(video),
-    videoTitle: null,
+    headline: videoTitleZh(video),
+    titleEn: videoTitleEn(video),
     themeLabel: videoLearningTheme(video).label,
     sourceLabel: video.channel_name || null,
     clip: null,

@@ -5,6 +5,7 @@ import { ArrowRight, Check, Play } from "lucide-react";
 import { Badge } from "@/components/common/Badge";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { userInitial } from "@/lib/avatar";
 import {
   directionLabels,
@@ -130,12 +131,12 @@ export function ChannelCard({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-caption font-semibold text-muted">最近收录</p>
-              <p
-                className="mt-0.5 line-clamp-2 text-meta font-medium leading-snug text-ink"
-                title={latest.title}
-              >
-                {latest.title}
-              </p>
+              <VideoTitle
+                video={latest}
+                as="span"
+                className="mt-0.5"
+                zhClassName="text-meta font-medium leading-snug text-ink"
+              />
               {latestFacts.length > 0 && (
                 <p className="mt-1 text-caption tabular-nums text-muted">
                   {latestFacts.join(" · ")}

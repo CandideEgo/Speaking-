@@ -619,12 +619,42 @@
   border: 0;
 }
 .user-ui .home-compact .home-quick-item > a,
+.user-ui .home-compact .home-quick-loading,
 .user-ui .home-compact .home-quick-error {
   min-height: 2.5rem;
   gap: 0.45rem;
   padding: 0.45rem 0.8rem;
   border-radius: var(--radius-sm);
   color: var(--ink);
+}
+/* 续播记录还在路上时占住与链接相同的尺寸，不让后面的入口起跳。 */
+.user-ui .home-compact .home-quick-loading {
+  display: flex;
+  align-items: center;
+}
+.user-ui .home-compact .home-quick-loading > svg {
+  flex: none;
+  color: var(--muted-c);
+}
+.user-ui .home-compact .home-quick-loading small {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--muted-c);
+  animation: home-quick-pulse 1.4s ease-in-out infinite;
+}
+@keyframes home-quick-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-ui .home-compact .home-quick-loading small {
+    animation: none;
+  }
 }
 .user-ui .home-compact .home-quick-item > a:hover {
   background: var(--canvas);
@@ -662,6 +692,16 @@
   display: block;
   min-width: 0;
   max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+}
+/* 到期词数很短，桌面档也要露出来：它是「现在点词汇能复习几个」的唯一提示。 */
+.user-ui .home-compact .home-quick-review small {
+  display: block;
+  min-width: 0;
+  max-width: 6rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -983,6 +1023,9 @@
     display: block;
   }
   .user-ui .home-compact .home-quick-continue small {
+    display: none;
+  }
+  .user-ui .home-compact .home-quick-review small {
     display: none;
   }
   .user-ui .home-compact .home-quick-item strong {

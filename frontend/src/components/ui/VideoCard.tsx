@@ -3,12 +3,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Eye, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { cn, formatCount } from "@/lib/utils";
+import { VideoStats } from "@/components/video/VideoStats";
+import { VideoTitle } from "@/components/video/VideoTitle";
+import { cn } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 import { topicLabel } from "@/lib/topicCategories";
 import { watchHref, type WatchEntry } from "@/lib/watchEntry";
@@ -27,6 +29,8 @@ import type { VideoCard as VideoCardDTO } from "@/types";
  * 也不保证 `storage_mode` 之类的站内字段。`id`/`video_id` 二者其一即可。
  */
 export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "duration"> & {
+  /** 中文展示标题；平台条目没有该字段，回退英文 title。 */
+  title_zh?: string | null;
   id?: string; // optional for VideoItem
   video_id?: string; // VideoItem uses this as primary key
   difficulty_level?: string | null;
@@ -37,6 +41,8 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   is_demo?: boolean;
   /** 内容三态（需求 §5.1）：offline 时卡片显示「已下架」角标。 */
   storage_mode?: string | null;
+  /** 站内总点赞数。 */
+  like_count?: number | null;
   /** 站内总播放量（complete 计数，区别于 YouTube 侧 ext_view_count）。 */
   view_count?: number | null;
   /** 站内总收藏数。 */
@@ -181,14 +187,14 @@ export function VideoCard({
 
       {/* Meta */}
       <div className="p-4">
-        <p
-          className={cn(
-            "text-copy font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
+        <VideoTitle
+          video={video}
+          zhClassName={cn(
+            "text-copy font-semibold leading-snug text-ink mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
             feat && "text-copy-lg min-h-[50px]"
           )}
-        >
-          {video.title}
-        </p>
+          enClassName="mb-2"
+        />
         {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
         {video.sample_text_en && (
           <p className="text-meta text-muted line-clamp-2 mb-2">“{video.sample_text_en}”</p>
@@ -206,23 +212,13 @@ export function VideoCard({
             {video.description}
           </p>
         )}
-        {/* 站内总播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
-        {(video.view_count != null || video.favorite_count != null) && (
-          <div className="flex items-center gap-3 text-caption text-muted mb-2.5">
-            {video.view_count != null && (
-              <span className="inline-flex items-center gap-1" title="播放量">
-                <Eye size={13} className="text-muted-soft" />
-                {formatCount(Number(video.view_count))}
-              </span>
-            )}
-            {video.favorite_count != null && (
-              <span className="inline-flex items-center gap-1" title="收藏数">
-                <Bookmark size={12} className="text-muted-soft" />
-                {formatCount(Number(video.favorite_count))}
-              </span>
-            )}
-          </div>
-        )}
+        {/* 站内点赞 / 播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
+        <VideoStats
+          likeCount={video.like_count}
+          viewCount={video.view_count}
+          favoriteCount={video.favorite_count}
+          className="mb-2.5"
+        />
         {footer ?? (
           <div className="flex items-center gap-2 text-meta text-muted">
             {channelLink ? (

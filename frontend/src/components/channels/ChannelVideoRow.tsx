@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoStats } from "@/components/video/VideoStats";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
 import type { VideoCardData } from "@/components/ui/VideoCard";
@@ -61,9 +63,11 @@ export function ChannelVideoRow({
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="line-clamp-2 break-words text-copy font-semibold leading-snug text-ink transition-colors group-hover:text-brand-700">
-          {video.title}
-        </span>
+        <VideoTitle
+          video={video}
+          as="span"
+          zhClassName="break-words text-copy font-semibold leading-snug text-ink transition-colors group-hover:text-brand-700"
+        />
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
           <DifficultyBadge level={video.difficulty_level} size="sm" />
           {duration && <span className="tabular-nums">{duration}</span>}
@@ -74,6 +78,12 @@ export function ChannelVideoRow({
           )}
           {learningHint && <span className="text-caption">{learningHint}</span>}
         </span>
+        <VideoStats
+          likeCount={video.like_count}
+          viewCount={video.view_count}
+          favoriteCount={video.favorite_count}
+          size="sm"
+        />
       </span>
     </Link>
   );

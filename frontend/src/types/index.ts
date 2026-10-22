@@ -29,6 +29,8 @@ export interface User {
 export interface VideoCard {
   id: string;
   title: string;
+  /** 中文展示标题（管线翻译 / 管理员维护）；为空时前端回退 title。 */
+  title_zh: string | null;
   source_url: string;
   video_source: string;
   thumbnail_url: string | null;
@@ -202,6 +204,8 @@ export interface LearningRecord {
   last_accessed_at: string | null;
   video: {
     title: string;
+    /** 中文展示标题（VideoBrief 下发，可空）。 */
+    title_zh?: string | null;
     thumbnail_url: string | null;
     /** BUG-20：后端 VideoBrief 一直下发这两个字段，此前前端类型漏声明。
      *  duration 是「继续观看」进度分母的权威值（DB `videos.duration`）。 */

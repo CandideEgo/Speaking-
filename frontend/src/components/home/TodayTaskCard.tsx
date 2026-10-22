@@ -5,6 +5,8 @@ import { ArrowUpRight, Play, Timer } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoStats } from "@/components/video/VideoStats";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { clipDurationLabel } from "@/lib/homeEditorial";
 import { taskFullVideoHref, taskPrimaryAction, type HomeTask } from "@/lib/homeTask";
@@ -16,19 +18,22 @@ import { cn } from "@/lib/utils";
  * - 有真实片段：主按钮「听懂这段 · 49 秒」直接跳到片段起点并请求播放；
  * - 无片段：主按钮退回「从这段开始 · 9:24」，不编造秒数；
  * - 「看完整视频」只是次级入口，不再和封面播放键重复；
- * - 只渲染真实存在的难度/时长/字幕句，0 互动数字不出现。
+ * - 标题用中英文原名，互动数只取站内点赞/播放/收藏（0 也显示）。
  */
 export function TodayTaskCard({
   task,
   primary = false,
   className,
   hideCover = false,
+  hideSentence = false,
 }: {
   task: HomeTask;
   /** 没有可继续记录时，这张卡就是首屏主行动。 */
   primary?: boolean;
   className?: string;
   hideCover?: boolean;
+  /** 同一句已在旁边的场景卡里出现时，任务卡不再重复。 */
+  hideSentence?: boolean;
 }) {
   const action = taskPrimaryAction(task);
   const fullHref = taskFullVideoHref(task);
@@ -84,12 +89,18 @@ export function TodayTaskCard({
 
         <div className="min-w-0">
           <p className="text-meta font-semibold text-brand-700">{eyebrow}</p>
-          <h2 className="mt-1 line-clamp-2 text-title font-bold tracking-tight text-ink">
-            {task.headline}
-          </h2>
-          {task.dek && (
-            <p className="mt-2 line-clamp-3 text-copy leading-relaxed text-body">{task.dek}</p>
-          )}
+          <VideoTitle
+            video={task.video}
+            as="h2"
+            className="mt-1"
+            zhClassName="text-title font-bold tracking-tight text-ink"
+          />
+          <VideoStats
+            likeCount={task.video.like_count}
+            viewCount={task.video.view_count}
+            favoriteCount={task.video.favorite_count}
+            className="mt-1.5"
+          />
 
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
             {task.themeLabel && (
@@ -143,7 +154,7 @@ export function TodayTaskCard({
             )}
           </div>
 
-          {task.sentence && (
+          {!hideSentence && task.sentence && (
             <blockquote className="mt-3 border-l-2 border-brand-200 pl-3">
               <p className="line-clamp-2 text-copy leading-relaxed text-ink">
                 {task.sentence.text_en}
@@ -154,12 +165,6 @@ export function TodayTaskCard({
                 </p>
               )}
             </blockquote>
-          )}
-
-          {task.videoTitle && task.videoTitle !== task.headline && (
-            <p className="mt-3 line-clamp-1 text-meta text-muted" title={task.videoTitle}>
-              原片：{task.videoTitle}
-            </p>
           )}
         </div>
       </div>

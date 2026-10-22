@@ -32,6 +32,7 @@ function videoCard(id: string, overrides: Partial<VideoCard> = {}): VideoCard {
   return {
     id,
     title: `视频 ${id}`,
+    title_zh: null,
     source_url: `https://example.com/${id}`,
     video_source: "youtube",
     thumbnail_url: null,
@@ -200,7 +201,7 @@ describe("home scenarios stay with the featured video", () => {
     expect(result[0]?.scenario.reply_en).toBe(scenario.reply_en);
   });
 
-  it("honors the ordering of scenes selected from the current version", () => {
+  it("keeps only one scene card, taking the first slot of the current version", () => {
     const second = { ...scenario, id: "second" };
     const result = homeScenarioCards({
       videoId: "lead",
@@ -212,7 +213,8 @@ describe("home scenarios stay with the featured video", () => {
         scenario: item,
       })),
     });
-    expect(result.map((card) => card.scenario.id)).toEqual(["second", scenario.id]);
+    // 首页只推荐一张场景卡：跟随编排槽位顺序取第一张。
+    expect(result.map((card) => card.scenario.id)).toEqual(["second"]);
   });
 
   it("uses a real anchored subtitle when scenes are absent or have no source", () => {
@@ -232,6 +234,60 @@ describe("home scenarios stay with the featured video", () => {
         reply_en: sentence().text_en,
         reply_zh: sentence().text_zh,
         sentence: sentence(),
+      },
+    });
+  });
+
+  it("falls back to the real sample subtitle when there are no edited scenes", () => {
+    const result = homeScenarioCards({
+      videoId: "lead",
+      scenarios: [],
+      content: content({ scenarios: [], expressions: [] }),
+      metadata: {
+        subtitle_count: 1,
+        exam_word_count: 0,
+        sample_subtitle_id: "sub-sample",
+        sample_text_en: "So when you trip on something, it means you walk into it.",
+        sample_text_zh: "所以被东西绊到时，意思是你的脚撞上了它。",
+        sample_start_time: 41,
+        sample_end_time: 45,
+      },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      videoId: "lead",
+      kind: "subtitle",
+      scenario: {
+        situation_zh: "练一句原话",
+        reply_en: "So when you trip on something, it means you walk into it.",
+        sentence: { subtitle_id: "sub-sample", start_time: 41, end_time: 45 },
+      },
+    });
+  });
+
+  it("keeps an English-only subtitle instead of fabricating a translation", () => {
+    const result = homeScenarioCards({
+      videoId: "lead",
+      scenarios: [],
+      content: content({
+        scenarios: [],
+        expressions: [],
+      }),
+      metadata: {
+        subtitle_count: 1,
+        exam_word_count: 0,
+        sample_subtitle_id: "sub-en",
+        sample_text_en: "Nobody said it would be easy.",
+        sample_text_zh: null,
+        sample_start_time: 8,
+        sample_end_time: 10,
+      },
+    });
+    expect(result[0]).toMatchObject({
+      scenario: {
+        reply_en: "Nobody said it would be easy.",
+        reply_zh: "",
+        sentence: { subtitle_id: "sub-en", text_zh: null },
       },
     });
   });

@@ -11,6 +11,8 @@
 export interface ChannelLatestVideo {
   id: string;
   title: string;
+  /** 中文展示标题；为空时前端回退 title。 */
+  title_zh?: string | null;
   thumbnail_url: string | null;
   duration: number | null;
   published_at: string | null;
@@ -68,6 +70,7 @@ export interface ChannelSubscriptionSummary {
   continue_video: {
     id: string;
     title: string;
+    title_zh?: string | null;
     thumbnail_url: string | null;
     duration: number | null;
     progress_percentage: number;

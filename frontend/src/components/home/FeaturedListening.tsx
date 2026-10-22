@@ -11,8 +11,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { TodayTaskCard } from "@/components/home/TodayTaskCard";
+import { SceneSentenceCard } from "@/components/home/HomeEditorialScenarios";
 import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { api } from "@/lib/api";
+import { sentenceFromMetadata } from "@/lib/homeScenarios";
 import { fallbackTask } from "@/lib/homeTask";
 import type { VideoCard } from "@/types";
 
@@ -106,14 +108,21 @@ export function FeaturedListening({
   }
 
   const video = videos[0];
+  const sentence = sentenceFromMetadata(metadata[video.id]);
   return (
-    <section aria-label="今日学习任务">
+    <section
+      aria-label="今日学习任务"
+      className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start"
+    >
       <TodayTaskCard
         key={`feature:${video.id}`}
         task={fallbackTask(video, metadata[video.id])}
         primary={primary}
         hideCover={continueVideoId === video.id}
+        // 原句改由右侧场景卡承载，任务卡不重复同一句。
+        hideSentence={Boolean(sentence)}
       />
+      {sentence && <SceneSentenceCard videoId={video.id} sentence={sentence} label="练一句原话" />}
     </section>
   );
 }

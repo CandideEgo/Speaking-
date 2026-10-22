@@ -130,22 +130,30 @@ test("无编排时只展示一个真实视频任务，不展开教学细节", as
   await expect(task).toBeVisible();
   await expect(task.locator(".home-editorial-lead")).toHaveCount(1);
   await expect(task.getByRole("heading", { name: "Action verbs" })).toBeVisible();
-  await expect(task.getByText("学会日常生活里的自然表达", { exact: false })).toBeVisible();
+  await expect(task.getByText("日常", { exact: true })).toBeVisible();
   await expect(task.getByRole("link", { name: "从这段开始 · 3:00" })).toHaveAttribute(
     "href",
     "/watch/actions?from=home"
   );
-  await expect(task.getByText("Kick. Flick. Skip. Punch. Yank.")).toBeVisible();
-  await expect(task.getByText("踢。弹。跳。打。拽。")).toBeVisible();
 
-  // 没有编辑场景时不拿原句硬凑「今天就能用」。
-  await expect(page.locator("#home-scenarios")).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "词汇复习" }).getByRole("link", { name: /先复习/ })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "找视频", exact: true }).getByRole("link", { name: /按主题/ })
-  ).toHaveAttribute("href", "#feed");
+  // 没有编辑编排时，兜底卡旁边直接放同一句真实字幕原句（不编 AI 回复）。
+  const scenes = page.getByRole("article", { name: "练一句原话" });
+  await expect(scenes).toHaveCount(1);
+  await expect(scenes.getByText("Kick. Flick. Skip. Punch. Yank.")).toBeVisible();
+  await expect(scenes.getByText("踢。弹。跳。打。拽。")).toBeVisible();
+  // 原句只在场景卡出现一次，任务卡不重复。
+  await expect(page.getByText("Kick. Flick. Skip. Punch. Yank.")).toHaveCount(1);
+
+  const nav = page.getByRole("navigation", { name: "我的学习入口" });
+  await expect(nav.getByRole("region", { name: "词汇" }).getByRole("link")).toHaveAttribute(
+    "href",
+    "/vocabulary/drill?review_count=5"
+  );
+  await expect(nav.getByRole("region", { name: "练习" }).getByRole("link")).toHaveAttribute(
+    "href",
+    "/practice"
+  );
+  await expect(page.getByRole("region", { name: "找视频", exact: true })).toHaveCount(0);
 });
 
 test("首屏只有一个任务位，不需要先做选择或展开预览", async ({ page }) => {

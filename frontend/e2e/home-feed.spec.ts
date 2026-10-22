@@ -262,7 +262,8 @@ test.describe("首页下滑流 · 筛选", () => {
     await expect(page.getByRole("heading", { name: "今天从哪里开始？" })).toBeVisible();
     await expect(page.locator(".home-editorial-lead")).toBeVisible();
     await expect(page.locator(".home-personal")).toHaveCount(0);
-    await expect(page.getByRole("complementary", { name: "其他学习入口" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "我的学习入口" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "其他学习入口" })).toHaveCount(0);
     for (const [label, width, height] of [
       ["desktop", 1440, 1000],
       ["mobile", 390, 1100],

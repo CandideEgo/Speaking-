@@ -30,6 +30,7 @@ class VideoBrief(BaseModel):
 
     id: str
     title: str
+    title_zh: str | None = None
     thumbnail_url: str | None = None
     duration: float | None = None
     difficulty_level: str | None = None

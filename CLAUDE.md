@@ -15,24 +15,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 命令速查
 
-| 目的 | 命令 | 工作目录 |
-|---|---|---|
-| 全栈 dev（compose） | `docker compose up -d` | 根 |
-| 只起 DB + Redis | `docker compose -f docker-compose.dev.yml up -d` | 根 |
-| 后端 API | `uvicorn app.main:app --reload --port 8000` | `backend/` |
-| Celery worker | `celery -A app.tasks.celery_app worker --loglevel=info` | `backend/` |
-| Celery beat | `celery -A app.tasks.celery_app beat` | `backend/` |
-| 跑迁移 | `alembic upgrade head` | `backend/` |
-| 后端测试 | `pytest tests/ -v` | `backend/` |
-| 跑单条后端测试 | `pytest tests/test_auth.py::test_login -v` | `backend/` |
-| 后端 lint / 格式 | `ruff check app/ tests/` · `ruff format app/ tests/` | `backend/` |
-| 前端 dev | `npm run dev` | `frontend/` |
-| 前端单测 | `npm run test:unit` | `frontend/` |
-| 跑单个前端单测 | `npx vitest run src/lib/api.test.ts` | `frontend/` |
-| e2e | `npx playwright test` | `frontend/` |
-| 跑单个 e2e | `npx playwright test e2e/watch.spec.ts`（或 `-g "标题关键词"`） | `frontend/` |
-| 前端门禁 | `npm run check` | `frontend/` |
-| e2e 数据播种 | `python scripts/seed_e2e.py` | `backend/` |
+| 目的                | 命令                                                                                   | 工作目录    |
+| ------------------- | -------------------------------------------------------------------------------------- | ----------- |
+| 全栈 dev（compose） | `docker compose up -d`                                                                 | 根          |
+| 只起 DB + Redis     | `docker compose -f docker-compose.dev.yml up -d`                                       | 根          |
+| 后端 API            | `uvicorn app.main:app --reload --port 8000`                                            | `backend/`  |
+| Celery worker       | `celery -A app.tasks.celery_app worker --loglevel=info`                                | `backend/`  |
+| Celery beat         | `celery -A app.tasks.celery_app beat`                                                  | `backend/`  |
+| 跑迁移              | `alembic upgrade head`                                                                 | `backend/`  |
+| 后端测试            | `pytest tests/ -v`                                                                     | `backend/`  |
+| 跑单条后端测试      | `pytest tests/test_auth.py::TestUserProfile::test_get_me_without_token_returns_401 -v` | `backend/`  |
+| 后端 lint / 格式    | `ruff check app/ tests/` · `ruff format app/ tests/`                                   | `backend/`  |
+| 前端 dev            | `npm run dev`                                                                          | `frontend/` |
+| 前端单测            | `npm run test:unit`                                                                    | `frontend/` |
+| 跑单个前端单测      | `npx vitest run src/lib/createApiClient.test.ts`                                       | `frontend/` |
+| e2e                 | `npx playwright test`                                                                  | `frontend/` |
+| 跑单个 e2e          | `npx playwright test e2e/watch.spec.ts`（或 `-g "标题关键词"`）                        | `frontend/` |
+| 前端门禁            | `npm run check`                                                                        | `frontend/` |
+| e2e 数据播种        | `python scripts/seed_e2e.py`                                                           | `backend/`  |
 
 `npm run check` = design-system 检查 + 会话写入检查 + `tsc --noEmit` + ESLint + Prettier `--check`。后两个检查器都是「机器执行的不变量」，见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 
@@ -42,11 +42,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `.claude/skills/` 里三个 skill **已入库**，本机（中文 Windows + NSSM 服务）的坑都在里面，别自己重新踩：
 
-| skill | 干什么 |
-|---|---|
-| `/dev` | 起／重启本地全栈：uvicorn :8000 + 云端 Celery worker + GPU worker + Next :3000 + Docker 的 DB/Redis。用户说「重启服务」就是它——它会先清端口、清 `.next`，**重启不是另一套流程** |
-| `/dev-stop` | 停本地 dev（加 `--infra` 才连 Postgres/Redis 容器一起停） |
-| `/deploy` | 发生产：本机构建 amd64 镜像 → 上传校验 → 迁移 → 切容器 → 核验；回滚点、nginx reload、脏树停机等约束都在里面 |
+| skill       | 干什么                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/dev`      | 起／重启本地全栈：uvicorn :8000 + 云端 Celery worker + GPU worker + Next :3000 + Docker 的 DB/Redis。用户说「重启服务」就是它——它会先清端口、清 `.next`，**重启不是另一套流程** |
+| `/dev-stop` | 停本地 dev（加 `--infra` 才连 Postgres/Redis 容器一起停）                                                                                                                       |
+| `/deploy`   | 发生产：本机构建 amd64 镜像 → 上传校验 → 迁移 → 切容器 → 核验；回滚点、nginx reload、脏树停机等约束都在里面                                                                     |
 
 上面那张表是「只起一件东西」或排查时用的原始命令，不是推荐入口。前端相关的运行方式与 `dev` 代理前提见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 

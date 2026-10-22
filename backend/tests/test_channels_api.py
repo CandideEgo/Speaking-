@@ -510,18 +510,22 @@ async def test_admin_video_patch_channel_ref_invalidates_browse_cache_only_on_ch
             assert resp.status_code == 200
 
         # Unrelated field: the cached cards are unchanged, so leave them alone.
-        await _patch({"title": "Renamed"})
+        await _patch({"admin_notes": "internal note"})
         # Clearing an already-empty channel_ref normalizes to None -> no change.
         await _patch({"channel_ref": ""})
         invalidate.assert_not_awaited()
 
-        # A real assignment changes the cached author link -> invalidate exactly once.
-        await _patch({"channel_ref": channel.id})
+        # A title edit rewrites the text inside every cached card -> invalidate.
+        await _patch({"title": "Renamed"})
         invalidate.assert_awaited_once()
+
+        # A real assignment changes the cached author link -> invalidate again.
+        await _patch({"channel_ref": channel.id})
+        assert invalidate.await_count == 2
 
         # Re-sending the same value is a no-op (idempotent PATCH).
         await _patch({"channel_ref": channel.id})
-        assert invalidate.await_count == 1
+        assert invalidate.await_count == 2
 
 
 # ---------------------------------------------------------------------------

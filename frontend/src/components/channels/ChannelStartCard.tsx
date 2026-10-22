@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoStats } from "@/components/video/VideoStats";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
@@ -96,12 +98,22 @@ export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelSt
           <Link
             href={href}
             title={video.title}
-            className="line-clamp-3 break-words text-copy-lg font-bold leading-snug text-ink transition-colors hover:text-brand-700"
+            className="block transition-colors hover:text-brand-700"
           >
-            {video.title}
+            <VideoTitle
+              video={video}
+              as="span"
+              zhClassName="break-words text-copy-lg font-bold leading-snug text-ink"
+            />
           </Link>
 
           {learningHint && <p className="text-meta text-muted">{learningHint}</p>}
+          <VideoStats
+            likeCount={video.like_count}
+            viewCount={video.view_count}
+            favoriteCount={video.favorite_count}
+            size="sm"
+          />
 
           <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
             <LinkButton href={href} size="sm" icon={Play}>

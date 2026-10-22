@@ -15,12 +15,14 @@ test("学习记录断网可重试，不能当作新用户", async ({ page }) => 
     return route.continue();
   });
   await page.goto("/");
-  const recovery = page.getByRole("region", { name: "继续学习", exact: true });
-  await expect(recovery.getByText("学习记录暂时未能加载。")).toBeVisible();
-  await expect(page.getByRole("link", { name: "发现视频", exact: true })).toHaveCount(0);
+  const recovery = page.getByRole("region", { name: "继续观看", exact: true });
+  await expect(recovery.getByText("学习记录暂时未能加载")).toBeVisible();
+  // 失败不能被当成「新用户」：先不给任何去路。
+  await expect(recovery.getByRole("link", { name: "开始学习", exact: true })).toHaveCount(0);
   fail = false;
   await recovery.getByRole("button", { name: "重试" }).click();
-  await expect(page.getByRole("link", { name: "发现视频", exact: true })).toBeVisible();
+  // 新账号没有学习记录，重试成功后如实给「开始学习」入口。
+  await expect(recovery.getByRole("link", { name: "开始学习", exact: true })).toBeVisible();
 });
 
 test("会员账户读取失败可恢复，内部错误不展示", async ({ page }) => {

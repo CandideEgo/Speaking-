@@ -82,6 +82,7 @@ def latest_video_payload(video: Video | None) -> dict | None:
     return {
         "id": video.id,
         "title": video.title,
+        "title_zh": video.title_zh,
         "thumbnail_url": video.thumbnail_url,
         "duration": video.duration,
         "published_at": video.published_at.isoformat() if video.published_at else None,
