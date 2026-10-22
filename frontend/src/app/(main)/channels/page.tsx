@@ -190,7 +190,7 @@ export default function ChannelsPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           title="全部频道"
           description="按学习方向挑一个能长期跟学的来源；难度、口音与收录数量都来自本站真实视频。"
@@ -346,7 +346,7 @@ export default function ChannelsPage() {
             </div>
           )}
         </section>
-      </main>
+      </div>
     </PageTransition>
   );
 }

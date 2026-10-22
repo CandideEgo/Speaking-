@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
  */
 export default function MainNotFound() {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <div className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md text-center">
         <h1 className="font-mono text-[56px] font-bold leading-none tracking-[-0.04em] text-ink">
           404
@@ -28,6 +28,6 @@ export default function MainNotFound() {
           </Button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

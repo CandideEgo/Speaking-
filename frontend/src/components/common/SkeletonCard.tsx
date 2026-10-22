@@ -8,6 +8,39 @@ interface SkeletonCardProps {
   variant?: "default" | "douyin";
 }
 
+/**
+ * 通用骨架块：一个会 shimmer 的占位盒。尺寸/圆角由调用点的 className 决定
+ * （例：`<Skeleton className="h-8 w-48" />`）。骨架屏统一走 `.skeleton-shimmer`
+ * 与语义底色，页面不再各自手写 `animate-pulse bg-surface-soft`。
+ */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cn("skeleton-shimmer rounded-sm bg-surface-soft", className)} />
+  );
+}
+
+/** 多行文字骨架：末行短一截，读起来像段落而不是色块。 */
+export function SkeletonText({
+  lines = 3,
+  className,
+  lineClassName,
+}: {
+  lines?: number;
+  className?: string;
+  lineClassName?: string;
+}) {
+  return (
+    <div aria-hidden className={cn("space-y-2", className)}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton
+          key={i}
+          className={cn("h-3", i === lines - 1 ? "w-[70%]" : "w-full", lineClassName)}
+        />
+      ))}
+    </div>
+  );
+}
+
 export const SkeletonCard = memo(function SkeletonCard({
   className,
   variant = "default",

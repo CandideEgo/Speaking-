@@ -302,7 +302,9 @@ export function VideoSubtitleEditorPanel({
                   onClick={() => setMode(m)}
                   className={cn(
                     "text-caption px-2 py-0.5 rounded-md transition-colors",
-                    mode === m ? "bg-brand-500 text-white" : "text-muted hover:bg-surface-soft"
+                    mode === m
+                      ? "bg-action-primary text-on-primary"
+                      : "text-muted hover:bg-surface-soft"
                   )}
                 >
                   {MODE_LABEL[m]}

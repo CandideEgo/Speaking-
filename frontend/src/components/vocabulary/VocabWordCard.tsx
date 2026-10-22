@@ -61,7 +61,7 @@ export function VocabWordCard({
               type="button"
               onClick={onSpeak}
               aria-label={`播放 ${word}`}
-              className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-brand-500 hover:text-on-primary transition-colors duration-100 cursor-pointer"
+              className="w-7 h-7 rounded-full bg-surface-card flex items-center justify-center text-muted hover:bg-action-primary hover:text-on-primary transition-colors duration-100 cursor-pointer"
             >
               <Volume2 size={13} />
             </button>

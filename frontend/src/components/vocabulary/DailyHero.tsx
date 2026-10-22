@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { BookOpen, CheckCircle2, Zap } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { InlineSpinner } from "@/components/common/Spinner";
 import { api } from "@/lib/api";
@@ -86,7 +86,7 @@ export function DailyHero({
     return (
       <Card variant="outline" padding={6} className="mb-6">
         <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
-          <span className="w-14 h-14 rounded-full bg-brand-50 text-brand-500 flex items-center justify-center flex-shrink-0">
+          <span className="w-14 h-14 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center flex-shrink-0">
             <BookOpen size={26} />
           </span>
           <div className="flex-1 min-w-0">
@@ -95,12 +95,9 @@ export function DailyHero({
               去频道看视频，点字幕里的生词加入词库，这里就会出现今日训练。
             </p>
           </div>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
-          >
+          <LinkButton href="/" size="lg" className="flex-shrink-0">
             去频道看视频
-          </Link>
+          </LinkButton>
         </div>
       </Card>
     );
@@ -152,13 +149,9 @@ export function DailyHero({
             今日已完成
           </span>
         ) : (
-          <Link
-            href="/vocabulary/drill"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all flex-shrink-0"
-          >
-            <Zap size={16} />
+          <LinkButton href="/vocabulary/drill" size="lg" icon={Zap} className="flex-shrink-0">
             开始今日训练
-          </Link>
+          </LinkButton>
         )}
       </div>
 

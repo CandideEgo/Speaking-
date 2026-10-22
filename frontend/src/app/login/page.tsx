@@ -3,7 +3,7 @@
 import { Suspense, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Lock, Loader2 } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { postAuthRedirect, safeNext } from "@/lib/authHelpers";
@@ -381,20 +381,8 @@ function LoginForm() {
           </div>
         )}
 
-        <Button
-          type="submit"
-          fullWidth
-          disabled={loading}
-          className="mt-2 h-12 disabled:bg-brand-500! disabled:text-on-primary!"
-        >
-          {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              登录中...
-            </>
-          ) : (
-            "登录"
-          )}
+        <Button type="submit" fullWidth loading={loading} className="mt-2 h-12">
+          {loading ? "登录中..." : "登录"}
         </Button>
       </form>
 

@@ -11,7 +11,9 @@ import { useDailySession } from "@/hooks/useDailySession";
 import { BookOpen, Search, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
+import { Skeleton } from "@/components/common/SkeletonCard";
 import { type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -73,12 +75,12 @@ function VocabSetsPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} padding={4} className="flex items-center gap-3.5">
-            <div className="w-24 aspect-video rounded-md skeleton-shimmer bg-surface-soft flex-shrink-0" />
+            <Skeleton className="w-24 aspect-video flex-shrink-0" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-3/4 skeleton-shimmer rounded-sm bg-surface-soft" />
-              <div className="h-3 w-1/3 skeleton-shimmer rounded-sm bg-surface-soft" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
             </div>
-            <div className="w-11 h-11 rounded-full skeleton-shimmer bg-surface-soft flex-shrink-0" />
+            <Skeleton className="w-11 h-11 rounded-full flex-shrink-0" />
           </Card>
         ))}
       </div>
@@ -303,7 +305,7 @@ export default function VocabularyPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         {/* Page head: crumb → h1 → desc → actions（桌面 actions 右对齐），视图切换单独一行 */}
         <PageHeader
           crumb="词汇"
@@ -328,12 +330,9 @@ export default function VocabularyPage() {
                   去看视频
                 </Link>
               )}
-              <Link
-                href={stats.total === 0 ? "/" : "/vocabulary/drill"}
-                className="inline-flex rounded-sm bg-brand-500 px-4 py-2.5 text-copy font-semibold text-on-primary hover:bg-brand-600"
-              >
+              <LinkButton href={stats.total === 0 ? "/" : "/vocabulary/drill"} size="md">
                 {primaryLabel}
-              </Link>
+              </LinkButton>
             </>
           }
         />
@@ -552,7 +551,7 @@ export default function VocabularyPage() {
             )}
           </>
         )}
-      </main>
+      </div>
     </PageTransition>
   );
 }

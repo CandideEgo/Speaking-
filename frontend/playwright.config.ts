@@ -43,7 +43,9 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: "cd ../backend && uvicorn app.main:app --port 8000",
+          // 120s keep-alive：Next dev 代理会复用空闲连接，uvicorn 默认 5s 超时关闭
+          // 时与复用请求撞车 → ECONNRESET → 代理 500（本地全量 e2e 的随机假红）。
+          command: "cd ../backend && uvicorn app.main:app --port 8000 --timeout-keep-alive 120",
           port: 8000,
           reuseExistingServer: !process.env.CI,
           timeout: 10000,

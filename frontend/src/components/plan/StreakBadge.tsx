@@ -19,7 +19,7 @@ export function StreakBadge({ streak, size = "md", showLabel = false }: StreakBa
     <span
       className={cn(
         "inline-flex items-center gap-1",
-        isActive ? "text-brand-500" : "text-muted-soft"
+        isActive ? "text-brand-700" : "text-muted-soft"
       )}
     >
       <Flame size={px} className={isActive ? "fill-current" : ""} />

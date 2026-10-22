@@ -95,7 +95,7 @@ export default function ExamPaperPage() {
 
   if (error || (!paper && !attempt)) {
     return (
-      <div className="pt-6 pb-18">
+      <div className="user-page">
         <p className="py-16 text-center text-copy text-muted">{error ?? "加载中…"}</p>
       </div>
     );
@@ -111,7 +111,7 @@ export default function ExamPaperPage() {
     : "真题作答";
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <PageHeader
         crumb="套卷作答 · 阅读部分"
         title={title}

@@ -192,7 +192,7 @@ function Chip({
         "inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-copy font-medium transition-colors cursor-pointer",
         mono && "font-mono",
         active
-          ? "bg-brand-500 text-white"
+          ? "bg-action-primary text-on-primary"
           : "bg-surface-soft text-muted hover:bg-hairline hover:text-ink"
       )}
     >

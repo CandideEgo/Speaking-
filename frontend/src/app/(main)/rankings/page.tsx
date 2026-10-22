@@ -48,7 +48,7 @@ export default function RankingsPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="视频排行"
           title="排行"
@@ -101,7 +101,7 @@ export default function RankingsPage() {
             )}
           </div>
         )}
-      </main>
+      </div>
     </PageTransition>
   );
 }

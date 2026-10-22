@@ -37,7 +37,7 @@ export interface TabPillsProps<K extends string = string> {
   variant?: TabVariant;
   /** Tab shape override. Default "pill"; "rect" = sharper corners. */
   shape?: "pill" | "rect";
-  /** Active-state style. "default" = canvas bg + shadow; "dark" = ink bg; "brand" = brand bg. */
+  /** Active-state style. "default" = canvas bg + shadow; "dark" = ink bg; "brand" = action bg. */
   activeStyle?: ActiveStyle;
   /** Size preset. "md" = larger pill (tab-pill); "sm" = compact chip (fchip). */
   size?: TabSize;
@@ -46,7 +46,7 @@ export interface TabPillsProps<K extends string = string> {
 const ACTIVE_CLASSES: Record<ActiveStyle, string> = {
   default: "bg-canvas text-ink shadow-soft",
   dark: "bg-ink text-canvas",
-  brand: "bg-brand-500 text-on-primary",
+  brand: "bg-action-primary text-on-primary",
 };
 
 const SIZE_CLASSES: Record<TabSize, string> = {

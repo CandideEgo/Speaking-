@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileDown, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileDown, FileText } from "lucide-react";
 import { api, mediaUrl } from "@/lib/api";
 import { subjectLabel, subjectOrder } from "@/lib/examSubjects";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 interface PaperListItem {
   id: string;
@@ -84,11 +85,6 @@ function groupPdfsBySubject(items: ExamPdfItem[]) {
     .map(([subject, group]) => ({ subject, items: group }));
 }
 
-const LINK_PRIMARY =
-  "inline-flex items-center gap-1.5 rounded-sm bg-brand-500 px-4 py-2 text-copy font-semibold text-on-primary transition-colors hover:bg-brand-600";
-const LINK_OUTLINE =
-  "inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-3 py-1.5 text-meta font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft";
-
 /**
  * 真题套卷列表（stage-3 保真版）。
  *
@@ -153,7 +149,7 @@ export default function ExamPapersPage() {
   const firstPaper = papers[0];
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <Link
         href="/practice"
         className="inline-flex items-center gap-1 text-copy text-muted transition-colors hover:text-ink"
@@ -180,9 +176,9 @@ export default function ExamPapersPage() {
         }
         actions={
           firstPaper ? (
-            <Link href={`/practice/exams/${firstPaper.id}`} className={LINK_PRIMARY}>
+            <LinkButton href={`/practice/exams/${firstPaper.id}`} size="nav">
               开始最近一套
-            </Link>
+            </LinkButton>
           ) : undefined
         }
       />
@@ -269,10 +265,15 @@ export default function ExamPapersPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
-                    <Link href={`/practice/exams/${p.id}`} className={LINK_OUTLINE}>
+                    <LinkButton
+                      href={`/practice/exams/${p.id}`}
+                      variant="outline"
+                      size="sm"
+                      iconRight
+                      icon={ArrowRight}
+                    >
                       开始作答
-                      <span aria-hidden="true">→</span>
-                    </Link>
+                    </LinkButton>
                   </div>
                 </li>
               );

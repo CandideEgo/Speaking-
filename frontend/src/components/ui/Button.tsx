@@ -1,7 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
-import type { LucideIcon } from "lucide-react";
+import { Loader2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ButtonVariant =
@@ -51,6 +51,17 @@ export const SIZE: Record<ButtonSize, string> = {
   icon: "w-10 h-10",
 };
 
+/** 图标尺寸与按钮尺寸的对应表；Button 与 LinkButton 共用，避免各写一份。 */
+export const ICON_SIZE: Record<ButtonSize, number> = {
+  xs: 10,
+  sm: 12,
+  compact: 12,
+  md: 14,
+  nav: 14,
+  lg: 16,
+  icon: 16,
+};
+
 /**
  * Button primitive — replaces the `.btn-*` CSS `@apply` classes plus the
  * `!py-*`/`!px-*`/`!text-*` overrides that fought them. Variants mirror the
@@ -58,20 +69,27 @@ export const SIZE: Record<ButtonSize, string> = {
  * secondaryDark); sizes absorb the in-the-wild override combos (xs/sm/compact/
  * md/nav/lg — `compact` covers the common `!py-1 !px-2 text-caption` admin-row
  * pattern). `fullWidth` and a normalized disabled cursor round it out.
+ *
+ * `loading` 统一了异步按钮的写法：自动禁用 + `aria-busy` + 前置 spinner，
+ * 页面不再自己拼 `{saving ? <Loader2/> : null}` 与各自的禁用文案。
  */
 export function Button({
   variant = "primary",
   size = "md",
   fullWidth = false,
+  loading = false,
   icon: Icon,
   iconRight = false,
   className,
   children,
+  disabled,
   ...props
 }: {
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;
+  /** 异步进行中：自动禁用、标记 aria-busy、用 spinner 取代前置图标。 */
+  loading?: boolean;
   /** Leading icon (or trailing if `iconRight`). */
   icon?: LucideIcon;
   iconRight?: boolean;
@@ -79,17 +97,11 @@ export function Button({
   children?: ReactNode;
   ref?: Ref<HTMLButtonElement>;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
-  const iconSize =
-    size === "xs"
-      ? 10
-      : size === "sm" || size === "compact"
-        ? 12
-        : size === "lg" || size === "icon"
-          ? 16
-          : 14;
+  const iconSize = ICON_SIZE[size];
   return (
     <button
       data-variant={variant}
+      aria-busy={loading || undefined}
       className={cn(
         "inline-flex items-center justify-center rounded-sm font-semibold transition-all duration-150 active:scale-[0.98]",
         variant === "ghost" || variant === "ghostDark" || variant === "text"
@@ -102,11 +114,16 @@ export function Button({
         className
       )}
       type="button"
+      disabled={disabled || loading}
       {...props}
     >
-      {Icon && !iconRight && <Icon size={iconSize} />}
+      {loading ? (
+        <Loader2 size={iconSize} className="animate-spin" aria-hidden />
+      ) : (
+        Icon && !iconRight && <Icon size={iconSize} />
+      )}
       {children}
-      {Icon && iconRight && <Icon size={iconSize} />}
+      {!loading && Icon && iconRight && <Icon size={iconSize} />}
     </button>
   );
 }

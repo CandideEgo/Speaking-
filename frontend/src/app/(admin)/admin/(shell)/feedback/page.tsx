@@ -170,7 +170,7 @@ export default function AdminFeedbackPage() {
                 className={
                   "px-2.5 py-1 rounded-md text-meta font-medium transition-colors cursor-pointer " +
                   (statusFilter === t.key
-                    ? "bg-brand-500 text-white"
+                    ? "bg-action-primary text-on-primary"
                     : "bg-surface-soft text-muted hover:text-ink")
                 }
               >

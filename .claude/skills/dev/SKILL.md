@@ -42,8 +42,9 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
 
 5. **Start the backend** (uvicorn on :8000) — background:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --timeout-keep-alive 120
    ```
+   `--timeout-keep-alive 120` 不是可选项：uvicorn 默认 5s，Next dev 代理复用的空闲连接会被它在同一时刻关掉 → ECONNRESET → 代理回 500。本机全量 e2e 里表现为随机页面接口 500（不是应用 bug，换短超时后必现）。
 
 6. **Start the cloud Celery worker** — background:
    ```bash

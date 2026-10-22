@@ -1,6 +1,6 @@
 export default function VocabSetLoading() {
   return (
-    <main className="pt-6 pb-18">
+    <div className="user-page">
       {/* Header skeleton */}
       <div className="flex items-center gap-3.5 mb-6">
         <div className="w-28 aspect-video rounded-lg skeleton-shimmer bg-surface-soft flex-shrink-0" />
@@ -20,6 +20,6 @@ export default function VocabSetLoading() {
       </div>
       {/* CTA skeleton */}
       <div className="mt-8 h-12 rounded-sm skeleton-shimmer bg-surface-soft" />
-    </main>
+    </div>
   );
 }

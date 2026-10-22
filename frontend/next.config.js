@@ -25,10 +25,13 @@ const nextConfig = {
   // rewrites — nginx handles the proxying there.
   async rewrites() {
     if (process.env.NODE_ENV === "development") {
+      // 显式 127.0.0.1 而不是 localhost：本机文档里的 uvicorn 一律绑 IPv4
+      // （0.0.0.0 / 127.0.0.1），而 Node 的 `localhost` 会先尝试 ::1。写出实际
+      // 端点，代理行为就不再依赖平台的解析顺序。
       return [
-        { source: "/api/:path*", destination: "http://localhost:8000/api/:path*" },
-        { source: "/media/:path*", destination: "http://localhost:8000/media/:path*" },
-        { source: "/health", destination: "http://localhost:8000/health" },
+        { source: "/api/:path*", destination: "http://127.0.0.1:8000/api/:path*" },
+        { source: "/media/:path*", destination: "http://127.0.0.1:8000/media/:path*" },
+        { source: "/health", destination: "http://127.0.0.1:8000/health" },
       ];
     }
     return [];

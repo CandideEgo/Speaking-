@@ -133,7 +133,7 @@ export default function DailyCheckPage() {
 
   if (attempt)
     return (
-      <div className="pt-6 pb-18">
+      <div className="user-page">
         <Link href="/practice" className="text-meta text-muted hover:text-ink">
           ← 返回练习
         </Link>
@@ -158,7 +158,7 @@ export default function DailyCheckPage() {
   const minutes = recommendation ? suggestedMinutesFor(recommendation.question_count) : 0;
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <PageHeader
         crumb="每日练 · 可选"
         title="今天，就练这一组"

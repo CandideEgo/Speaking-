@@ -13,6 +13,7 @@ import { FilterPills } from "@/components/admin/FilterPills";
 import { Pagination } from "@/components/admin/Pagination";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { DataTable } from "@/components/admin/DataTable";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
@@ -294,6 +295,27 @@ export default function VideoManager() {
 
   return (
     <div className="space-y-6">
+      <AdminPageHeader
+        title="视频管理"
+        description="导入、处理与发布视频，跟踪转录管线的实时状态。"
+        actions={
+          <>
+            <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddDialogOpen(true)}>
+              添加视频
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={RefreshCw}
+              loading={loading}
+              onClick={() => loadVideos(page)}
+            >
+              刷新
+            </Button>
+          </>
+        }
+      />
+
       {/* Pipeline health */}
       <SectionCard title="管线健康">
         <div className="flex flex-wrap items-center gap-6 text-copy">
@@ -319,26 +341,6 @@ export default function VideoManager() {
 
       {/* List + filters */}
       <Card>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-display-sm text-ink">视频管理</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddDialogOpen(true)}>
-              添加视频
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => loadVideos(page)}
-              disabled={loading}
-            >
-              <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-              刷新
-            </Button>
-          </div>
-        </div>
-
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <FilterPills options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
@@ -362,7 +364,7 @@ export default function VideoManager() {
               if (e.key === "Enter") loadVideos(1);
             }}
             placeholder="搜索标题/标签..."
-            className="!py-1.5 max-w-xs ml-auto"
+            className="max-w-xs py-1.5 ml-auto"
           />
         </div>
 

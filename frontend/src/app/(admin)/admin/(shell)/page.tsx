@@ -298,7 +298,7 @@ export default function AdminDashboardPage() {
           <Card padding={5}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-copy font-semibold text-ink">UGC 审核队列</h3>
-              <Link href="/admin/videos" className="text-meta text-brand-500 hover:text-brand-600">
+              <Link href="/admin/videos" className="text-meta text-brand-700 hover:underline">
                 查看全部
               </Link>
             </div>

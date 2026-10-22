@@ -302,7 +302,7 @@ export function VideoControls({
                         className={cn(
                           "flex-1 py-1 rounded-md text-meta transition-colors cursor-pointer",
                           subtitleFontSize === s
-                            ? "bg-brand-500 text-white"
+                            ? "bg-action-primary text-on-primary"
                             : "bg-white/10 text-white/80 hover:bg-white/20"
                         )}
                       >

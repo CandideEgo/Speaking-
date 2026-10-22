@@ -208,7 +208,7 @@ export default function UpgradePage() {
 
   return (
     <PageTransition>
-      <main className="py-6 sm:py-12">
+      <div className="py-6 sm:py-12">
         <PageHeader
           crumb="会员"
           title="升级 SeeWord 会员"
@@ -340,7 +340,7 @@ export default function UpgradePage() {
               type="button"
               disabled={refreshing}
               onClick={() => void load()}
-              className="mt-2 inline-flex cursor-pointer items-center gap-1 text-meta text-brand-500"
+              className="mt-2 inline-flex cursor-pointer items-center gap-1 text-meta text-brand-700 hover:underline"
             >
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               {purchaseFailed || unavailable ? "重新加载" : "刷新会员状态"}
@@ -352,7 +352,7 @@ export default function UpgradePage() {
             )}
           </Card>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }

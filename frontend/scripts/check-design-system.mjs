@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * check-design-system.mjs — DEC-075 前端设计系统门禁（6 条规则）
+ * check-design-system.mjs — DEC-075 前端设计系统门禁（9 条规则）
  *
  * 为什么需要它：P1–P5 把容器、页头、圆角、字号、卡片各自收敛成「唯一写法」，但那只是
  * 一次性整理。没有机器检查，下一个人照样可以在页面里写 `container-page`、在组件里写
  * `bg-blue-100`，收敛会在两次改动内回到起点。本脚本是那几条不变量的唯一执行点。
  *
- * 六条规则（DEC-075 ⑤ 末条 + G14 / checklist 5.2 补的两条）：
+ * 九条规则（DEC-075 ⑤ 末条 + G14 / checklist 5.2 补的两条 + 2026-10 全站重构补的三条）：
  *   1) src/app 下所有文件        不得出现 `container-page` / `container-wide`
  *                                破坏示例：页面自己选容器（P1 已把这活收进壳层）
  *   2) src 下所有 .ts / .tsx     不得出现原始调色板工具类
@@ -20,6 +20,26 @@
  *                                破坏示例：`border-[#2c2c2c]`——绕过 token 体系私设颜色
  *   6) src 下所有 .ts / .tsx     无色阶的 white/black 不得当「面」用
  *                                破坏示例：区块底色直接写 `bg-white`（暗色模式必炸）
+ *   7) src 下所有 .ts / .tsx     `bg-brand-500` 不得与 `text-on-primary` 同处一个 className
+ *                                破坏示例：`bg-brand-500 text-on-primary`——白字对 #ea580c
+ *                                只有 3.12:1，低于 WCAG AA 4.5:1。实心主操作一律
+ *                                `bg-action-primary`（#c2410c，5.18:1）。
+ *   8) src/app/(main) 下所有文件  不得出现 `<main`
+ *                                破坏示例：页面自写 `<main>`——壳层 `MainLayoutInner` 已是
+ *                                全站唯一 main landmark，再写一个就是嵌套 main（HTML 语义
+ *                                错误、屏幕阅读器重复播报路由区）。
+ *   9) src 下所有 .ts / .tsx     同一行不得同时出现 `bg-brand-500` 与裸 `text-white`
+ *                                破坏示例：`bg-brand-500 text-white`——和规则 7 同因；实际上
+ *                                「白字」更多是写成 `text-white` 而不是 `text-on-primary`，
+ *                                只卡后者会漏掉整类回归。
+ *
+ * 判定口径补充（规则 7/8/9）：
+ *   规则 7 按「行 + 后两行」拼成的窗口判定，因为 className 常被折成多行；窗口外不误伤。
+ *   规则 9 只看同一行，且排除 `bg-brand-500/10` 这类半透明 tint；跨行的 `text-white`
+ *          多半是压在 brand-500 圆面上的**图标**（播放键、名次角标），非文本对比度
+ *          归 WCAG 1.4.11（图形 3:1，当前 3.12:1 达标），不在这条射程内。
+ *   规则 8 只看 `src/app/(main)/`；管理端与裸路由不受限（admin 壳的 `<main>` 在它自己的
+ *           layout 里，`/admin/login` 是独立入口）。唯一白名单是壳文件本身。
  *
  * 规则 5/6 的判定口径（写清楚是为了让下一个人能自己判断新写法对不对）：
  *   规则 5 只看「颜色工具类 + 任意值 hex」。用 token 变量的写法
@@ -81,6 +101,7 @@ const isTs = (f) => /\.tsx?$/.test(f);
 const isTsx = (f) => /\.tsx$/.test(f);
 const isApp = (f) => rel(f).startsWith("frontend/src/app/");
 const isPage = (f) => isApp(f) && /\/page\.tsx$/.test(posix(f));
+const isMainShell = (f) => rel(f).startsWith("frontend/src/app/(main)/");
 
 // ---------------------------------------------------------------- 白名单（点名 + 理由）
 
@@ -124,6 +145,13 @@ const WHITELISTS = {
       "frontend/src/app/(main)/upgrade/page.tsx",
       "微信扫码支付的二维码底板：扫码识别要求纯白底 + 静区，暗色模式下也必须是白纸，" +
         "没有语义 token 能表达「一张白纸」（bg-on-primary 语义是「品牌面上的前景」，不是纸）。",
+    ],
+  ]),
+  7: new Map(),
+  8: new Map([
+    [
+      "frontend/src/app/(main)/MainLayoutInner.tsx",
+      "DEC-075 P1：全站唯一的 <main> landmark 的宿主（同时是唯一 .container-page 宿主）。",
     ],
   ]),
 };
@@ -215,6 +243,31 @@ const RULES = [
     pattern: WHITE_BLACK,
     filter: (token, match) => isWhiteBlackViolation(token, match),
   },
+  {
+    id: 7,
+    name: "实心主操作不得用 brand-500 配白字",
+    files: (f) => f.startsWith(SRC) && isTs(f),
+    pattern: /\bbg-brand-500\b/g,
+    // className 常折成多行：按「当前行 + 后两行」判定
+    context: 2,
+    filter: (token, match, window) => window.includes("text-on-primary"),
+  },
+  {
+    id: 8,
+    name: "(main) 下不得自写 <main>",
+    files: (f) => isMainShell(f) && isTs(f),
+    pattern: /<main\b/g,
+  },
+  {
+    id: 9,
+    name: "实心主操作不得用 brand-500 配裸白字",
+    files: (f) => f.startsWith(SRC) && isTs(f),
+    // 排除 `/10` 之类的半透明底：那是浅色 tint，不承载白字
+    pattern: /\bbg-brand-500(?![/\w-])/g,
+    // 只看同一行：跨行的 `text-white` 多半是子元素图标压在 brand-500 面上
+    // （播放/排名角标），非文本对比度归 WCAG 1.4.11，不在这条射程内。
+    filter: (token, match, line) => /\btext-white(?![/\w-])/.test(line),
+  },
 ];
 
 // ---------------------------------------------------------------- 执行
@@ -236,8 +289,10 @@ for (const rule of RULES) {
     let fileHit = false;
     lines.forEach((line, i) => {
       rule.pattern.lastIndex = 0;
+      // `context` 让规则可以看「当前行 + 后 N 行」：多行 className 里的组合才判得准
+      const hay = rule.context ? lines.slice(i, i + rule.context + 1).join(" ") : line;
       for (const m of line.matchAll(rule.pattern)) {
-        if (rule.filter && !rule.filter(m[0], m)) continue;
+        if (rule.filter && !rule.filter(m[0], m, hay)) continue;
         fileHit = true;
         if (wl.has(file)) continue; // 白名单：命中只用来提示，不报违规
         violations.push({

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Eye, EyeOff, Lock, Phone, ShieldCheck } from "lucide-react";
 import { useAdminAuthStore } from "@/stores/adminAuthStore";
 import { adminApi } from "@/lib/adminApi";
@@ -67,9 +68,7 @@ export default function AdminLoginPage() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy-lg shadow-lg shadow-brand-500/30">
-            S
-          </div>
+          <Image src="/logo.png" alt="" width={40} height={40} className="h-10 w-10 rounded-lg" />
           <div>
             <span className="font-display text-title font-bold text-on-dark tracking-tight block">
               SeeWord
@@ -114,9 +113,13 @@ export default function AdminLoginPage() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="mb-8 text-center lg:hidden">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-title mb-3">
-              S
-            </div>
+            <Image
+              src="/logo.png"
+              alt=""
+              width={48}
+              height={48}
+              className="mx-auto mb-3 h-12 w-12 rounded-lg"
+            />
             <h1 className="font-display text-title font-bold text-ink">SeeWord 管理后台</h1>
           </div>
 

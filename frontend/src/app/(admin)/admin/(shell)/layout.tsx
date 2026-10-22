@@ -78,7 +78,7 @@ export default function AdminShellLayout({ children }: { children: React.ReactNo
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopbar />
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px] px-6 py-8">{children}</div>
+          <div className="mx-auto max-w-admin px-4 py-6 md:px-6 md:py-8">{children}</div>
         </main>
       </div>
     </div>

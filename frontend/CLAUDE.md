@@ -14,20 +14,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 命令
 
-| 目的                                                                     | 命令                                                       |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| 装依赖                                                                   | `npm ci --legacy-peer-deps`                                |
-| dev                                                                      | `npm run dev`                                              |
-| build                                                                    | `npm run build`                                            |
-| 门禁（design-system + session-writes + typecheck + lint + format:check） | `npm run check`                                            |
-| 单测（全量 / 单文件）                                                    | `npm run test:unit` · `npx vitest run src/lib/api.test.ts` |
-| e2e                                                                      | `npx playwright test`                                      |
+| 目的                                                                     | 命令                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| 装依赖                                                                   | `npm ci --legacy-peer-deps`                                  |
+| dev                                                                      | `npm run dev`                                                |
+| build                                                                    | `npm run build`                                              |
+| 门禁（design-system + session-writes + typecheck + lint + format:check） | `npm run check`                                              |
+| 单测（全量 / 单文件）                                                    | `npm run test:unit` · `npx vitest run src/lib/utils.test.ts` |
+| e2e                                                                      | `npx playwright test`                                        |
 
 单测是 Vitest 4，**跑在 node 环境**，只收 `src/**/*.test.{ts,tsx}`——测试与源码同目录，`e2e/` 下的 Playwright spec 不会被它收走。
 
 ## 设计系统门（`npm run check` 的第一关）
 
-`frontend/scripts/check-design-system.mjs` 是**六条设计不变量唯一的机器执行点**。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
+`frontend/scripts/check-design-system.mjs` 是**九条设计不变量唯一的机器执行点**。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
 
 1. `src/app` 下**不得**出现 `container-page` / `container-wide`——容器归壳层所有
 2. `src` 下 `.ts`/`.tsx` **不得**出现原始调色板工具类（`bg-blue-100`、`text-slate-700` 之类）——用语义 token
@@ -35,6 +35,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. `src/app` 下的 `page.tsx` **不得**自己写 `<h1>`——页面级 h1 只能来自 `ui/PageHeader`（通用）与 `components/home/HomeEditorialHero.tsx` 的 `HomeEditorialHeader`（首页专用）这两个组件；规则只管 page.tsx，组件内部不受限
 5. `src` 下 `.ts`/`.tsx` **不得**写任意值 hex 颜色（`border-[#2c2c2c]`）——用语义 token
 6. `src` 下 `.ts`/`.tsx` 的无色阶 `white`/`black` **不得当「面」用**：裸 `bg-white`/`bg-black` 要走语义 token；带透明度的叠加层（`bg-black/45`）与前景白字（深底上的 `text-white`）允许
+7. `src` 下同一处 className **不得**把 `bg-brand-500` 与 `text-on-primary` 配对——白字压 `#ea580c` 只有 3.12:1（AA 要 4.5:1）；实心主操作一律 `bg-action-primary`（`#c2410c`，5.18:1）
+8. `src/app/(main)/` 下**不得**自写 `<main>`——壳层 `MainLayoutInner` 已是全站唯一 main landmark；唯一白名单是壳文件本身
+9. 同一行**不得**同时出现 `bg-brand-500` 与裸 `text-white`——与第 7 条同因，专防「白字写成 `text-white` 而不是 `text-on-primary`」这整类回归；跨行的 `text-white` 多是压在橙色圆面上的图标，不算
 
 > 规则 6 按「作用面」分三档：叠加层（带透明度）允许；面（裸 `bg-white`/`bg-black`）违规；前景/描边（`text-white`/`border-white`）允许。
 > **前景白字不设卡的理由**：深底白字是本仓常态，语义 token `text-on-dark`(#fafafa) 不是逐字等价替换，且白字是否可读取决于**祖先**底色，静态扫不准——要设卡只能靠整文件豁免，那口子更大。

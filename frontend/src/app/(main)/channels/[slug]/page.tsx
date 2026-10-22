@@ -314,7 +314,7 @@ export default function ChannelDetailPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         {error ? (
           <>
             {backLink}
@@ -566,7 +566,7 @@ export default function ChannelDetailPage() {
         ) : (
           <ChannelDetailSkeleton />
         )}
-      </main>
+      </div>
     </PageTransition>
   );
 }

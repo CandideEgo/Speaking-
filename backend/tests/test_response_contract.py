@@ -305,3 +305,36 @@ class TestErrorEnvelopeShapes:
         body = resp.json()
         assert body["code"] == "VALIDATION_ERROR"
         assert isinstance(body["detail"], list)
+
+
+class TestOpenApiResponseModels:
+    """声明了 ``response_model`` 的端点必须在 OpenAPI 里指向**具体**模型。
+
+    ``response_model=PaginatedResponse`` 少写泛型参数时，OpenAPI 里的 ``items``
+    会退化成无类型（前端 / 生成的客户端都拿不到字段），而运行时看起来一切正常
+    —— 所以只能在这里钉住。2026-10 全站重构把 ``/videos/admin`` 收成
+    ``PaginatedResponse[VideoAdminResponse]``，并给通知偏好端点补上了
+    ``NotificationPreferencesResponse``。
+    """
+
+    @staticmethod
+    def _schema(path: str, method: str) -> dict:
+        from app.main import create_app
+
+        return create_app().openapi()["paths"][path][method]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
+
+    def test_admin_video_list_is_typed(self):
+        assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
+
+    def test_notification_preferences_are_typed(self):
+        for method in ("get", "put"):
+            ref = self._schema("/api/v1/notifications/preferences", method)["$ref"]
+            assert ref.endswith("NotificationPreferencesResponse"), method
+
+    def test_notification_list_omits_owner_id(self):
+        from app.main import create_app
+
+        schemas = create_app().openapi()["components"]["schemas"]
+        assert "user_id" not in schemas["NotificationResponse"]["properties"]

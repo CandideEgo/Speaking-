@@ -7,6 +7,7 @@ import { ArrowLeft, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { FullPageSpinner } from "@/components/common/Spinner";
+import { Button } from "@/components/ui/Button";
 import ExamRunner, { ExamQuestionPublic, ExamSubmitResponse } from "@/components/exam/ExamRunner";
 
 interface WrongRedoStart {
@@ -59,20 +60,16 @@ export default function WrongRedoPage() {
 
   if (!attempt) {
     return (
-      <div className="pt-6 pb-18">
+      <div className="user-page">
         <div className="flex flex-col items-center gap-5 py-16 text-center">
           <p className="text-copy text-muted">
             {loading ? "正在生成错题重做…" : (error ?? "错题重做不可用")}
           </p>
           {!loading && (
             <>
-              <button
-                onClick={start}
-                className="inline-flex items-center gap-1.5 rounded-sm bg-ink px-4 py-2 text-copy font-semibold text-canvas transition-colors hover:bg-brand-500 hover:text-on-primary"
-              >
-                <RotateCcw size={14} />
+              <Button variant="dark" size="nav" icon={RotateCcw} onClick={start} loading={loading}>
                 重新生成
-              </button>
+              </Button>
               <div className="flex items-center gap-4 text-copy">
                 <Link
                   href="/practice/exams"
@@ -96,7 +93,7 @@ export default function WrongRedoPage() {
   }
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <ExamRunner
         questions={attempt.questions}
         submitPath={`/api/v1/exams/attempts/${attempt.session_id}/submit`}

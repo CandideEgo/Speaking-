@@ -232,7 +232,7 @@ async def search_subtitles(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/admin", response_model=PaginatedResponse)
+@router.get("/admin", response_model=PaginatedResponse[VideoAdminResponse])
 @rate_limit("30/minute")
 async def list_admin_videos(
     request: Request,

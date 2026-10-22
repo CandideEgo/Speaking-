@@ -236,7 +236,7 @@ export default function SearchPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="搜索"
           title="搜索视频、字幕和词汇"
@@ -464,7 +464,10 @@ export default function SearchPage() {
                                       from: "search",
                                       extra: { q: query, group, page, t: s.start_time },
                                     })}
-                                    className="grid gap-2 py-4 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
+                                    // 窄屏单列：隐式 `auto` 轨道会按内容 max-content 撑开
+                                    // （375 实测宽 466 > 容器 343，整页横向溢出），
+                                    // 显式 1 列才会落回 minmax(0,1fr) 让文本正常换行。
+                                    className="grid grid-cols-1 gap-2 py-4 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
                                   >
                                     <span className="text-meta tabular-nums text-muted">
                                       <span className="block">{stamp(s.start_time)}</span>
@@ -638,7 +641,7 @@ export default function SearchPage() {
             </section>
           </aside>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }

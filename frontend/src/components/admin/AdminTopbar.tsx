@@ -17,12 +17,27 @@ import { cn } from "@/lib/utils";
 const BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   "/admin": [{ label: "仪表盘" }],
   "/admin/videos": [{ label: "视频管理" }],
+  "/admin/home-editorial": [{ label: "首页编排" }],
+  "/admin/channels": [{ label: "频道管理" }],
   "/admin/users": [{ label: "用户管理" }],
   "/admin/orders": [{ label: "订单管理" }],
-  "/admin/stats": [{ label: "数据统计" }],
   "/admin/invites": [{ label: "兑换码" }],
+  "/admin/feedback": [{ label: "反馈与公告" }],
+  "/admin/stats": [{ label: "数据统计" }],
   "/admin/settings": [{ label: "系统设置" }],
 };
+
+/** 详情页（`/admin/videos/123`）继承父级面包屑，并补一段当前层级。 */
+function resolveBreadcrumbs(pathname: string): BreadcrumbItem[] {
+  const exact = BREADCRUMBS[pathname];
+  if (exact) return exact;
+  const parent = Object.keys(BREADCRUMBS)
+    .filter((href) => href !== "/admin" && pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!parent) return [{ label: "管理后台" }];
+  const base = BREADCRUMBS[parent];
+  return parent === "/admin/videos" ? [...base, { label: "视频详情" }] : base;
+}
 
 // ---------------------------------------------------------------------------
 // User dropdown
@@ -127,11 +142,11 @@ export function AdminTopbar() {
     }
   }, 60000);
 
-  const breadcrumbs = BREADCRUMBS[pathname] ?? [{ label: "管理后台" }];
+  const breadcrumbs = resolveBreadcrumbs(pathname);
   const displayName = authUser?.name || "管理员";
 
   return (
-    <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-hairline bg-canvas px-6">
+    <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-hairline bg-canvas px-4 pl-16 md:px-6">
       {/* Left: Breadcrumb */}
       <div className="flex items-center gap-4">
         <AdminBreadcrumb items={breadcrumbs} />
@@ -143,25 +158,27 @@ export function AdminTopbar() {
         {pendingCount > 0 && (
           <Link
             href="/admin/videos"
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-meta font-semibold text-brand-600 hover:bg-brand-100 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-meta font-semibold text-brand-700 hover:bg-brand-100 transition-colors"
             title="待处理 UGC 视频"
           >
             <ClipboardList size={14} />
             <span className="hidden sm:inline">待处理</span>
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-caption text-white">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-action-primary px-1 text-caption text-on-primary">
               {pendingCount}
             </span>
           </Link>
         )}
 
-        {/* Notification bell (placeholder) */}
-        <button
-          type="button"
-          aria-label="通知"
+        {/* 反馈与公告：此前是无 handler 的占位铃铛，点了没反应。
+            后台没有独立通知中心，真实的「待看消息」就在反馈与公告页。 */}
+        <Link
+          href="/admin/feedback"
+          aria-label="反馈与公告"
+          title="反馈与公告"
           className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         >
           <Bell size={18} aria-hidden="true" />
-        </button>
+        </Link>
 
         {/* Divider */}
         <div className="h-6 w-px bg-hairline" />

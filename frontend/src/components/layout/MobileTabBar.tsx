@@ -18,12 +18,14 @@ export function MobileTabBar() {
 
   // 作答流程为全屏考试模式：ExamRunner 自带底部交卷栏，
   // 两个 fixed bottom 底栏叠加会遮挡末尾选项。
-  // 单词训练 drill 同为全屏沉浸流程，一并隐藏。
+  // 单词训练 drill 与词单过筛 sieve 同为全屏沉浸流程（880px 壳 + 自带 sticky 头），
+  // 一并隐藏；此前只隐藏 drill，sieve 底部仍压着全局底栏。
   const isExamFlow =
     pathname.startsWith("/practice/daily") ||
     pathname.startsWith("/practice/exams/redo") ||
     /^\/practice\/exams\/[^/]+$/.test(pathname) ||
-    pathname.startsWith("/vocabulary/drill");
+    pathname.startsWith("/vocabulary/drill") ||
+    (pathname.startsWith("/vocabulary/sets/") && pathname.endsWith("/sieve"));
 
   useEffect(() => {
     setMounted(true);
@@ -67,7 +69,7 @@ export function MobileTabBar() {
                 <tab.icon size={20} />
                 {/* 计数徽标走主色（S8-1）：与 TopBar 到期词徽标同一语言；error 红只留给真错误态 */}
                 {tab.showBadge && mounted && dueCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-500 px-1 text-caption font-bold leading-none text-on-primary">
+                  <span className="absolute -top-1.5 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-action-primary px-1 text-caption font-bold leading-none text-on-primary">
                     {dueCount > 99 ? "99+" : dueCount}
                   </span>
                 )}

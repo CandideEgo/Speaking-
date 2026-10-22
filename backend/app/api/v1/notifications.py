@@ -386,7 +386,7 @@ async def mark_all_as_read(
 # cannot drift.
 
 
-@router.get("/preferences")
+@router.get("/preferences", response_model=NotificationPreferencesResponse)
 @rate_limit("20/minute")
 async def get_notification_preferences(
     request: Request,
@@ -407,7 +407,7 @@ async def get_notification_preferences(
     return sanitize_notification_preferences(merged)
 
 
-@router.put("/preferences")
+@router.put("/preferences", response_model=NotificationPreferencesResponse)
 @rate_limit("10/minute")
 async def update_notification_preferences(
     request: Request,

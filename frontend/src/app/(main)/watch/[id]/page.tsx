@@ -721,7 +721,7 @@ export default function WatchPage() {
         title="视频暂时无法播放"
         message="请选择其他视频，或通过帮助与反馈联系我们。"
         action={
-          <button onClick={back.go} className="mt-4 text-copy text-brand-500 hover:underline">
+          <button onClick={back.go} className="mt-4 text-copy text-brand-700 hover:underline">
             {back.label}
           </button>
         }
@@ -733,7 +733,7 @@ export default function WatchPage() {
 
   if (playbackMode === "error") {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-canvas">
+      <div className="flex min-h-full items-center justify-center bg-canvas">
         <div className="text-center">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-ink">加载视频失败</p>
@@ -742,7 +742,7 @@ export default function WatchPage() {
             重新加载
           </Button>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -752,7 +752,7 @@ export default function WatchPage() {
   // 收藏夹与集合页「回看原视频」会落到这里，故给出明确说明与出口。
   if (playbackMode === "offline") {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-canvas">
+      <div className="flex min-h-full items-center justify-center bg-canvas">
         <div className="text-center max-w-md px-4">
           <AlertCircle size={48} className="mx-auto text-muted mb-4" />
           <p className="text-copy-lg font-semibold text-ink">该视频已下架</p>
@@ -768,7 +768,7 @@ export default function WatchPage() {
             </Button>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -777,7 +777,7 @@ export default function WatchPage() {
       ? (STEP_LABELS[video.processing_step] ?? "处理中...")
       : "处理中...";
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-canvas">
+      <div className="flex min-h-full items-center justify-center bg-canvas">
         <div className="text-center">
           <Loader2 size={32} className="mx-auto animate-spin text-brand-500" />
           <p className="mt-4 text-ink">{stepLabel}</p>
@@ -786,7 +786,7 @@ export default function WatchPage() {
             <p className="mt-2 text-meta text-success">字幕已就绪，视频处理中...</p>
           )}
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -990,7 +990,7 @@ export default function WatchPage() {
             video.channel_slug ? (
               <Link
                 href={`/channels/${video.channel_slug}`}
-                className="inline-flex items-center gap-1 rounded-full border border-hairline px-2.5 py-0.5 font-semibold text-ink hover:border-brand-500/40 hover:text-brand-500 transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-hairline px-2.5 py-0.5 font-semibold text-ink hover:border-brand-500/40 hover:text-brand-700 transition-colors"
               >
                 {video.channel_name}
                 <ChevronRight size={12} />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { subjectLabel } from "@/lib/examSubjects";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/common/ErrorState";
 
@@ -47,10 +48,7 @@ const TYPES = [
   },
 ];
 
-const LINK_PRIMARY =
-  "inline-flex items-center gap-1.5 rounded-sm bg-brand-500 px-4 py-2 text-copy font-semibold text-on-primary transition-colors hover:bg-brand-600";
-const LINK_OUTLINE =
-  "inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-3 py-1.5 text-meta font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft";
+/** 正文内联文字链（带下划线）。按钮型 CTA 走 `ui/LinkButton`，这里只保留行内链接。 */
 const LINK_TEXT = "text-copy font-medium text-ink underline underline-offset-4";
 
 function formatDate(iso: string | null): string {
@@ -128,7 +126,7 @@ export default function PracticePage() {
     : [];
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <PageHeader
         crumb="练习"
         title="今天，练哪一部分？"
@@ -178,18 +176,18 @@ export default function PracticePage() {
                   <span className="text-meta">{latest.total} 答对</span>
                 </p>
                 {wrongTotal > 0 ? (
-                  <Link href="/practice/exams/redo" className={LINK_PRIMARY}>
+                  <LinkButton href="/practice/exams/redo" size="sm">
                     回看 {wrongTotal} 道错题
-                  </Link>
+                  </LinkButton>
                 ) : null}
                 <Link href={`/practice/exams/result/${latest.id}`} className={LINK_TEXT}>
                   回看结果 →
                 </Link>
               </div>
             ) : wrongTotal > 0 ? (
-              <Link href="/practice/exams/redo" className={LINK_PRIMARY}>
+              <LinkButton href="/practice/exams/redo" size="sm">
                 回看 {wrongTotal} 道错题
-              </Link>
+              </LinkButton>
             ) : null}
           </section>
 
@@ -228,9 +226,13 @@ export default function PracticePage() {
                       <div className="flex flex-none flex-col items-end gap-2">
                         <span className="hidden text-caption text-muted sm:inline">真题</span>
                         {type.groupCount > 0 ? (
-                          <Link href={`/practice/daily?type=${type.key}`} className={LINK_OUTLINE}>
+                          <LinkButton
+                            href={`/practice/daily?type=${type.key}`}
+                            variant="outline"
+                            size="sm"
+                          >
                             开始
-                          </Link>
+                          </LinkButton>
                         ) : (
                           <Button variant="outline" size="sm" disabled>
                             题库未接入
@@ -278,9 +280,9 @@ export default function PracticePage() {
                           </p>
                         </div>
                         <div className="flex flex-none items-center gap-3">
-                          <Link href={`/practice/exams/${p.id}`} className={LINK_OUTLINE}>
+                          <LinkButton href={`/practice/exams/${p.id}`} variant="outline" size="sm">
                             开始作答
-                          </Link>
+                          </LinkButton>
                           <Link href="/practice/exams" className={LINK_TEXT}>
                             看构成
                           </Link>

@@ -140,9 +140,9 @@ export default function ProfilePage() {
 
   if (isLoading || loading) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-canvas">
+      <div className="flex min-h-full items-center justify-center bg-canvas">
         <div className="w-8 h-8 border-2 border-muted-soft border-t-ink rounded-full animate-spin" />
-      </main>
+      </div>
     );
   }
 
@@ -178,7 +178,7 @@ export default function ProfilePage() {
           周报功能已下线，观看记录和词汇仍保留。
         </p>
       )}
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="我的"
           title="账户与学习设置"
@@ -447,7 +447,7 @@ export default function ProfilePage() {
             </section>
           </aside>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }

@@ -108,7 +108,7 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
     expect(box!.x + box!.width).toBeLessThan(vw * 0.62);
   });
 
-  test("desktop: collapse panel -> video wrapper constrained + word card to bottom-RIGHT", async ({
+  test("desktop: collapse panel -> video wrapper constrained, word card stays anchored", async ({
     page,
   }) => {
     test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
@@ -127,10 +127,13 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
     await page.locator('button[aria-label="收起为字幕轨"]').first().click();
     await page.waitForTimeout(500);
 
-    // After collapse: word card re-anchors to bottom-RIGHT.
+    // 词卡已改为**锚定被点词**（WordTooltipInline 的 placementForAnchor），不再
+    // 随面板折叠改投右下角：折叠只改变画框宽度，卡片保持在点击时的位置。
+    // 这里验的是不变量——仍在视口内，且没有被折叠后的布局推出右边界。
     const cardBox = await card.boundingBox();
     expect(cardBox).not.toBeNull();
-    expect(cardBox!.x + cardBox!.width).toBeGreaterThan(vw / 2);
+    expect(cardBox!.x).toBeGreaterThanOrEqual(8);
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(vw - 8 + 1);
 
     // After collapse: video wrapper is constrained (max-width) + centered ->
     // width strictly less than viewport width with visible side margins.

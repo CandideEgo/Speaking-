@@ -11,6 +11,7 @@ import { TARGET_LEVEL_OPTIONS } from "@/lib/examLevels";
 import { relativeTime } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Input } from "@/components/ui/Input";
 import { Image } from "@/components/ui/Image";
@@ -89,7 +90,7 @@ export default function VocabSetsPage() {
         : `已完成 ${visible.length} 个（共 ${sets.length} 个）`;
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <PageHeader
         crumb="词汇 · 词单"
         title="词单：按视频、按考试、按自己收的词"
@@ -100,12 +101,9 @@ export default function VocabSetsPage() {
               回到词汇 · 今日
             </Link>
             {!emptyLib && (
-              <Link
-                href="/vocabulary/drill"
-                className="inline-flex rounded-sm bg-brand-500 px-4 py-2.5 text-copy font-semibold text-on-primary hover:bg-brand-600"
-              >
+              <LinkButton href="/vocabulary/drill" size="md">
                 开始今日训练
-              </Link>
+              </LinkButton>
             )}
           </>
         }
@@ -131,12 +129,9 @@ export default function VocabSetsPage() {
                 先去看一段视频，点几个词，第一个词单就有了。
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/"
-                  className="inline-flex rounded-sm bg-brand-500 px-4 py-2.5 text-copy font-semibold text-on-primary hover:bg-brand-600"
-                >
+                <LinkButton href="/" size="md">
                   去频道挑一段视频
-                </Link>
+                </LinkButton>
                 <Link href="/" className="text-copy text-muted hover:text-ink">
                   直接打开观看页
                 </Link>

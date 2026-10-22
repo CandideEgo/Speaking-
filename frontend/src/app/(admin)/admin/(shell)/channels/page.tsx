@@ -199,7 +199,7 @@ export default function AdminChannelsPage() {
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md ${
-                        ch.is_auto ? "text-brand-500 bg-brand-50" : "text-success bg-success-soft"
+                        ch.is_auto ? "text-brand-700 bg-brand-50" : "text-success bg-success-soft"
                       }`}
                       title={ch.is_auto ? "视频入库时自动建档" : "管理员手建"}
                     >

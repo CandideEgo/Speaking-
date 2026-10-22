@@ -27,7 +27,7 @@ export function FilterPills({
           className={cn(
             "inline-flex items-center rounded-sm px-3 py-1.5 text-meta font-medium transition-colors border",
             value === f.key
-              ? "bg-brand-500 text-white border-brand-500"
+              ? "bg-action-primary text-on-primary border-action-primary"
               : "bg-canvas text-muted border-hairline hover:text-ink"
           )}
         >

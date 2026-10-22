@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { ExamSubmitResultItem } from "@/components/exam/ExamRunner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TabPills } from "@/components/ui/TabPills";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 interface AttemptDetail {
   id: string;
@@ -46,11 +47,6 @@ const MODE_LABELS: Record<string, string> = {
   daily_check: "每日一组",
   wrong_redo: "错题重做",
 };
-
-const LINK_PRIMARY =
-  "inline-flex items-center gap-1.5 rounded-sm bg-brand-500 px-4 py-2 text-copy font-semibold text-on-primary transition-colors hover:bg-brand-600";
-const LINK_OUTLINE =
-  "inline-flex items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-4 py-2 text-copy font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-soft";
 
 /**
  * 成绩页（stage-3 保真版）。
@@ -101,7 +97,7 @@ export default function ExamResultPage() {
 
   if (error || !attempt) {
     return (
-      <div className="pt-6 pb-18">
+      <div className="user-page">
         <Link
           href="/practice/exams"
           className="inline-flex items-center gap-1 text-copy text-muted transition-colors hover:text-ink"
@@ -122,7 +118,7 @@ export default function ExamResultPage() {
   const visible = filter === "wrong" ? wrong : results;
 
   return (
-    <div className="pt-6 pb-18">
+    <div className="user-page">
       <Link
         href="/practice/exams"
         className="inline-flex items-center gap-1 text-copy text-muted transition-colors hover:text-ink"
@@ -139,17 +135,16 @@ export default function ExamResultPage() {
         actions={
           <>
             {wrongIdsHref && (
-              <Link href={wrongIdsHref} className={LINK_PRIMARY}>
-                <RotateCcw size={14} />
+              <LinkButton href={wrongIdsHref} size="nav" icon={RotateCcw}>
                 回看 {wrong.length} 道错题
-              </Link>
+              </LinkButton>
             )}
-            <Link href={retryHref} className={LINK_OUTLINE}>
+            <LinkButton href={retryHref} variant="outline" size="nav">
               再做一遍
-            </Link>
-            <Link href="/practice/exams" className={LINK_OUTLINE}>
+            </LinkButton>
+            <LinkButton href="/practice/exams" variant="outline" size="nav">
               换一套
-            </Link>
+            </LinkButton>
           </>
         }
       />
@@ -371,16 +366,16 @@ export default function ExamResultPage() {
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {wrongIdsHref && (
-                <Link href={wrongIdsHref} className={LINK_PRIMARY}>
+                <LinkButton href={wrongIdsHref} size="nav">
                   只练错题（{wrong.length}）
-                </Link>
+                </LinkButton>
               )}
-              <Link href={retryHref} className={LINK_OUTLINE}>
+              <LinkButton href={retryHref} variant="outline" size="nav">
                 再做一遍这套
-              </Link>
-              <Link href="/practice/exams" className={LINK_OUTLINE}>
+              </LinkButton>
+              <LinkButton href="/practice/exams" variant="outline" size="nav">
                 换一套
-              </Link>
+              </LinkButton>
               <Link
                 href="/practice/daily"
                 className="inline-flex items-center px-2 py-2 text-copy font-medium text-ink underline underline-offset-4"

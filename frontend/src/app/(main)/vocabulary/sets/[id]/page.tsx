@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { SetEditor } from "@/components/vocabulary/SetEditor";
 import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -169,9 +170,9 @@ export default function VocabSetDetailPage() {
   if (error && !detail) {
     return (
       <PageTransition>
-        <main className="pt-6 pb-18">
+        <div className="user-page">
           <ErrorState title={error} onRetry={reload} className="py-16" />
-        </main>
+        </div>
       </PageTransition>
     );
   }
@@ -179,11 +180,11 @@ export default function VocabSetDetailPage() {
   if (loading && !detail) {
     return (
       <PageTransition>
-        <main className="pt-6 pb-18">
+        <div className="user-page">
           <div className="flex justify-center py-16">
             <InlineSpinner />
           </div>
-        </main>
+        </div>
       </PageTransition>
     );
   }
@@ -200,7 +201,7 @@ export default function VocabSetDetailPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb={
             <span className="inline-flex items-center gap-2">
@@ -229,13 +230,9 @@ export default function VocabSetDetailPage() {
                 <ListFilter size={14} />
                 {ctaSieveLabel}
               </Link>
-              <Link
-                href="/vocabulary/drill"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-brand-500 px-4 py-2 text-copy font-semibold text-on-primary hover:bg-brand-600"
-              >
-                <Play size={14} />
+              <LinkButton href="/vocabulary/drill" size="nav" icon={Play}>
                 开始训练
-              </Link>
+              </LinkButton>{" "}
             </>
           }
         />
@@ -590,7 +587,7 @@ export default function VocabSetDetailPage() {
         </div>
 
         <SetEditor detail={detail} onChange={reload} />
-      </main>
+      </div>
     </PageTransition>
   );
 }

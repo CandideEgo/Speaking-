@@ -208,7 +208,7 @@ export default function ContactPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="帮助"
           title="帮助与反馈"
@@ -551,7 +551,7 @@ export default function ContactPage() {
             </section>
           </aside>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import {
   ArrowLeft,
   BarChart3,
@@ -37,6 +38,9 @@ interface NavSection {
   title: string;
   items: NavItem[];
 }
+
+/** 后台侧栏折叠状态的存储键（与用户端 `seeword-sidebar` 分开）。 */
+const ADMIN_SIDEBAR_KEY = "seeword-admin-sidebar";
 
 const NAV: NavSection[] = [
   {
@@ -105,7 +109,12 @@ function NavLinks({
           )}
           <div className="flex flex-col gap-0.5">
             {section.items.map((item) => {
-              const active = pathname === item.href;
+              // 详情页（/admin/videos/123）要保留父级高亮；`/admin` 是精确匹配，
+              // 否则所有后台路由都会把「仪表盘」点亮。
+              const active =
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
               return (
                 <Link
@@ -118,7 +127,7 @@ function NavLinks({
                     "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-copy font-medium transition-all",
                     collapsed && "justify-center px-2",
                     active
-                      ? "bg-brand-500 text-white shadow-sm"
+                      ? "bg-action-primary text-on-primary shadow-sm"
                       : "text-muted hover:bg-surface-soft hover:text-ink"
                   )}
                 >
@@ -160,9 +169,9 @@ function Brand({ collapsed }: { collapsed: boolean }) {
         collapsed && "justify-center px-2"
       )}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy">
-        S
-      </div>
+      {/* 品牌标与用户端 TopBar 同源（/logo.png），不再自绘橙色方块 + 白字「S」：
+          白字压 brand-500 只有 3.12:1，且两套品牌标会让前后台像两个产品。 */}
+      <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
       {!collapsed && (
         <div className="leading-tight">
           <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
@@ -180,9 +189,28 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 export function AdminSidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // 与用户端侧栏一致：折叠状态持久化，刷新后不弹回展开。
   const [collapsed, setCollapsed] = useState(false);
 
-  const toggle = () => setCollapsed((c) => !c);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(ADMIN_SIDEBAR_KEY) === "1");
+    } catch {
+      /* localStorage 不可用时保持展开 */
+    }
+  }, []);
+
+  const toggle = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(ADMIN_SIDEBAR_KEY, next ? "1" : "0");
+      } catch {
+        /* 忽略 */
+      }
+      return next;
+    });
+  };
 
   return (
     <CollapseContext.Provider value={{ collapsed, toggle }}>
@@ -212,9 +240,7 @@ export function AdminSidebar() {
       >
         <div className="flex h-16 items-center justify-between border-b border-hairline px-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold text-copy">
-              S
-            </div>
+            <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
             <div className="leading-tight">
               <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
               <div className="text-caption uppercase tracking-wider text-muted-soft">管理后台</div>

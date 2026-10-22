@@ -16,6 +16,7 @@ import { scrollKey } from "@/lib/scrollMemory";
 import { watchHref } from "@/lib/watchEntry";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
@@ -191,7 +192,7 @@ export default function HistoryPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="学习历史"
           title="学习记录"
@@ -255,9 +256,7 @@ export default function HistoryPage() {
         <div className="user-page-layout has-aside">
           <div className="user-page-main">
             {loading && records.length === 0 ? (
-              <div className="flex justify-center py-12">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-soft border-t-ink" />
-              </div>
+              <InlineSpinner className="py-12" />
             ) : error && records.length === 0 ? (
               <ErrorState title={error} onRetry={reload} className="py-12" />
             ) : records.length === 0 && overallTotal === 0 ? (
@@ -379,7 +378,7 @@ export default function HistoryPage() {
             </section>
           </aside>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }
@@ -393,7 +392,7 @@ function RecordRow({ record }: { record: LearningRecord }) {
   const href = watchHref(record.video_id, { from: "history" });
 
   return (
-    <li className="grid items-center gap-3 py-4 md:grid-cols-[10rem_minmax(0,1fr)_13rem]">
+    <li className="grid grid-cols-1 items-center gap-3 py-4 md:grid-cols-[10rem_minmax(0,1fr)_13rem]">
       <Link
         href={href}
         aria-label={`继续观看 ${record.video?.title || "这个视频"}`}

@@ -126,6 +126,20 @@ class TestListNotifications:
         assert items[0]["title"] == "Second"
         assert items[1]["title"] == "First"
 
+    async def test_response_omits_owner_id(self, client: AsyncClient, auth_headers: dict):
+        """通知只返回给本人，响应不该带 `user_id`（契约由 NotificationResponse 钉住）。"""
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        async with TestSessionLocal() as db:
+            db.add(Notification(user_id=me["id"], type="system", title="Only mine"))
+            await db.commit()
+
+        items = (await client.get("/api/v1/notifications", headers=auth_headers)).json()["items"]
+        assert items and "user_id" not in items[0]
+
+        marked = await client.patch(f"/api/v1/notifications/{items[0]['id']}/read", headers=auth_headers)
+        assert marked.status_code == 200
+        assert "user_id" not in marked.json()
+
     async def test_filters_by_type(self, client: AsyncClient, auth_headers: dict):
         me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
         async with TestSessionLocal() as db:
@@ -262,6 +276,29 @@ class TestPreferences:
         )
         resp = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
         assert resp.json()["new_follower"] is False
+
+    async def test_response_shape_is_stable(self, client: AsyncClient, auth_headers: dict):
+        """GET / PUT 都声明了 response_model：键集合固定，不会被 DB 里的杂键撑开。"""
+        expected = {
+            "push_notifications",
+            "vocabulary_reminder",
+            "streak_reminder",
+            "weekly_report",
+            "community_updates",
+            "new_follower",
+            "comment_reply",
+        }
+        got = (await client.get("/api/v1/notifications/preferences", headers=auth_headers)).json()
+        assert set(got) == expected
+
+        put = await client.put(
+            "/api/v1/notifications/preferences",
+            headers=auth_headers,
+            json={"vocabulary_reminder": True},
+        )
+        assert put.status_code == 200
+        assert set(put.json()) == expected
+        assert put.json()["vocabulary_reminder"] is True
 
 
 class TestWebSocketPushErrorHandling:

@@ -93,9 +93,18 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
       <div className="user-shell-main">
         <TopBar />
         <DeletionBanner />
+        {/* 键盘用户的「跳到正文」：侧栏 + 顶栏有 20+ 个 tab 停靠点，
+            没有 skip link 时每次进页都要 Tab 穿过去。目标就是唯一的主滚动区。 */}
+        <a
+          href={`#${SCROLL_CONTAINER_ID}`}
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-hairline focus:bg-canvas focus:px-4 focus:py-2 focus:text-meta focus:font-semibold focus:text-ink"
+        >
+          跳到正文
+        </a>
         <main
           id={SCROLL_CONTAINER_ID}
-          className={`flex-1 overflow-y-auto custom-scrollbar${isWatch ? " user-watch-content" : ""}`}
+          tabIndex={-1}
+          className={`flex-1 overflow-y-auto custom-scrollbar focus:outline-none${isWatch ? " user-watch-content" : ""}`}
         >
           {/* DEC-075：容器归壳层所有 —— 全站唯一 .container-page 在这里渲染一次，
             页面不再自带容器类。h-full 让页面根的 min-h-full（练习 / 考试 / 搜索等

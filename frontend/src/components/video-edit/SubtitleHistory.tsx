@@ -6,6 +6,7 @@ import { ChevronDown, History, Loader2, RotateCcw } from "lucide-react";
 
 import { toastApiError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { SubtitleRevision } from "@/types";
 
 /** Per-line subtitle edit history (collapsible) + rollback.
@@ -48,6 +49,8 @@ export function SubtitleHistory({
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [items, setItems] = useState<SubtitleRevision[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  /** 待确认回滚的修订 id：原生 confirm 已换成 ConfirmDialog（可主题化、可键盘操作）。 */
+  const [pendingRevisionId, setPendingRevisionId] = useState<string | null>(null);
 
   const fetchRevisions = async () => {
     setLoading(true);
@@ -69,7 +72,7 @@ export function SubtitleHistory({
   };
 
   const handleRollback = async (revisionId: string) => {
-    if (!confirm("回滚到此版本？当前内容会被覆盖（会再生成一条修订记录）。")) return;
+    setPendingRevisionId(null);
     setRollingBackId(revisionId);
     try {
       await onRollback(subtitleId, revisionId);
@@ -113,9 +116,9 @@ export function SubtitleHistory({
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleRollback(rev.id)}
+                    onClick={() => setPendingRevisionId(rev.id)}
                     disabled={rollingBackId === rev.id}
-                    className="inline-flex items-center gap-1 text-brand-500 hover:underline disabled:opacity-50"
+                    className="inline-flex items-center gap-1 text-brand-700 hover:underline disabled:opacity-50"
                     title="回滚到此版本"
                   >
                     {rollingBackId === rev.id ? (
@@ -146,6 +149,17 @@ export function SubtitleHistory({
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingRevisionId !== null}
+        title="回滚字幕修订"
+        message="回滚到此版本？当前内容会被覆盖（会再生成一条修订记录）。"
+        confirmLabel="回滚"
+        busy={rollingBackId !== null}
+        onConfirm={() => {
+          if (pendingRevisionId) void handleRollback(pendingRevisionId);
+        }}
+        onClose={() => setPendingRevisionId(null)}
+      />
     </div>
   );
 }

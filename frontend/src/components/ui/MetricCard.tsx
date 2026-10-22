@@ -8,8 +8,8 @@ type Tone = "default" | "brand" | "success" | "warning" | "indigo";
 const TONE_MAP: Record<Tone, { icon: string; value?: string; border?: string }> = {
   default: { icon: "bg-surface-soft text-muted", value: "text-ink" },
   brand: {
-    icon: "bg-brand-50 text-brand-500",
-    value: "text-brand-500",
+    icon: "bg-brand-50 text-brand-700",
+    value: "text-brand-700",
     border: "border-brand-100",
   },
   success: {

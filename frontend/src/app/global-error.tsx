@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
  */
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console
+    // 根错误边界没有更上层的上报通道，只能把原始错误留在控制台便于排查。
     console.error(error);
   }, [error]);
 

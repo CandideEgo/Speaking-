@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface FullPageSpinnerProps {
   /** Spinner size: "sm" (h-6), "md" (h-8), "lg" (h-10) — default "md" */
@@ -35,7 +36,8 @@ interface InlineSpinnerProps {
  */
 export function InlineSpinner({ size = 24, className }: InlineSpinnerProps) {
   return (
-    <div className={`flex justify-center py-20 ${className ?? ""}`}>
+    // cn 而非拼接：调用方传 `py-12` 时要能真正覆盖默认 `py-20`（tailwind-merge 才认冲突）
+    <div className={cn("flex justify-center py-20", className)}>
       <Loader2 size={size} className="animate-spin text-brand-500" />
     </div>
   );

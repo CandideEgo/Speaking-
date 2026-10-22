@@ -635,7 +635,7 @@ export function UnifiedPracticePanel({ session, levelLabel }: UnifiedPracticePan
                     { from: "drill" },
                     { subtitleId: it.subtitle_id, startTime: it.start_time, word: it.word }
                   )}
-                  className="text-meta text-brand-500 hover:underline"
+                  className="text-meta text-brand-700 hover:underline"
                 >
                   回看原句 →
                 </Link>

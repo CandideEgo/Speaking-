@@ -9,6 +9,8 @@ import { FeaturedListening } from "@/components/home/FeaturedListening";
 import { HomeFeed } from "@/components/home/HomeFeed";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Skeleton } from "@/components/common/SkeletonCard";
 import { fetchHomeEditorial } from "@/lib/homeEditorial";
 import { useContinueLearning } from "@/hooks/useContinueLearning";
 import type { HomeEditorialPage } from "@/types/homeContent";
@@ -171,40 +173,32 @@ export default function HomePage() {
 
 function ContinueSkeleton() {
   return (
-    <div
-      className="rounded-md border border-hairline bg-surface-soft p-4 sm:p-5"
-      aria-label="正在读取学习记录"
-      role="status"
-    >
+    <Card variant="soft" padding={5} aria-label="正在读取学习记录" role="status">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="aspect-video w-full max-w-[13rem] animate-pulse rounded-sm bg-surface-card" />
+        <Skeleton className="aspect-video w-full max-w-[13rem]" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-24 animate-pulse rounded-pill bg-surface-card" />
-          <div className="h-5 w-4/5 animate-pulse rounded-pill bg-surface-card" />
-          <div className="h-1.5 w-full animate-pulse rounded-pill bg-surface-card" />
+          <Skeleton className="h-3 w-24 rounded-pill" />
+          <Skeleton className="h-5 w-4/5 rounded-pill" />
+          <Skeleton className="h-1.5 w-full rounded-pill" />
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function EditorialSkeleton() {
   return (
-    <div
-      className="rounded-md border border-hairline bg-canvas p-4 sm:p-5"
-      aria-label="正在准备今日精选"
-      role="status"
-    >
+    <Card padding={5} aria-label="正在准备今日精选" role="status">
       <div className="grid gap-5 md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
-        <div className="aspect-video animate-pulse rounded-sm bg-surface-card" />
+        <Skeleton className="aspect-video" />
         <div className="space-y-3 py-2">
-          <div className="h-3 w-24 animate-pulse rounded-pill bg-surface-card" />
-          <div className="h-6 w-4/5 animate-pulse rounded-pill bg-surface-card" />
-          <div className="h-4 w-3/5 animate-pulse rounded-pill bg-surface-card" />
-          <div className="h-9 w-40 animate-pulse rounded-sm bg-surface-card" />
+          <Skeleton className="h-3 w-24 rounded-pill" />
+          <Skeleton className="h-6 w-4/5 rounded-pill" />
+          <Skeleton className="h-4 w-3/5 rounded-pill" />
+          <Skeleton className="h-9 w-40" />
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 

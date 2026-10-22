@@ -10,7 +10,7 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
-import { FullPageSpinner } from "@/components/common/Spinner";
+import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -173,7 +173,7 @@ export default function NotificationsPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="我的"
           title="通知"
@@ -217,9 +217,7 @@ export default function NotificationsPage() {
               </div>
 
               {loading && items.length === 0 ? (
-                <div className="flex justify-center py-12">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-soft border-t-ink" />
-                </div>
+                <InlineSpinner className="py-12" />
               ) : error && items.length === 0 ? (
                 <ErrorState title={error} onRetry={reload} className="py-12" />
               ) : items.length === 0 && (counts.all ?? 0) === 0 ? (
@@ -430,7 +428,7 @@ export default function NotificationsPage() {
             </p>
           </aside>
         </div>
-      </main>
+      </div>
     </PageTransition>
   );
 }

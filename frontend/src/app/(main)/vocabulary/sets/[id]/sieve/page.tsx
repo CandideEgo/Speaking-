@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence";
 import { Card } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { watchSentenceHref } from "@/lib/watchEntry";
 
 /**
@@ -99,7 +100,7 @@ export default function VocabSievePage() {
   }
 
   return (
-    <main className="min-h-full bg-surface-soft">
+    <div className="min-h-full bg-surface-soft">
       {/* Sieve header（sticky，对齐 drill 页壳层） */}
       <div className="sticky top-0 z-30 bg-canvas/92 backdrop-blur border-b border-hairline">
         <div className="max-w-[880px] mx-auto flex items-center gap-3.5 px-4 py-3">
@@ -131,7 +132,7 @@ export default function VocabSievePage() {
       </div>
 
       {/* Body */}
-      <div className="max-w-[880px] mx-auto px-4 pt-6 pb-18">
+      <div className="user-page max-w-[880px] mx-auto">
         {loading && !state ? (
           <div className="flex justify-center py-20">
             <InlineSpinner />
@@ -159,12 +160,9 @@ export default function VocabSievePage() {
               >
                 返回集合
               </Link>
-              <Link
-                href="/vocabulary"
-                className="px-5 py-2.5 rounded-sm bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
-              >
+              <LinkButton href="/vocabulary" size="md" className="px-5">
                 去复习今天到期的词
-              </Link>
+              </LinkButton>
               <Link
                 href="/"
                 className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
@@ -227,12 +225,9 @@ export default function VocabSievePage() {
               >
                 返回集合
               </Link>
-              <Link
-                href="/vocabulary/drill"
-                className="px-5 py-2.5 rounded-sm bg-brand-500 text-on-primary text-copy font-semibold shadow-brand hover:bg-brand-600 hover:-translate-y-0.5 transition-all"
-              >
+              <LinkButton href="/vocabulary/drill" size="md" className="px-5">
                 开始今日训练
-              </Link>
+              </LinkButton>
               <Link
                 href="/vocabulary"
                 className="px-5 py-2.5 rounded-sm bg-canvas text-ink border border-hairline text-copy font-semibold hover:border-ink hover:bg-surface-soft transition-all"
@@ -335,6 +330,6 @@ export default function VocabSievePage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

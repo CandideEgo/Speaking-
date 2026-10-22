@@ -155,7 +155,7 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   const controls = page.getByTestId("watch-bottom-bar");
   await expect(controls).toBeVisible();
   expect(await controls.getAttribute("data-shell-bottom-bar")).toBeNull();
-  for (const action of ["watch-prev", "watch-toggle-play", "watch-next", "watch-shadowing"]) {
+  for (const action of ["watch-prev", "watch-toggle-play", "watch-next", "watch-replay"]) {
     await expect(page.getByTestId(action)).toBeVisible();
   }
   const save = page.getByRole("button", { name: "收藏这句", exact: true });
@@ -184,7 +184,9 @@ test("兴趣分类在学习设置保存，刷新后保留", async ({ page, reque
   try {
     await page.goto("/profile?tab=settings");
     const choice = page.getByRole("group", { name: "兴趣分类" }).getByRole("button").first();
-    await expect(choice).toBeVisible();
+    // 并行负载下「用户 + 偏好」两跳请求可能占满默认 5s，这里按页面数据就绪的
+    // 既有口径放宽到 15s（与同文件其它异步断言一致），不改变断言内容。
+    await expect(choice).toBeVisible({ timeout: 15000 });
     const pressed = await choice.getAttribute("aria-pressed");
     const label = await choice.innerText();
     await choice.click();
@@ -228,27 +230,15 @@ test("频道订阅刷新后保留并能取消", async ({ page, request }) => {
   await expect(subscribe).toHaveAttribute("aria-pressed", "false");
 });
 
-test("周报导出真实 PNG 图片", async ({ page }, testInfo) => {
+test("周报入口已下线：重定向到个人页进度并给出说明", async ({ page }) => {
+  // 2026-10 的下线提交把 /weekly-report 收敛为兼容壳（服务端 redirect）：
+  // 出口是个人页进度 tab + 一行说明，页面里不再有导出按钮或画布。
   await page.goto("/weekly-report");
-  // 页头主操作按 stage-3 设计稿命名「保存分享卡」（旧文案是「保存图片」）。
-  const save = page.getByRole("button", { name: "保存分享卡" });
-  const empty = page.getByText("学习满一周后生成报告", { exact: true });
-  // 页面数据是异步加载的：先等「空态」或「导出按钮」任一出现，再分支。
-  await expect(empty.or(save)).toBeVisible({ timeout: 15000 });
-  if (await empty.isVisible()) return;
-  await expect(save).toBeVisible();
-  await expect
-    .poll(() =>
-      page
-        .locator("canvas")
-        .evaluate((canvas) => (canvas instanceof HTMLCanvasElement ? canvas.toDataURL().length : 0))
-    )
-    .toBeGreaterThan(1000);
-  const downloading = page.waitForEvent("download");
-  await save.click();
-  const download = await downloading;
-  expect(download.suggestedFilename()).toMatch(/^seeword-weekly-.*\.png$/);
-  await download.saveAs(testInfo.outputPath(download.suggestedFilename()));
+  await expect(page).toHaveURL(/\/profile\?tab=progress&retired=weekly-report$/);
+  await expect(page.getByRole("status")).toHaveText(/周报功能已下线/);
+  await expect(page.getByRole("button", { name: "保存分享卡" })).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "进度" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("反馈标题和正文组合提交后可回看", async ({ page }) => {
@@ -336,7 +326,9 @@ test("用户页面三档视口、亮暗主题均无横向溢出", async ({ page 
         "/history",
         "/search?q=habit",
         "/notifications",
-        "/weekly-report",
+        // /weekly-report 已下线并 307 到个人页进度（重定向语义在专门用例里断言），
+        // 这里只扫真实落地页，避免把「会改 URL 的兼容壳」放进精确 URL 断言。
+        "/profile?tab=progress",
         "/contact",
         "/rankings",
         `/watch/${videoId}`,

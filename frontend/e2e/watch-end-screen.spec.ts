@@ -1,10 +1,10 @@
 /**
- * 观看页结束态（audit D-watch P0 #1）。
+ * 观看页播放结束态。
  *
- * 旧实现把 EndScreen 覆盖在 16:9 画框里：1280×720 画框只有 299px、375×812 只有
- * 193px，而卡片固定 455px 高 —— 标题被裁、`返回首页` 整体在画框外，用户点不到。
- * 现在改成页面级覆盖（`fixed inset-0`），这两档都必须完整可见可点，且「再看一遍」
- * 能把覆盖层收掉并继续播放。
+ * 2026-10 的下线提交（6ab9d92）移除了覆盖式 EndScreen 弹层：结束后不再盖住画面，
+ * 改为播放器下方的状态行「播放已结束，可以重看或返回」，出口是走带上的「继续播放」
+ * 与壳层导航本身。本 spec 守住两档视口下的可用性：状态行与「继续播放」必须可见、
+ * 完整落在视口内、中心点命中自己；点击后 ended 态被解除、视频从头继续。
  *
  * 需要本地库里有**真能播**的视频：CI seed 的 `/media/<id>.mp4` 是占位 URL（404）→ skip。
  * 运行：npx playwright test e2e/watch-end-screen.spec.ts --project=chromium
@@ -20,7 +20,7 @@ test.beforeAll(async ({ request }) => {
   token = process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
 });
 
-/** 登录 → 打开第一条 ready 视频 → seek 到片尾 → 等结束页出现。 */
+/** 登录 → 打开第一条 ready 视频 → seek 到片尾 → 等 ended 状态行出现。 */
 async function enterEndedWatch(
   page: Page,
   request: APIRequestContext,
@@ -60,9 +60,9 @@ async function enterEndedWatch(
     await v.play().catch(() => {});
   });
 
-  const end = page.getByTestId("end-screen");
-  await expect(end).toBeVisible({ timeout: 15000 });
-  return end;
+  const status = page.getByTestId("watch-status");
+  await expect(status).toHaveText(/播放已结束/, { timeout: 15000 });
+  return status;
 }
 
 const VIEWPORTS: Array<[number, number]> = [
@@ -71,65 +71,54 @@ const VIEWPORTS: Array<[number, number]> = [
 ];
 
 for (const [width, height] of VIEWPORTS) {
-  test(`${width}×${height}：结束页标题与出口完整可见可点，「再看一遍」能回收`, async ({
+  test(`${width}×${height}：结束态说明与「继续播放」完整可见可点，点击后从头继续`, async ({
     page,
     request,
   }) => {
-    const end = await enterEndedWatch(page, request, width, height);
-    const viewport = page.viewportSize()!;
+    const status = await enterEndedWatch(page, request, width, height);
 
-    // 标题在视口内（旧版 375 档标题被裁到画框上方）。
-    const title = end.getByRole("heading", { name: "本节已看完" });
-    await expect(title).toBeVisible();
-    const tb = (await title.boundingBox())!;
-    expect(tb.y, "标题顶边在视口内").toBeGreaterThanOrEqual(0);
-    expect(tb.y + tb.height, "标题底边在视口内").toBeLessThanOrEqual(viewport.height + 1);
+    const sb = (await status.boundingBox())!;
+    expect(sb.y, "状态行顶边在视口内").toBeGreaterThanOrEqual(0);
+    expect(sb.y + sb.height, "状态行底边在视口内").toBeLessThanOrEqual(height + 1);
 
-    // 两个无条件出口：完整在视口内 + 中心点命中自己（不被底栏 / dev 浮层盖住）。
-    for (const name of ["再看一遍", "返回首页"]) {
-      const btn = end.getByRole("button", { name });
-      await expect(btn, `「${name}」可见`).toBeVisible();
-      const box = (await btn.boundingBox())!;
-      expect(box.x, `「${name}」左边在视口内`).toBeGreaterThanOrEqual(0);
-      expect(box.y, `「${name}」顶边在视口内`).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width, `「${name}」右边在视口内`).toBeLessThanOrEqual(width + 1);
-      expect(box.y + box.height, `「${name}」底边在视口内`).toBeLessThanOrEqual(height + 1);
-      const hit = await page.evaluate(
-        ({ x, y }) => {
-          const el = document.elementFromPoint(x, y);
-          return el ? (el.closest("button")?.textContent ?? "").trim() : "";
-        },
-        { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-      );
-      expect(hit, `「${name}」中心点命中自己`).toContain(name);
-    }
+    // 下线后不再有覆盖层：逐帧点不到 end-screen 才是正确的结束态。
+    await expect(page.getByTestId("end-screen")).toHaveCount(0);
 
-    // 有数据才出现的出口：只要渲染了，也必须在视口内（旧版它们被裁在画框外）。
-    for (const pattern of [/^复习本视频生词/, /^跟读重点句/]) {
-      const btn = end.getByRole("button", { name: pattern });
-      if ((await btn.count()) === 0) continue;
-      const box = (await btn.first().boundingBox())!;
-      expect(box.y, `${pattern} 顶边在视口内`).toBeGreaterThanOrEqual(0);
-      expect(box.y + box.height, `${pattern} 底边在视口内`).toBeLessThanOrEqual(height + 1);
-    }
+    const resume = page.getByRole("button", { name: "继续播放", exact: true }).first();
+    await expect(resume).toBeVisible();
+    // 进入结束态时的初始位置就在首屏内（页面不自动滚走）：直接在原位置验几何。
+    // 不要手动 scrollIntoView —— 移动壳顶部是 sticky 画面、底部是固定导航，
+    // 人为滚动反而会把按钮推到 sticky 画面底下，测到的就不是用户看到的状态。
+    const box = (await resume.boundingBox())!;
+    expect(box.x, "「继续播放」左边在视口内").toBeGreaterThanOrEqual(0);
+    expect(box.y, "「继续播放」顶边在视口内").toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, "「继续播放」右边在视口内").toBeLessThanOrEqual(width + 1);
+    expect(box.y + box.height, "「继续播放」底边在视口内").toBeLessThanOrEqual(height + 1);
+    const hit = await page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y);
+        return el ? (el.closest("button")?.textContent ?? "").trim() : "";
+      },
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    );
+    expect(hit, "「继续播放」中心点命中自己").toContain("继续播放");
 
-    // 主出口可用：点「再看一遍」→ 覆盖层卸载、视频继续播。
-    await end.getByRole("button", { name: "再看一遍" }).click();
-    await expect(page.getByTestId("end-screen")).toHaveCount(0, { timeout: 5000 });
+    // played-ended 后元素会从头开始播：ended 解除、时间回到片头。
+    await resume.click();
     await expect
       .poll(
         () =>
           page.evaluate(() => {
             const v = document.querySelector("video") as HTMLVideoElement | null;
-            return v ? { paused: v.paused, time: v.currentTime } : null;
+            return v ? { ended: v.ended, time: v.currentTime } : null;
           }),
-        { timeout: 6000 }
+        { timeout: 8000 }
       )
-      .not.toBeNull();
+      .toEqual(expect.objectContaining({ ended: false }));
     const playback = await page.evaluate(() => {
       const v = document.querySelector("video") as HTMLVideoElement | null;
-      return v ? { paused: v.paused, time: v.currentTime } : null;
+      return v ? { ended: v.ended, time: v.currentTime } : null;
     });
-    expect(playback?.paused === false || (playback?.time ?? 99) < 5).toBe(true);
+    expect(playback!.time).toBeLessThan(5);
   });
 }

@@ -1131,6 +1131,13 @@
 .user-sidebar {
   display: none;
 }
+/* 页面纵向节奏的唯一家：顶部 24px、底部 72px（给移动底栏与呼吸留白）。
+   改版前各页写 pt-6 pb-18 / py-16 sm:py-24 / min-h-dvh，切页时内容会跳。
+   页面根元素用 `.user-page`，不要再各写一套 padding。 */
+.user-ui .user-page {
+  padding-top: 1.5rem;
+  padding-bottom: 4.5rem;
+}
 .user-ui .user-page-header {
   display: flex;
   align-items: flex-end;

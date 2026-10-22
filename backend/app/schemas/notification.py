@@ -19,8 +19,10 @@ DEFAULT_NOTIFICATION_PREFS: dict[str, bool] = {
 
 
 class NotificationResponse(BaseModel):
+    """对外通知形状。**不含 `user_id`**：通知永远只返回给本人，让归属字段出现在
+    响应里既无用又诱导前端拿它做客户端过滤（那是服务端的鉴权职责）。"""
+
     id: str
-    user_id: str
     type: str
     title: str
     message: str | None = None

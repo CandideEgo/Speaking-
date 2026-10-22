@@ -17,6 +17,7 @@ import { UnifiedPracticePanel } from "@/components/practice/PracticePanels";
 import { WordQuizCard } from "@/components/vocabulary/WordFlashcard";
 import { TrainSummary, type WeakWord } from "@/components/vocabulary/TrainSummary";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import {
@@ -125,12 +126,12 @@ function VideoScopedDrill({ videoId }: { videoId: string }) {
   const answered = Object.keys(session.graded).length;
 
   return (
-    <main className="min-h-full bg-surface-soft">
+    <div className="min-h-full bg-surface-soft">
       <DrillHeader label="本视频生词" progressLabel="已答" done={answered} total={total} />
-      <div className="max-w-[880px] mx-auto px-4 pt-6 pb-18">
+      <div className="user-page max-w-[880px] mx-auto">
         <UnifiedPracticePanel session={session} levelLabel="单词训练" />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -138,14 +139,14 @@ function VideoScopedDrill({ videoId }: { videoId: string }) {
 function QuickReview() {
   const session = useVocabularyPractice({ count: 5, dueOnly: true });
   return (
-    <main className="min-h-full bg-surface-soft">
+    <div className="min-h-full bg-surface-soft">
       <DrillHeader
         label="到期词小复习"
         progressLabel="已答"
         done={session.answeredCount}
         total={session.items.length}
       />
-      <div className="max-w-[880px] mx-auto px-4 pt-6 pb-18">
+      <div className="user-page max-w-[880px] mx-auto">
         {!session.loading && !session.error && session.items.length === 0 ? (
           <div className="space-y-3 text-copy text-body">
             <p>今天没有到期词，去听一点新内容吧。</p>
@@ -157,7 +158,7 @@ function QuickReview() {
           <UnifiedPracticePanel session={session} levelLabel="到期词复习" />
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -372,22 +373,22 @@ function DailyTraining() {
   // 错误优先于加载态：请求失败时 phase 永远不会被推导出来，先判 loading 会永远转圈
   if (error) {
     return (
-      <main className="min-h-full bg-surface-soft">
+      <div className="min-h-full bg-surface-soft">
         <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
         <div className="max-w-[880px] mx-auto px-4 py-16">
           <ErrorState title={error} onRetry={round.reload} />
         </div>
-      </main>
+      </div>
     );
   }
 
   if (loading || !started) {
     if (loading)
       return (
-        <main className="min-h-full bg-surface-soft">
+        <div className="min-h-full bg-surface-soft">
           <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
           <FullPageSpinner />
-        </main>
+        </div>
       );
     return (
       <DrillIntro
@@ -403,10 +404,10 @@ function DailyTraining() {
 
   if (!phase) {
     return (
-      <main className="min-h-full bg-surface-soft">
+      <div className="min-h-full bg-surface-soft">
         <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
         <FullPageSpinner />
-      </main>
+      </div>
     );
   }
 
@@ -416,14 +417,14 @@ function DailyTraining() {
 
   if (phase === "drill") {
     return (
-      <main className="min-h-full bg-surface-soft">
+      <div className="min-h-full bg-surface-soft">
         <DrillHeader
           label="今日训练"
           progressLabel="本轮"
           done={progress.done}
           total={roundTotal}
         />
-        <div className="max-w-[880px] mx-auto px-4 pt-6 pb-18 animate-fade-in">
+        <div className="user-page max-w-[880px] mx-auto animate-fade-in">
           {question ? (
             <WordQuizCard
               key={`${question.vocabularyId}-${question.kind}-${question.answer}`}
@@ -437,14 +438,14 @@ function DailyTraining() {
             <FullPageSpinner />
           )}
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-full bg-surface-soft">
+    <div className="min-h-full bg-surface-soft">
       <DrillHeader label="今日训练" progressLabel="本轮" done={progress.done} total={roundTotal} />
-      <div className="max-w-[880px] mx-auto px-4 pt-6 pb-18">
+      <div className="user-page max-w-[880px] mx-auto">
         <TrainSummary
           learnedCount={progress.learned}
           quizTotal={progress.asked}
@@ -454,7 +455,7 @@ function DailyTraining() {
           restartLoading={extraLoading}
         />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -492,8 +493,8 @@ function DrillIntro({
   };
 
   return (
-    <main className="bg-canvas">
-      <div className="pt-6 pb-18">
+    <div className="bg-canvas">
+      <div className="user-page">
         <PageHeader
           crumb="词汇 · 训练"
           title={words.length ? `本轮训练 · ${words.length} 个词` : "今日训练"}
@@ -503,13 +504,9 @@ function DrillIntro({
               <Link href="/vocabulary" className="text-copy text-muted hover:text-ink">
                 回到词汇
               </Link>
-              <button
-                type="button"
-                onClick={onStart}
-                className="inline-flex rounded-sm bg-brand-500 px-4 py-2.5 text-copy font-semibold text-on-primary hover:bg-brand-600 cursor-pointer"
-              >
+              <Button size="md" onClick={onStart}>
                 开始训练（{words.length} 个词）
-              </button>
+              </Button>
             </>
           }
         />
@@ -646,6 +643,6 @@ function DrillIntro({
           </aside>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

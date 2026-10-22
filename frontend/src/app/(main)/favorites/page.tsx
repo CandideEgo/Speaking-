@@ -196,7 +196,7 @@ export default function FavoritesPage() {
 
   return (
     <PageTransition>
-      <main className="pt-6 pb-18">
+      <div className="user-page">
         <PageHeader
           crumb="我的"
           title="我的收藏"
@@ -375,7 +375,7 @@ export default function FavoritesPage() {
                     return (
                       <li
                         key={s.id}
-                        className="grid gap-2 border-t border-hairline-soft py-4 first:border-t-0 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
+                        className="grid grid-cols-1 gap-2 border-t border-hairline-soft py-4 first:border-t-0 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
                       >
                         <div className="text-meta text-muted">
                           <p className="tabular-nums">
@@ -588,7 +588,7 @@ export default function FavoritesPage() {
           onClose={() => setRemoveWord(null)}
           onConfirm={() => void confirmRemoveWord()}
         />
-      </main>
+      </div>
     </PageTransition>
   );
 }

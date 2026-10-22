@@ -92,6 +92,10 @@
   --color-hairline-soft: var(--hairline-soft);
   --color-hairline-strong: var(--hairline-strong);
 
+  /* --- Focus ring（主题感知：亮色用淡黑晕、暗色用淡白晕） ---
+     表单聚焦晕曾写死 rgba(10,10,10,.06)，暗色下等于没有。 */
+  --color-focus-ring: var(--focus-ring);
+
   /* --- Learning mode highlights (static — 高亮色两主题可读) --- */
   --color-learn-highlight: #4ade80;
   --color-learn-highlight-hover: #22c55e;
@@ -160,6 +164,10 @@
   --max-width-page: 1320px;
   /* 正文读宽（通知 / 联系我们 / 练习正文等）。容器仍是 page 1320，读宽只收正文块。 */
   --max-width-measure: 68ch;
+  /* 管理端容器上限（1400）。后台是表格/图表为主的信息密集界面，比用户端 1320 略宽；
+     由 `(admin)/admin/(shell)/layout.tsx` 的 `max-w-admin` 单独消费，**不**与
+     `.container-page` 混用（后台没有 `.user-ui` 作用域）。 */
+  --max-width-admin: 1400px;
 
   /* --- Watch stage guard (S4) ---
      播放页「画框 + 当前句卡」的高度护栏常量（px）= 画框顶 166 + 句卡
@@ -214,17 +222,22 @@
     --surface-card: #f4f4f5;
     --surface-strong: #ededed;
 
-    /* Text */
+    /* Text —— 四级灰阶 ink > body > muted > muted-soft，后两级都要过 WCAG AA 4.5:1
+       （在 canvas / surface-soft / surface-card / surface-strong 四种面上都实测过）：
+       muted #52525b 最差 6.60（surface-strong），muted-soft #6b6b72 最差 4.52。
+       旧值 #71717a / #a1a1aa 在 surface-card 上只有 4.40 / 2.33，次级文字与时间戳
+       大面积不可读；层级仍靠这两档拉开，只是整体上移到达标区间。 */
     --ink: #0a0a0a;
     --body: #27272a;
     --body-strong: #18181b;
-    --muted-c: #71717a;
-    --muted-soft: #a1a1aa;
+    --muted-c: #52525b;
+    --muted-soft: #6b6b72;
 
     /* Borders */
     --hairline: #ededed;
     --hairline-soft: #f4f4f5;
     --hairline-strong: #e4e4e7;
+    --focus-ring: rgba(10, 10, 10, 0.06);
 
     /* Brand soft band */
     --brand-50: #fff1eb;
@@ -273,17 +286,20 @@
     --surface-card: #1a1a1c;
     --surface-strong: #262628;
 
-    /* Text */
+    /* Text —— 深色模式同一条阶梯，muted-soft 由 #6b6b72 提到 #8e8e96：
+       旧值在最亮的 surface-strong(#262628) 上只有 2.9:1，几乎看不见；
+       新值最差 4.65（surface-strong），其余面 5.35 以上。 */
     --ink: #fafafa;
     --body: #d4d4d8;
     --body-strong: #e4e4e7;
     --muted-c: #a1a1aa;
-    --muted-soft: #6b6b72;
+    --muted-soft: #8e8e96;
 
     /* Borders */
     --hairline: #242426;
     --hairline-soft: #1c1c1e;
     --hairline-strong: #2f2f33;
+    --focus-ring: rgba(255, 255, 255, 0.1);
 
     /* Brand soft band — 暗橙底 + 提亮文本 */
     --brand-50: #241109;
@@ -662,10 +678,10 @@
   }
   .now-sub-word {
     @apply cursor-pointer rounded-md transition-colors duration-100
-           hover:bg-brand-50 hover:text-brand-500;
+           hover:bg-brand-50 hover:text-brand-700;
   }
   .now-sub-word-hl {
-    @apply bg-brand-50 text-brand-500;
+    @apply bg-brand-50 text-brand-700;
   }
   .now-sub-zh {
     @apply text-muted;

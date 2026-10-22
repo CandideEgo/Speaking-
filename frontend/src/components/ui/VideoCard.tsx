@@ -250,7 +250,7 @@ export function VideoCard({
             {feat && progress !== undefined && (
               <>
                 <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-                <span className="text-caption font-semibold font-mono text-brand-500">
+                <span className="text-caption font-semibold font-mono text-brand-700">
                   {progress}% 已观看
                 </span>
               </>
