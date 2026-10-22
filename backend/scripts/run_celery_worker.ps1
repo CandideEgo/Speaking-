@@ -44,4 +44,8 @@ if (-not (Test-Path $python)) {
     exit 1
 }
 
-& $python -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo
+# -Q celery is load-bearing: without it Celery consumes every queue declared in
+# celery_app.conf.task_queues, including transcription_gpu. This machine has no
+# GPU path in the cloud worker, so it would steal transcription tasks away from
+# the GPU worker and fall back to slow CPU Whisper.
+& $python -m celery -A app.tasks.celery_app worker --queues=celery --loglevel=info --pool=solo
