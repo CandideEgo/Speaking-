@@ -27,6 +27,7 @@ import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWor
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
 import { relativeTime } from "@/lib/utils";
+import { vocabularySource } from "@/lib/vocabularyPresentation";
 import type { Paginated, VocabularyPreferences, VocabularyWord, VocabSet } from "@/types";
 
 interface VocabStatsResponse {
@@ -339,7 +340,7 @@ export default function VocabularyPage() {
         <div className="mt-4 flex justify-end">
           <TabPills
             tabs={[
-              { key: "today", label: "今日" },
+              { key: "today", label: "复习" },
               { key: "library", label: "词库" },
             ]}
             activeKey={topTab}
@@ -477,11 +478,10 @@ export default function VocabularyPage() {
                         word={w.word}
                         ipa={w.ipa}
                         partOfSpeech={w.part_of_speech}
-                        meaning={
-                          w.translation ||
-                          w.definition ||
-                          (w.context_sentence ? `"${w.context_sentence}"` : "—")
-                        }
+                        meaning={w.translation || w.definition || ""}
+                        contextSentence={w.context_sentence}
+                        sentenceHref={vocabularySource(w, "vocabulary")?.href}
+                        sentenceLabel={vocabularySource(w, "vocabulary")?.label}
                         badge={masteryBadge(w.mastery_level)}
                         onSpeak={() => speak(w.word, { rate: 1 })}
                         actions={

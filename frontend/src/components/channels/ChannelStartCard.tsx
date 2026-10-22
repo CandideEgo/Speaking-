@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { VideoStats } from "@/components/video/VideoStats";
+import { VideoDescription } from "@/components/video/VideoDescription";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -21,8 +21,6 @@ export interface ChannelStartCardProps {
   basis: ChannelStartBasis;
   /** 频道 slug：播放页据此回到本频道。 */
   slug: string;
-  /** 可选学习信息（字幕句数 / 考试词数），拼在依据行。 */
-  learningHint?: string | null;
 }
 
 /**
@@ -32,7 +30,7 @@ export interface ChannelStartCardProps {
  *（全频道难度最低 · A2）；`basis=latest` 只写「最近收录」，绝不冒充推荐入门。
  * 封面/标题/难度/时长全部来自详情响应里的真实视频字段，缺字段就省略。
  */
-export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelStartCardProps) {
+export function ChannelStartCard({ video, basis, slug }: ChannelStartCardProps) {
   const videoId = String(video.id || video.video_id || "");
   if (!videoId) return null;
 
@@ -107,13 +105,7 @@ export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelSt
             />
           </Link>
 
-          {learningHint && <p className="text-meta text-muted">{learningHint}</p>}
-          <VideoStats
-            likeCount={video.like_count}
-            viewCount={video.view_count}
-            favoriteCount={video.favorite_count}
-            size="sm"
-          />
+          <VideoDescription description={video.description} />
 
           <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
             <LinkButton href={href} size="sm" icon={Play}>

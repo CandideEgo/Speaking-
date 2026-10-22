@@ -544,10 +544,10 @@ function DrillIntro({
                             </span>
                           )}
                           {level && (
-                            <span className="inline-flex items-center gap-1 text-meta text-muted">
-                              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
-                              {level}
-                            </span>
+                            <details className="text-meta text-muted">
+                              <summary className="cursor-pointer">考试标签</summary>
+                              <span>{level}</span>
+                            </details>
                           )}
                         </div>
                         <DictionaryMeaning

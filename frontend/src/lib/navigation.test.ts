@@ -20,21 +20,21 @@ function allScopes(): string[] {
   return Object.values(ACTIVE_SCOPE).flat();
 }
 
-describe("导航项：一级 5 项 + 次级 4 项", () => {
-  it("MAIN_NAV 恰好 5 项，href 顺序固定", () => {
-    expect(MAIN_NAV).toHaveLength(5);
+describe("导航项：一级 4 项 + 次级 5 项", () => {
+  it("MAIN_NAV 恰好 4 项，href 顺序固定", () => {
+    expect(MAIN_NAV).toHaveLength(4);
     expect(MAIN_NAV.map((item) => item.href)).toEqual([
       "/",
       "/channels",
-      "/practice",
       "/vocabulary",
       "/profile",
     ]);
   });
 
-  it("SECONDARY_NAV 恰好 4 项，href 顺序固定", () => {
-    expect(SECONDARY_NAV).toHaveLength(4);
+  it("SECONDARY_NAV 恰好 5 项，href 顺序固定", () => {
+    expect(SECONDARY_NAV).toHaveLength(5);
     expect(SECONDARY_NAV.map((item) => item.href)).toEqual([
+      "/practice",
       "/favorites",
       "/history",
       "/notifications",
@@ -60,8 +60,8 @@ describe("导航项：一级 5 项 + 次级 4 项", () => {
     }
   });
 
-  it("shortcut 只属于一级，且恰为 1~5", () => {
-    expect(MAIN_NAV.map((item) => item.shortcut)).toEqual(["1", "2", "3", "4", "5"]);
+  it("shortcut 只属于一级，且恰为 1~4", () => {
+    expect(MAIN_NAV.map((item) => item.shortcut)).toEqual(["1", "2", "3", "4"]);
     expect(SECONDARY_NAV.every((item) => item.shortcut === undefined)).toBe(true);
   });
 

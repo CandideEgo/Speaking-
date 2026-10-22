@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { toastApiError } from "@/lib/errors";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import type { Paginated, VideoCard as VideoCardDTO, VocabularyWord } from "@/types";
 
 interface SavedSentence {
@@ -113,7 +112,6 @@ export default function FavoritesPage() {
   const sentences = usePaginatedList<SavedSentence>({ fetcher: sentenceFetcher, mode: "append" });
   const words = usePaginatedList<VocabularyWord>({ fetcher: wordFetcher, mode: "append" });
 
-  const metadata = useVideoMetadata(items);
   useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
 
   const lastFavorited = useMemo(() => {
@@ -275,29 +273,16 @@ export default function FavoritesPage() {
                   <div className="mt-4 grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
                     {visible.map((v) => (
                       <div key={v.id} className="flex min-w-0 flex-col gap-2">
-                        <VideoCard
-                          video={{
-                            id: v.id,
-                            title: v.title,
-                            thumbnail_url: v.thumbnail_url,
-                            duration: v.duration,
-                            difficulty_level: v.difficulty_level,
-                            topic_tags: v.topic_tags,
-                            channel_title: v.channel_name ?? "SeeWord",
-                            channel_slug: v.channel_slug ?? undefined,
-                            storage_mode: v.storage_mode,
-                            view_count: v.view_count,
-                            favorite_count: v.favorite_count,
-                            description: v.description,
-                            ...metadata[v.id],
-                          }}
-                          entry={{ from: "favorites" }}
-                        />
+                        <VideoCard video={v} entry={{ from: "favorites" }} />
                         {/* 卡片外的一行：来源/收藏日期 + 恢复入口（不再在卡片 Link 内嵌链接）。 */}
                         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-meta text-muted">
                           <span>
-                            {v.channel_name ?? "SeeWord"}
-                            {v.favorited_at ? ` · 收藏于 ${formatMonthDay(v.favorited_at)}` : ""}
+                            {[
+                              v.channel_name,
+                              v.favorited_at ? `收藏于 ${formatMonthDay(v.favorited_at)}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                           <span className="flex items-center gap-3">
                             <Link

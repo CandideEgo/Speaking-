@@ -6,7 +6,6 @@ import { toastApiError } from "@/lib/errors";
 import { api } from "@/lib/api";
 import { isCefrLevel } from "@/lib/cefrLevels";
 import { TOPIC_CATEGORY_LABELS } from "@/lib/topicCategories";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import type { Category, VideoItem } from "@/types/platform";
 import type { Paginated, VideoCard } from "@/types";
@@ -86,6 +85,7 @@ function homeVideoToItem(v: VideoCard): VideoItem {
     id: v.id,
     url: v.source_url,
     title: v.title,
+    title_zh: v.title_zh,
     channel_title: v.channel_name ?? "",
     channel_slug: v.channel_slug ?? undefined,
     thumbnail_url: v.thumbnail_url ?? "",
@@ -98,6 +98,7 @@ function homeVideoToItem(v: VideoCard): VideoItem {
     topic_tags: v.topic_tags,
     is_official: v.is_official,
     status: v.status,
+    storage_mode: v.storage_mode,
     created_at: v.created_at,
   };
 }
@@ -221,7 +222,6 @@ export function usePlatformFeed() {
     filters: [activeCategory, activeLevel, sort],
   });
 
-  const metadata = useVideoMetadata(videos);
   // Fetch categories on mount - only once. The feed and the browse filter bar
   // share /browse/categories; labels are localized to the Chinese taxonomy.
   useEffect(() => {
@@ -278,7 +278,7 @@ export function usePlatformFeed() {
     setSort,
     clearFilters,
     isFiltered: activeCategory !== "all" || activeLevel !== "all",
-    videos: videos.map((v) => ({ ...v, ...metadata[v.id || v.video_id] })),
+    videos,
     loading,
     hasMore,
     total,

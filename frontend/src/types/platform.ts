@@ -7,6 +7,7 @@ export interface VideoItem {
   video_id: string;
   url: string;
   title: string;
+  title_zh?: string | null;
   channel_title: string;
   /** 作者页 slug（ADR-0014 修订）：已挂频道时非空，频道名可点跳转。 */
   channel_slug?: string | null;
@@ -24,5 +25,6 @@ export interface VideoItem {
   topic_tags?: string | null;
   is_official?: boolean;
   status?: string | null;
+  storage_mode?: string | null;
   created_at?: string | null;
 }

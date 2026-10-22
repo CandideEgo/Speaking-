@@ -9,12 +9,10 @@ import {
   Bookmark,
   ArrowRight,
   Video,
-  BookOpen,
   AlertTriangle,
   Info,
   AlignLeft,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { dictionaryPreview, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { cn } from "@/lib/utils";
 import { levelMeta, levelDotClass, wordHighlightClass } from "@/lib/examLevels";
@@ -57,16 +55,6 @@ function highlightWord(text: string, target: string): ReactNode {
     ) : (
       <span key={i}>{p}</span>
     )
-  );
-}
-
-function SectionLabel({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-1.5 text-caption font-bold uppercase tracking-wider text-muted-soft mb-2">
-      {Icon && <Icon size={12} />}
-      {children}
-      <span className="flex-1 h-px bg-hairline" />
-    </div>
   );
 }
 
@@ -131,9 +119,7 @@ export function WordCardBody({
       senses.length > 0 ||
       !!gloss.example_sentence ||
       !!gloss.pitfalls ||
-      !!gloss.knowledge ||
-      gloss.levels.length > 0 ||
-      gloss.is_high_freq);
+      !!gloss.knowledge);
   const isEmpty = !loading && !hasContent && !lookupError;
 
   return (
@@ -156,7 +142,9 @@ export function WordCardBody({
               {word}
             </h2>
             {gloss?.phonetic && (
-              <div className="truncate text-meta text-muted font-mono mt-1">/{gloss.phonetic}/</div>
+              <div className="truncate text-meta text-muted font-mono mt-1">
+                /{gloss.phonetic.replace(/^\/+|\/+$/g, "")}/
+              </div>
             )}
           </div>
           <div className="flex shrink-0 items-center">
@@ -196,32 +184,6 @@ export function WordCardBody({
               ).summary
             }
           </p>
-        )}
-        {/* 标签属于可滚动内容，不能挤占词义与操作区。 */}
-        {gloss && (gloss.levels.length > 0 || gloss.is_high_freq) && (
-          <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap px-4 pb-2">
-            {gloss.levels.map((lv) => {
-              const meta = levelMeta(lv);
-              if (!meta) return null;
-              return (
-                <span
-                  key={lv}
-                  className={cn(
-                    "inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md",
-                    wordHighlightClass([lv])
-                  )}
-                >
-                  <span className={cn("w-1.5 h-1.5 rounded-full", levelDotClass(meta.color))} />
-                  {meta.label}
-                </span>
-              );
-            })}
-            {gloss.is_high_freq && (
-              <span className="inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning">
-                <GraduationCap size={10} /> 真题高频
-              </span>
-            )}
-          </div>
         )}
         {lookupError && (
           <div role="alert" className="px-4 py-3 text-meta text-error-text">
@@ -277,6 +239,37 @@ export function WordCardBody({
               </div>
             )}
 
+            {/* 标签属于可滚动内容，不能挤占词义与操作区。 */}
+            {gloss && (gloss.levels.length > 0 || gloss.is_high_freq) && (
+              <details className="mb-3">
+                <summary className="cursor-pointer text-meta text-muted">考试标签</summary>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {gloss.levels.map((lv) => {
+                    const meta = levelMeta(lv);
+                    if (!meta) return null;
+                    return (
+                      <span
+                        key={lv}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md",
+                          wordHighlightClass([lv])
+                        )}
+                      >
+                        <span
+                          className={cn("w-1.5 h-1.5 rounded-full", levelDotClass(meta.color))}
+                        />
+                        {meta.label}
+                      </span>
+                    );
+                  })}
+                  {gloss.is_high_freq && (
+                    <span className="inline-flex items-center gap-1 text-caption font-semibold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning">
+                      <GraduationCap size={10} /> 真题高频
+                    </span>
+                  )}
+                </div>
+              </details>
+            )}
             {/* 词典释义 */}
             {(senses.length > 0 || gloss?.definition) && (
               <details className="mb-4">
@@ -305,8 +298,8 @@ export function WordCardBody({
 
             {/* 真题例句 */}
             {gloss?.example_sentence && (
-              <div className="mb-4">
-                <SectionLabel icon={BookOpen}>真题例句</SectionLabel>
+              <details className="mb-4">
+                <summary className="cursor-pointer text-meta text-muted">真题例句</summary>
                 <div className="bg-surface-soft rounded-lg p-3">
                   <p className="text-copy text-ink italic leading-relaxed">
                     {highlightWord(gloss.example_sentence, gloss.lemma || word)}
@@ -320,13 +313,13 @@ export function WordCardBody({
                     <p className="text-caption text-muted-soft mt-1.5">— {gloss.example_source}</p>
                   )}
                 </div>
-              </div>
+              </details>
             )}
 
             {/* 易错 & 拓展 */}
             {(gloss?.pitfalls || gloss?.knowledge) && (
-              <div>
-                <SectionLabel>易错 &amp; 拓展</SectionLabel>
+              <details className="mb-4">
+                <summary className="cursor-pointer text-meta text-muted">易错与拓展</summary>
                 <div className="space-y-2">
                   {gloss?.pitfalls && (
                     <div className="border border-hairline rounded-lg p-3">
@@ -345,7 +338,7 @@ export function WordCardBody({
                     </div>
                   )}
                 </div>
-              </div>
+              </details>
             )}
 
             {/* 来源句（设计 .word-pop-src） */}

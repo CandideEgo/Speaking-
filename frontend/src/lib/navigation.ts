@@ -21,17 +21,17 @@ export interface NavItem {
   showBadge?: boolean;
 }
 
-/** 一级：桌面侧栏 + 手机底栏共用，顺序即底栏顺序。 */
+/** 一级：桌面侧栏与手机底栏共用，以视频发现为主。 */
 export const MAIN_NAV: NavItem[] = [
-  { label: "首页", href: "/", icon: Home, shortcut: "1" },
+  { label: "发现", href: "/", icon: Home, shortcut: "1" },
   { label: "频道", href: "/channels", icon: Layers, shortcut: "2" },
-  { label: "练习", href: "/practice", icon: GraduationCap, shortcut: "3" },
-  { label: "词汇", href: "/vocabulary", icon: BookOpen, shortcut: "4", showBadge: true },
-  { label: "我的", href: "/profile", icon: User, shortcut: "5" },
+  { label: "词汇", href: "/vocabulary", icon: BookOpen, shortcut: "3", showBadge: true },
+  { label: "我的", href: "/profile", icon: User, shortcut: "4" },
 ];
 
 /** 次级：只出现在桌面侧栏，排在 AccountMenu 之前；不进底栏。 */
 export const SECONDARY_NAV: NavItem[] = [
+  { label: "真题练习", href: "/practice", icon: GraduationCap },
   { label: "我的收藏", href: "/favorites", icon: Bookmark },
   { label: "学习记录", href: "/history", icon: History },
   { label: "通知", href: "/notifications", icon: Bell },

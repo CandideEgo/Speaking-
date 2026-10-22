@@ -1,26 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { HomeEditorialHeader, HomeEditorialHero } from "@/components/home/HomeEditorialHero";
-import { HomeEditorialScenarios } from "@/components/home/HomeEditorialScenarios";
-import { HomeQuickActions } from "@/components/home/HomeQuickActions";
+import { ContinueLearningLink } from "@/components/home/ContinueLearningLink";
 import { FeaturedListening } from "@/components/home/FeaturedListening";
 import { HomeFeed } from "@/components/home/HomeFeed";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/common/SkeletonCard";
 import { fetchHomeEditorial } from "@/lib/homeEditorial";
-import { homeScenarioCards } from "@/lib/homeScenarios";
 import { useContinueLearning } from "@/hooks/useContinueLearning";
 import type { HomeEditorialPage } from "@/types/homeContent";
 
-/**
- * 首页：先回答「今天从哪里开始」。
- *
- * 页头右侧只保留继续观看 / 词汇 / 练习三个紧凑入口；今日推荐是「一张视频
- * 任务卡 + 一句真实原句」。没有已发布编排时用真实精选与真实字幕兜底。
- * 下方发现流保留分类/难度/排序与无限加载。
- */
+/** 首页以完整视频为浏览单位；编排不可用时回退普通精选。 */
 
 const EDITORIAL_TIMEOUT_MS = 8000;
 
@@ -80,8 +72,12 @@ type EditorialState =
 
 export default function HomePage() {
   const [editorial, setEditorial] = useState<EditorialState>({ status: "loading" });
+  const [featuredSettled, setFeaturedSettled] = useState(false);
+  const markFeaturedSettled = useCallback(() => setFeaturedSettled(true), []);
   const continueLearning = useContinueLearning();
-  const hasContinue = Boolean(continueLearning.record);
+  const layoutReady =
+    !continueLearning.loading &&
+    (editorial.status === "editorial" || (editorial.status === "fallback" && featuredSettled));
 
   useEffect(() => {
     // cancelled 只表示「这次订阅作废」（StrictMode 清理 / 真正卸载）；超时由模块级
@@ -104,24 +100,15 @@ export default function HomePage() {
 
   return (
     <div className="home-compact pt-4 pb-18">
-      <div className="home-topbar">
-        <HomeEditorialHeader />
-        <HomeQuickActions continueLearning={continueLearning} />
-      </div>
+      <HomeEditorialHeader />
+      <ContinueLearningLink state={continueLearning} />
 
       {editorial.status === "editorial" && editorial.page.lead ? (
-        <EditorialSection
-          page={editorial.page}
-          primary={!hasContinue}
-          continueVideoId={continueLearning.record?.video_id}
-        />
+        <HomeEditorialHero page={editorial.page} />
       ) : editorial.status === "loading" ? (
         <EditorialSkeleton />
       ) : (
-        <FeaturedListening
-          primary={!hasContinue}
-          continueVideoId={continueLearning.record?.video_id}
-        />
+        <FeaturedListening onSettled={markFeaturedSettled} />
       )}
 
       {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
@@ -132,55 +119,12 @@ export default function HomePage() {
       >
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-title font-bold tracking-tight text-ink">发现更多视频</h2>
-          <p className="text-meta text-muted">按主题、难度筛一段，点词理解，再听原声。</p>
+          <p className="text-meta text-muted">按话题挑选，也可以筛选适合自己的难度。</p>
         </div>
         <Suspense fallback={<FeedSkeleton />}>
-          <HomeFeed />
+          <HomeFeed layoutReady={layoutReady} />
         </Suspense>
       </section>
-    </div>
-  );
-}
-
-/** 今日推荐：一张视频任务卡 +（有真实原句时）一张场景卡。 */
-function EditorialSection({
-  page,
-  primary,
-  continueVideoId,
-}: {
-  page: HomeEditorialPage;
-  primary: boolean;
-  continueVideoId?: string;
-}) {
-  const lead = page.lead;
-  if (!lead) return null;
-  const hasScene = Boolean(
-    homeScenarioCards({
-      videoId: lead.video.id,
-      scenarios: page.scenarios,
-      content: lead.content,
-    }).length
-  );
-
-  return (
-    <div
-      className={
-        hasScene
-          ? "mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start"
-          : "mt-4"
-      }
-    >
-      <div id="home-listening" className="min-w-0">
-        <HomeEditorialHero page={page} primary={primary} continueVideoId={continueVideoId} />
-      </div>
-      {hasScene && (
-        <HomeEditorialScenarios
-          key={lead.video.id}
-          videoId={lead.video.id}
-          scenarios={page.scenarios}
-          content={lead.content}
-        />
-      )}
     </div>
   );
 }

@@ -32,6 +32,8 @@ import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { VideoStats } from "@/components/video/VideoStats";
+import { PublishedVideoEditorial } from "@/components/watch/PublishedVideoEditorial";
 import { useWatchStageWidth } from "@/hooks/useWatchStageWidth";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
@@ -883,7 +885,13 @@ export default function WatchPage() {
                 </button>
               </span>
             }
-            description={`${video.difficulty_level || "难度待评估"} · ${video.subtitles.length} 句字幕 · ${formatDuration(video.duration)}`}
+            description={[
+              video.channel_name,
+              formatDuration(video.duration),
+              video.difficulty_level,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           />
         </div>
       )}
@@ -943,7 +951,7 @@ export default function WatchPage() {
           ) : (
             <p role="status">
               {invalidClip === clipId
-                ? "字幕位置已变化，片段已失效。请回首页选择新片段，或打开完整视频。"
+                ? "字幕位置已变化，片段已失效。请展开“片段与表达”查看当前内容，或打开完整视频。"
                 : (clipResult?.error ?? "正在验证片段信息…")}
             </p>
           )}
@@ -980,16 +988,6 @@ export default function WatchPage() {
             clampZh={1}
             zhClassName="text-copy-lg font-semibold text-ink"
           />
-          <VideoActions
-            compact={false}
-            isLiked={isLiked}
-            likeCount={likeCount}
-            isFavorited={isFavorited}
-            noteOpen={noteOpen}
-            onToggleLike={toggleLike}
-            onToggleFavorite={toggleFavorite}
-            onNotes={() => setNoteOpen((v) => !v)}
-          />
         </div>
 
         {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
@@ -1016,14 +1014,10 @@ export default function WatchPage() {
             {video.difficulty_level ? cefrWithExamHint(video.difficulty_level) : "难度待评估"}
           </span>
           <span>·</span>
-          {/* 设计 meta 有「句字幕」这一项；subtitles.length 是公共数据（移动端 description 已用）。 */}
-          <span>{video.subtitles.length} 句字幕</span>
-          <span>·</span>
           <span>{formatDuration(video.duration)}</span>
         </div>
 
         {/* 笔记抽屉 */}
-        {notesPanel}
       </div>
 
       {/* ===== 双列：左视频+当前句，右字幕面板（可折叠） ===== */}
@@ -1463,35 +1457,59 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {/* 学习后的常用入口 */}
-      <section aria-labelledby="watch-after-title" className="mt-8 border-t border-hairline pt-6">
-        <div className="flex flex-wrap items-end justify-between gap-5">
-          <div className="min-w-0 max-w-xl">
-            <p className="text-caption font-bold uppercase tracking-[0.12em] text-muted">
-              这段之后
+      <details className="mt-6 border-t border-hairline py-3" open={noteOpen || undefined}>
+        <summary className="cursor-pointer text-copy font-semibold text-ink">视频信息</summary>
+        <div className="mt-3 space-y-3">
+          {video.description?.trim() && (
+            <p className="whitespace-pre-line break-words text-copy leading-relaxed text-body">
+              {video.description}
             </p>
-            <h2
-              id="watch-after-title"
-              className="mt-2 text-title font-bold tracking-tight text-ink"
+          )}
+          {video.source_url && (
+            <a
+              href={video.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-meta text-brand-700"
             >
-              把刚才点过的词带回词汇页
-            </h2>
-            <p className="mt-1 text-meta leading-relaxed text-muted">
-              不强制复习。想继续看、只想看词、想去做题，都可以从各自的入口走。
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={() => router.push("/vocabulary")}>
-              去词汇页
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push("/#feed")}>
-              换一段
-            </Button>
-            <Button type="button" variant="text" onClick={() => router.push("/")}>
-              回首页
-            </Button>
-          </div>
+              查看原始来源 ↗
+            </a>
+          )}
+          <VideoStats
+            likeCount={likeCount}
+            viewCount={video.view_count}
+            favoriteCount={video.favorite_count}
+          />
+          <VideoActions
+            compact={isMobile}
+            isLiked={isLiked}
+            likeCount={likeCount}
+            isFavorited={isFavorited}
+            noteOpen={noteOpen}
+            onToggleLike={toggleLike}
+            onToggleFavorite={toggleFavorite}
+            onNotes={() => setNoteOpen((v) => !v)}
+          />
+          <LearningActions
+            compact={isMobile}
+            vocabSet={vocabSet}
+            addingVocabSet={addingVocabSet}
+            onVocabSet={handleVocabSetClick}
+            onDrill={() => router.push("/vocabulary")}
+          />
+          {notesPanel}
         </div>
+      </details>
+      <PublishedVideoEditorial key={video.id} video={video} />
+
+      <section
+        aria-label="接着看"
+        className="mt-6 flex flex-wrap items-center gap-3 border-t border-hairline pt-4"
+      >
+        <Button onClick={() => router.push("/#feed")}>继续选片</Button>
+        <Button variant="text" onClick={() => router.push("/vocabulary")}>
+          复习已保存的词
+        </Button>
       </section>
 
       {/* Word tooltip overlay —— 桌面：可拖动浮动卡；移动端：贴画面下沿升起的浮层（#27 决议乙） */}
@@ -1551,16 +1569,6 @@ export default function WatchPage() {
         sourceUrl={video.source_url ?? null}
         actions={
           <div className="flex items-center gap-1">
-            <VideoActions
-              compact
-              isLiked={isLiked}
-              likeCount={likeCount}
-              isFavorited={isFavorited}
-              noteOpen={noteOpen}
-              onToggleLike={toggleLike}
-              onToggleFavorite={toggleFavorite}
-              onNotes={() => setNoteOpen((v) => !v)}
-            />
             <LearningActions
               compact
               vocabSet={vocabSet}
@@ -1570,7 +1578,6 @@ export default function WatchPage() {
             />
           </div>
         }
-        extra={noteOpen ? notesPanel : null}
       />
     </div>
   );

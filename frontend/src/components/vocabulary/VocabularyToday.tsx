@@ -225,10 +225,10 @@ export function VocabularyToday({
                         </span>
                       )}
                       {level && (
-                        <span className="inline-flex items-center gap-1 text-meta text-muted">
-                          <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
-                          {level}
-                        </span>
+                        <details className="text-meta text-muted">
+                          <summary className="cursor-pointer">考试标签</summary>
+                          <span>{level}</span>
+                        </details>
                       )}
                       <button
                         type="button"
@@ -301,7 +301,10 @@ export function VocabularyToday({
           </>
         ) : (
           <>
-            <section className="user-aside-sec">
+            <details className="user-aside-sec">
+              <summary className="cursor-pointer text-meta font-semibold text-body">
+                词库统计
+              </summary>
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="user-aside-title">复习队列</h2>
                 <span className="text-meta text-muted tabular-nums">{stats.total} 词</span>
@@ -354,7 +357,7 @@ export function VocabularyToday({
               >
                 按词单查看 →
               </Link>
-            </section>
+            </details>
 
             {sourceRows.length > 0 && (
               <section className="user-aside-sec">
@@ -395,8 +398,10 @@ export function VocabularyToday({
               </p>
             </section>
 
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">学习设置</h2>
+            <details className="user-aside-sec">
+              <summary className="cursor-pointer text-meta font-semibold text-body">
+                学习设置
+              </summary>
               <label className="block text-meta text-muted">
                 每天想记的新词数
                 <select
@@ -419,7 +424,7 @@ export function VocabularyToday({
               <p className="mt-3 text-meta leading-relaxed text-muted">
                 这是你的偏好，随时可以调整。
               </p>
-            </section>
+            </details>
           </>
         )}
       </aside>

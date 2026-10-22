@@ -8,7 +8,7 @@ import { formatDuration } from "@/lib/format";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { VideoStats } from "@/components/video/VideoStats";
+import { VideoDescription } from "@/components/video/VideoDescription";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { cn } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
@@ -36,6 +36,7 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   difficulty_level?: string | null;
   topic_tags?: string | null;
   channel_title?: string;
+  channel_name?: string | null;
   /** 作者页 slug（ADR-0014 修订）：非空时频道名可点跳转。 */
   channel_slug?: string | null;
   is_demo?: boolean;
@@ -69,6 +70,8 @@ export interface VideoCardProps {
   footer?: ReactNode;
   /** Additional className for the outer link. */
   className?: string;
+  /** 当前筛选已说明主题时，省略重复主题标签。 */
+  showTopic?: boolean;
   /** 来源标记：播放页据此回到本页（连同 URL 状态）。不传则 href 不带参数。 */
   entry?: WatchEntry;
 }
@@ -90,6 +93,7 @@ export function VideoCard({
   footer,
   className,
   entry,
+  showTopic = true,
 }: VideoCardProps) {
   const router = useRouter();
   // topic_tags 存 canonical id（LLM 分类产出），展示时映射为中文标签；
@@ -99,6 +103,7 @@ export function VideoCard({
 
   // 频道名跳作者页：外层卡片是 Card as={Link}，不能嵌套 <a>，用受控 span 拦截冒泡。
   // 未挂频道的视频（channel_slug 为空）保持纯文本。
+  const channelName = video.channel_title?.trim() || video.channel_name?.trim();
   const channelLink = video.channel_slug ? `/channels/${video.channel_slug}` : null;
 
   function onChannelClick(e: React.MouseEvent | React.KeyboardEvent) {
@@ -143,13 +148,6 @@ export function VideoCard({
         />
         {/* 等级徽标：S8-1 起走中性 token（自带不透明底），不再内联白色背景——
             深色模式下白底会与暗色卡片脱节，且内联色违反 INV-017。 */}
-        {video.difficulty_level && (
-          <DifficultyBadge
-            level={video.difficulty_level}
-            size="sm"
-            className="absolute left-2 top-2"
-          />
-        )}
         {/* Duration badge */}
         {durationLabel ? (
           <span
@@ -195,54 +193,35 @@ export function VideoCard({
           )}
           enClassName="mb-2"
         />
-        {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
-        {video.sample_text_en && (
-          <p className="text-meta text-muted line-clamp-2 mb-2">“{video.sample_text_en}”</p>
-        )}
-        {video.subtitle_count != null && (
-          <p className="text-meta text-muted mb-2">
-            {video.subtitle_count} 句字幕 ·{" "}
-            {video.exam_word_count == null ? "考试词待统计" : `${video.exam_word_count} 个考试词`}
-            {video.wpm ? ` · ${Math.round(video.wpm)} wpm` : " · 语速待评估"}
-          </p>
-        )}
-        {video.description && (
-          // DEC-073：卡片摘要跟着移动端基线走 13px（卡内嵌摘要允许 11–13px，正文才要求 ≥14px）
-          <p className="text-copy leading-relaxed text-muted line-clamp-2 mb-2">
-            {video.description}
-          </p>
-        )}
-        {/* 站内点赞 / 播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
-        <VideoStats
-          likeCount={video.like_count}
-          viewCount={video.view_count}
-          favoriteCount={video.favorite_count}
-          className="mb-2.5"
-        />
+        <VideoDescription description={video.description} className="mb-2" />
         {footer ?? (
-          <div className="flex items-center gap-2 text-meta text-muted">
-            {channelLink ? (
-              <span
-                role="link"
-                tabIndex={0}
-                onClick={onChannelClick}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onChannelClick(e);
-                }}
-                className="hover:text-ink transition-colors cursor-pointer truncate max-w-[9rem]"
-                title={video.channel_title}
-              >
-                {video.channel_title || "SeeWord"}
-              </span>
-            ) : (
-              <span className="truncate max-w-[9rem]" title={video.channel_title}>
-                {video.channel_title || "SeeWord"}
+          <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
+            {channelName &&
+              (channelLink ? (
+                <span
+                  role="link"
+                  tabIndex={0}
+                  onClick={onChannelClick}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onChannelClick(e);
+                  }}
+                  className="hover:text-ink transition-colors cursor-pointer truncate max-w-[9rem]"
+                  title={channelName}
+                >
+                  {channelName}
+                </span>
+              ) : (
+                <span className="truncate max-w-[9rem]" title={channelName}>
+                  {channelName}
+                </span>
+              ))}
+
+            {showTopic && video.topic_tags?.trim() && (
+              <span className="text-caption font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
+                {category}
               </span>
             )}
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-            <span className="text-caption font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
-              {category}
-            </span>
+            {video.difficulty_level && <DifficultyBadge level={video.difficulty_level} size="sm" />}
             {feat && progress !== undefined && (
               <>
                 <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />

@@ -148,7 +148,7 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await page.goto(`/watch/${videoId}`);
   const tabs = page.getByRole("navigation", { name: "底部导航" });
   await expect(tabs).toBeVisible();
-  await expect(tabs.getByRole("link", { name: "首页", exact: true })).toHaveAttribute(
+  await expect(tabs.getByRole("link", { name: "发现", exact: true })).toHaveAttribute(
     "aria-current",
     "page"
   );

@@ -16,7 +16,6 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { VideoCardData } from "@/components/ui/VideoCard";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { api, ApiError } from "@/lib/api";
 import { userInitial } from "@/lib/avatar";
 import {
@@ -71,21 +70,6 @@ function deriveDifficultyRange(
     .filter((index) => index >= 0);
   if (!indexes.length) return null;
   return { min: CEFR_ORDER[Math.min(...indexes)], max: CEFR_ORDER[Math.max(...indexes)] };
-}
-
-/** 「218 句字幕 · 268 个考试词」；两个都没有就返回 null（不显示空行）。 */
-function learningHintFor(video: {
-  subtitle_count?: number | null;
-  exam_word_count?: number | null;
-}): string | null {
-  const parts: string[] = [];
-  if (typeof video.subtitle_count === "number" && video.subtitle_count > 0) {
-    parts.push(`${video.subtitle_count} 句字幕`);
-  }
-  if (typeof video.exam_word_count === "number" && video.exam_word_count > 0) {
-    parts.push(`${video.exam_word_count} 个考试词`);
-  }
-  return parts.length ? parts.join(" · ") : null;
 }
 
 /** 页头事实行里的小分隔点。 */
@@ -234,11 +218,7 @@ export default function ChannelDetailPage() {
     return () => controller.abort();
   }, [slug]);
 
-  const metadata = useVideoMetadata(videos);
-  const mergedVideos = useMemo(
-    () => videos.map((video) => ({ ...video, ...(metadata[idOf(video)] ?? {}) })),
-    [videos, metadata]
-  );
+  const mergedVideos = videos;
 
   const directionChips = useMemo(() => directionLabels(channel?.learning_directions), [channel]);
 
@@ -408,7 +388,6 @@ export default function ChannelDetailPage() {
                     video={startCard.video}
                     basis={startCard.basis}
                     slug={channel.slug}
-                    learningHint={learningHintFor(startCard.video)}
                   />
                 )}
 
@@ -454,7 +433,6 @@ export default function ChannelDetailPage() {
                               video={video}
                               slug={channel.slug}
                               badge={badge}
-                              learningHint={learningHintFor(video)}
                               eager={index === 0}
                             />
                           </li>

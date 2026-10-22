@@ -191,10 +191,7 @@ export default function ChannelsPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        <PageHeader
-          title="全部频道"
-          description="按学习方向挑一个能长期跟学的来源；难度、口音与收录数量都来自本站真实视频。"
-        />
+        <PageHeader title="全部频道" description="认识这些作者与频道，看看他们在讲什么。" />
 
         {/* 一行事实：加载完成前用占位条，不闪「0 个频道」 */}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta tabular-nums text-muted">

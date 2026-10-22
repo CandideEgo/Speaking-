@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { VideoStats } from "@/components/video/VideoStats";
+import { VideoDescription } from "@/components/video/VideoDescription";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
@@ -16,8 +16,6 @@ export interface ChannelVideoRowProps {
   slug: string;
   /** 这一段同时是页首推荐时的小标签；不是推荐就传 null。 */
   badge?: string | null;
-  /** 可选学习收益（字幕句数 / 考试词数）；没有就不显示。 */
-  learningHint?: string | null;
   /** 首屏第一行提前加载封面（Next 的 LCP 提示）。 */
   eager?: boolean;
 }
@@ -29,13 +27,7 @@ export interface ChannelVideoRowProps {
  * 16:9 大卡会把首屏挤满、一屏看不到几段。标题保留完整文本（`title` 兜底），
  * 两行后省略；缺封面/缺时长/缺难度都只是少一个元素，不占位。
  */
-export function ChannelVideoRow({
-  video,
-  slug,
-  badge,
-  learningHint,
-  eager = false,
-}: ChannelVideoRowProps) {
+export function ChannelVideoRow({ video, slug, badge, eager = false }: ChannelVideoRowProps) {
   const videoId = String(video.id || video.video_id || "");
   if (!videoId) return null;
 
@@ -62,12 +54,13 @@ export function ChannelVideoRow({
         />
       </span>
 
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <VideoTitle
           video={video}
           as="span"
           zhClassName="break-words text-copy font-semibold leading-snug text-ink transition-colors group-hover:text-brand-700"
         />
+        <VideoDescription description={video.description} />
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
           <DifficultyBadge level={video.difficulty_level} size="sm" />
           {duration && <span className="tabular-nums">{duration}</span>}
@@ -76,15 +69,8 @@ export function ChannelVideoRow({
               {badge}
             </span>
           )}
-          {learningHint && <span className="text-caption">{learningHint}</span>}
         </span>
-        <VideoStats
-          likeCount={video.like_count}
-          viewCount={video.view_count}
-          favoriteCount={video.favorite_count}
-          size="sm"
-        />
-      </span>
+      </div>
     </Link>
   );
 }

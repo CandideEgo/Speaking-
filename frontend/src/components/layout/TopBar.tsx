@@ -127,7 +127,7 @@ export function TopBar() {
 
   useVisibilityAwareInterval(fetchUnreadCount, 30000, Boolean(user));
 
-  // Cmd+K / Ctrl+K to focus search; Ctrl/Cmd+1~5 to jump nav (migrated from Sidebar)
+  // Cmd+K / Ctrl+K to focus search; Ctrl/Cmd+1~4 to jump nav (migrated from Sidebar)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {

@@ -20,6 +20,7 @@ import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
+import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { formatTimeSpent } from "@/lib/date";
@@ -196,8 +197,8 @@ export default function HistoryPage() {
     <PageTransition>
       <div className="user-page">
         <PageHeader
-          crumb="学习历史"
-          title="学习记录"
+          crumb="我的"
+          title="观看历史"
           description="按天排出看过的每一段，带进度和停留时长。想接着上次的地方继续，点每行右侧的「继续观看」。"
           actions={
             resume ? (
@@ -430,14 +431,14 @@ function RecordRow({ record }: { record: LearningRecord }) {
           <p className="text-copy font-semibold leading-snug text-ink">未知视频</p>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted">
-          <span>{record.words_learned} 个生词</span>
+          {record.video?.channel_name && <span>{record.video.channel_name}</span>}
+          <DifficultyBadge level={record.video?.difficulty_level} size="sm" />
           {record.time_spent_seconds > 0 && (
             <span>看了 {formatTimeSpent(record.time_spent_seconds)}</span>
           )}
           {record.position_seconds != null && (
             <span>停在 {formatClock(record.position_seconds)}</span>
           )}
-          {record.quiz_score !== null && <span>测验 {Math.round(record.quiz_score)} 分</span>}
           {record.completed && (
             <span className="inline-flex items-center gap-1 font-semibold text-success-text">
               <Check size={12} />

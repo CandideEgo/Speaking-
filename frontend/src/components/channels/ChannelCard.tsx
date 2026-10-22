@@ -44,9 +44,9 @@ export function ChannelCard({
   const difficulty = formatDifficultyRange(channel.difficulty_range);
   // 「本站已收录 N 段」是本站事实；不写成原频道的全部视频数。
   const facts = [
+    formatCollectedVideos(channel.video_count),
     difficulty ? `难度 ${difficulty}` : null,
     channel.accent_label || null,
-    formatCollectedVideos(channel.video_count),
   ].filter((fact): fact is string => Boolean(fact));
   const latestFacts = [
     latest?.duration != null ? formatDuration(latest.duration) : null,

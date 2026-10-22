@@ -10,7 +10,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { User as UserIcon, Settings, TrendingUp, Sparkles } from "lucide-react";
+import {
+  User as UserIcon,
+  Settings,
+  TrendingUp,
+  Sparkles,
+  BookOpen,
+  Bookmark,
+  History,
+  GraduationCap,
+  Bell,
+} from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
@@ -49,9 +59,9 @@ function targetLabel(preferences: UserPreferences | null): string | null {
   return EXAM_LEVELS.find((l) => l.key === key)?.label ?? null;
 }
 
-// 设计稿三组（个人资料 / 学习设置 / 账号）；产品把学习统计拆成「学习进度」，
-// 这里保留 4 个 tab，但补齐账号分组（改密/通知/导出/注销）与设计一致的键盘语义。
+// 默认展示个人内容；资料、进度和账户设置仍由原查询参数直接访问。
 const TABS = [
+  { key: "content", label: "内容", longLabel: "我的内容", icon: Bookmark },
   { key: "profile", label: "资料", longLabel: "个人资料", icon: UserIcon },
   { key: "progress", label: "进度", longLabel: "学习进度", icon: TrendingUp },
   { key: "account", label: "账号", longLabel: "账号", icon: Settings },
@@ -65,7 +75,7 @@ export default function ProfilePage() {
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useRequireAuth();
   const rawTab = searchParams.get("tab");
-  const activeTab: TabKey = TABS.find((tab) => tab.key === rawTab)?.key ?? "profile";
+  const activeTab: TabKey = TABS.find((tab) => tab.key === rawTab)?.key ?? "content";
   const setActiveTab = (tab: TabKey) => router.replace(`/profile?tab=${tab}`, { scroll: false });
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -181,8 +191,12 @@ export default function ProfilePage() {
       <div className="user-page">
         <PageHeader
           crumb="我的"
-          title="账户与学习设置"
-          description="管理个人资料、学习偏好与账户安全。"
+          title={activeTab === "content" ? "我的内容" : "账户与学习设置"}
+          description={
+            activeTab === "content"
+              ? "找到看过、收藏的视频，以及保存的词。"
+              : "管理个人资料、学习偏好与账户安全。"
+          }
         />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
@@ -203,29 +217,33 @@ export default function ProfilePage() {
                 {isProUser(user) ? "会员" : "免费版"}
               </span>
             </div>
-            <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
-              {user.phone && <span>{maskPhone(user.phone)}</span>}
-              {targetLabel(preferences) && (
-                <>
-                  <span>·</span>
-                  <span>目标：{targetLabel(preferences)}</span>
-                </>
-              )}
-              <span>·</span>
-              <span>加入 {daysSince(user.created_at)} 天</span>
-            </div>
-          </div>
-          <div className="hidden sm:flex items-center gap-6">
-            {[
-              { n: recordsTotal, l: "已学视频" },
-              { n: vocabStats?.mastered_count, l: "掌握词汇" },
-            ].map((s) => (
-              <div key={s.l} className="text-center">
-                <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
-                <div className="text-caption text-muted mt-0.5">{s.l}</div>
+            {activeTab !== "content" && (
+              <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
+                {user.phone && <span>{maskPhone(user.phone)}</span>}
+                {targetLabel(preferences) && (
+                  <>
+                    <span>·</span>
+                    <span>目标：{targetLabel(preferences)}</span>
+                  </>
+                )}
+                <span>·</span>
+                <span>加入 {daysSince(user.created_at)} 天</span>
               </div>
-            ))}
+            )}
           </div>
+          {activeTab === "progress" && (
+            <div className="hidden sm:flex items-center gap-6">
+              {[
+                { n: recordsTotal, l: "已学视频" },
+                { n: vocabStats?.mastered_count, l: "掌握词汇" },
+              ].map((s) => (
+                <div key={s.l} className="text-center">
+                  <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
+                  <div className="text-caption text-muted mt-0.5">{s.l}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <div className="user-page-layout has-aside">
@@ -263,6 +281,67 @@ export default function ProfilePage() {
 
             {/* Tab content */}
             <div className="mt-6">
+              {activeTab === "content" && (
+                <div
+                  id="profile-panel-content"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-content"
+                  className="grid gap-3 sm:grid-cols-2"
+                >
+                  {[
+                    {
+                      href: "/history",
+                      label: "观看历史",
+                      description: "接着上次的进度看",
+                      icon: History,
+                    },
+                    {
+                      href: "/favorites",
+                      label: "我的收藏",
+                      description: "保存的视频、句子与词",
+                      icon: Bookmark,
+                    },
+                    {
+                      href: "/vocabulary",
+                      label: "我的词汇",
+                      description: "回看原句，复习保存的词",
+                      icon: BookOpen,
+                    },
+                    {
+                      href: "/practice",
+                      label: "真题练习",
+                      description: "选题、继续作答与回看错题",
+                      icon: GraduationCap,
+                    },
+                    {
+                      href: "/notifications",
+                      label: "通知",
+                      description: "查看收到的消息",
+                      icon: Bell,
+                    },
+                    {
+                      href: "/upgrade",
+                      label: "会员",
+                      description: "查看权益与套餐",
+                      icon: Sparkles,
+                    },
+                  ].map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-start gap-3 rounded-md border border-hairline p-4 hover:bg-surface-soft"
+                    >
+                      <item.icon size={20} className="mt-1 shrink-0 text-muted" aria-hidden />
+                      <span>
+                        <strong className="block text-copy font-semibold text-ink">
+                          {item.label}
+                        </strong>
+                        <span className="mt-1 block text-meta text-muted">{item.description}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
               {activeTab === "profile" && (
                 <div
                   id="profile-panel-profile"

@@ -16,8 +16,7 @@ import { Card } from "@/components/ui/Card";
  * 操作行只在调用方给了「回到对应句子」或动作时才渲染，否则不留一条孤零零的
  * 上边线。发不发音也由调用方决定（`onSpeak` 缺省即不渲染喇叭）。
  *
- * 「回到对应句子」只在视频集合里给（设计文档 §6.2）：集合天然绑定一个视频、
- * 无歧义；「全部单词」是一词一行的全局视图，不传 `sentenceHref`。
+ * 来源链接根据真实字幕定位区分原句与来源视频，原句与词义分开展示。
  */
 export function VocabWordCard({
   word,
@@ -27,6 +26,8 @@ export function VocabWordCard({
   badge,
   onSpeak,
   sentenceHref,
+  sentenceLabel = "回到对应句子 →",
+  contextSentence,
   actions,
 }: {
   word: string;
@@ -37,6 +38,8 @@ export function VocabWordCard({
   badge?: { tone: BadgeTone; text: string } | null;
   onSpeak?: () => void;
   sentenceHref?: string | null;
+  sentenceLabel?: string;
+  contextSentence?: string | null;
   actions?: ReactNode;
 }) {
   const hasFooter = Boolean(sentenceHref) || Boolean(actions);
@@ -53,6 +56,9 @@ export function VocabWordCard({
             )}
           </div>
           <DictionaryMeaning translation={meaning} definition={null} partOfSpeech={partOfSpeech} />
+          {contextSentence && (
+            <p className="mt-2 text-meta leading-relaxed text-muted">原句：{contextSentence}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -78,7 +84,7 @@ export function VocabWordCard({
                 href={sentenceHref}
                 className="inline-flex items-center gap-1 text-brand-700 hover:underline"
               >
-                回到对应句子 →
+                {sentenceLabel}
               </Link>
             )}
           </div>

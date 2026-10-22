@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FEED_SORT_OPTIONS, usePlatformFeed, type FeedSort } from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { scrollKey } from "@/lib/scrollMemory";
+import { SCROLL_CONTAINER_ID, saveScroll, scrollKey } from "@/lib/scrollMemory";
 import { CEFR_LEVELS, cefrWithExamHint } from "@/lib/cefrLevels";
 
 /**
@@ -29,7 +29,7 @@ const DIFFICULTY_OPTIONS = [
   ...CEFR_LEVELS.map((level) => ({ id: level, label: cefrWithExamHint(level) })),
 ];
 
-export function HomeFeed() {
+export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const {
@@ -52,7 +52,8 @@ export function HomeFeed() {
     loaderRef,
   } = usePlatformFeed();
 
-  useScrollRestore(scrollKey(pathname, searchParams.toString()), videos.length > 0, {
+  // 精选与续看也会改变列表上方的高度，等它们就绪再恢复列表位置。
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), layoutReady && videos.length > 0, {
     restoreOnKeyChange: false,
   });
 
@@ -138,11 +139,19 @@ export function HomeFeed() {
       )}
 
       {uniqueVideos.length > 0 && (
-        <div className="user-content-list">
+        <div
+          className="user-content-list"
+          onClickCapture={() => {
+            const container = document.getElementById(SCROLL_CONTAINER_ID);
+            if (container)
+              saveScroll(scrollKey(pathname, searchParams.toString()), container.scrollTop);
+          }}
+        >
           {uniqueVideos.map((video) => (
             <HomeFeedCard
               key={video.id || video.video_id}
               video={video}
+              showTopic={activeCategory === "all"}
               // 原始 URL 值（含 null）原样带走，返回 URL 与离开时一致。
               entry={{
                 from: "home",

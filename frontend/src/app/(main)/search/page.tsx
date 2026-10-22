@@ -13,7 +13,6 @@ import { VideoCard } from "@/components/ui/VideoCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
 import { toastApiError } from "@/lib/errors";
@@ -51,7 +50,7 @@ interface Results {
   words?: Group<Word>;
   channels?: Group<Channel>;
 }
-const GROUPS = { all: "全部", videos: "视频", subtitles: "字幕", words: "词汇", channels: "频道" };
+const GROUPS = { all: "全部", videos: "视频", channels: "频道", subtitles: "字幕", words: "词汇" };
 const GROUP_UNITS: Record<string, string> = {
   videos: "条",
   subtitles: "句",
@@ -158,7 +157,6 @@ export default function SearchPage() {
     return () => controller.abort();
   }, [query, group, page, retry]);
 
-  const metadata = useVideoMetadata(results?.videos?.items ?? []);
   useScrollRestore(scrollKey(pathname, params.toString()), results !== null);
 
   const counts = {
@@ -239,8 +237,8 @@ export default function SearchPage() {
       <div className="user-page">
         <PageHeader
           crumb="搜索"
-          title="搜索视频、字幕和词汇"
-          description="一个词可以搜三件事：哪些视频的标题里有它、它出现在哪句字幕里、词库里有没有收过。回车会把关键词写进地址栏，链接可以直接分享。"
+          title="搜索视频与频道"
+          description="按话题、标题或频道找内容，也可以搜索字幕里的原话和词义。"
           actions={
             <LinkButton variant="outline" icon={Compass} href="/">
               不想搜，按分类挑
@@ -397,9 +395,9 @@ export default function SearchPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2" aria-live="polite">
                         {hitChip("视频", counts.videos, results.videos?.has_more)}
+                        {hitChip("频道", counts.channels, results.channels?.has_more)}
                         {hitChip("字幕", counts.subtitles, results.subtitles?.has_more)}
                         {hitChip("词汇", counts.words, results.words?.has_more)}
-                        {hitChip("频道", counts.channels, results.channels?.has_more)}
                       </div>
                     </div>
 
@@ -436,11 +434,37 @@ export default function SearchPage() {
                             {results.videos?.items.map((v) => (
                               <VideoCard
                                 key={v.id}
-                                video={{ ...v, ...metadata[v.id] }}
+                                video={v}
                                 entry={{ from: "search", extra: { q: query, group, page } }}
                               />
                             ))}
                           </div>
+                        )}
+
+                        {groupSection(
+                          "channels",
+                          "频道",
+                          <>为什么命中：频道名或说明里有「{query}」，点名字进频道页。</>,
+                          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {results.channels?.items.map((c) => (
+                              <li key={c.id}>
+                                <Link
+                                  href={`/channels/${c.slug}`}
+                                  className="flex h-full flex-col gap-1 rounded-lg border border-hairline bg-canvas p-4 hover:border-hairline-strong"
+                                >
+                                  <span className="inline-flex items-center gap-1 text-copy font-semibold text-ink">
+                                    <Layers size={14} className="text-muted" aria-hidden />
+                                    {c.name}
+                                  </span>
+                                  {c.description && (
+                                    <span className="text-meta leading-relaxed text-muted">
+                                      {c.description}
+                                    </span>
+                                  )}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
                         )}
 
                         {groupSection(
@@ -514,32 +538,6 @@ export default function SearchPage() {
                             ))}
                           </ul>
                         )}
-
-                        {groupSection(
-                          "channels",
-                          "频道",
-                          <>为什么命中：频道名或说明里有「{query}」，点名字进频道页。</>,
-                          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {results.channels?.items.map((c) => (
-                              <li key={c.id}>
-                                <Link
-                                  href={`/channels/${c.slug}`}
-                                  className="flex h-full flex-col gap-1 rounded-lg border border-hairline bg-canvas p-4 hover:border-hairline-strong"
-                                >
-                                  <span className="inline-flex items-center gap-1 text-copy font-semibold text-ink">
-                                    <Layers size={14} className="text-muted" aria-hidden />
-                                    {c.name}
-                                  </span>
-                                  {c.description && (
-                                    <span className="text-meta leading-relaxed text-muted">
-                                      {c.description}
-                                    </span>
-                                  )}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
                       </>
                     )}
 
@@ -587,7 +585,7 @@ export default function SearchPage() {
                 </div>
               ) : (
                 <p className="text-meta leading-relaxed text-body">
-                  三个检索范围同时生效：视频标题与中文名、字幕整句、词库释义。
+                  可搜索视频标题与中文名、频道、字幕整句和词库释义。
                 </p>
               )}
               <p className="mt-3 text-meta leading-relaxed text-body">

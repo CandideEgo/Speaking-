@@ -335,8 +335,10 @@ export default function PracticePage() {
                 </p>
               </section>
 
-              <section className="user-aside-sec">
-                <h2 className="user-aside-title">这一版包含</h2>
+              <details className="user-aside-sec">
+                <summary className="cursor-pointer text-meta font-semibold text-body">
+                  这一版包含
+                </summary>
                 <ul className="flex flex-col gap-2 text-meta text-body">
                   {typeEntries.map((t) => (
                     <li key={t.key} className="flex items-baseline justify-between gap-3">
@@ -350,14 +352,16 @@ export default function PracticePage() {
                 <p className="mt-3 text-caption leading-relaxed text-muted">
                   听力、翻译、写作与完整套卷不在按题型练里；完整套卷见套卷列表。
                 </p>
-              </section>
+              </details>
 
-              <section className="user-aside-sec">
-                <h2 className="user-aside-title">关于结果</h2>
+              <details className="user-aside-sec">
+                <summary className="cursor-pointer text-meta font-semibold text-body">
+                  关于结果
+                </summary>
                 <p className="text-meta leading-relaxed text-body">
                   答对题数帮助你回顾本次表现，不代表考试预测分数。
                 </p>
-              </section>
+              </details>
 
               {wrongs.length > 0 && (
                 <section className="user-aside-sec">
