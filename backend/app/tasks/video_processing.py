@@ -378,9 +378,15 @@ def _post_transcription_callback(
 ) -> bool:
     """POST transcription results to the cloud callback endpoint.
 
-    Retries 5xx / transport errors with exponential backoff; 4xx responses are
-    not retried (permanent client-side problem). Returns True on acknowledged
-    delivery. Used by the GPU worker, which has no database access.
+    Retries 5xx / 408 / 425 / 429 and transport errors with exponential
+    backoff. Other 4xx responses are permanent client-side problems (bad
+    secret, deleted video, invalid payload) and are not retried. Returns True
+    on acknowledged delivery. Used by the GPU worker, which has no database
+    access.
+
+    The callback endpoint itself rate-limits at 30/min, so 429 is transient and
+    must be retried — treating every 4xx as permanent used to drop a finished
+    GPU transcription on the floor.
     """
     import httpx
 
@@ -415,6 +421,7 @@ def _post_transcription_callback(
     headers = {"X-Callback-Secret": settings.transcription_callback_secret}
     max_retries = settings.transcription_callback_max_retries
     timeout = settings.transcription_callback_timeout
+    transient_4xx = {408, 425, 429}
 
     for attempt in range(max_retries + 1):
         try:
@@ -423,15 +430,21 @@ def _post_transcription_callback(
             if 200 <= resp.status_code < 300:
                 logger.info("Transcription callback delivered", video_id=video_id, status=status, attempt=attempt)
                 return True
-            if 400 <= resp.status_code < 500:
+            if 400 <= resp.status_code < 500 and resp.status_code not in transient_4xx:
                 logger.error(
-                    "Transcription callback rejected (4xx, not retrying)",
+                    "Transcription callback rejected (permanent 4xx, not retrying)",
                     video_id=video_id,
                     code=resp.status_code,
                     body=resp.text[:200],
                 )
                 return False
-            # 5xx → fall through to retry
+            # 5xx and transient 4xx (rate limit / timeout / too early) → retry
+            logger.warning(
+                "Transcription callback transient failure",
+                video_id=video_id,
+                code=resp.status_code,
+                attempt=attempt,
+            )
         except httpx.HTTPError as e:
             logger.warning("Transcription callback error", video_id=video_id, attempt=attempt, error=str(e))
         if attempt < max_retries:
@@ -455,7 +468,6 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
     try:
         svc = TranscriptionService()
         segments = svc._sync_transcribe(source, VideoSource(platform))
-        _post_transcription_callback(video_id, status="ok", segments=segments)
     except Exception as e:
         logger.exception("GPU transcription failed for video %s", video_id)
         if self.request.retries >= self.max_retries:
@@ -464,6 +476,17 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
             _post_transcription_callback(video_id, status="error", error=str(e))
             raise
         raise self.retry(exc=e, countdown=60) from e
+
+    if not _post_transcription_callback(video_id, status="ok", segments=segments):
+        # The transcription itself succeeded; only delivery failed (e.g.
+        # rate limit / network). Retrying re-runs the transcription, but that
+        # is cheaper than leaving the video stuck in ``processing`` with a
+        # silently "successful" Celery task.
+        logger.error("GPU transcription callback delivery failed; retrying task for %s", video_id)
+        raise self.retry(
+            exc=RuntimeError(f"transcription callback delivery failed for {video_id}"),
+            countdown=60,
+        )
 
 
 # ---------------------------------------------------------------------------

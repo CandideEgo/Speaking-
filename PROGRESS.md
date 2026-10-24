@@ -204,3 +204,9 @@
 - 目标达成用 `today_goal_met=false` 条件 UPDATE 抢占，两个并发事件越过目标线时只写一条 `met_daily_goal`。
 - `/learning/stats/weekly` 的 `this_week_minutes`、`last_week_minutes`、`daily_minutes` 改用 `behavior_events.watch_time` 的 `delta_s` 按 `server_ts` 分日/分周聚合；`LearningRecord.time_spent_seconds` 明确标注为累计值、不可按 `last_accessed_at` 切片。
 - 新增 `test_learning_weekly_stats.py` 3 项（周归属、同日 streak 只加一次、goal meta 只发一次）通过；全量后端 1353 passed / 16 skipped。
+
+### GPU 回调投递失败可重试（BE-11）
+
+- `_post_transcription_callback` 把 408/425/429 与 5xx 一并视为瞬时失败重试，其余 4xx 仍永久失败；429（回调端点 30/min 限流）不再丢弃已完成的转录。
+- `transcribe_video_gpu` 检查回调返回值：False 时 `raise self.retry(countdown=60)`，避免 Celery 任务“成功”而视频永远停在 `processing`；投递失败与转录异常的重试路径分开，避免重复 retry。
+- 新增 `test_callback_delivery.py` 5 项（429→200、401 不重试、5xx 耗尽、投递失败 retry、投递成功不 retry）通过；全量后端 1358 passed / 16 skipped。
