@@ -103,6 +103,21 @@ async def _authenticate(
     return user
 
 
+async def resolve_token_user(token: str, db: AsyncSession) -> User | None:
+    """Resolve a raw ``?token=`` string through the single auth chain.
+
+    Media/PDF endpoints cannot send an Authorization header, so they accept the
+    token as a query parameter. They must still honour the same rules as
+    ``get_current_user`` (blacklist, password-change revocation, banned users);
+    this helper is the one place that turns a raw string into a User.
+    """
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    try:
+        return await _authenticate(credentials, db)
+    except _AuthenticationError:
+        return None
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),

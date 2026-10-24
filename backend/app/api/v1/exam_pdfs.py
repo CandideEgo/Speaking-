@@ -46,7 +46,7 @@ async def download_exam_pdf(slug: str, request: Request):
     是 ``<a download>``，发不出请求头，所以必须支持 query token。匿名一律 **401**
     （不是 404）：这里不是存在性保密，是「要登录」，前端才好据此提示去登录。
     """
-    if _viewer_id_from_request(request) is None:
+    if await _viewer_id_from_request(request) is None:
         raise HTTPException(status_code=401, detail="请先登录后再下载")
 
     found = exam_pdf_service.resolve(slug)
