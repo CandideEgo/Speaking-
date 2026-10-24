@@ -7,6 +7,7 @@ import { subjectLabel } from "@/lib/examSubjects";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/common/SkeletonCard";
 import { ErrorState } from "@/components/common/ErrorState";
 
 interface Summary {
@@ -97,7 +98,7 @@ function sectionSummary(paper: PaperItem): string {
  * 页头（自由练习 / 日期）→ 上次练习（日期 + 标题 + 题量/用时口径 + 成绩 + 回看/再做）
  * → 按题型练（序号 + 标题 + 推荐 tag + 描述 + 题组规模 + 级别/开始）
  * → 按套卷练（最近一套的年份/级别/套/题量/建议用时 + 开始作答）
- * → 右栏（更早的练习 / 这一版包含 / 关于结果；没有更早记录时首块省略）。
+ * → 右栏（更早的练习 / 题库概览 / 关于结果；没有更早记录时首块省略）。
  */
 export default function PracticePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -117,7 +118,7 @@ export default function PracticePage() {
       }),
       api<{ items: PaperItem[]; total: number }>("/api/v1/exams?level=cet6&page=1&page_size=3", {
         signal: controller.signal,
-      }).catch(() => ({ items: [], total: 0 })),
+      }),
     ])
       .then(([data, wrong, paperList]) => {
         setSummary(data);
@@ -151,8 +152,9 @@ export default function PracticePage() {
     <div className="user-page">
       <PageHeader
         crumb="练习"
-        title="今天，练哪一部分？"
-        description="真题阅读的三类题，按题型开始。每组 3–4 题，交卷后立刻看解析；不预测分数，也不安排每日任务。"
+        title="练习"
+        variant="eyebrow"
+        description="选择题型或完整套卷，交卷后查看答案、解析与本次结果。"
         actions={
           <div className="hidden flex-col items-end gap-1 text-right md:flex">
             <span className="text-meta font-semibold text-body">自由练习</span>
@@ -176,9 +178,12 @@ export default function PracticePage() {
       {error ? (
         <ErrorState title={error} onRetry={() => setRetry((v) => v + 1)} />
       ) : !summary ? (
-        <p role="status" className="py-12 text-muted">
-          正在读取题库与练习记录…
-        </p>
+        <div aria-label="正在读取题库与练习记录" aria-busy="true" className="space-y-5 py-4">
+          <Skeleton className="h-20 w-full" />
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-28 w-full" />
+          ))}
+        </div>
       ) : (
         <>
           {/* 上次练习 */}
@@ -326,7 +331,7 @@ export default function PracticePage() {
                   </ul>
                 ) : (
                   <p className="mt-4 text-copy text-muted">
-                    完整套卷已接入题库，去套卷列表挑一套开始。
+                    当前级别暂无可用套卷，可以在套卷列表切换级别。
                   </p>
                 )}
                 <p className="mt-4 border-t border-hairline pt-3 text-caption leading-relaxed text-muted">
@@ -368,7 +373,7 @@ export default function PracticePage() {
 
               <details className="user-aside-sec">
                 <summary className="cursor-pointer text-meta font-semibold text-body">
-                  这一版包含
+                  题库概览
                 </summary>
                 <ul className="flex flex-col gap-2 text-meta text-body">
                   {typeEntries.map((t) => (
