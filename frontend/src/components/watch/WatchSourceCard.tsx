@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatCount } from "@/lib/format";
+import { SUBSCRIPTION_EVENT, type SubscriptionChange } from "@/lib/subscriptionEvents";
 import { userInitial } from "@/lib/avatar";
 import { Image } from "@/components/ui/Image";
 import { ChannelSubscribeButton } from "@/components/channels/ChannelSubscribeButton";
@@ -25,7 +26,51 @@ export function WatchSourceCard({ video }: { video: VideoCard }) {
         if (!controller.signal.aborted) setChannel(data.channel);
       })
       .catch(() => {});
+    useEffect(() => {
+      const listener = (event: Event) => {
+        const change = (event as CustomEvent<SubscriptionChange>).detail;
+        if (change.slug !== video.channel_slug) return;
+        setChannel((current) =>
+          current
+            ? {
+                ...current,
+                is_subscribed: change.subscribed,
+                subscriber_count: Math.max(
+                  0,
+                  (current.subscriber_count ?? 0) +
+                    Number(change.subscribed) -
+                    Number(current.is_subscribed)
+                ),
+              }
+            : current
+        );
+      };
+      window.addEventListener(SUBSCRIPTION_EVENT, listener);
+      return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
+    }, [video.channel_slug]);
     return () => controller.abort();
+  }, [video.channel_slug]);
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const change = (event as CustomEvent<SubscriptionChange>).detail;
+      if (change.slug !== video.channel_slug) return;
+      setChannel((current) =>
+        current
+          ? {
+              ...current,
+              is_subscribed: change.subscribed,
+              subscriber_count: Math.max(
+                0,
+                (current.subscriber_count ?? 0) +
+                  Number(change.subscribed) -
+                  Number(current.is_subscribed)
+              ),
+            }
+          : current
+      );
+    };
+    window.addEventListener(SUBSCRIPTION_EVENT, listener);
+    return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
   }, [video.channel_slug]);
   return (
     <section aria-label="视频与频道信息" className="mt-5 space-y-3 rounded-lg bg-surface-soft p-4">

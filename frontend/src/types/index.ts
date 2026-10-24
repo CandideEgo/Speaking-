@@ -211,6 +211,11 @@ export interface LearningRecord {
      *  duration 是「继续观看」进度分母的权威值（DB `videos.duration`）。 */
     duration: number | null;
     channel_name: string | null;
+    view_count?: number | null;
+    favorite_count?: number | null;
+    upload_date?: string | null;
+    published_at?: string | null;
+    created_at?: string | null;
     /** 续播卡也展示真实难度；后端 VideoBrief 已下发。 */
     difficulty_level?: string | null;
   } | null;

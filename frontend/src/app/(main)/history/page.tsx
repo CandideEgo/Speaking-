@@ -21,6 +21,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { formatTimeSpent } from "@/lib/date";
@@ -409,6 +410,7 @@ function RecordRow({ record }: { record: LearningRecord }) {
         ) : (
           <p className="text-copy font-semibold leading-snug text-ink">未知视频</p>
         )}
+        {record.video && <VideoMetadata video={record.video} className="mt-1" />}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted">
           {record.video?.channel_name && <span>{record.video.channel_name}</span>}
           <DifficultyBadge level={record.video?.difficulty_level} size="sm" />

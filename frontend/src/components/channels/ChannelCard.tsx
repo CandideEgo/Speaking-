@@ -95,7 +95,7 @@ export function ChannelCard({
   const facts = [
     formatCollectedVideos(channel.video_count),
     channel.subscriber_count != null
-      ? `${formatCount(Math.max(0, channel.subscriber_count + Number(isSubscribed) - Number(subscribed)))} 人订阅`
+      ? `${formatCount(Math.max(0, channel.subscriber_count + Number(isSubscribed) - Number(channel.is_subscribed ?? subscribed)))} 人订阅`
       : null,
     channel.total_view_count != null ? `${formatCount(channel.total_view_count)} 次本站播放` : null,
     difficulty ? `难度 ${difficulty}` : null,
