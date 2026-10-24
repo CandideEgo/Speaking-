@@ -24,6 +24,7 @@ export default function ListeningAttempt() {
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
   const values = useRef({ answers: {} as Record<string, string>, index: 0 });
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef<ListeningSession | null>(null);
   const key = `seeword-listening-draft:${id}`;
   const saveDraft = useCallback(async () => {
@@ -41,7 +42,14 @@ export default function ListeningAttempt() {
     queue.current = task;
     try {
       await task;
-      setSaveState("saved");
+      if (JSON.stringify(values.current) === JSON.stringify(snapshot)) {
+        setSaveState("saved");
+        try {
+          localStorage.removeItem(`seeword-listening-draft:${id}`);
+        } catch {
+          /* Server copy is already saved. */
+        }
+      }
     } catch (e) {
       setSaveState("error");
       throw e;
@@ -61,6 +69,20 @@ export default function ListeningAttempt() {
         } catch {
           /* Browser storage may be unavailable; server drafts remain available. */
         }
+        if (
+          local &&
+          (!local.answers ||
+            typeof local.answers !== "object" ||
+            Array.isArray(local.answers) ||
+            !Number.isFinite(local.index) ||
+            Object.entries(local.answers).some(
+              ([qid, value]) =>
+                !data.questions.some((q) => q.id === qid) ||
+                typeof value !== "string" ||
+                value.length > 2000
+            ))
+        )
+          local = null;
         const state =
           !data.submitted_at && local
             ? local
@@ -89,6 +111,7 @@ export default function ListeningAttempt() {
     const timer = setTimeout(() => {
       void saveDraft().catch(() => {});
     }, 650);
+    autosaveTimer.current = timer;
     return () => clearTimeout(timer);
   }, [answers, index, key, session, saveDraft]);
   useEffect(
@@ -101,14 +124,25 @@ export default function ListeningAttempt() {
     const next = { ...values.current.answers, [question!.id]: value };
     values.current = { ...values.current, answers: next };
     setAnswers(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(values.current));
+    } catch {
+      /* Server autosave remains available. */
+    }
     setSaveState("saving");
   }
   function go(next: number) {
     values.current = { ...values.current, index: next };
     setIndex(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(values.current));
+    } catch {
+      /* Server autosave remains available. */
+    }
   }
   async function submit() {
     if (busy) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     setBusy(true);
     try {
       await saveDraft();
