@@ -102,6 +102,46 @@ async def test_draft_resume_grade_and_idempotence(client, auth_headers, db_sessi
     assert restarted["id"] != sid
 
 
+async def test_restart_does_not_accumulate_pending_sessions(client, auth_headers, db_session):
+    """restart=true must replace the unfinished session, not orphan it.
+
+    Unbounded POST /listening/sessions with restart=true used to grow the table
+    without limit; the old pending row is now deleted before the new one is
+    created.
+    """
+    video = await seed(db_session)
+    me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+    first = (await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id})).json()
+    second = (
+        await client.post(
+            "/api/v1/listening/sessions",
+            headers=auth_headers,
+            json={"video_id": video.id, "restart": True},
+        )
+    ).json()
+    assert second["id"] != first["id"]
+
+    total = await db_session.scalar(
+        select(func.count()).select_from(ListeningSession).where(ListeningSession.user_id == me["id"])
+    )
+    assert total == 1
+
+
+async def test_sessions_list_uses_the_standard_pagination_envelope(client, auth_headers, db_session):
+    video = await seed(db_session)
+    await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id})
+    await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id, "restart": True})
+
+    resp = await client.get("/api/v1/listening/sessions?page=1&page_size=1", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["page"] == 1
+    assert body["page_size"] == 1
+    assert body["total"] == 1
+    assert body["has_more"] is False
+    assert len(body["items"]) == 1
+
+
 async def test_foreign_session_and_invalid_answers(client, auth_headers, db_session):
     video = await seed(db_session)
     stranger = User(phone="13888888123", hashed_password="not-used")

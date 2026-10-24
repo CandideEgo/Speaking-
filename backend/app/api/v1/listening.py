@@ -1,15 +1,17 @@
 """Authenticated listening catalog, durable drafts and server-side grading."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.errors import UnprocessableEntityError
+from app.core.limiter import rate_limit
 from app.models.listening import ListeningSession
 from app.models.user import User
+from app.schemas.pagination import paginated
 from app.services import listening_service as service
 
 router = APIRouter(prefix="/listening", tags=["listening"])
@@ -27,7 +29,9 @@ class Draft(BaseModel):
 
 
 @router.get("/videos")
+@rate_limit("60/minute")
 async def videos(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=30),
     user: User = Depends(get_current_user),
@@ -37,53 +41,69 @@ async def videos(
 
 
 @router.get("/sessions")
+@rate_limit("60/minute")
 async def sessions(
-    page: int = Query(1, ge=1), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    total = int(
+        await db.scalar(select(func.count(ListeningSession.id)).where(ListeningSession.user_id == user.id)) or 0
+    )
     rows = list(
         (
             await db.execute(
                 select(ListeningSession)
                 .where(ListeningSession.user_id == user.id)
                 .order_by(ListeningSession.updated_at.desc())
-                .offset((page - 1) * 12)
-                .limit(13)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
             )
         ).scalars()
     )
-    return {
-        "items": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "total": len(s.questions),
-                "answered": sum(bool(a.strip()) for a in s.answers.values()),
-                "correct_count": s.correct_count,
-                "submitted_at": s.submitted_at.isoformat() if s.submitted_at else None,
-                "updated_at": s.updated_at.isoformat(),
-            }
-            for s in rows[:12]
-        ],
-        "has_more": len(rows) > 12,
-        "page": page,
-    }
+    items = [
+        {
+            "id": s.id,
+            "title": s.title,
+            "total": len(s.questions),
+            "answered": sum(bool(a.strip()) for a in s.answers.values()),
+            "correct_count": s.correct_count,
+            "submitted_at": s.submitted_at.isoformat() if s.submitted_at else None,
+            "updated_at": s.updated_at.isoformat(),
+        }
+        for s in rows
+    ]
+    return paginated(items, page=page, page_size=page_size, total=total)
 
 
 @router.post("/sessions")
-async def start(body: Start, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@rate_limit("20/minute")
+async def start(
+    request: Request, body: Start, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     session = await service.start(db, user, body.video_id, body.count, body.restart)
     await db.commit()
     return await service.payload(db, session, user)
 
 
 @router.get("/sessions/{session_id}")
-async def detail(session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@rate_limit("60/minute")
+async def detail(
+    request: Request, session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     return await service.payload(db, await service.owned_session(db, session_id, user.id), user)
 
 
 @router.put("/sessions/{session_id}")
+@rate_limit("60/minute")
 async def draft(
-    session_id: str, body: Draft, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    request: Request,
+    session_id: str,
+    body: Draft,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if any(len(a) > 2000 for a in body.answers.values()):
         raise UnprocessableEntityError("每句答案最多 2000 个字符")
@@ -94,7 +114,10 @@ async def draft(
 
 
 @router.post("/sessions/{session_id}/submit")
-async def submit(session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@rate_limit("20/minute")
+async def submit(
+    request: Request, session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     session = await service.owned_session(db, session_id, user.id, lock=True)
     await service.submit(db, session)
     await db.commit()

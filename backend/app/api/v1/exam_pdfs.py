@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 
 from app.api.dependencies import get_current_user
 from app.api.v1.media import _viewer_id_from_request
+from app.core.limiter import rate_limit
 from app.models.user import User
 from app.services import exam_pdf_service
 
@@ -29,7 +30,9 @@ _FILENAME_BAD = str.maketrans({c: "_" for c in '\\/:*?"<>|'})
 
 
 @router.get("")
+@rate_limit("60/minute")
 async def list_exam_pdfs(
+    request: Request,
     subject: str | None = Query(None, description="科目：cet4/cet6/kaoyan/tem4/tem8"),
     current_user: User = Depends(get_current_user),
 ):
@@ -39,6 +42,7 @@ async def list_exam_pdfs(
 
 
 @router.get("/{slug}/file")
+@rate_limit("60/minute")
 async def download_exam_pdf(slug: str, request: Request):
     """下载一份原卷 PDF。
 

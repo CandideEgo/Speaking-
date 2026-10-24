@@ -334,12 +334,17 @@ async def mark_as_read(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a single notification as read. Only the owner can do this."""
-    result = await db.execute(select(Notification).where(Notification.id == notification_id))
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+    )
     notification = result.scalar_one_or_none()
     if not notification:
+        # Same convention as the rest of the API: "not visible" == "not found",
+        # so a probe cannot distinguish someone else's id from a missing one.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
-    if notification.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your notification")
     notification.is_read = True
     await commit_refresh(db, notification)
     return notification

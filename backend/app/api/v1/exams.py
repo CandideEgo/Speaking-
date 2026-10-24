@@ -53,7 +53,9 @@ def _create_payload(session, questions: list) -> dict:
 
 
 @router.get("")
+@rate_limit("60/minute")
 async def list_exams(
+    request: Request,
     level: str | None = Query(default=None),
     year: int | None = Query(default=None, ge=1900, le=2200),
     status: Literal["all", "unsubmitted", "submitted"] = Query(default="all"),
@@ -92,7 +94,9 @@ async def start_daily_check(
 
 
 @router.get("/wrong")
+@rate_limit("60/minute")
 async def list_wrong_questions(
+    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -120,7 +124,9 @@ async def redo_wrong_questions(
 
 
 @router.get("/stats")
+@rate_limit("60/minute")
 async def get_exam_stats(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -129,7 +135,9 @@ async def get_exam_stats(
 
 
 @router.get("/attempts")
+@rate_limit("60/minute")
 async def list_attempts(
+    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -141,7 +149,9 @@ async def list_attempts(
 
 
 @router.get("/attempts/{session_id}")
+@rate_limit("60/minute")
 async def get_attempt(
+    request: Request,
     session_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -201,7 +211,9 @@ async def submit_attempt(
 
 
 @router.get("/{paper_id}", response_model=ExamPaperDetail)
+@rate_limit("60/minute")
 async def get_exam_paper(
+    request: Request,
     paper_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

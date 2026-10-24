@@ -271,3 +271,10 @@
 - `_security_headers()` 抽成模块级函数，安全头中间件与 `_unhandled_exception_handler` 共用：500 响应也带 `X-Content-Type-Options` / `X-Frame-Options` / `Referrer-Policy` / `Permissions-Policy`（生产再加 HSTS/CSP）。
 - `decode_token` 同时 catch `InvalidKeyError`（PyJWT 2.13 中与 `InvalidTokenError` 是兄弟类），空 key 不再变成 500。
 - 重写 `test_ai_cache.py` 3 项（同语境缓存 + TTL≈7 天、不同语境两个 key、失败仍抛错）；`test_error_envelope` 断言 500 安全头；`test_auth` 新增空 key decode 断言；共 16 项通过；全量后端 1376 passed / 16 skipped。
+
+### 写接口限流、通知 404 语义与听写分页（BE-22 / BE-27）
+
+- listening 6 条、exams 缺的 6 条、exam_pdfs 2 条、discovery 7 条全部补 `request: Request` + `@rate_limit`（写 10–20/min、读 60/min）；`/listening/sessions` 的 `restart=true` 现在先删除旧 pending 再建新会话，同 (user, video) 最多 1 条未提交，不能再用 restart 无限增长表。
+- `mark_as_read` 合并为带 `user_id` 条件的查询，他人通知与不存在统一 404（不再暴露 id 存在性）。
+- listening 会话列表改用标准分页 `page/page_size/total/has_more`（默认 page_size 仍 12），前端 `{items, has_more}` 兼容。
+- `test_listening_api` 新增 2 项（restart 后只有 1 条、分页字段齐全）；`test_notifications` 他人通知断言改 404；exams/listening/search/notifications 共 83 项通过；限流在 testing 下 no-op，未做 429 实测；全量后端 1378 passed / 16 skipped。

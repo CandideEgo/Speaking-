@@ -222,7 +222,9 @@ class TestMarkAsRead:
             nid = n.id
 
         resp = await client.patch(f"/api/v1/notifications/{nid}/read", headers=auth_headers)
-        assert resp.status_code == 403
+        # "not visible" == "not found": a probe cannot tell someone else's id
+        # apart from a missing one.
+        assert resp.status_code == 404
 
     async def test_mark_nonexistent_returns_404(self, client: AsyncClient, auth_headers: dict):
         resp = await client.patch("/api/v1/notifications/nonexistent/read", headers=auth_headers)

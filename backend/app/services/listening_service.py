@@ -109,8 +109,12 @@ async def start(db: AsyncSession, user: User, video_id: str, count: int, restart
         .scalars()
         .first()
     )
-    if pending and not restart:
-        return pending
+    if pending:
+        if not restart:
+            return pending
+        # Restart must not accumulate orphan pending sessions: one user/video
+        # used to be able to create unbounded unsubmitted rows via restart=true.
+        await db.delete(pending)
     cues = list(
         (
             await db.execute(
